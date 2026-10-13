@@ -21,12 +21,14 @@ Princípio: **o núcleo é desenhado e migrado na etapa 3; cada módulo ganha mi
 ## Regras financeiras (valem do banco ao dashboard)
 - `valor` sempre positivo; o `tipo` define o efeito.
 - **Saldo da conta** = saldo inicial + receitas pagas − despesas pagas ± transferências pagas, com `data do saldo inicial <= data <= data de referência`. O saldo inicial é o saldo **no início do dia** da data de abertura; o dia da abertura conta.
+- **Saldo total** soma todas as contas abertas até a data de referência, ativas ou não.
+- **Receita e despesa exigem categoria** (existe "Sem categoria" por tipo); transferência não tem categoria — garantido por `CHECK` no banco.
 - **Receitas/despesas do período** contam só `status = paid` e **excluem transferências**.
 - **Planejado** (`planned`) aparece à parte e nunca entra em saldo, receita ou despesa realizados.
 - **Orçamento** vale só para categoria de despesa de nível raiz e consome apenas despesas `paid` dela e de suas subcategorias no mês. A restrição é garantida pelo banco (ver `MODELO-DE-DADOS.md`, seção 3).
 - **Retroativos/edições:** saldos e relatórios são sempre **derivados** das movimentações (nunca gravados), então editar ou excluir recalcula tudo de forma consistente. **Receitas e despesas anteriores à data do saldo inicial são permitidas** (histórico legítimo; transferências, não — ver abaixo): entram em relatórios e orçamentos do seu período, mas **não alteram o saldo da conta**, que parte do saldo inicial na data informada. A tela avisa isso ao salvar. Para que o histórico também reflita no saldo, o usuário recua a data do saldo inicial e ajusta o valor.
-- Contas com histórico são desativadas, nunca apagadas. Categorias idem.
-- Transferência: origem ≠ destino; ambas ativas e da mesma família; **data não anterior à abertura de nenhuma das duas contas** (validado por constraint/trigger). Assim uma transferência nunca altera o total de saldos. *(Proposta aguardando aprovação: decisão 8 em `MODELO-DE-DADOS.md`.)*
+- Contas com histórico são desativadas, nunca apagadas. Categorias idem. **`active = false` só impede novas movimentações:** a conta desativada continua nos saldos, nos totais e nas consultas históricas (ver `MODELO-DE-DADOS.md`, seção 4.4).
+- Transferência: origem ≠ destino; ambas da mesma família e ativas ao criar (conta desativada não recebe novas movimentações); **data não anterior à abertura de nenhuma das duas contas** (validado por constraint/trigger). Assim uma transferência nunca altera o total de saldos. *(Aprovado: decisão 8 em `MODELO-DE-DADOS.md`.)*
 - **Importação:** hashes indicam *possíveis* duplicidades e nunca descartam lançamentos automaticamente; há prévia, relatório de conflitos e confirmação antes de gravar (`MODELO-DE-DADOS.md`, seção 8). O formato do Organizze ainda é **pendente de amostra**.
 
 ## Regras dos módulos novos
@@ -39,7 +41,7 @@ Princípio: **o núcleo é desenhado e migrado na etapa 3; cada módulo ganha mi
 ## Plano por etapas
 1. **Estrutura e design system** — *feito nesta entrega*
 2. Conexão com Supabase (cliente + variáveis; projeto a ser criado por você)
-3. Migrations versionadas do **núcleo** (`supabase/migrations`: famílias, contas, categorias, lançamentos, orçamentos) + RLS + testes de isolamento e de saldo. Módulos têm migrations próprias nas etapas 9–12. **Só começa depois da aprovação de `docs/MODELO-DE-DADOS.md`.**
+3. Migrations versionadas do **núcleo** (`supabase/migrations`: famílias, contas, categorias, lançamentos, orçamentos) + RLS + testes de isolamento e de saldo. Módulos têm migrations próprias nas etapas 9–12. Desenho aprovado em 13/10/2026; o plano da primeira migration está em `docs/MIGRATION-001-PLANO.md` e **só é implementado após sua autorização**.
 4. Autenticação e espaço familiar (criar família, convidar membro)
 5. Contas, categorias e lançamentos (CRUD, filtros, confirmação de exclusão)
 6. Cálculos financeiros (SQL) e dashboard
@@ -48,7 +50,7 @@ Princípio: **o núcleo é desenhado e migrado na etapa 3; cada módulo ganha mi
 9. Cartões, faturas e parcelamentos
 10. Dívidas e empréstimos
 11. Investimentos
-12. Patrimônio líquido e importação (Organizze e extratos; formato a confirmar com amostra real). *Pode ser antecipada para depois da etapa 6 se você preferir migrar o histórico do Organizze antes dos módulos — decisão 14 em `MODELO-DE-DADOS.md`.*
+12. Patrimônio líquido e importação (Organizze e extratos; formato a confirmar com amostra real). *Decisão 14 (aprovada): a importação do Organizze é antecipada para depois de o núcleo estar estável (etapas 5 e 6 concluídas e testadas), e só depois de analisarmos a amostra real.*
 
 Antes da etapa 5, um PR próprio converte `src/lib/format.ts` para centavos inteiros, com testes.
 

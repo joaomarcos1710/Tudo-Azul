@@ -1,9 +1,11 @@
-# Modelo de dados e segurança — Etapa 3 (proposta para revisão, v2)
+# Modelo de dados e segurança — Etapa 3 (v3, decisões aprovadas)
 
-> **Status:** proposta. Nada foi gravado no banco e **nenhuma migration existe**. Este documento valida relações, permissões e regras de saldo **antes** da primeira migration.
+> **Status:** desenho aprovado em 13/10/2026 (decisões 1–14, seção 10). Nada foi gravado no banco e **nenhuma migration existe**. O plano da primeira migration está em [`MIGRATION-001-PLANO.md`](MIGRATION-001-PLANO.md) e **aguarda sua autorização** para ser implementado.
 > Os trechos de SQL são esboços para discutir o desenho, não migrations finais.
 >
-> **v2 (13/10/2026):** revisão após a análise do ChatGPT. Mudanças: (1) plano e este documento alinhados; (2) semântica formal de `initial_balance`/`opening_date` e nova regra para transferências; (3) integridade completa de `budgets` e `categories`; (4) seção de precisão monetária; (5) importação com detecção de *possíveis* duplicidades, nunca descarte automático; (6) casos de teste explícitos; (7) novas decisões abertas.
+> **v2 (13/10/2026):** plano e documento alinhados; semântica de `initial_balance`/`opening_date`; transferências; `budgets`; precisão monetária; duplicidades na importação; casos de teste.
+>
+> **v3 (13/10/2026):** (1) **`active` passou a controlar só novas movimentações**; contas desativadas continuam nos saldos e nas consultas históricas, e a regra de conservação soma todas as contas abertas até a data (seção 4.4); (2) categoria obrigatória em receita/despesa por `CHECK` explícito e categoria de sistema "Sem categoria"; (3) decisões 1–14 registradas com as definições aprovadas; (4) `ON DELETE NO ACTION` em vez de `RESTRICT` (ver seção 3); (5) testes de contas desativadas, categoria obrigatória e ciclo PostgREST.
 
 ## 1. Princípios
 
@@ -22,23 +24,28 @@ Tipos: valores em `numeric(14,2)`; datas em `date`; identificadores `uuid`; text
 | Tabela | Colunas principais | Restrições importantes |
 |---|---|---|
 | `profiles` | `id` (= `auth.users.id`), `name`, `created_at` | Criada por trigger no cadastro |
-| `households` | `id`, `name`, `created_by`, `created_at` | — |
-| `household_members` | `id`, `household_id`, `user_id`, `role` (`owner`/`member`), `joined_at` | `UNIQUE (household_id, user_id)`; deve existir sempre ao menos 1 `owner` |
-| `invitations` | `id`, `household_id`, `email`, `token_hash`, `role`, `expires_at`, `accepted_at`, `invited_by` | Token guardado só como hash; uso único; validade de 7 dias |
-| `accounts` | `id`, `household_id`, `name`, `type` (`checking`/`savings`/`cash`/`other`), `initial_balance`, `opening_date`, `active`, `created_at` | `UNIQUE (household_id, id)`; semântica de saldo na seção 4 |
-| `categories` | `id`, `household_id`, `name`, `type` (`income`/`expense`), `parent_id`, `color`, `icon`, `active` | `UNIQUE (household_id, id, type)`; só 1 nível; filha tem o **mesmo tipo** da mãe (seção 3) |
+| `households` | `id`, `name`, `member_limit` (padrão 2), `created_by`, `created_at` | `member_limit` só é alterável por quem administra o banco (cliente não escreve) |
+| `household_members` | `id`, `household_id`, `user_id`, `role` (`owner`/`member`), `joined_at` | `UNIQUE (household_id, user_id)`; `UNIQUE (user_id)` na v1 (um usuário, uma família — ponto N1); deve existir sempre ao menos 1 `owner` |
+| `invitations` | `id`, `household_id`, `email`, `token_hash`, `role`, `expires_at`, `accepted_at`, `invited_by` | Token guardado só como hash; uso único; validade de 7 dias; só convida `member` |
+| `accounts` | `id`, `household_id`, `name`, `type` (`checking`/`savings`/`cash`/`other`), `initial_balance`, `opening_date`, `active`, `created_at` | `UNIQUE (household_id, id)`; **`active` só controla novas movimentações** (seção 4.4); semântica de saldo na seção 4 |
+| `categories` | `id`, `household_id`, `name`, `type` (`income`/`expense`), `parent_id`, `system_key`, `color`, `icon`, `active` | `UNIQUE (household_id, id, type)`; só 1 nível; filha tem o **mesmo tipo** da mãe; `system_key = 'uncategorized'` marca "Sem categoria" (seção 3) |
 | `transactions` | `id`, `household_id`, `account_id`, `destination_account_id`, `category_id`, `type` (`income`/`expense`/`transfer`), `description`, `amount`, `date`, `status` (`paid`/`planned`), `notes`, `created_by`, `created_at`, `updated_at`, `deleted_at` | Seções 3 e 4 |
 | `budgets` | `id`, `household_id`, `category_id`, **`category_type`**, `month`, `amount_limit`, `created_at` | `UNIQUE (household_id, category_id, month)`; `month` sempre dia 1; **só categoria de despesa e de nível raiz** (seção 3) |
 
 ### Regras em `transactions`
 ```sql
 amount numeric(14,2) not null check (amount > 0),
--- transferência exige destino diferente da origem e não tem categoria
-check ( (type = 'transfer' and destination_account_id is not null
-         and destination_account_id <> account_id and category_id is null)
-     or (type <> 'transfer' and destination_account_id is null) )
+-- transferência: destino diferente da origem e SEM categoria.
+-- receita/despesa: SEM destino e COM categoria (decisão 10: restrição explícita)
+constraint transactions_shape check (
+     (type = 'transfer' and destination_account_id is not null
+        and destination_account_id <> account_id and category_id is null)
+  or (type in ('income','expense') and destination_account_id is null
+        and category_id is not null) )
 ```
 Uma transferência é **uma única linha** (origem + destino). Assim as duas pontas nunca ficam inconsistentes, e as duas contas são ajustadas pela mesma regra de saldo.
+
+**Precisão exata na entrada (ponto N2).** `numeric(14,2)` **arredonda em silêncio** um valor com mais de duas casas enviado direto à API (`1.005` vira `1.01`). Proposta: `amount`, `initial_balance` e `amount_limit` como `numeric` com `CHECK (scale(x) <= 2 and abs(x) < 1e12)`, que **recusa** em vez de arredondar. Os totais continuam exatos. Os testes M8–M9 confirmam o comportamento antes da migration final.
 
 ## 3. Integridade (chaves estrangeiras compostas e triggers)
 
@@ -69,14 +76,17 @@ foreign key (household_id, category_id, category_type)
 | Subcategoria só até 1 nível (a mãe não pode ter mãe) | trigger em `categories` |
 | Orçamento só em categoria **raiz** (`parent_id is null`); a subcategoria entra na soma da mãe | trigger em `budgets` |
 | O `type` de uma categoria não muda enquanto houver referência | já garantido pela própria FK (chave referenciada `NO ACTION`) |
-| Transferência: data não anterior ao `opening_date` de **nenhuma** das contas; ambas ativas | trigger em `transactions` (seção 4) |
-| Mudar `opening_date` de uma conta não pode deixar transferência anterior à nova data | trigger em `accounts` (seção 4) |
+| Transferência: data não anterior ao `opening_date` de **nenhuma** das contas | trigger em `transactions` (seção 4.2) |
+| Nova movimentação (inserir, restaurar da lixeira, trocar a conta) só em conta **ativa** | trigger em `transactions` (seção 4.4) |
+| Mudar `opening_date` de uma conta não pode deixar transferência anterior à nova data | trigger em `accounts` (seção 4.2) |
+| Desativar conta com lançamento **planejado** em aberto | trigger em `accounts` recusa (seção 4.4) |
+| Categoria "Sem categoria": uma por tipo e por família; não pode ser renomeada, desativada, movida, excluída nem ter filhas | índice único parcial + trigger em `categories` |
 
-Os triggers leem as contas com `FOR SHARE` (e o de `accounts` bloqueia a linha) para que duas transações simultâneas não furem a regra.
+Os triggers leem as contas com `FOR SHARE`; as atualizações em `accounts` tomam o bloqueio exclusivo da linha. Assim, duas transações simultâneas não furam a regra (uma espera a outra).
 
-Colunas nulas não disparam a verificação da FK (`MATCH SIMPLE`), então transferências (sem categoria) passam normalmente. Consequência: a FK sozinha **não obriga** receita/despesa a ter categoria — ver decisão 10.
+**Categoria obrigatória (decisão 10).** Colunas nulas não disparam a verificação da FK (`MATCH SIMPLE`), então a FK sozinha aceitaria receita sem categoria. Por isso a obrigatoriedade é o `CHECK transactions_shape` (seção 2), que não depende da FK. A importação usa "Sem categoria" como destino padrão do tipo correspondente.
 
-Exclusão: `ON DELETE RESTRICT` em contas e categorias. Quem tem histórico é **desativado** (`active = false`), nunca apagado.
+**Exclusão.** `ON DELETE NO ACTION` (o padrão) em contas e categorias, **não** `RESTRICT`: o `RESTRICT` é verificado na hora e impediria excluir uma família inteira, em que lançamentos e contas saem na mesma instrução. `NO ACTION` é verificado ao fim da instrução e continua barrando a exclusão isolada de quem tem histórico. Quem tem histórico é **desativado** (`active = false`), nunca apagado. Lançamentos nunca são apagados pelo cliente: vão para a lixeira (`deleted_at`); não há limpeza automática na v1 (ponto N4).
 
 ## 4. Regra de saldo (única fonte de verdade)
 
@@ -118,20 +128,20 @@ as $$
   group by a.id, a.active, a.initial_balance
 $$;
 ```
-`security invoker` faz a função respeitar o RLS de quem chama.
+`security invoker` faz a função respeitar o RLS de quem chama. A função **não filtra por `active`**: devolve todas as contas abertas até `p_as_of`, com a coluna `active` para a tela separar.
 
 ### 4.2 Transferências entre contas com `opening_date` diferentes (revisão)
 
 **Problema da v1.** Cada ponta seguia a regra da própria conta. Uma transferência anterior à abertura da conta de destino debitava a origem e **não creditava** o destino: o dinheiro sumia do total. A v1 aceitava isso e só prometia "avisar na tela". Medido em um modelo de referência com 3 contas e 10 transferências aleatórias, essa regra violou a conservação em **2.479 de 3.000** cenários. Não é um caso de canto.
 
-**Regra da v2 (recomendada, aguarda sua aprovação — decisão 8):**
-> Uma transferência exige `date >= opening_date` das **duas** contas e as duas ativas. Caso contrário o banco **rejeita** com mensagem clara.
+**Regra (aprovada — decisão 8):**
+> Uma transferência exige `date >= opening_date` das **duas** contas. Caso contrário o banco **rejeita** com mensagem clara.
 
-Aplica-se a lançamentos não excluídos, em qualquer `status`, na criação, na edição e na **restauração da lixeira**. Em contrapartida:
+Aplica-se a lançamentos não excluídos, em qualquer `status`, na criação, na edição e na **restauração da lixeira**. A condição de contas ativas é tratada separadamente, na seção 4.4. Em contrapartida:
 - **Receita e despesa anteriores à abertura continuam permitidas** (decisão sua, v1): entram em relatórios e orçamentos do mês, mas não alteram o saldo; a tela avisa ao salvar.
 - **Mudar `opening_date` de uma conta** é uma operação explícita: a tela mostra o efeito sobre o saldo antes de confirmar, e o banco recusa se algum lançamento de transferência ficaria anterior à nova data.
 
-**Propriedade que a regra garante (invariante testável).** Para qualquer data D:
+**Propriedade que a regra garante (invariante testável).** Para qualquer data D, considerando **todas** as contas com `opening_date <= D`, **ativas ou não**:
 ```
 Σ saldos(D) = Σ initial_balance das contas abertas até D
             + Σ (receitas pagas − despesas pagas) com opening_date_da_conta <= date <= D
@@ -139,10 +149,47 @@ Aplica-se a lançamentos não excluídos, em qualquer `status`, na criação, na
 Ou seja, **só receita e despesa mudam o total; transferência nunca muda**. Validado em modelo de referência (centavos inteiros) em 3.000 cenários aleatórios com contas, aberturas, lançamentos excluídos e planejados. Isso é **prova no modelo, não prova no banco**: o teste pgTAP T-INV repete a propriedade contra a função SQL real.
 
 ### 4.3 Regras decorrentes (precisam estar claras na tela)
-- **Saldo total do dashboard** = soma de `account_balances` apenas das contas `active`, na data selecionada.
+- **Saldo total** = soma de `account_balances` de **todas** as contas com `opening_date <= D`, **inclusive as desativadas** (correção da v3; ver 4.4). O dashboard mostra o total e, abaixo dele, o detalhe "contas ativas" e "contas desativadas com saldo". A soma é feita pela função `balance_totals`, não no front.
 - **Conta que ainda não existia na data D** (`opening_date > D`) não aparece no resultado. O total histórico antes da abertura, portanto, não inclui o `initial_balance` dela.
 - **Planejado (`planned`)** nunca entra em saldo, receita ou despesa realizados. Aparece em totais separados.
 - **Recuar o `opening_date`** para que o histórico entre no saldo exige ajustar o `initial_balance` junto (a tela guia isso e mostra o saldo antes/depois).
+
+### 4.4 Contas desativadas (correção da v3)
+
+**Inconsistência da v2.** A regra de conservação somava todas as contas, mas o dashboard somava só as `active`. Uma conta desativada com saldo ≠ 0 fazia o total "perder" dinheiro. No modelo de referência, somar só as ativas divergiu da fórmula em **2.203 de 3.000** cenários; somar todas as contas abertas até D conservou em **3.000 de 3.000**.
+
+**Definição.** `active` controla **apenas a possibilidade de novas movimentações**. Não tira a conta de nenhum cálculo, histórico ou relatório.
+
+| Operação | Conta ativa | Conta desativada |
+|---|---|---|
+| Aparecer em `account_balances` e nos totais | sim | **sim** (a coluna `active` vem no resultado) |
+| Consulta histórica (data passada) | sim | **sim** |
+| Inserir lançamento (qualquer tipo/status), em qualquer ponta de transferência | sim | **não** |
+| Restaurar da lixeira lançamento dessa conta | sim | **não** |
+| Trocar o lançamento *para* essa conta | sim | **não** |
+| Editar lançamento já existente (descrição, categoria, valor, data) | sim | **sim** (corrigir histórico é legítimo) |
+| Mover para a lixeira | sim | sim |
+| Desativar | sim, **se não houver lançamento planejado em aberto** | — |
+| Reativar | — | sim |
+
+Pontos de atenção:
+- **Desativar conta com saldo ≠ 0** é permitido, mas a tela avisa ("esta conta ainda tem R$ X") e o saldo continua no total. Isso é intencional: o dinheiro existe.
+- **Desativar com lançamento planejado em aberto é recusado**, para não sobrar um planejado que nunca poderá virar pago. O usuário exclui ou reatribui antes (ponto N3).
+- Editar o valor/data de um lançamento antigo de conta desativada **altera o saldo histórico**, como em qualquer conta. A regra de transferência (4.2) continua valendo na edição.
+
+```sql
+-- dashboard: totais calculados no banco, nunca somados no navegador
+create function public.balance_totals(p_household uuid, p_as_of date)
+returns table (total numeric, total_active numeric, total_inactive numeric)
+language sql stable security invoker set search_path = ''
+as $$
+  select coalesce(sum(balance), 0),
+         coalesce(sum(balance) filter (where active), 0),
+         coalesce(sum(balance) filter (where not active), 0)
+  from public.account_balances(p_household, p_as_of)
+$$;
+-- invariante: total = total_active + total_inactive, sempre.
+```
 
 ### Resumo do período e orçamento
 - `period_summary(household, from, to)` retorna receitas e despesas **realizadas** (`paid`), o resultado, e os valores **planejados** ainda não pagos. **Transferências ficam de fora.**
@@ -191,8 +238,9 @@ Base: práticas atuais da documentação do Supabase.
 - `created_by` tem `default auth.uid()` e a policy de `insert` exige `created_by = auth.uid()`.
 - **Índices** em todas as colunas usadas por policies (`household_id`, `user_id`).
 - **Nada de `user_metadata`** em autorização (o usuário pode alterá-lo).
-- **Cliente não escreve em `household_members`.** Só funções (RPC) validadas: `create_household(name)`, `create_invitation(email)`, `accept_invitation(token)`, `remove_member(user_id)`. Cada uma checa `auth.uid()` internamente. `create_household` cria a família, o vínculo `owner` e as categorias padrão **numa única transação**.
+- **Cliente não escreve em `household_members` nem em `invitations`.** Só funções (RPC) validadas: `create_household(name)`, `create_invitation(email)`, `accept_invitation(token)`, `remove_member(user_id)`, `leave_household()`, `delete_household(id)`. Cada uma checa `auth.uid()` internamente. `create_household` cria a família, o vínculo `owner` e as categorias padrão (incluindo as duas "Sem categoria") **numa única transação**.
 - Views e funções de relatório com `security invoker` (`security_invoker = true` nas views).
+- **Privilégios de execução** (nada de `EXECUTE` para `PUBLIC` ou `anon`; só uma lista explícita para `authenticated`), **privilégios de coluna** (o cliente não altera `household_id`, `created_by`, `member_limit`, `token_hash`) e a matriz completa de policies estão em [`MIGRATION-001-PLANO.md`](MIGRATION-001-PLANO.md).
 
 ### Permissões
 | Ação | Owner | Member |
@@ -213,7 +261,12 @@ Base: práticas atuais da documentação do Supabase.
 2. **Criar o usuário dela manualmente** no painel (*Authentication → Users → Add user*, com confirmação automática). Funciona hoje, sem e-mail, mas a recuperação de senha dela continuaria sem funcionar até haver SMTP.
 3. **Não** adicioná-la como membro da organização do Supabase só para receber e-mail: isso daria acesso ao painel do projeto.
 
-**Convite dentro do app:** o dono gera um **link com token** (guardado só como hash, uso único, 7 dias) e **você o envia por WhatsApp**. O fluxo não depende de e-mail. O aceite vincula o usuário já cadastrado à família.
+**Convite dentro do app:** o dono gera um **link com token** (guardado só como hash, uso único, 7 dias) e **você o envia por WhatsApp**. O fluxo não depende de e-mail. O aceite vincula o usuário já cadastrado à família, e só funciona se o e-mail da conta que aceita for o e-mail do convite (assim um link vazado não serve a outra pessoa — ponto N5).
+
+**Decisões 6 e 7 (aprovadas):**
+1. A segunda conta é criada **de forma controlada** (painel, *Authentication → Users → Add user*, com confirmação automática) como solução **transitória**.
+2. **SMTP próprio** deve estar configurado **antes** de qualquer fluxo depender de recuperação de senha por e-mail.
+3. O cadastro público é **fechado depois** que as duas contas existirem; não fica aberto indefinidamente. Criar usuário pelo painel continua funcionando com o cadastro fechado.
 
 ## 8. Importação e prevenção de duplicidades
 
@@ -239,7 +292,7 @@ Um *fingerprint* (hash) **sinaliza possível duplicidade; nunca descarta lançam
 4. **Contagem por fingerprint** (evita descartar a repetida legítima): se o arquivo tem `n` linhas com o fingerprint F e o banco já tem `m`, as primeiras `min(n, m)` (na ordem do arquivo) aparecem como *possíveis duplicatas* e as `n − m` restantes como *novas*.
 5. **Prévia e confirmação**: contagens por classe, lista filtrável, efeito projetado sobre o saldo de cada conta. *Possíveis duplicatas* chegam **desmarcadas**, mas você pode marcá-las. Nada é gravado antes do botão de confirmar.
 6. **Gravação**: uma RPC (`security invoker`, RLS ativo) recebe **somente as linhas confirmadas**, **revalida tudo no servidor** (tipos, limites, contas da própria família, limite de linhas por lote) e grava **em uma única transação**: uma linha inválida cancela o lote inteiro.
-7. **Conferência de saldo**: você informa o saldo que o Organizze mostra por conta numa data; o app compara com `account_balances`. Se bater, o lote fica `checked`. Se não bater, mostra a **diferença** e o lote continua *não conferido*, com o botão **desfazer lote** (exclusão lógica por `import_batch_id`).
+7. **Conferência de saldo** (decisão 13): você informa o saldo que o Organizze mostra por conta numa data; o app compara com `account_balances`. Se bater, o lote fica `checked`. Se **não** bater, o app avisa, mostra a **diferença** claramente, permite seguir e mantém o lote *não conferido*, com o botão **desfazer lote** (exclusão lógica por `import_batch_id`). **Um lote divergente nunca é marcado como reconciliado:** `checked` não é gravável pelo cliente; só a função de conferência no servidor o define, e apenas quando a diferença é exatamente zero.
 8. **`opening_date` e `initial_balance` na importação**: o app **propõe** `opening_date` = primeira data importada da conta e `initial_balance` = saldo informado menos o efeito líquido das linhas importadas, e **você confirma**. Assim o histórico importado entra no saldo e as transferências importadas respeitam a regra 4.2.
 9. **Transferências importadas**: como aparecem no arquivo (uma ou duas linhas) está **pendente da amostra**. Nunca se grava metade de uma transferência.
 
@@ -264,10 +317,39 @@ Valores em reais. Contas do cenário-base: **A** (`opening_date` 01/01/2026, `in
 | S12 | Restaurar a transferência da lixeira depois de S10 ter sido tentado | Aceita, pois a regra continua satisfeita |
 | S13 | Restaurar da lixeira uma transferência cuja data ficou anterior à abertura | **Rejeitada** na restauração |
 | S14 | Editar o valor de uma receita já existente | Saldo muda na hora; nada armazenado precisa ser corrigido |
-| S15 | Transferência para conta inativa | Rejeitada |
+| S15 | Transferência para conta desativada | Rejeitada (ver A3) |
 | S16 | Transferência com origem = destino | Rejeitada (CHECK) |
 | S17 | Receita com `amount` ≤ 0 | Rejeitada (CHECK) |
-| **T-INV** | Propriedade de conservação (seção 4.2) em cenários aleatórios, incluindo excluídos e planejados | `Σ saldos(D)` igual à fórmula em todos |
+| **T-INV** | Propriedade de conservação (seção 4.2) em cenários aleatórios, incluindo excluídos, planejados **e contas desativadas depois de terem movimento** | `Σ saldos(D)` de **todas** as contas abertas até D igual à fórmula em todos |
+
+### 9.1b Contas desativadas (A)
+Base: S3 já registrado (A = 900,00; B = 800,00 em 31/03).
+
+| ID | Cenário | Resultado esperado |
+|---|---|---|
+| A1 | Desativar B (sem planejados em aberto) e consultar o saldo em 31/03 | B continua em `account_balances` com 800,00 e `active = false` |
+| A2 | `balance_totals` em 31/03 após A1 | `total` = 1.700,00; `total_active` = 900,00; `total_inactive` = 800,00; `total = total_active + total_inactive` |
+| A3 | Inserir receita, despesa ou transferência (origem **ou** destino) em B desativada | Rejeitado em todos os casos |
+| A4 | Restaurar da lixeira um lançamento de B desativada | Rejeitado |
+| A5 | Trocar o lançamento de A para B desativada | Rejeitado |
+| A6 | Editar o valor de um lançamento já existente em B desativada | Aceito; saldo histórico de B muda |
+| A7 | Desativar uma conta com lançamento planejado em aberto | Rejeitado, com mensagem pedindo para excluir ou reatribuir |
+| A8 | Reativar B e inserir um lançamento | Aceito |
+| A9 | Consulta histórica (28/02) depois de desativar B | B ausente por ainda não existir (`opening_date` 01/03); A presente |
+| A10 | Desativar conta com saldo ≠ 0 | Aceito; a tela avisa; saldo permanece no total |
+| A11 | Dois usuários simultâneos: um insere lançamento em B, outro desativa B | Um espera o outro; nunca resulta em lançamento novo numa conta desativada (teste com duas sessões) |
+
+### 9.1c Categoria obrigatória e "Sem categoria" (C)
+| ID | Cenário | Resultado esperado |
+|---|---|---|
+| C1 | Receita ou despesa com `category_id` nulo | Rejeitada pelo `CHECK transactions_shape` (independente da FK) |
+| C2 | Transferência com categoria | Rejeitada pelo `CHECK` |
+| C3 | `create_household` | Cria exatamente uma "Sem categoria" de receita e uma de despesa |
+| C4 | Criar uma segunda "Sem categoria" do mesmo tipo e família | Rejeitada (índice único parcial) |
+| C5 | Renomear, desativar, mover, excluir "Sem categoria" ou criar filha dela | Rejeitado |
+| C6 | Lançamento de despesa usando "Sem categoria" de **receita** | Rejeitado pela FK composta (tipo diferente) |
+| D1 | `delete_household` de uma família com contas desativadas, lançamentos na lixeira e as duas "Sem categoria" | Exclui tudo em cascata, sem ser barrado pelas guardas de "Sem categoria" nem pelas FKs |
+| F1 | Segundo vínculo do mesmo usuário em outra família (`create_household` ou aceitar convite) | Rejeitado (`UNIQUE (user_id)`) |
 
 ### 9.2 Orçamentos e categorias (B)
 | ID | Cenário | Resultado esperado |
@@ -293,8 +375,12 @@ Valores em reais. Contas do cenário-base: **A** (`opening_date` 01/01/2026, `in
 | M3 | Ida e volta de `"999.999.999.999,99"` (texto → centavos → string decimal → texto) | Idêntico ao original |
 | M4 | `"1.2.3"`, `"1250.5.0"`, `""`, `"abc"` | Recusados (continua como hoje) |
 | M5 | Envio ao banco de `125050` centavos | Corpo contém `"1250.50"` (string), nunca `1250.5` calculado por divisão |
-| M6 | Valor `numeric` retornado pelo PostgREST | Convertido sem perda para centavos (**confirmar o formato real no primeiro teste**) |
-| M7 | Soma SQL de `numeric(14,2)` com 100.000 linhas de `0,10` | `10.000,00` exato |
+| M6 | **Ciclo completo pelo PostgREST** (decisão 11): gravar `"1250.50"` (string), ler de volta e checar o tipo JSON recebido | Valor lido → centavos `125050` exatos; o teste **registra** se o PostgREST devolve número ou string |
+| M7 | Soma SQL de 100.000 linhas de `0,10` | `10.000,00` exato |
+| M8 | Gravar `"1.005"` (3 casas) direto pela API | Rejeitado (com `numeric` + `CHECK`). Com `numeric(14,2)` seria arredondado para `1.01` em silêncio: o teste existe para decidir o ponto N2 com evidência |
+| M9 | Gravar `"1000000000000.00"` (≥ 10¹²) e `"-5"` em `amount` | Rejeitados |
+| M10 | Ida e volta de `"999999999999.99"` pelo PostgREST | Idêntico; sem notação científica |
+| M11 | Ciclo gravar → editar → ler → lixeira → restaurar → ler | Valores idênticos em todas as leituras |
 
 ### 9.4 Importação (I) — dependem da amostra do Organizze para fixar o formato
 | ID | Cenário | Resultado esperado |
@@ -307,39 +393,54 @@ Valores em reais. Contas do cenário-base: **A** (`opening_date` 01/01/2026, `in
 | I6 | Falha no servidor ao gravar o lote | Nada gravado (transação única) |
 | I7 | Linha apontando para conta de outra família | RPC rejeita |
 | I8 | Lote acima do limite de linhas | RPC rejeita |
-| I9 | Saldo informado diverge do calculado | Lote *não conferido*, diferença exibida; botão desfazer lote |
+| I9 | Saldo informado diverge do calculado | Lote *não conferido*, diferença exibida, importação permitida, botão desfazer lote. **`checked` continua falso**, e tentar gravá-lo pelo cliente é recusado |
 | I10 | Desfazer lote | Lançamentos do lote vão para a lixeira; saldos voltam ao anterior; lançamentos manuais intactos |
 | I11 | Lote de A visto por membro de B | Invisível (RLS) |
 | I12 | Linha importada anterior ao `opening_date` da conta | Prévia propõe novo `opening_date`/`initial_balance` para confirmação; sem confirmar, receita/despesa não altera saldo e transferência é rejeitada |
 
-### 9.5 Isolamento (R) — já previstos
+### 9.5 Isolamento (R)
 `anon` não lê nem escreve em nenhuma tabela; membro da família A lê e escreve na A; não lê, altera nem apaga nada da B; inserir lançamento da A apontando para conta da B falha (FK composta). Repetido **para cada tabela**, incluindo `import_batches`.
 
-## 10. Decisões abertas (com recomendação)
+## 10. Decisões
 
-**Herdadas (1–7)**
+### 10.1 Aprovadas em 13/10/2026 (1–14)
 
-| # | Decisão | Recomendação |
+| # | Decisão aprovada | Onde está refletida |
 |---|---|---|
-| 1 | Permissões iguais para dados financeiros; só o owner gerencia membros | Sim, conforme a tabela da seção 6 |
-| 2 | Exclusão de lançamento: apagar de vez ou **lixeira** (`deleted_at`) | **Lixeira.** Com dois usuários, um apagar sem querer é plausível, e o saldo derivado não dá como recuperar. Custa um filtro nas funções |
-| 3 | Subcategorias | **1 nível** (categoria → subcategoria), garantido por trigger |
-| 4 | Categorias padrão | **Copiadas para cada família** na criação (editáveis e desativáveis), em vez de linhas globais |
-| 5 | Limite de membros por família | Sem limite no esquema; limite de **2** na função de convite (constante fácil de mudar) |
-| 6 | E-mail | Opção 1 (SMTP próprio) em médio prazo; opção 2 como solução imediata |
-| 7 | Cadastro aberto ou fechado | Aberto até ambos terem conta, depois fechado |
+| 1 | Permissões iguais para dados financeiros; **somente o owner** gerencia membros e configurações da família | Seção 6 |
+| 2 | **Lixeira** com exclusão lógica (`deleted_at`) | Seções 2, 3, 4 |
+| 3 | **Um** nível de subcategoria | Seção 3 |
+| 4 | Categorias padrão **copiadas para cada família** | `create_household` (seção 6) |
+| 5 | Limite inicial de **2 membros**, aplicado pela função de convite e fácil de alterar (`households.member_limit`) | Seção 2 |
+| 6 | Segunda conta criada **de forma controlada**, como solução transitória; **SMTP próprio antes** de depender de recuperação de senha por e-mail | Seção 7 |
+| 7 | Cadastro público **fechado depois** das duas contas; não fica aberto indefinidamente | Seção 7 |
+| 8 | **Rejeitar** transferência anterior à abertura de qualquer das contas | Seção 4.2 |
+| 9 | Orçamento **só em categoria raiz**, somando as subcategorias | Seção 3 |
+| 10 | **Categoria obrigatória** em receita e despesa; "Sem categoria" distinta por tipo; garantido por **`CHECK` explícito**, não só pela FK | Seções 2 e 3 |
+| 11 | **Centavos inteiros** no front e decimal exato no banco, com testes de leitura e escrita pelo PostgREST | Seção 5; testes M6–M11 |
+| 12 | Possíveis duplicidades **desmarcadas por padrão**; a decisão de importá-las é sua | Seção 8 |
+| 13 | Seguir após aviso de divergência, mas lote **não conferido**, diferença visível, reversão disponível e **nunca marcado como reconciliado** | Seção 8, passo 7 |
+| 14 | Importação do Organizze **depois de o núcleo estar estável** e **somente após analisarmos a amostra real** | `PLANO.md` etapa 12 |
 
-**Novas desta revisão (8–14)**
+Correção desta revisão, **registrada como alteração de regra**: `active` controla só novas movimentações; as contas desativadas continuam nos totais e nas consultas históricas (seção 4.4).
 
-| # | Decisão | Recomendação |
+**Sobre a decisão 14.** Defini "núcleo estável" como: etapas 5 e 6 concluídas (contas, categorias, lançamentos, saldos e dashboard) e todos os testes das seções 9.1–9.3 passando. Se você preferir esperar também orçamentos e relatórios (etapa 7), diga e eu ajusto o plano.
+
+### 10.2 Pontos novos que dependem da sua aprovação (N1–N5)
+
+Surgiram ao detalhar a migration. Nenhum altera as decisões aprovadas; todos têm uma recomendação.
+
+| # | Ponto | Recomendação |
 |---|---|---|
-| 8 | Transferência anterior à abertura de uma das contas | **Rejeitar** (seção 4.2). Alternativa: aceitar e exibir um aviso de que o total de saldos não conserva — **não recomendo**, pois cria divergência silenciosa |
-| 9 | Orçamento em subcategoria | **Só em categoria raiz**; subcategoria soma na mãe. Alternativa (orçamento por subcategoria) exige regra para não contar duas vezes |
-| 10 | Categoria obrigatória em receita/despesa | **Sim**, com "Sem categoria" (uma por tipo) criada junto com as categorias padrão — serve também de destino na importação. Sem isso, a FK composta aceita categoria nula |
-| 11 | Dinheiro no front como centavos inteiros (`Cents`), PR próprio antes da Etapa 5 | Sim (seção 5) |
-| 12 | Possíveis duplicatas na importação chegam **desmarcadas**, com confirmação | Sim. Alternativa: marcadas por padrão — mais rápido, porém arrisca duplicar |
-| 13 | Divergência de saldo após importar: bloqueia ou só avisa | **Só avisa** e deixa o lote *não conferido* com "desfazer lote", pois os dados já estão no banco e o desfazer é seguro |
-| 14 | Antecipar a importação do Organizze para logo depois da Etapa 6 (antes dos módulos) | **Sim, se a amostra chegar.** Dados reais são o melhor teste das regras de saldo, e você passa a usar o app sem manter dois sistemas. Custo: adia cartões e dívidas |
+| N1 | Um usuário pertence a **uma** família (`UNIQUE (user_id)` em `household_members`) | Sim na v1: simplifica a tela e as policies. Relaxar depois é uma migration pequena |
+| N2 | `numeric` + `CHECK (scale <= 2 and abs < 1e12)` em vez de `numeric(14,2)`, para **recusar** em vez de arredondar em silêncio valores com 3+ casas enviados direto à API | Sim. Os testes M8–M9 confirmam o comportamento antes de fechar |
+| N3 | Conta com lançamento planejado em aberto **não pode ser desativada**; edição de lançamento antigo de conta desativada é permitida | Sim (seção 4.4) |
+| N4 | Sem limpeza automática da lixeira na v1; o cliente nunca apaga lançamento de vez | Sim. Política de retenção fica para depois |
+| N5 | Aceitar convite exige que o e-mail da conta seja o do convite | Sim |
+
+**Lista de categorias padrão** (decisão 4), para você aprovar ou ajustar — todas editáveis depois:
+- Receita: Salário, Rendimentos, Outras receitas, *Sem categoria*.
+- Despesa: Moradia, Mercado, Restaurantes, Transporte, Saúde, Educação, Lazer, Assinaturas, Impostos e taxas, Outras despesas, *Sem categoria*.
 
 ## 11. Como o núcleo aceita os módulos futuros
 
@@ -352,11 +453,12 @@ Valores em reais. Contas do cenário-base: **A** (`opening_date` 01/01/2026, `in
 
 ## 12. Ordem de implementação da Etapa 3
 
-Só começa após você fechar as decisões da seção 10 e aprovar este documento.
+Só começa quando você **autorizar** o plano em [`MIGRATION-001-PLANO.md`](MIGRATION-001-PLANO.md) e responder os pontos N1–N5 (seção 10.2).
 
-1. Migration de schema + constraints + triggers de integridade (seções 2–3 e 4.2).
-2. Migration de RLS + funções privadas + RPCs.
-3. Funções de saldo, resumo e orçamento.
-4. Testes pgTAP (isolamento, restrições, saldo e conservação, orçamentos — seção 9).
-5. Só então conectar telas (Etapas 4–5), precedido do PR de centavos (decisão 11).
-6. A migration de importação (seção 8) vem depois do núcleo estável e depende da amostra do Organizze.
+1. Migration de schema + constraints + triggers de integridade (seções 2–3, 4.2 e 4.4).
+2. Migration de RLS, privilégios e funções privadas.
+3. Migration das RPCs de família e convite.
+4. Migration das funções de saldo, resumo e orçamento.
+5. Testes pgTAP e de PostgREST (seção 9) — escritos junto de cada migration, não depois.
+6. Só então conectar telas (Etapas 4–5), precedido do PR de centavos (decisão 11).
+7. A migration de importação (seção 8) vem depois do núcleo estável e **depende da amostra do Organizze**; nada específico do formato é implementado antes disso.
