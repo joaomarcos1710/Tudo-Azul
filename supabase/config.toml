@@ -1,0 +1,47 @@
+# Configuração do stack LOCAL e descartável (supabase start). Não afeta o projeto hospedado.
+project_id = "tudo-azul"
+
+[api]
+enabled = true
+port = 54321
+# Só "public" é exposto pela API. O schema "private" (helpers e funções de gatilho) fica de fora.
+schemas = ["public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+# Confirmar a versão major do projeto hospedado antes de aplicar lá (Settings > Infrastructure).
+major_version = 17
+
+[db.seed]
+enabled = false
+
+[studio]
+enabled = false
+
+[inbucket]
+enabled = false
+
+[storage]
+enabled = false
+
+[realtime]
+enabled = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5173"
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+# Local/CI apenas: sem confirmação por e-mail para os testes poderem criar usuários.
+enable_confirmations = false
