@@ -21,7 +21,8 @@ export function formatBRL(value: number): string {
  * Recusa: "1.2.3", "1,2,3", "1,234" (3 casas decimais), "12..5", texto.
  */
 export function parseBRL(input: string): number | null {
-  const t = input.replace(/R\$|\s/g, '')
+  const bruto = input.trim()
+  const t = bruto.startsWith('R$') ? bruto.slice(2).trim() : bruto
   const inteiroMilhar = '\\d{1,3}(?:\\.\\d{3})+'
   const comVirgula = new RegExp(`^-?(?:${inteiroMilhar}|\\d+),\\d{1,2}$`)
   const semVirgulaMilhar = new RegExp(`^-?(?:${inteiroMilhar})$`)
