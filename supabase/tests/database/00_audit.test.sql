@@ -6,7 +6,7 @@ select * from no_plan();
 
 -- Tabelas e policies exatamente as esperadas (nada sobrando sem revisão)
 select tables_are('public',
-  array['accounts','budgets','categories','household_members','households','invitations','profiles','transactions'],
+  array['accounts','budgets','categories','debt_events','debt_installments','debt_invoices','debts','household_members','households','invitations','profiles','transactions'],
   'schema public contém só as tabelas esperadas');
 
 select is_empty($$
@@ -20,6 +20,10 @@ select policies_are('public','household_members', array['household_members_selec
 select policies_are('public','invitations',       array['invitations_select']);
 select policies_are('public','accounts',          array['accounts_select','accounts_insert','accounts_update','accounts_delete']);
 select policies_are('public','categories',        array['categories_select','categories_insert','categories_update','categories_delete']);
+select policies_are('public','debts',             array['debts_select']);
+select policies_are('public','debt_invoices',     array['debt_invoices_select']);
+select policies_are('public','debt_installments', array['debt_installments_select']);
+select policies_are('public','debt_events',       array['debt_events_select']);
 select policies_are('public','transactions',      array['transactions_select','transactions_insert','transactions_update']);
 select policies_are('public','budgets',           array['budgets_select','budgets_insert','budgets_update','budgets_delete']);
 
@@ -86,13 +90,16 @@ select ok(has_column_privilege('authenticated','public.invitations','email','SEL
 
 -- Funções: exatamente as esperadas
 select functions_are('public', array[
-  'accept_invitation','account_balances','balance_totals','budget_usage','create_household',
-  'create_invitation','delete_household','leave_household','period_summary','remove_member'],
+  'accept_invitation','account_balances','balance_totals','budget_usage','create_debt','create_debt_installments',
+  'create_debt_invoice','create_household','create_invitation','debt_anticipate','debt_balances','debt_bill',
+  'debt_loan_event','debt_pay','debt_refund','debt_return','debt_void','delete_household','leave_household',
+  'net_worth','period_summary','remove_member'],
   'funções do schema public');
 select functions_are('private', array[
-  'accounts_guard','budgets_guard','categories_guard','handle_new_user','is_member','is_owner',
-  'members_limit_guard','members_owner_guard','seed_default_categories','shares_household',
-  'touch_updated_at','transactions_guard'],
+  'accounts_guard','budgets_guard','categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
+  'debt_effect','debt_events_guard','debt_installments_immutable','debt_lock','debt_money_guard','debts_immutable',
+  'handle_new_user','is_member','is_owner','members_limit_guard','members_owner_guard','seed_default_categories',
+  'shares_household','touch_updated_at','transactions_guard'],
   'funções do schema private');
 
 -- Nenhuma função com EXECUTE para PUBLIC (ACL nula = padrão do PostgreSQL = PUBLIC)
@@ -119,9 +126,11 @@ select is(
          order by 1),
   array['private.is_member','private.is_owner','private.shares_household',
         'public.accept_invitation','public.account_balances','public.balance_totals',
-        'public.budget_usage','public.create_household','public.create_invitation',
-        'public.delete_household','public.leave_household','public.period_summary',
-        'public.remove_member']::text[],
+        'public.budget_usage','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
+        'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_balances',
+        'public.debt_bill','public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_return',
+        'public.debt_void','public.delete_household','public.leave_household','public.net_worth',
+        'public.period_summary','public.remove_member']::text[],
   'lista de funções executáveis por authenticated é exatamente a esperada (funções de trigger: nenhuma)');
 
 -- Toda função tem search_path fixo; SECURITY DEFINER só nas esperadas
@@ -136,17 +145,20 @@ select is(
   array(select n.nspname || '.' || p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
          where n.nspname in ('public','private') and p.prosecdef
          order by 1),
-  array['private.handle_new_user','private.is_member','private.is_owner','private.members_owner_guard',
-        'private.seed_default_categories','private.shares_household',
-        'public.accept_invitation','public.create_household','public.create_invitation',
+  array['private.current_household','private.debt_balance','private.debt_chk','private.debt_chk_trg',
+        'private.debt_lock','private.handle_new_user','private.is_member','private.is_owner',
+        'private.members_owner_guard','private.seed_default_categories','private.shares_household',
+        'public.accept_invitation','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
+        'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_bill',
+        'public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_return','public.debt_void',
         'public.delete_household','public.leave_household','public.remove_member']::text[],
   'SECURITY DEFINER apenas nas funções auditadas (seção 6.1 do plano)');
 
 select is(
   array(select p.proname::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-         where n.nspname = 'public' and p.proname in ('account_balances','balance_totals','period_summary','budget_usage')
+         where n.nspname = 'public' and p.proname in ('account_balances','balance_totals','period_summary','budget_usage','debt_balances','net_worth')
            and not p.prosecdef order by 1),
-  array['account_balances','balance_totals','budget_usage','period_summary']::text[],
+  array['account_balances','balance_totals','budget_usage','debt_balances','net_worth','period_summary']::text[],
   'funções de relatório são SECURITY INVOKER (a RLS do chamador decide)');
 
 -- Todas as tabelas de public têm dono = quem roda as migrations (e nenhuma tem FORCE: as RPCs
