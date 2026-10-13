@@ -22,10 +22,16 @@ describe('parseBRL', () => {
     expect(parseBRL('12.5')).toBe(12.5)
     expect(parseBRL('-1.250,50')).toBe(-1250.5)
   })
-  it('rejeita lixo', () => {
-    expect(parseBRL('')).toBeNull()
-    expect(parseBRL('abc')).toBeNull()
-    expect(parseBRL('1,2,3')).toBeNull()
+  it('rejeita lixo e ambiguidades, sem adivinhar', () => {
+    for (const ruim of ['', 'abc', '1,2,3', '1.2.3', '1250.5.0', '1,234', '12..5', '1.2,50', '--5', '1.250,500', ',50', '1.']) {
+      expect(parseBRL(ruim), `entrada: "${ruim}"`).toBeNull()
+    }
+  })
+  it('aceita formas válidas adicionais', () => {
+    expect(parseBRL('0,5')).toBe(0.5)
+    expect(parseBRL('1250')).toBe(1250)
+    expect(parseBRL('R$ 3,00')).toBe(3)
+    expect(parseBRL('-1.250,50')).toBe(-1250.5)
   })
 })
 

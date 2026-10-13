@@ -20,11 +20,11 @@ Princípio: o banco é desenhado completo na etapa 3, mas cada módulo só é li
 
 ## Regras financeiras (valem do banco ao dashboard)
 - `valor` sempre positivo; o `tipo` define o efeito.
-- **Saldo da conta** = saldo inicial + receitas pagas − despesas pagas ± transferências pagas, com `data <= data de referência` e `data >= data do saldo inicial`.
+- **Saldo da conta** = saldo inicial + receitas pagas − despesas pagas ± transferências pagas, com `data do saldo inicial <= data <= data de referência`.
 - **Receitas/despesas do período** contam só `status = paid` e **excluem transferências**.
 - **Planejado** (`planned`) aparece à parte e nunca entra em saldo, receita ou despesa realizados.
 - **Orçamento** consome apenas despesas `paid` da categoria (incluindo subcategorias) no mês.
-- **Retroativos/edições:** saldos e relatórios são sempre **derivados** das movimentações (nunca gravados), então editar ou excluir recalcula tudo de forma consistente. Lançamento anterior à data do saldo inicial da conta é recusado.
+- **Retroativos/edições:** saldos e relatórios são sempre **derivados** das movimentações (nunca gravados), então editar ou excluir recalcula tudo de forma consistente. **Lançamentos anteriores à data do saldo inicial são permitidos** (histórico legítimo): entram em relatórios e orçamentos do seu período, mas **não alteram o saldo da conta**, que parte do saldo inicial na data informada. A tela avisa isso ao salvar. Para que o histórico também reflita no saldo, o usuário recua a data do saldo inicial e ajusta o valor.
 - Contas com histórico são desativadas, nunca apagadas. Categorias idem.
 - Transferência: origem ≠ destino; ambas ativas e da mesma família (validado por constraint/trigger).
 

@@ -10,25 +10,32 @@ export function formatBRL(value: number): string {
 }
 
 /**
- * Converte texto digitado em número. Aceita "1.250,50", "1250,50", "1250.50" e "1.250".
- * Sem vírgula, um ponto seguido de exatamente 3 dígitos é separador de milhar (pt-BR):
- * "1.250" = 1250. Casas decimais com 3 dígitos não existem em dinheiro, então não há ambiguidade útil.
- * Retorna null se o texto não for um número válido.
+ * Converte texto digitado em número, de forma ESTRITA: formato inválido retorna null,
+ * nunca um valor adivinhado. Aceita (com "R$" e sinal "-" opcionais):
+ *   "1.250,50"  milhar com ponto + vírgula decimal (1 ou 2 casas)
+ *   "1250,5"    vírgula decimal
+ *   "1.250"     ponto + exatamente 3 dígitos = milhar (pt-BR) -> 1250
+ *   "1.250.000" milhares agrupados de 3 em 3
+ *   "1250.50"   ponto decimal com 1 ou 2 casas
+ *   "1250"      inteiro
+ * Recusa: "1.2.3", "1,2,3", "1,234" (3 casas decimais), "12..5", texto.
  */
 export function parseBRL(input: string): number | null {
-  const limpo = input.replace(/[R$\s]/g, '')
-  if (limpo === '') return null
+  const t = input.replace(/R\$|\s/g, '')
+  const inteiroMilhar = '\\d{1,3}(?:\\.\\d{3})+'
+  const comVirgula = new RegExp(`^-?(?:${inteiroMilhar}|\\d+),\\d{1,2}$`)
+  const semVirgulaMilhar = new RegExp(`^-?(?:${inteiroMilhar})$`)
+  const pontoDecimal = /^-?\d+\.\d{1,2}$/
+  const inteiro = /^-?\d+$/
+
   let normalizado: string
-  if (limpo.includes(',')) {
-    normalizado = limpo.replace(/\./g, '').replace(',', '.')
-  } else if ((limpo.match(/\./g) ?? []).length > 1 || /^-?\d{1,3}\.\d{3}$/.test(limpo)) {
-    normalizado = limpo.replace(/\./g, '')
-  } else {
-    normalizado = limpo
-  }
-  if (!/^-?\d+(\.\d+)?$/.test(normalizado)) return null
+  if (comVirgula.test(t)) normalizado = t.replace(/\./g, '').replace(',', '.')
+  else if (semVirgulaMilhar.test(t)) normalizado = t.replace(/\./g, '')
+  else if (pontoDecimal.test(t) || inteiro.test(t)) normalizado = t
+  else return null
+
   const n = Number(normalizado)
-  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null
+  return Number.isFinite(n) ? n : null
 }
 
 /** "2026-10-13" -> "13/10/2026" (sem passar por Date, evita deslocamento de fuso). */
