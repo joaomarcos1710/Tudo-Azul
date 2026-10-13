@@ -12,7 +12,7 @@ Princípio: o banco é desenhado completo na etapa 3, mas cada módulo só é li
 |---|---|---|
 | Front | React 18 + TypeScript + Vite 5 | Build rápido, deploy estático na Vercel |
 | Estilo | Tailwind 3.4 | Versão estável; tokens de cor no `tailwind.config.js` |
-| Rotas | React Router 6 | SPA; `vercel.json` reescreve tudo para `index.html` |
+| Rotas | React Router 7 | SPA; `vercel.json` reescreve tudo para `index.html` |
 | Backend | Supabase (Postgres + Auth + RLS) | Pedido na especificação |
 | Dinheiro | `numeric(14,2)` no banco; `number` com 2 casas no front | Evita float no armazenamento. Somas pesadas ficam no SQL (views/RPC) |
 | Datas | `date` no banco, string `YYYY-MM-DD` no front | Evita deslocamento de fuso; fuso fixo America/Sao_Paulo |
