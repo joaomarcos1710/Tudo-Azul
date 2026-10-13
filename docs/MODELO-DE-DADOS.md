@@ -45,7 +45,17 @@ constraint transactions_shape check (
 ```
 Uma transferência é **uma única linha** (origem + destino). Assim as duas pontas nunca ficam inconsistentes, e as duas contas são ajustadas pela mesma regra de saldo.
 
-**Precisão exata na entrada (ponto N2).** `numeric(14,2)` **arredonda em silêncio** um valor com mais de duas casas enviado direto à API (`1.005` vira `1.01`). Proposta: `amount`, `initial_balance` e `amount_limit` como `numeric` com `CHECK (scale(x) <= 2 and abs(x) < 1e12)`, que **recusa** em vez de arredondar. Os totais continuam exatos. Os testes M8–M9 confirmam o comportamento antes da migration final.
+**Precisão exata na entrada (N2, aprovado).** `numeric(14,2)` **arredonda em silêncio** um valor com mais de duas casas enviado direto à API (`1.005` vira `1.01`). Por isso `amount`, `initial_balance` e `amount_limit` são `numeric` **sem** modificador de tipo, com a regra de dinheiro:
+
+```sql
+check (x = round(x, 2) and abs(x) < 1e12)
+```
+
+- **Escala:** o valor é aceito se for **numericamente igual** ao seu arredondamento a 2 casas. `1.2300` é aceito (e gravado como `1.23`); `1.005`, `0.001` e `1.2301` são **rejeitados**. Não se usa `scale(x) <= 2`, que recusaria `1.2300` por ter 4 casas declaradas.
+- **Magnitude:** `abs(x) < 10¹²`, ou seja, de −999.999.999.999,99 a 999.999.999.999,99. `NaN` e `Infinity` falham no `CHECK`.
+- **Normalização:** como o `CHECK` é avaliado **depois** dos triggers `BEFORE`, a validação que rejeita fica no trigger de guarda de cada tabela (que roda antes de normalizar com `round(x, 2)`); o `CHECK` fica como defesa adicional. Assim `1.2300` é gravado como `1.23`, com escala 2.
+- **Mesma regra** para `transactions.amount`, `accounts.initial_balance` (pode ser negativo) e `budgets.amount_limit`.
+- Os totais continuam exatos (soma de `numeric`). Os testes M8, M9, M12 e M13 cobrem os casos.
 
 ## 3. Integridade (chaves estrangeiras compostas e triggers)
 
@@ -238,7 +248,8 @@ Base: práticas atuais da documentação do Supabase.
 - `created_by` tem `default auth.uid()` e a policy de `insert` exige `created_by = auth.uid()`.
 - **Índices** em todas as colunas usadas por policies (`household_id`, `user_id`).
 - **Nada de `user_metadata`** em autorização (o usuário pode alterá-lo).
-- **Cliente não escreve em `household_members` nem em `invitations`.** Só funções (RPC) validadas: `create_household(name)`, `create_invitation(email)`, `accept_invitation(token)`, `remove_member(user_id)`, `leave_household()`, `delete_household(id)`. Cada uma checa `auth.uid()` internamente. `create_household` cria a família, o vínculo `owner` e as categorias padrão (incluindo as duas "Sem categoria") **numa única transação**.
+- **Funções `SECURITY DEFINER` rodam como o dono das tabelas e podem ignorar a RLS.** A segurança delas **não** vem da RLS: vem de verificações internas explícitas (`auth.uid()`, papel, vínculo, limite), listadas e auditadas em [`MIGRATION-001-PLANO.md`](MIGRATION-001-PLANO.md) (seção 6.1) e cobertas por teste.
+- **Cliente não escreve em `household_members` nem em `invitations`.** Só funções (RPC) validadas: `create_household(name)`, `create_invitation(email)`, `accept_invitation(token)`, `remove_member(user_id)`, `leave_household()`, `delete_household()`. Cada uma checa `auth.uid()` internamente. `create_household` cria a família, o vínculo `owner` e as categorias padrão (incluindo as duas "Sem categoria") **numa única transação**.
 - Views e funções de relatório com `security invoker` (`security_invoker = true` nas views).
 - **Privilégios de execução** (nada de `EXECUTE` para `PUBLIC` ou `anon`; só uma lista explícita para `authenticated`), **privilégios de coluna** (o cliente não altera `household_id`, `created_by`, `member_limit`, `token_hash`) e a matriz completa de policies estão em [`MIGRATION-001-PLANO.md`](MIGRATION-001-PLANO.md).
 
@@ -377,10 +388,12 @@ Base: S3 já registrado (A = 900,00; B = 800,00 em 31/03).
 | M5 | Envio ao banco de `125050` centavos | Corpo contém `"1250.50"` (string), nunca `1250.5` calculado por divisão |
 | M6 | **Ciclo completo pelo PostgREST** (decisão 11): gravar `"1250.50"` (string), ler de volta e checar o tipo JSON recebido | Valor lido → centavos `125050` exatos; o teste **registra** se o PostgREST devolve número ou string |
 | M7 | Soma SQL de 100.000 linhas de `0,10` | `10.000,00` exato |
-| M8 | Gravar `"1.005"` (3 casas) direto pela API | Rejeitado (com `numeric` + `CHECK`). Com `numeric(14,2)` seria arredondado para `1.01` em silêncio: o teste existe para decidir o ponto N2 com evidência |
-| M9 | Gravar `"1000000000000.00"` (≥ 10¹²) e `"-5"` em `amount` | Rejeitados |
+| M8 | Gravar `"1.005"`, `"0.001"` e `"1.2301"` em `amount` direto pela API | **Rejeitados** (com `numeric(14,2)` seriam arredondados em silêncio: o teste prova que a regra N2 evita isso) |
+| M9 | Gravar `"1000000000000.00"` (10¹²), `"-5"` e `"0"` em `amount`; `NaN` e `Infinity` | Rejeitados |
 | M10 | Ida e volta de `"999999999999.99"` pelo PostgREST | Idêntico; sem notação científica |
 | M11 | Ciclo gravar → editar → ler → lixeira → restaurar → ler | Valores idênticos em todas as leituras |
+| M12 | Gravar `"1.2300"`, `"1.20"`, `"1.2"` e `"1"` em `amount` | **Aceitos** e lidos de volta como `1.23`, `1.20`, `1.20` e `1.00` (escala 2) |
+| M13 | A mesma regra (M8, M9, M12 e o limite `999999999999.99`) em `accounts.initial_balance` (aceitando negativos, inclusive `-999999999999.99`, e zero) e em `budgets.amount_limit` (positivo) | Mesmo comportamento; `initial_balance` aceita zero e negativo, `amount_limit` não aceita zero |
 
 ### 9.4 Importação (I) — dependem da amostra do Organizze para fixar o formato
 | ID | Cenário | Resultado esperado |
@@ -426,21 +439,21 @@ Correção desta revisão, **registrada como alteração de regra**: `active` co
 
 **Sobre a decisão 14.** Defini "núcleo estável" como: etapas 5 e 6 concluídas (contas, categorias, lançamentos, saldos e dashboard) e todos os testes das seções 9.1–9.3 passando. Se você preferir esperar também orçamentos e relatórios (etapa 7), diga e eu ajusto o plano.
 
-### 10.2 Pontos novos que dependem da sua aprovação (N1–N5)
+### 10.2 Pontos N1–N5 — **aprovados em 13/10/2026**
 
-Surgiram ao detalhar a migration. Nenhum altera as decisões aprovadas; todos têm uma recomendação.
+Surgiram ao detalhar a migration. N1, N3, N4 e N5 foram aprovados como recomendados; N2 foi aprovado com o ajuste da regra de escala (1.2300 aceito, 1.005 rejeitado).
 
 | # | Ponto | Recomendação |
 |---|---|---|
 | N1 | Um usuário pertence a **uma** família (`UNIQUE (user_id)` em `household_members`) | Sim na v1: simplifica a tela e as policies. Relaxar depois é uma migration pequena |
-| N2 | `numeric` + `CHECK (scale <= 2 and abs < 1e12)` em vez de `numeric(14,2)`, para **recusar** em vez de arredondar em silêncio valores com 3+ casas enviados direto à API | Sim. Os testes M8–M9 confirmam o comportamento antes de fechar |
+| N2 | `numeric` com `CHECK (x = round(x, 2) and abs(x) < 1e12)` em vez de `numeric(14,2)`, para **recusar** em vez de arredondar em silêncio; aceita `1.2300` como `1.23` | **Aprovado com ajuste** (seção 2). Testes M8, M9, M12, M13 |
 | N3 | Conta com lançamento planejado em aberto **não pode ser desativada**; edição de lançamento antigo de conta desativada é permitida | Sim (seção 4.4) |
 | N4 | Sem limpeza automática da lixeira na v1; o cliente nunca apaga lançamento de vez | Sim. Política de retenção fica para depois |
 | N5 | Aceitar convite exige que o e-mail da conta seja o do convite | Sim |
 
-**Lista de categorias padrão** (decisão 4), para você aprovar ou ajustar — todas editáveis depois:
+**Lista de categorias padrão** (decisão 4) — **aprovada**, com `Compras pessoais` e `Viagens` acrescentadas em despesas. Todas editáveis e desativáveis; o usuário pode criar outras:
 - Receita: Salário, Rendimentos, Outras receitas, *Sem categoria*.
-- Despesa: Moradia, Mercado, Restaurantes, Transporte, Saúde, Educação, Lazer, Assinaturas, Impostos e taxas, Outras despesas, *Sem categoria*.
+- Despesa: Moradia, Mercado, Restaurantes, Transporte, Saúde, Educação, Lazer, Assinaturas, Compras pessoais, Viagens, Impostos e taxas, Outras despesas, *Sem categoria*.
 
 ## 11. Como o núcleo aceita os módulos futuros
 
@@ -453,7 +466,7 @@ Surgiram ao detalhar a migration. Nenhum altera as decisões aprovadas; todos t�
 
 ## 12. Ordem de implementação da Etapa 3
 
-Só começa quando você **autorizar** o plano em [`MIGRATION-001-PLANO.md`](MIGRATION-001-PLANO.md) e responder os pontos N1–N5 (seção 10.2).
+Implementação **autorizada em 13/10/2026 somente em banco local descartável e CI** (nada no Supabase hospedado). Plano em [`MIGRATION-001-PLANO.md`](MIGRATION-001-PLANO.md).
 
 1. Migration de schema + constraints + triggers de integridade (seções 2–3, 4.2 e 4.4).
 2. Migration de RLS, privilégios e funções privadas.

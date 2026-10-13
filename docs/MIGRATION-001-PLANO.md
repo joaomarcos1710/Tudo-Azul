@@ -1,6 +1,6 @@
 # Plano da migration 001 — núcleo financeiro
 
-> **Status:** plano para revisão. **Nada foi implementado, executado ou aplicado.** Não existe a pasta `supabase/`, nenhum arquivo `.sql` e nenhuma alteração no banco.
+> **Status:** plano aprovado em 13/10/2026 para implementação **somente em banco local descartável e CI**. Nada foi aplicado no Supabase hospedado, e não será sem nova autorização. O que for implementado e testado aparece no PR da migration; este documento descreve o desenho.
 > Base: [`MODELO-DE-DADOS.md`](MODELO-DE-DADOS.md) (v3, decisões 1–14 aprovadas). Tudo aqui é desenho; os trechos de SQL são esboços.
 >
 > **Como ler as afirmações:** o que vem da documentação do Supabase/PostgreSQL está marcado como *(doc)*; o que eu **ainda não executei** e vou confirmar nos testes está marcado como *(a confirmar)*. Nada foi testado contra um banco real nesta sessão.
@@ -42,10 +42,10 @@ Cinco arquivos pequenos em vez de um grande: cada um é revisável e testável s
 | `households` | `name` 1–80; `member_limit` entre 1 e 10, padrão 2 |
 | `household_members` | `UNIQUE (household_id, user_id)`; `UNIQUE (user_id)` (N1); `role` ∈ {owner, member} |
 | `invitations` | `token_hash` `UNIQUE`; `role = 'member'`; `expires_at > created_at`; `email` em minúsculas |
-| `accounts` | `UNIQUE (household_id, id)`; `UNIQUE (household_id, lower(name))`; `type` ∈ {checking, savings, cash, other}; `initial_balance` com a regra de escala (N2); `opening_date` entre 2000-01-01 e 2100-01-01 |
+| `accounts` | `UNIQUE (household_id, id)`; `UNIQUE (household_id, lower(name))`; `type` ∈ {checking, savings, cash, other}; `initial_balance` (pode ser negativo) com a regra de dinheiro (N2); `opening_date` entre 2000-01-01 e 2100-01-01 |
 | `categories` | `UNIQUE (household_id, id, type)`; nome único por (família, tipo, mãe), sem diferenciar maiúsculas; FK composta da mãe com o mesmo tipo; `system_key` ∈ {uncategorized}; **índice único parcial** (família, tipo) onde `system_key = 'uncategorized'` |
-| `transactions` | `CHECK transactions_shape` (seção 2 do modelo, inclui categoria obrigatória); `amount > 0` com escala (N2); `date` entre 2000-01-01 e 2100-01-01; FKs compostas de conta, destino e categoria+tipo; `created_by` `NOT NULL`, padrão `auth.uid()` |
-| `budgets` | `UNIQUE (household_id, category_id, month)`; `month` no dia 1; `amount_limit > 0` com escala (N2); `category_type` com `DEFAULT 'expense'` + `CHECK = 'expense'` + FK composta |
+| `transactions` | `CHECK transactions_shape` (seção 2 do modelo, inclui categoria obrigatória); `amount > 0` com a regra de dinheiro (N2); `date` entre 2000-01-01 e 2100-01-01; FKs compostas de conta, destino e categoria+tipo; `created_by` `NOT NULL`, padrão `auth.uid()` |
+| `budgets` | `UNIQUE (household_id, category_id, month)`; `month` no dia 1; `amount_limit > 0` com a regra de dinheiro (N2); `category_type` com `DEFAULT 'expense'` + `CHECK = 'expense'` + FK composta |
 
 **Chaves estrangeiras de `household_id`:** `ON DELETE CASCADE`. **Referências entre tabelas** (conta, categoria): `NO ACTION` — verificado ao fim da instrução, o que permite excluir a família inteira e continua barrando a exclusão isolada de quem tem histórico.
 
@@ -83,16 +83,20 @@ Padrão em cada função: `revoke execute on function … from public, anon;` e 
 | `accept_invitation(token)` | `public` | `SECURITY DEFINER` | `authenticated` | Hash existe, não usado, não expirado; e-mail do caller = e-mail do convite (N5); sem família; limite de membros; trava `households` |
 | `remove_member(user)` | `public` | `SECURITY DEFINER` | `authenticated` | Caller é owner; alvo é membro da mesma família; não remove o último owner |
 | `leave_household()` | `public` | `SECURITY DEFINER` | `authenticated` | Último owner não sai se houver outros membros |
-| `delete_household(id)` | `public` | `SECURITY DEFINER` | `authenticated` | Caller é owner; cascata |
+| `delete_household()` | `public` | `SECURITY DEFINER` | `authenticated` | Sem parâmetro (N1: a família é a do chamador); chamador é owner; cascata |
 | `account_balances`, `balance_totals`, `period_summary`, `budget_usage` | `public` | `SECURITY INVOKER`, `STABLE` | `authenticated` | RLS do chamador decide o que aparece; não-membro recebe vazio |
 
 `SECURITY DEFINER` sempre com `set search_path = ''`. O e-mail do caller vem de `auth.users` dentro da função definer, não de `user_metadata`. O schema `private` **não é exposto** pela API *(doc; conferir em Settings → API → Exposed schemas)*.
 
-**Categorias padrão** (aprovar ou ajustar — ver seção 10.2 do modelo): Receita — Salário, Rendimentos, Outras receitas, *Sem categoria*. Despesa — Moradia, Mercado, Restaurantes, Transporte, Saúde, Educação, Lazer, Assinaturas, Impostos e taxas, Outras despesas, *Sem categoria*.
+**Categorias padrão** (aprovadas, com `Compras pessoais` e `Viagens` em despesas): Receita — Salário, Rendimentos, Outras receitas, *Sem categoria*. Despesa — Moradia, Mercado, Restaurantes, Transporte, Saúde, Educação, Lazer, Assinaturas, Compras pessoais, Viagens, Impostos e taxas, Outras despesas, *Sem categoria*.
 
 ## 6. RLS e privilégios de tabela
 
-RLS **ligado em todas** as tabelas do `public`. **Sem `FORCE`**: as funções `SECURITY DEFINER` rodam como dono e precisam passar pela RLS por desenho; o controle está nas verificações internas de cada uma.
+RLS **ligado em todas** as tabelas do `public`.
+
+> **Correção desta revisão — RLS não protege funções `SECURITY DEFINER`.** Essas funções executam com os privilégios do **dono** da função (o dono das tabelas) e, nesse papel, **ignoram a RLS** *(doc; a confirmar o atributo do papel dono no Supabase local)*. Ligar a RLS, ou até `FORCE ROW LEVEL SECURITY`, não substitui a checagem: a segurança dessas funções depende **inteiramente** das verificações internas descritas na seção 6.1. O plano anterior dizia que elas "precisam passar pela RLS por desenho"; isso estava errado.
+
+Por isso `SECURITY DEFINER` é usado só onde é inevitável (ler `household_members` sem recursão de policy, criar famílias e convites, criar o perfil no cadastro). Funções de saldo e relatório são `SECURITY INVOKER`, e **ali** a RLS decide.
 
 `anon`: **nenhum** privilégio em nenhuma tabela ou função. `authenticated`: apenas o abaixo, com **privilégios por coluna** onde importa.
 
@@ -111,6 +115,23 @@ RLS **ligado em todas** as tabelas do `public`. **Sem `FORCE`**: as funções `S
 - Todas as policies de `UPDATE` têm `USING` **e** `WITH CHECK`.
 - As FKs compostas são a defesa de verdade contra referência entre famílias: as verificações de FK ignoram a RLS *(doc)*, então a integridade não depende das policies.
 - Funções auxiliares `SECURITY DEFINER` evitam recursão de policy em `household_members`.
+
+### 6.1 Auditoria das funções `SECURITY DEFINER`
+
+Cada função abaixo ignora a RLS. Regras comuns: (1) `auth.uid()` nulo ⇒ erro; (2) **nenhum identificador de família ou usuário vindo do chamador é confiável** — sempre se confere o vínculo do `auth.uid()` antes de ler ou gravar; (3) `search_path = ''`; (4) nunca se usa `user_metadata`; (5) `EXECUTE` só para `authenticated`.
+
+| Função | Verificações internas explícitas (todas com teste) |
+|---|---|
+| `private.is_member`, `is_owner`, `shares_household` | Só respondem sobre o próprio `auth.uid()`; devolvem `false` se nulo; não aceitam usuário arbitrário como "quem pergunta" |
+| `private.handle_new_user` | Só roda como trigger de `auth.users`; sem `EXECUTE` para ninguém; cria `profiles` apenas para o id inserido |
+| `create_household(name)` | Autenticado; nome 1–80; usuário **ainda sem família** (N1); insere owner = `auth.uid()` (nunca parâmetro) |
+| `create_invitation(email)` | Autenticado; **é owner** da família do próprio `auth.uid()` (a família não vem por parâmetro); e-mail válido; membros + convites ativos < `member_limit` (com trava na linha da família) |
+| `accept_invitation(token)` | Autenticado; busca por hash; não usado; não expirado; **e-mail de `auth.users` do chamador = e-mail do convite**; chamador sem família; limite de membros; marca uso e cria o vínculo na mesma transação |
+| `remove_member(user)` | Autenticado; chamador é owner **da mesma família do alvo**; alvo ≠ último owner; alvo ≠ o próprio chamador |
+| `leave_household()` | Autenticado; último owner com outros membros não sai |
+| `delete_household()` | Autenticado; chamador é owner; exclusão em cascata da própria família |
+
+A auditoria é verificada por teste (`00_audit` confere `search_path` e privilégios; `01_isolation` e `05_rpc` tentam burlar cada verificação com outro usuário, outra família, parâmetros falsos e usuário sem sessão). Um teste que só passa com o papel de superusuário não conta.
 
 ## 7. Testes
 
@@ -136,7 +157,7 @@ Os valores esperados de saldo vêm do modelo de referência em Python usado na r
 | Função `SECURITY DEFINER` sequestrável por `search_path` | `search_path = ''`, nomes qualificados, teste de auditoria |
 | Corrida entre inserir lançamento e desativar/mudar abertura da conta | `FOR SHARE` × bloqueio de linha do `UPDATE`; teste A11 com duas sessões |
 | Guarda de "Sem categoria" bloquear a exclusão em cascata da família | Exceção quando a família já não existe; teste D1 *(a confirmar)* |
-| Arredondamento silencioso de valores com 3+ casas | N2 + testes M8–M9 |
+| Arredondamento silencioso de valores com 3+ casas | N2 (`x = round(x, 2)` e `abs(x) < 1e12`) + testes M8, M9, M12, M13 |
 | Formato de `numeric` no JSON do PostgREST | Teste M6 registra o tipo recebido; o front só converte depois de confirmado |
 | Migration errada aplicada com dados reais | Só para frente; local → CI → revisão → produção; reescrita livre enquanto não houver dados |
 | Conflito entre os três assistentes | Só uma pessoa escreve migrations (eu); ChatGPT revisa; tudo via PR e CI |
@@ -154,7 +175,7 @@ Os valores esperados de saldo vêm do modelo de referência em Python usado na r
 
 ## 10. O que preciso de você para começar
 
-- Responder **N1–N5** (seção 10.2 do modelo) e a **lista de categorias padrão**.
-- Dizer se **autoriza a implementação em banco local e CI** (não produção).
-- Informar se há **Docker** na sua máquina.
+- ~~Responder N1–N5 e a lista de categorias padrão~~ — feito em 13/10/2026.
+- ~~Autorizar implementação em banco local e CI~~ — feito, **sem** tocar no Supabase hospedado.
+- Informar se há **Docker** na sua máquina (pendente; sem ele, os testes rodam só no CI).
 - A **amostra do Organizze** continua pendente e **não bloqueia** esta migration: o mapeamento de importação só será desenhado depois de eu ler o arquivo real.
