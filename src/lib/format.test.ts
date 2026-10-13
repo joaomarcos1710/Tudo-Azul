@@ -23,7 +23,7 @@ describe('parseBRL', () => {
     expect(parseBRL('-1.250,50')).toBe(-1250.5)
   })
   it('rejeita lixo e ambiguidades, sem adivinhar', () => {
-    for (const ruim of ['', 'abc', '1,2,3', '1.2.3', '1250.5.0', '1,234', '12..5', '1.2,50', '--5', '1.250,500', ',50', '1.']) {
+    for (const ruim of ['', 'abc', '1,2,3', '1.2.3', '1250.5.0', '1,234', '12..5', '1.2,50', '--5', '1.250,500', '1R$250', '1 2', 'R$R$10', ',50', '1.']) {
       expect(parseBRL(ruim), `entrada: "${ruim}"`).toBeNull()
     }
   })
