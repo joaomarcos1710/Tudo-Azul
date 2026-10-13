@@ -16,7 +16,7 @@ Princípio: o banco é desenhado completo na etapa 3, mas cada módulo só é li
 | Backend | Supabase (Postgres + Auth + RLS) | Pedido na especificação |
 | Dinheiro | `numeric(14,2)` no banco; `number` com 2 casas no front | Evita float no armazenamento. Somas pesadas ficam no SQL (views/RPC) |
 | Datas | `date` no banco, string `YYYY-MM-DD` no front | Evita deslocamento de fuso; fuso fixo America/Sao_Paulo |
-| Segredos | Só `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no navegador | A proteção real é o RLS, nunca a `service_role` |
+| Chaves públicas | Só `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` no navegador | A publishable key pode estar no cliente; a proteção real é o RLS. Nunca expor `secret`/`service_role` |
 
 ## Regras financeiras (valem do banco ao dashboard)
 - `valor` sempre positivo; o `tipo` define o efeito.
