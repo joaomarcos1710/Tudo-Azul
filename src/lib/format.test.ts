@@ -6,6 +6,8 @@ describe('formatBRL', () => {
     expect(formatBRL(1250.5)).toBe('R$ 1.250,50')
     expect(formatBRL(0)).toBe('R$ 0,00')
     expect(formatBRL(-30)).toBe('-R$ 30,00')
+    expect(formatBRL(-0)).toBe('R$ 0,00')
+    expect(formatBRL(-0.004)).toBe('R$ 0,00')
   })
 })
 
@@ -16,6 +18,9 @@ describe('parseBRL', () => {
     expect(parseBRL('1250,5')).toBe(1250.5)
     expect(parseBRL('1250.50')).toBe(1250.5)
     expect(parseBRL('1.250.000')).toBe(1250000)
+    expect(parseBRL('1.250')).toBe(1250)
+    expect(parseBRL('12.5')).toBe(12.5)
+    expect(parseBRL('-1.250,50')).toBe(-1250.5)
   })
   it('rejeita lixo', () => {
     expect(parseBRL('')).toBeNull()

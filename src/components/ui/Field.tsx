@@ -14,10 +14,10 @@ export function Field({ rotulo, erro, className = '', ...rest }: Props) {
     <div className="flex flex-col gap-1">
       <label htmlFor={id} className="text-sm font-medium">{rotulo}</label>
       <input
+        {...rest}
         id={id}
         aria-invalid={erro ? true : undefined}
         aria-describedby={erro ? erroId : undefined}
-        {...rest}
         className={`min-h-11 rounded-lg border bg-white px-3 text-base ${erro ? 'border-negativo' : 'border-slate-300'} ${className}`}
       />
       {erro && <p id={erroId} role="alert" className="text-sm text-negativo">{erro}</p>}

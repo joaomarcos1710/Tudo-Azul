@@ -17,6 +17,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 export function Button({ variante = 'primario', carregando, disabled, className = '', children, ...rest }: Props) {
   return (
     <button
+      type="button"
       {...rest}
       disabled={disabled || carregando}
       aria-busy={carregando || undefined}

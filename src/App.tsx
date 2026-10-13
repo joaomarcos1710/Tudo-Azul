@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import VisaoGeral from './pages/VisaoGeral'
 import Lancamentos from './pages/Lancamentos'
@@ -19,7 +19,7 @@ export default function App() {
         <Route path="orcamentos" element={<Orcamentos />} />
         <Route path="relatorios" element={<Relatorios />} />
         <Route path="familia" element={<Familia />} />
-        <Route path="*" element={<VisaoGeral />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   )
