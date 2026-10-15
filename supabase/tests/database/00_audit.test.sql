@@ -97,7 +97,7 @@ select functions_are('public', array[
   'funções do schema public');
 select functions_are('private', array[
   'accounts_guard','budgets_guard','categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
-  'debt_effect','debt_events_guard','debt_installments_immutable','debt_lock','debt_money_guard','debts_immutable',
+  'debt_effect','debt_events_guard','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debts_immutable',
   'handle_new_user','is_member','is_owner','members_limit_guard','members_owner_guard','seed_default_categories',
   'shares_household','touch_updated_at','transactions_guard'],
   'funções do schema private');
