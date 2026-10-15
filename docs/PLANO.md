@@ -35,7 +35,15 @@ Princípio: **o núcleo é desenhado e migrado na etapa 3; cada módulo ganha mi
 - **Cartão:** compra no cartão é despesa na data da compra (competência), mas **não mexe no saldo de nenhuma conta**; o saldo só cai quando a **fatura é paga** (transferência conta → cartão, que não conta como despesa de novo). Cada cartão tem dia de fechamento e vencimento.
 - **Parcelamento:** compra gera N parcelas ligadas por um `installment_group_id`; cada parcela cai na fatura do seu mês. Editar/excluir oferece "só esta" ou "esta e as seguintes".
 - **Dívida/empréstimo:** saldo devedor, taxa, parcelas e vencimentos. Pagamento de parcela é uma saída de conta que reduz o saldo devedor; juros são separados da amortização.
-  - *Atualização de 15/10/2026 (modelo B, migration 003):* no banco, **parcela (`debt_installments`) existe só em cartão**: é compromisso futuro que vira dívida quando cobrado. Em empréstimo e financiamento o principal já entra inteiro na dívida no desembolso, e parcelas por cima disso contariam o principal duas vezes. O empréstimo é pago com `debt_pay` (juros e tarifas com `debt_loan_event`). **"Parcelas e vencimentos" de empréstimo** (ex.: cronograma SAC/Price) ficam como **cronograma informativo, um conceito próprio ainda não desenhado**, que não entra em saldo, dívida, compromissos nem patrimônio.
+  - *Atualização de 15/10/2026 (modelo B, migration 003):* no banco, **parcela (`debt_installments`) existe só em cartão**: é compromisso futuro que vira dívida quando cobrado. Em empréstimo e financiamento o principal já entra inteiro na dívida no desembolso, e parcelas por cima disso contariam o principal duas vezes. O empréstimo é pago com `debt_pay` (juros e tarifas com `debt_loan_event`). **"Parcelas e vencimentos" de empréstimo** (ex.: cronograma SAC/Price) ficam para um **conceito próprio, ainda não desenhado, que não reutiliza a estrutura de parcelas de cartão**. *(Decisão confirmada pelo responsável pelo produto em 15/10/2026.)*
+  - **Controle futuro de empréstimos e financiamentos** (continua no planejamento) deverá contemplar:
+    - vencimentos e cronograma de prestações;
+    - amortização do principal;
+    - juros e tarifas;
+    - pagamentos parciais e antecipados;
+    - descontos por antecipação, que reduzem a dívida **sem serem confundidos com saída de caixa**;
+    - simulações de quitação e comparação de cenários.
+  - **Regras desde já:** o cronograma **não duplica o saldo da dívida** (o saldo devedor continua sendo o da dívida; o cronograma só detalha como ele será pago) e **a amortização do principal nunca vira despesa**. O tratamento contábil de juros, tarifas e descontos será definido e testado quando o módulo for implementado.
 - **Investimento:** posições por ativo (quantidade, custo médio) e aportes/resgates como movimentações. Valor de mercado informado manualmente no início; rentabilidade = valor atual − custo aportado. Aporte é transferência para patrimônio, **não é despesa**.
 - **Patrimônio líquido** = saldos de contas + investimentos − dívidas − faturas em aberto.
 
