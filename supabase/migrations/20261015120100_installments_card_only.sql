@@ -25,10 +25,17 @@
 -- ---------------------------------------------------------------------------
 -- 0. Dados existentes: aborta se já houver parcelas fora de cartão (exigiria correção manual,
 --    com anulação auditada; esta migration não apaga nem altera nenhum registro).
+--    O LOCK fecha a janela entre esta verificação e a criação do trigger: sem ele, uma parcela
+--    gravada por outra sessão nesse intervalo passaria sem ser vista (reproduzido na revisão).
+--    SHARE ROW EXCLUSIVE conflita com o ROW EXCLUSIVE dos INSERTs, então inserções concorrentes
+--    esperam o fim da migration e, ao continuar, já encontram o trigger. Fica dentro do DO porque
+--    LOCK solto exige bloco de transação; a garantia vale quando a migration roda numa transação
+--    única (supabase db push, ou psql --single-transaction), e é liberado no COMMIT.
 -- ---------------------------------------------------------------------------
 do $$
 declare v_n bigint;
 begin
+  lock table public.debt_installments in share row exclusive mode;
   select count(*) into v_n
     from public.debt_installments i
     join public.debts d on d.household_id = i.household_id and d.id = i.debt_id
