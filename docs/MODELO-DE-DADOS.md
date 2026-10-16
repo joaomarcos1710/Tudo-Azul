@@ -457,10 +457,16 @@ Surgiram ao detalhar a migration. N1, N3, N4 e N5 foram aprovados como recomenda
 
 ## 11. Como o núcleo aceita os módulos futuros
 
-- **Cartões (Etapa 9):** novas tabelas `credit_cards`, `invoices`; campos `invoice_id`, `installment_group_id`, `installment_number` em `transactions` (colunas nulas, adicionadas por migration). Pagar a fatura é uma transferência conta → fatura, **sem contar despesa duas vezes**. A regra 4.2 (transferência não anterior à abertura) vale também aqui.
-- **Dívidas (Etapa 10):** tabelas próprias; o pagamento de parcela é uma despesa em conta, ligada ao contrato.
+> *Atualizado em 16/10/2026.* Cartões e dívidas foram implementados de outro jeito (**modelo B**, migrations 002 e 003), e não como estava previsto na primeira versão desta seção. O texto anterior dizia que "o pagamento de parcela é uma despesa em conta", o que **contradiz o modelo B** e não vale mais.
+
+- **Cartões e dívidas (modelo B, migrations 002 e 003):** tabelas próprias `debts` (tipo `card`, `loan` ou `financing`), `debt_invoices`, `debt_installments` e `debt_events` (registro só de inclusão; correções por anulação auditada). Nada disso cria colunas em `transactions`.
+  - **Compra no cartão** é despesa na competência e aumenta a dívida; não mexe em conta.
+  - **Pagamento** (`debt_pay`) sai da conta e **reduz a dívida**: não é despesa, então nada é contado duas vezes.
+  - **Empréstimo e financiamento:** o principal entra inteiro na dívida no desembolso; **amortização nunca é despesa**; só **juros e tarifas** são despesa (`debt_loan_event`).
+  - **Parcelas** (`debt_installments`) existem **só em cartão** (migration 003): são compromisso futuro que vira dívida quando cobrado. Cronograma de empréstimo é um conceito futuro e separado (ver `PLANO.md`).
 - **Investimentos (Etapa 11):** tabelas de ativos e posições; aporte é transferência, **não é despesa**.
-- **Patrimônio líquido (Etapa 12):** consulta que une saldos, investimentos, dívidas e faturas em aberto.
+- **Patrimônio líquido (Etapa 12):** consulta que une saldos, investimentos, dívidas e faturas em aberto. Já existe em parte: `net_worth()` (migration 002) = disponível + crédito a receber − dívida, com compromissos futuros à parte; investimentos entram quando o módulo existir.
+- **Recorrência e multimoeda:** requisitos registrados no `PLANO.md` em 16/10/2026, **ainda sem desenho**. A multimoeda mexe no núcleo (moeda por conta, câmbio, saldos e patrimônio), então será proposta aqui antes de qualquer migration.
 
 `text` + `CHECK` permite acrescentar tipos de conta (cartão, investimento) com uma migration simples.
 
