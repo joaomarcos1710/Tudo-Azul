@@ -1,0 +1,121 @@
+name: Testes do banco
+
+# Sobe um Supabase LOCAL e descartável (Docker) dentro do runner, aplica as migrations e roda:
+#   1. pgTAP (supabase test db): RLS, isolamento, privilégios, integridade, saldo, convites, dinheiro.
+#   2. Testes de integração via PostgREST/Auth e de concorrência (duas sessões).
+# Nenhum segredo é usado: nada aqui toca o projeto hospedado. As chaves vêm do stack local.
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/**'
+      - 'tests/integration/**'
+      - 'vitest.integration.config.ts'
+      - '.github/workflows/db-tests.yml'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - 'tests/integration/**'
+      - 'vitest.integration.config.ts'
+      - '.github/workflows/db-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  db:
+    name: Migrations, pgTAP e integração
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Versões usadas
+        run: |
+          supabase --version | tee versions.log
+          docker --version | tee -a versions.log
+
+      - name: Subir o stack local (aplica as migrations)
+        run: supabase start 2>&1 | tee supabase-start.log
+
+      - name: Versão do PostgreSQL local
+        run: |
+          docker exec "$(docker ps --filter name=supabase_db_ --format '{{.Names}}' | head -n1)" \
+            psql -U postgres -tAc "select version()" | tee -a versions.log
+
+      - name: pgTAP (supabase test db)
+        run: |
+          set -o pipefail
+          supabase test db 2>&1 | tee pgtap.log
+
+      - name: Configurar Node.js
+        if: ${{ !cancelled() }}
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Instalar dependências
+        if: ${{ !cancelled() }}
+        run: npm ci
+
+      - name: Testes de integração (PostgREST, Auth e concorrência)
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          # Só as variáveis necessárias; a service_role NÃO é lida nem exportada.
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY|PUBLISHABLE_KEY|DB_URL)=')"
+          export SUPABASE_URL="$API_URL"
+          export SUPABASE_ANON_KEY="${ANON_KEY:-}"
+          export SUPABASE_PUBLISHABLE_KEY="${PUBLISHABLE_KEY:-}"
+          export SUPABASE_DB_URL="$DB_URL"
+          npm run test:integration 2>&1 | tee integration.log
+
+      - name: Resumo
+        if: ${{ always() }}
+        run: |
+          {
+            echo "## Testes do banco"
+            echo
+            echo '```'
+            cat versions.log 2>/dev/null || true
+            echo '```'
+            echo "### pgTAP"
+            echo '```'
+            tail -n 40 pgtap.log 2>/dev/null || echo "(não executado)"
+            echo '```'
+            echo "### Integração"
+            echo '```'
+            tail -n 60 integration.log 2>/dev/null || echo "(não executado)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-testes-banco
+          path: |
+            versions.log
+            supabase-start.log
+            pgtap.log
+            integration.log
+          if-no-files-found: ignore
+
+      - name: Parar o stack
+        if: ${{ always() }}
+        run: supabase stop --no-backup || true
