@@ -1,5 +1,344 @@
-import { PaginaBase } from './PaginaBase'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
+import { Aviso } from '../components/ui/Aviso'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { EmptyState } from '../components/ui/EmptyState'
+import { Field } from '../components/ui/Field'
+import { useFamilia } from '../lib/FamiliaContext'
+import { listarCategorias } from '../lib/categorias'
+import type { Categoria } from '../lib/categorias'
+import { hojeSP, listarContas } from '../lib/contas'
+import type { Conta } from '../lib/contas'
+import { mensagemErroBanco } from '../lib/erros'
+import { currentMonth, formatBRL, formatDate, formatMonth, parseBRL } from '../lib/format'
+import type { Cents } from '../lib/format'
+import {
+  criarLancamento, editarLancamento, listarLancamentos, marcarComoPago, moverParaLixeira, restaurarDaLixeira,
+  resumoDoMes, somarMeses,
+} from '../lib/lancamentos'
+import type { Filtros, Lancamento, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+
+const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', income: 'Receita', transfer: 'Transferência' }
+
+/** Sinal e cor por tipo: receita "+", despesa "−", transferência "⇄" sem sinal (design system). */
+function valorComSinal(l: Lancamento) {
+  if (l.tipo === 'income') return { texto: `+${formatBRL(l.valor)}`, cor: 'text-positivo' }
+  if (l.tipo === 'expense') return { texto: `−${formatBRL(l.valor)}`, cor: 'text-negativo' }
+  return { texto: `⇄ ${formatBRL(l.valor)}`, cor: 'text-slate-600' }
+}
 
 export default function Lancamentos() {
-  return <PaginaBase titulo="Lançamentos" etapa="etapa 5" descricao="Aqui você registrará receitas, despesas e transferências." />
+  const { familia } = useFamilia()
+  const familiaId = familia?.id
+  const [mes, setMes] = useState(() => currentMonth())
+  const [filtros, setFiltros] = useState<Filtros>({})
+  const [lancamentos, setLancamentos] = useState<Lancamento[] | null>(null)
+  const [resumo, setResumo] = useState<ResumoMes | null>(null)
+  const [contas, setContas] = useState<Conta[]>([])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [erro, setErro] = useState('')
+  const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
+  const [naLixeira, setNaLixeira] = useState<Lancamento | null>(null)
+
+  useEffect(() => {
+    if (!familiaId) return
+    Promise.all([listarContas(familiaId), listarCategorias(familiaId)])
+      .then(([c, cat]) => { setContas(c.contas); setCategorias(cat) })
+      .catch((err) => setErro(mensagemErroBanco(err)))
+  }, [familiaId])
+
+  const carregar = useCallback(async () => {
+    if (!familiaId) return
+    try {
+      const [l, r] = await Promise.all([listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes)])
+      setLancamentos(l)
+      setResumo(r)
+      setErro('')
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    }
+  }, [familiaId, mes, filtros])
+
+  useEffect(() => { void carregar() }, [carregar])
+
+  const nomeConta = useMemo(() => new Map(contas.map((c) => [c.id, c.nome])), [contas])
+  const nomeCategoria = useMemo(() => new Map(categorias.map((c) => [c.id, c.nome])), [categorias])
+
+  async function agir(acao: () => Promise<void>) {
+    try {
+      await acao()
+      await carregar()
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    }
+  }
+
+  async function excluir(l: Lancamento) {
+    if (!window.confirm(`Enviar "${l.descricao || rotuloTipo[l.tipo]}" de ${formatBRL(l.valor)} para a lixeira?`)) return
+    await agir(async () => { await moverParaLixeira(l.id); setNaLixeira(l) })
+  }
+
+  if (!familiaId) return null
+
+  // agrupa por dia mantendo a ordem (mais recente primeiro)
+  const porDia: [string, Lancamento[]][] = []
+  for (const l of lancamentos ?? []) {
+    const ultimo = porDia[porDia.length - 1]
+    if (ultimo && ultimo[0] === l.data) ultimo[1].push(l)
+    else porDia.push([l.data, [l]])
+  }
+
+  return (
+    <>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Lançamentos</h1>
+        {editando === null && <Button onClick={() => setEditando('novo')} disabled={contas.length === 0}>Novo lançamento</Button>}
+      </div>
+
+      {contas.length === 0 && lancamentos !== null && (
+        <div className="mb-4"><Aviso tipo="info">Cadastre uma conta em <strong>Contas</strong> antes do primeiro lançamento.</Aviso></div>
+      )}
+
+      <div className="mb-4 flex items-center gap-2">
+        <Button variante="secundario" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
+        <span className="min-w-44 text-center font-semibold capitalize">{formatMonth(mes)}</span>
+        <Button variante="secundario" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
+      </div>
+
+      {resumo && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <Card><p className="text-sm text-slate-500">Receitas pagas</p><p className="tabular-nums text-xl font-bold text-positivo">+{formatBRL(resumo.receitas)}</p></Card>
+          <Card><p className="text-sm text-slate-500">Despesas pagas</p><p className="tabular-nums text-xl font-bold text-negativo">−{formatBRL(resumo.despesas)}</p></Card>
+          <Card>
+            <p className="text-sm text-slate-500">Resultado do mês</p>
+            <p className={`tabular-nums text-xl font-bold ${resumo.resultado < 0 ? 'text-negativo' : ''}`}>{formatBRL(resumo.resultado)}</p>
+            {(resumo.receitasPrevistas > 0 || resumo.despesasPrevistas > 0) && (
+              <p className="mt-1 text-xs text-planejado">
+                Planejado: +{formatBRL(resumo.receitasPrevistas)} / −{formatBRL(resumo.despesasPrevistas)}
+              </p>
+            )}
+          </Card>
+        </div>
+      )}
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-3">
+        <Selecao rotulo="Filtrar por conta" valor={filtros.contaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, contaId: v || undefined })}
+          opcoes={contas.map((c) => [c.id, c.nome])} todos="Todas as contas" />
+        <Selecao rotulo="Filtrar por categoria" valor={filtros.categoriaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, categoriaId: v || undefined })}
+          opcoes={categorias.map((c) => [c.id, `${c.nome} (${c.tipo === 'income' ? 'receita' : 'despesa'})`])} todos="Todas as categorias" />
+        <Selecao rotulo="Filtrar por tipo" valor={filtros.tipo ?? ''} aoMudar={(v) => setFiltros({ ...filtros, tipo: (v || undefined) as TipoLancamento | undefined })}
+          opcoes={Object.entries(rotuloTipo)} todos="Todos os tipos" />
+      </div>
+
+      {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
+
+      {naLixeira && (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Aviso tipo="info">Lançamento enviado para a lixeira.</Aviso>
+          <Button variante="fantasma" onClick={() => agir(async () => { await restaurarDaLixeira(naLixeira.id); setNaLixeira(null) })}>Desfazer</Button>
+        </div>
+      )}
+
+      {editando !== null && (
+        <FormLancamento
+          lancamento={editando === 'novo' ? null : editando}
+          contas={contas}
+          categorias={categorias}
+          familiaId={familiaId}
+          aoSalvar={async () => { setEditando(null); await carregar() }}
+          aoCancelar={() => setEditando(null)}
+        />
+      )}
+
+      {lancamentos === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
+
+      {lancamentos?.length === 0 && editando === null && contas.length > 0 && (
+        <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
+          acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
+      )}
+
+      <div className="flex flex-col gap-4">
+        {porDia.map(([data, itens]) => (
+          <section key={data} aria-label={formatDate(data)}>
+            <h2 className="mb-2 text-sm font-semibold text-slate-500">{formatDate(data)}</h2>
+            <Card className="p-0">
+              <ul className="divide-y divide-slate-100">
+                {itens.map((l) => {
+                  const v = valorComSinal(l)
+                  const subtitulo = l.tipo === 'transfer'
+                    ? `${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`
+                    : `${nomeCategoria.get(l.categoriaId ?? '') ?? 'Sem categoria'} · ${nomeConta.get(l.contaId) ?? '?'}`
+                  return (
+                    <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">
+                          {l.descricao || rotuloTipo[l.tipo]}
+                          {l.status === 'planned' && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado</span>}
+                        </p>
+                        <p className="text-sm text-slate-500">{subtitulo}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className={`tabular-nums font-semibold ${v.cor}`}>{v.texto}</span>
+                        {l.status === 'planned' && <Button variante="fantasma" onClick={() => agir(() => marcarComoPago(l.id))}>Marcar pago</Button>}
+                        <Button variante="fantasma" onClick={() => setEditando(l)}>Editar</Button>
+                        <Button variante="fantasma" onClick={() => excluir(l)}>Excluir</Button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </Card>
+          </section>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function Selecao({ rotulo, valor, aoMudar, opcoes, todos }: {
+  rotulo: string; valor: string; aoMudar: (v: string) => void; opcoes: [string, string][]; todos?: string
+}) {
+  const id = useId()
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor={id} className="text-sm font-medium">{rotulo}</label>
+      <select id={id} value={valor} onChange={(e) => aoMudar(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base">
+        {todos !== undefined && <option value="">{todos}</option>}
+        {opcoes.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+      </select>
+    </div>
+  )
+}
+
+interface PropsForm {
+  lancamento: Lancamento | null
+  contas: Conta[]
+  categorias: Categoria[]
+  familiaId: string
+  aoSalvar: () => Promise<void>
+  aoCancelar: () => void
+}
+
+function FormLancamento({ lancamento: l, contas, categorias, familiaId, aoSalvar, aoCancelar }: PropsForm) {
+  const hoje = hojeSP()
+  const ativas = contas.filter((c) => c.ativa || c.id === l?.contaId || c.id === l?.destinoId)
+  const [tipo, setTipo] = useState<TipoLancamento>(l?.tipo ?? 'expense')
+  const [valorTexto, setValorTexto] = useState(l ? formatBRL(l.valor).replace('R$ ', '') : '')
+  const [data, setData] = useState(l?.data ?? hoje)
+  const [descricao, setDescricao] = useState(l?.descricao ?? '')
+  const [contaId, setContaId] = useState(l?.contaId ?? ativas[0]?.id ?? '')
+  const [destinoId, setDestinoId] = useState(l?.destinoId ?? '')
+  const [categoriaId, setCategoriaId] = useState(l?.categoriaId ?? '')
+  // planejado por padrão quando a data é futura; a pessoa pode trocar
+  const [status, setStatus] = useState<StatusLancamento | null>(l?.status ?? null)
+  const statusEfetivo: StatusLancamento = status ?? (data > hoje ? 'planned' : 'paid')
+  const [notas, setNotas] = useState(l?.notas ?? '')
+  const [tentou, setTentou] = useState(false)
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  const valor = parseBRL(valorTexto)
+  const transferencia = tipo === 'transfer'
+  const categoriasDoTipo = categorias.filter((c) => c.tipo === tipo && (c.ativa || c.id === l?.categoriaId))
+  const conta = contas.find((c) => c.id === contaId)
+
+  const erros = {
+    valor: valor === null || valor <= 0 ? 'Informe um valor maior que zero. Exemplo: 1.250,50.' : undefined,
+    conta: !contaId ? 'Escolha a conta.' : undefined,
+    destino: transferencia && (!destinoId || destinoId === contaId) ? 'Escolha uma conta de destino diferente da origem.' : undefined,
+    categoria: !transferencia && !categoriaId ? 'Escolha a categoria.' : undefined,
+    data: !data ? 'Informe a data.' : undefined,
+  }
+
+  async function salvar(e: FormEvent) {
+    e.preventDefault()
+    setTentou(true)
+    if (Object.values(erros).some(Boolean) || valor === null) return
+    setErro('')
+    setEnviando(true)
+    try {
+      const dados = {
+        tipo, contaId, destinoId: transferencia ? destinoId : null, categoriaId: transferencia ? null : categoriaId,
+        descricao, valor: valor as Cents, data, status: statusEfetivo, notas,
+      }
+      if (l) await editarLancamento(l.id, dados)
+      else await criarLancamento(familiaId, dados)
+      await aoSalvar()
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Card className="mb-6">
+      <h2 className="mb-4 text-lg font-semibold">{l ? 'Editar lançamento' : 'Novo lançamento'}</h2>
+      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+
+        <div role="radiogroup" aria-label="Tipo do lançamento" className="inline-flex w-fit rounded-lg bg-slate-100 p-1 md:col-span-2">
+          {(Object.keys(rotuloTipo) as TipoLancamento[]).map((t) => (
+            <button key={t} type="button" role="radio" aria-checked={tipo === t}
+              onClick={() => { setTipo(t); setCategoriaId('') }}
+              className={`min-h-11 rounded-md px-4 text-sm font-semibold ${tipo === t ? 'bg-white text-marinho shadow-card' : 'text-slate-600'}`}>
+              {rotuloTipo[t]}
+            </button>
+          ))}
+        </div>
+
+        <Field rotulo="Valor (R$)" inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={tentou ? erros.valor : undefined} />
+        <Field rotulo="Data" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou ? erros.data : undefined} />
+        <Field rotulo="Descrição" maxLength={200} placeholder="Ex.: Supermercado" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+
+        <Selecao rotulo={transferencia ? 'Da conta' : 'Conta'} valor={contaId} aoMudar={setContaId}
+          opcoes={ativas.map((c) => [c.id, c.nome])} todos={contaId ? undefined : 'Escolha…'} />
+        {tentou && erros.conta && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.conta}</p>}
+
+        {transferencia ? (
+          <>
+            <Selecao rotulo="Para a conta" valor={destinoId} aoMudar={setDestinoId}
+              opcoes={ativas.filter((c) => c.id !== contaId).map((c) => [c.id, c.nome])} todos="Escolha…" />
+            {tentou && erros.destino && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.destino}</p>}
+          </>
+        ) : (
+          <>
+            <Selecao rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId}
+              opcoes={categoriasDoTipo.map((c) => [c.id, c.paiId ? `↳ ${c.nome}` : c.nome])} todos="Escolha…" />
+            {tentou && erros.categoria && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.categoria}</p>}
+          </>
+        )}
+
+        <fieldset className="flex flex-col gap-1">
+          <legend className="text-sm font-medium">Situação</legend>
+          <div className="flex gap-4">
+            {(['paid', 'planned'] as StatusLancamento[]).map((s) => (
+              <label key={s} className="flex min-h-11 items-center gap-2">
+                <input type="radio" name="status" checked={statusEfetivo === s} onChange={() => setStatus(s)} />
+                {s === 'paid' ? 'Pago' : 'Planejado'}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <Field rotulo="Observações (opcional)" maxLength={1000} value={notas} onChange={(e) => setNotas(e.target.value)} />
+
+        {!transferencia && conta && data && data < conta.abertura && (
+          <div className="md:col-span-2">
+            <Aviso tipo="info">
+              Data anterior ao saldo inicial de {conta.nome} ({formatDate(conta.abertura)}): o lançamento entra nos relatórios, mas <strong>não altera o saldo</strong> da conta.
+            </Aviso>
+          </div>
+        )}
+        {statusEfetivo === 'planned' && (
+          <p className="text-sm text-slate-600 md:col-span-2">Planejado não entra no saldo nem nos totais pagos até ser marcado como pago.</p>
+        )}
+
+        <div className="flex gap-2 md:col-span-2">
+          <Button type="submit" carregando={enviando}>{l ? 'Salvar' : 'Lançar'}</Button>
+          <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
+        </div>
+      </form>
+    </Card>
+  )
 }
