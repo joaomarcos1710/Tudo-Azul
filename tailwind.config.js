@@ -9,6 +9,9 @@ export default {
         fundo: '#F7F9FC',
         positivo: '#15803D',
         negativo: '#B91C1C',
+        // status de lançamento (design system): planejado âmbar, pago verde
+        planejado: { DEFAULT: '#B45309', fundo: '#FEF3C7' },
+        pago: { DEFAULT: '#047857', fundo: '#D1FAE5' },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
