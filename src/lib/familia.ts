@@ -97,17 +97,4 @@ export function tokenDoTexto(texto: string): string {
   return i >= 0 ? t.slice(i + 1).trim() : t
 }
 
-/**
- * Mensagem para erros das funções do banco. 22023 e 55000 são regras de negócio com texto
- * em português escrito nas migrations (ex.: "convite inválido ou expirado"); o resto vira
- * mensagem genérica, sem detalhe técnico.
- */
-export function mensagemErroBanco(erro: unknown): string {
-  const e = (erro ?? {}) as { code?: string; message?: string }
-  if ((e.code === '22023' || e.code === '55000') && e.message) {
-    return e.message.charAt(0).toUpperCase() + e.message.slice(1) + '.'
-  }
-  if (e.code === '42501') return 'Você não tem permissão para esta ação.'
-  if (/failed to fetch|network/i.test(e.message ?? '')) return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.'
-  return 'Não foi possível concluir agora. Tente de novo em instantes.'
-}
+export { mensagemErroBanco } from './erros'

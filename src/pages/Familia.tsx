@@ -79,17 +79,20 @@ function MinhaFamilia() {
   const [erroLista, setErroLista] = useState('')
   const dono = familia?.papel === 'owner'
 
+  const familiaId = familia?.id
+
+  // depende só do id: o objeto da família pode ser recriado sem que ela mude
   const carregarListas = useCallback(async () => {
-    if (!familia) return
+    if (!familiaId) return
     try {
-      const [m, c] = await Promise.all([listarMembros(familia.id), dono ? listarConvitesPendentes(familia.id) : []])
+      const [m, c] = await Promise.all([listarMembros(familiaId), dono ? listarConvitesPendentes(familiaId) : []])
       setMembros(m)
       setConvites(c)
       setErroLista('')
     } catch (err) {
       setErroLista(mensagemErroBanco(err))
     }
-  }, [familia, dono])
+  }, [familiaId, dono])
 
   useEffect(() => { void carregarListas() }, [carregarListas])
 
