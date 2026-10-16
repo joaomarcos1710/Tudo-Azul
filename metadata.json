@@ -1,0 +1,8 @@
+{
+  "name": "Tudo Azul | Finanças Familiares",
+  "description": "Aplicativo de gestão financeira familiar com controle de contas, categorias, lançamentos, orçamentos e relatórios.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ],
+  "permissions": []
+}

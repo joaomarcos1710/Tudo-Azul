@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+  # Todo PR, qualquer que seja a base: PRs empilhados (ex.: sobre um branch de migration)
+  # também precisam passar por typecheck, testes e build.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read

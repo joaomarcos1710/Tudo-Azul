@@ -1,42 +1,77 @@
 /** Formatadores pt-BR. Valores monetários em BRL, datas em DD/MM/AAAA. */
 
-const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+/**
+ * Dinheiro no front é sempre `Cents`: centavos inteiros (decisão 11, MODELO-DE-DADOS.md §5).
+ * Nenhuma função daqui faz conta com reais em ponto flutuante: texto -> centavos e
+ * centavos -> texto são feitos com manipulação de dígitos.
+ */
+export type Cents = number & { readonly __brand: 'Cents' }
 
-/** 1250.5 -> "R$ 1.250,50" (espaço comum, não-quebrável normalizado). */
-export function formatBRL(value: number): string {
-  const arredondado = Math.round(value * 100) / 100
-  // Evita "-R$ 0,00" (zero negativo ou valores que arredondam para zero).
-  return brl.format(arredondado === 0 ? 0 : arredondado).replace(/\u00a0/g, ' ')
+/** Limite de `numeric(14,2)` no banco: 999.999.999.999,99. */
+export const MAX_CENTS = 99_999_999_999_999 as Cents
+
+const milhar = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
+
+/** Valida um inteiro de centavos (seguro e dentro do limite do banco). */
+export function asCents(n: number): Cents | null {
+  return Number.isSafeInteger(n) && Math.abs(n) <= MAX_CENTS ? (n as Cents) : null
+}
+
+/** 125050 -> "R$ 1.250,50"; -3000 -> "-R$ 30,00". Só formata, sem aritmética em reais. */
+export function formatBRL(cents: Cents): string {
+  const abs = Math.abs(cents)
+  const reais = milhar.format(Math.floor(abs / 100))
+  const centavos = String(abs % 100).padStart(2, '0')
+  return `${cents < 0 ? '-' : ''}R$ ${reais},${centavos}`
 }
 
 /**
- * Converte texto digitado em número, de forma ESTRITA: formato inválido retorna null,
- * nunca um valor adivinhado. Aceita (com "R$" e sinal "-" opcionais):
+ * Converte texto digitado em centavos, de forma ESTRITA: formato inválido ou fora do limite
+ * do banco retorna null, nunca um valor adivinhado. Aceita (com "R$" e sinal "-" opcionais):
  *   "1.250,50"  milhar com ponto + vírgula decimal (1 ou 2 casas)
  *   "1250,5"    vírgula decimal
- *   "1.250"     ponto + exatamente 3 dígitos = milhar (pt-BR) -> 1250
+ *   "1.250"     ponto + exatamente 3 dígitos = milhar (pt-BR) -> 125000
  *   "1.250.000" milhares agrupados de 3 em 3
  *   "1250.50"   ponto decimal com 1 ou 2 casas
  *   "1250"      inteiro
  * Recusa: "1.2.3", "1,2,3", "1,234" (3 casas decimais), "12..5", texto.
  */
-export function parseBRL(input: string): number | null {
+export function parseBRL(input: string): Cents | null {
   const bruto = input.trim()
   const t = bruto.startsWith('R$') ? bruto.slice(2).trim() : bruto
   const inteiroMilhar = '\\d{1,3}(?:\\.\\d{3})+'
-  const comVirgula = new RegExp(`^-?(?:${inteiroMilhar}|\\d+),\\d{1,2}$`)
-  const semVirgulaMilhar = new RegExp(`^-?(?:${inteiroMilhar})$`)
-  const pontoDecimal = /^-?\d+\.\d{1,2}$/
-  const inteiro = /^-?\d+$/
+  const comVirgula = new RegExp(`^(-?)(${inteiroMilhar}|\\d+),(\\d{1,2})$`)
+  const semVirgulaMilhar = new RegExp(`^(-?)(${inteiroMilhar})()$`)
+  const pontoDecimal = /^(-?)(\d+)\.(\d{1,2})$/
+  const inteiro = /^(-?)(\d+)()$/
 
-  let normalizado: string
-  if (comVirgula.test(t)) normalizado = t.replace(/\./g, '').replace(',', '.')
-  else if (semVirgulaMilhar.test(t)) normalizado = t.replace(/\./g, '')
-  else if (pontoDecimal.test(t) || inteiro.test(t)) normalizado = t
-  else return null
+  const m = comVirgula.exec(t) ?? semVirgulaMilhar.exec(t) ?? pontoDecimal.exec(t) ?? inteiro.exec(t)
+  if (!m) return null
+  const [, sinal, parteInteira, decimais] = m
+  const digitos = parteInteira.replace(/\./g, '').replace(/^0+(?=\d)/, '')
+  if (digitos.length > 12) return null // além de numeric(14,2)
+  const cents = Number(digitos) * 100 + Number(decimais.padEnd(2, '0'))
+  return asCents(sinal === '-' && cents !== 0 ? -cents : cents)
+}
 
-  const n = Number(normalizado)
-  return Number.isFinite(n) ? n : null
+/** Centavos -> string decimal para enviar ao banco: 125050 -> "1250.50" (nunca cents / 100). */
+export function centsToDecimal(cents: Cents): string {
+  const abs = Math.abs(cents)
+  return `${cents < 0 ? '-' : ''}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')}`
+}
+
+/**
+ * Valor `numeric(14,2)` lido do banco (o PostgREST pode devolver número ou string) -> centavos.
+ * Lê os dígitos do texto em vez de multiplicar por 100. Valor fora do formato é erro de
+ * contrato com o banco, não entrada do usuário: lança exceção.
+ */
+export function centsFromDb(value: number | string): Cents {
+  const texto = typeof value === 'number' ? String(value) : value.trim()
+  const m = /^(-?)(\d+)(?:\.(\d{1,2})0*)?$/.exec(texto)
+  const cents = m ? Number(m[2]) * 100 + Number((m[3] ?? '').padEnd(2, '0')) : NaN
+  const resultado = m ? asCents(m[1] === '-' && cents !== 0 ? -cents : cents) : null
+  if (resultado === null) throw new Error(`valor monetário inválido vindo do banco: ${texto}`)
+  return resultado
 }
 
 /** "2026-10-13" -> "13/10/2026" (sem passar por Date, evita deslocamento de fuso). */
