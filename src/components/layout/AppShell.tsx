@@ -1,7 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { supabase } from '../../lib/supabase'
 import { itensNavegacao } from './navegacao'
 
 const base = 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
+
+/** Encerra a sessão; o RotaProtegida leva para /entrar quando a sessão some. */
+function sair() {
+  void supabase?.auth.signOut()
+}
 
 export function AppShell() {
   return (
@@ -23,11 +29,17 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
+        <button type="button" onClick={sair} className={`${base} mt-auto text-blue-100 hover:bg-white/10`}>
+          Sair
+        </button>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center bg-marinho px-4 py-3 text-lg font-bold text-white md:hidden">
+        <header className="flex items-center justify-between bg-marinho px-4 py-3 text-lg font-bold text-white md:hidden">
           Tudo Azul
+          <button type="button" onClick={sair} className="min-h-11 rounded-lg px-3 text-sm font-medium text-blue-100 hover:bg-white/10">
+            Sair
+          </button>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 p-4 pb-28 md:p-8 md:pb-8">
           <Outlet />
