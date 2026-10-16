@@ -23,7 +23,8 @@ export function RotaProtegida({ children }: { children: ReactNode }) {
     return <p className="p-6 text-sm text-slate-600" role="status">Carregando…</p>
   }
   if (!sessao) {
-    return <Navigate to="/entrar" replace state={{ de: location.pathname }} />
+    // hash incluído: o token do convite (/convite#token) sobrevive ao login
+    return <Navigate to="/entrar" replace state={{ de: location.pathname + location.search + location.hash }} />
   }
   return <>{children}</>
 }
