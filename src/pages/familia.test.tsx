@@ -17,6 +17,7 @@ const mock = vi.hoisted(() => ({
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ ...mock.estado, recarregar: mock.recarregar }),
 }))
+vi.mock('../lib/supabase', () => ({ supabase: null, supabaseConfigurado: true }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { email: 'ana@exemplo.com' } }, carregando: false }) }))
 vi.mock('../lib/familia', async (original) => ({
   ...(await original<typeof import('../lib/familia')>()),
