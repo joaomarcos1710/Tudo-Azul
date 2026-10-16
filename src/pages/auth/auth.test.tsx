@@ -87,6 +87,14 @@ describe('RotaProtegida', () => {
   })
 })
 
+describe('telas de acesso sem Supabase configurado', () => {
+  it('avisam em vez de deixar o botão sem efeito', () => {
+    mock.configurado = false
+    montar('/entrar')
+    expect(screen.getByRole('alert').textContent).toMatch(/ainda não está ligado ao banco/)
+  })
+})
+
 describe('Entrar', () => {
   it('envia e-mail sem espaços e mostra erro traduzido', async () => {
     mock.auth.signInWithPassword.mockResolvedValue({ error: { code: 'invalid_credentials', message: 'Invalid login credentials' } })
