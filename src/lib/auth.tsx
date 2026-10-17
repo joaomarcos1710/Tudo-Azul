@@ -51,6 +51,8 @@ const mensagens: Record<string, string> = {
   over_email_send_rate_limit: 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.',
   over_request_rate_limit: 'Muitas tentativas seguidas. Aguarde alguns minutos e tente de novo.',
   signup_disabled: 'O cadastro de novas contas está desativado.',
+  email_address_invalid: 'Este e-mail não foi aceito. Confira o endereço ou use outro.',
+  email_address_not_authorized: 'O envio de e-mails ainda não está liberado para este endereço. Peça ao administrador para configurar o e-mail (SMTP) do Supabase.',
 }
 
 /** Traduz um erro do Supabase Auth para uma mensagem clara em português, sem expor detalhes técnicos. */
@@ -60,5 +62,7 @@ export function mensagemErroAuth(erro: { code?: string; message?: string; status
   if (erro.status === 0 || /failed to fetch|network/i.test(erro.message ?? '')) {
     return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.'
   }
-  return 'Não foi possível concluir agora. Tente de novo em instantes.'
+  // O código ajuda a diagnosticar sem expor a mensagem técnica.
+  const codigo = erro.code ?? (erro.status ? String(erro.status) : '')
+  return `Não foi possível concluir agora. Tente de novo em instantes.${codigo ? ` (código: ${codigo})` : ''}`
 }
