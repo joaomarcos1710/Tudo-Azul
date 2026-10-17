@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
+import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import { listarCategorias } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
@@ -193,21 +194,6 @@ export default function Lancamentos() {
         ))}
       </div>
     </>
-  )
-}
-
-function Selecao({ rotulo, valor, aoMudar, opcoes, todos }: {
-  rotulo: string; valor: string; aoMudar: (v: string) => void; opcoes: [string, string][]; todos?: string
-}) {
-  const id = useId()
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-sm font-medium">{rotulo}</label>
-      <select id={id} value={valor} onChange={(e) => aoMudar(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base">
-        {todos !== undefined && <option value="">{todos}</option>}
-        {opcoes.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
-      </select>
-    </div>
   )
 }
 

@@ -5,6 +5,7 @@ import { ExigeFamilia } from './components/layout/ExigeFamilia'
 import VisaoGeral from './pages/VisaoGeral'
 import Lancamentos from './pages/Lancamentos'
 import Contas from './pages/Contas'
+import Cartoes from './pages/Cartoes'
 import Categorias from './pages/Categorias'
 import Orcamentos from './pages/Orcamentos'
 import Relatorios from './pages/Relatorios'
@@ -29,6 +30,7 @@ export default function App() {
           <Route index element={<VisaoGeral />} />
           <Route path="lancamentos" element={<Lancamentos />} />
           <Route path="contas" element={<Contas />} />
+          <Route path="cartoes" element={<Cartoes />} />
           <Route path="categorias" element={<Categorias />} />
           <Route path="orcamentos" element={<Orcamentos />} />
           <Route path="relatorios" element={<Relatorios />} />
