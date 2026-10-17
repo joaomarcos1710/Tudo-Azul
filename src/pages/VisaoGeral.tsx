@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
 import { Card, CardTitle } from '../components/ui/Card'
 import { useFamilia } from '../lib/FamiliaContext'
-import { cobrarFaturasFechadas } from '../lib/cartoes'
+import { atualizarAutomaticos } from '../lib/automaticos'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
@@ -32,9 +32,8 @@ export default function VisaoGeral() {
 
   useEffect(() => {
     if (!familiaId) return
-    // cobra as parcelas de cartão cujo fechamento chegou; se falhar, o painel mostra o que já está cobrado
-    cobrarFaturasFechadas()
-      .catch(() => 0)
+    // gera recorrentes e cobra faturas fechadas; se falhar, o painel mostra o que já está gravado
+    atualizarAutomaticos()
       .then(() => Promise.all([carregarPatrimonio(familiaId, hoje), resumoDoMes(familiaId, mes), listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje)]))
       .then(([patrimonio, resumo, c, proximos]) => setDados({ patrimonio, mes: resumo, contas: c.contas.filter((x) => x.ativa), proximos }))
       .catch((err) => setErro(mensagemErroBanco(err)))

@@ -4,6 +4,7 @@ import { RotaProtegida } from './components/layout/RotaProtegida'
 import { ExigeFamilia } from './components/layout/ExigeFamilia'
 import VisaoGeral from './pages/VisaoGeral'
 import Lancamentos from './pages/Lancamentos'
+import Recorrentes from './pages/Recorrentes'
 import Contas from './pages/Contas'
 import Cartoes from './pages/Cartoes'
 import Categorias from './pages/Categorias'
@@ -29,6 +30,7 @@ export default function App() {
         <Route element={<ExigeFamilia />}>
           <Route index element={<VisaoGeral />} />
           <Route path="lancamentos" element={<Lancamentos />} />
+          <Route path="recorrentes" element={<Recorrentes />} />
           <Route path="contas" element={<Contas />} />
           <Route path="cartoes" element={<Cartoes />} />
           <Route path="categorias" element={<Categorias />} />

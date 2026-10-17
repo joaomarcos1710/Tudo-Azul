@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../lib/format'
 
 const mock = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const mock = vi.hoisted(() => ({
   listarContas: vi.fn(),
   listarCategorias: vi.fn(),
 }))
+vi.mock('../lib/automaticos', () => ({ atualizarAutomaticos: () => Promise.resolve() }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
@@ -82,7 +84,7 @@ describe('datas do mês', () => {
 
 describe('Lançamentos', () => {
   it('lista por dia com sinais do design system e totais vindos do banco', async () => {
-    render(<Lancamentos />)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     expect((await screen.findAllByText('−R$ 250,50')).length).toBe(2) // item da lista e card de despesas pagas
     expect(screen.getByText('+R$ 8.000,00')).toBeTruthy()
     expect(screen.getByText('⇄ R$ 100,00')).toBeTruthy()
@@ -93,7 +95,7 @@ describe('Lançamentos', () => {
   })
 
   it('lança despesa em centavos, com categoria e status pago para hoje', async () => {
-    render(<Lancamentos />)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
     await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
@@ -108,7 +110,7 @@ describe('Lançamentos', () => {
   })
 
   it('não lança sem categoria nem valor válido', async () => {
-    render(<Lancamentos />)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
     await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
@@ -120,7 +122,7 @@ describe('Lançamentos', () => {
   })
 
   it('transferência exige destino diferente e não leva categoria', async () => {
-    render(<Lancamentos />)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
     await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
@@ -134,7 +136,7 @@ describe('Lançamentos', () => {
   })
 
   it('data futura vira planejado por padrão', async () => {
-    render(<Lancamentos />)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
     await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
@@ -145,7 +147,7 @@ describe('Lançamentos', () => {
   })
 
   it('avisa quando a data é anterior ao saldo inicial da conta', async () => {
-    render(<Lancamentos />)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
     await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
@@ -156,14 +158,14 @@ describe('Lançamentos', () => {
   })
 
   it('marca planejado como pago', async () => {
-    render(<Lancamentos />)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
     await userEvent.setup().click(screen.getByRole('button', { name: 'Marcar pago' }))
     expect(mock.marcarComoPago).toHaveBeenCalledWith('t2')
   })
 
   it('exclui para a lixeira com confirmação e permite desfazer', async () => {
-    render(<Lancamentos />)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     const item = (await screen.findByText('Supermercado')).closest('li')!
     await u.click(within(item).getByRole('button', { name: 'Excluir' }))
@@ -175,7 +177,7 @@ describe('Lançamentos', () => {
 
   it('regra do banco aparece em português', async () => {
     mock.criarLancamento.mockRejectedValue({ code: '23514', message: 'conta de origem desativada' })
-    render(<Lancamentos />)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
     await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])

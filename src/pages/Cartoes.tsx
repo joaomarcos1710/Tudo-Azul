@@ -13,6 +13,7 @@ import {
 } from '../lib/cartoes'
 import type { Cartao, Fatura, ItemFatura } from '../lib/cartoes'
 import { listarCategorias } from '../lib/categorias'
+import { gerarOcorrencias } from '../lib/recorrencias'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
@@ -43,7 +44,8 @@ export default function Cartoes() {
   const carregar = useCallback(async () => {
     if (!familiaId) return
     try {
-      // cobra o que já fechou antes de mostrar: os valores da tela ficam em dia
+      // gera as assinaturas de hoje e cobra o que já fechou antes de mostrar
+      await gerarOcorrencias().catch(() => 0)
       await cobrarFaturasFechadas()
       const [c, cs, cats] = await Promise.all([listarCartoes(familiaId), listarContas(familiaId), listarCategorias(familiaId)])
       setCartoes(c)

@@ -15,7 +15,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 }))
 vi.mock('../lib/painel', () => ({ carregarPatrimonio: mock.carregarPatrimonio, proximosPlanejados: mock.proximosPlanejados }))
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes }))
-vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: vi.fn().mockResolvedValue(0) }))
+vi.mock('../lib/automaticos', () => ({ atualizarAutomaticos: () => Promise.resolve() }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
 import VisaoGeral from './VisaoGeral'

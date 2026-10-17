@@ -25,6 +25,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   definirCiclo: mock.definirCiclo, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
   listarItens: mock.listarItens, pagarFatura: mock.pagarFatura,
 }))
+vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0) }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 

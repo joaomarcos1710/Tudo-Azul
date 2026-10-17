@@ -6,7 +6,7 @@ select * from no_plan();
 
 -- Tabelas e policies exatamente as esperadas (nada sobrando sem revisão)
 select tables_are('public',
-  array['accounts','budgets','categories','debt_events','debt_installments','debt_invoices','debts','household_members','households','invitations','profiles','transactions'],
+  array['accounts','budgets','categories','debt_events','debt_installments','debt_invoices','debts','household_members','households','invitations','profiles','recurrences','transactions'],
   'schema public contém só as tabelas esperadas');
 
 select is_empty($$
@@ -26,6 +26,7 @@ select policies_are('public','debt_installments', array['debt_installments_selec
 select policies_are('public','debt_events',       array['debt_events_select']);
 select policies_are('public','transactions',      array['transactions_select','transactions_insert','transactions_update']);
 select policies_are('public','budgets',           array['budgets_select','budgets_insert','budgets_update','budgets_delete']);
+select policies_are('public','recurrences',       array['recurrences_select']);
 
 select is_empty($$
   select p.tablename, p.policyname from pg_policies p
@@ -93,13 +94,14 @@ select functions_are('public', array[
   'accept_invitation','account_balances','balance_totals','budget_usage','card_bill_due','card_items','card_months',
   'card_purchase','create_debt','create_debt_installments','create_debt_invoice','create_household','create_invitation','debt_anticipate','debt_balances','debt_bill',
   'debt_loan_event','debt_pay','debt_refund','debt_return','debt_void','delete_household','leave_household',
-  'net_worth','period_summary','remove_member','set_card_cycle'],
+  'net_worth','period_summary','recurrence_create','recurrence_end','recurrence_materialize','recurrence_update',
+  'remove_member','set_card_cycle'],
   'funções do schema public');
 select functions_are('private', array[
   'accounts_guard','budgets_guard','card_day_in_month','card_due_date','card_first_closing',
   'categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
   'debt_effect','debt_events_guard','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debts_immutable',
-  'handle_new_user','is_member','is_owner','members_limit_guard','members_owner_guard','seed_default_categories',
+  'handle_new_user','is_member','is_owner','members_limit_guard','members_owner_guard','recurrence_lock','recurrences_money_guard','seed_default_categories',
   'shares_household','today_sp','touch_updated_at','transactions_guard'],
   'funções do schema private');
 
@@ -131,7 +133,8 @@ select is(
         'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_balances',
         'public.debt_bill','public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_return',
         'public.debt_void','public.delete_household','public.leave_household','public.net_worth',
-        'public.period_summary','public.remove_member','public.set_card_cycle']::text[],
+        'public.period_summary','public.recurrence_create','public.recurrence_end','public.recurrence_materialize',
+        'public.recurrence_update','public.remove_member','public.set_card_cycle']::text[],
   'lista de funções executáveis por authenticated é exatamente a esperada (funções de trigger: nenhuma)');
 
 -- Toda função tem search_path fixo; SECURITY DEFINER só nas esperadas
@@ -148,12 +151,13 @@ select is(
          order by 1),
   array['private.current_household','private.debt_balance','private.debt_chk','private.debt_chk_trg',
         'private.debt_lock','private.handle_new_user','private.is_member','private.is_owner',
-        'private.members_owner_guard','private.seed_default_categories','private.shares_household',
+        'private.members_owner_guard','private.recurrence_lock','private.seed_default_categories','private.shares_household',
         'public.accept_invitation','public.card_bill_due','public.card_purchase',
         'public.create_debt','public.create_debt_installments','public.create_debt_invoice',
         'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_bill',
         'public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_return','public.debt_void',
-        'public.delete_household','public.leave_household','public.remove_member','public.set_card_cycle']::text[],
+        'public.delete_household','public.leave_household','public.recurrence_create','public.recurrence_end',
+        'public.recurrence_materialize','public.recurrence_update','public.remove_member','public.set_card_cycle']::text[],
   'SECURITY DEFINER apenas nas funções auditadas (seção 6.1 do plano)');
 
 select is(
