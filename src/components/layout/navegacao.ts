@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import {
-  IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
+  IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
   IconeOrcamentos, IconeRelatorios, IconeVisaoGeral,
 } from './icons'
 
@@ -16,6 +16,7 @@ export const itensNavegacao: ItemNavegacao[] = [
   { caminho: '/', rotulo: 'Visão geral', curto: 'Início', Icone: IconeVisaoGeral },
   { caminho: '/lancamentos', rotulo: 'Lançamentos', curto: 'Lançam.', Icone: IconeLancamentos },
   { caminho: '/contas', rotulo: 'Contas', curto: 'Contas', Icone: IconeContas },
+  { caminho: '/cartoes', rotulo: 'Cartões', curto: 'Cartões', Icone: IconeCartoes },
   { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias },
   { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos },
   { caminho: '/relatorios', rotulo: 'Relatórios', curto: 'Relat.', Icone: IconeRelatorios },

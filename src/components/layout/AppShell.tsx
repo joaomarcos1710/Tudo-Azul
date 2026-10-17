@@ -46,7 +46,7 @@ export function AppShell() {
         </main>
       </div>
 
-      {/* Navegação inferior (celular): 7 itens cabem na largura, alvos de toque >= 44px */}
+      {/* Navegação inferior (celular): 8 itens cabem (45px cada em 360px) na largura, alvos de toque >= 44px */}
       <nav
         aria-label="Principal"
         className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden"

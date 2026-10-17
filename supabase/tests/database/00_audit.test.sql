@@ -90,8 +90,8 @@ select ok(has_column_privilege('authenticated','public.invitations','email','SEL
 
 -- Funções: exatamente as esperadas
 select functions_are('public', array[
-  'accept_invitation','account_balances','balance_totals','budget_usage','card_bill_due','card_purchase',
-  'create_debt','create_debt_installments','create_debt_invoice','create_household','create_invitation','debt_anticipate','debt_balances','debt_bill',
+  'accept_invitation','account_balances','balance_totals','budget_usage','card_bill_due','card_items','card_months',
+  'card_purchase','create_debt','create_debt_installments','create_debt_invoice','create_household','create_invitation','debt_anticipate','debt_balances','debt_bill',
   'debt_loan_event','debt_pay','debt_refund','debt_return','debt_void','delete_household','leave_household',
   'net_worth','period_summary','remove_member','set_card_cycle'],
   'funções do schema public');
@@ -127,7 +127,7 @@ select is(
          order by 1),
   array['private.is_member','private.is_owner','private.shares_household',
         'public.accept_invitation','public.account_balances','public.balance_totals',
-        'public.budget_usage','public.card_bill_due','public.card_purchase','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
+        'public.budget_usage','public.card_bill_due','public.card_items','public.card_months','public.card_purchase','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
         'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_balances',
         'public.debt_bill','public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_return',
         'public.debt_void','public.delete_household','public.leave_household','public.net_worth',
