@@ -33,6 +33,11 @@ export interface Fatura {
   pago: Cents
   itens: number
   faturaId: string | null
+  /** O que ficou sem pagar das faturas anteriores ("saldo anterior"). */
+  saldoAnterior: Cents
+  /** Adiantamento disponível ao chegar nesta fatura e o que sobra depois dela. */
+  adiantamentoEntrada: Cents
+  adiantamentoSaida: Cents
 }
 
 export interface ItemFatura {
@@ -46,6 +51,15 @@ export interface ItemFatura {
   /** Quanto da parcela ainda não foi cobrado (0 = já está na fatura fechada). */
   falta: Cents
   categoriaId: string
+}
+
+/** Uma linha da prévia de exclusão: o que será desfeito (cobrança, pagamento devolvido, cancelamento). */
+export interface ItemPrevia {
+  tipo: 'charge' | 'credit' | 'payment' | 'extra_principal' | 'cancel' | string
+  data: string
+  valor: Cents
+  contaId: string | null
+  fatura: string | null
 }
 
 export interface DadosCompra {
@@ -112,10 +126,15 @@ export async function definirCiclo(cartaoId: string, fechamento: number, vencime
   if (error) throw error
 }
 
-export async function registrarCompra(cartaoId: string, d: DadosCompra): Promise<void> {
+/** Chave de repetição: o mesmo envio (clique duplo, rede ruim) nunca grava duas vezes. */
+export function novaChave(): string {
+  return crypto.randomUUID()
+}
+
+export async function registrarCompra(cartaoId: string, d: DadosCompra, chave?: string): Promise<void> {
   const { error } = await cliente().rpc('card_purchase', {
     p_debt: cartaoId, p_date: d.data, p_total: centsToDecimal(d.total), p_count: d.parcelas,
-    p_category: d.categoriaId, p_description: d.descricao.trim(),
+    p_category: d.categoriaId, p_description: d.descricao.trim(), ...(chave ? { p_idem: chave } : {}),
   })
   if (error) throw error
 }
@@ -140,6 +159,9 @@ export async function listarFaturas(cartaoId: string): Promise<Fatura[]> {
     pago: centsFromDb(f.paid ?? 0),
     itens: Number(f.items ?? 0),
     faturaId: (f.invoice_id as string | null) ?? null,
+    saldoAnterior: centsFromDb(f.previous_open ?? 0),
+    adiantamentoEntrada: centsFromDb(f.advance_in ?? 0),
+    adiantamentoSaida: centsFromDb(f.advance_out ?? 0),
   }))
 }
 
@@ -160,9 +182,46 @@ export async function listarItens(cartaoId: string, mes: string): Promise<ItemFa
 }
 
 /** Pagamento da fatura a partir de uma conta: reduz a dívida, não é despesa. */
-export async function pagarFatura(cartaoId: string, d: { contaId: string; data: string; valor: Cents; faturaId: string | null }): Promise<void> {
+export async function pagarFatura(
+  cartaoId: string, d: { contaId: string; data: string; valor: Cents; faturaId: string | null }, chave?: string,
+): Promise<void> {
   const { error } = await cliente().rpc('debt_pay', {
     p_debt: cartaoId, p_date: d.data, p_account: d.contaId, p_amount: centsToDecimal(d.valor), p_invoice: d.faturaId,
+    ...(chave ? { p_idem: chave } : {}),
+  })
+  if (error) throw error
+}
+
+/** Reabre a fatura: desfaz os pagamentos ligados a ela e o dinheiro volta para a conta. Devolve quantos desfez. */
+export async function reabrirFatura(cartaoId: string, mes: string, motivo = 'fatura reaberta'): Promise<number> {
+  const { data, error } = await cliente().rpc('card_invoice_reopen', { p_debt: cartaoId, p_label: mes, p_reason: motivo })
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
+/** Tudo o que a exclusão da compra inteira vai desfazer (nada é gravado). */
+export async function previaExclusao(cartaoId: string, compra: string): Promise<ItemPrevia[]> {
+  const { data, error } = await cliente().rpc('card_purchase_delete_preview', { p_debt: cartaoId, p_plan: compra })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number | null>[]).map((r) => ({
+    tipo: r.item as string,
+    data: r.event_date as string,
+    valor: centsFromDb(r.amount ?? 0),
+    contaId: (r.account_id as string | null) ?? null,
+    fatura: (r.invoice_label as string | null) ?? null,
+  }))
+}
+
+/** Exclui a compra inteira (todas as parcelas). Pagamentos das faturas envolvidas são desfeitos. */
+export async function excluirCompra(cartaoId: string, compra: string, motivo = 'compra excluída'): Promise<void> {
+  const { error } = await cliente().rpc('card_purchase_delete', { p_debt: cartaoId, p_plan: compra, p_reason: motivo })
+  if (error) throw error
+}
+
+/** Corrige o valor de UMA parcela (o banco ajusta a fatura; fatura paga precisa ser reaberta antes). */
+export async function editarParcela(parcelaId: string, valor: Cents, motivo?: string): Promise<void> {
+  const { error } = await cliente().rpc('card_installment_edit', {
+    p_installment: parcelaId, p_face: centsToDecimal(valor), ...(motivo ? { p_reason: motivo } : {}),
   })
   if (error) throw error
 }
