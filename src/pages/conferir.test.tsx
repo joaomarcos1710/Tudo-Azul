@@ -10,7 +10,7 @@ const mock = vi.hoisted(() => ({
   movimentosAte: vi.fn(),
   ultimasConciliacoes: vi.fn(),
   conciliar: vi.fn(),
-  desfazerConferencia: vi.fn(),
+  desfazerUltimaConciliacao: vi.fn(),
   listarContas: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
@@ -18,7 +18,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 }))
 vi.mock('../lib/conciliacao', () => ({
   saldoNaData: mock.saldoNaData, movimentosAte: mock.movimentosAte, ultimasConciliacoes: mock.ultimasConciliacoes,
-  conciliar: mock.conciliar, desfazerConferencia: mock.desfazerConferencia,
+  conciliar: mock.conciliar, desfazerUltimaConciliacao: mock.desfazerUltimaConciliacao,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
@@ -38,13 +38,14 @@ beforeEach(() => {
   })
   mock.saldoNaData.mockResolvedValue(c(524960))
   mock.movimentosAte.mockResolvedValue([
+    { origem: 'opening', id: 'a1', data: '2026-10-01', descricao: 'Saldo inicial', valor: c(100000), conferido: false },
     { origem: 'transaction', id: 't1', data: '2026-10-06', descricao: 'Salário', valor: c(500000), conferido: true },
     { origem: 'transaction', id: 't2', data: '2026-10-05', descricao: 'Mercado', valor: c(-25040), conferido: false },
     { origem: 'debt', id: 'e1', data: '2026-10-04', descricao: 'Pagamento de Nubank', valor: c(-10000), conferido: true },
   ])
   mock.ultimasConciliacoes.mockResolvedValue([])
   mock.conciliar.mockResolvedValue(undefined)
-  mock.desfazerConferencia.mockResolvedValue(undefined)
+  mock.desfazerUltimaConciliacao.mockResolvedValue(null)
 })
 afterEach(() => {
   cleanup()
@@ -60,6 +61,8 @@ describe('Conferir conta', () => {
     expect(screen.getByText('−R$ 250,40')).toBeTruthy()
     expect(screen.getByText('+R$ 5.000,00')).toBeTruthy()
     expect(screen.getByText(/cartão\/dívida/)).toBeTruthy()
+    expect(screen.getByText('Saldo inicial')).toBeTruthy()
+    expect(screen.getByText('R$ 1.000,00')).toBeTruthy()
   })
 
   it('com diferença, não deixa concluir e mostra o valor', async () => {
@@ -83,11 +86,14 @@ describe('Conferir conta', () => {
     expect(await screen.findByText(/o saldo bate com o extrato/)).toBeTruthy()
   })
 
-  it('desfazer a conferência pede confirmação', async () => {
+  it('conta conciliada: avisa a data travada e desfaz a última com confirmação', async () => {
     const u = userEvent.setup()
+    mock.ultimasConciliacoes.mockResolvedValue([{ data: '2026-10-10', saldoExtrato: c(494960), lancamentos: 3, criadaEm: 'x' }])
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     montar()
-    await u.click(await screen.findByRole('button', { name: 'Desfazer' }))
-    expect(mock.desfazerConferencia).toHaveBeenCalledWith('t1')
+    expect(await screen.findByText(/Conta conciliada até 10\/10\/2026/)).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Desfazer a de 10/10/2026' }))
+    expect(window.confirm).toHaveBeenCalled()
+    expect(mock.desfazerUltimaConciliacao).toHaveBeenCalledWith('a1')
   })
 })

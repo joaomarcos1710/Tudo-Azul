@@ -4,7 +4,8 @@ import { supabase } from './supabase'
 
 /** Conciliação com o extrato (migration 007): o saldo e os movimentos vêm do banco. */
 export interface Movimento {
-  origem: 'transaction' | 'debt'
+  /** opening = saldo inicial da conta (saldo inicial + movimentos = saldo do app). */
+  origem: 'opening' | 'transaction' | 'debt'
   id: string
   data: string
   descricao: string
@@ -66,7 +67,9 @@ export async function conciliar(contaId: string, data: string, saldoExtrato: Cen
   if (error) throw error
 }
 
-export async function desfazerConferencia(lancamentoId: string): Promise<void> {
-  const { error } = await cliente().rpc('unreconcile_transaction', { p_transaction: lancamentoId })
+/** Desfaz a ÚLTIMA conciliação da conta (destrava o período). Devolve a nova data travada, se houver. */
+export async function desfazerUltimaConciliacao(contaId: string): Promise<string | null> {
+  const { data, error } = await cliente().rpc('reconciliation_undo', { p_account: contaId })
   if (error) throw error
+  return (data as string | null) ?? null
 }
