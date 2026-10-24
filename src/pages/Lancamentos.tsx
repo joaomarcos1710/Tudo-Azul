@@ -17,10 +17,10 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatDate, formatMonth, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, editarLancamento, listarLancamentos, marcarComoPago, moverParaLixeira, restaurarDaLixeira,
-  resumoDoMes, somarMeses,
+  criarLancamento, editarLancamento, listarLancamentos, listarMovimentosDeDivida, marcarComoPago, moverParaLixeira,
+  restaurarDaLixeira, resumoDoMes, somarMeses,
 } from '../lib/lancamentos'
-import type { Filtros, Lancamento, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { Filtros, Lancamento, MovimentoDivida, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 
 const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', income: 'Receita', transfer: 'Transferência' }
 
@@ -37,6 +37,7 @@ export default function Lancamentos() {
   const [mes, setMes] = useState(() => currentMonth())
   const [filtros, setFiltros] = useState<Filtros>({})
   const [lancamentos, setLancamentos] = useState<Lancamento[] | null>(null)
+  const [movimentosDivida, setMovimentosDivida] = useState<MovimentoDivida[]>([])
   const [resumo, setResumo] = useState<ResumoMes | null>(null)
   const [contas, setContas] = useState<Conta[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
@@ -61,8 +62,12 @@ export default function Lancamentos() {
   const carregar = useCallback(async () => {
     if (!familiaId || !automaticosProntos) return
     try {
-      const [l, r] = await Promise.all([listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes)])
+      // pagamento de fatura, juros e tarifa moram em outra tabela, mas mexem na conta: entram no extrato
+      const [l, r, md] = await Promise.all([
+        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros),
+      ])
       setLancamentos(l)
+      setMovimentosDivida(md)
       setResumo(r)
       setErro('')
     } catch (err) {
@@ -91,12 +96,17 @@ export default function Lancamentos() {
 
   if (!familiaId) return null
 
-  // agrupa por dia mantendo a ordem (mais recente primeiro)
-  const porDia: [string, Lancamento[]][] = []
-  for (const l of lancamentos ?? []) {
+  // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
+  type Item = { origem: 'lancamento'; l: Lancamento } | { origem: 'divida'; m: MovimentoDivida }
+  const itens: (Item & { data: string })[] = [
+    ...(lancamentos ?? []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
+    ...movimentosDivida.map((m) => ({ origem: 'divida' as const, m, data: m.data })),
+  ].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
+  const porDia: [string, Item[]][] = []
+  for (const it of itens) {
     const ultimo = porDia[porDia.length - 1]
-    if (ultimo && ultimo[0] === l.data) ultimo[1].push(l)
-    else porDia.push([l.data, [l]])
+    if (ultimo && ultimo[0] === it.data) ultimo[1].push(it)
+    else porDia.push([it.data, [it]])
   }
 
   return (
@@ -135,6 +145,15 @@ export default function Lancamentos() {
         </div>
       )}
 
+      {movimentosDivida.length > 0 && (
+        <p className="mb-4 text-xs text-slate-500">
+          Itens <strong>Cartão/dívida</strong> mexem no saldo da conta, então aparecem aqui para o extrato bater com o banco.
+          <strong> Pagamento de fatura e amortização não são despesa</strong>: a compra já contou no mês da fatura.
+          {' '}<strong>Juros e tarifa são despesa</strong> e já estão em "Despesas pagas", na categoria deles.
+        </p>
+      )}
+
+
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Selecao rotulo="Filtrar por conta" valor={filtros.contaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, contaId: v || undefined })}
           opcoes={contas.map((c) => [c.id, c.nome])} todos="Todas as contas" />
@@ -166,7 +185,7 @@ export default function Lancamentos() {
 
       {lancamentos === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
-      {lancamentos?.length === 0 && editando === null && contas.length > 0 && (
+      {lancamentos?.length === 0 && movimentosDivida.length === 0 && editando === null && contas.length > 0 && (
         <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
           acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
       )}
@@ -177,7 +196,30 @@ export default function Lancamentos() {
             <h2 className="mb-2 text-sm font-semibold text-slate-500">{formatDate(data)}</h2>
             <Card className="p-0">
               <ul className="divide-y divide-slate-100">
-                {itens.map((l) => {
+                {itens.map((item) => {
+                  if (item.origem === 'divida') {
+                    const m = item.m
+                    return (
+                      <li key={`divida-${m.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
+                        <div className="min-w-0">
+                          <p className="font-medium">
+                            {m.descricao}
+                            <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              {m.jaEmDespesas ? 'Cartão/dívida · já em despesas' : 'Cartão/dívida'}
+                            </span>
+                          </p>
+                          <p className="text-sm text-slate-500">{nomeConta.get(m.contaId) ?? '?'}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className={`tabular-nums font-semibold ${m.valor < 0 ? 'text-slate-700' : 'text-positivo'}`}>
+                            {m.valor < 0 ? '−' : '+'}{formatBRL(Math.abs(m.valor) as Cents)}
+                          </span>
+                          <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
+                        </div>
+                      </li>
+                    )
+                  }
+                  const l = item.l
                   const v = valorComSinal(l)
                   const subtitulo = l.tipo === 'transfer'
                     ? `${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`
