@@ -9,12 +9,21 @@ const mock = vi.hoisted(() => ({
   proximosPlanejados: vi.fn(),
   resumoDoMes: vi.fn(),
   listarContas: vi.fn(),
+  despesasPorCategoria: vi.fn(),
+  despesasPorDia: vi.fn(),
+  listarLancamentos: vi.fn(),
+  listarCategorias: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/painel', () => ({ carregarPatrimonio: mock.carregarPatrimonio, proximosPlanejados: mock.proximosPlanejados }))
-vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes }))
+vi.mock('../lib/painel', () => ({
+  carregarPatrimonio: mock.carregarPatrimonio, proximosPlanejados: mock.proximosPlanejados,
+  despesasPorCategoria: mock.despesasPorCategoria, despesasPorDia: mock.despesasPorDia,
+}))
+vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
+vi.mock('../lib/categorias', () => ({ listarCategorias: mock.listarCategorias }))
+vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, listarLancamentos: mock.listarLancamentos }))
 const cobrar = vi.hoisted(() => vi.fn())
 const gerar = vi.hoisted(() => vi.fn())
 vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar }))
@@ -39,6 +48,19 @@ beforeEach(() => {
     total: c(1282030),
   })
   mock.proximosPlanejados.mockResolvedValue([{ id: 't1', tipo: 'expense', descricao: 'Internet', valor: c(12000), data: '2026-10-20' }])
+  mock.despesasPorCategoria.mockResolvedValue([
+    { categoriaId: 'g1', nome: 'Moradia', valor: c(500000), percentual: 57.7 },
+    { categoriaId: null, nome: 'Outros', valor: c(366726), percentual: 42.3 },
+  ])
+  mock.despesasPorDia.mockResolvedValue([
+    { dia: '2026-10-01', valor: c(500000), acumulado: c(500000) },
+    { dia: '2026-10-02', valor: c(366726), acumulado: c(866726) },
+  ])
+  mock.listarLancamentos.mockResolvedValue([
+    { id: 'l1', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'g1', descricao: 'Aluguel', valor: c(500000), data: '2026-10-01', status: 'paid', notas: '' },
+    { id: 'l2', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'g1', descricao: 'Planejado', valor: c(100), data: '2026-10-30', status: 'planned', notas: '' },
+  ])
+  mock.listarCategorias.mockResolvedValue([{ id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true }])
 })
 afterEach(() => {
   cleanup()
@@ -46,11 +68,29 @@ afterEach(() => {
 })
 
 describe('Visão geral', () => {
+  it('saúda pelo primeiro nome e mostra o gráfico de categorias com valores e % do banco', async () => {
+    montar()
+    expect(await screen.findByText(/, João!/)).toBeTruthy()
+    expect(screen.getAllByText('Moradia').length).toBeGreaterThan(0)
+    expect(screen.getByText('57,7%')).toBeTruthy()
+    expect(screen.getByText('Outros')).toBeTruthy()
+    expect(screen.getByRole('img', { name: /Despesa acumulada no mês: R\$ 8\.667,26/ })).toBeTruthy()
+  })
+  it('últimos lançamentos: só pagos, com categoria', async () => {
+    montar()
+    expect(await screen.findByText('Aluguel')).toBeTruthy()
+    expect(screen.queryByText('Planejado')).toBeNull()
+  })
+  it('compara com o mês anterior', async () => {
+    mock.resumoDoMes.mockResolvedValueOnce({ receitas: c(1215000), despesas: c(866726), resultado: c(348274), receitasPrevistas: c(0), despesasPrevistas: c(0) })
+      .mockResolvedValueOnce({ receitas: c(1215000), despesas: c(433363), resultado: c(781637), receitasPrevistas: c(0), despesasPrevistas: c(0) })
+    montar()
+    expect(await screen.findByText(/100%/)).toBeTruthy() // despesas dobraram
+  })
   it('mostra a equação do patrimônio com os valores do banco', async () => {
     montar()
-    expect(await screen.findByText('R$ 50.651,05')).toBeTruthy()
-    expect(screen.getByText('R$ 245,90')).toBeTruthy()
-    expect(screen.getByText('R$ 40.021,35')).toBeTruthy()
+    // equação montada com os valores do banco: disponível + crédito a receber − dívida = patrimônio
+    expect(await screen.findByText(/disponível R\$ 50\.651,05 \+ crédito a receber R\$ 245,90 − dívida R\$ 40\.021,35/)).toBeTruthy()
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.getByText(/Não inclui bens nem investimentos/)).toBeTruthy()
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
@@ -81,6 +121,6 @@ describe('Visão geral', () => {
     cobrar.mockRejectedValue(new Error('x'))
     montar()
     expect(await screen.findByText(/Não foi possível fechar as faturas dos cartões/)).toBeTruthy()
-    expect(screen.getByText('Visão geral')).toBeTruthy()
+    expect(screen.getByText(/Bom dia|Boa tarde|Boa noite/)).toBeTruthy()
   })
 })
