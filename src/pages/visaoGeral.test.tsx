@@ -123,4 +123,12 @@ describe('Visão geral', () => {
     expect(await screen.findByText(/Não foi possível fechar as faturas dos cartões/)).toBeTruthy()
     expect(screen.getByText(/Bom dia|Boa tarde|Boa noite/)).toBeTruthy()
   })
+  it('se as consultas dos gráficos falharem (banco sem a migration), o resto do painel aparece', async () => {
+    mock.despesasPorCategoria.mockRejectedValue(new Error('function does not exist'))
+    mock.despesasPorDia.mockRejectedValue(new Error('function does not exist'))
+    montar()
+    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.getAllByText(/Gráfico indisponível agora/)).toHaveLength(2)
+    expect(screen.queryByText(/Não foi possível/)).toBeNull()
+  })
 })

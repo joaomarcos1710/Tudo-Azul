@@ -25,8 +25,9 @@ interface Dados {
   anterior: ResumoMes
   contas: Conta[]
   proximos: ProximoPlanejado[]
-  categorias: DespesaCategoria[]
-  dias: DespesaDia[]
+  /** null = os gráficos não carregaram (ex.: banco ainda sem as consultas novas); o resto da tela segue normal */
+  categorias: DespesaCategoria[] | null
+  dias: DespesaDia[] | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
 }
@@ -67,7 +68,7 @@ export default function VisaoGeral() {
       .then(() => Promise.all([
         carregarPatrimonio(familiaId, hoje), resumoDoMes(familiaId, mes), resumoDoMes(familiaId, somarMeses(mes, -1)),
         listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje),
-        despesasPorCategoria(familiaId, de, ate, 4), despesasPorDia(familiaId, de, ate),
+        despesasPorCategoria(familiaId, de, ate, 4).catch(() => null), despesasPorDia(familiaId, de, ate).catch(() => null),
         listarLancamentos(familiaId, mes), listarCategorias(familiaId),
       ]))
       .then(([patrimonio, resumo, anterior, c, proximos, categorias, dias, lancs, cats]) => setDados({
@@ -128,7 +129,9 @@ export default function VisaoGeral() {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
           <CardTitle>Despesas por categoria</CardTitle>
-          {dados.categorias.length === 0 ? (
+          {dados.categorias === null ? (
+            <p className="text-sm text-slate-500" role="status">Gráfico indisponível agora. Os valores acima continuam corretos.</p>
+          ) : dados.categorias.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
           ) : (
             <Rosca total={m.despesas} fatias={dados.categorias.map((c) => ({
@@ -139,7 +142,9 @@ export default function VisaoGeral() {
 
         <Card>
           <CardTitle>Despesas acumuladas no mês</CardTitle>
-          <LinhaAcumulada pontos={dados.dias} ate={hoje} />
+          {dados.dias === null
+            ? <p className="text-sm text-slate-500" role="status">Gráfico indisponível agora. Os valores acima continuam corretos.</p>
+            : <LinhaAcumulada pontos={dados.dias} ate={hoje} />}
           {a.despesas > 0 && (
             <p className="mt-2 rounded-lg bg-azul-claro px-3 py-2 text-sm text-marinho">
               No mês passado inteiro foram {formatBRL(a.despesas)}; neste mês, até hoje, {formatBRL(m.despesas)}.
