@@ -27,13 +27,16 @@ export default function VisaoGeral() {
   const familiaId = familia?.id
   const [dados, setDados] = useState<Dados | null>(null)
   const [erro, setErro] = useState('')
+  const [cobrancaFalhou, setCobrancaFalhou] = useState(false)
+  const [recorrentesFalhou, setRecorrentesFalhou] = useState(false)
   const hoje = hojeSP()
   const mes = currentMonth()
 
   useEffect(() => {
     if (!familiaId) return
-    // gera recorrentes e cobra faturas fechadas; se falhar, o painel mostra o que já está gravado
+    // gera recorrentes e cobra faturas fechadas; se falhar, o painel mostra o que já está gravado, com aviso
     atualizarAutomaticos()
+      .then((r) => { setCobrancaFalhou(!r.faturasOk); setRecorrentesFalhou(!r.recorrentesOk) })
       .then(() => Promise.all([carregarPatrimonio(familiaId, hoje), resumoDoMes(familiaId, mes), listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje)]))
       .then(([patrimonio, resumo, c, proximos]) => setDados({ patrimonio, mes: resumo, contas: c.contas.filter((x) => x.ativa), proximos }))
       .catch((err) => setErro(mensagemErroBanco(err)))
@@ -47,6 +50,16 @@ export default function VisaoGeral() {
   return (
     <>
       <h1 className="mb-6 text-2xl font-bold">Visão geral</h1>
+      {cobrancaFalhou && (
+        <div className="mb-4">
+          <Aviso tipo="erro">Não foi possível fechar as faturas dos cartões agora. Os valores de cartão podem estar defasados.</Aviso>
+        </div>
+      )}
+      {recorrentesFalhou && (
+        <div className="mb-4">
+          <Aviso tipo="erro">Não foi possível lançar os recorrentes agora. Contas mensais e assinaturas podem estar faltando.</Aviso>
+        </div>
+      )}
 
       <section aria-label="Patrimônio" className="mb-2 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Indicador rotulo="Disponível" valor={p.disponivel} />

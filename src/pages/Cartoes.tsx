@@ -8,12 +8,12 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  cobrarFaturasFechadas, criarCartao, definirCiclo, listarCartoes, listarFaturas, listarItens,
-  pagarFatura, registrarCompra, situacaoFatura,
+  criarCartao, definirCiclo, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
+  novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
 } from '../lib/cartoes'
-import type { Cartao, Fatura, ItemFatura } from '../lib/cartoes'
+import type { Cartao, Fatura, ItemFatura, ItemPrevia } from '../lib/cartoes'
 import { listarCategorias } from '../lib/categorias'
-import { gerarOcorrencias } from '../lib/recorrencias'
+import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
@@ -36,6 +36,7 @@ export default function Cartoes() {
   const [contas, setContas] = useState<Conta[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
+  const [aviso, setAviso] = useState('')
   const [painel, setPainel] = useState<Painel | null>(null)
   const [aberto, setAberto] = useState<string | null>(null)
   // muda a cada gravação para as faturas abertas recarregarem
@@ -44,9 +45,14 @@ export default function Cartoes() {
   const carregar = useCallback(async () => {
     if (!familiaId) return
     try {
-      // gera as assinaturas de hoje e cobra o que já fechou antes de mostrar
-      await gerarOcorrencias().catch(() => 0)
-      await cobrarFaturasFechadas()
+      // gera as assinaturas de hoje e cobra o que já fechou antes de mostrar: os valores ficam em dia.
+      // Se falhar, mostra o que há com um aviso (não esconde os cartões nem engole o erro).
+      const r = await atualizarAutomaticos()
+      setAviso(
+        !r.faturasOk ? 'Não foi possível fechar as faturas agora; os valores podem estar defasados. Tente de novo em instantes.'
+        : !r.recorrentesOk ? 'Não foi possível lançar as assinaturas de hoje agora; tente de novo em instantes.'
+        : '',
+      )
       const [c, cs, cats] = await Promise.all([listarCartoes(familiaId), listarContas(familiaId), listarCategorias(familiaId)])
       setCartoes(c)
       setContas(cs.contas)
@@ -74,6 +80,7 @@ export default function Cartoes() {
       </div>
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {aviso && !erro && <div className="mb-4"><Aviso tipo="erro">{aviso}</Aviso></div>}
 
       {painel?.tipo === 'novo' && <FormCartao aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'ciclo' && <FormCiclo cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
@@ -129,7 +136,7 @@ export default function Cartoes() {
                   {c.fechamento === null ? 'Definir fechamento' : 'Alterar dias'}
                 </Button>
               </div>
-              {aberto === c.id && <Faturas cartaoId={c.id} versao={versao} categorias={categorias} />}
+              {aberto === c.id && <Faturas cartaoId={c.id} versao={versao} categorias={categorias} contas={contas} aoAlterar={carregar} />}
             </Card>
           </li>
         ))}
@@ -144,7 +151,15 @@ const rotuloSituacao = {
   paga: { texto: 'Paga', estilo: 'bg-pago-fundo text-pago' },
 }
 
-function Faturas({ cartaoId, versao, categorias }: { cartaoId: string; versao: number; categorias: Categoria[] }) {
+type Acao =
+  | { tipo: 'reabrir'; fatura: Fatura }
+  | { tipo: 'editar'; item: ItemFatura }
+  | { tipo: 'excluir'; item: ItemFatura }
+
+function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
+  cartaoId: string; versao: number; categorias: Categoria[]; contas: Conta[]; aoAlterar: () => Promise<void>
+}) {
+  const [acao, setAcao] = useState<Acao | null>(null)
   const [faturas, setFaturas] = useState<Fatura[] | null>(null)
   const [mes, setMes] = useState<string | null>(null)
   const [itens, setItens] = useState<ItemFatura[] | null>(null)
@@ -198,6 +213,24 @@ function Faturas({ cartaoId, versao, categorias }: { cartaoId: string; versao: n
             {f.aCobrar > 0 && f.cobrado > 0 && (
               <p className="text-xs text-planejado">Ainda vai entrar nesta fatura: {formatBRL(f.aCobrar)}</p>
             )}
+            {f.saldoAnterior > 0 && <p className="text-xs text-negativo">Saldo anterior (faltou pagar antes): {formatBRL(f.saldoAnterior)}</p>}
+            {f.adiantamentoEntrada > 0 && <p className="text-xs text-positivo">Adiantamento usado nesta fatura: até {formatBRL(f.adiantamentoEntrada)}</p>}
+            {f.adiantamentoSaida > 0 && <p className="text-xs text-positivo">Sobra de adiantamento para as próximas: {formatBRL(f.adiantamentoSaida)}</p>}
+            {f.pago > 0 && f.faturaId && !acao && (
+              <div className="mt-2">
+                <Button variante="fantasma" onClick={() => setAcao({ tipo: 'reabrir', fatura: f })}>Reabrir fatura</Button>
+              </div>
+            )}
+            {acao?.tipo === 'reabrir' && acao.fatura.mes === f.mes && (
+              <PainelReabrir cartaoId={cartaoId} fatura={f} aoFechar={() => setAcao(null)} aoConcluir={async () => { setAcao(null); await aoAlterar() }} />
+            )}
+            {acao?.tipo === 'editar' && (
+              <PainelEditar item={acao.item} aoFechar={() => setAcao(null)} aoConcluir={async () => { setAcao(null); await aoAlterar() }} />
+            )}
+            {acao?.tipo === 'excluir' && (
+              <PainelExcluir cartaoId={cartaoId} item={acao.item} contas={contas} aoFechar={() => setAcao(null)}
+                aoConcluir={async () => { setAcao(null); setMes(null); await aoAlterar() }} />
+            )}
             {itens === null ? <p className="mt-2 text-sm text-slate-600" role="status">Carregando…</p> : (
               <ul className="mt-2 divide-y divide-slate-100">
                 {itens.map((i) => (
@@ -211,7 +244,13 @@ function Faturas({ cartaoId, versao, categorias }: { cartaoId: string; versao: n
                         {i.falta > 0 && ' · a cobrar no fechamento'}
                       </p>
                     </div>
-                    <span className="tabular-nums font-semibold text-negativo">−{formatBRL(i.valor)}</span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <span className="tabular-nums font-semibold text-negativo">−{formatBRL(i.valor)}</span>
+                      <Button variante="fantasma" className="px-2" disabled={acao !== null} aria-label={`Editar valor de ${i.descricao}`}
+                        onClick={() => setAcao({ tipo: 'editar', item: i })}>Editar</Button>
+                      <Button variante="fantasma" className="px-2" disabled={acao !== null} aria-label={`Excluir compra ${i.descricao}`}
+                        onClick={() => setAcao({ tipo: 'excluir', item: i })}>Excluir</Button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -325,6 +364,7 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
   const [data, setData] = useState(hoje)
   const [categoriaId, setCategoriaId] = useState('')
   const [tentou, setTentou] = useState(false)
+  const [chave] = useState(novaChave)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
 
   const valor = parseBRL(valorTexto)
@@ -341,7 +381,7 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
     e.preventDefault()
     setTentou(true)
     if (!descricao.trim() || total === null || total <= 0 || !parcelasOk || !categoriaId || (!andamento && !data)) return
-    void enviar(() => registrarCompra(cartao.id, { descricao, data: andamento ? hoje : data, total, parcelas, categoriaId }))
+    void enviar(() => registrarCompra(cartao.id, { descricao, data: andamento ? hoje : data, total, parcelas, categoriaId }, chave))
   }
 
   return (
@@ -389,6 +429,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
   const [data, setData] = useState(hojeSP())
   const [fatura, setFatura] = useState<Fatura | null>(null)
   const [tentou, setTentou] = useState(false)
+  const [chave] = useState(novaChave)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
 
   useEffect(() => {
@@ -404,7 +445,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
     e.preventDefault()
     setTentou(true)
     if (!contaId || valor === null || valor <= 0 || !data) return
-    void enviar(() => pagarFatura(cartao.id, { contaId, data, valor, faturaId: fatura?.faturaId ?? null }))
+    void enviar(() => pagarFatura(cartao.id, { contaId, data, valor, faturaId: fatura?.faturaId ?? null }, chave))
   }
 
   return (
@@ -422,5 +463,104 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
         <Botoes rotulo="Registrar pagamento" enviando={enviando} aoCancelar={aoCancelar} />
       </form>
     </Card>
+  )
+}
+
+function PainelReabrir({ cartaoId, fatura, aoFechar, aoConcluir }: {
+  cartaoId: string; fatura: Fatura; aoFechar: () => void; aoConcluir: () => Promise<void>
+}) {
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+  return (
+    <div className="mt-3 rounded-lg border border-slate-200 bg-azul-claro p-4" role="group" aria-label="Reabrir fatura">
+      {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <p className="text-sm">
+        Reabrir a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong> desfaz os pagamentos dela
+        ({formatBRL(fatura.pago)}) e o dinheiro volta para as contas de onde saiu. Depois você pode editar as parcelas e pagar de novo.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <Button variante="perigo" carregando={enviando} onClick={() => void enviar(async () => { await reabrirFatura(cartaoId, fatura.mes) })}>
+          Reabrir fatura
+        </Button>
+        <Button variante="secundario" onClick={aoFechar}>Cancelar</Button>
+      </div>
+    </div>
+  )
+}
+
+function PainelEditar({ item, aoFechar, aoConcluir }: { item: ItemFatura; aoFechar: () => void; aoConcluir: () => Promise<void> }) {
+  const [valorTexto, setValorTexto] = useState(formatBRL(item.valor).replace('R$ ', '').replace(/\u00a0/g, ''))
+  const [tentou, setTentou] = useState(false)
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+  const valor = parseBRL(valorTexto)
+  const erroValor = tentou && (valor === null || valor <= 0) ? 'Valor inválido. Exemplo: 100,01' : undefined
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    setTentou(true)
+    if (valor === null || valor <= 0) return
+    void enviar(() => editarParcela(item.parcelaId, valor))
+  }
+
+  return (
+    <form onSubmit={salvar} noValidate className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-azul-claro p-4 md:grid-cols-2"
+      aria-label="Editar parcela">
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <p className="text-sm md:col-span-2">
+        Corrigir o valor desta parcela: <strong>{item.descricao}{item.deParcelas > 1 && ` ${item.parcela}/${item.deParcelas}`}</strong>.
+        As outras parcelas não mudam. Em fatura já paga, reabra a fatura antes.
+      </p>
+      <Field rotulo="Valor da parcela (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+      <Botoes rotulo="Salvar valor" enviando={enviando} aoCancelar={aoFechar} />
+    </form>
+  )
+}
+
+const rotuloPrevia: Record<string, string> = {
+  charge: 'Cobrança na fatura será anulada',
+  credit: 'Estorno será anulado',
+  payment: 'Pagamento será desfeito',
+  extra_principal: 'Pagamento extra será desfeito',
+  cancel: 'Parcelas ainda não cobradas serão canceladas',
+}
+
+function PainelExcluir({ cartaoId, item, contas, aoFechar, aoConcluir }: {
+  cartaoId: string; item: ItemFatura; contas: Conta[]; aoFechar: () => void; aoConcluir: () => Promise<void>
+}) {
+  const [previa, setPrevia] = useState<ItemPrevia[] | null>(null)
+  const [erroPrevia, setErroPrevia] = useState('')
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+  const nomeConta = new Map(contas.map((c) => [c.id, c.nome]))
+
+  useEffect(() => {
+    previaExclusao(cartaoId, item.compra).then(setPrevia).catch((err) => setErroPrevia(mensagemErroBanco(err)))
+  }, [cartaoId, item.compra])
+
+  return (
+    <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label="Excluir compra">
+      {(erro || erroPrevia) && <div className="mb-3"><Aviso tipo="erro">{erro || erroPrevia}</Aviso></div>}
+      <p className="text-sm">
+        Excluir a compra <strong>{item.descricao}</strong> inteira (todas as parcelas). Isto será desfeito:
+      </p>
+      {previa === null && !erroPrevia && <p className="mt-2 text-sm text-slate-600" role="status">Calculando…</p>}
+      {previa && (
+        <ul className="mt-2 list-disc pl-5 text-sm">
+          {previa.map((p, k) => (
+            <li key={k}>
+              {rotuloPrevia[p.tipo] ?? p.tipo}: <span className="tabular-nums font-semibold">{formatBRL(p.valor)}</span>
+              {p.fatura && <> (fatura {formatMonth(p.fatura)})</>}
+              {(p.tipo === 'payment' || p.tipo === 'extra_principal') && p.contaId && (
+                <> — o dinheiro volta para <strong>{nomeConta.get(p.contaId) ?? 'a conta'}</strong></>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 text-xs text-slate-600">Nada é recriado depois. O histórico fica guardado para auditoria.</p>
+      <div className="mt-3 flex gap-2">
+        <Button variante="perigo" carregando={enviando} disabled={previa === null}
+          onClick={() => void enviar(() => excluirCompra(cartaoId, item.compra))}>Excluir compra</Button>
+        <Button variante="secundario" onClick={aoFechar}>Cancelar</Button>
+      </div>
+    </div>
   )
 }
