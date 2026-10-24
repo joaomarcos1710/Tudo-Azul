@@ -1,11 +1,10 @@
 import { useState } from 'react'
+import { ExportacaoCompleta } from '../components/ExportacaoCompleta'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card, CardTitle } from '../components/ui/Card'
 import { useFamilia } from '../lib/FamiliaContext'
-import { hojeSP } from '../lib/contas'
-import { baixarArquivo, exportacaoCompleta, gerarCsv, lancamentosParaExportar } from '../lib/csv'
-import type { ArquivoExportado } from '../lib/csv'
+import { baixarArquivo, gerarCsv, lancamentosParaExportar } from '../lib/csv'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatMonth } from '../lib/format'
 import { limitesDoMes } from '../lib/lancamentos'
@@ -14,39 +13,25 @@ export default function Relatorios() {
   const { familia } = useFamilia()
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
-  const [exportando, setExportando] = useState<'mes' | 'tudo' | null>(null)
-  const [arquivos, setArquivos] = useState<ArquivoExportado[] | null>(null)
-  const [baixados, setBaixados] = useState<Set<string>>(new Set())
+  const [exportando, setExportando] = useState(false)
   const mes = currentMonth()
 
-  async function exportar(qual: 'mes' | 'tudo') {
+  async function exportarMes() {
     if (!familia) return
     setErro('')
     setOk('')
-    setExportando(qual)
+    setExportando(true)
     try {
-      if (qual === 'mes') {
-        const [de, ate] = limitesDoMes(mes)
-        const linhas = await lancamentosParaExportar(familia.id, { de, ate })
-        const nome = `tudo-azul-${mes}.csv`
-        baixarArquivo(nome, gerarCsv(linhas))
-        setOk(`${linhas.length} lançamento(s) exportado(s) em ${nome}.`)
-      } else {
-        // um download por clique: o navegador não bloqueia e a tela mostra o que de fato foi baixado
-        setArquivos(null)
-        setBaixados(new Set())
-        setArquivos(await exportacaoCompleta(familia.id, hojeSP()))
-      }
+      const [de, ate] = limitesDoMes(mes)
+      const linhas = await lancamentosParaExportar(familia.id, { de, ate })
+      const nome = `tudo-azul-${mes}.csv`
+      baixarArquivo(nome, gerarCsv(linhas))
+      setOk(`${linhas.length} lançamento(s) exportado(s) em ${nome}.`)
     } catch (err) {
       setErro(mensagemErroBanco(err))
     } finally {
-      setExportando(null)
+      setExportando(false)
     }
-  }
-
-  function baixar(a: ArquivoExportado) {
-    baixarArquivo(a.nome, a.conteudo)
-    setBaixados((b) => new Set(b).add(a.nome))
   }
 
   return (
@@ -60,7 +45,7 @@ export default function Relatorios() {
           Abre no Excel e no Google Planilhas. Despesas saem com valor negativo; transferências, com as duas contas.
           Lançamentos na lixeira ficam de fora. Compras no cartão não estão aqui: ficam na exportação completa.
         </p>
-        <Button onClick={() => exportar('mes')} carregando={exportando === 'mes'} disabled={exportando !== null}>
+        <Button onClick={exportarMes} carregando={exportando} disabled={exportando}>
           Exportar {formatMonth(mes)}
         </Button>
       </Card>
@@ -77,26 +62,7 @@ export default function Relatorios() {
           Serve para conferência e arquivo, <strong>não é restaurável automaticamente</strong>: o app ainda não importa estes arquivos.
           Faça toda semana durante o uso em paralelo com o Organizze, sem lançar nada enquanto prepara.
         </p>
-        <Button variante="secundario" onClick={() => exportar('tudo')} carregando={exportando === 'tudo'} disabled={exportando !== null}>
-          Preparar exportação completa
-        </Button>
-        {arquivos && (
-          <div className="mt-4">
-            <p className="mb-2 text-sm font-medium text-slate-700" role="status">
-              Pronta. Baixe os {arquivos.length} arquivos ({baixados.size} de {arquivos.length} baixados):
-            </p>
-            <ul className="flex flex-col gap-2">
-              {arquivos.map((a) => (
-                <li key={a.nome} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-                  <span className="min-w-0 break-all">{a.nome} <span className="text-slate-500">· {a.linhas} linha{a.linhas === 1 ? '' : 's'}</span></span>
-                  <Button variante={baixados.has(a.nome) ? 'fantasma' : 'secundario'} onClick={() => baixar(a)} aria-label={`Baixar ${a.nome}`}>
-                    {baixados.has(a.nome) ? 'Baixado ✓ (baixar de novo)' : 'Baixar'}
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <ExportacaoCompleta />
       </Card>
     </>
   )

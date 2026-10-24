@@ -1,0 +1,93 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+
+const mock = vi.hoisted(() => ({
+  previaZerar: vi.fn(),
+  zerarTudo: vi.fn(),
+  exportacaoCompleta: vi.fn(),
+  baixarArquivo: vi.fn(),
+}))
+vi.mock('../lib/FamiliaContext', () => ({
+  useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
+}))
+vi.mock('../lib/zerar', async (o) => ({ ...(await o<typeof import('../lib/zerar')>()), previaZerar: mock.previaZerar, zerarTudo: mock.zerarTudo }))
+vi.mock('../lib/csv', async (o) => ({
+  ...(await o<typeof import('../lib/csv')>()), exportacaoCompleta: mock.exportacaoCompleta, baixarArquivo: mock.baixarArquivo,
+}))
+
+import { ZerarTudo } from './ZerarTudo'
+
+const previa = { lancamentos: 12, contas: 2, cartoesEDividas: 1, parcelas: 3, eventos: 4, recorrencias: 1, conciliacoes: 1, orcamentos: 0 }
+const montar = () => render(<MemoryRouter><ZerarTudo /></MemoryRouter>)
+const arquivos = [1, 2].map((n) => ({ nome: `arq-${n}.csv`, conteudo: 'x', linhas: n }))
+
+beforeEach(() => {
+  mock.previaZerar.mockResolvedValue(previa)
+  mock.zerarTudo.mockResolvedValue(previa)
+  mock.exportacaoCompleta.mockResolvedValue(arquivos)
+})
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+})
+
+describe('Zerar tudo', () => {
+  it('mostra o que será apagado, o que fica e avisa que não tem volta', async () => {
+    montar()
+    expect(await screen.findByText(/12 lançamentos/)).toBeTruthy()
+    expect(screen.getByText(/2 contas/)).toBeTruthy()
+    expect(screen.getByText(/1 cartão ou dívida/)).toBeTruthy()
+    expect(screen.getByText(/3 parcelas/)).toBeTruthy()
+    expect(screen.getByText(/a família, os membros e as categorias/)).toBeTruthy()
+    expect(screen.getByText(/Não tem volta/)).toBeTruthy()
+  })
+
+  it('só libera a frase depois de baixar TODOS os arquivos, e só zera com "zerar tudo"', async () => {
+    const u = userEvent.setup()
+    montar()
+    await screen.findByText(/12 lançamentos/)
+    const campo = screen.getByLabelText(/Para confirmar, escreva/) as HTMLInputElement
+    const botao = screen.getByRole('button', { name: 'Zerar tudo' }) as HTMLButtonElement
+    expect(campo.disabled).toBe(true)
+    expect(botao.disabled).toBe(true)
+
+    await u.click(screen.getByRole('button', { name: 'Preparar exportação completa' }))
+    await u.click(await screen.findByRole('button', { name: 'Baixar arq-1.csv' }))
+    expect(campo.disabled).toBe(true) // falta um arquivo
+    await u.click(screen.getByRole('button', { name: 'Baixar arq-2.csv' }))
+    expect(campo.disabled).toBe(false)
+
+    await u.type(campo, 'zerar')
+    expect(botao.disabled).toBe(true) // frase incompleta
+    await u.type(campo, ' tudo')
+    expect(botao.disabled).toBe(false)
+    await u.click(botao)
+    expect(mock.zerarTudo).toHaveBeenCalledWith('h1', 'zerar tudo')
+    expect(await screen.findByText(/Pronto, tudo foi zerado/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Contas' }).getAttribute('href')).toBe('/contas')
+  })
+
+  it('o banco recusou (ex.: não é o dono): mostra o erro e não finge que zerou', async () => {
+    const u = userEvent.setup()
+    mock.zerarTudo.mockRejectedValue(Object.assign(new Error('somente o dono da família pode zerar tudo'), { code: '42501' }))
+    montar()
+    await screen.findByText(/12 lançamentos/)
+    await u.click(screen.getByRole('button', { name: 'Preparar exportação completa' }))
+    await u.click(await screen.findByRole('button', { name: 'Baixar arq-1.csv' }))
+    await u.click(screen.getByRole('button', { name: 'Baixar arq-2.csv' }))
+    await u.type(screen.getByLabelText(/Para confirmar, escreva/), 'ZERAR TUDO')
+    await u.click(screen.getByRole('button', { name: 'Zerar tudo' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.queryByText(/Pronto, tudo foi zerado/)).toBeNull()
+  })
+
+  it('sem nada para zerar, não oferece o botão', async () => {
+    mock.previaZerar.mockResolvedValue({ ...previa, lancamentos: 0, contas: 0, cartoesEDividas: 0, parcelas: 0, eventos: 0, recorrencias: 0, conciliacoes: 0 })
+    montar()
+    expect(await screen.findByText(/Não há nada para zerar/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Zerar tudo' })).toBeNull()
+  })
+})
