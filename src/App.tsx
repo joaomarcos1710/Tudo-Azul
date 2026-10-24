@@ -6,6 +6,7 @@ import VisaoGeral from './pages/VisaoGeral'
 import Lancamentos from './pages/Lancamentos'
 import Recorrentes from './pages/Recorrentes'
 import Contas from './pages/Contas'
+import Conferir from './pages/Conferir'
 import Cartoes from './pages/Cartoes'
 import Categorias from './pages/Categorias'
 import Orcamentos from './pages/Orcamentos'
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="lancamentos" element={<Lancamentos />} />
           <Route path="recorrentes" element={<Recorrentes />} />
           <Route path="contas" element={<Contas />} />
+          <Route path="contas/:contaId/conferir" element={<Conferir />} />
           <Route path="cartoes" element={<Cartoes />} />
           <Route path="categorias" element={<Categorias />} />
           <Route path="orcamentos" element={<Orcamentos />} />
