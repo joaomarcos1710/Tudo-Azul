@@ -15,7 +15,8 @@ vi.mock('../lib/FamiliaContext', () => ({
 }))
 vi.mock('../lib/painel', () => ({ carregarPatrimonio: mock.carregarPatrimonio, proximosPlanejados: mock.proximosPlanejados }))
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes }))
-vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: vi.fn().mockResolvedValue(0) }))
+const cobrar = vi.hoisted(() => vi.fn())
+vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
 import VisaoGeral from './VisaoGeral'
@@ -24,6 +25,7 @@ const c = (n: number) => n as Cents
 const montar = () => render(<MemoryRouter><VisaoGeral /></MemoryRouter>)
 
 beforeEach(() => {
+  cobrar.mockResolvedValue(0)
   mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), patrimonio: c(1087560), compromissos: c(482000) })
   mock.resumoDoMes.mockResolvedValue({ receitas: c(1215000), despesas: c(866726), resultado: c(348274), receitasPrevistas: c(0), despesasPrevistas: c(38990) })
   mock.listarContas.mockResolvedValue({
@@ -63,5 +65,12 @@ describe('Visão geral', () => {
     montar()
     await screen.findByText(/Não inclui bens/)
     expect(screen.queryByText(/Compromissos futuros/)).toBeNull()
+  })
+
+  it('se a cobrança das faturas falhar, mostra aviso e mantém o painel', async () => {
+    cobrar.mockRejectedValue(new Error('x'))
+    montar()
+    expect(await screen.findByText(/Não foi possível fechar as faturas dos cartões/)).toBeTruthy()
+    expect(screen.getByText('Visão geral')).toBeTruthy()
   })
 })
