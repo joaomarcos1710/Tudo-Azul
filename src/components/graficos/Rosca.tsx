@@ -28,8 +28,8 @@ export function Rosca({ fatias, total, rotuloTotal = 'Total' }: { fatias: FatiaR
   const destaque = ativa !== null ? fatias[ativa] : null
 
   return (
-    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
-      <svg viewBox="0 0 200 200" className="h-48 w-48 shrink-0" role="img"
+    <div className="flex flex-col items-center gap-4 2xl:flex-row">
+      <svg viewBox="0 0 200 200" className="h-40 w-40 shrink-0" role="img"
         aria-label={`Despesas por categoria: ${fatias.map((f) => `${f.nome} ${f.percentual.toLocaleString('pt-BR')}%`).join(', ')}`}>
         <circle cx="100" cy="100" r={r} fill="none" stroke="#eef2f7" strokeWidth="26" />
         {arcos.map(({ i, inicio: ini, tam }) => (
@@ -48,12 +48,14 @@ export function Rosca({ fatias, total, rotuloTotal = 'Total' }: { fatias: FatiaR
         {fatias.map((f, i) => (
           <li key={f.chave}>
             <button type="button" onMouseEnter={() => setAtiva(i)} onMouseLeave={() => setAtiva(null)} onFocus={() => setAtiva(i)} onBlur={() => setAtiva(null)}
-              className={`flex min-h-9 w-full items-center gap-2 rounded-lg px-2 text-left ${ativa === i ? 'bg-azul-claro' : ''}`}>
+              className={`flex min-h-9 w-full flex-wrap items-center gap-x-2 rounded-lg px-2 text-left ${ativa === i ? 'bg-azul-claro' : ''}`}>
               <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: cor(i) }} aria-hidden="true" />
-              <span className="min-w-0 flex-1 truncate text-slate-700">{f.nome}</span>
-              <span className="tabular-nums font-semibold text-marinho">{formatBRL(f.valor)}</span>
-              <span className="w-12 text-right tabular-nums text-slate-500">{f.percentual.toLocaleString('pt-BR')}%</span>
-            </button>
+              <span className="min-w-[7.5rem] flex-1 whitespace-nowrap py-1 text-slate-700">{f.nome}</span>
+              <span className="ml-auto flex items-center gap-2">
+                <span className="tabular-nums font-semibold text-marinho">{formatBRL(f.valor)}</span>
+                <span className="w-12 text-right tabular-nums text-slate-500">{f.percentual.toLocaleString('pt-BR')}%</span>
+              </span>
+              </button>
           </li>
         ))}
       </ul>

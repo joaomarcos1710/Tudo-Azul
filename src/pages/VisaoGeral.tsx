@@ -88,7 +88,7 @@ export default function VisaoGeral() {
     <>
       <div className="mb-6">
         <h1 className="text-2xl font-bold">{saudacao()}{nome ? `, ${nome}` : ''}!</h1>
-        <p className="text-sm text-slate-600">Veja como estão as finanças da família em <span className="capitalize">{formatMonth(mes)}</span>.</p>
+        <p className="text-sm text-slate-600">Veja como estão as finanças da família em {formatMonth(mes).replace(/^./, (c) => c.toUpperCase())}.</p>
       </div>
       {cobrancaFalhou && (
         <div className="mb-4">
@@ -219,10 +219,10 @@ function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, 
   const texto = sinal ? `${sinal}${formatBRL(valor)}` : formatBRL(valor)
   const bom = v === null || v === undefined ? null : (v >= 0) === Boolean(subirEhBom)
   return (
-    <Card className={destaque ? 'bg-marinho text-white' : ''}>
+    <Card className={destaque ? '!bg-marinho text-white' : ''}>
       <span className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full ${corIcone}`} aria-hidden="true">{icone}</span>
       <p className={`text-sm ${destaque ? 'text-blue-100' : 'text-slate-500'}`}>{rotulo}</p>
-      <p className={`tabular-nums text-xl font-bold sm:text-2xl ${destaque && valor < 0 ? 'text-red-300' : negativoVermelho && valor < 0 ? 'text-negativo' : ''}`}>{texto}</p>
+      <p className={`whitespace-nowrap tabular-nums text-base font-bold sm:text-2xl ${destaque && valor < 0 ? 'text-red-300' : negativoVermelho && valor < 0 ? 'text-negativo' : ''}`}>{texto}</p>
       {v !== null && v !== undefined && (
         <p className={`mt-1 text-xs ${bom ? 'text-positivo' : 'text-negativo'}`}>
           {v >= 0 ? '▲' : '▼'} {Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% <span className="text-slate-500">vs {comparado}</span>
