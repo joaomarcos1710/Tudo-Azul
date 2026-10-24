@@ -242,8 +242,10 @@ select is((select array[total, paid, previous_open, advance_in, advance_out] fro
 select public.debt_pay(pg_temp.fx('ccard'), '2026-04-25', pg_temp.fx('cbank'), 100.00, pg_temp.fat('c', '2026-04'));
 select is((select array[total, paid, previous_open, advance_in, advance_out] from public.card_months(pg_temp.fx('ccard')) where label = '2026-04'),
           array[80, 80, 40, 0, 20]::numeric[], 'C2 abril: paga 80, saldo anterior 40, adiantamento de 20 sobra');
-select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('ccard'), '2026-04-26', pg_temp.fx('cbank'), 30.00)$$),
-          '23514', 'C2 pagamento acima da dívida total (restam 20): recusado');
+-- Regra mudou em 24/10/2026 (migration 010): pagamento COMUM de cartão acima da dívida agora vira crédito no cartão
+-- (ver 17_card_prepayment). A amortização extra continua sem poder passar do saldo devedor, e é o que se confere aqui.
+select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('ccard'), '2026-04-26', pg_temp.fx('cbank'), 30.00, null, true)$$),
+          '23514', 'C2 amortização extra acima da dívida total (restam 20): recusada');
 
 -- C3: pagamento sem fatura (p_invoice nulo) abate as faturas mais antigas em aberto
 select public.debt_pay(pg_temp.fx('ccard'), '2026-04-26', pg_temp.fx('cbank'), 20.00);

@@ -176,15 +176,43 @@ describe('Cartões', () => {
     expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 13334, faturaId: 'f3' }), expect.any(String))
   })
 
-  it('sem fatura fechada, o botão fica desligado e explica por quê (compra de hoje cai na próxima fatura)', async () => {
+  it('sem fatura fechada, dá para pagar adiantado: o aviso explica que vira crédito e o pagamento não liga a nenhuma fatura', async () => {
+    const u = userEvent.setup()
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(20000) }])
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(10000), total: c(10000) })])
     render(<Cartoes />)
     const botao = (await screen.findByRole('button', { name: 'Pagar fatura' })) as HTMLButtonElement
-    expect(botao.disabled).toBe(true)
-    const aviso = await screen.findByText(/Não há fatura fechada para pagar/)
+    expect(botao.disabled).toBe(false)
+    const aviso = await screen.findByText(/Não há fatura fechada/)
     expect(aviso.textContent).toMatch(/R\$ 200,00/)
     expect(aviso.textContent).toMatch(/fecha no dia 17/)
+    expect(aviso.textContent).toMatch(/vira crédito no cartão/)
     expect(botao.getAttribute('aria-describedby')).toBe(aviso.id)
+
+    await u.click(botao)
+    expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('') // sem dívida, não sugere valor
+    await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
+    await u.type(screen.getByLabelText('Valor (R$)'), '120,00')
+    expect(await screen.findByText(/fica como crédito no cartão/)).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 12000, faturaId: null }), expect.any(String))
+  })
+
+  it('pagar mais que a fatura fechada: o excedente vira crédito e a tela avisa; mais que tudo, pede para conferir', async () => {
+    const u = userEvent.setup()
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(13334), total: c(13334), faturaId: 'f3' })])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    const valor = screen.getByLabelText('Valor (R$)')
+    await u.clear(valor)
+    await u.type(valor, '200,00') // fatura 133,34; passa da fatura, mas cabe nas parcelas futuras (396,66)
+    expect(await screen.findByText(/O que passar da fatura fechada \(R\$ 133,34\)/)).toBeTruthy()
+    expect(screen.queryByText(/mais do que tudo o que este cartão tem a pagar/)).toBeNull()
+    await u.clear(valor)
+    await u.type(valor, '900,00') // passa de fatura + parcelas futuras (133,34 + 396,66 = 530,00)
+    expect(await screen.findByText(/mais do que tudo o que este cartão tem a pagar/)).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ valor: 90000, faturaId: 'f3' }), expect.any(String))
   })
 
   it('mostra as faturas com total e os itens com n/N', async () => {
