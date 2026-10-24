@@ -91,8 +91,9 @@ export async function listarLancamentos(familiaId: string, mes: string, f: Filtr
 
 /**
  * Movimento de cartão ou dívida que mexe numa conta (pagamento de fatura, juros, tarifa, empréstimo recebido...).
- * Só leitura no extrato: o saldo da conta e os totais do mês já vêm do banco e contam tudo isso certo
- * (pagamento de fatura não é despesa: a compra já contou no mês da fatura).
+ * Só leitura no extrato: o saldo da conta e os totais do mês vêm do banco.
+ * Pagamento, amortização, crédito e devolução NÃO são receita nem despesa (a compra já contou no mês da fatura);
+ * juros e tarifa SÃO despesa (já estão em "Despesas pagas", na categoria do evento).
  */
 export interface MovimentoDivida {
   id: string
@@ -101,6 +102,8 @@ export interface MovimentoDivida {
   descricao: string
   /** Com sinal do ponto de vista da conta: + entra, − sai (mesma regra de account_movements). */
   valor: Cents
+  /** Juros e tarifa: já contam em Despesas pagas. */
+  jaEmDespesas: boolean
 }
 
 const eventosDeConta = ['payment', 'extra_principal', 'disbursement', 'refund_cash', 'interest', 'fee'] as const
@@ -109,26 +112,36 @@ const rotuloEventoConta: Record<string, string> = {
   refund_cash: 'Devolução de', interest: 'Juros de', fee: 'Tarifa de',
 }
 
-export async function listarMovimentosDeDivida(familiaId: string, mes: string, contaId?: string): Promise<MovimentoDivida[]> {
+/**
+ * Movimentos de cartão/dívida do mês que mexem em conta.
+ * Receita e transferência não os incluem; com filtro de despesa ou de categoria, só juros e tarifa (que são despesa
+ * e têm categoria); sem filtro, todos.
+ */
+export async function listarMovimentosDeDivida(familiaId: string, mes: string, f: Filtros = {}): Promise<MovimentoDivida[]> {
+  if (f.tipo === 'income' || f.tipo === 'transfer') return []
   const [de, ate] = limitesDoMes(mes)
-  let consulta = cliente()
-    .from('debt_events')
-    .select('id, debt_id, date, kind, amount, account_id')
-    .eq('household_id', familiaId)
-    .is('voided_at', null)
-    .in('kind', [...eventosDeConta])
-    .not('account_id', 'is', null)
-    .gte('date', de)
-    .lte('date', ate)
-  if (contaId) consulta = consulta.eq('account_id', contaId)
-  const [eventos, dividas] = await Promise.all([
-    consulta.order('date', { ascending: false }).order('created_at', { ascending: false }),
-    cliente().from('debts').select('id, name, kind').eq('household_id', familiaId),
-  ])
-  if (eventos.error) throw eventos.error
+  const soDespesa = Boolean(f.categoriaId) || f.tipo === 'expense'
+  const tipos = soDespesa ? ['interest', 'fee'] : [...eventosDeConta]
+  const db = cliente()
+  const eventos: { id: string; debt_id: string; date: string; kind: string; amount: number | string; account_id: string }[] = []
+  const pagina = 1000
+  for (let inicio = 0; ; inicio += pagina) {
+    let q = db.from('debt_events').select('id, debt_id, date, kind, amount, account_id')
+      .eq('household_id', familiaId).is('voided_at', null).in('kind', tipos).not('account_id', 'is', null)
+      .gte('date', de).lte('date', ate)
+    if (f.contaId) q = q.eq('account_id', f.contaId)
+    if (f.categoriaId) q = q.eq('category_id', f.categoriaId)
+    // ordem total (data, criação, id): a paginação não repete nem perde linha
+    const { data, error } = await q.order('date', { ascending: false }).order('created_at', { ascending: false }).order('id')
+      .range(inicio, inicio + pagina - 1)
+    if (error) throw error
+    eventos.push(...((data ?? []) as typeof eventos))
+    if (!data || data.length < pagina) break
+  }
+  const dividas = await db.from('debts').select('id, name, kind').eq('household_id', familiaId)
   if (dividas.error) throw dividas.error
   const porId = new Map((dividas.data ?? []).map((d) => [d.id, d]))
-  return (eventos.data ?? []).map((e) => {
+  return eventos.map((e) => {
     const d = porId.get(e.debt_id)
     const nome = d?.name ?? 'cartão/dívida'
     const entra = e.kind === 'disbursement' || e.kind === 'refund_cash'
@@ -136,9 +149,10 @@ export async function listarMovimentosDeDivida(familiaId: string, mes: string, c
     return {
       id: e.id,
       data: e.date,
-      contaId: e.account_id as string,
+      contaId: e.account_id,
       descricao: e.kind === 'payment' && d?.kind === 'card' ? `Pagamento da fatura · ${nome}` : `${rotuloEventoConta[e.kind]} ${nome}`,
       valor: (entra ? cents : -cents) as Cents,
+      jaEmDespesas: e.kind === 'interest' || e.kind === 'fee',
     }
   })
 }

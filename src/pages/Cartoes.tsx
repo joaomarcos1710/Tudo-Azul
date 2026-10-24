@@ -129,7 +129,7 @@ export default function Cartoes() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button onClick={() => setPainel({ tipo: 'compra', cartao: c })} disabled={c.fechamento === null || painel !== null}>Nova compra</Button>
                 <Button variante="secundario" onClick={() => setPainel({ tipo: 'pagar', cartao: c })} disabled={c.divida <= 0 || painel !== null}
-                  aria-describedby={c.divida <= 0 ? `sem-fatura-${c.id}` : undefined}>Pagar fatura</Button>
+                  aria-describedby={c.divida <= 0 && c.fechamento !== null ? `sem-fatura-${c.id}` : undefined}>Pagar fatura</Button>
                 <Button variante="fantasma" onClick={() => setAberto(aberto === c.id ? null : c.id)} aria-expanded={aberto === c.id}>
                   {aberto === c.id ? 'Ocultar faturas' : 'Ver faturas'}
                 </Button>
@@ -140,7 +140,7 @@ export default function Cartoes() {
               {c.divida <= 0 && c.fechamento !== null && (
                 <p id={`sem-fatura-${c.id}`} className="mt-3 text-sm text-slate-600">
                   {c.compromissos > 0
-                    ? <>Não há fatura fechada para pagar. As compras já lançadas ({formatBRL(c.compromissos)}) entram na fatura que fecha no dia {c.fechamento}; depois do fechamento o botão <strong>Pagar fatura</strong> libera.</>
+                    ? <>Não há fatura fechada para pagar. Você tem {formatBRL(c.compromissos)} em parcelas futuras: cada uma entra na fatura que fecha no dia {c.fechamento} do seu mês, e só depois do fechamento o botão <strong>Pagar fatura</strong> libera.</>
                     : <>Não há fatura fechada para pagar agora.</>}
                 </p>
               )}

@@ -190,10 +190,11 @@ describe('Lançamentos', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Conta de origem desativada.')
   })
 
-  it('mostra o pagamento da fatura no extrato, só leitura, sem entrar nos totais; com filtro de categoria some', async () => {
+  it('mostra o pagamento da fatura no extrato, só leitura, sem entrar nos totais; e os filtros chegam ao lib', async () => {
     const u = userEvent.setup()
     mock.listarMovimentosDeDivida.mockResolvedValue([
-      { id: 'e1', data: `${hojeSP().slice(0, 8)}01`, contaId: 'a1', descricao: 'Pagamento da fatura · Nubank', valor: c(-30000) },
+      { id: 'e1', data: `${hojeSP().slice(0, 8)}01`, contaId: 'a1', descricao: 'Pagamento da fatura · Nubank', valor: c(-30000), jaEmDespesas: false },
+      { id: 'e2', data: `${hojeSP().slice(0, 8)}01`, contaId: 'a1', descricao: 'Tarifa de Empréstimo', valor: c(-5000), jaEmDespesas: true },
     ])
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const item = (await screen.findByText('Pagamento da fatura · Nubank')).closest('li') as HTMLElement
@@ -202,13 +203,16 @@ describe('Lançamentos', () => {
     expect(within(item).getByText('−R$ 300,00')).toBeTruthy()
     expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
     expect(within(item).getByRole('link', { name: 'Ver em Cartões' })).toBeTruthy()
-    expect(screen.getByText(/não entram/)).toBeTruthy()
+    expect(screen.getByText(/Pagamento de fatura e amortização não são despesa/)).toBeTruthy()
     // os totais continuam os do banco (period_summary): a linha do cartão não é somada em nada
     const cardDespesas = screen.getByText('Despesas pagas').closest('div') as HTMLElement
     expect(within(cardDespesas).getByText('−R$ 250,50')).toBeTruthy()
-    const antes = mock.listarMovimentosDeDivida.mock.calls.length
+    // tarifa já é despesa: o selo diz isso e o texto separa de pagamento de fatura
+    const tarifa = screen.getByText('Tarifa de Empréstimo').closest('li') as HTMLElement
+    expect(within(tarifa).getByText('Cartão/dívida · já em despesas')).toBeTruthy()
+    expect(screen.getByText(/Juros e tarifa são despesa/)).toBeTruthy()
+    // os filtros chegam ao lib (que decide o que mostrar); a tela não esconde nada por conta própria
     await u.selectOptions(screen.getByLabelText('Filtrar por tipo'), 'expense')
-    await vi.waitFor(() => expect(screen.queryByText('Pagamento da fatura · Nubank')).toBeNull())
-    expect(mock.listarMovimentosDeDivida.mock.calls.length).toBe(antes) // com filtro de tipo nem consulta
+    await vi.waitFor(() => expect(mock.listarMovimentosDeDivida).toHaveBeenLastCalledWith('h1', expect.any(String), { tipo: 'expense' }))
   })
 })

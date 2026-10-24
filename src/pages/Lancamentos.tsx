@@ -62,11 +62,9 @@ export default function Lancamentos() {
   const carregar = useCallback(async () => {
     if (!familiaId || !automaticosProntos) return
     try {
-      // pagamento de fatura, juros e tarifa moram em outra tabela; sem categoria nem tipo, entram no extrato da conta
-      const comDivida = !filtros.categoriaId && !filtros.tipo
+      // pagamento de fatura, juros e tarifa moram em outra tabela, mas mexem na conta: entram no extrato
       const [l, r, md] = await Promise.all([
-        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes),
-        comDivida ? listarMovimentosDeDivida(familiaId, mes, filtros.contaId) : Promise.resolve([]),
+        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros),
       ])
       setLancamentos(l)
       setMovimentosDivida(md)
@@ -149,8 +147,9 @@ export default function Lancamentos() {
 
       {movimentosDivida.length > 0 && (
         <p className="mb-4 text-xs text-slate-500">
-          Itens marcados <strong>Cartão/dívida</strong> (pagamento de fatura, juros, tarifa) mexem no saldo da conta, então aparecem aqui
-          para o extrato bater com o banco. Eles <strong>não entram</strong> em receitas nem despesas: a compra já contou no mês da fatura.
+          Itens <strong>Cartão/dívida</strong> mexem no saldo da conta, então aparecem aqui para o extrato bater com o banco.
+          <strong> Pagamento de fatura e amortização não são despesa</strong>: a compra já contou no mês da fatura.
+          {' '}<strong>Juros e tarifa são despesa</strong> e já estão em "Despesas pagas", na categoria deles.
         </p>
       )}
 
@@ -205,7 +204,9 @@ export default function Lancamentos() {
                         <div className="min-w-0">
                           <p className="font-medium">
                             {m.descricao}
-                            <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Cartão/dívida</span>
+                            <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              {m.jaEmDespesas ? 'Cartão/dívida · já em despesas' : 'Cartão/dívida'}
+                            </span>
                           </p>
                           <p className="text-sm text-slate-500">{nomeConta.get(m.contaId) ?? '?'}</p>
                         </div>
