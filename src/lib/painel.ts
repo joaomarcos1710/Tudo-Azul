@@ -52,3 +52,39 @@ export async function proximosPlanejados(familiaId: string, deData: string, limi
   if (error) throw error
   return (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date }))
 }
+
+/** Fatia do gráfico de categorias; categoriaId nulo = "Outros" (somado no banco). */
+export interface DespesaCategoria {
+  categoriaId: string | null
+  nome: string
+  valor: Cents
+  /** % do total do mês, já arredondado no banco (1 casa). */
+  percentual: number
+}
+
+export interface DespesaDia {
+  dia: string
+  valor: Cents
+  acumulado: Cents
+}
+
+export async function despesasPorCategoria(familiaId: string, de: string, ate: string, top = 4): Promise<DespesaCategoria[]> {
+  const { data, error } = await cliente().rpc('expenses_by_category', { p_household: familiaId, p_from: de, p_to: ate, p_top: top })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number | null>[]).map((r) => ({
+    categoriaId: (r.category_id as string | null) ?? null,
+    nome: r.name as string,
+    valor: centsFromDb(r.amount ?? 0),
+    percentual: Number(r.share ?? 0),
+  }))
+}
+
+export async function despesasPorDia(familiaId: string, de: string, ate: string): Promise<DespesaDia[]> {
+  const { data, error } = await cliente().rpc('daily_expenses', { p_household: familiaId, p_from: de, p_to: ate })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number>[]).map((r) => ({
+    dia: r.day as string,
+    valor: centsFromDb(r.amount ?? 0),
+    acumulado: centsFromDb(r.cumulative ?? 0),
+  }))
+}
