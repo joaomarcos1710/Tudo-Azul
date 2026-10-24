@@ -1,6 +1,6 @@
 # Pesquisa de ideias: apps e projetos open source (24/10/2026)
 
-Duas pesquisas feitas com WebSearch/WebFetch: produtos comerciais (Brasil e exterior) e projetos open source no GitHub. Estrelas e detalhes são de 24/10/2026. O que não foi visto numa página está marcado como **não confirmado**. Nada aqui é decisão: as ideias precisam de aprovação e respeitam o `docs/PLANO.md` (o corte de 1/12 não ganha escopo novo).
+Duas pesquisas feitas com WebSearch/WebFetch: produtos comerciais (Brasil e exterior) e projetos open source no GitHub. Estrelas e detalhes são de 24/10/2026. O que não foi visto numa página está marcado como **não confirmado**. Nada aqui é decisão: as ideias precisam de aprovação e respeitam o `docs/PLANO.md` (o corte de 1/12 não ganha escopo novo). Decisões de 24/10/2026: Open Finance fora do escopo; segunda pessoa da família não é prioridade agora.
 
 ## Achado principal: o Organizze tem API pública
 
@@ -45,7 +45,7 @@ Os calculadores TWR/MWR do Ghostfolio **não estão implementados** (lançam "Me
 - **Orçamento por envelope puro** (Actual/YNAB): mudança de mentalidade grande para quem vem do Organizze.
 - **Partidas dobradas completas** (Firefly III): pesado para uso familiar.
 - **Cotações via Yahoo e Redis** (Ghostfolio): fonte instável e infraestrutura desnecessária para o porte do Tudo Azul.
-- **Agregadores Open Finance comerciais** (Pluggy, Belvo): exigem contrato com vendas. Um relato de terceiro, não confirmado, fala em R$ 2,5–6 mil/mês. O "Meu Pluggy" (gratuito, para as próprias contas) pode ser testado depois, mas a gratuidade da API e os termos de uso não foram confirmados.
+- **Open Finance — descartado pelo dono em 24/10/2026.** Para registro: agregadores comerciais (Pluggy, Belvo): exigem contrato com vendas. Um relato de terceiro, não confirmado, fala em R$ 2,5–6 mil/mês. O "Meu Pluggy" (gratuito, para as próprias contas) pode ser testado depois, mas a gratuidade da API e os termos de uso não foram confirmados.
 - **Criptografia de ponta a ponta** (Budget Zen): impede as regras no banco (RLS e RPCs).
 - **Código de projetos AGPL/GPL** (Firefly, Ghostfolio, Sure, parser de notas): copiar o código obrigaria a mudar a licença do Tudo Azul. Ideias e modelagem podem ser usadas livremente. Actual e ezbookkeeping são MIT.
 
