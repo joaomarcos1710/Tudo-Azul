@@ -8,11 +8,12 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  cobrarFaturasFechadas, criarCartao, definirCiclo, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
+  criarCartao, definirCiclo, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
   novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
 } from '../lib/cartoes'
 import type { Cartao, Fatura, ItemFatura, ItemPrevia } from '../lib/cartoes'
 import { listarCategorias } from '../lib/categorias'
+import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
@@ -44,14 +45,14 @@ export default function Cartoes() {
   const carregar = useCallback(async () => {
     if (!familiaId) return
     try {
-      // cobra o que já fechou antes de mostrar: os valores da tela ficam em dia.
+      // gera as assinaturas de hoje e cobra o que já fechou antes de mostrar: os valores ficam em dia.
       // Se falhar, mostra o que há com um aviso (não esconde os cartões nem engole o erro).
-      try {
-        await cobrarFaturasFechadas()
-        setAviso('')
-      } catch {
-        setAviso('Não foi possível fechar as faturas agora; os valores podem estar defasados. Tente de novo em instantes.')
-      }
+      const r = await atualizarAutomaticos()
+      setAviso(
+        !r.faturasOk ? 'Não foi possível fechar as faturas agora; os valores podem estar defasados. Tente de novo em instantes.'
+        : !r.recorrentesOk ? 'Não foi possível lançar as assinaturas de hoje agora; tente de novo em instantes.'
+        : '',
+      )
       const [c, cs, cats] = await Promise.all([listarCartoes(familiaId), listarContas(familiaId), listarCategorias(familiaId)])
       setCartoes(c)
       setContas(cs.contas)

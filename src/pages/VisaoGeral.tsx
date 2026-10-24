@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
 import { Card, CardTitle } from '../components/ui/Card'
 import { useFamilia } from '../lib/FamiliaContext'
-import { cobrarFaturasFechadas } from '../lib/cartoes'
+import { atualizarAutomaticos } from '../lib/automaticos'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
@@ -28,15 +28,15 @@ export default function VisaoGeral() {
   const [dados, setDados] = useState<Dados | null>(null)
   const [erro, setErro] = useState('')
   const [cobrancaFalhou, setCobrancaFalhou] = useState(false)
+  const [recorrentesFalhou, setRecorrentesFalhou] = useState(false)
   const hoje = hojeSP()
   const mes = currentMonth()
 
   useEffect(() => {
     if (!familiaId) return
-    // cobra as parcelas de cartão cujo fechamento chegou; se falhar, o painel mostra o que já está cobrado, com aviso
-    cobrarFaturasFechadas()
-      .then(() => setCobrancaFalhou(false))
-      .catch(() => setCobrancaFalhou(true))
+    // gera recorrentes e cobra faturas fechadas; se falhar, o painel mostra o que já está gravado, com aviso
+    atualizarAutomaticos()
+      .then((r) => { setCobrancaFalhou(!r.faturasOk); setRecorrentesFalhou(!r.recorrentesOk) })
       .then(() => Promise.all([carregarPatrimonio(familiaId, hoje), resumoDoMes(familiaId, mes), listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje)]))
       .then(([patrimonio, resumo, c, proximos]) => setDados({ patrimonio, mes: resumo, contas: c.contas.filter((x) => x.ativa), proximos }))
       .catch((err) => setErro(mensagemErroBanco(err)))
@@ -53,6 +53,11 @@ export default function VisaoGeral() {
       {cobrancaFalhou && (
         <div className="mb-4">
           <Aviso tipo="erro">Não foi possível fechar as faturas dos cartões agora. Os valores de cartão podem estar defasados.</Aviso>
+        </div>
+      )}
+      {recorrentesFalhou && (
+        <div className="mb-4">
+          <Aviso tipo="erro">Não foi possível lançar os recorrentes agora. Contas mensais e assinaturas podem estar faltando.</Aviso>
         </div>
       )}
 

@@ -6,7 +6,9 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
+import { Link } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
+import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
@@ -42,6 +44,13 @@ export default function Lancamentos() {
   const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
   const [naLixeira, setNaLixeira] = useState<Lancamento | null>(null)
 
+  // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
+  const [automaticosProntos, setAutomaticosProntos] = useState(false)
+  useEffect(() => {
+    if (!familiaId) return
+    void atualizarAutomaticos().then(() => setAutomaticosProntos(true))
+  }, [familiaId])
+
   useEffect(() => {
     if (!familiaId) return
     Promise.all([listarContas(familiaId), listarCategorias(familiaId)])
@@ -50,7 +59,7 @@ export default function Lancamentos() {
   }, [familiaId])
 
   const carregar = useCallback(async () => {
-    if (!familiaId) return
+    if (!familiaId || !automaticosProntos) return
     try {
       const [l, r] = await Promise.all([listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes)])
       setLancamentos(l)
@@ -59,7 +68,7 @@ export default function Lancamentos() {
     } catch (err) {
       setErro(mensagemErroBanco(err))
     }
-  }, [familiaId, mes, filtros])
+  }, [familiaId, mes, filtros, automaticosProntos])
 
   useEffect(() => { void carregar() }, [carregar])
 
@@ -94,7 +103,10 @@ export default function Lancamentos() {
     <>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Lançamentos</h1>
-        {editando === null && <Button onClick={() => setEditando('novo')} disabled={contas.length === 0}>Novo lançamento</Button>}
+        <div className="flex flex-wrap gap-2">
+          <Link to="/recorrentes" className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-azul hover:bg-azul-claro">↻ Recorrentes</Link>
+          {editando === null && <Button onClick={() => setEditando('novo')} disabled={contas.length === 0}>Novo lançamento</Button>}
+        </div>
       </div>
 
       {contas.length === 0 && lancamentos !== null && (
@@ -176,6 +188,7 @@ export default function Lancamentos() {
                         <p className="font-medium">
                           {l.descricao || rotuloTipo[l.tipo]}
                           {l.status === 'planned' && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado</span>}
+                          {l.recorrente && <span className="ml-2 text-xs text-slate-500" title="Gerado por um recorrente">↻ recorrente</span>}
                         </p>
                         <p className="text-sm text-slate-500">{subtitulo}</p>
                       </div>

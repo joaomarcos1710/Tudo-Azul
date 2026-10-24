@@ -19,9 +19,11 @@ export interface Lancamento {
   data: string
   status: StatusLancamento
   notas: string
+  /** Gerado por uma regra recorrente (só leitura: o vínculo é gravado pelo banco). */
+  recorrente?: boolean
 }
 
-export type DadosLancamento = Omit<Lancamento, 'id'>
+export type DadosLancamento = Omit<Lancamento, 'id' | 'recorrente'>
 
 /** Totais do mês calculados no banco (period_summary): a tela não soma dinheiro. */
 export interface ResumoMes {
@@ -61,7 +63,7 @@ export async function listarLancamentos(familiaId: string, mes: string, f: Filtr
   const [de, ate] = limitesDoMes(mes)
   let consulta = cliente()
     .from('transactions')
-    .select('id, type, account_id, destination_account_id, category_id, description, amount, date, status, notes')
+    .select('id, type, account_id, destination_account_id, category_id, description, amount, date, status, notes, recurrence_id')
     .eq('household_id', familiaId)
     .is('deleted_at', null)
     .gte('date', de)
@@ -83,6 +85,7 @@ export async function listarLancamentos(familiaId: string, mes: string, f: Filtr
     data: t.date,
     status: t.status,
     notas: t.notes ?? '',
+    recorrente: t.recurrence_id != null,
   }))
 }
 
