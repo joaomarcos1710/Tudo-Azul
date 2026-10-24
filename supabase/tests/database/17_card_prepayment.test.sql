@@ -81,12 +81,28 @@ select is(pg_temp.sqlstate_of(format($$select public.debt_pay(%L, '2026-10-26', 
 select is((select debt::numeric(14,2) || '|' || credit_receivable::numeric(14,2) from public.debt_balances(pg_temp.fx('h'), '2026-10-31') where debt_id = pg_temp.fx('b')),
           '0.00|50.00', 'PB3 quita a dívida e sobra 50,00 de crédito');
 
+-- Cartão C: adiantei e depois devolvi o crédito em dinheiro; a fatura NÃO pode continuar aparecendo paga
+insert into fixture select 'c', public.create_debt('Cartão C', 'card', '2026-10-01', 0);
+select public.set_card_cycle(pg_temp.fx('c'), 17, 25);
+select public.card_purchase(pg_temp.fx('c'), '2026-10-20', 200.00, 2, pg_temp.fx('cat'), 'Compra C');
+select public.debt_pay(pg_temp.fx('c'), '2026-10-24', pg_temp.fx('bank'), 150.00);
+select is((select array_agg(label || '|' || paid || '|' || advance_in order by label) from public.card_months(pg_temp.fx('c'))),
+          array['2026-11|100.00|150.00', '2026-12|50.00|50.00'], 'PH1 com 150 adiantados, nov paga 100 e dez paga 50');
+select public.debt_return(pg_temp.fx('c'), '2026-10-25', pg_temp.fx('bank'), 150.00);
+select is((select credit_receivable from public.debt_balances(pg_temp.fx('h'), '2026-10-31') where debt_id = pg_temp.fx('c')), 0::numeric,
+          'PH2 devolvi todo o crédito: o banco zera o crédito do cartão');
+select is((select array_agg(label || '|' || paid || '|' || advance_in order by label) from public.card_months(pg_temp.fx('c'))),
+          array['2026-11|0|0', '2026-12|0|0'], 'PH3 as faturas voltam a aparecer NÃO pagas (antes do ajuste ficavam pagas sem estar)');
+
 -- o que NÃO mudou: empréstimo e amortização extra não passam do saldo
 insert into fixture select 'loan', public.create_debt('Empréstimo', 'loan', '2026-10-01', 0);
 select is(pg_temp.sqlstate_of(format($$select public.debt_pay(%L, '2026-10-24', %L, 10.00)$$, pg_temp.fx('loan'), pg_temp.fx('bank'))),
           '23514', 'PC1 empréstimo continua sem poder pagar acima do saldo devedor');
 select is(pg_temp.sqlstate_of(format($$select public.debt_pay(%L, '2026-10-24', %L, 10.00, null, true)$$, pg_temp.fx('a'), pg_temp.fx('bank'))),
           '23514', 'PC2 amortização extra em cartão continua sem poder passar do saldo');
+insert into fixture select 'fin', public.create_debt('Financiamento', 'financing', '2026-10-01', 0);
+select is(pg_temp.sqlstate_of(format($$select public.debt_pay(%L, '2026-10-24', %L, 10.00)$$, pg_temp.fx('fin'), pg_temp.fx('bank'))),
+          '23514', 'PC3 financiamento também continua sem poder pagar acima do saldo devedor');
 
 -- outra família não paga o meu cartão
 reset role;

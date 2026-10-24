@@ -460,7 +460,8 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
 
   // comparações entre valores exatos em centavos; o banco é quem decide e recalcula o crédito
   const adiantado = valor !== null && valor > 0 && valor > cartao.divida
-  const maisQueTudo = valor !== null && valor > cartao.divida + cartao.compromissos
+  // o crédito que o cartão já tem também cobre parcelas futuras: só avisa quando passa de (dívida + parcelas futuras − crédito)
+  const maisQueTudo = valor !== null && valor > cartao.divida + cartao.compromissos - cartao.credito
 
   return (
     <Card className="mb-6">
@@ -474,7 +475,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
           {cartao.divida > 0 && fatura ? <>Quita a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong>. </> : null}
           {adiantado && cartao.divida > 0 && <>O que passar da fatura fechada ({formatBRL(cartao.divida)}) <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
           {adiantado && cartao.divida <= 0 && <>Não há fatura fechada: o valor <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
-          O pagamento sai da conta agora e reduz a dívida do cartão. Não é despesa: as compras contam no mês de cada fatura.
+          O pagamento sai da conta na data escolhida e reduz a dívida do cartão. Não é despesa: as compras contam no mês de cada fatura.
         </p>
         {maisQueTudo && (
           <div className="md:col-span-2">
@@ -496,7 +497,7 @@ function PainelReabrir({ cartaoId, fatura, aoFechar, aoConcluir }: {
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
       <p className="text-sm">
         Reabrir a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong> desfaz os pagamentos dela
-        ({formatBRL(fatura.pago)}) e o dinheiro volta para as contas de onde saiu. Depois você pode editar as parcelas e pagar de novo.
+        ({formatBRL(fatura.pago)}), <strong>inclusive a parte que passou da fatura e ficou como crédito</strong>, e o dinheiro volta para as contas de onde saiu. Depois você pode editar as parcelas e pagar de novo.
       </p>
       <div className="mt-3 flex gap-2">
         <Button variante="perigo" carregando={enviando} onClick={() => void enviar(async () => { await reabrirFatura(cartaoId, fatura.mes) })}>

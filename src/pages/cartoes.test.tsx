@@ -215,6 +215,15 @@ describe('Cartões', () => {
     expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ valor: 90000, faturaId: 'f3' }), expect.any(String))
   })
 
+  it('o aviso de "mais que tudo" desconta o crédito que o cartão já tem', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(20000), credito: c(12000) }])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    await u.type(screen.getByLabelText('Valor (R$)'), '100,00') // 100 > 200 − 120 = 80 que ainda falta cobrir
+    expect(await screen.findByText(/mais do que tudo o que este cartão tem a pagar/)).toBeTruthy()
+  })
+
   it('mostra as faturas com total e os itens com n/N', async () => {
     const u = userEvent.setup()
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 2 })])
