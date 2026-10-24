@@ -176,6 +176,17 @@ describe('Cartões', () => {
     expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 13334, faturaId: 'f3' }), expect.any(String))
   })
 
+  it('sem fatura fechada, o botão fica desligado e explica por quê (compra de hoje cai na próxima fatura)', async () => {
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(20000) }])
+    render(<Cartoes />)
+    const botao = (await screen.findByRole('button', { name: 'Pagar fatura' })) as HTMLButtonElement
+    expect(botao.disabled).toBe(true)
+    const aviso = await screen.findByText(/Não há fatura fechada para pagar/)
+    expect(aviso.textContent).toMatch(/R\$ 200,00/)
+    expect(aviso.textContent).toMatch(/fecha no dia 17/)
+    expect(botao.getAttribute('aria-describedby')).toBe(aviso.id)
+  })
+
   it('mostra as faturas com total e os itens com n/N', async () => {
     const u = userEvent.setup()
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 2 })])

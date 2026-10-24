@@ -89,6 +89,60 @@ export async function listarLancamentos(familiaId: string, mes: string, f: Filtr
   }))
 }
 
+/**
+ * Movimento de cartão ou dívida que mexe numa conta (pagamento de fatura, juros, tarifa, empréstimo recebido...).
+ * Só leitura no extrato: o saldo da conta e os totais do mês já vêm do banco e contam tudo isso certo
+ * (pagamento de fatura não é despesa: a compra já contou no mês da fatura).
+ */
+export interface MovimentoDivida {
+  id: string
+  data: string
+  contaId: string
+  descricao: string
+  /** Com sinal do ponto de vista da conta: + entra, − sai (mesma regra de account_movements). */
+  valor: Cents
+}
+
+const eventosDeConta = ['payment', 'extra_principal', 'disbursement', 'refund_cash', 'interest', 'fee'] as const
+const rotuloEventoConta: Record<string, string> = {
+  payment: 'Pagamento de', extra_principal: 'Amortização de', disbursement: 'Crédito de',
+  refund_cash: 'Devolução de', interest: 'Juros de', fee: 'Tarifa de',
+}
+
+export async function listarMovimentosDeDivida(familiaId: string, mes: string, contaId?: string): Promise<MovimentoDivida[]> {
+  const [de, ate] = limitesDoMes(mes)
+  let consulta = cliente()
+    .from('debt_events')
+    .select('id, debt_id, date, kind, amount, account_id')
+    .eq('household_id', familiaId)
+    .is('voided_at', null)
+    .in('kind', [...eventosDeConta])
+    .not('account_id', 'is', null)
+    .gte('date', de)
+    .lte('date', ate)
+  if (contaId) consulta = consulta.eq('account_id', contaId)
+  const [eventos, dividas] = await Promise.all([
+    consulta.order('date', { ascending: false }).order('created_at', { ascending: false }),
+    cliente().from('debts').select('id, name, kind').eq('household_id', familiaId),
+  ])
+  if (eventos.error) throw eventos.error
+  if (dividas.error) throw dividas.error
+  const porId = new Map((dividas.data ?? []).map((d) => [d.id, d]))
+  return (eventos.data ?? []).map((e) => {
+    const d = porId.get(e.debt_id)
+    const nome = d?.name ?? 'cartão/dívida'
+    const entra = e.kind === 'disbursement' || e.kind === 'refund_cash'
+    const cents = centsFromDb(e.amount)
+    return {
+      id: e.id,
+      data: e.date,
+      contaId: e.account_id as string,
+      descricao: e.kind === 'payment' && d?.kind === 'card' ? `Pagamento da fatura · ${nome}` : `${rotuloEventoConta[e.kind]} ${nome}`,
+      valor: (entra ? cents : -cents) as Cents,
+    }
+  })
+}
+
 export async function resumoDoMes(familiaId: string, mes: string): Promise<ResumoMes> {
   const [de, ate] = limitesDoMes(mes)
   const { data, error } = await cliente().rpc('period_summary', { p_household: familiaId, p_from: de, p_to: ate })

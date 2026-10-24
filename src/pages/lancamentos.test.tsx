@@ -7,6 +7,7 @@ import type { Cents } from '../lib/format'
 
 const mock = vi.hoisted(() => ({
   listarLancamentos: vi.fn(),
+  listarMovimentosDeDivida: vi.fn(),
   resumoDoMes: vi.fn(),
   criarLancamento: vi.fn(),
   editarLancamento: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/lancamentos', async (original) => ({
   ...(await original<typeof import('../lib/lancamentos')>()),
   listarLancamentos: mock.listarLancamentos,
+  listarMovimentosDeDivida: mock.listarMovimentosDeDivida,
   resumoDoMes: mock.resumoDoMes,
   criarLancamento: mock.criarLancamento,
   editarLancamento: mock.editarLancamento,
@@ -62,6 +64,7 @@ beforeEach(() => {
   mock.listarContas.mockResolvedValue({ contas, total: c(0) })
   mock.listarCategorias.mockResolvedValue(categorias)
   mock.listarLancamentos.mockResolvedValue(lancs)
+  mock.listarMovimentosDeDivida.mockResolvedValue([])
   mock.resumoDoMes.mockResolvedValue({ receitas: c(0), despesas: c(25050), resultado: c(-25050), receitasPrevistas: c(800000), despesasPrevistas: c(0) })
   for (const f of [mock.criarLancamento, mock.editarLancamento, mock.marcarComoPago, mock.moverParaLixeira, mock.restaurarDaLixeira]) f.mockResolvedValue(undefined)
   vi.spyOn(window, 'confirm').mockReturnValue(true)
@@ -185,5 +188,27 @@ describe('Lançamentos', () => {
     await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
     await u.click(screen.getByRole('button', { name: 'Lançar' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Conta de origem desativada.')
+  })
+
+  it('mostra o pagamento da fatura no extrato, só leitura, sem entrar nos totais; com filtro de categoria some', async () => {
+    const u = userEvent.setup()
+    mock.listarMovimentosDeDivida.mockResolvedValue([
+      { id: 'e1', data: `${hojeSP().slice(0, 8)}01`, contaId: 'a1', descricao: 'Pagamento da fatura · Nubank', valor: c(-30000) },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const item = (await screen.findByText('Pagamento da fatura · Nubank')).closest('li') as HTMLElement
+    expect(within(item).getByText('Cartão/dívida')).toBeTruthy()
+    expect(within(item).getByText('Itaú')).toBeTruthy()
+    expect(within(item).getByText('−R$ 300,00')).toBeTruthy()
+    expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
+    expect(within(item).getByRole('link', { name: 'Ver em Cartões' })).toBeTruthy()
+    expect(screen.getByText(/não entram/)).toBeTruthy()
+    // os totais continuam os do banco (period_summary): a linha do cartão não é somada em nada
+    const cardDespesas = screen.getByText('Despesas pagas').closest('div') as HTMLElement
+    expect(within(cardDespesas).getByText('−R$ 250,50')).toBeTruthy()
+    const antes = mock.listarMovimentosDeDivida.mock.calls.length
+    await u.selectOptions(screen.getByLabelText('Filtrar por tipo'), 'expense')
+    await vi.waitFor(() => expect(screen.queryByText('Pagamento da fatura · Nubank')).toBeNull())
+    expect(mock.listarMovimentosDeDivida.mock.calls.length).toBe(antes) // com filtro de tipo nem consulta
   })
 })
