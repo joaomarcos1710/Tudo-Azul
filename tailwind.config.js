@@ -4,7 +4,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        marinho: '#102A43',
+        // identidade visual (24/10/2026): marinho e celeste da logo
+        marinho: '#0B1F46',
+        celeste: '#48B5FF',
         azul: { DEFAULT: '#2563EB', claro: '#EAF2FF' },
         fundo: '#F7F9FC',
         positivo: '#15803D',
