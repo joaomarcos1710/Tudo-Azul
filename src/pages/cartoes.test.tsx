@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Cents } from '../lib/format'
 
@@ -13,6 +13,10 @@ const mock = vi.hoisted(() => ({
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
   pagarFatura: vi.fn(),
+  reabrirFatura: vi.fn(),
+  previaExclusao: vi.fn(),
+  excluirCompra: vi.fn(),
+  editarParcela: vi.fn(),
   listarContas: vi.fn(),
   listarCategorias: vi.fn(),
 }))
@@ -23,7 +27,8 @@ vi.mock('../lib/cartoes', async (o) => ({
   ...(await o<typeof import('../lib/cartoes')>()),
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   definirCiclo: mock.definirCiclo, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
-  listarItens: mock.listarItens, pagarFatura: mock.pagarFatura,
+  listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
+  previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
@@ -35,7 +40,8 @@ import type { Fatura } from '../lib/cartoes'
 const c = (n: number) => n as Cents
 const nubank = { id: 'k1', nome: 'Nubank', fechamento: 17, vencimento: 25, ativo: true, divida: c(13334), credito: c(0), compromissos: c(39666) }
 const fatura = (f: Partial<Fatura>): Fatura => ({
-  mes: '2026-03', fechamento: '2026-03-17', vencimento: '2026-03-25', cobrado: c(0), aCobrar: c(0), total: c(0), pago: c(0), itens: 1, faturaId: null, ...f,
+  mes: '2026-03', fechamento: '2026-03-17', vencimento: '2026-03-25', cobrado: c(0), aCobrar: c(0), total: c(0), pago: c(0), itens: 1, faturaId: null,
+  saldoAnterior: c(0), adiantamentoEntrada: c(0), adiantamentoSaida: c(0), ...f,
 })
 
 beforeEach(() => {
@@ -48,7 +54,8 @@ beforeEach(() => {
   ])
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
-  for (const f of [mock.criarCartao, mock.definirCiclo, mock.registrarCompra, mock.pagarFatura]) f.mockResolvedValue(undefined)
+  mock.previaExclusao.mockResolvedValue([])
+  for (const f of [mock.criarCartao, mock.definirCiclo, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -121,7 +128,7 @@ describe('Cartões', () => {
     await u.clear(data)
     await u.type(data, '2026-10-15')
     await u.click(screen.getByRole('button', { name: 'Lançar compra' }))
-    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', { descricao: 'TV', data: '2026-10-15', total: 30000, parcelas: 3, categoriaId: 'g1' })
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', { descricao: 'TV', data: '2026-10-15', total: 30000, parcelas: 3, categoriaId: 'g1' }, expect.any(String))
   })
 
   it('parcelamento em andamento: valor da parcela × parcelas restantes, a partir de hoje', async () => {
@@ -165,7 +172,7 @@ describe('Cartões', () => {
     expect(await screen.findByText(/Quita a fatura de/)).toBeTruthy()
     await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
     await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
-    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 13334, faturaId: 'f3' }))
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 13334, faturaId: 'f3' }), expect.any(String))
   })
 
   it('mostra as faturas com total e os itens com n/N', async () => {
@@ -180,5 +187,63 @@ describe('Cartões', () => {
     expect(await screen.findByText('· 2/3')).toBeTruthy()
     expect(screen.getByText('Aberta')).toBeTruthy()
     expect(mock.listarItens).toHaveBeenCalledWith('k1', '2099-04')
+  })
+
+  const item = { parcelaId: 'p1', compra: 'x', parcela: 2, deParcelas: 3, descricao: 'TV', dataCompra: '2099-03-15', valor: c(10000), falta: c(10000), categoriaId: 'g1' }
+  const abrirFatura = async (u: ReturnType<typeof userEvent.setup>, f: Partial<Fatura> = {}) => {
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(10000), total: c(10000), itens: 1, ...f })])
+    mock.listarItens.mockResolvedValue([item])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await screen.findByText('· 2/3')
+  }
+
+  it('edita o valor de uma parcela (só ela)', async () => {
+    const u = userEvent.setup()
+    await abrirFatura(u)
+    await u.click(screen.getByRole('button', { name: 'Editar valor de TV' }))
+    const campo = screen.getByLabelText('Valor da parcela (R$)')
+    await u.clear(campo)
+    await u.type(campo, '100,01')
+    await u.click(screen.getByRole('button', { name: 'Salvar valor' }))
+    expect(mock.editarParcela).toHaveBeenCalledWith('p1', 10001)
+  })
+
+  it('excluir compra mostra a prévia (dinheiro volta para a conta) e só exclui ao confirmar', async () => {
+    const u = userEvent.setup()
+    mock.previaExclusao.mockResolvedValue([
+      { tipo: 'payment', data: '2099-04-20', valor: c(10000), contaId: 'a1', fatura: '2099-04' },
+      { tipo: 'cancel', data: '2099-05-17', valor: c(20000), contaId: null, fatura: null },
+    ])
+    await abrirFatura(u)
+    await u.click(screen.getByRole('button', { name: 'Excluir compra TV' }))
+    expect(await screen.findByText(/o dinheiro volta para/)).toBeTruthy()
+    expect(screen.getByText('Itaú')).toBeTruthy()
+    expect(mock.excluirCompra).not.toHaveBeenCalled()
+    await u.click(screen.getByRole('button', { name: 'Excluir compra' }))
+    expect(mock.excluirCompra).toHaveBeenCalledWith('k1', 'x')
+  })
+
+  it('reabrir fatura paga pede confirmação e chama o banco', async () => {
+    const u = userEvent.setup()
+    await abrirFatura(u, { cobrado: c(10000), aCobrar: c(0), pago: c(10000), faturaId: 'f4' })
+    await u.click(screen.getByRole('button', { name: 'Reabrir fatura' }))
+    expect(mock.reabrirFatura).not.toHaveBeenCalled()
+    await u.click(within(screen.getByRole('group', { name: 'Reabrir fatura' })).getByRole('button', { name: 'Reabrir fatura' }))
+    expect(mock.reabrirFatura).toHaveBeenCalledWith('k1', '2099-04')
+  })
+
+  it('mostra saldo anterior e adiantamento da fatura', async () => {
+    const u = userEvent.setup()
+    await abrirFatura(u, { saldoAnterior: c(4000), adiantamentoSaida: c(2500) })
+    expect(screen.getByText(/Saldo anterior.*R\$\s?40,00/)).toBeTruthy()
+    expect(screen.getByText(/Sobra de adiantamento.*R\$\s?25,00/)).toBeTruthy()
+  })
+
+  it('se a cobrança das faturas falhar, mostra aviso e mantém os cartões', async () => {
+    mock.cobrarFaturasFechadas.mockRejectedValue(new Error('x'))
+    render(<Cartoes />)
+    expect(await screen.findByText('Nubank')).toBeTruthy()
+    expect(screen.getByText(/Não foi possível fechar as faturas agora/)).toBeTruthy()
   })
 })
