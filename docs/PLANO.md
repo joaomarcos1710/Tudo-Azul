@@ -23,9 +23,11 @@
 
 **Critérios para o corte** (todos obrigatórios):
 1. Saldos batendo com o extrato do banco por 2 semanas seguidas, em uso paralelo com o Organizze.
-2. A segunda pessoa da família lança pelo celular sem ajuda.
+2. ~~A segunda pessoa da família lança pelo celular sem ajuda.~~ **Retirado em 24/10/2026** (decisão do dono: a segunda pessoa não é prioridade agora). O convite continua existindo; e-mail próprio (SMTP) só quando ela entrar.
 3. Exportação CSV funcionando.
 4. Nenhum bug de valor em aberto.
+
+**Fora do escopo** (decisão de 24/10/2026): **Open Finance** (conexão automática com bancos). Os dados entram por lançamento manual, recorrentes e, no futuro, importação de arquivo/API do Organizze.
 
 **Cronograma de referência:**
 | Período | Entrega |
