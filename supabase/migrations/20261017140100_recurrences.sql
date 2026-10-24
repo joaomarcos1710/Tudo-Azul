@@ -206,11 +206,13 @@ begin
       if v_occ >= r.start_date and v_occ <= v_until then
         if r.kind = 'card' then
           if v_occ > v_d.reference_date then
+            -- ciclo gravado na parcela, como em card_purchase (migration 20261017135000)
             insert into public.debt_installments (household_id, debt_id, plan, seq, due_date, face, category_id,
-                                                  description, purchase_date, recurrence_id, occurrence_date)
+                                                  description, purchase_date, closing_day, due_day,
+                                                  recurrence_id, occurrence_date)
             values (r.household_id, r.debt_id, gen_random_uuid()::text, 1,
                     private.card_first_closing(v_occ, v_d.closing_day), r.amount, r.category_id,
-                    r.description, v_occ, r.id, v_occ)
+                    r.description, v_occ, v_d.closing_day, v_d.due_day, r.id, v_occ)
             on conflict (recurrence_id, occurrence_date) where recurrence_id is not null do nothing;
             get diagnostics v_rows = row_count;
             v_n := v_n + v_rows;

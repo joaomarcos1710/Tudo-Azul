@@ -104,6 +104,13 @@ select is((select array_agg(purchase_date || '|' || due_date || '|' || face || '
                 pg_temp.mes(0)  || '|' || (pg_temp.mes(0)  + 16) || '|55.90|Netflix'],
           'RC8 compra no dia 1 cai na fatura que fecha dia 17 do mesmo mês');
 select is(public.recurrence_materialize(), 0, 'RC8 idempotente no cartão');
+select is((select array_agg(distinct closing_day || '/' || due_day) from public.debt_installments where recurrence_id = pg_temp.fx('netflix')),
+          array['17/25'], 'RC8 ciclo do cartão gravado na parcela da assinatura');
+-- excluir a compra de um mês (card_purchase_delete) não faz a geração recriá-la
+select lives_ok($$select public.card_purchase_delete(pg_temp.fx('card'),
+                   (select plan from public.debt_installments where recurrence_id = pg_temp.fx('netflix') and occurrence_date = pg_temp.mes(-1)))$$,
+                'RC8 exclui a assinatura do mês −1');
+select is(public.recurrence_materialize(), 0, 'RC8 compra excluída não volta');
 
 -- RC9: encerrar para de gerar e manda planejados futuros para a lixeira; a conta pode ser desativada
 select lives_ok($$select public.recurrence_end(pg_temp.fx('luz'))$$, 'RC9 encerra a luz hoje');
