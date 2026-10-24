@@ -44,6 +44,7 @@ export default function Lancamentos() {
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
   const [naLixeira, setNaLixeira] = useState<Lancamento | null>(null)
+  const [pagando, setPagando] = useState<Lancamento | null>(null)
 
   // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
   const [automaticosProntos, setAutomaticosProntos] = useState(false)
@@ -183,6 +184,15 @@ export default function Lancamentos() {
         />
       )}
 
+      {pagando !== null && (
+        <PainelPagar
+          lancamento={pagando}
+          nomeConta={nomeConta.get(pagando.contaId) ?? '?'}
+          aoConfirmar={async () => { setPagando(null); await carregar() }}
+          aoCancelar={() => setPagando(null)}
+        />
+      )}
+
       {lancamentos === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
       {lancamentos?.length === 0 && movimentosDivida.length === 0 && editando === null && contas.length > 0 && (
@@ -236,7 +246,7 @@ export default function Lancamentos() {
                       </div>
                       <div className="flex flex-wrap items-center gap-1">
                         <span className={`tabular-nums font-semibold ${v.cor}`}>{v.texto}</span>
-                        {l.status === 'planned' && <Button variante="fantasma" onClick={() => agir(() => marcarComoPago(l.id))}>Marcar pago</Button>}
+                        {l.status === 'planned' && <Button variante="fantasma" onClick={() => { setEditando(null); setPagando(l) }} disabled={pagando !== null}>Marcar pago</Button>}
                         <Button variante="fantasma" onClick={() => setEditando(l)}>Editar</Button>
                         <Button variante="fantasma" onClick={() => excluir(l)}>Excluir</Button>
                       </div>
@@ -249,6 +259,56 @@ export default function Lancamentos() {
         ))}
       </div>
     </>
+  )
+}
+
+/** Marcar pago: a pessoa confirma a data e o valor reais; o planejado é só a sugestão. */
+function PainelPagar({ lancamento: l, nomeConta, aoConfirmar, aoCancelar }: {
+  lancamento: Lancamento; nomeConta: string; aoConfirmar: () => Promise<void>; aoCancelar: () => void
+}) {
+  const [data, setData] = useState(hojeSP())
+  const [valorTexto, setValorTexto] = useState(formatBRL(l.valor).replace('R$ ', ''))
+  const [tentou, setTentou] = useState(false)
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const valor = parseBRL(valorTexto)
+  const erroValor = tentou && (valor === null || valor <= 0) ? 'Informe um valor maior que zero. Exemplo: 143,20.' : undefined
+  const erroData = tentou && !data ? 'Informe a data.' : undefined
+  const entrada = l.tipo === 'income'
+
+  async function confirmar(e: FormEvent) {
+    e.preventDefault()
+    setTentou(true)
+    if (valor === null || valor <= 0 || !data) return
+    setErro('')
+    setEnviando(true)
+    try {
+      await marcarComoPago(l.id, { data, valor })
+      await aoConfirmar()
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <Card className="mb-4">
+      <h2 className="mb-1 text-lg font-semibold">Marcar como pago · {l.descricao || rotuloTipo[l.tipo]}</h2>
+      <p className="mb-4 text-sm text-slate-600">
+        Planejado: {formatDate(l.data)} · {formatBRL(l.valor)} · {nomeConta}. Informe {entrada ? 'quando e quanto entrou' : 'quando e quanto saiu'} de
+        verdade: o saldo da conta e o extrato usam esta data e este valor.
+      </p>
+      <form onSubmit={confirmar} className="grid gap-4 md:grid-cols-2" noValidate>
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Field rotulo={entrada ? 'Data do recebimento' : 'Data do pagamento'} type="date" value={data} onChange={(e) => setData(e.target.value)} erro={erroData} />
+        <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+        <div className="flex gap-2 md:col-span-2">
+          <Button type="submit" carregando={enviando}>Confirmar pagamento</Button>
+          <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
+        </div>
+      </form>
+    </Card>
   )
 }
 
