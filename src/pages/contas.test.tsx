@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../lib/format'
 
 const mock = vi.hoisted(() => ({
@@ -46,7 +47,7 @@ describe('hojeSP', () => {
 
 describe('Contas', () => {
   it('sem contas, convida a cadastrar a primeira', async () => {
-    render(<Contas />)
+    render(<MemoryRouter><Contas /></MemoryRouter>)
     expect(await screen.findByText('Nenhuma conta ainda')).toBeTruthy()
   })
 
@@ -55,7 +56,7 @@ describe('Contas', () => {
       contas: [corrente, { ...corrente, id: 'a2', nome: 'Carteira', tipo: 'cash', ativa: false, saldo: c(-5000) }],
       total: c(120050),
     })
-    render(<Contas />)
+    render(<MemoryRouter><Contas /></MemoryRouter>)
     expect(await screen.findByText('R$ 1.200,50')).toBeTruthy() // total do banco, não somado na tela
     expect(screen.getByText('R$ 1.250,50')).toBeTruthy()
     expect(screen.getByText('-R$ 50,00')).toBeTruthy()
@@ -64,12 +65,12 @@ describe('Contas', () => {
 
   it('conta que abre no futuro mostra a data em vez de saldo', async () => {
     mock.listarContas.mockResolvedValue({ contas: [{ ...corrente, saldo: null }], total: c(0) })
-    render(<Contas />)
+    render(<MemoryRouter><Contas /></MemoryRouter>)
     expect(await screen.findByText('abre em 01/12/2026')).toBeTruthy()
   })
 
   it('cadastra conta com saldo inicial em centavos (aceita negativo)', async () => {
-    render(<Contas />)
+    render(<MemoryRouter><Contas /></MemoryRouter>)
     const u = userEvent.setup()
     await u.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
     await u.type(screen.getByLabelText('Nome'), 'Nubank')
@@ -83,7 +84,7 @@ describe('Contas', () => {
   })
 
   it('não envia valor inválido', async () => {
-    render(<Contas />)
+    render(<MemoryRouter><Contas /></MemoryRouter>)
     const u = userEvent.setup()
     await u.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
     await u.type(screen.getByLabelText('Nome'), 'Nubank')
@@ -97,7 +98,7 @@ describe('Contas', () => {
 
   it('editar preenche os dados atuais e salva', async () => {
     mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(125050) })
-    render(<Contas />)
+    render(<MemoryRouter><Contas /></MemoryRouter>)
     const u = userEvent.setup()
     await u.click(await screen.findByRole('button', { name: 'Editar' }))
     expect((screen.getByLabelText('Saldo inicial (R$)') as HTMLInputElement).value).toBe('1.000,00')
@@ -108,7 +109,7 @@ describe('Contas', () => {
   it('desativar com planejado em aberto mostra a regra do banco', async () => {
     mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(125050) })
     mock.definirAtiva.mockRejectedValue({ code: '23514', message: 'conta com lançamento planejado em aberto não pode ser desativada' })
-    render(<Contas />)
+    render(<MemoryRouter><Contas /></MemoryRouter>)
     const item = (await screen.findByText('Itaú')).closest('li')!
     await userEvent.setup().click(within(item).getByRole('button', { name: 'Desativar' }))
     expect(mock.definirAtiva).toHaveBeenCalledWith('a1', false)
@@ -117,7 +118,7 @@ describe('Contas', () => {
 
   it('nome repetido vira mensagem clara', async () => {
     mock.criarConta.mockRejectedValue({ code: '23505', message: 'duplicate key value violates unique constraint "accounts_name_uq"' })
-    render(<Contas />)
+    render(<MemoryRouter><Contas /></MemoryRouter>)
     const u = userEvent.setup()
     await u.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
     await u.type(screen.getByLabelText('Nome'), 'Itaú')

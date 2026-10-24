@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -94,6 +95,7 @@ export default function Contas() {
                     <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
                       {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
                     </span>
+                    <Link to={`/contas/${c.id}/conferir`} className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-azul hover:bg-azul-claro">Conferir</Link>
                     <Button variante="fantasma" onClick={() => setEditando(c)}>Editar</Button>
                     <Button variante="fantasma" onClick={() => alternarAtiva(c)}>{c.ativa ? 'Desativar' : 'Reativar'}</Button>
                   </div>
