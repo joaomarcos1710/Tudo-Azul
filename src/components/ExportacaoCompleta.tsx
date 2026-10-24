@@ -9,9 +9,10 @@ import { mensagemErroBanco } from '../lib/erros'
 
 /**
  * Exportação completa (5 CSVs) em dois passos: "Preparar" lê o banco, e cada arquivo tem o seu botão de baixar
- * (o navegador bloqueia vários downloads de uma vez). `aoTodosBaixados` avisa quando todos foram baixados.
+ * (o navegador bloqueia vários downloads de uma vez). `aoMudarBaixados(true)` quando todos foram baixados e
+ * `aoMudarBaixados(false)` sempre que uma nova exportação é preparada (a anterior deixa de valer).
  */
-export function ExportacaoCompleta({ aoTodosBaixados }: { aoTodosBaixados?: () => void }) {
+export function ExportacaoCompleta({ aoMudarBaixados }: { aoMudarBaixados?: (todosBaixados: boolean) => void }) {
   const { familia } = useFamilia()
   const [arquivos, setArquivos] = useState<ArquivoExportado[] | null>(null)
   const [baixados, setBaixados] = useState<Set<string>>(new Set())
@@ -24,6 +25,7 @@ export function ExportacaoCompleta({ aoTodosBaixados }: { aoTodosBaixados?: () =
     setPreparando(true)
     setArquivos(null)
     setBaixados(new Set())
+    aoMudarBaixados?.(false)
     try {
       setArquivos(await exportacaoCompleta(familia.id, hojeSP()))
     } catch (err) {
@@ -37,7 +39,7 @@ export function ExportacaoCompleta({ aoTodosBaixados }: { aoTodosBaixados?: () =
     baixarArquivo(a.nome, a.conteudo)
     const novo = new Set(baixados).add(a.nome)
     setBaixados(novo)
-    if (arquivos && novo.size === arquivos.length) aoTodosBaixados?.()
+    if (arquivos && novo.size === arquivos.length) aoMudarBaixados?.(true)
   }
 
   return (

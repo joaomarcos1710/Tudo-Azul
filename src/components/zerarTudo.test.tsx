@@ -70,6 +70,25 @@ describe('Zerar tudo', () => {
     expect(screen.getByRole('link', { name: 'Contas' }).getAttribute('href')).toBe('/contas')
   })
 
+  it('preparar uma nova exportação invalida a anterior: a frase volta a ficar bloqueada', async () => {
+    const u = userEvent.setup()
+    montar()
+    await screen.findByText(/12 lançamentos/)
+    await u.click(screen.getByRole('button', { name: 'Preparar exportação completa' }))
+    await u.click(await screen.findByRole('button', { name: 'Baixar arq-1.csv' }))
+    await u.click(screen.getByRole('button', { name: 'Baixar arq-2.csv' }))
+    expect((screen.getByLabelText(/Para confirmar, escreva/) as HTMLInputElement).disabled).toBe(false)
+    await u.click(screen.getByRole('button', { name: 'Preparar exportação completa' }))
+    await screen.findByRole('button', { name: 'Baixar arq-1.csv' })
+    expect((screen.getByLabelText(/Para confirmar, escreva/) as HTMLInputElement).disabled).toBe(true)
+  })
+
+  it('avisa o que a exportação NÃO inclui, para ninguém achar que tem backup de tudo', async () => {
+    montar()
+    expect(await screen.findByText(/A exportação não inclui/)).toBeTruthy()
+    expect(screen.getByText(/não lance nada entre baixar e zerar/)).toBeTruthy()
+  })
+
   it('o banco recusou (ex.: não é o dono): mostra o erro e não finge que zerou', async () => {
     const u = userEvent.setup()
     mock.zerarTudo.mockRejectedValue(Object.assign(new Error('somente o dono da família pode zerar tudo'), { code: '42501' }))

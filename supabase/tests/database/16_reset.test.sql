@@ -74,6 +74,8 @@ with i as (insert into public.transactions (household_id, account_id, category_i
 insert into fixture select 'card', public.create_debt('Cartão', 'card', '2026-09-30', 0);
 select public.set_card_cycle(pg_temp.fx('card'), 17, 25);
 select public.card_purchase(pg_temp.fx('card'), '2026-10-02', 300.00, 3, pg_temp.fx('cexp'), 'Fone');
+-- edição de parcela (grava trilha em debt_installment_edits, que também precisa sumir)
+select public.card_installment_edit((select id from public.debt_installments where debt_id = pg_temp.fx('card') and seq = 3), 100.01, 'conferido na fatura');
 select public.card_bill_due('2026-10-31');
 select public.debt_pay(pg_temp.fx('card'), '2026-10-25', pg_temp.fx('itau'), 100.00,
                        (select id from public.debt_invoices where debt_id = pg_temp.fx('card') and label = '2026-10'));
@@ -102,6 +104,7 @@ select is(pg_temp.sqlstate_of(format($$select public.reset_household(%L, 'zerar 
           'Z4 sem auth.uid() é recusado dentro da função');
 select pg_temp.login('00000000-0000-0000-0000-0000000016a1');
 select ok(pg_temp.sobra(pg_temp.fx('h1')) > 10, 'Z5 a fixture tem bastante dado antes de zerar');
+select is((select count(*) from public.debt_installment_edits where household_id = pg_temp.fx('h1')), 1::bigint, 'Z5b a fixture tem uma edição de parcela');
 -- guarda a contagem de lançamentos de antes (a recorrência gera planejados conforme a data de hoje, então não é fixa)
 insert into fixture_txt select 'tx_antes', (public.reset_preview(pg_temp.fx('h1')) ->> 'transactions');
 
@@ -127,6 +130,8 @@ reset role;
 -- ---- depois: tudo zerado, família/membros/categorias intactos, outra família intacta ----
 select pg_temp.login('00000000-0000-0000-0000-0000000016a1');
 select is(pg_temp.sobra(pg_temp.fx('h1')), 0::bigint, 'Z17 nada financeiro sobrou (inclusive conciliado, cartão, dívida, lixeira)');
+select is((select count(*) from public.debt_installment_edits where household_id = pg_temp.fx('h1')), 0::bigint, 'Z17b nem a trilha de edição de parcela');
+select is((select count(*) from public.debt_invoices where household_id = pg_temp.fx('h1')), 0::bigint, 'Z17c nem as faturas');
 select is((select count(*) from public.account_balances(pg_temp.fx('h1'), '2026-12-31')), 0::bigint, 'Z18 sem contas, sem saldos');
 select is((select debt + credit_receivable + available + net_worth from public.net_worth(pg_temp.fx('h1'), '2026-12-31')), 0::numeric,
           'Z19 patrimônio zerado');
@@ -151,6 +156,9 @@ select is((select balance from public.account_balances(pg_temp.fx('h1'), '2026-1
 select is((public.reset_household(pg_temp.fx('h1'), '  ZERAR TUDO  ') ->> 'transactions')::int, 1, 'Z27 segundo zerar: apaga só o que há (1) e aceita ZERAR TUDO');
 select is(pg_temp.sobra(pg_temp.fx('h1')), 0::bigint, 'Z28 zerado de novo');
 select is((select count(*) from public.household_resets), 2::bigint, 'Z29 dois registros');
+-- terceiro zerar, com a família já vazia: inofensivo e sem registro novo (duplo clique, duas abas)
+select is((public.reset_household(pg_temp.fx('h1'), 'zerar tudo') ->> 'transactions')::int, 0, 'Z29b zerar o que já está vazio devolve zeros');
+select is((select count(*) from public.household_resets), 2::bigint, 'Z29c e não cria registro novo');
 -- cliente não grava no registro
 select is(pg_temp.sqlstate_of(format($$insert into public.household_resets (household_id, counts) values (%L, '{}')$$, pg_temp.fx('h1'))), '42501',
           'Z30 o cliente não grava em household_resets');

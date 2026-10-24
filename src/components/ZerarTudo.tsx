@@ -69,7 +69,7 @@ export function ZerarTudo() {
         </div>
       )}
       {previa === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
-      {vazio && <p className="text-sm text-slate-600">Não há nada para zerar: a família não tem contas, cartões nem lançamentos.</p>}
+      {vazio && !feito && <p className="text-sm text-slate-600">Não há nada para zerar: a família não tem contas, cartões nem lançamentos.</p>}
       {previa !== null && !vazio && (
         <>
           <p className="mb-2 text-sm text-slate-700">
@@ -87,7 +87,11 @@ export function ZerarTudo() {
           </p>
 
           <h3 className="mb-2 text-sm font-semibold text-slate-600">1. Baixe a exportação completa</h3>
-          <ExportacaoCompleta aoTodosBaixados={() => setBaixou(true)} />
+          <p className="mb-3 text-sm text-slate-700">
+            <strong>A exportação não inclui</strong> orçamentos, recorrências, conciliações, lançamentos da lixeira nem eventos anulados:
+            esses você perde de verdade. E <strong>não lance nada entre baixar e zerar</strong>: o que for lançado depois não estará nos arquivos.
+          </p>
+          <ExportacaoCompleta aoMudarBaixados={setBaixou} />
 
           <h3 className="mb-2 mt-5 text-sm font-semibold text-slate-600">2. Confirme</h3>
           <div className="flex flex-col gap-3 sm:max-w-md">

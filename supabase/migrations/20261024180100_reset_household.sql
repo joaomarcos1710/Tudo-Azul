@@ -87,7 +87,10 @@ begin
   v_counts := jsonb_build_object(
     'transactions', v_n_tx, 'accounts', v_n_acc, 'debts', v_n_debt, 'installments', v_n_inst, 'events', v_n_ev,
     'recurrences', v_n_rec, 'reconciliations', v_n_recon, 'budgets', v_n_bud);
-  insert into public.household_resets (household_id, done_by, counts) values (p_household, v_uid, v_counts);
+  -- zerar uma família que já está vazia (duplo clique, duas abas) não gera registro
+  if v_n_tx + v_n_acc + v_n_debt + v_n_inst + v_n_ev + v_n_rec + v_n_recon + v_n_bud > 0 then
+    insert into public.household_resets (household_id, done_by, counts) values (p_household, v_uid, v_counts);
+  end if;
   return v_counts;
 end $$;
 
