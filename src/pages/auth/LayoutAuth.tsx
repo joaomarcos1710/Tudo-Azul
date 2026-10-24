@@ -7,7 +7,7 @@ import { Marca } from '../../components/layout/Marca'
 /** Moldura das telas de acesso: fundo marinho, marca e um cartão central. */
 export function LayoutAuth({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-marinho px-4 py-10">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-marinho px-4 py-10 pt-[max(2.5rem,env(safe-area-inset-top))]">
       <div className="mb-6 flex flex-col items-center gap-2">
         <Marca tamanho={44} claro />
         <p className="text-sm text-blue-100">Sua vida financeira em equilíbrio.</p>
