@@ -4,7 +4,8 @@ import { Button } from '../components/ui/Button'
 import { Card, CardTitle } from '../components/ui/Card'
 import { useFamilia } from '../lib/FamiliaContext'
 import { hojeSP } from '../lib/contas'
-import { baixarArquivo, gerarCsv, lancamentosParaExportar } from '../lib/csv'
+import { baixarArquivo, exportacaoCompleta, gerarCsv, lancamentosParaExportar } from '../lib/csv'
+import type { ArquivoExportado } from '../lib/csv'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatMonth } from '../lib/format'
 import { limitesDoMes } from '../lib/lancamentos'
@@ -14,6 +15,8 @@ export default function Relatorios() {
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
   const [exportando, setExportando] = useState<'mes' | 'tudo' | null>(null)
+  const [arquivos, setArquivos] = useState<ArquivoExportado[] | null>(null)
+  const [baixados, setBaixados] = useState<Set<string>>(new Set())
   const mes = currentMonth()
 
   async function exportar(qual: 'mes' | 'tudo') {
@@ -22,11 +25,18 @@ export default function Relatorios() {
     setOk('')
     setExportando(qual)
     try {
-      const [de, ate] = limitesDoMes(mes)
-      const linhas = await lancamentosParaExportar(familia.id, qual === 'mes' ? { de, ate } : undefined)
-      const nome = qual === 'mes' ? `tudo-azul-${mes}.csv` : `tudo-azul-backup-${hojeSP()}.csv`
-      baixarArquivo(nome, gerarCsv(linhas))
-      setOk(`${linhas.length} lançamento(s) exportado(s) em ${nome}.`)
+      if (qual === 'mes') {
+        const [de, ate] = limitesDoMes(mes)
+        const linhas = await lancamentosParaExportar(familia.id, { de, ate })
+        const nome = `tudo-azul-${mes}.csv`
+        baixarArquivo(nome, gerarCsv(linhas))
+        setOk(`${linhas.length} lançamento(s) exportado(s) em ${nome}.`)
+      } else {
+        // um download por clique: o navegador não bloqueia e a tela mostra o que de fato foi baixado
+        setArquivos(null)
+        setBaixados(new Set())
+        setArquivos(await exportacaoCompleta(familia.id, hojeSP()))
+      }
     } catch (err) {
       setErro(mensagemErroBanco(err))
     } finally {
@@ -34,25 +44,59 @@ export default function Relatorios() {
     }
   }
 
+  function baixar(a: ArquivoExportado) {
+    baixarArquivo(a.nome, a.conteudo)
+    setBaixados((b) => new Set(b).add(a.nome))
+  }
+
   return (
     <>
       <h1 className="mb-6 text-2xl font-bold">Relatórios</h1>
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {ok && <div className="mb-4"><Aviso tipo="sucesso">{ok}</Aviso></div>}
-      <Card>
-        <CardTitle>Exportar lançamentos (CSV)</CardTitle>
+      <Card className="mb-4">
+        <CardTitle>Lançamentos do mês (CSV)</CardTitle>
         <p className="mb-4 text-sm text-slate-600">
           Abre no Excel e no Google Planilhas. Despesas saem com valor negativo; transferências, com as duas contas.
-          Lançamentos na lixeira ficam de fora. <strong>Faça o backup completo toda semana</strong> durante o uso em paralelo com o Organizze.
+          Lançamentos na lixeira ficam de fora. Compras no cartão não estão aqui: ficam na exportação completa.
         </p>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => exportar('mes')} carregando={exportando === 'mes'} disabled={exportando !== null}>
-            Exportar {formatMonth(mes)}
-          </Button>
-          <Button variante="secundario" onClick={() => exportar('tudo')} carregando={exportando === 'tudo'} disabled={exportando !== null}>
-            Backup completo
-          </Button>
-        </div>
+        <Button onClick={() => exportar('mes')} carregando={exportando === 'mes'} disabled={exportando !== null}>
+          Exportar {formatMonth(mes)}
+        </Button>
+      </Card>
+      <Card>
+        <CardTitle>Exportação completa (5 arquivos CSV)</CardTitle>
+        <ul className="mb-3 list-disc pl-5 text-sm text-slate-600">
+          <li><strong>Lançamentos:</strong> todos, pagos e planejados.</li>
+          <li><strong>Movimentos por conta:</strong> tudo o que mexe no saldo (saldo inicial, lançamentos pagos, pagamentos de fatura, juros e tarifas pagos, empréstimos recebidos), com sinal. A soma de cada conta dá o saldo dela hoje.</li>
+          <li><strong>Cadastros:</strong> contas, cartões e dívidas com o saldo de hoje calculado pelo app. Em cartão e dívida, positivo é o que você deve; negativo, crédito a receber.</li>
+          <li><strong>Parcelas de cartão:</strong> cada parcela com a data da compra, o fechamento da fatura e a situação (cobrada, a cobrar, com cancelamento).</li>
+          <li><strong>Eventos de cartão e dívidas:</strong> cobranças, estornos, pagamentos, juros e tarifas, com o efeito de cada um na dívida. Valor inicial + soma dos efeitos até hoje = dívida do cadastro.</li>
+        </ul>
+        <p className="mb-4 text-sm text-slate-600">
+          Serve para conferência e arquivo, <strong>não é restaurável automaticamente</strong>: o app ainda não importa estes arquivos.
+          Faça toda semana durante o uso em paralelo com o Organizze, sem lançar nada enquanto prepara.
+        </p>
+        <Button variante="secundario" onClick={() => exportar('tudo')} carregando={exportando === 'tudo'} disabled={exportando !== null}>
+          Preparar exportação completa
+        </Button>
+        {arquivos && (
+          <div className="mt-4">
+            <p className="mb-2 text-sm font-medium text-slate-700" role="status">
+              Pronta. Baixe os {arquivos.length} arquivos ({baixados.size} de {arquivos.length} baixados):
+            </p>
+            <ul className="flex flex-col gap-2">
+              {arquivos.map((a) => (
+                <li key={a.nome} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+                  <span className="min-w-0 break-all">{a.nome} <span className="text-slate-500">· {a.linhas} linha{a.linhas === 1 ? '' : 's'}</span></span>
+                  <Button variante={baixados.has(a.nome) ? 'fantasma' : 'secundario'} onClick={() => baixar(a)} aria-label={`Baixar ${a.nome}`}>
+                    {baixados.has(a.nome) ? 'Baixado ✓ (baixar de novo)' : 'Baixar'}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </Card>
     </>
   )
