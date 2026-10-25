@@ -114,7 +114,7 @@ export default function VisaoGeral() {
         projecaoDoMes(familiaId, mes, hoje).catch(() => null),
         vencidosPlanejados(familiaId, hoje, 5).catch(() => null),
         resumoDosCartoes(familiaId, hoje).catch(() => null),
-        ultimasConferencias().catch(() => null),
+        ultimasConferencias(familiaId).catch(() => null),
       ]))
       .then(([patrimonio, resumo, anterior, c, proximos, categorias, dias, lancs, cats, regularidade, anoPassado, projecao, vencidos, cartoes, conferencias]) => setDados({
         patrimonio, mes: resumo, anterior, contas: c.contas.filter((x) => x.ativa), proximos, categorias, dias, regularidade, anoPassado, projecao, vencidos, cartoes, conferencias,
@@ -200,11 +200,13 @@ export default function VisaoGeral() {
                     <>
                       <strong className={`tabular-nums ${c.vencida ? 'text-negativo' : ''}`}>{formatBRL(c.divida)}</strong>
                       <span className={c.vencida ? 'ml-2 text-xs font-semibold text-negativo' : 'ml-2 text-xs text-slate-500'}>
-                        {c.vencimento ? (c.vencida ? `venceu em ${formatDate(c.vencimento).slice(0, 5)}` : `vence em ${formatDate(c.vencimento).slice(0, 5)}`) : 'fatura fechada a pagar'}
+                        {c.vencimento ? (c.vencida ? `venceu em ${formatDate(c.vencimento)}` : `vence em ${formatDate(c.vencimento).slice(0, 5)}`) : 'fatura fechada a pagar'}
                       </span>
                     </>
                   ) : (
-                    <span className="text-xs text-slate-500">nenhuma fatura fechada a pagar</span>
+                    <span className="text-xs text-slate-500">
+                      nenhuma fatura fechada a pagar{c.credito > 0 ? ` · crédito de ${formatBRL(c.credito)}` : ''}
+                    </span>
                   )}
                   {c.limiteDisponivel !== null && (
                     <span className="block text-xs text-slate-500">limite disponível {formatBRL(c.limiteDisponivel)}</span>
@@ -384,7 +386,7 @@ export default function VisaoGeral() {
                     {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
                   </span>
                   {c.saldo !== null && dados.conferencias && (
-                    <ConferenciaDaConta contaId={c.id} ultima={dados.conferencias.get(c.id) ?? null} hoje={hoje} />
+                    <ConferenciaDaConta contaId={c.id} nome={c.nome} ultima={dados.conferencias.get(c.id) ?? null} hoje={hoje} />
                   )}
                 </li>
               ))}
@@ -397,7 +399,7 @@ export default function VisaoGeral() {
 }
 
 /** Última conferência da conta com o extrato: nunca, ou há quantos dias (mais de 30 dias pede atenção). */
-function ConferenciaDaConta({ contaId, ultima, hoje }: { contaId: string; ultima: string | null; hoje: string }) {
+function ConferenciaDaConta({ contaId, nome, ultima, hoje }: { contaId: string; nome: string; ultima: string | null; hoje: string }) {
   const atraso = ultima === null ? null : diasEntre(ultima, hoje)
   const atencao = atraso === null || atraso > 30
   return (
@@ -405,7 +407,7 @@ function ConferenciaDaConta({ contaId, ultima, hoje }: { contaId: string; ultima
       <span className={atencao ? 'text-planejado' : 'text-slate-500'}>
         {ultima === null ? 'Nunca conferida com o extrato' : `Conferida em ${formatDate(ultima)}${atraso !== null && atraso > 30 ? ` (há ${atraso} dias)` : ''}`}
       </span>
-      <Link to={`/contas/${contaId}/conferir`} className="font-semibold text-azul hover:underline">Conferir</Link>
+      <Link to={`/contas/${contaId}/conferir`} aria-label={`Conferir ${nome}`} className="font-semibold text-azul hover:underline">Conferir</Link>
     </span>
   )
 }

@@ -291,7 +291,11 @@ export async function anularMovimentoCartao(eventoId: string, motivo: string): P
   if (error) throw error
 }
 
-/** Linha do painel: o que pagar em cada cartão e quando. Valores e datas vêm do banco (debt_balances, card_months, card_limits). */
+/**
+ * Linha do painel: o que pagar em cada cartão e quando. Valores e datas vêm do banco (debt_balances, card_months, card_limits).
+ * Limitação conhecida: a dívida inclui o "saldo de referência" informado ao criar o cartão (fatura anterior ao app), que não
+ * tem fatura própria; nesse caso o vencimento mostrado é o da fatura fechada mais antiga que existe, ou nenhum.
+ */
 export interface ResumoCartao {
   id: string
   nome: string
@@ -301,19 +305,27 @@ export interface ResumoCartao {
   vencimento: string | null
   vencida: boolean
   limiteDisponivel: Cents | null
+  /** Crédito no cartão (pagamento adiantado ou estorno maior que a dívida). */
+  credito: Cents
 }
 
 export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP()): Promise<ResumoCartao[]> {
-  const cartoes = (await listarCartoes(familiaId, hoje)).filter((c) => c.ativo)
+  // cartão inativo que ainda deve continua aparecendo: a dívida dele entra no patrimônio
+  const cartoes = (await listarCartoes(familiaId, hoje)).filter((c) => c.ativo || c.divida > 0)
   return Promise.all(cartoes.map(async (c) => {
     let vencimento: string | null = null
     if (c.divida > 0) {
-      const faturas = await listarFaturas(c.id)
-      vencimento = faturas.find((f) => situacaoFatura(f, hoje) === 'fechada')?.vencimento ?? null
+      // falha ao ler as faturas de UM cartão não derruba o bloco: ele aparece com a dívida e sem data
+      try {
+        const faturas = await listarFaturas(c.id)
+        vencimento = faturas.find((f) => situacaoFatura(f, hoje) === 'fechada')?.vencimento ?? null
+      } catch {
+        vencimento = null
+      }
     }
     return {
       id: c.id, nome: c.nome, divida: c.divida, vencimento,
-      vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel,
+      vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel, credito: c.credito,
     }
   }))
 }

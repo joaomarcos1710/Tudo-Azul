@@ -74,12 +74,21 @@ export async function desfazerUltimaConciliacao(contaId: string): Promise<string
   return (data as string | null) ?? null
 }
 
-/** Data da última conferência de cada conta (as que nunca foram conferidas ficam de fora do mapa). */
-export async function ultimasConferencias(): Promise<Map<string, string>> {
-  const { data, error } = await cliente().from('account_reconciliations').select('account_id, as_of')
-    .order('as_of', { ascending: false }).limit(500)
-  if (error) throw error
+/**
+ * Data da última conferência de cada conta (as nunca conferidas ficam de fora do mapa). Uma consulta por conta, só a mais
+ * recente: um limite global de linhas faria uma conta antiga parecer "nunca conferida" depois de anos de uso.
+ */
+export async function ultimasConferencias(familiaId: string): Promise<Map<string, string>> {
+  const db = cliente()
+  const contas = await db.from('accounts').select('id').eq('household_id', familiaId)
+  if (contas.error) throw contas.error
+  const linhas = await Promise.all((contas.data ?? []).map(async (c) => {
+    const { data, error } = await db.from('account_reconciliations').select('as_of')
+      .eq('account_id', c.id).order('as_of', { ascending: false }).limit(1)
+    if (error) throw error
+    return [c.id as string, (data ?? [])[0]?.as_of as string | undefined] as const
+  }))
   const mapa = new Map<string, string>()
-  for (const r of data ?? []) if (!mapa.has(r.account_id as string)) mapa.set(r.account_id as string, r.as_of as string)
+  for (const [id, data] of linhas) if (data) mapa.set(id, data)
   return mapa
 }

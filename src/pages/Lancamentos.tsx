@@ -40,7 +40,7 @@ export default function Lancamentos() {
   // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
   const [mes, setMes] = useState(() => {
     const m = params.get('mes')
-    return m && /^\d{4}-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
+    return m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
   })
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
   const [filtros, setFiltros] = useState<Filtros>({})
@@ -62,9 +62,10 @@ export default function Lancamentos() {
     const novo = params.get('novo')
     if (!novo || contas.length === 0) return
     const tipo = ({ despesa: 'expense', receita: 'income', transferencia: 'transfer', cartao: 'cartao' } as Record<string, InicialForm>)[novo]
-    if (tipo) { setInicial(tipo); setEditando('novo') }
-    setParams((p) => { p.delete('novo'); return p }, { replace: true })
-  }, [params, contas.length, setParams])
+    // não atropela um lançamento que já está sendo editado
+    if (tipo && editando === null) { setInicial(tipo); setEditando('novo') }
+    setParams((p) => { const n = new URLSearchParams(p); n.delete('novo'); return n }, { replace: true })
+  }, [params, contas.length, setParams, editando])
 
   // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
   const [automaticosProntos, setAutomaticosProntos] = useState(false)

@@ -305,17 +305,17 @@ describe('Visão geral', () => {
 
   it('cartões: fatura a pagar com vencimento, fatura vencida em vermelho e limite disponível', async () => {
     mock.resumoDosCartoes.mockResolvedValue([
-      { id: 'k1', nome: 'Nubank', divida: c(133334), vencimento: '2099-12-25', vencida: false, limiteDisponivel: c(527000) },
-      { id: 'k2', nome: 'Inter', divida: c(50000), vencimento: '2020-01-10', vencida: true, limiteDisponivel: null },
-      { id: 'k3', nome: 'Azul Card', divida: c(0), vencimento: null, vencida: false, limiteDisponivel: null },
+      { id: 'k1', nome: 'Nubank', divida: c(133334), vencimento: '2099-12-25', vencida: false, limiteDisponivel: c(527000), credito: c(0) },
+      { id: 'k2', nome: 'Inter', divida: c(50000), vencimento: '2020-01-10', vencida: true, limiteDisponivel: null, credito: c(0) },
+      { id: 'k3', nome: 'Azul Card', divida: c(0), vencimento: null, vencida: false, limiteDisponivel: null, credito: c(10000) },
     ])
     montar()
     expect(await screen.findByText('Nubank')).toBeTruthy()
     expect(screen.getByText('R$ 1.333,34')).toBeTruthy()
     expect(screen.getByText('vence em 25/12')).toBeTruthy()
     expect(screen.getByText('limite disponível R$ 5.270,00')).toBeTruthy()
-    expect(screen.getByText('venceu em 10/01').className).toMatch(/text-negativo/)
-    expect(screen.getByText('nenhuma fatura fechada a pagar')).toBeTruthy()
+    expect(screen.getByText('venceu em 10/01/2020').className).toMatch(/text-negativo/) // vencida mostra o ano
+    expect(screen.getByText(/nenhuma fatura fechada a pagar · crédito de R\$ 100,00/)).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Ver cartões' })).toBeTruthy()
   })
 
@@ -336,7 +336,8 @@ describe('Visão geral', () => {
     expect(screen.getByText(/\(há 45 dias\)/)).toBeTruthy()
     const recente = screen.getByText(`Conferida em ${dia(2).split('-').reverse().join('/')}`)
     expect(recente.className).toMatch(/text-slate-500/)
-    const hrefs = screen.getAllByRole('link', { name: 'Conferir' }).map((l) => l.getAttribute('href'))
+    const hrefs = screen.getAllByRole('link', { name: /^Conferir / }).map((l) => l.getAttribute('href'))
+    expect(screen.getByRole('link', { name: 'Conferir Itaú' })).toBeTruthy()
     expect(hrefs).toEqual(['/contas/a1/conferir', '/contas/a3/conferir', '/contas/a4/conferir'])
   })
 })
