@@ -73,7 +73,8 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
     p_category: d.tipo === 'transfer' ? null : d.categoriaId,
   })
   if (error) throw error
-  await gerarOcorrencias()
+  // a regra já está gravada: se só a geração falhar, ela roda de novo ao abrir as telas. Lançar erro aqui faria a pessoa reenviar e duplicar a regra.
+  await gerarOcorrencias().catch(() => undefined)
 }
 
 /** Novo valor/descrição/categoria: vale para os planejados não pagos de hoje em diante. */

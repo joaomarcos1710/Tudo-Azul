@@ -69,9 +69,18 @@ export default function Lancamentos() {
 
   // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
   const [automaticosProntos, setAutomaticosProntos] = useState(false)
+  const [avisoAutomaticos, setAvisoAutomaticos] = useState('')
   useEffect(() => {
     if (!familiaId) return
-    void atualizarAutomaticos().then(() => setAutomaticosProntos(true))
+    void atualizarAutomaticos().then((r) => {
+      // sem este aviso, planejados e parcelas de cartão poderiam faltar na lista sem ninguém perceber
+      setAvisoAutomaticos(
+        !r.faturasOk ? 'Não foi possível fechar as faturas dos cartões agora; compras de cartão podem faltar. Tente de novo em instantes.'
+        : !r.recorrentesOk ? 'Não foi possível lançar os recorrentes agora; contas mensais e assinaturas podem faltar. Tente de novo em instantes.'
+        : '',
+      )
+      setAutomaticosProntos(true)
+    })
   }, [familiaId])
 
   useEffect(() => {
@@ -83,8 +92,11 @@ export default function Lancamentos() {
     listarCartoes(familiaId).then(setCartoes).catch(() => setCartoes([]))
   }, [familiaId])
 
+  // só a resposta do último pedido vale: trocar de mês ou de filtro rápido não pode deixar a lista de um mês sob o título de outro
+  const pedido = useRef(0)
   const carregar = useCallback(async () => {
     if (!familiaId || !automaticosProntos) return
+    const meu = ++pedido.current
     try {
       // pagamento de fatura, juros e tarifa moram em outra tabela, mas mexem na conta: entram no extrato
       const semFiltroDeConta = !filtros.contaId && !filtros.categoriaId && !filtros.tipo
@@ -93,6 +105,7 @@ export default function Lancamentos() {
       const [l, r, md, cc] = await Promise.all([
         listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), compras,
       ])
+      if (meu !== pedido.current) return
       setLancamentos(l)
       setMovimentosDivida(md)
       setCompras(cc?.parcelas ?? [])
@@ -101,7 +114,7 @@ export default function Lancamentos() {
       setResumo(r)
       setErro('')
     } catch (err) {
-      setErro(mensagemErroBanco(err))
+      if (meu === pedido.current) setErro(mensagemErroBanco(err))
     }
   }, [familiaId, mes, filtros, automaticosProntos])
 
@@ -195,6 +208,7 @@ export default function Lancamentos() {
       </div>
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {avisoAutomaticos && !erro && <div className="mb-4"><Aviso tipo="erro">{avisoAutomaticos}</Aviso></div>}
 
       {naLixeira && (
         <div className="mb-4 flex flex-wrap items-center gap-3">

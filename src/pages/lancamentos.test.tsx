@@ -20,7 +20,8 @@ const mock = vi.hoisted(() => ({
   listarContas: vi.fn(),
   listarCategorias: vi.fn(),
 }))
-vi.mock('../lib/automaticos', () => ({ atualizarAutomaticos: () => Promise.resolve() }))
+const automaticos = vi.hoisted(() => ({ atualizarAutomaticos: vi.fn() }))
+vi.mock('../lib/automaticos', () => automaticos)
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
@@ -70,6 +71,7 @@ const lancs = [
 ]
 
 beforeEach(() => {
+  automaticos.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: true, faturasOk: true })
   mock.listarContas.mockResolvedValue({ contas, total: c(0) })
   mock.listarCategorias.mockResolvedValue(categorias)
   mock.listarLancamentos.mockResolvedValue(lancs)
@@ -404,5 +406,34 @@ describe('Lançamentos', () => {
     render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-13']}><Lancamentos /></MemoryRouter>)
     await screen.findByText('Novo lançamento')
     expect(screen.queryByText(/2026-13/)).toBeNull()
+  })
+
+  it('se as rotinas automáticas falharem (faturas ou recorrentes), a lista avisa que pode faltar coisa', async () => {
+    automaticos.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: true, faturasOk: false })
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText(/Não foi possível fechar as faturas dos cartões agora/)).toBeTruthy()
+    expect(await screen.findByText('Supermercado')).toBeTruthy()
+    cleanup()
+    automaticos.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: false, faturasOk: true })
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText(/Não foi possível lançar os recorrentes agora/)).toBeTruthy()
+  })
+
+  it('trocar de mês rápido: a lista do mês antigo, se chegar depois, não sobrescreve a do mês da tela', async () => {
+    let soltar: (v: unknown) => void = () => {}
+    const lenta = new Promise((r) => { soltar = r })
+    const outroMes = [{ ...lancs[0], id: 'novo', descricao: 'Do mês certo', data: '2026-09-10' }]
+    mock.listarLancamentos.mockReset()
+    mock.listarLancamentos
+      .mockReturnValueOnce(lenta) // carga inicial (mês atual): resolve por último
+      .mockResolvedValueOnce(outroMes) // mês anterior: resolve primeiro
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Mês anterior' }))
+    expect(await screen.findByText('Do mês certo')).toBeTruthy()
+    soltar(lancs)
+    await new Promise((r) => setTimeout(r, 30))
+    expect(screen.queryByText('Supermercado')).toBeNull()
+    expect(screen.getByText('Do mês certo')).toBeTruthy()
   })
 })
