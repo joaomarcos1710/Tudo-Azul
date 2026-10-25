@@ -88,3 +88,24 @@ export async function despesasPorDia(familiaId: string, de: string, ate: string)
     acumulado: centsFromDb(r.cumulative ?? 0),
   }))
 }
+
+/** Renda regular × eventual de um período e quanto da despesa a renda regular cobre (income_regularity). */
+export interface RegularidadeRenda {
+  regular: Cents
+  eventual: Cents
+  despesas: Cents
+  /** % da despesa coberta pela renda regular, já arredondado no banco (1 casa). null sem despesa no período. */
+  cobertura: number | null
+}
+
+export async function regularidadeRenda(familiaId: string, de: string, ate: string): Promise<RegularidadeRenda> {
+  const { data, error } = await cliente().rpc('income_regularity', { p_household: familiaId, p_from: de, p_to: ate })
+  if (error) throw error
+  const r = ((data ?? []) as Record<string, number | string | null>[])[0] ?? {}
+  return {
+    regular: centsFromDb(r.income_regular ?? 0),
+    eventual: centsFromDb(r.income_eventual ?? 0),
+    despesas: centsFromDb(r.expense_paid ?? 0),
+    cobertura: r.coverage_pct === null || r.coverage_pct === undefined ? null : Number(r.coverage_pct),
+  }
+}

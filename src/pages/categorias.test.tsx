@@ -8,6 +8,7 @@ const mock = vi.hoisted(() => ({
   criarCategoria: vi.fn(),
   editarCategoria: vi.fn(),
   definirCategoriaAtiva: vi.fn(),
+  definirCategoriaEventual: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -18,6 +19,7 @@ vi.mock('../lib/categorias', async (original) => ({
   criarCategoria: mock.criarCategoria,
   editarCategoria: mock.editarCategoria,
   definirCategoriaAtiva: mock.definirCategoriaAtiva,
+  definirCategoriaEventual: mock.definirCategoriaEventual,
 }))
 
 import Categorias from './Categorias'
@@ -25,7 +27,7 @@ import { agrupar } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 
 const cat = (id: string, nome: string, extra: Partial<Categoria> = {}): Categoria =>
-  ({ id, nome, tipo: 'expense', paiId: null, sistema: false, ativa: true, ...extra })
+  ({ id, nome, tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false, ...extra })
 
 const base: Categoria[] = [
   cat('sc', 'Sem categoria', { sistema: true }),
@@ -34,6 +36,8 @@ const base: Categoria[] = [
   cat('ag', 'Água', { paiId: 'm' }),
   cat('l', 'Lazer', { ativa: false }),
   cat('sal', 'Salário', { tipo: 'income' }),
+  cat('d13', '13º salário', { tipo: 'income', eventual: true }),
+  cat('bon', 'Bônus', { tipo: 'income', paiId: 'd13' }),
 ]
 
 beforeEach(() => {
@@ -41,6 +45,7 @@ beforeEach(() => {
   mock.criarCategoria.mockResolvedValue(undefined)
   mock.editarCategoria.mockResolvedValue(undefined)
   mock.definirCategoriaAtiva.mockResolvedValue(undefined)
+  mock.definirCategoriaEventual.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -52,7 +57,7 @@ describe('agrupar', () => {
     const g = agrupar(base, 'expense')
     expect(g.map((x) => x.nome)).toEqual(['Lazer', 'Moradia', 'Sem categoria'])
     expect(g[1].filhas.map((x) => x.nome)).toEqual(['Água', 'Aluguel'])
-    expect(agrupar(base, 'income').map((x) => x.nome)).toEqual(['Salário'])
+    expect(agrupar(base, 'income').map((x) => x.nome)).toEqual(['13º salário', 'Salário'])
   })
 })
 
@@ -104,5 +109,32 @@ describe('Categorias', () => {
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(mock.editarCategoria).toHaveBeenCalledWith('m', { nome: 'Moradia', paiId: 'l' })
     expect((await screen.findByRole('alert')).textContent).toBe('Categoria com subcategorias não pode virar subcategoria.')
+  })
+})
+
+describe('Receita eventual', () => {
+  it('marca a receita como eventual; despesa não tem esse botão', async () => {
+    render(<Categorias />)
+    const u = userEvent.setup()
+    await screen.findByText('Moradia')
+    expect(screen.queryByRole('button', { name: /eventual/ })).toBeNull()
+    await u.click(screen.getByRole('tab', { name: 'Receitas' }))
+    const sal = screen.getByText('Salário').closest('div')!
+    await u.click(within(sal).getByRole('button', { name: 'Marcar como eventual' }))
+    expect(mock.definirCategoriaEventual).toHaveBeenCalledWith('sal', true)
+  })
+
+  it('categoria já eventual oferece voltar a regular; a subcategoria herda a marca e não tem botão próprio', async () => {
+    render(<Categorias />)
+    const u = userEvent.setup()
+    await screen.findByText('Moradia')
+    await u.click(screen.getByRole('tab', { name: 'Receitas' }))
+    const mae = screen.getByText('13º salário').closest('div')!
+    expect(within(mae).getByText('eventual')).toBeTruthy()
+    await u.click(within(mae).getByRole('button', { name: 'Marcar como regular' }))
+    expect(mock.definirCategoriaEventual).toHaveBeenCalledWith('d13', false)
+    const filha = screen.getByText('Bônus').closest('div')!
+    expect(within(filha).getByText('eventual (da principal)')).toBeTruthy()
+    expect(within(filha).queryByRole('button', { name: /eventual|regular/ })).toBeNull()
   })
 })

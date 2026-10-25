@@ -10,6 +10,8 @@ export interface Categoria {
   /** "Sem categoria": criada pelo banco, não pode ser alterada nem excluída. */
   sistema: boolean
   ativa: boolean
+  /** Receita eventual (13º, férias, PLR…): fica fora da "renda regular" do relatório. Só vale em receita. */
+  eventual: boolean
 }
 
 /** Categoria raiz com suas subcategorias (só 1 nível, regra do banco). */
@@ -25,7 +27,7 @@ function cliente() {
 export async function listarCategorias(familiaId: string): Promise<Categoria[]> {
   const { data, error } = await cliente()
     .from('categories')
-    .select('id, name, type, parent_id, system_key, active')
+    .select('id, name, type, parent_id, system_key, active, eventual')
     .eq('household_id', familiaId)
     .order('name')
   if (error) throw error
@@ -36,6 +38,7 @@ export async function listarCategorias(familiaId: string): Promise<Categoria[]> 
     paiId: c.parent_id,
     sistema: c.system_key !== null,
     ativa: c.active,
+    eventual: c.eventual ?? false,
   }))
 }
 
@@ -65,5 +68,11 @@ export async function editarCategoria(id: string, d: { nome: string; paiId: stri
 /** Categoria com histórico é desativada, nunca apagada: some das novas escolhas, fica nos relatórios. */
 export async function definirCategoriaAtiva(id: string, ativa: boolean): Promise<void> {
   const { error } = await cliente().from('categories').update({ active: ativa }).eq('id', id)
+  if (error) throw error
+}
+
+/** Marca ou desmarca a categoria de receita como eventual. Subcategoria herda a marca da categoria mãe. */
+export async function definirCategoriaEventual(id: string, eventual: boolean): Promise<void> {
+  const { error } = await cliente().from('categories').update({ eventual }).eq('id', id)
   if (error) throw error
 }

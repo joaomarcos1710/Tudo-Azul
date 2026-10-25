@@ -20,6 +20,12 @@ export interface Cartao {
   credito: Cents
   /** Parcelas futuras ainda não cobradas. */
   compromissos: Cents
+  /** Limite informado pelo dono (migration 011); null = não informado. Só acompanhamento, nada é bloqueado. */
+  limite: Cents | null
+  /** Dívida + parcelas futuras − crédito, calculado no banco (card_limits). null sem limite. */
+  limiteComprometido: Cents | null
+  /** Limite − comprometido; negativo = passou do limite. null sem limite. */
+  limiteDisponivel: Cents | null
 }
 
 export interface Fatura {
@@ -83,17 +89,24 @@ export function ontemSP(agora: Date = new Date()): string {
 
 export async function listarCartoes(familiaId: string, dataRef: string = hojeSP()): Promise<Cartao[]> {
   const db = cliente()
-  const [cartoes, saldos] = await Promise.all([
+  const [cartoes, saldos, limites] = await Promise.all([
     db.from('debts').select('id, name, closing_day, due_day, active').eq('household_id', familiaId).eq('kind', 'card').order('name'),
     db.rpc('debt_balances', { p_household: familiaId, p_as_of: dataRef }),
+    // o limite é um extra: se a consulta falhar (ex.: banco ainda sem a migration 011), a tela segue sem ele
+    db.rpc('card_limits', { p_household: familiaId, p_as_of: dataRef }),
   ])
   for (const r of [cartoes, saldos]) if (r.error) throw r.error
+  const limitePorId = new Map(
+    (limites.error ? [] : ((limites.data ?? []) as { debt_id: string; credit_limit: number | string; committed: number | string; available: number | string }[]))
+      .map((l) => [l.debt_id, l]),
+  )
   const porId = new Map(
     ((saldos.data ?? []) as { debt_id: string; debt: number | string; credit_receivable: number | string; planned_remaining: number | string }[])
       .map((s) => [s.debt_id, s]),
   )
   return (cartoes.data ?? []).map((c) => {
     const s = porId.get(c.id)
+    const l = limitePorId.get(c.id)
     return {
       id: c.id,
       nome: c.name,
@@ -103,6 +116,9 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
       divida: centsFromDb(s?.debt ?? 0),
       credito: centsFromDb(s?.credit_receivable ?? 0),
       compromissos: centsFromDb(s?.planned_remaining ?? 0),
+      limite: l ? centsFromDb(l.credit_limit) : null,
+      limiteComprometido: l ? centsFromDb(l.committed) : null,
+      limiteDisponivel: l ? centsFromDb(l.available) : null,
     }
   })
 }
@@ -123,6 +139,12 @@ export async function criarCartao(d: { nome: string; fechamento: number; vencime
 
 export async function definirCiclo(cartaoId: string, fechamento: number, vencimento: number): Promise<void> {
   const { error } = await cliente().rpc('set_card_cycle', { p_debt: cartaoId, p_closing_day: fechamento, p_due_day: vencimento })
+  if (error) throw error
+}
+
+/** Define ou muda o limite do cartão; null apaga. O banco recusa valor zero, negativo ou com mais de 2 casas. */
+export async function definirLimite(cartaoId: string, limite: Cents | null): Promise<void> {
+  const { error } = await cliente().rpc('set_card_limit', { p_debt: cartaoId, p_limit: limite === null ? null : centsToDecimal(limite) })
   if (error) throw error
 }
 

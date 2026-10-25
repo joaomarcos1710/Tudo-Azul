@@ -11,6 +11,7 @@ const mock = vi.hoisted(() => ({
   listarContas: vi.fn(),
   despesasPorCategoria: vi.fn(),
   despesasPorDia: vi.fn(),
+  regularidadeRenda: vi.fn(),
   listarLancamentos: vi.fn(),
   listarCategorias: vi.fn(),
 }))
@@ -20,6 +21,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/painel', () => ({
   carregarPatrimonio: mock.carregarPatrimonio, proximosPlanejados: mock.proximosPlanejados,
   despesasPorCategoria: mock.despesasPorCategoria, despesasPorDia: mock.despesasPorDia,
+  regularidadeRenda: mock.regularidadeRenda,
 }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', () => ({ listarCategorias: mock.listarCategorias }))
@@ -60,7 +62,11 @@ beforeEach(() => {
     { id: 'l1', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'g1', descricao: 'Aluguel', valor: c(500000), data: '2026-10-01', status: 'paid', notas: '' },
     { id: 'l2', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'g1', descricao: 'Planejado', valor: c(100), data: '2026-10-30', status: 'planned', notas: '' },
   ])
-  mock.listarCategorias.mockResolvedValue([{ id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true }])
+  mock.listarCategorias.mockResolvedValue([{ id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false }])
+  // 1ª chamada = mês corrente; 2ª = últimos 12 meses (mesma ordem do Promise.all da tela)
+  mock.regularidadeRenda
+    .mockResolvedValueOnce({ regular: c(500000), eventual: c(200000), despesas: c(400000), cobertura: 125 })
+    .mockResolvedValueOnce({ regular: c(6000000), eventual: c(1200000), despesas: c(7200000), cobertura: 83.3 })
 })
 afterEach(() => {
   cleanup()
@@ -129,6 +135,36 @@ describe('Visão geral', () => {
     montar()
     expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.getAllByText(/Gráfico indisponível agora/)).toHaveLength(2)
+    expect(screen.queryByText(/Não foi possível/)).toBeNull()
+  })
+
+  it('renda regular × despesas: mês e últimos 12 meses, com a cobertura vinda do banco', async () => {
+    montar()
+    expect(await screen.findByText('Renda regular × despesas')).toBeTruthy()
+    expect(screen.getByText('Últimos 12 meses')).toBeTruthy()
+    expect(screen.getByText('125%')).toBeTruthy()
+    expect(screen.getByText('83,3%')).toBeTruthy()
+    expect(screen.getByText('R$ 60.000,00')).toBeTruthy()
+    expect(screen.queryByText(/Nenhuma receita marcada como eventual/)).toBeNull()
+  })
+  it('sem nenhuma receita eventual nos 12 meses, sugere marcar em Categorias', async () => {
+    mock.regularidadeRenda.mockReset()
+    mock.regularidadeRenda.mockResolvedValue({ regular: c(500000), eventual: c(0), despesas: c(400000), cobertura: 125 })
+    montar()
+    expect(await screen.findByText(/Nenhuma receita marcada como eventual/)).toBeTruthy()
+  })
+  it('mês sem despesas: não inventa percentual', async () => {
+    mock.regularidadeRenda.mockReset()
+    mock.regularidadeRenda.mockResolvedValue({ regular: c(0), eventual: c(0), despesas: c(0), cobertura: null })
+    montar()
+    expect((await screen.findAllByText('Sem despesas no período.')).length).toBe(2)
+  })
+  it('se o relatório falhar (banco sem a migration 012), o resto do painel aparece', async () => {
+    mock.regularidadeRenda.mockReset()
+    mock.regularidadeRenda.mockRejectedValue(new Error('function does not exist'))
+    montar()
+    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.queryByText('Renda regular × despesas')).toBeNull()
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
 })
