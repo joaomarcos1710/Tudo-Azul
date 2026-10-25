@@ -128,7 +128,7 @@ export default function Cartoes() {
               {c.credito > 0 && <p className="mt-2 text-sm text-positivo">Crédito a receber: {formatBRL(c.credito)}</p>}
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button onClick={() => setPainel({ tipo: 'compra', cartao: c })} disabled={c.fechamento === null || painel !== null}>Nova compra</Button>
-                <Button variante="secundario" onClick={() => setPainel({ tipo: 'pagar', cartao: c })} disabled={c.divida <= 0 || painel !== null}
+                <Button variante="secundario" onClick={() => setPainel({ tipo: 'pagar', cartao: c })} disabled={c.fechamento === null || painel !== null}
                   aria-describedby={c.divida <= 0 && c.fechamento !== null ? `sem-fatura-${c.id}` : undefined}>Pagar fatura</Button>
                 <Button variante="fantasma" onClick={() => setAberto(aberto === c.id ? null : c.id)} aria-expanded={aberto === c.id}>
                   {aberto === c.id ? 'Ocultar faturas' : 'Ver faturas'}
@@ -140,8 +140,8 @@ export default function Cartoes() {
               {c.divida <= 0 && c.fechamento !== null && (
                 <p id={`sem-fatura-${c.id}`} className="mt-3 text-sm text-slate-600">
                   {c.compromissos > 0
-                    ? <>Não há fatura fechada para pagar. Você tem {formatBRL(c.compromissos)} em parcelas futuras: cada uma entra na fatura que fecha no dia {c.fechamento} do seu mês, e só depois do fechamento o botão <strong>Pagar fatura</strong> libera.</>
-                    : <>Não há fatura fechada para pagar agora.</>}
+                    ? <>Não há fatura fechada. Você tem {formatBRL(c.compromissos)} em parcelas futuras: cada uma entra na fatura que fecha no dia {c.fechamento} do seu mês. Se pagar agora, o valor <strong>vira crédito no cartão</strong> e abate as próximas faturas.</>
+                    : <>Não há fatura fechada. Se pagar agora, o valor <strong>vira crédito no cartão</strong> e abate as próximas faturas.</>}
                 </p>
               )}
               {aberto === c.id && <Faturas cartaoId={c.id} versao={versao} categorias={categorias} contas={contas} aoAlterar={carregar} />}
@@ -433,7 +433,8 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
 function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; contas: Conta[] }) {
   const ativas = contas.filter((c) => c.ativa)
   const [contaId, setContaId] = useState(ativas[0]?.id ?? '')
-  const [valorTexto, setValorTexto] = useState(formatBRL(cartao.divida).replace('R$ ', ''))
+  // com fatura fechada, sugere a dívida; sem fatura, é pagamento adiantado e o valor fica por conta do dono
+  const [valorTexto, setValorTexto] = useState(cartao.divida > 0 ? formatBRL(cartao.divida).replace('R$ ', '') : '')
   const [data, setData] = useState(hojeSP())
   const [fatura, setFatura] = useState<Fatura | null>(null)
   const [tentou, setTentou] = useState(false)
@@ -453,8 +454,14 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
     e.preventDefault()
     setTentou(true)
     if (!contaId || valor === null || valor <= 0 || !data) return
-    void enviar(() => pagarFatura(cartao.id, { contaId, data, valor, faturaId: fatura?.faturaId ?? null }, chave))
+    // só liga a uma fatura quando há dívida fechada; sem ela, é adiantamento (vira crédito no cartão)
+    void enviar(() => pagarFatura(cartao.id, { contaId, data, valor, faturaId: cartao.divida > 0 ? fatura?.faturaId ?? null : null }, chave))
   }
+
+  // comparações entre valores exatos em centavos; o banco é quem decide e recalcula o crédito
+  const adiantado = valor !== null && valor > 0 && valor > cartao.divida
+  // o crédito que o cartão já tem também cobre parcelas futuras: só avisa quando passa de (dívida + parcelas futuras − crédito)
+  const maisQueTudo = valor !== null && valor > cartao.divida + cartao.compromissos - cartao.credito
 
   return (
     <Card className="mb-6">
@@ -465,9 +472,16 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
         <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
         <Field rotulo="Data do pagamento" type="date" value={data} onChange={(e) => setData(e.target.value)} />
         <p className="text-sm text-slate-600 md:col-span-2">
-          {fatura ? <>Quita a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong>. </> : null}
-          O pagamento sai da conta e reduz a dívida do cartão. Não é despesa: as compras já contaram no mês de cada fatura.
+          {cartao.divida > 0 && fatura ? <>Quita a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong>. </> : null}
+          {adiantado && cartao.divida > 0 && <>O que passar da fatura fechada ({formatBRL(cartao.divida)}) <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
+          {adiantado && cartao.divida <= 0 && <>Não há fatura fechada: o valor <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
+          O pagamento sai da conta na data escolhida e reduz a dívida do cartão. Não é despesa: as compras contam no mês de cada fatura.
         </p>
+        {maisQueTudo && (
+          <div className="md:col-span-2">
+            <Aviso tipo="info">É mais do que tudo o que este cartão tem a pagar hoje (fatura fechada e parcelas futuras). Confira o valor antes de registrar.</Aviso>
+          </div>
+        )}
         <Botoes rotulo="Registrar pagamento" enviando={enviando} aoCancelar={aoCancelar} />
       </form>
     </Card>
@@ -483,7 +497,7 @@ function PainelReabrir({ cartaoId, fatura, aoFechar, aoConcluir }: {
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
       <p className="text-sm">
         Reabrir a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong> desfaz os pagamentos dela
-        ({formatBRL(fatura.pago)}) e o dinheiro volta para as contas de onde saiu. Depois você pode editar as parcelas e pagar de novo.
+        ({formatBRL(fatura.pago)}), <strong>inclusive a parte que passou da fatura e ficou como crédito</strong>, e o dinheiro volta para as contas de onde saiu. Depois você pode editar as parcelas e pagar de novo.
       </p>
       <div className="mt-3 flex gap-2">
         <Button variante="perigo" carregando={enviando} onClick={() => void enviar(async () => { await reabrirFatura(cartaoId, fatura.mes) })}>

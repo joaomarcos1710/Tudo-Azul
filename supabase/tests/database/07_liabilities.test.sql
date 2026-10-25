@@ -147,13 +147,16 @@ select is((select spent from public.budget_usage(pg_temp.fx('h'), '2026-12-01'))
 select is((select total from public.balance_totals(pg_temp.fx('h'), '2027-03-05')), 5884.50::numeric, 'L15 balance_totals = só dinheiro disponível (dívida fora)');
 
 -- ---- regras: o que deve ser recusado ----
-select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('card'), '2027-03-01', pg_temp.fx('bank'), 50.00)$$), '23514', 'R1 pagamento acima do saldo devedor (prepagamento genérico) recusado');
+-- Regra mudou em 24/10/2026 (migration 010): pagamento COMUM de cartão acima da dívida vira crédito no cartão (ver 17_card_prepayment).
+-- Em cartão, o que continua recusado acima do saldo é a amortização extra.
+select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('card'), '2027-03-01', pg_temp.fx('bank'), 50.00, null, true)$$), '23514', 'R1 amortização extra do cartão acima do saldo devedor recusada');
 select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('loan'), '2027-03-05', pg_temp.fx('bank'), 5000.00)$$), '23514', 'R2 pagamento de 5.000 sobre saldo 3.000 recusado');
 select is(pg_temp.sqlstate_of($$select public.debt_return(pg_temp.fx('card'), '2027-03-01', pg_temp.fx('bank'), 1.00)$$), '23514', 'R3 devolução acima do crédito recusada');
 select is(pg_temp.sqlstate_of($$select public.debt_refund(pg_temp.inst(6), '2027-03-01', 1.00)$$), '23514', 'R4 estorno acima do cobrado (estorno fantasma) recusado');
 select is(pg_temp.sqlstate_of($$select public.debt_bill(pg_temp.inst(6), '2027-03-01')$$), '55000', 'R5 parcela totalmente cobrada/cancelada: nada a cobrar');
 select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('loan'), '2026-10-31', pg_temp.fx('bank'), 1.00)$$), '23514', 'R6 evento anterior à data de referência recusado');
-select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('card'), '2026-11-11', pg_temp.fx('bank'), 5.00)$$), '23514', 'R7 pagamento retroativo que invalida um posterior recusado');
+-- No empréstimo (a regra de saldo não mudou): 3.500 em 01/12 deixaria o saldo negativo em 05/02/2027, quando já houve a amortização de 3.000
+select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('loan'), '2026-12-01', pg_temp.fx('bank'), 3500.00)$$), '23514', 'R7 pagamento retroativo de empréstimo que invalida um posterior recusado');
 select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('loan'), '2027-03-05', pg_temp.fx('bank'), 1.005)$$), '22003', 'R8 valor com 3 casas recusado (N2)');
 select is(pg_temp.sqlstate_of($$select public.debt_loan_event(pg_temp.fx('loan'), '2027-03-05', 'interest', pg_temp.fx('bank'), 5.00)$$), '22023', 'R9 juros sem categoria recusados');
 select is(pg_temp.sqlstate_of($$select public.debt_anticipate(pg_temp.fx('card'), '2027-03-01', pg_temp.fx('bank'), array[pg_temp.inst(8)], array[100.00], array[0.00])$$), '23514', 'R10 antecipar parcela já cancelada recusado');
