@@ -104,6 +104,20 @@ insert into fixture select 'fin', public.create_debt('Financiamento', 'financing
 select is(pg_temp.sqlstate_of(format($$select public.debt_pay(%L, '2026-10-24', %L, 10.00)$$, pg_temp.fx('fin'), pg_temp.fx('bank'))),
           '23514', 'PC3 financiamento também continua sem poder pagar acima do saldo devedor');
 
+-- Cartão D: anular o pagamento adiantado (tela de correção) devolve o dinheiro e zera o crédito
+create temp table saldo_antes_d as select pg_temp.conta(pg_temp.fx('bank')) as v;
+grant all on saldo_antes_d to public;
+insert into fixture select 'dcard', public.create_debt('Cartão D', 'card', '2026-10-01', 0);
+select public.set_card_cycle(pg_temp.fx('dcard'), 17, 25);
+select public.debt_pay(pg_temp.fx('dcard'), '2026-10-24', pg_temp.fx('bank'), 100.00);
+select is((select credit_receivable from public.debt_balances(pg_temp.fx('h'), '2026-10-31') where debt_id = pg_temp.fx('dcard')), 100.00::numeric,
+          'PF0 pagamento sem dívida vira crédito de 100');
+select public.debt_void((select id from public.debt_events where debt_id = pg_temp.fx('dcard') and kind = 'payment' and voided_at is null),
+          'anulado pela tela (correção)');
+select is((select credit_receivable from public.debt_balances(pg_temp.fx('h'), '2026-10-31') where debt_id = pg_temp.fx('dcard')), 0::numeric,
+          'PF1 anular o pagamento zera o crédito do cartão');
+select is(pg_temp.conta(pg_temp.fx('bank')), (select v from saldo_antes_d), 'PF2 o dinheiro voltou para a conta: saldo igual ao de antes do pagamento');
+
 -- outra família não paga o meu cartão
 reset role;
 select pg_temp.login('00000000-0000-0000-0000-0000000017a2');

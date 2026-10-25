@@ -10,8 +10,9 @@ import { useFamilia } from '../lib/FamiliaContext'
 import {
   criarCartao, definirCiclo, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
   novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
+  anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
-import type { Cartao, Fatura, ItemFatura, ItemPrevia } from '../lib/cartoes'
+import type { Cartao, Fatura, ItemFatura, ItemPrevia, MovimentoCartao } from '../lib/cartoes'
 import { listarCategorias } from '../lib/categorias'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
@@ -145,6 +146,7 @@ export default function Cartoes() {
                 </p>
               )}
               {aberto === c.id && <Faturas cartaoId={c.id} versao={versao} categorias={categorias} contas={contas} aoAlterar={carregar} />}
+              {aberto === c.id && <MovimentosCartao cartaoId={c.id} versao={versao} aoAlterar={carregar} />}
             </Card>
           </li>
         ))}
@@ -163,6 +165,54 @@ type Acao =
   | { tipo: 'reabrir'; fatura: Fatura }
   | { tipo: 'editar'; item: ItemFatura }
   | { tipo: 'excluir'; item: ItemFatura }
+
+/** Pagamentos e devoluções do cartão, com "Anular" para corrigir lançamento errado (ex.: crédito de teste). */
+function MovimentosCartao({ cartaoId, versao, aoAlterar }: { cartaoId: string; versao: number; aoAlterar: () => Promise<void> }) {
+  const [movs, setMovs] = useState<MovimentoCartao[] | null>(null)
+  const [erro, setErro] = useState('')
+  const [anulando, setAnulando] = useState<string | null>(null)
+
+  useEffect(() => {
+    listarMovimentosDoCartao(cartaoId).then(setMovs).catch((err) => setErro(mensagemErroBanco(err)))
+  }, [cartaoId, versao])
+
+  async function anular(m: MovimentoCartao) {
+    const rotulo = m.tipo === 'devolucao' ? 'devolução' : m.tipo === 'amortizacao' ? 'amortização' : 'pagamento'
+    if (!window.confirm(`Anular ${rotulo} de ${formatBRL(m.valor)} de ${formatDate(m.data)}? O dinheiro volta para a conta e a dívida ou o crédito são recalculados. Fica registrado.`)) return
+    setErro('')
+    setAnulando(m.id)
+    try {
+      await anularMovimentoCartao(m.id, 'anulado pela tela (correção)')
+      await aoAlterar()
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    } finally {
+      setAnulando(null)
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-4">
+      <h3 className="mb-2 text-sm font-semibold text-slate-600">Pagamentos e devoluções</h3>
+      {erro && <div className="mb-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {movs === null && !erro && <p className="text-sm text-slate-500" role="status">Carregando…</p>}
+      {movs?.length === 0 && <p className="text-sm text-slate-500">Nenhum pagamento ou devolução lançado.</p>}
+      <ul className="flex flex-col gap-2">
+        {movs?.map((m) => (
+          <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+            <span>
+              {formatDate(m.data)} · {m.tipo === 'devolucao' ? 'Devolução em dinheiro' : m.tipo === 'amortizacao' ? 'Amortização' : 'Pagamento'}
+              {m.ligadoAFatura ? ' (fatura)' : ' (sem fatura: adiantado)'} · <span className="tabular-nums font-semibold">{formatBRL(m.valor)}</span>
+            </span>
+            <Button variante="perigo" carregando={anulando === m.id} disabled={anulando !== null} onClick={() => void anular(m)}>
+              Anular
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
   cartaoId: string; versao: number; categorias: Categoria[]; contas: Conta[]; aoAlterar: () => Promise<void>
