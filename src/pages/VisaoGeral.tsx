@@ -184,7 +184,7 @@ export default function VisaoGeral() {
               <BlocoAnual titulo={`Ano até hoje (${hoje.slice(0, 4)})`} rotuloAnterior={`mesmo período de ${Number(hoje.slice(0, 4)) - 1}`}
                 atual={dados.anoPassado.anoAtual} anterior={dados.anoPassado.anoAnterior} />
             </div>
-            <p className="mt-3 text-xs text-slate-500">Mesmos dias nos dois anos, para a comparação ser justa. Cartão conta na data de fechamento da fatura.</p>
+            <p className="mt-3 text-xs text-slate-500">Mesmos dias nos dois anos, para a comparação ser justa. Cartão conta na data de fechamento da fatura. Só entra o que já está pago: contas ainda planejadas ou fatura que não fechou não aparecem em nenhum dos dois anos.</p>
           </Card>
         )}
 
@@ -283,14 +283,17 @@ function BlocoAnual({ titulo, rotuloAnterior, atual, anterior }: { titulo: strin
       <ul className="mt-2 divide-y divide-slate-200">
         {linhas.map((l) => {
           const v = variacao(l.a, l.b)
-          const bom = v === null ? null : (v >= 0) === l.subirEhBom
+          // variação que arredonda para 0,0% é "igual": sem seta nem cor
+          const igual = v !== null && Math.abs(v) < 0.05
+          const bom = v === null || igual ? null : (v >= 0) === l.subirEhBom
           return (
             <li key={l.rotulo} className="flex flex-wrap items-baseline justify-between gap-x-3 py-1.5">
               <span className="text-slate-500">{l.rotulo}</span>
               <span className="tabular-nums">
                 <strong>{formatBRL(l.a)}</strong>
                 <span className="ml-2 text-xs text-slate-500">antes {formatBRL(l.b)}</span>
-                {v !== null && (
+                {v !== null && igual && <span className="ml-2 text-xs text-slate-500">= igual</span>}
+                {v !== null && !igual && (
                   <span className={`ml-2 text-xs font-semibold ${bom ? 'text-positivo' : 'text-negativo'}`}>
                     {v >= 0 ? '▲' : '▼'} {Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
                   </span>

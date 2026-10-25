@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../lib/format'
 
@@ -198,5 +198,14 @@ describe('Visão geral', () => {
     expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.queryByText('Comparação com o ano passado')).toBeNull()
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
+  })
+  it('comparação: valor igual ao do ano passado fica neutro, sem seta nem cor', async () => {
+    mock.resumoDoPeriodo.mockReset()
+    const igual = { receitas: c(100000), despesas: c(50000), resultado: c(50000), receitasPrevistas: c(0), despesasPrevistas: c(0) }
+    mock.resumoDoPeriodo.mockResolvedValue(igual)
+    montar()
+    expect((await screen.findAllByText('= igual')).length).toBe(6)
+    const card = screen.getByText('Comparação com o ano passado').closest('div') as HTMLElement
+    expect(within(card.parentElement as HTMLElement).queryByText(/▲|▼/)).toBeNull()
   })
 })

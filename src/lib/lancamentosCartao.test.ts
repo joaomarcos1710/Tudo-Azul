@@ -76,6 +76,31 @@ describe('listarComprasDeCartao', () => {
     expect(jan.parcelas.map((p) => [p.id, p.data])).toEqual([['a1', '2026-01-31']])
   })
 
+  it('compra no dia do fechamento: aparece no mês da compra e avisa que a despesa conta só no mês seguinte', async () => {
+    // fecha dia 17, compra em 17/10: a parcela 1 vai para a fatura que fecha em 17/11
+    fake.tabelas.debt_installments = [parcela({ id: 'c1', plan: 'p4', seq: 1, purchase_date: '2026-10-17', due_date: '2026-11-17' })]
+    const out = await listarComprasDeCartao('h1', '2026-10')
+    expect(out.parcelas.map((p) => [p.data, p.compra, p.fechaEm])).toEqual([['2026-10-17', '2026-10-17', '2026-11-17']])
+  })
+
+  it('cartão que fecha dia 31: o fechamento de fevereiro é 28 e a parcela não some', async () => {
+    fake.tabelas.debt_installments = [
+      parcela({ id: 'd1', plan: 'p5', seq: 1, purchase_date: '2026-01-10', due_date: '2026-01-31' }),
+      parcela({ id: 'd2', plan: 'p5', seq: 2, purchase_date: '2026-01-10', due_date: '2026-02-28' }),
+      parcela({ id: 'd3', plan: 'p5', seq: 3, purchase_date: '2026-01-10', due_date: '2026-03-31' }),
+    ]
+    expect((await listarComprasDeCartao('h1', '2026-02')).parcelas.map((p) => [p.id, p.data, p.fechaEm])).toEqual([['d2', '2026-02-10', '2026-02-28']])
+    expect((await listarComprasDeCartao('h1', '2026-03')).parcelas.map((p) => [p.id, p.data])).toEqual([['d3', '2026-03-10']])
+  })
+
+  it('mais de 1000 parcelas no mês e mais de 100 planos: pagina e conta o N de cada plano', async () => {
+    fake.tabelas.debt_installments = Array.from({ length: 1101 }, (_, i) =>
+      parcela({ id: `m${i}`, plan: `pl${i}`, seq: 1, purchase_date: '2026-10-05', due_date: '2026-11-17' }))
+    const out = await listarComprasDeCartao('h1', '2026-10')
+    expect(out.parcelas).toHaveLength(1101)
+    expect(out.parcelas.every((p) => p.deParcelas === 1)).toBe(true)
+  })
+
   it('virada de ano: a parcela de janeiro mostra a compra de dezembro', async () => {
     fake.tabelas.debt_installments = [
       parcela({ id: 'b2', plan: 'p3', seq: 2, purchase_date: '2026-12-05', due_date: '2027-01-17' }),

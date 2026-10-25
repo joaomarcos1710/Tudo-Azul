@@ -169,6 +169,8 @@ export interface ParcelaDeCartao {
   data: string
   /** Dia em que a compra foi lançada. */
   compra: string
+  /** Data em que a fatura fecha e a despesa passa a contar (pode ser no mês seguinte ao da linha). */
+  fechaEm: string
   descricao: string
   cartaoNome: string
   /** Dia do fechamento da fatura do cartão, para explicar quando a despesa conta. Nulo se o cartão não tem ciclo. */
@@ -197,12 +199,12 @@ export async function listarComprasDeCartao(familiaId: string, mes: string): Pro
   // parcela (due_date). Por isso basta olhar o fechamento deste mês e do próximo, e conferir o mês de exibição abaixo.
   const de = limitesDoMes(mes)[0]
   const ate = limitesDoMes(somarMeses(mes, 1))[1]
-  type Linha = { id: string; debt_id: string; plan: string; seq: number; description: string | null; purchase_date: string | null; face: number | string }
+  type Linha = { id: string; debt_id: string; plan: string; seq: number; description: string | null; purchase_date: string | null; due_date: string; face: number | string }
   const candidatas: Linha[] = []
   const pagina = 1000
   for (let inicio = 0; ; inicio += pagina) {
     const { data, error } = await db.from('debt_installments')
-      .select('id, debt_id, plan, seq, description, purchase_date, face')
+      .select('id, debt_id, plan, seq, description, purchase_date, due_date, face')
       .eq('household_id', familiaId).gte('due_date', de).lte('due_date', ate)
       .order('due_date', { ascending: false }).order('id')
       .range(inicio, inicio + pagina - 1)
@@ -256,6 +258,7 @@ export async function listarComprasDeCartao(familiaId: string, mes: string): Pro
       id: p.id,
       data: p.exibe,
       compra: p.purchase_date,
+      fechaEm: p.due_date,
       descricao: p.description || 'Compra no cartão',
       cartaoNome: c.name,
       fechamento: c.closing_day ?? null,
