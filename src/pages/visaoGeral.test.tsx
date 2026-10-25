@@ -145,13 +145,13 @@ describe('Visão geral', () => {
     expect(screen.getByText('125%')).toBeTruthy()
     expect(screen.getByText('83,3%')).toBeTruthy()
     expect(screen.getByText('R$ 60.000,00')).toBeTruthy()
-    expect(screen.queryByText(/Nenhuma receita marcada como eventual/)).toBeNull()
+    expect(screen.queryByText(/Nenhuma receita eventual nos últimos 12 meses/)).toBeNull()
   })
   it('sem nenhuma receita eventual nos 12 meses, sugere marcar em Categorias', async () => {
     mock.regularidadeRenda.mockReset()
     mock.regularidadeRenda.mockResolvedValue({ regular: c(500000), eventual: c(0), despesas: c(400000), cobertura: 125 })
     montar()
-    expect(await screen.findByText(/Nenhuma receita marcada como eventual/)).toBeTruthy()
+    expect(await screen.findByText(/Nenhuma receita eventual nos últimos 12 meses/)).toBeTruthy()
   })
   it('mês sem despesas: não inventa percentual', async () => {
     mock.regularidadeRenda.mockReset()

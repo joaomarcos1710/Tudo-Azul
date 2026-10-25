@@ -26,7 +26,7 @@ export default function Categorias() {
   const carregar = useCallback(async () => {
     if (!familiaId) return
     try {
-      setCategorias(await listarCategorias(familiaId))
+      setCategorias(await listarCategorias(familiaId, { comEventual: true }))
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -136,7 +136,7 @@ function Linha({ categoria: c, aoEditar, aoAlternar, aoEventual, herdaEventual }
       </span>
       {!c.sistema && (
         <span className="flex gap-1">
-          {c.tipo === 'income' && !herdaEventual && (
+          {c.tipo === 'income' && (!herdaEventual || c.eventual) && (
             <Button variante="fantasma" onClick={aoEventual}>{c.eventual ? 'Marcar como regular' : 'Marcar como eventual'}</Button>
           )}
           <Button variante="fantasma" onClick={aoEditar}>Editar</Button>

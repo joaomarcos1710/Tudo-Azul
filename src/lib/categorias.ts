@@ -24,21 +24,24 @@ function cliente() {
   return supabase
 }
 
-export async function listarCategorias(familiaId: string): Promise<Categoria[]> {
-  const { data, error } = await cliente()
-    .from('categories')
-    .select('id, name, type, parent_id, system_key, active, eventual')
-    .eq('household_id', familiaId)
-    .order('name')
+/**
+ * `comEventual` só é pedido pela tela de Categorias. As demais telas só precisam de nome e hierarquia e não
+ * devem quebrar se o front subir antes da migration 012; se a coluna não existir, lê sem ela (tudo regular).
+ */
+export async function listarCategorias(familiaId: string, opcoes: { comEventual?: boolean } = {}): Promise<Categoria[]> {
+  const base = 'id, name, type, parent_id, system_key, active'
+  const ler = (colunas: string) => cliente().from('categories').select(colunas).eq('household_id', familiaId).order('name')
+  let { data, error } = opcoes.comEventual ? await ler(`${base}, eventual`) : await ler(base)
+  if (error && opcoes.comEventual) ({ data, error } = await ler(base))
   if (error) throw error
-  return (data ?? []).map((c) => ({
-    id: c.id,
-    nome: c.name,
-    tipo: c.type,
-    paiId: c.parent_id,
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((c) => ({
+    id: c.id as string,
+    nome: c.name as string,
+    tipo: c.type as TipoCategoria,
+    paiId: c.parent_id as string | null,
     sistema: c.system_key !== null,
-    ativa: c.active,
-    eventual: c.eventual ?? false,
+    ativa: c.active as boolean,
+    eventual: c.eventual === true,
   }))
 }
 

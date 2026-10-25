@@ -167,8 +167,8 @@ export default function VisaoGeral() {
             </div>
             {dados.regularidade[1].eventual === 0 && dados.regularidade[1].regular > 0 && (
               <p className="mt-3 text-xs text-slate-500">
-                Nenhuma receita marcada como eventual. Em <Link to="/categorias" className="font-semibold text-azul hover:underline">Categorias</Link> marque
-                13º, férias, PLR e restituição para separar a renda que não se repete todo mês.
+                Nenhuma receita eventual nos últimos 12 meses. Em <Link to="/categorias" className="font-semibold text-azul hover:underline">Categorias</Link> marque
+                13º, férias, PLR e restituição como eventuais para separar a renda que não se repete todo mês.
               </p>
             )}
           </Card>
