@@ -35,3 +35,8 @@ jobs:
 
       - name: Build de produção
         run: npm run build
+
+      # Dependências que vão para o app dos usuários: qualquer vulnerabilidade conhecida barra o PR.
+      # (As de ferramentas de desenvolvimento são tratadas em PRs próprios, para não misturar com o app.)
+      - name: Vulnerabilidades nas dependências de produção
+        run: npm audit --omit=dev --audit-level=low
