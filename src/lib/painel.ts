@@ -109,3 +109,30 @@ export async function regularidadeRenda(familiaId: string, de: string, ate: stri
     cobertura: r.coverage_pct === null || r.coverage_pct === undefined ? null : Number(r.coverage_pct),
   }
 }
+
+/** Projeção do mês (month_projection): já gasto + já previsto + ritmo do que é variável × dias que faltam. */
+export interface ProjecaoMes {
+  diasNoMes: number
+  diasDecorridos: number
+  diasRestantes: number
+  gasto: Cents
+  previsto: Cents
+  /** Pago no mês e que não é recorrente (base do ritmo). */
+  variavelAteAgora: Cents
+  ritmoPorDia: Cents
+  /** Ritmo × dias que faltam. */
+  ritmoRestante: Cents
+  projetado: Cents
+}
+
+export async function projecaoDoMes(familiaId: string, mes: string, hoje: string): Promise<ProjecaoMes | null> {
+  const { data, error } = await cliente().rpc('month_projection', { p_household: familiaId, p_month: `${mes}-01`, p_today: hoje })
+  if (error) throw error
+  const r = ((data ?? []) as Record<string, number | string>[])[0]
+  if (!r) return null
+  return {
+    diasNoMes: Number(r.days_in_month), diasDecorridos: Number(r.days_elapsed), diasRestantes: Number(r.days_left),
+    gasto: centsFromDb(r.spent), previsto: centsFromDb(r.planned), variavelAteAgora: centsFromDb(r.variable_so_far),
+    ritmoPorDia: centsFromDb(r.pace_per_day), ritmoRestante: centsFromDb(r.pace_extra), projetado: centsFromDb(r.projected),
+  }
+}

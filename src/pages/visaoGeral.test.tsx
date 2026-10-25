@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   despesasPorCategoria: vi.fn(),
   despesasPorDia: vi.fn(),
   regularidadeRenda: vi.fn(),
+  projecaoDoMes: vi.fn(),
   resumoDoPeriodo: vi.fn(),
   listarLancamentos: vi.fn(),
   listarCategorias: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('../lib/painel', () => ({
   carregarPatrimonio: mock.carregarPatrimonio, proximosPlanejados: mock.proximosPlanejados,
   despesasPorCategoria: mock.despesasPorCategoria, despesasPorDia: mock.despesasPorDia,
   regularidadeRenda: mock.regularidadeRenda,
+  projecaoDoMes: mock.projecaoDoMes,
 }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', () => ({ listarCategorias: mock.listarCategorias }))
@@ -64,6 +66,10 @@ beforeEach(() => {
     { id: 'l2', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'g1', descricao: 'Planejado', valor: c(100), data: '2026-10-30', status: 'planned', notas: '' },
   ])
   mock.listarCategorias.mockResolvedValue([{ id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false }])
+  mock.projecaoDoMes.mockResolvedValue({
+    diasNoMes: 31, diasDecorridos: 10, diasRestantes: 21, gasto: c(1300000), previsto: c(25000), variavelAteAgora: c(30000),
+    ritmoPorDia: c(3000), ritmoRestante: c(63000), projetado: c(1388000),
+  })
   // ordem do Promise.all da tela: mês até hoje, mesmo período do ano passado, ano até hoje, ano passado
   mock.resumoDoPeriodo
     .mockResolvedValueOnce({ receitas: c(1000000), despesas: c(600000), resultado: c(400000), receitasPrevistas: c(0), despesasPrevistas: c(0) })
@@ -206,6 +212,43 @@ describe('Visão geral', () => {
     montar()
     expect((await screen.findAllByText('= igual')).length).toBe(6)
     const card = screen.getByText('Comparação com o ano passado').closest('div') as HTMLElement
-    expect(within(card.parentElement as HTMLElement).queryByText(/▲|▼/)).toBeNull()
+    expect(within(card).queryByText(/▲|▼/)).toBeNull()
+  })
+  it('projeção do mês: total, as três partes e o ritmo por dia vindos do banco', async () => {
+    montar()
+    expect(await screen.findByText('Projeção do mês')).toBeTruthy()
+    expect(screen.getByText('R$ 13.880,00')).toBeTruthy()
+    expect(screen.getByText('R$ 13.000,00')).toBeTruthy()
+    expect(screen.getByText('R$ 250,00')).toBeTruthy()
+    expect(screen.getByText(/Ritmo do que é variável: R\$ 30,00 por dia × 21 dias/)).toBeTruthy()
+    expect(screen.getByText('R$ 630,00')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Ver por categoria em Orçamentos' })).toBeTruthy()
+  })
+  it('projeção nos primeiros dias avisa que ainda está instável', async () => {
+    mock.projecaoDoMes.mockReset()
+    mock.projecaoDoMes.mockResolvedValue({
+      diasNoMes: 31, diasDecorridos: 3, diasRestantes: 28, gasto: c(0), previsto: c(150000), variavelAteAgora: c(0),
+      ritmoPorDia: c(0), ritmoRestante: c(0), projetado: c(150000),
+    })
+    montar()
+    expect(await screen.findByText(/O ritmo só entra a partir do 7º dia do mês \(hoje é o dia 3\)/)).toBeTruthy()
+  })
+  it('família sem gasto nem previsto: o card de projeção não aparece com R$ 0,00', async () => {
+    mock.projecaoDoMes.mockReset()
+    mock.projecaoDoMes.mockResolvedValue({
+      diasNoMes: 31, diasDecorridos: 10, diasRestantes: 21, gasto: c(0), previsto: c(0), variavelAteAgora: c(0),
+      ritmoPorDia: c(0), ritmoRestante: c(0), projetado: c(0),
+    })
+    montar()
+    await screen.findByText('R$ 10.875,60')
+    expect(screen.queryByText('Projeção do mês')).toBeNull()
+  })
+  it('se a projeção falhar (banco sem a migration 013), o resto do painel aparece', async () => {
+    mock.projecaoDoMes.mockReset()
+    mock.projecaoDoMes.mockRejectedValue(new Error('function does not exist'))
+    montar()
+    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.queryByText('Projeção do mês')).toBeNull()
+    expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
 })

@@ -16,8 +16,8 @@ import { currentMonth, formatBRL, formatDate, formatMonth } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { limitesDoMes, listarLancamentos, mesmoDiaAnoPassado, resumoDoMes, resumoDoPeriodo, somarMeses } from '../lib/lancamentos'
 import type { Lancamento, ResumoMes } from '../lib/lancamentos'
-import { carregarPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, regularidadeRenda } from '../lib/painel'
-import type { DespesaCategoria, DespesaDia, Patrimonio, ProximoPlanejado, RegularidadeRenda } from '../lib/painel'
+import { carregarPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda } from '../lib/painel'
+import type { DespesaCategoria, DespesaDia, Patrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda } from '../lib/painel'
 
 interface Dados {
   patrimonio: Patrimonio
@@ -32,6 +32,8 @@ interface Dados {
   regularidade: [RegularidadeRenda, RegularidadeRenda] | null
   /** null = comparação indisponível agora; o resto da tela segue. */
   anoPassado: ComparacaoAnual | null
+  /** null = projeção indisponível agora (ex.: banco ainda sem a migration 013); o resto da tela segue. */
+  projecao: ProjecaoMes | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
 }
@@ -93,9 +95,10 @@ export default function VisaoGeral() {
           resumoDoPeriodo(familiaId, `${hoje.slice(0, 4)}-01-01`, hoje),
           resumoDoPeriodo(familiaId, `${Number(hoje.slice(0, 4)) - 1}-01-01`, mesmoDiaAnoPassado(hoje)),
         ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior })).catch(() => null),
+        projecaoDoMes(familiaId, mes, hoje).catch(() => null),
       ]))
-      .then(([patrimonio, resumo, anterior, c, proximos, categorias, dias, lancs, cats, regularidade, anoPassado]) => setDados({
-        patrimonio, mes: resumo, anterior, contas: c.contas.filter((x) => x.ativa), proximos, categorias, dias, regularidade, anoPassado,
+      .then(([patrimonio, resumo, anterior, c, proximos, categorias, dias, lancs, cats, regularidade, anoPassado, projecao]) => setDados({
+        patrimonio, mes: resumo, anterior, contas: c.contas.filter((x) => x.ativa), proximos, categorias, dias, regularidade, anoPassado, projecao,
         ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
         nomeCategoria: new Map(cats.map((x) => [x.id, x.nome])),
       }))
@@ -174,6 +177,39 @@ export default function VisaoGeral() {
             </p>
           )}
         </Card>
+
+        {dados.projecao && (dados.projecao.gasto > 0 || dados.projecao.previsto > 0 || dados.projecao.projetado > 0) && (
+          <Card className="lg:col-span-2">
+            <CardTitle>Projeção do mês</CardTitle>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-sm text-slate-500">Até o fim de {formatMonth(mes)}, no ritmo atual, você terá gasto</p>
+                <p className="tabular-nums text-2xl font-bold text-negativo">{formatBRL(dados.projecao.projetado)}</p>
+              </div>
+              {variacao(dados.projecao.projetado, a.despesas) !== null && (
+                <p className="text-sm text-slate-600">
+                  {(variacao(dados.projecao.projetado, a.despesas) as number) >= 0 ? '▲' : '▼'}{' '}
+                  {Math.abs(variacao(dados.projecao.projetado, a.despesas) as number).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+                  <span className="text-slate-500"> vs {mesAnteriorCurto} inteiro ({formatBRL(a.despesas)})</span>
+                </p>
+              )}
+            </div>
+            <ul className="mt-3 divide-y divide-slate-100 text-sm">
+              <li className="flex justify-between py-1.5"><span className="text-slate-500">Já gasto</span><span className="tabular-nums font-semibold">{formatBRL(dados.projecao.gasto)}</span></li>
+              <li className="flex justify-between py-1.5"><span className="text-slate-500">Já previsto (contas planejadas e parcelas de cartão que ainda vão fechar)</span><span className="tabular-nums font-semibold">{formatBRL(dados.projecao.previsto)}</span></li>
+              <li className="flex justify-between py-1.5">
+                <span className="text-slate-500">Ritmo do que é variável: {formatBRL(dados.projecao.ritmoPorDia)} por dia × {dados.projecao.diasRestantes} {dados.projecao.diasRestantes === 1 ? 'dia' : 'dias'}</span>
+                <span className="tabular-nums font-semibold">{formatBRL(dados.projecao.ritmoRestante)}</span>
+              </li>
+            </ul>
+            <p className="mt-3 text-xs text-slate-500">
+              É uma estimativa. Contas recorrentes ficam fora do ritmo (já estão no "previsto").
+              {' O ritmo só entra a partir do 7º dia do mês' + (dados.projecao.diasDecorridos < 7 ? ' (hoje é o dia ' + dados.projecao.diasDecorridos + ').' : '.')}
+              {' O que você lança como planejado e depois paga entra no ritmo como se fosse gasto contínuo.'}
+              {' '}<Link to="/orcamentos" className="font-semibold text-azul hover:underline">Ver por categoria em Orçamentos</Link>.
+            </p>
+          </Card>
+        )}
 
         {dados.anoPassado && (
           <Card className="lg:col-span-2">
