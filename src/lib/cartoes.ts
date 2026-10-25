@@ -290,3 +290,30 @@ export async function anularMovimentoCartao(eventoId: string, motivo: string): P
   const { error } = await cliente().rpc('debt_void', { p_event: eventoId, p_reason: motivo })
   if (error) throw error
 }
+
+/** Linha do painel: o que pagar em cada cartão e quando. Valores e datas vêm do banco (debt_balances, card_months, card_limits). */
+export interface ResumoCartao {
+  id: string
+  nome: string
+  /** Faturas já fechadas e ainda não pagas. */
+  divida: Cents
+  /** Vencimento da fatura fechada mais antiga ainda não paga; null sem fatura a pagar. */
+  vencimento: string | null
+  vencida: boolean
+  limiteDisponivel: Cents | null
+}
+
+export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP()): Promise<ResumoCartao[]> {
+  const cartoes = (await listarCartoes(familiaId, hoje)).filter((c) => c.ativo)
+  return Promise.all(cartoes.map(async (c) => {
+    let vencimento: string | null = null
+    if (c.divida > 0) {
+      const faturas = await listarFaturas(c.id)
+      vencimento = faturas.find((f) => situacaoFatura(f, hoje) === 'fechada')?.vencimento ?? null
+    }
+    return {
+      id: c.id, nome: c.nome, divida: c.divida, vencimento,
+      vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel,
+    }
+  }))
+}

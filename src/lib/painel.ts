@@ -136,3 +136,22 @@ export async function projecaoDoMes(familiaId: string, mes: string, hoje: string
     ritmoPorDia: centsFromDb(r.pace_per_day), ritmoRestante: centsFromDb(r.pace_extra), projetado: centsFromDb(r.projected),
   }
 }
+
+/** Planejado que já passou da data e continua sem ser pago/recebido. */
+export interface Vencidos {
+  /** Os mais antigos primeiro (até o limite pedido). */
+  itens: ProximoPlanejado[]
+  /** Quantos vencidos existem no total (pode ser maior que itens.length). */
+  total: number
+}
+
+export async function vencidosPlanejados(familiaId: string, hoje: string, limite = 5): Promise<Vencidos> {
+  const base = () => cliente().from('transactions').select('id, type, description, amount, date', { count: 'exact' })
+    .eq('household_id', familiaId).eq('status', 'planned').is('deleted_at', null).lt('date', hoje)
+  const { data, error, count } = await base().order('date').order('id').limit(limite)
+  if (error) throw error
+  return {
+    itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date })),
+    total: count ?? (data ?? []).length,
+  }
+}

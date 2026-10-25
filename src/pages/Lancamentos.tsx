@@ -6,7 +6,7 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias } from '../lib/categorias'
@@ -36,7 +36,13 @@ function valorComSinal(l: Lancamento) {
 export default function Lancamentos() {
   const { familia } = useFamilia()
   const familiaId = familia?.id
-  const [mes, setMes] = useState(() => currentMonth())
+  const [params, setParams] = useSearchParams()
+  // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
+  const [mes, setMes] = useState(() => {
+    const m = params.get('mes')
+    return m && /^\d{4}-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
+  })
+  const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
   const [filtros, setFiltros] = useState<Filtros>({})
   const [lancamentos, setLancamentos] = useState<Lancamento[] | null>(null)
   const [movimentosDivida, setMovimentosDivida] = useState<MovimentoDivida[]>([])
@@ -51,6 +57,14 @@ export default function Lancamentos() {
   const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
   const [naLixeira, setNaLixeira] = useState<Lancamento | null>(null)
   const [pagando, setPagando] = useState<Lancamento | null>(null)
+
+  useEffect(() => {
+    const novo = params.get('novo')
+    if (!novo || contas.length === 0) return
+    const tipo = ({ despesa: 'expense', receita: 'income', transferencia: 'transfer', cartao: 'cartao' } as Record<string, InicialForm>)[novo]
+    if (tipo) { setInicial(tipo); setEditando('novo') }
+    setParams((p) => { p.delete('novo'); return p }, { replace: true })
+  }, [params, contas.length, setParams])
 
   // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
   const [automaticosProntos, setAutomaticosProntos] = useState(false)
@@ -131,7 +145,7 @@ export default function Lancamentos() {
         <h1 className="text-2xl font-bold">Lançamentos</h1>
         <div className="flex flex-wrap gap-2">
           <Link to="/recorrentes" className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-azul hover:bg-azul-claro">↻ Recorrentes</Link>
-          {editando === null && <Button onClick={() => setEditando('novo')} disabled={contas.length === 0}>Novo lançamento</Button>}
+          {editando === null && <Button onClick={() => { setInicial(undefined); setEditando('novo') }} disabled={contas.length === 0}>Novo lançamento</Button>}
         </div>
       </div>
 
@@ -191,6 +205,7 @@ export default function Lancamentos() {
       {editando !== null && (
         <FormLancamento
           lancamento={editando === 'novo' ? null : editando}
+          inicial={inicial}
           contas={contas}
           categorias={categorias}
           cartoes={cartoes}
@@ -360,8 +375,12 @@ function PainelPagar({ lancamento: l, nomeConta, aoConfirmar, aoCancelar }: {
   )
 }
 
+/** Como o formulário novo abre quando vem de um atalho do painel. */
+type InicialForm = TipoLancamento | 'cartao'
+
 interface PropsForm {
   lancamento: Lancamento | null
+  inicial?: InicialForm
   contas: Conta[]
   categorias: Categoria[]
   cartoes: Cartao[]
@@ -370,10 +389,10 @@ interface PropsForm {
   aoCancelar: () => void
 }
 
-function FormLancamento({ lancamento: l, contas, categorias, cartoes, familiaId, aoSalvar, aoCancelar }: PropsForm) {
+function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoCancelar }: PropsForm) {
   const hoje = hojeSP()
   const ativas = contas.filter((c) => c.ativa || c.id === l?.contaId || c.id === l?.destinoId)
-  const [tipo, setTipo] = useState<TipoLancamento>(l?.tipo ?? 'expense')
+  const [tipo, setTipo] = useState<TipoLancamento>(l?.tipo ?? (inicial && inicial !== 'cartao' ? inicial : 'expense'))
   const [valorTexto, setValorTexto] = useState(l ? formatBRL(l.valor).replace('R$ ', '') : '')
   const [data, setData] = useState(l?.data ?? hoje)
   const [descricao, setDescricao] = useState(l?.descricao ?? '')
@@ -389,7 +408,7 @@ function FormLancamento({ lancamento: l, contas, categorias, cartoes, familiaId,
   const [enviando, setEnviando] = useState(false)
   // Onde foi: conta (dinheiro saiu/entrou agora) ou cartão (compra parcelada; a despesa conta na fatura).
   // Só para lançamento novo: editar continua sendo conta, como antes.
-  const [onde, setOnde] = useState<'conta' | 'cartao'>('conta')
+  const [onde, setOnde] = useState<'conta' | 'cartao'>(!l && inicial === 'cartao' ? 'cartao' : 'conta')
   const [cartaoId, setCartaoId] = useState('')
   const [parcelasTexto, setParcelasTexto] = useState('1')
   const chaveRef = useRef<{ sig: string; chave: string } | null>(null)

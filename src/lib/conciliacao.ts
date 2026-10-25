@@ -73,3 +73,13 @@ export async function desfazerUltimaConciliacao(contaId: string): Promise<string
   if (error) throw error
   return (data as string | null) ?? null
 }
+
+/** Data da última conferência de cada conta (as que nunca foram conferidas ficam de fora do mapa). */
+export async function ultimasConferencias(): Promise<Map<string, string>> {
+  const { data, error } = await cliente().from('account_reconciliations').select('account_id, as_of')
+    .order('as_of', { ascending: false }).limit(500)
+  if (error) throw error
+  const mapa = new Map<string, string>()
+  for (const r of data ?? []) if (!mapa.has(r.account_id as string)) mapa.set(r.account_id as string, r.as_of as string)
+  return mapa
+}

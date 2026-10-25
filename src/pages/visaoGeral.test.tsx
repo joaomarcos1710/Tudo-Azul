@@ -13,6 +13,9 @@ const mock = vi.hoisted(() => ({
   despesasPorDia: vi.fn(),
   regularidadeRenda: vi.fn(),
   projecaoDoMes: vi.fn(),
+  vencidosPlanejados: vi.fn(),
+  resumoDosCartoes: vi.fn(),
+  ultimasConferencias: vi.fn(),
   resumoDoPeriodo: vi.fn(),
   listarLancamentos: vi.fn(),
   listarCategorias: vi.fn(),
@@ -25,13 +28,15 @@ vi.mock('../lib/painel', () => ({
   despesasPorCategoria: mock.despesasPorCategoria, despesasPorDia: mock.despesasPorDia,
   regularidadeRenda: mock.regularidadeRenda,
   projecaoDoMes: mock.projecaoDoMes,
+  vencidosPlanejados: mock.vencidosPlanejados,
 }))
+vi.mock('../lib/conciliacao', () => ({ ultimasConferencias: mock.ultimasConferencias }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', () => ({ listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos }))
 const cobrar = vi.hoisted(() => vi.fn())
 const gerar = vi.hoisted(() => vi.fn())
-vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar }))
+vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar, resumoDosCartoes: mock.resumoDosCartoes }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: gerar }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
@@ -66,6 +71,9 @@ beforeEach(() => {
     { id: 'l2', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'g1', descricao: 'Planejado', valor: c(100), data: '2026-10-30', status: 'planned', notas: '' },
   ])
   mock.listarCategorias.mockResolvedValue([{ id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false }])
+  mock.vencidosPlanejados.mockResolvedValue({ itens: [], total: 0 })
+  mock.resumoDosCartoes.mockResolvedValue([])
+  mock.ultimasConferencias.mockResolvedValue(new Map())
   mock.projecaoDoMes.mockResolvedValue({
     diasNoMes: 31, diasDecorridos: 10, diasRestantes: 21, gasto: c(1300000), previsto: c(25000), variavelAteAgora: c(30000),
     ritmoPorDia: c(3000), ritmoRestante: c(63000), projetado: c(1388000),
@@ -250,5 +258,85 @@ describe('Visão geral', () => {
     expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.queryByText('Projeção do mês')).toBeNull()
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
+  })
+
+  it('ações rápidas: despesa, receita, transferência e compra no cartão abrem o lançamento já no tipo certo', async () => {
+    montar()
+    await screen.findByText(/, João!/)
+    const alvo = (nome: string) => (screen.getByRole('link', { name: nome }) as HTMLAnchorElement).getAttribute('href')
+    expect(alvo('+ Despesa')).toBe('/lancamentos?novo=despesa')
+    expect(alvo('+ Receita')).toBe('/lancamentos?novo=receita')
+    expect(alvo('⇄ Transferência')).toBe('/lancamentos?novo=transferencia')
+    expect(alvo('Compra no cartão')).toBe('/lancamentos?novo=cartao')
+  })
+
+  it('vencidos: lista o planejado que já passou, o mais antigo primeiro, com há quantos dias e link para o mês', async () => {
+    const hojeSP_ = new Date().toISOString().slice(0, 10)
+    const dia = (n: number) => new Date(Date.parse(hojeSP_ + 'T12:00:00Z') - n * 86_400_000).toISOString().slice(0, 10)
+    mock.vencidosPlanejados.mockResolvedValue({
+      total: 7,
+      itens: [
+        { id: 'v1', tipo: 'expense', descricao: 'Luz', valor: c(18000), data: dia(5) },
+        { id: 'v2', tipo: 'income', descricao: 'Aluguel recebido', valor: c(150000), data: dia(1) },
+      ],
+    })
+    montar()
+    expect(await screen.findByText('Vencidos e precisam de atenção')).toBeTruthy()
+    expect(screen.getByText(/7 compromissos planejados já passaram/)).toBeTruthy()
+    expect(screen.getByText('venceu há 5 dias')).toBeTruthy()
+    expect(screen.getByText('venceu ontem')).toBeTruthy()
+    expect(screen.getByText('−R$ 180,00')).toBeTruthy()
+    expect(screen.getByText('+R$ 1.500,00')).toBeTruthy()
+    expect(screen.getByText(/e mais 5/)).toBeTruthy()
+    const link = screen.getByText(/Luz/).closest('a') as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe(`/lancamentos?mes=${dia(5).slice(0, 7)}`)
+  })
+
+  it('sem vencidos, a seção não aparece; se a consulta falhar, o resto do painel aparece', async () => {
+    montar()
+    await screen.findByText('R$ 10.875,60')
+    expect(screen.queryByText('Vencidos e precisam de atenção')).toBeNull()
+    cleanup()
+    mock.vencidosPlanejados.mockRejectedValue(new Error('x'))
+    montar()
+    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.queryByText(/Não foi possível/)).toBeNull()
+  })
+
+  it('cartões: fatura a pagar com vencimento, fatura vencida em vermelho e limite disponível', async () => {
+    mock.resumoDosCartoes.mockResolvedValue([
+      { id: 'k1', nome: 'Nubank', divida: c(133334), vencimento: '2099-12-25', vencida: false, limiteDisponivel: c(527000) },
+      { id: 'k2', nome: 'Inter', divida: c(50000), vencimento: '2020-01-10', vencida: true, limiteDisponivel: null },
+      { id: 'k3', nome: 'Azul Card', divida: c(0), vencimento: null, vencida: false, limiteDisponivel: null },
+    ])
+    montar()
+    expect(await screen.findByText('Nubank')).toBeTruthy()
+    expect(screen.getByText('R$ 1.333,34')).toBeTruthy()
+    expect(screen.getByText('vence em 25/12')).toBeTruthy()
+    expect(screen.getByText('limite disponível R$ 5.270,00')).toBeTruthy()
+    expect(screen.getByText('venceu em 10/01').className).toMatch(/text-negativo/)
+    expect(screen.getByText('nenhuma fatura fechada a pagar')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Ver cartões' })).toBeTruthy()
+  })
+
+  it('conferência: conta nunca conferida e conta conferida há mais de 30 dias pedem atenção; recente fica neutra', async () => {
+    const hojeSP_ = new Date().toISOString().slice(0, 10)
+    const dia = (n: number) => new Date(Date.parse(hojeSP_ + 'T12:00:00Z') - n * 86_400_000).toISOString().slice(0, 10)
+    mock.listarContas.mockResolvedValue({
+      contas: [
+        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1000) },
+        { id: 'a3', nome: 'Nubank conta', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(2000) },
+        { id: 'a4', nome: 'Carteira', tipo: 'cash', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(300) },
+      ],
+      total: c(3300),
+    })
+    mock.ultimasConferencias.mockResolvedValue(new Map([['a3', dia(45)], ['a4', dia(2)]]))
+    montar()
+    expect(await screen.findByText('Nunca conferida com o extrato')).toBeTruthy()
+    expect(screen.getByText(/\(há 45 dias\)/)).toBeTruthy()
+    const recente = screen.getByText(`Conferida em ${dia(2).split('-').reverse().join('/')}`)
+    expect(recente.className).toMatch(/text-slate-500/)
+    const hrefs = screen.getAllByRole('link', { name: 'Conferir' }).map((l) => l.getAttribute('href'))
+    expect(hrefs).toEqual(['/contas/a1/conferir', '/contas/a3/conferir', '/contas/a4/conferir'])
   })
 })
