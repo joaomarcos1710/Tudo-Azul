@@ -227,11 +227,21 @@ describe('Visão geral', () => {
   it('projeção nos primeiros dias avisa que ainda está instável', async () => {
     mock.projecaoDoMes.mockReset()
     mock.projecaoDoMes.mockResolvedValue({
-      diasNoMes: 31, diasDecorridos: 3, diasRestantes: 28, gasto: c(0), previsto: c(0), variavelAteAgora: c(0),
+      diasNoMes: 31, diasDecorridos: 3, diasRestantes: 28, gasto: c(0), previsto: c(150000), variavelAteAgora: c(0),
+      ritmoPorDia: c(0), ritmoRestante: c(0), projetado: c(150000),
+    })
+    montar()
+    expect(await screen.findByText(/O ritmo só entra a partir do 7º dia do mês \(hoje é o dia 3\)/)).toBeTruthy()
+  })
+  it('família sem gasto nem previsto: o card de projeção não aparece com R$ 0,00', async () => {
+    mock.projecaoDoMes.mockReset()
+    mock.projecaoDoMes.mockResolvedValue({
+      diasNoMes: 31, diasDecorridos: 10, diasRestantes: 21, gasto: c(0), previsto: c(0), variavelAteAgora: c(0),
       ritmoPorDia: c(0), ritmoRestante: c(0), projetado: c(0),
     })
     montar()
-    expect(await screen.findByText(/Ainda instável: só 3 dias do mês/)).toBeTruthy()
+    await screen.findByText('R$ 10.875,60')
+    expect(screen.queryByText('Projeção do mês')).toBeNull()
   })
   it('se a projeção falhar (banco sem a migration 013), o resto do painel aparece', async () => {
     mock.projecaoDoMes.mockReset()

@@ -178,7 +178,7 @@ export default function VisaoGeral() {
           )}
         </Card>
 
-        {dados.projecao && (
+        {dados.projecao && (dados.projecao.gasto > 0 || dados.projecao.previsto > 0 || dados.projecao.projetado > 0) && (
           <Card className="lg:col-span-2">
             <CardTitle>Projeção do mês</CardTitle>
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -203,8 +203,9 @@ export default function VisaoGeral() {
               </li>
             </ul>
             <p className="mt-3 text-xs text-slate-500">
-              É uma estimativa. Contas recorrentes ficam fora do ritmo (já estão no "previsto" quando futuras).
-              {dados.projecao.diasDecorridos < 7 && ' Ainda instável: só ' + dados.projecao.diasDecorridos + (dados.projecao.diasDecorridos === 1 ? ' dia' : ' dias') + ' do mês.'}
+              É uma estimativa. Contas recorrentes ficam fora do ritmo (já estão no "previsto").
+              {' O ritmo só entra a partir do 7º dia do mês' + (dados.projecao.diasDecorridos < 7 ? ' (hoje é o dia ' + dados.projecao.diasDecorridos + ').' : '.')}
+              {' O que você lança como planejado e depois paga entra no ritmo como se fosse gasto contínuo.'}
               {' '}<Link to="/orcamentos" className="font-semibold text-azul hover:underline">Ver por categoria em Orçamentos</Link>.
             </p>
           </Card>

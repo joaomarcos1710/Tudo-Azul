@@ -42,14 +42,20 @@ describe('listarOrcamentos', () => {
   })
 
   it('banco ainda sem a projeção (migration 013): cai para budget_usage, só com o gasto', async () => {
-    fake.e.rpc.budget_projection = { data: null, error: { message: 'function does not exist' } }
+    fake.e.rpc.budget_projection = { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.budget_projection' } }
     fake.e.rpc.budget_usage = { data: [{ category_id: 'c1', category_name: 'Mercado', amount_limit: '1000.00', spent: '300.00' }], error: null }
     const r = await listarOrcamentos('h1', '2026-10', '2026-10-10')
     expect(r[0]).toMatchObject({ limite: 100000, gasto: 30000, projetado: null, sobra: null, previsto: null, ritmo: null })
   })
 
+  it('erro que não é "função inexistente" (ex.: queda do banco) não vira "sem projeção" em silêncio', async () => {
+    fake.e.rpc.budget_projection = { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }
+    await expect(listarOrcamentos('h1', '2026-10', '2026-10-10')).rejects.toMatchObject({ code: '57014' })
+    expect(fake.e.chamadas.some((c) => c.op === 'rpc:budget_usage')).toBe(false)
+  })
+
   it('se os dois falharem, o erro sobe', async () => {
-    fake.e.rpc.budget_projection = { data: null, error: { message: 'x' } }
+    fake.e.rpc.budget_projection = { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }
     fake.e.rpc.budget_usage = { data: null, error: { message: 'rede' } }
     await expect(listarOrcamentos('h1', '2026-10', '2026-10-10')).rejects.toMatchObject({ message: 'rede' })
   })
@@ -69,6 +75,13 @@ describe('definirOrcamento', () => {
     await definirOrcamento('h1', 'c1', '2026-10', 150000 as never)
     expect(fake.e.chamadas.map((c) => c.op)).toEqual(['update', 'insert'])
     expect(fake.e.chamadas[1].payload).toEqual({ household_id: 'h1', category_id: 'c1', month: '2026-10-01', amount_limit: '1500.00' })
+  })
+
+  it('outra aba criou o mesmo limite no meio do caminho (23505): atualiza em vez de falhar', async () => {
+    fake.e.tabelas['budgets:update'] = { data: [], error: null }
+    fake.e.tabelas['budgets:insert'] = { data: null, error: { code: '23505', message: 'duplicate key' } }
+    await definirOrcamento('h1', 'c1', '2026-10', 150000 as never)
+    expect(fake.e.chamadas.map((c) => c.op)).toEqual(['update', 'insert', 'update'])
   })
 
   it('erro do banco sobe (ex.: categoria que não é principal)', async () => {

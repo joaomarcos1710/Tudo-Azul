@@ -97,6 +97,42 @@ select is(pg_temp.bp(pg_temp.fx('compras'), '2026-10-01', '2026-10-10'), '300.00
 select is((select count(*) from public.budget_projection(pg_temp.fx('h'), '2026-11-01', '2026-10-10')), 0::bigint,
           'PB4 mês sem orçamento definido: nenhuma linha');
 
+
+-- ritmo só depois de 7 dias do mês: no dia 3 a projeção é só gasto + previsto (sem extrapolar o que foi pago até lá)
+select is(pg_temp.mp('2026-10-01', '2026-10-03'), '31|3|28|1300.00|250.00|0.00|0.00|1550.00',
+          'PJ11 até 6 dias de mês: ritmo zero (um aluguel pago no dia 2 não vira gasto diário)');
+-- no 7º dia o ritmo entra: 200,00 pagos em 7 dias = 28,57/dia × 24 = 685,71
+select is(pg_temp.mp('2026-10-01', '2026-10-07'), '31|7|24|1300.00|250.00|200.00|685.71|2235.71',
+          'PJ12 a partir do 7º dia o ritmo entra na projeção');
+
+-- assinatura recorrente de CARTÃO (dia 20, 40,00): ainda não virou parcela, mas a fatura de 25/10 já a inclui
+reset role;
+insert into public.recurrences (id, household_id, kind, description, amount, day, start_date, debt_id, category_id)
+values ('00000000-0000-0000-0000-00000000fe02', pg_temp.fx('h'), 'card', 'Assinatura', 40.00, 20, '2026-10-01', pg_temp.fx('card'), pg_temp.fx('compras'));
+select pg_temp.login('00000000-0000-0000-0000-0000000020a1');
+select is(pg_temp.mp('2026-10-01', '2026-10-10'), '31|10|21|1300.00|290.00|300.00|630.00|2220.00',
+          'PJ13 assinatura de cartão ainda sem parcela entra no previsto do mês em que a fatura fecha (250 + 40)');
+select is(pg_temp.bp(pg_temp.fx('compras'), '2026-10-01', '2026-10-10'), '300.00|0.00|90.00|0.00|90.00|210.00',
+          'PB5 e no orçamento da categoria (parcela de 50 + assinatura de 40)');
+-- a ocorrência de novembro (dia 20 -> fatura de 25/11) entra em novembro, junto da 2ª parcela da compra
+select is(pg_temp.mp('2026-11-01', '2026-10-10'), '30|0|30|0.00|90.00|0.00|0.00|90.00',
+          'PJ14 a ocorrência seguinte cai no previsto de novembro (50 + 40)');
+-- depois que vira parcela de verdade, não conta duas vezes
+reset role;
+insert into public.debt_installments (household_id, debt_id, plan, seq, due_date, face, category_id, description, purchase_date,
+                                      closing_day, due_day, recurrence_id, occurrence_date)
+values (pg_temp.fx('h'), pg_temp.fx('card'), gen_random_uuid()::text, 1, '2026-10-25', 40.00, pg_temp.fx('compras'), 'Assinatura', '2026-10-20',
+        25, 5, '00000000-0000-0000-0000-00000000fe02', '2026-10-20');
+select pg_temp.login('00000000-0000-0000-0000-0000000020a1');
+select is(pg_temp.mp('2026-10-01', '2026-10-10'), '31|10|21|1300.00|290.00|300.00|630.00|2220.00',
+          'PJ15 ocorrência já materializada em parcela não é contada duas vezes (continua 290)');
+-- recorrência encerrada antes da ocorrência não entra
+reset role;
+update public.recurrences set end_date = '2026-10-19' where id = '00000000-0000-0000-0000-00000000fe02';
+select pg_temp.login('00000000-0000-0000-0000-0000000020a1');
+select is(pg_temp.mp('2026-11-01', '2026-10-10'), '30|0|30|0.00|50.00|0.00|0.00|50.00',
+          'PJ16 recorrência encerrada: a ocorrência de novembro some do previsto');
+
 -- isolamento entre famílias
 reset role;
 select pg_temp.login('00000000-0000-0000-0000-0000000020a2');

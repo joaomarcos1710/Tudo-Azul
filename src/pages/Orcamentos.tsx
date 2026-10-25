@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
@@ -30,16 +30,20 @@ export default function Orcamentos() {
   const [editando, setEditando] = useState<string | null>(null)
   const hoje = hojeSP()
   const mesAtual = hoje.slice(0, 7)
+  // só a resposta do último pedido vale: trocar de mês rápido não pode deixar a lista de um mês sob o título de outro
+  const pedido = useRef(0)
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
+    const meu = ++pedido.current
     try {
       const [o, c] = await Promise.all([listarOrcamentos(familiaId, mes, hoje), listarCategorias(familiaId)])
+      if (meu !== pedido.current) return
       setItens(o)
       setCategorias(c)
       setErro('')
     } catch (err) {
-      setErro(mensagemErroBanco(err))
+      if (meu === pedido.current) setErro(mensagemErroBanco(err))
     }
   }, [familiaId, mes, hoje])
 
@@ -90,7 +94,7 @@ export default function Orcamentos() {
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {aviso && !erro && <div className="mb-4"><Aviso tipo="sucesso">{aviso}</Aviso></div>}
       {emAndamento && diasDecorridos < 7 && itens !== null && itens.length > 0 && (
-        <div className="mb-4"><Aviso tipo="info">Projeção ainda instável: só {diasDecorridos} {diasDecorridos === 1 ? 'dia' : 'dias'} do mês. Ela melhora ao longo dos dias.</Aviso></div>
+        <div className="mb-4"><Aviso tipo="info">Nos primeiros 7 dias do mês a projeção não inclui o ritmo de gasto (só o que já foi gasto e o que já está previsto). O ritmo entra a partir do 7º dia.</Aviso></div>
       )}
 
       {adicionando && (
@@ -183,7 +187,14 @@ function Situacao({ o, emAndamento }: { o: OrcamentoMes; emAndamento: boolean })
   if (o.gasto > o.limite) {
     return <p className="mt-2 text-sm font-medium text-negativo">Já passou do limite em {formatBRL((o.gasto - o.limite) as Cents)}.</p>
   }
-  if (!emAndamento || o.projetado === null || o.sobra === null) {
+  if (!emAndamento) {
+    // mês passado ou futuro: sem ritmo; "sobra" já desconta o que está previsto (ex.: parcela de cartão que ainda vai fechar)
+    if (o.sobra !== null && o.sobra < 0) {
+      return <p className="mt-2 text-sm text-planejado">Com o que já está previsto, passa do limite em {formatBRL(-o.sobra as Cents)}.</p>
+    }
+    return <p className="mt-2 text-sm text-slate-600">Ainda dentro do limite: sobram {formatBRL((o.sobra ?? (o.limite - o.gasto)) as Cents)}.</p>
+  }
+  if (o.projetado === null || o.sobra === null) {
     return <p className="mt-2 text-sm text-slate-600">Ainda dentro do limite: sobram {formatBRL((o.limite - o.gasto) as Cents)}.</p>
   }
   const detalhe = `Gasto ${formatBRL(o.gasto)} + previsto ${formatBRL(o.previsto ?? (0 as Cents))} + ritmo do mês ${formatBRL(o.ritmo ?? (0 as Cents))}`

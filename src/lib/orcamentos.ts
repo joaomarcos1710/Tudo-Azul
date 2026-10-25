@@ -29,6 +29,11 @@ function cliente() {
 
 type Linha = Record<string, string | number | null>
 
+/** Função ainda não existe no banco (migration 013 não aplicada): só nesse caso a leitura cai para budget_usage. */
+function funcaoInexistente(err: { code?: string; message?: string }): boolean {
+  return err.code === 'PGRST202' || err.code === '42883' || /does not exist|could not find the function/i.test(err.message ?? '')
+}
+
 /** Orçamentos do mês com a projeção. Se a projeção ainda não existir no banco (migration 013), lê só o gasto. */
 export async function listarOrcamentos(familiaId: string, mes: string, hoje: string): Promise<OrcamentoMes[]> {
   const db = cliente()
@@ -46,6 +51,7 @@ export async function listarOrcamentos(familiaId: string, mes: string, hoje: str
       sobra: centsFromDb(r.remaining ?? 0),
     }))
   }
+  if (!funcaoInexistente(proj.error)) throw proj.error
   const uso = await db.rpc('budget_usage', { p_household: familiaId, p_month: primeiro })
   if (uso.error) throw uso.error
   return ((uso.data ?? []) as Linha[]).map((r) => ({
@@ -68,7 +74,12 @@ export async function definirOrcamento(familiaId: string, categoriaId: string, m
   const { error } = await db.from('budgets').insert({
     household_id: familiaId, category_id: categoriaId, month: primeiro, amount_limit: centsToDecimal(limite),
   })
-  if (error) throw error
+  if (!error) return
+  if (error.code !== '23505') throw error
+  // outra aba criou o mesmo limite no meio do caminho: atualiza em vez de acusar "já existe"
+  const retry = await db.from('budgets').update({ amount_limit: centsToDecimal(limite) })
+    .eq('household_id', familiaId).eq('category_id', categoriaId).eq('month', primeiro)
+  if (retry.error) throw retry.error
 }
 
 export async function removerOrcamento(familiaId: string, categoriaId: string, mes: string): Promise<void> {

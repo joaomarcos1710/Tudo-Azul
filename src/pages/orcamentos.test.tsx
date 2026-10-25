@@ -85,10 +85,36 @@ describe('Orçamentos', () => {
     expect(mock.listarOrcamentos).toHaveBeenLastCalledWith('h1', '2026-09', '2026-10-10')
   })
 
+  it('mês futuro com previsto acima do limite: avisa em vez de dizer que sobra', async () => {
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(0), previsto: c(40000), ritmo: c(0), projetado: c(40000), limite: c(30000), sobra: c(-10000) })])
+    const u = userEvent.setup()
+    render(<Orcamentos />)
+    await screen.findByText('Mercado')
+    await u.click(screen.getByRole('button', { name: 'Próximo mês' }))
+    expect(await screen.findByText(/Com o que já está previsto, passa do limite em R\$ 100,00/)).toBeTruthy()
+    expect(screen.queryByText(/sobram/)).toBeNull()
+  })
+
+  it('trocar de mês rápido: a resposta velha não sobrescreve a do mês atual da tela', async () => {
+    let soltarA: (v: unknown) => void = () => {}
+    const lenta = new Promise((r) => { soltarA = r })
+    mock.listarOrcamentos
+      .mockReturnValueOnce(lenta) // outubro (carga inicial), chega por último
+      .mockResolvedValueOnce([orc({ nome: 'Lazer', categoriaId: 'lazer' })]) // setembro, chega primeiro
+    const u = userEvent.setup()
+    render(<Orcamentos />)
+    await u.click(await screen.findByRole('button', { name: 'Mês anterior' }))
+    expect(await screen.findByText('Lazer')).toBeTruthy()
+    soltarA([orc({ nome: 'Mercado' })])
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByText('Mercado')).toBeNull()
+    expect(screen.getByText('Lazer')).toBeTruthy()
+  })
+
   it('nos primeiros dias do mês avisa que a projeção é instável', async () => {
     hojeFixo.v = '2026-10-03'
     render(<Orcamentos />)
-    expect(await screen.findByText(/Projeção ainda instável: só 3 dias do mês/)).toBeTruthy()
+    expect(await screen.findByText(/Nos primeiros 7 dias do mês a projeção não inclui o ritmo/)).toBeTruthy()
   })
 
   it('sem orçamento: convida a definir ou copiar do mês anterior', async () => {
