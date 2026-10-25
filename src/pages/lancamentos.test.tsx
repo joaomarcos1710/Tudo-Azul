@@ -307,13 +307,13 @@ describe('Lançamentos', () => {
 
   it('compra no cartão aparece na lista do mês com o cartão, sem editar nem excluir aqui', async () => {
     mock.listarComprasDeCartao.mockResolvedValue({ semData: 0, parcelas: [
-      { id: 'p2', data: `${hojeSP().slice(0, 8)}02`, descricao: 'Fone', cartaoNome: 'Nubank', fechamento: 17, parcela: 2, deParcelas: 3, valor: c(10000) },
+      { id: 'p2', data: `${hojeSP().slice(0, 8)}02`, compra: '2026-01-02', descricao: 'Fone', cartaoNome: 'Nubank', fechamento: 17, parcela: 2, deParcelas: 3, valor: c(10000) },
     ] })
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const item = (await screen.findByText('Fone')).closest('li') as HTMLElement
     expect(within(item).getByText('No cartão')).toBeTruthy()
     expect(within(item).getByText(/parcela 2\/3/)).toBeTruthy()
-    expect(within(item).getByText(/Nubank · a despesa conta quando a fatura fechar \(dia 17\)/)).toBeTruthy()
+    expect(within(item).getByText(/Nubank · compra de 02\/01\/2026 · a despesa conta quando a fatura fechar \(dia 17\)/)).toBeTruthy()
     expect(within(item).getByText('R$ 100,00')).toBeTruthy()
     expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
     expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()

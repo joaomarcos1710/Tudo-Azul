@@ -244,6 +244,7 @@ export default function Lancamentos() {
                           </p>
                           <p className="text-sm text-slate-500">
                             {c.cartaoNome}
+                            {c.compra !== c.data ? ` · compra de ${formatDate(c.compra)}` : ''}
                             {c.fechamento !== null ? ` · a despesa conta quando a fatura fechar (dia ${c.fechamento})` : ''}
                           </p>
                         </div>

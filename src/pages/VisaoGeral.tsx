@@ -14,7 +14,7 @@ import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatDate, formatMonth } from '../lib/format'
 import type { Cents } from '../lib/format'
-import { limitesDoMes, listarLancamentos, resumoDoMes, somarMeses } from '../lib/lancamentos'
+import { limitesDoMes, listarLancamentos, mesmoDiaAnoPassado, resumoDoMes, resumoDoPeriodo, somarMeses } from '../lib/lancamentos'
 import type { Lancamento, ResumoMes } from '../lib/lancamentos'
 import { carregarPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, regularidadeRenda } from '../lib/painel'
 import type { DespesaCategoria, DespesaDia, Patrimonio, ProximoPlanejado, RegularidadeRenda } from '../lib/painel'
@@ -30,8 +30,18 @@ interface Dados {
   dias: DespesaDia[] | null
   /** null = relatório indisponível (ex.: banco ainda sem a migration 012); [mês, últimos 12 meses] */
   regularidade: [RegularidadeRenda, RegularidadeRenda] | null
+  /** null = comparação indisponível agora; o resto da tela segue. */
+  anoPassado: ComparacaoAnual | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
+}
+
+/** Quatro totais vindos do banco (period_summary): período de agora e o mesmo período um ano antes. */
+interface ComparacaoAnual {
+  mesAtual: ResumoMes
+  mesAnterior: ResumoMes
+  anoAtual: ResumoMes
+  anoAnterior: ResumoMes
 }
 
 function saudacao(agora = new Date()): string {
@@ -76,9 +86,16 @@ export default function VisaoGeral() {
           regularidadeRenda(familiaId, de, ate),
           regularidadeRenda(familiaId, limitesDoMes(somarMeses(mes, -11))[0], ate),
         ]).catch(() => null),
+        // mesmo recorte de dias nos dois anos: este mês até hoje × o mesmo mês até o mesmo dia do ano passado; o ano até hoje idem
+        Promise.all([
+          resumoDoPeriodo(familiaId, de, hoje),
+          resumoDoPeriodo(familiaId, `${somarMeses(mes, -12)}-01`, mesmoDiaAnoPassado(hoje)),
+          resumoDoPeriodo(familiaId, `${hoje.slice(0, 4)}-01-01`, hoje),
+          resumoDoPeriodo(familiaId, `${Number(hoje.slice(0, 4)) - 1}-01-01`, mesmoDiaAnoPassado(hoje)),
+        ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior })).catch(() => null),
       ]))
-      .then(([patrimonio, resumo, anterior, c, proximos, categorias, dias, lancs, cats, regularidade]) => setDados({
-        patrimonio, mes: resumo, anterior, contas: c.contas.filter((x) => x.ativa), proximos, categorias, dias, regularidade,
+      .then(([patrimonio, resumo, anterior, c, proximos, categorias, dias, lancs, cats, regularidade, anoPassado]) => setDados({
+        patrimonio, mes: resumo, anterior, contas: c.contas.filter((x) => x.ativa), proximos, categorias, dias, regularidade, anoPassado,
         ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
         nomeCategoria: new Map(cats.map((x) => [x.id, x.nome])),
       }))
@@ -158,6 +175,19 @@ export default function VisaoGeral() {
           )}
         </Card>
 
+        {dados.anoPassado && (
+          <Card className="lg:col-span-2">
+            <CardTitle>Comparação com o ano passado</CardTitle>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <BlocoAnual titulo={`${formatMonth(mes)} até o dia ${Number(hoje.slice(8, 10))}`} rotuloAnterior={formatMonth(somarMeses(mes, -12))}
+                atual={dados.anoPassado.mesAtual} anterior={dados.anoPassado.mesAnterior} />
+              <BlocoAnual titulo={`Ano até hoje (${hoje.slice(0, 4)})`} rotuloAnterior={`mesmo período de ${Number(hoje.slice(0, 4)) - 1}`}
+                atual={dados.anoPassado.anoAtual} anterior={dados.anoPassado.anoAnterior} />
+            </div>
+            <p className="mt-3 text-xs text-slate-500">Mesmos dias nos dois anos, para a comparação ser justa. Cartão conta na data de fechamento da fatura.</p>
+          </Card>
+        )}
+
         {dados.regularidade && (
           <Card className="lg:col-span-2">
             <CardTitle>Renda regular × despesas</CardTitle>
@@ -236,6 +266,41 @@ export default function VisaoGeral() {
         </Card>
       </div>
     </>
+  )
+}
+
+/** Totais e variação: valores do banco; a % é só a razão entre dois totais. Despesa menor que a do ano passado é bom. */
+function BlocoAnual({ titulo, rotuloAnterior, atual, anterior }: { titulo: string; rotuloAnterior: string; atual: ResumoMes; anterior: ResumoMes }) {
+  const linhas: { rotulo: string; a: Cents; b: Cents; subirEhBom: boolean }[] = [
+    { rotulo: 'Despesas', a: atual.despesas, b: anterior.despesas, subirEhBom: false },
+    { rotulo: 'Receitas', a: atual.receitas, b: anterior.receitas, subirEhBom: true },
+    { rotulo: 'Resultado', a: atual.resultado, b: anterior.resultado, subirEhBom: true },
+  ]
+  return (
+    <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm">
+      <p className="font-semibold capitalize">{titulo}</p>
+      <p className="text-xs text-slate-500">comparado com {rotuloAnterior}</p>
+      <ul className="mt-2 divide-y divide-slate-200">
+        {linhas.map((l) => {
+          const v = variacao(l.a, l.b)
+          const bom = v === null ? null : (v >= 0) === l.subirEhBom
+          return (
+            <li key={l.rotulo} className="flex flex-wrap items-baseline justify-between gap-x-3 py-1.5">
+              <span className="text-slate-500">{l.rotulo}</span>
+              <span className="tabular-nums">
+                <strong>{formatBRL(l.a)}</strong>
+                <span className="ml-2 text-xs text-slate-500">antes {formatBRL(l.b)}</span>
+                {v !== null && (
+                  <span className={`ml-2 text-xs font-semibold ${bom ? 'text-positivo' : 'text-negativo'}`}>
+                    {v >= 0 ? '▲' : '▼'} {Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+                  </span>
+                )}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 
