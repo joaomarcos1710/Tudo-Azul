@@ -8,7 +8,7 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  criarCartao, definirCiclo, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
+  criarCartao, definirCiclo, definirLimite, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
   novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
@@ -25,6 +25,7 @@ import type { Cents } from '../lib/format'
 type Painel =
   | { tipo: 'novo' }
   | { tipo: 'ciclo'; cartao: Cartao }
+  | { tipo: 'limite'; cartao: Cartao }
   | { tipo: 'compra'; cartao: Cartao }
   | { tipo: 'pagar'; cartao: Cartao }
 
@@ -85,6 +86,7 @@ export default function Cartoes() {
 
       {painel?.tipo === 'novo' && <FormCartao aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'ciclo' && <FormCiclo cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
+      {painel?.tipo === 'limite' && <FormLimite cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'compra' && (
         <FormCompra cartao={painel.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />
       )}
@@ -127,6 +129,9 @@ export default function Cartoes() {
                 </dl>
               </div>
               {c.credito > 0 && <p className="mt-2 text-sm text-positivo">Crédito a receber: {formatBRL(c.credito)}</p>}
+              {c.limite !== null && c.limiteComprometido !== null && c.limiteDisponivel !== null && (
+                <Limite limite={c.limite} comprometido={c.limiteComprometido} disponivel={c.limiteDisponivel} />
+              )}
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button onClick={() => setPainel({ tipo: 'compra', cartao: c })} disabled={c.fechamento === null || painel !== null}>Nova compra</Button>
                 <Button variante="secundario" onClick={() => setPainel({ tipo: 'pagar', cartao: c })} disabled={c.fechamento === null || painel !== null}
@@ -136,6 +141,9 @@ export default function Cartoes() {
                 </Button>
                 <Button variante="fantasma" onClick={() => setPainel({ tipo: 'ciclo', cartao: c })} disabled={painel !== null}>
                   {c.fechamento === null ? 'Definir fechamento' : 'Alterar dias'}
+                </Button>
+                <Button variante="fantasma" onClick={() => setPainel({ tipo: 'limite', cartao: c })} disabled={painel !== null}>
+                  {c.limite === null ? 'Definir limite' : 'Alterar limite'}
                 </Button>
               </div>
               {c.divida <= 0 && c.fechamento !== null && (
@@ -152,6 +160,29 @@ export default function Cartoes() {
         ))}
       </ul>
     </>
+  )
+}
+
+/** Barra do limite: a proporção é só apresentação; os três valores vêm calculados do banco (card_limits). */
+function Limite({ limite, comprometido, disponivel }: { limite: Cents; comprometido: Cents; disponivel: Cents }) {
+  const passou = disponivel < 0
+  const pct = Math.max(0, Math.min(100, (comprometido / limite) * 100))
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 text-sm">
+        <span className="text-slate-500">Limite {formatBRL(limite)}</span>
+        <span className={`tabular-nums font-semibold ${passou ? 'text-negativo' : ''}`}>
+          {passou ? `Passou do limite em ${formatBRL(-disponivel as Cents)}` : `Disponível ${formatBRL(disponivel)}`}
+        </span>
+      </div>
+      <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100" role="img"
+        aria-label={`Comprometido ${formatBRL(comprometido)} de ${formatBRL(limite)}`}>
+        <div className={`h-full rounded-full ${passou ? 'bg-negativo' : 'bg-azul'}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        Comprometido {formatBRL(comprometido)}: faturas a pagar + parcelas futuras − crédito no cartão. É só acompanhamento: o app não bloqueia compras.
+      </p>
+    </div>
   )
 }
 
@@ -407,6 +438,38 @@ function FormCiclo({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Carta
         <Selecao rotulo="Dia do fechamento" valor={fechamento} aoMudar={setFechamento} opcoes={dias} todos="Escolha…" />
         <Selecao rotulo="Dia do vencimento" valor={vencimento} aoMudar={setVencimento} opcoes={dias} todos="Escolha…" />
         <p className="text-sm text-slate-600 md:col-span-2">Vale para as próximas compras. Parcelas já lançadas continuam nas faturas em que estão.</p>
+        <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
+      </form>
+    </Card>
+  )
+}
+
+function FormLimite({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao }) {
+  const [texto, setTexto] = useState(cartao.limite !== null ? formatBRL(cartao.limite).replace('R$ ', '') : '')
+  const [tentou, setTentou] = useState(false)
+  const { erro, enviando, enviar } = useEnvio(aoSalvar)
+  const vazio = texto.trim() === ''
+  const valor = vazio ? null : parseBRL(texto)
+  const invalido = !vazio && (valor === null || valor <= 0)
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    setTentou(true)
+    if (invalido) return
+    void enviar(() => definirLimite(cartao.id, valor))
+  }
+
+  return (
+    <Card className="mb-6">
+      <h2 className="mb-4 text-lg font-semibold">Limite · {cartao.nome}</h2>
+      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Field rotulo="Limite do cartão (R$)" inputMode="decimal" placeholder="Ex.: 5.800,00" value={texto}
+          onChange={(e) => setTexto(e.target.value)} erro={tentou && invalido ? 'Valor inválido. Exemplo: 5.800,00' : undefined} />
+        <p className="text-sm text-slate-600 md:col-span-2">
+          Use o limite total que o banco informa. O app mostra quanto sobra descontando faturas a pagar e parcelas futuras.
+          Deixe em branco para remover o limite. Nenhuma compra é bloqueada por causa dele.
+        </p>
         <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
       </form>
     </Card>

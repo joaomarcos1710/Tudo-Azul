@@ -16,8 +16,8 @@ import { currentMonth, formatBRL, formatDate, formatMonth } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { limitesDoMes, listarLancamentos, resumoDoMes, somarMeses } from '../lib/lancamentos'
 import type { Lancamento, ResumoMes } from '../lib/lancamentos'
-import { carregarPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados } from '../lib/painel'
-import type { DespesaCategoria, DespesaDia, Patrimonio, ProximoPlanejado } from '../lib/painel'
+import { carregarPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, regularidadeRenda } from '../lib/painel'
+import type { DespesaCategoria, DespesaDia, Patrimonio, ProximoPlanejado, RegularidadeRenda } from '../lib/painel'
 
 interface Dados {
   patrimonio: Patrimonio
@@ -28,6 +28,8 @@ interface Dados {
   /** null = os gráficos não carregaram (ex.: banco ainda sem as consultas novas); o resto da tela segue normal */
   categorias: DespesaCategoria[] | null
   dias: DespesaDia[] | null
+  /** null = relatório indisponível (ex.: banco ainda sem a migration 012); [mês, últimos 12 meses] */
+  regularidade: [RegularidadeRenda, RegularidadeRenda] | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
 }
@@ -70,9 +72,13 @@ export default function VisaoGeral() {
         listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje),
         despesasPorCategoria(familiaId, de, ate, 4).catch(() => null), despesasPorDia(familiaId, de, ate).catch(() => null),
         listarLancamentos(familiaId, mes), listarCategorias(familiaId),
+        Promise.all([
+          regularidadeRenda(familiaId, de, ate),
+          regularidadeRenda(familiaId, limitesDoMes(somarMeses(mes, -11))[0], ate),
+        ]).catch(() => null),
       ]))
-      .then(([patrimonio, resumo, anterior, c, proximos, categorias, dias, lancs, cats]) => setDados({
-        patrimonio, mes: resumo, anterior, contas: c.contas.filter((x) => x.ativa), proximos, categorias, dias,
+      .then(([patrimonio, resumo, anterior, c, proximos, categorias, dias, lancs, cats, regularidade]) => setDados({
+        patrimonio, mes: resumo, anterior, contas: c.contas.filter((x) => x.ativa), proximos, categorias, dias, regularidade,
         ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
         nomeCategoria: new Map(cats.map((x) => [x.id, x.nome])),
       }))
@@ -152,6 +158,22 @@ export default function VisaoGeral() {
           )}
         </Card>
 
+        {dados.regularidade && (
+          <Card className="lg:col-span-2">
+            <CardTitle>Renda regular × despesas</CardTitle>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <BlocoRegularidade titulo={`Em ${formatMonth(mes)}`} r={dados.regularidade[0]} />
+              <BlocoRegularidade titulo="Últimos 12 meses" r={dados.regularidade[1]} />
+            </div>
+            {dados.regularidade[1].eventual === 0 && dados.regularidade[1].regular > 0 && (
+              <p className="mt-3 text-xs text-slate-500">
+                Nenhuma receita eventual nos últimos 12 meses. Em <Link to="/categorias" className="font-semibold text-azul hover:underline">Categorias</Link> marque
+                13º, férias, PLR e restituição como eventuais para separar a renda que não se repete todo mês.
+              </p>
+            )}
+          </Card>
+        )}
+
         <Card className="lg:col-span-2 p-0">
           <div className="flex items-center justify-between px-5 pt-5">
             <CardTitle>Últimos lançamentos</CardTitle>
@@ -214,6 +236,25 @@ export default function VisaoGeral() {
         </Card>
       </div>
     </>
+  )
+}
+
+/** Valores e a % de cobertura vêm do banco (income_regularity); aqui só se apresenta. */
+function BlocoRegularidade({ titulo, r }: { titulo: string; r: RegularidadeRenda }) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm">
+      <p className="font-semibold capitalize">{titulo}</p>
+      <dl className="mt-2 grid grid-cols-2 gap-y-1">
+        <dt className="text-slate-500">Renda regular</dt><dd className="text-right tabular-nums font-semibold text-positivo">{formatBRL(r.regular)}</dd>
+        <dt className="text-slate-500">Renda eventual</dt><dd className="text-right tabular-nums font-semibold">{formatBRL(r.eventual)}</dd>
+        <dt className="text-slate-500">Despesas</dt><dd className="text-right tabular-nums font-semibold text-negativo">{formatBRL(r.despesas)}</dd>
+      </dl>
+      <p className="mt-2 text-marinho">
+        {r.cobertura === null
+          ? 'Sem despesas no período.'
+          : <>A renda regular cobre <strong>{r.cobertura.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</strong> das despesas.</>}
+      </p>
+    </div>
   )
 }
 
