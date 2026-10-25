@@ -157,6 +157,72 @@ export async function listarMovimentosDeDivida(familiaId: string, mes: string, f
   })
 }
 
+/**
+ * Uma parcela de compra no cartão, mostrada no dia da compra. Só leitura: a despesa entra no mês em que a fatura
+ * fecha (cobrança da parcela), e o total do mês vem do banco (period_summary). Compra cancelada não aparece.
+ */
+export interface ParcelaDeCartao {
+  id: string
+  data: string
+  descricao: string
+  cartaoNome: string
+  /** Dia do fechamento da fatura do cartão, para explicar quando a despesa conta. Nulo se o cartão não tem ciclo. */
+  fechamento: number | null
+  parcela: number
+  deParcelas: number
+  valor: Cents
+}
+
+export async function listarComprasDeCartao(familiaId: string, mes: string): Promise<ParcelaDeCartao[]> {
+  const [de, ate] = limitesDoMes(mes)
+  const db = cliente()
+  const parcelas: { id: string; debt_id: string; plan: string; seq: number; description: string | null; purchase_date: string; face: number | string }[] = []
+  const pagina = 1000
+  for (let inicio = 0; ; inicio += pagina) {
+    const { data, error } = await db.from('debt_installments')
+      .select('id, debt_id, plan, seq, description, purchase_date, face')
+      .eq('household_id', familiaId).gte('purchase_date', de).lte('purchase_date', ate)
+      .order('purchase_date', { ascending: false }).order('id')
+      .range(inicio, inicio + pagina - 1)
+    if (error) throw error
+    parcelas.push(...((data ?? []) as typeof parcelas))
+    if (!data || data.length < pagina) break
+  }
+  if (parcelas.length === 0) return []
+
+  // total de parcelas de cada compra (contagem, não dinheiro): o plano inteiro, mesmo as canceladas
+  const totalPorPlano = new Map<string, number>()
+  for (const p of parcelas) totalPorPlano.set(`${p.debt_id}|${p.plan}`, (totalPorPlano.get(`${p.debt_id}|${p.plan}`) ?? 0) + 1)
+
+  // parcelas com cancelamento (compra excluída) saem da lista
+  const ids = parcelas.map((p) => p.id)
+  const canceladas = new Set<string>()
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await db.from('debt_events').select('installment_id')
+      .eq('household_id', familiaId).eq('kind', 'cancel').is('voided_at', null).in('installment_id', ids.slice(i, i + 200))
+    if (error) throw error
+    for (const e of data ?? []) if (e.installment_id) canceladas.add(e.installment_id as string)
+  }
+
+  const dividas = await db.from('debts').select('id, name, closing_day').eq('household_id', familiaId).eq('kind', 'card')
+  if (dividas.error) throw dividas.error
+  const cartao = new Map((dividas.data ?? []).map((d) => [d.id, d]))
+
+  return parcelas.filter((p) => !canceladas.has(p.id) && cartao.has(p.debt_id)).map((p) => {
+    const c = cartao.get(p.debt_id)!
+    return {
+      id: p.id,
+      data: p.purchase_date,
+      descricao: p.description || 'Compra no cartão',
+      cartaoNome: c.name,
+      fechamento: c.closing_day ?? null,
+      parcela: p.seq,
+      deParcelas: totalPorPlano.get(`${p.debt_id}|${p.plan}`) ?? 1,
+      valor: centsFromDb(p.face),
+    }
+  })
+}
+
 export async function resumoDoMes(familiaId: string, mes: string): Promise<ResumoMes> {
   const [de, ate] = limitesDoMes(mes)
   const { data, error } = await cliente().rpc('period_summary', { p_household: familiaId, p_from: de, p_to: ate })
