@@ -157,6 +157,92 @@ export async function listarMovimentosDeDivida(familiaId: string, mes: string, f
   })
 }
 
+/**
+ * Uma parcela de compra no cartão, mostrada no dia da compra. Só leitura: a despesa entra no mês em que a fatura
+ * fecha (cobrança da parcela), e o total do mês vem do banco (period_summary). Compra cancelada não aparece.
+ */
+export interface ParcelaDeCartao {
+  id: string
+  data: string
+  descricao: string
+  cartaoNome: string
+  /** Dia do fechamento da fatura do cartão, para explicar quando a despesa conta. Nulo se o cartão não tem ciclo. */
+  fechamento: number | null
+  parcela: number
+  deParcelas: number
+  valor: Cents
+}
+
+export interface ComprasDeCartao {
+  parcelas: ParcelaDeCartao[]
+  /** Parcelas sem data de compra (criadas antes do ciclo de cartão): não aparecem aqui, ficam em Cartões. */
+  semData: number
+}
+
+export async function listarComprasDeCartao(familiaId: string, mes: string): Promise<ComprasDeCartao> {
+  const [de, ate] = limitesDoMes(mes)
+  const db = cliente()
+  const parcelas: { id: string; debt_id: string; plan: string; seq: number; description: string | null; purchase_date: string; face: number | string }[] = []
+  const pagina = 1000
+  for (let inicio = 0; ; inicio += pagina) {
+    const { data, error } = await db.from('debt_installments')
+      .select('id, debt_id, plan, seq, description, purchase_date, face')
+      .eq('household_id', familiaId).gte('purchase_date', de).lte('purchase_date', ate)
+      .order('purchase_date', { ascending: false }).order('id')
+      .range(inicio, inicio + pagina - 1)
+    if (error) throw error
+    parcelas.push(...((data ?? []) as typeof parcelas))
+    if (!data || data.length < pagina) break
+  }
+  if (parcelas.length === 0) return { parcelas: [], semData: await contarSemData(familiaId) }
+
+  // total de parcelas de cada compra (contagem, não dinheiro): o plano inteiro, mesmo as canceladas
+  const totalPorPlano = new Map<string, number>()
+  for (const p of parcelas) totalPorPlano.set(`${p.debt_id}|${p.plan}`, (totalPorPlano.get(`${p.debt_id}|${p.plan}`) ?? 0) + 1)
+
+  // cancelamentos (compra excluída ou desconto/estorno parcial): o que sobra de cada parcela é face − cancelado
+  const ids = parcelas.map((p) => p.id)
+  const cancelado = new Map<string, Cents>()
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await db.from('debt_events').select('installment_id, amount')
+      .eq('household_id', familiaId).eq('kind', 'cancel').is('voided_at', null).in('installment_id', ids.slice(i, i + 100))
+    if (error) throw error
+    for (const e of data ?? []) {
+      const id = e.installment_id as string
+      cancelado.set(id, ((cancelado.get(id) ?? 0) + centsFromDb(e.amount)) as Cents)
+    }
+  }
+
+  const dividas = await db.from('debts').select('id, name, closing_day').eq('household_id', familiaId).eq('kind', 'card')
+  if (dividas.error) throw dividas.error
+  const cartao = new Map((dividas.data ?? []).map((d) => [d.id, d]))
+
+  const lista = parcelas.flatMap((p) => {
+    const c = cartao.get(p.debt_id)
+    const face = centsFromDb(p.face)
+    const sobra = (face - (cancelado.get(p.id) ?? 0)) as Cents
+    if (!c || sobra <= 0) return []
+    return [{
+      id: p.id,
+      data: p.purchase_date,
+      descricao: p.description || 'Compra no cartão',
+      cartaoNome: c.name,
+      fechamento: c.closing_day ?? null,
+      parcela: p.seq,
+      deParcelas: totalPorPlano.get(`${p.debt_id}|${p.plan}`) ?? 1,
+      valor: sobra,
+    }]
+  })
+  return { parcelas: lista, semData: await contarSemData(familiaId) }
+}
+
+async function contarSemData(familiaId: string): Promise<number> {
+  const { count, error } = await cliente().from('debt_installments').select('id', { count: 'exact', head: true })
+    .eq('household_id', familiaId).is('purchase_date', null)
+  if (error) throw error
+  return count ?? 0
+}
+
 export async function resumoDoMes(familiaId: string, mes: string): Promise<ResumoMes> {
   const [de, ate] = limitesDoMes(mes)
   const { data, error } = await cliente().rpc('period_summary', { p_household: familiaId, p_from: de, p_to: ate })

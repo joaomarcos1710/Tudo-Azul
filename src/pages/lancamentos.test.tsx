@@ -8,6 +8,9 @@ import type { Cents } from '../lib/format'
 const mock = vi.hoisted(() => ({
   listarLancamentos: vi.fn(),
   listarMovimentosDeDivida: vi.fn(),
+  listarComprasDeCartao: vi.fn(),
+  listarCartoes: vi.fn(),
+  registrarCompra: vi.fn(),
   resumoDoMes: vi.fn(),
   criarLancamento: vi.fn(),
   editarLancamento: vi.fn(),
@@ -25,6 +28,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
   ...(await original<typeof import('../lib/lancamentos')>()),
   listarLancamentos: mock.listarLancamentos,
   listarMovimentosDeDivida: mock.listarMovimentosDeDivida,
+  listarComprasDeCartao: mock.listarComprasDeCartao,
   resumoDoMes: mock.resumoDoMes,
   criarLancamento: mock.criarLancamento,
   editarLancamento: mock.editarLancamento,
@@ -35,6 +39,11 @@ vi.mock('../lib/lancamentos', async (original) => ({
 vi.mock('../lib/contas', async (original) => ({
   ...(await original<typeof import('../lib/contas')>()),
   listarContas: mock.listarContas,
+}))
+vi.mock('../lib/cartoes', async (original) => ({
+  ...(await original<typeof import('../lib/cartoes')>()),
+  listarCartoes: mock.listarCartoes,
+  registrarCompra: mock.registrarCompra,
 }))
 vi.mock('../lib/categorias', async (original) => ({
   ...(await original<typeof import('../lib/categorias')>()),
@@ -65,6 +74,11 @@ beforeEach(() => {
   mock.listarCategorias.mockResolvedValue(categorias)
   mock.listarLancamentos.mockResolvedValue(lancs)
   mock.listarMovimentosDeDivida.mockResolvedValue([])
+  mock.listarComprasDeCartao.mockResolvedValue({ parcelas: [], semData: 0 })
+  mock.listarCartoes.mockResolvedValue([
+    { id: 'k1', nome: 'Nubank', fechamento: 17, vencimento: 25, ativo: true, divida: c(0), credito: c(0), compromissos: c(0) },
+  ])
+  mock.registrarCompra.mockResolvedValue(undefined)
   mock.resumoDoMes.mockResolvedValue({ receitas: c(0), despesas: c(25050), resultado: c(-25050), receitasPrevistas: c(800000), despesasPrevistas: c(0) })
   for (const f of [mock.criarLancamento, mock.editarLancamento, mock.marcarComoPago, mock.moverParaLixeira, mock.restaurarDaLixeira]) f.mockResolvedValue(undefined)
   vi.spyOn(window, 'confirm').mockReturnValue(true)
@@ -255,5 +269,121 @@ describe('Lançamentos', () => {
     // os filtros chegam ao lib (que decide o que mostrar); a tela não esconde nada por conta própria
     await u.selectOptions(screen.getByLabelText('Filtrar por tipo'), 'expense')
     await vi.waitFor(() => expect(mock.listarMovimentosDeDivida).toHaveBeenLastCalledWith('h1', expect.any(String), { tipo: 'expense' }))
+  })
+
+  it('lançamento no cartão: esconde conta e situação, registra a compra com parcelas e não cria lançamento de conta', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    expect(screen.queryByLabelText('Conta')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Situação' })).toBeNull()
+    await u.type(screen.getByLabelText('Valor (R$)'), '300,00')
+    await u.type(screen.getByLabelText('Descrição'), 'Fone')
+    await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
+    await u.clear(screen.getByLabelText('Parcelas'))
+    await u.type(screen.getByLabelText('Parcelas'), '3')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1',
+      expect.objectContaining({ descricao: 'Fone', total: 30000, parcelas: 3, categoriaId: 'mer' }), expect.any(String))
+    expect(mock.criarLancamento).not.toHaveBeenCalled()
+  })
+
+  it('cartão: parcela fora de 1 a 72 e cartão não escolhido não chamam o banco', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    await u.type(screen.getByLabelText('Valor (R$)'), '50,00')
+    await u.type(screen.getByLabelText('Descrição'), 'Pão')
+    await u.clear(screen.getByLabelText('Parcelas'))
+    await u.type(screen.getByLabelText('Parcelas'), '0')
+    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    expect(screen.getByText('Escolha o cartão.')).toBeTruthy()
+    expect(screen.getByText('De 1 a 72 parcelas.')).toBeTruthy()
+    expect(mock.registrarCompra).not.toHaveBeenCalled()
+  })
+
+  it('compra no cartão aparece na lista do mês com o cartão, sem editar nem excluir aqui', async () => {
+    mock.listarComprasDeCartao.mockResolvedValue({ semData: 0, parcelas: [
+      { id: 'p2', data: `${hojeSP().slice(0, 8)}02`, descricao: 'Fone', cartaoNome: 'Nubank', fechamento: 17, parcela: 2, deParcelas: 3, valor: c(10000) },
+    ] })
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const item = (await screen.findByText('Fone')).closest('li') as HTMLElement
+    expect(within(item).getByText('No cartão')).toBeTruthy()
+    expect(within(item).getByText(/parcela 2\/3/)).toBeTruthy()
+    expect(within(item).getByText(/Nubank · a despesa conta quando a fatura fechar \(dia 17\)/)).toBeTruthy()
+    expect(within(item).getByText('R$ 100,00')).toBeTruthy()
+    expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
+    expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
+  })
+
+  it('se as compras no cartão falharem, a lista de conta continua e só o bloco avisa', async () => {
+    mock.listarComprasDeCartao.mockRejectedValue(new Error('falhou'))
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Supermercado')).toBeTruthy()
+    expect(screen.getByText(/Não foi possível carregar as compras no cartão/)).toBeTruthy()
+  })
+
+  it('se os cartões falharem, contas e lançamentos continuam na tela', async () => {
+    mock.listarCartoes.mockRejectedValue(new Error('falhou'))
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Supermercado')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Novo lançamento' })).toBeTruthy()
+  })
+
+  it('avisa quando há parcelas antigas sem data de compra', async () => {
+    mock.listarComprasDeCartao.mockResolvedValue({ parcelas: [], semData: 2 })
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText(/2 parcelas de cartão sem data de compra não aparecem aqui/)).toBeTruthy()
+  })
+
+  it('reenvio do mesmo cartão com outro valor usa outra chave (não grava 100 quando o usuário corrigiu para 120)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    await u.type(screen.getByLabelText('Valor (R$)'), '100,00')
+    await u.type(screen.getByLabelText('Descrição'), 'Fone')
+    await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    mock.registrarCompra.mockRejectedValueOnce(new Error('failed to fetch'))
+    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    const valor = screen.getByLabelText('Valor (R$)')
+    await u.clear(valor)
+    await u.type(valor, '120,00')
+    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    const [, , chave1] = mock.registrarCompra.mock.calls[0]
+    const [, dados2, chave2] = mock.registrarCompra.mock.calls[1]
+    expect(dados2.total).toBe(12000)
+    expect(chave2).not.toBe(chave1)
+  })
+
+  it('reenvio com o mesmo conteúdo usa a mesma chave (não duplica a compra)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    await u.type(screen.getByLabelText('Valor (R$)'), '100,00')
+    await u.type(screen.getByLabelText('Descrição'), 'Fone')
+    await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    mock.registrarCompra.mockRejectedValueOnce(new Error('failed to fetch'))
+    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await screen.findByRole('alert')
+    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    expect(mock.registrarCompra.mock.calls[0][2]).toBe(mock.registrarCompra.mock.calls[1][2])
+  })
+
+  it('trocar para cartão limpa a categoria de receita (não manda categoria de outro tipo)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await u.click(screen.getByRole('radio', { name: 'Receita' }))
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'sal')
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    expect((screen.getByLabelText('Categoria') as HTMLSelectElement).value).toBe('')
   })
 })

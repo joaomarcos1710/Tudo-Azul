@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
@@ -10,6 +10,8 @@ import { Link } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias } from '../lib/categorias'
+import { listarCartoes, novaChave, registrarCompra } from '../lib/cartoes'
+import type { Cartao } from '../lib/cartoes'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
@@ -17,10 +19,10 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatDate, formatMonth, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, editarLancamento, listarLancamentos, listarMovimentosDeDivida, marcarComoPago, moverParaLixeira,
-  restaurarDaLixeira, resumoDoMes, somarMeses,
+  criarLancamento, editarLancamento, listarComprasDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
+  moverParaLixeira, restaurarDaLixeira, resumoDoMes, somarMeses,
 } from '../lib/lancamentos'
-import type { Filtros, Lancamento, MovimentoDivida, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { Filtros, Lancamento, MovimentoDivida, ParcelaDeCartao, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 
 const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', income: 'Receita', transfer: 'Transferência' }
 
@@ -38,6 +40,10 @@ export default function Lancamentos() {
   const [filtros, setFiltros] = useState<Filtros>({})
   const [lancamentos, setLancamentos] = useState<Lancamento[] | null>(null)
   const [movimentosDivida, setMovimentosDivida] = useState<MovimentoDivida[]>([])
+  const [compras, setCompras] = useState<ParcelaDeCartao[]>([])
+  const [cartoes, setCartoes] = useState<Cartao[]>([])
+  const [comprasFalharam, setComprasFalharam] = useState(false)
+  const [semDataNoBanco, setSemDataNoBanco] = useState(0)
   const [resumo, setResumo] = useState<ResumoMes | null>(null)
   const [contas, setContas] = useState<Conta[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
@@ -58,17 +64,25 @@ export default function Lancamentos() {
     Promise.all([listarContas(familiaId), listarCategorias(familiaId)])
       .then(([c, cat]) => { setContas(c.contas); setCategorias(cat) })
       .catch((err) => setErro(mensagemErroBanco(err)))
+    // cartões à parte: falha deles não tira contas e categorias da tela
+    listarCartoes(familiaId).then(setCartoes).catch(() => setCartoes([]))
   }, [familiaId])
 
   const carregar = useCallback(async () => {
     if (!familiaId || !automaticosProntos) return
     try {
       // pagamento de fatura, juros e tarifa moram em outra tabela, mas mexem na conta: entram no extrato
-      const [l, r, md] = await Promise.all([
-        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros),
+      const semFiltroDeConta = !filtros.contaId && !filtros.categoriaId && !filtros.tipo
+      // compras no cartão carregam à parte: se falharem, a lista de conta continua e só este bloco avisa
+      const compras = semFiltroDeConta ? listarComprasDeCartao(familiaId, mes).catch(() => null) : Promise.resolve(null)
+      const [l, r, md, cc] = await Promise.all([
+        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), compras,
       ])
       setLancamentos(l)
       setMovimentosDivida(md)
+      setCompras(cc?.parcelas ?? [])
+      setComprasFalharam(semFiltroDeConta && cc === null)
+      setSemDataNoBanco(cc?.semData ?? 0)
       setResumo(r)
       setErro('')
     } catch (err) {
@@ -98,10 +112,11 @@ export default function Lancamentos() {
   if (!familiaId) return null
 
   // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
-  type Item = { origem: 'lancamento'; l: Lancamento } | { origem: 'divida'; m: MovimentoDivida }
+  type Item = { origem: 'lancamento'; l: Lancamento } | { origem: 'divida'; m: MovimentoDivida } | { origem: 'cartao'; c: ParcelaDeCartao }
   const itens: (Item & { data: string })[] = [
     ...(lancamentos ?? []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
     ...movimentosDivida.map((m) => ({ origem: 'divida' as const, m, data: m.data })),
+    ...compras.map((c) => ({ origem: 'cartao' as const, c, data: c.data })),
   ].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
   const porDia: [string, Item[]][] = []
   for (const it of itens) {
@@ -178,6 +193,7 @@ export default function Lancamentos() {
           lancamento={editando === 'novo' ? null : editando}
           contas={contas}
           categorias={categorias}
+          cartoes={cartoes}
           familiaId={familiaId}
           aoSalvar={async () => { setEditando(null); await carregar() }}
           aoCancelar={() => setEditando(null)}
@@ -195,6 +211,15 @@ export default function Lancamentos() {
 
       {lancamentos === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
+      {comprasFalharam && (
+        <div className="mb-4"><Aviso tipo="info">Não foi possível carregar as compras no cartão agora. Elas continuam em Cartões.</Aviso></div>
+      )}
+      {semDataNoBanco > 0 && (
+        <div className="mb-4"><Aviso tipo="info">
+          {semDataNoBanco === 1 ? '1 parcela de cartão' : `${semDataNoBanco} parcelas de cartão`} sem data de compra não aparece{semDataNoBanco === 1 ? '' : 'm'} aqui. Veja em <Link to="/cartoes" className="font-semibold underline">Cartões</Link>.
+        </Aviso></div>
+      )}
+
       {lancamentos?.length === 0 && movimentosDivida.length === 0 && editando === null && contas.length > 0 && (
         <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
           acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
@@ -207,6 +232,28 @@ export default function Lancamentos() {
             <Card className="p-0">
               <ul className="divide-y divide-slate-100">
                 {itens.map((item) => {
+                  if (item.origem === 'cartao') {
+                    const c = item.c
+                    return (
+                      <li key={`cartao-${c.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
+                        <div className="min-w-0">
+                          <p className="font-medium">
+                            {c.descricao}
+                            {c.deParcelas > 1 && <span className="ml-2 text-xs text-slate-500">parcela {c.parcela}/{c.deParcelas}</span>}
+                            <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">No cartão</span>
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {c.cartaoNome}
+                            {c.fechamento !== null ? ` · a despesa conta quando a fatura fechar (dia ${c.fechamento})` : ''}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="tabular-nums font-semibold text-slate-700">{formatBRL(c.valor)}</span>
+                          <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
+                        </div>
+                      </li>
+                    )
+                  }
                   if (item.origem === 'divida') {
                     const m = item.m
                     return (
@@ -316,12 +363,13 @@ interface PropsForm {
   lancamento: Lancamento | null
   contas: Conta[]
   categorias: Categoria[]
+  cartoes: Cartao[]
   familiaId: string
   aoSalvar: () => Promise<void>
   aoCancelar: () => void
 }
 
-function FormLancamento({ lancamento: l, contas, categorias, familiaId, aoSalvar, aoCancelar }: PropsForm) {
+function FormLancamento({ lancamento: l, contas, categorias, cartoes, familiaId, aoSalvar, aoCancelar }: PropsForm) {
   const hoje = hojeSP()
   const ativas = contas.filter((c) => c.ativa || c.id === l?.contaId || c.id === l?.destinoId)
   const [tipo, setTipo] = useState<TipoLancamento>(l?.tipo ?? 'expense')
@@ -338,6 +386,15 @@ function FormLancamento({ lancamento: l, contas, categorias, familiaId, aoSalvar
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
+  // Onde foi: conta (dinheiro saiu/entrou agora) ou cartão (compra parcelada; a despesa conta na fatura).
+  // Só para lançamento novo: editar continua sendo conta, como antes.
+  const [onde, setOnde] = useState<'conta' | 'cartao'>('conta')
+  const [cartaoId, setCartaoId] = useState('')
+  const [parcelasTexto, setParcelasTexto] = useState('1')
+  const chaveRef = useRef<{ sig: string; chave: string } | null>(null)
+  const cartaoMode = !l && onde === 'cartao'
+  const cartoesComCiclo = cartoes.filter((c) => c.ativo && c.fechamento !== null)
+  const parcelas = Number(parcelasTexto)
 
   const valor = parseBRL(valorTexto)
   const transferencia = tipo === 'transfer'
@@ -346,7 +403,10 @@ function FormLancamento({ lancamento: l, contas, categorias, familiaId, aoSalvar
 
   const erros = {
     valor: valor === null || valor <= 0 ? 'Informe um valor maior que zero. Exemplo: 1.250,50.' : undefined,
-    conta: !contaId ? 'Escolha a conta.' : undefined,
+    conta: !cartaoMode && !contaId ? 'Escolha a conta.' : undefined,
+    cartao: cartaoMode && !cartaoId ? 'Escolha o cartão.' : undefined,
+    parcelas: cartaoMode && !(Number.isInteger(parcelas) && parcelas >= 1 && parcelas <= 72) ? 'De 1 a 72 parcelas.' : undefined,
+    descricao: cartaoMode && !descricao.trim() ? 'Descreva a compra (ex.: Fone, Mercado).' : undefined,
     destino: transferencia && (!destinoId || destinoId === contaId) ? 'Escolha uma conta de destino diferente da origem.' : undefined,
     categoria: !transferencia && !categoriaId ? 'Escolha a categoria.' : undefined,
     data: !data ? 'Informe a data.' : undefined,
@@ -359,6 +419,15 @@ function FormLancamento({ lancamento: l, contas, categorias, familiaId, aoSalvar
     setErro('')
     setEnviando(true)
     try {
+      if (cartaoMode) {
+        // mesma regra do cartão (card_purchase): parcela por fechamento; chave evita compra duplicada num reenvio
+        // mesma chave só para o mesmo conteúdo reenviado; se algo mudou, é outra compra (evita gravar um valor diferente do mostrado)
+        const sig = JSON.stringify([cartaoId, descricao.trim(), data, valor, parcelas, categoriaId])
+        if (chaveRef.current?.sig !== sig) chaveRef.current = { sig, chave: novaChave() }
+        await registrarCompra(cartaoId, { descricao: descricao.trim(), data, total: valor as Cents, parcelas, categoriaId }, chaveRef.current.chave)
+        await aoSalvar()
+        return
+      }
       const dados = {
         tipo, contaId, destinoId: transferencia ? destinoId : null, categoriaId: transferencia ? null : categoriaId,
         descricao, valor: valor as Cents, data, status: statusEfetivo, notas,
@@ -379,6 +448,19 @@ function FormLancamento({ lancamento: l, contas, categorias, familiaId, aoSalvar
       <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
 
+        {!l && (
+          <div role="radiogroup" aria-label="Onde foi lançado" className="inline-flex w-fit rounded-lg bg-slate-100 p-1 md:col-span-2">
+            {([['conta', 'Conta'], ['cartao', 'Cartão de crédito']] as const).map(([valorOnde, rotulo]) => (
+              <button key={valorOnde} type="button" role="radio" aria-checked={onde === valorOnde}
+                onClick={() => { setOnde(valorOnde); if (valorOnde === 'cartao') { setTipo('expense'); setCategoriaId('') } }}
+                className={`min-h-11 rounded-md px-4 text-sm font-semibold ${onde === valorOnde ? 'bg-white text-marinho shadow-card' : 'text-slate-600'}`}>
+                {rotulo}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!cartaoMode && (
         <div role="radiogroup" aria-label="Tipo do lançamento" className="inline-flex w-fit rounded-lg bg-slate-100 p-1 md:col-span-2">
           {(Object.keys(rotuloTipo) as TipoLancamento[]).map((t) => (
             <button key={t} type="button" role="radio" aria-checked={tipo === t}
@@ -388,14 +470,31 @@ function FormLancamento({ lancamento: l, contas, categorias, familiaId, aoSalvar
             </button>
           ))}
         </div>
+        )}
 
         <Field rotulo="Valor (R$)" inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={tentou ? erros.valor : undefined} />
-        <Field rotulo="Data" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou ? erros.data : undefined} />
-        <Field rotulo="Descrição" maxLength={200} placeholder="Ex.: Supermercado" value={descricao} onChange={(e) => setDescricao(e.target.value)} />
+        <Field rotulo={cartaoMode ? 'Data da compra' : 'Data'} type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou ? erros.data : undefined} />
+        <Field rotulo="Descrição" maxLength={200} placeholder="Ex.: Supermercado" value={descricao} onChange={(e) => setDescricao(e.target.value)}
+          erro={tentou ? erros.descricao : undefined} />
 
-        <Selecao rotulo={transferencia ? 'Da conta' : 'Conta'} valor={contaId} aoMudar={setContaId}
-          opcoes={ativas.map((c) => [c.id, c.nome])} todos={contaId ? undefined : 'Escolha…'} />
-        {tentou && erros.conta && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.conta}</p>}
+        {cartaoMode ? (
+          <>
+            <Selecao rotulo="Cartão" valor={cartaoId} aoMudar={setCartaoId}
+              opcoes={cartoesComCiclo.map((c) => [c.id, c.nome])} todos="Escolha…" />
+            {tentou && erros.cartao && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.cartao}</p>}
+            {cartoesComCiclo.length === 0 && (
+              <p className="text-sm text-slate-600 md:col-span-2">Nenhum cartão com fechamento definido. Defina em <Link to="/cartoes" className="font-semibold text-azul underline">Cartões</Link>.</p>
+            )}
+            <Field rotulo="Parcelas" type="number" min={1} max={72} value={parcelasTexto} onChange={(e) => setParcelasTexto(e.target.value)}
+              erro={tentou ? erros.parcelas : undefined} />
+          </>
+        ) : (
+          <>
+            <Selecao rotulo={transferencia ? 'Da conta' : 'Conta'} valor={contaId} aoMudar={setContaId}
+              opcoes={ativas.map((c) => [c.id, c.nome])} todos={contaId ? undefined : 'Escolha…'} />
+            {tentou && erros.conta && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.conta}</p>}
+          </>
+        )}
 
         {transferencia ? (
           <>
@@ -411,7 +510,7 @@ function FormLancamento({ lancamento: l, contas, categorias, familiaId, aoSalvar
           </>
         )}
 
-        <fieldset className="flex flex-col gap-1">
+        {!cartaoMode && <fieldset className="flex flex-col gap-1">
           <legend className="text-sm font-medium">Situação</legend>
           <div className="flex gap-4">
             {(['paid', 'planned'] as StatusLancamento[]).map((s) => (
@@ -421,18 +520,23 @@ function FormLancamento({ lancamento: l, contas, categorias, familiaId, aoSalvar
               </label>
             ))}
           </div>
-        </fieldset>
-        <Field rotulo="Observações (opcional)" maxLength={1000} value={notas} onChange={(e) => setNotas(e.target.value)} />
+        </fieldset>}
+        {!cartaoMode && <Field rotulo="Observações (opcional)" maxLength={1000} value={notas} onChange={(e) => setNotas(e.target.value)} />}
 
-        {!transferencia && conta && data && data < conta.abertura && (
+        {!transferencia && !cartaoMode && conta && data && data < conta.abertura && (
           <div className="md:col-span-2">
             <Aviso tipo="info">
               Data anterior ao saldo inicial de {conta.nome} ({formatDate(conta.abertura)}): o lançamento entra nos relatórios, mas <strong>não altera o saldo</strong> da conta.
             </Aviso>
           </div>
         )}
-        {statusEfetivo === 'planned' && (
+        {statusEfetivo === 'planned' && !cartaoMode && (
           <p className="text-sm text-slate-600 md:col-span-2">Planejado não entra no saldo nem nos totais pagos até ser marcado como pago.</p>
+        )}
+        {cartaoMode && (
+          <p className="text-sm text-slate-600 md:col-span-2">
+            Compra no cartão: não mexe no saldo da conta agora. Cada parcela vira despesa no mês em que a fatura fecha, e o pagamento da fatura é separado.
+          </p>
         )}
 
         <div className="flex gap-2 md:col-span-2">
