@@ -244,7 +244,8 @@ export default function Lancamentos() {
                           </p>
                           <p className="text-sm text-slate-500">
                             {c.cartaoNome}
-                            {c.fechamento !== null ? ` · a despesa conta quando a fatura fechar (dia ${c.fechamento})` : ''}
+                            {c.compra !== c.data ? ` · compra de ${formatDate(c.compra)}` : ''}
+                            {` · a despesa conta em ${formatDate(c.fechaEm)} (fechamento da fatura)`}
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-1">

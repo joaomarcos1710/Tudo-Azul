@@ -158,12 +158,19 @@ export async function listarMovimentosDeDivida(familiaId: string, mes: string, f
 }
 
 /**
- * Uma parcela de compra no cartão, mostrada no dia da compra. Só leitura: a despesa entra no mês em que a fatura
- * fecha (cobrança da parcela), e o total do mês vem do banco (period_summary). Compra cancelada não aparece.
+ * Uma parcela de compra no cartão. Cada parcela aparece UM mês só: a parcela k de uma compra feita no dia D aparece
+ * no dia D do mês da compra + (k − 1) (dia 31 em mês curto vira o último dia). Assim uma compra em 10x não lota o
+ * dia da compra: vira uma linha por mês. Só leitura: a despesa entra no mês em que a fatura fecha (cobrança da
+ * parcela), e o total do mês vem do banco (period_summary). Compra cancelada não aparece.
  */
 export interface ParcelaDeCartao {
   id: string
+  /** Dia em que a parcela aparece na lista (ver acima). */
   data: string
+  /** Dia em que a compra foi lançada. */
+  compra: string
+  /** Data em que a fatura fecha e a despesa passa a contar (pode ser no mês seguinte ao da linha). */
+  fechaEm: string
   descricao: string
   cartaoNome: string
   /** Dia do fechamento da fatura do cartão, para explicar quando a despesa conta. Nulo se o cartão não tem ciclo. */
@@ -179,26 +186,51 @@ export interface ComprasDeCartao {
   semData: number
 }
 
+/** Dia da compra repetido no mês p_mes (AAAA-MM); dia 31 em mês curto vira o último dia. */
+function diaNoMes(compra: string, mes: string): string {
+  const [a, m] = mes.split('-').map(Number)
+  const ultimo = new Date(Date.UTC(a, m, 0)).getUTCDate()
+  return `${mes}-${String(Math.min(Number(compra.slice(8, 10)), ultimo)).padStart(2, '0')}`
+}
+
 export async function listarComprasDeCartao(familiaId: string, mes: string): Promise<ComprasDeCartao> {
-  const [de, ate] = limitesDoMes(mes)
   const db = cliente()
-  const parcelas: { id: string; debt_id: string; plan: string; seq: number; description: string | null; purchase_date: string; face: number | string }[] = []
+  // a parcela k cai na fatura que fecha no mês da compra + (k − 1) ou no seguinte; a data de fechamento fica guardada na
+  // parcela (due_date). Por isso basta olhar o fechamento deste mês e do próximo, e conferir o mês de exibição abaixo.
+  const de = limitesDoMes(mes)[0]
+  const ate = limitesDoMes(somarMeses(mes, 1))[1]
+  type Linha = { id: string; debt_id: string; plan: string; seq: number; description: string | null; purchase_date: string | null; due_date: string; face: number | string }
+  const candidatas: Linha[] = []
   const pagina = 1000
   for (let inicio = 0; ; inicio += pagina) {
     const { data, error } = await db.from('debt_installments')
-      .select('id, debt_id, plan, seq, description, purchase_date, face')
-      .eq('household_id', familiaId).gte('purchase_date', de).lte('purchase_date', ate)
-      .order('purchase_date', { ascending: false }).order('id')
+      .select('id, debt_id, plan, seq, description, purchase_date, due_date, face')
+      .eq('household_id', familiaId).gte('due_date', de).lte('due_date', ate)
+      .order('due_date', { ascending: false }).order('id')
       .range(inicio, inicio + pagina - 1)
     if (error) throw error
-    parcelas.push(...((data ?? []) as typeof parcelas))
+    candidatas.push(...((data ?? []) as Linha[]))
     if (!data || data.length < pagina) break
   }
+  const parcelas = candidatas.flatMap((p) => {
+    if (!p.purchase_date) return []
+    const exibe = diaNoMes(p.purchase_date, somarMeses(p.purchase_date.slice(0, 7), p.seq - 1))
+    return exibe.slice(0, 7) === mes ? [{ ...p, purchase_date: p.purchase_date, exibe }] : []
+  })
   if (parcelas.length === 0) return { parcelas: [], semData: await contarSemData(familiaId) }
 
   // total de parcelas de cada compra (contagem, não dinheiro): o plano inteiro, mesmo as canceladas
+  const planos = [...new Set(parcelas.map((p) => p.plan))]
   const totalPorPlano = new Map<string, number>()
-  for (const p of parcelas) totalPorPlano.set(`${p.debt_id}|${p.plan}`, (totalPorPlano.get(`${p.debt_id}|${p.plan}`) ?? 0) + 1)
+  for (let i = 0; i < planos.length; i += 100) {
+    for (let inicio = 0; ; inicio += pagina) {
+      const { data, error } = await db.from('debt_installments').select('debt_id, plan')
+        .eq('household_id', familiaId).in('plan', planos.slice(i, i + 100)).order('id').range(inicio, inicio + pagina - 1)
+      if (error) throw error
+      for (const r of data ?? []) totalPorPlano.set(`${r.debt_id}|${r.plan}`, (totalPorPlano.get(`${r.debt_id}|${r.plan}`) ?? 0) + 1)
+      if (!data || data.length < pagina) break
+    }
+  }
 
   // cancelamentos (compra excluída ou desconto/estorno parcial): o que sobra de cada parcela é face − cancelado
   const ids = parcelas.map((p) => p.id)
@@ -224,7 +256,9 @@ export async function listarComprasDeCartao(familiaId: string, mes: string): Pro
     if (!c || sobra <= 0) return []
     return [{
       id: p.id,
-      data: p.purchase_date,
+      data: p.exibe,
+      compra: p.purchase_date,
+      fechaEm: p.due_date,
       descricao: p.description || 'Compra no cartão',
       cartaoNome: c.name,
       fechamento: c.closing_day ?? null,
@@ -233,6 +267,7 @@ export async function listarComprasDeCartao(familiaId: string, mes: string): Pro
       valor: sobra,
     }]
   })
+  lista.sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : x.parcela - y.parcela))
   return { parcelas: lista, semData: await contarSemData(familiaId) }
 }
 
@@ -245,6 +280,18 @@ async function contarSemData(familiaId: string): Promise<number> {
 
 export async function resumoDoMes(familiaId: string, mes: string): Promise<ResumoMes> {
   const [de, ate] = limitesDoMes(mes)
+  return resumoDoPeriodo(familiaId, de, ate)
+}
+
+/** Mesmo dia do ano anterior; 29/02 vira 28/02. Para comparar períodos do mesmo tamanho. */
+export function mesmoDiaAnoPassado(iso: string): string {
+  const [a, m, d] = iso.split('-').map(Number)
+  const ultimo = new Date(Date.UTC(a - 1, m, 0)).getUTCDate()
+  return `${a - 1}-${String(m).padStart(2, '0')}-${String(Math.min(d, ultimo)).padStart(2, '0')}`
+}
+
+/** Totais de um período qualquer, calculados no banco (period_summary). */
+export async function resumoDoPeriodo(familiaId: string, de: string, ate: string): Promise<ResumoMes> {
   const { data, error } = await cliente().rpc('period_summary', { p_household: familiaId, p_from: de, p_to: ate })
   if (error) throw error
   const r = ((data ?? []) as Record<string, number | string>[])[0] ?? {}

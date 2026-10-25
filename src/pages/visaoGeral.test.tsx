@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../lib/format'
 
@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   despesasPorCategoria: vi.fn(),
   despesasPorDia: vi.fn(),
   regularidadeRenda: vi.fn(),
+  resumoDoPeriodo: vi.fn(),
   listarLancamentos: vi.fn(),
   listarCategorias: vi.fn(),
 }))
@@ -25,7 +26,7 @@ vi.mock('../lib/painel', () => ({
 }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', () => ({ listarCategorias: mock.listarCategorias }))
-vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, listarLancamentos: mock.listarLancamentos }))
+vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos }))
 const cobrar = vi.hoisted(() => vi.fn())
 const gerar = vi.hoisted(() => vi.fn())
 vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar }))
@@ -63,6 +64,12 @@ beforeEach(() => {
     { id: 'l2', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'g1', descricao: 'Planejado', valor: c(100), data: '2026-10-30', status: 'planned', notas: '' },
   ])
   mock.listarCategorias.mockResolvedValue([{ id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false }])
+  // ordem do Promise.all da tela: mês até hoje, mesmo período do ano passado, ano até hoje, ano passado
+  mock.resumoDoPeriodo
+    .mockResolvedValueOnce({ receitas: c(1000000), despesas: c(600000), resultado: c(400000), receitasPrevistas: c(0), despesasPrevistas: c(0) })
+    .mockResolvedValueOnce({ receitas: c(800000), despesas: c(800000), resultado: c(0), receitasPrevistas: c(0), despesasPrevistas: c(0) })
+    .mockResolvedValueOnce({ receitas: c(9000000), despesas: c(6600000), resultado: c(2400000), receitasPrevistas: c(0), despesasPrevistas: c(0) })
+    .mockResolvedValueOnce({ receitas: c(8000000), despesas: c(6000000), resultado: c(2000000), receitasPrevistas: c(0), despesasPrevistas: c(0) })
   // 1ª chamada = mês corrente; 2ª = últimos 12 meses (mesma ordem do Promise.all da tela)
   mock.regularidadeRenda
     .mockResolvedValueOnce({ regular: c(500000), eventual: c(200000), despesas: c(400000), cobertura: 125 })
@@ -166,5 +173,39 @@ describe('Visão geral', () => {
     expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.queryByText('Renda regular × despesas')).toBeNull()
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
+  })
+
+  it('comparação com o ano passado: mesmo recorte de dias, despesa menor é bom e maior é ruim', async () => {
+    montar()
+    expect(await screen.findByText('Comparação com o ano passado')).toBeTruthy()
+    // mês: despesas 6.000 contra 8.000 = −25% (bom); ano: 66.000 contra 60.000 = +10% (ruim)
+    const bom = screen.getByText('▼ 25%')
+    expect(bom.className).toMatch(/text-positivo/)
+    const ruim = screen.getByText('▲ 10%')
+    expect(ruim.className).toMatch(/text-negativo/)
+    expect(screen.getByText(/Mesmos dias nos dois anos/)).toBeTruthy()
+    // 4 consultas de período, cada uma com datas no formato AAAA-MM-DD
+    expect(mock.resumoDoPeriodo).toHaveBeenCalledTimes(4)
+    for (const [, de, ate] of mock.resumoDoPeriodo.mock.calls) {
+      expect(de).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(ate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    }
+  })
+  it('se a comparação falhar, o resto do painel aparece', async () => {
+    mock.resumoDoPeriodo.mockReset()
+    mock.resumoDoPeriodo.mockRejectedValue(new Error('x'))
+    montar()
+    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.queryByText('Comparação com o ano passado')).toBeNull()
+    expect(screen.queryByText(/Não foi possível/)).toBeNull()
+  })
+  it('comparação: valor igual ao do ano passado fica neutro, sem seta nem cor', async () => {
+    mock.resumoDoPeriodo.mockReset()
+    const igual = { receitas: c(100000), despesas: c(50000), resultado: c(50000), receitasPrevistas: c(0), despesasPrevistas: c(0) }
+    mock.resumoDoPeriodo.mockResolvedValue(igual)
+    montar()
+    expect((await screen.findAllByText('= igual')).length).toBe(6)
+    const card = screen.getByText('Comparação com o ano passado').closest('div') as HTMLElement
+    expect(within(card.parentElement as HTMLElement).queryByText(/▲|▼/)).toBeNull()
   })
 })
