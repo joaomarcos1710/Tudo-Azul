@@ -7,6 +7,8 @@ import type { Cents } from '../lib/format'
 const mock = vi.hoisted(() => ({
   cobrarFaturasFechadas: vi.fn(),
   listarCartoes: vi.fn(),
+  listarMovimentosDoCartao: vi.fn(),
+  anularMovimentoCartao: vi.fn(),
   criarCartao: vi.fn(),
   definirCiclo: vi.fn(),
   registrarCompra: vi.fn(),
@@ -26,6 +28,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/cartoes', async (o) => ({
   ...(await o<typeof import('../lib/cartoes')>()),
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
+  listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
   listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
@@ -46,6 +49,7 @@ const fatura = (f: Partial<Fatura>): Fatura => ({
 })
 
 beforeEach(() => {
+  mock.listarMovimentosDoCartao.mockResolvedValue([])
   mock.cobrarFaturasFechadas.mockResolvedValue(0)
   mock.listarCartoes.mockResolvedValue([nubank])
   mock.listarContas.mockResolvedValue({ contas: [{ id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(500000) }], total: c(500000) })
@@ -294,5 +298,23 @@ describe('Cartões', () => {
     render(<Cartoes />)
     expect(await screen.findByText('Nubank')).toBeTruthy()
     expect(screen.getByText(/Não foi possível fechar as faturas agora/)).toBeTruthy()
+  })
+
+  it('anular um pagamento: pede confirmação, anula e recarrega; cancelar a confirmação não anula', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(0), credito: c(10000) }])
+    mock.listarMovimentosDoCartao.mockResolvedValue([
+      { id: 'ev1', data: '2026-10-24', tipo: 'pagamento', valor: c(10000), ligadoAFatura: false },
+    ])
+    mock.anularMovimentoCartao.mockResolvedValue(undefined)
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await screen.findByRole('button', { name: 'Anular' }))
+    expect(confirmar).toHaveBeenCalled()
+    expect(mock.anularMovimentoCartao).not.toHaveBeenCalled()
+    confirmar.mockReturnValue(true)
+    await u.click(screen.getByRole('button', { name: 'Anular' }))
+    expect(mock.anularMovimentoCartao).toHaveBeenCalledWith('ev1', expect.any(String))
   })
 })

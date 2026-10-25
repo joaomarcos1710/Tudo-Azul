@@ -231,3 +231,40 @@ export function situacaoFatura(f: Fatura, hoje: string): 'aberta' | 'fechada' | 
   if (f.fechamento > hoje) return 'aberta'
   return f.cobrado <= 0 || f.pago >= f.cobrado ? 'paga' : 'fechada'
 }
+
+/** Pagamentos e devoluções que mexem no saldo do cartão (os que podem ser anulados pela tela). */
+export interface MovimentoCartao {
+  id: string
+  data: string
+  tipo: 'pagamento' | 'amortizacao' | 'devolucao'
+  valor: Cents
+  /** Pagamento ligado a uma fatura (vira "fatura paga" nela). */
+  ligadoAFatura: boolean
+}
+
+export async function listarMovimentosDoCartao(cartaoId: string): Promise<MovimentoCartao[]> {
+  const { data, error } = await cliente()
+    .from('debt_events')
+    .select('id, date, kind, amount, invoice_id, created_at')
+    .eq('debt_id', cartaoId)
+    .is('voided_at', null)
+    .in('kind', ['payment', 'extra_principal', 'refund_cash'])
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(30)
+  if (error) throw error
+  const tipos: Record<string, MovimentoCartao['tipo']> = { payment: 'pagamento', extra_principal: 'amortizacao', refund_cash: 'devolucao' }
+  return (data ?? []).map((e) => ({
+    id: e.id,
+    data: e.date,
+    tipo: tipos[e.kind],
+    valor: centsFromDb(e.amount),
+    ligadoAFatura: e.invoice_id != null,
+  }))
+}
+
+/** Anula um pagamento ou devolução (correção). O banco recalcula dívida e crédito e registra o motivo. */
+export async function anularMovimentoCartao(eventoId: string, motivo: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_void', { p_event: eventoId, p_reason: motivo })
+  if (error) throw error
+}
