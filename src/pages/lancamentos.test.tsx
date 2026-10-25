@@ -160,11 +160,52 @@ describe('Lançamentos', () => {
     expect(screen.getByText(/não altera o saldo/)).toBeTruthy()
   })
 
-  it('marca planejado como pago', async () => {
+  it('marcar pago abre a confirmação com data de hoje e o valor planejado como sugestão', async () => {
+    const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Marcar pago' }))
-    expect(mock.marcarComoPago).toHaveBeenCalledWith('t2')
+    await u.click(screen.getByRole('button', { name: 'Marcar pago' }))
+    expect(mock.marcarComoPago).not.toHaveBeenCalled() // não paga no clique: pede data e valor reais
+    expect((screen.getByLabelText('Data do recebimento') as HTMLInputElement).value).toBe(hojeSP())
+    expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('8.000,00')
+    await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
+    expect(mock.marcarComoPago).toHaveBeenCalledWith('t2', { data: hojeSP(), valor: 800000 })
+  })
+
+  it('marcar pago com o valor e a data que realmente saíram (conta de luz paga diferente do estimado)', async () => {
+    const u = userEvent.setup()
+    mock.listarLancamentos.mockResolvedValue([
+      { id: 'p1', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'mer', descricao: 'Conta de luz', valor: c(15000), data: '2026-10-10', status: 'planned', notas: '' },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Marcar pago' }))
+    expect(screen.getByText(/quando e quanto saiu/)).toBeTruthy()
+    const valor = screen.getByLabelText('Valor (R$)')
+    await u.clear(valor)
+    await u.type(valor, '143,20')
+    const data = screen.getByLabelText('Data do pagamento')
+    await u.clear(data)
+    await u.type(data, '2026-10-12')
+    await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
+    expect(mock.marcarComoPago).toHaveBeenCalledWith('p1', { data: '2026-10-12', valor: 14320 })
+  })
+
+  it('marcar pago: valor inválido não chama o banco; erro do banco (período conciliado) aparece e a confirmação continua aberta', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Marcar pago' }))
+    const valor = screen.getByLabelText('Valor (R$)')
+    await u.clear(valor)
+    await u.type(valor, 'abc')
+    await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
+    expect(mock.marcarComoPago).not.toHaveBeenCalled()
+    expect(await screen.findByText(/Informe um valor maior que zero/)).toBeTruthy()
+    await u.clear(valor)
+    await u.type(valor, '10,00')
+    mock.marcarComoPago.mockRejectedValue(Object.assign(new Error('a conta já foi conciliada até 2026-10-05'), { code: '55000' }))
+    await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Confirmar pagamento' })).toBeTruthy() // continua aberta para corrigir a data
   })
 
   it('exclui para a lixeira com confirmação e permite desfazer', async () => {
