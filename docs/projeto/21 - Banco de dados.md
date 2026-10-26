@@ -23,9 +23,9 @@ Supabase (Postgres), projeto `vbhzilsqzzevaodqsenr`. **Regra:** migration aplica
 | 012 | `income_kind` (25/10) | Renda regular × eventual. |
 | 013 | `projection` (25/10) | Projeção do mês e do orçamento. |
 | **014** | `audit_fixes` (25/10, aplicada 26/10) | Correções da auditoria (ver [[Auditorias/2026-10-26 Auditoria]]). |
-| **015** | `recurrence_keep_edits` (26/10, **ainda não aplicada**) | Reajustar uma recorrência não desfaz o que foi corrigido à mão nos planejados futuros. |
+| **015** | `recurrence_keep_edits` (26/10, **aplicada em produção em 26/10/2026**) | Reajustar uma recorrência não desfaz o que foi corrigido à mão nos planejados futuros. |
 
-Total: **20 arquivos**. Até a 014, aplicadas em produção. A **015** só vai para produção pelo workflow, depois do merge e com o "pode" do dono.
+Total: **20 arquivos**, sincronizados entre o repositório e a produção em 26/10/2026. A migration 015 foi aplicada pelo workflow de produção após o merge do PR #59; ver execução 20 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580).
 
 ## Detalhes da 015
 - `recurrence_update` (mesma assinatura) atualiza cada campo do planejado — valor, descrição, categoria — **só se ainda estiver igual ao que a regra tinha antes do reajuste**. Campo diferente = corrigido à mão = fica.
