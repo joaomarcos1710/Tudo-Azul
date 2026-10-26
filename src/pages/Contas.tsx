@@ -10,7 +10,7 @@ import { useFamilia } from '../lib/FamiliaContext'
 import { criarConta, definirAtiva, editarConta, hojeSP, listarContas, rotuloTipoConta } from '../lib/contas'
 import type { Conta, TipoConta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { formatBRL, formatDate, parseBRL } from '../lib/format'
+import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 
 export default function Contas() {
@@ -119,7 +119,7 @@ interface PropsForm {
 function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
   const [nome, setNome] = useState(conta?.nome ?? '')
   const [tipo, setTipo] = useState<TipoConta>(conta?.tipo ?? 'checking')
-  const [saldoTexto, setSaldoTexto] = useState(conta ? formatBRL(conta.saldoInicial).replace('R$ ', '') : '0,00')
+  const [saldoTexto, setSaldoTexto] = useState(conta ? formatBRLCampo(conta.saldoInicial) : '0,00')
   const [abertura, setAbertura] = useState(conta?.abertura ?? hojeSP())
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
