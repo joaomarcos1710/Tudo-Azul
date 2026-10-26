@@ -16,4 +16,6 @@ npm run dev
 - `npm run build` — build de produção
 
 ## Status
-Etapa 1 (estrutura e design system) concluída. Demais áreas são telas provisórias.
+Em uso: contas, cartões, recorrentes, conferência com o extrato, orçamentos, projeção do mês e exportação CSV. Versão `AAAA.E` (ver [`docs/VERSOES.md`](docs/VERSOES.md)).
+
+O **diário do projeto** (linha do tempo, telas, banco, decisões e pendências) está em [`docs/projeto/`](docs/projeto/00%20-%20In%C3%ADcio.md) e é atualizado a cada PR.
