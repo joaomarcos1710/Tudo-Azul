@@ -386,4 +386,66 @@ describe('Lançamentos', () => {
     await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
     expect((screen.getByLabelText('Categoria') as HTMLSelectElement).value).toBe('')
   })
+
+  describe('filtros da lista', () => {
+    const opcoesDe = (rotulo: string) => Array.from((screen.getByLabelText(rotulo) as HTMLSelectElement).options).map((o) => o.textContent)
+
+    it('tipo vem antes da categoria', async () => {
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Supermercado')
+      const ordem = screen.getAllByLabelText(/^Filtrar por/).map((e) => e.previousElementSibling?.textContent)
+      expect(ordem).toEqual(['Filtrar por conta', 'Filtrar por tipo', 'Filtrar por categoria'])
+    })
+
+    it('sem tipo mostra todas as categorias; com Despesa ou Receita, só as do tipo', async () => {
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Supermercado')
+      expect(opcoesDe('Filtrar por categoria')).toEqual(['Todas as categorias', 'Mercado (despesa)', 'Salário (receita)'])
+      await u.selectOptions(screen.getByLabelText('Filtrar por tipo'), 'expense')
+      expect(opcoesDe('Filtrar por categoria')).toEqual(['Todas as categorias', 'Mercado'])
+      await u.selectOptions(screen.getByLabelText('Filtrar por tipo'), 'income')
+      expect(opcoesDe('Filtrar por categoria')).toEqual(['Todas as categorias', 'Salário'])
+    })
+
+    it('trocar o tipo limpa a categoria incompatível e mantém conta e categoria compatível', async () => {
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Supermercado')
+      await u.selectOptions(screen.getByLabelText('Filtrar por conta'), 'a2')
+      await u.selectOptions(screen.getByLabelText('Filtrar por categoria'), 'mer')
+      await u.selectOptions(screen.getByLabelText('Filtrar por tipo'), 'expense') // compatível: continua
+      await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), { contaId: 'a2', categoriaId: 'mer', tipo: 'expense' }))
+      await u.selectOptions(screen.getByLabelText('Filtrar por tipo'), 'income') // incompatível: sai; a conta fica
+      await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), { contaId: 'a2', categoriaId: undefined, tipo: 'income' }))
+      expect((screen.getByLabelText('Filtrar por categoria') as HTMLSelectElement).value).toBe('')
+    })
+
+    it('Transferência não tem categoria: seletor desabilitado e categoria limpa', async () => {
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Supermercado')
+      await u.selectOptions(screen.getByLabelText('Filtrar por categoria'), 'mer')
+      await u.selectOptions(screen.getByLabelText('Filtrar por tipo'), 'transfer')
+      const categoria = screen.getByLabelText('Filtrar por categoria') as HTMLSelectElement
+      expect(categoria.disabled).toBe(true)
+      expect(opcoesDe('Filtrar por categoria')).toEqual(['Transferência não tem categoria'])
+      await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), { categoriaId: undefined, tipo: 'transfer' }))
+      await u.selectOptions(screen.getByLabelText('Filtrar por tipo'), '') // voltar a "todos" reabilita
+      expect((screen.getByLabelText('Filtrar por categoria') as HTMLSelectElement).disabled).toBe(false)
+    })
+
+    it('"Novo lançamento" não mostra os filtros enquanto o formulário está aberto, e eles voltam ao cancelar', async () => {
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Supermercado')
+      expect(screen.getByLabelText('Filtrar por tipo')).toBeTruthy()
+      await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+      expect(screen.queryByLabelText('Filtrar por conta')).toBeNull()
+      expect(screen.queryByLabelText('Filtrar por tipo')).toBeNull()
+      expect(screen.queryByLabelText('Filtrar por categoria')).toBeNull()
+      await u.click(screen.getByRole('button', { name: 'Cancelar' }))
+      expect(screen.getByLabelText('Filtrar por tipo')).toBeTruthy()
+    })
+  })
 })
