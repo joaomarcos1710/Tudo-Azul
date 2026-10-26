@@ -1,6 +1,10 @@
-import { ROTULO_VERSAO } from '../../lib/versao'
+import { COMMIT, VERSAO } from '../../lib/versao'
 
-/** Versão do app (ano.edição), discreta: serve para dizer qual edição está rodando ao reportar algo. */
-export function Versao({ className = '' }: { className?: string }) {
-  return <p className={`text-xs ${className}`} aria-label={`Versão ${ROTULO_VERSAO}`}>Versão {ROTULO_VERSAO}</p>
+/**
+ * Versão do app (ano.edição), discreta, em todas as telas. Com `comCommit` (tela Família) mostra também o
+ * commit do build, útil para saber exatamente qual código está rodando ao reportar algo.
+ */
+export function Versao({ className = '', comCommit = false }: { className?: string; comCommit?: boolean }) {
+  const rotulo = comCommit && COMMIT ? `${VERSAO} · ${COMMIT}` : VERSAO
+  return <p className={`text-xs ${className}`} aria-label={`Versão ${rotulo}`}>Versão {rotulo}</p>
 }
