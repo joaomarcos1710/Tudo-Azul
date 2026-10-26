@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { itensNavegacao } from './navegacao'
 import { Marca } from './Marca'
+import { Versao } from './Versao'
 
 const base = 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
 
@@ -33,6 +34,7 @@ export function AppShell() {
         <button type="button" onClick={sair} className={`${base} mt-auto text-blue-100 hover:bg-white/10`}>
           Sair
         </button>
+        <Versao className="px-3 pt-2 text-blue-200/70" />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
