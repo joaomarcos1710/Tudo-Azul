@@ -16,7 +16,7 @@ import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatDate, formatMonth, parseBRL } from '../lib/format'
+import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
   criarLancamento, editarLancamento, listarComprasDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
@@ -361,7 +361,7 @@ function PainelPagar({ lancamento: l, nomeConta, aoConfirmar, aoCancelar }: {
   lancamento: Lancamento; nomeConta: string; aoConfirmar: () => Promise<void>; aoCancelar: () => void
 }) {
   const [data, setData] = useState(hojeSP())
-  const [valorTexto, setValorTexto] = useState(formatBRL(l.valor).replace('R$ ', ''))
+  const [valorTexto, setValorTexto] = useState(formatBRLCampo(l.valor))
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -424,7 +424,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const hoje = hojeSP()
   const ativas = contas.filter((c) => c.ativa || c.id === l?.contaId || c.id === l?.destinoId)
   const [tipo, setTipo] = useState<TipoLancamento>(l?.tipo ?? (inicial && inicial !== 'cartao' ? inicial : 'expense'))
-  const [valorTexto, setValorTexto] = useState(l ? formatBRL(l.valor).replace('R$ ', '') : '')
+  const [valorTexto, setValorTexto] = useState(l ? formatBRLCampo(l.valor) : '')
   const [data, setData] = useState(l?.data ?? hoje)
   const [descricao, setDescricao] = useState(l?.descricao ?? '')
   const [contaId, setContaId] = useState(l?.contaId ?? ativas[0]?.id ?? '')

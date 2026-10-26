@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { PointerEvent } from 'react'
 import { formatBRL, formatDate } from '../../lib/format'
+import { MASCARA, valoresOcultos } from '../../lib/privacidade'
 import type { Cents } from '../../lib/format'
 import { COR_LINHA } from './cores'
 
@@ -12,6 +13,7 @@ export interface PontoDia {
 
 /** "R$ 1,5 mil" para os rótulos do eixo (os valores exatos ficam no tooltip). */
 export function brlCompacto(c: number): string {
+  if (valoresOcultos()) return MASCARA
   const reais = c / 100
   if (Math.abs(reais) >= 1000) return `R$ ${(reais / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`
   return `R$ ${Math.round(reais).toLocaleString('pt-BR')}`

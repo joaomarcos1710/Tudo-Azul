@@ -11,7 +11,7 @@ import { agrupar, listarCategorias } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatMonth, parseBRL } from '../lib/format'
+import { currentMonth, formatBRL, formatBRLCampo, formatMonth, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { somarMeses } from '../lib/lancamentos'
 import { copiarDoMesAnterior, definirOrcamento, listarOrcamentos, removerOrcamento } from '../lib/orcamentos'
@@ -222,7 +222,7 @@ function FormOrcamento({ titulo, categorias, inicial, aoSalvar, aoCancelar }: {
   aoCancelar: () => void
 }) {
   const [categoriaId, setCategoriaId] = useState('')
-  const [texto, setTexto] = useState(inicial !== undefined ? formatBRL(inicial).replace('R$ ', '') : '')
+  const [texto, setTexto] = useState(inicial !== undefined ? formatBRLCampo(inicial) : '')
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)

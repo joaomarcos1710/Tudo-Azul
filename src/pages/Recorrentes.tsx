@@ -15,7 +15,7 @@ import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { formatBRL, formatDate, parseBRL } from '../lib/format'
+import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
 import {
   criarRecorrencia, editarRecorrencia, encerrarRecorrencia, listarRecorrencias, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
@@ -162,7 +162,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
   const cartoesComCiclo = cartoes.filter((c) => c.ativo && c.fechamento !== null)
   const [tipo, setTipo] = useState<TipoRecorrencia>(r?.tipo ?? 'expense')
   const [descricao, setDescricao] = useState(r?.descricao ?? '')
-  const [valorTexto, setValorTexto] = useState(r ? formatBRL(r.valor).replace('R$ ', '') : '')
+  const [valorTexto, setValorTexto] = useState(r ? formatBRLCampo(r.valor) : '')
   const [dia, setDia] = useState(r ? String(r.dia) : '')
   const [inicio, setInicio] = useState(r?.inicio ?? hojeSP())
   const [contaId, setContaId] = useState(r?.contaId ?? contasAtivas[0]?.id ?? '')

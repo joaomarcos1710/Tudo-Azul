@@ -19,7 +19,7 @@ import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { asCents, formatBRL, formatDate, formatMonth, parseBRL } from '../lib/format'
+import { asCents, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 
 type Painel =
@@ -450,7 +450,7 @@ function FormCiclo({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Carta
 }
 
 function FormLimite({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao }) {
-  const [texto, setTexto] = useState(cartao.limite !== null ? formatBRL(cartao.limite).replace('R$ ', '') : '')
+  const [texto, setTexto] = useState(cartao.limite !== null ? formatBRLCampo(cartao.limite) : '')
   const [tentou, setTentou] = useState(false)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
   const vazio = texto.trim() === ''
@@ -552,7 +552,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
   const ativas = contas.filter((c) => c.ativa)
   const [contaId, setContaId] = useState(ativas[0]?.id ?? '')
   // com fatura fechada, sugere a dívida; sem fatura, é pagamento adiantado e o valor fica por conta do dono
-  const [valorTexto, setValorTexto] = useState(cartao.divida > 0 ? formatBRL(cartao.divida).replace('R$ ', '') : '')
+  const [valorTexto, setValorTexto] = useState(cartao.divida > 0 ? formatBRLCampo(cartao.divida) : '')
   const [data, setData] = useState(hojeSP())
   const [fatura, setFatura] = useState<Fatura | null>(null)
   // 'carregando' bloqueia o envio: sem saber qual fatura quitar, o pagamento viraria adiantamento (crédito) em vez de quitar a fatura
@@ -640,7 +640,7 @@ function PainelReabrir({ cartaoId, fatura, aoFechar, aoConcluir }: {
 }
 
 function PainelEditar({ item, aoFechar, aoConcluir }: { item: ItemFatura; aoFechar: () => void; aoConcluir: () => Promise<void> }) {
-  const [valorTexto, setValorTexto] = useState(formatBRL(item.valor).replace('R$ ', '').replace(/\u00a0/g, ''))
+  const [valorTexto, setValorTexto] = useState(formatBRLCampo(item.valor).replace(/\u00a0/g, ''))
   const [tentou, setTentou] = useState(false)
   const { erro, enviando, enviar } = useEnvio(aoConcluir)
   const valor = parseBRL(valorTexto)

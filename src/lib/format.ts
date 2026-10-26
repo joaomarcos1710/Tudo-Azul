@@ -1,4 +1,5 @@
 /** Formatadores pt-BR. Valores monetários em BRL, datas em DD/MM/AAAA. */
+import { MASCARA, valoresOcultos } from './privacidade'
 
 /**
  * Dinheiro no front é sempre `Cents`: centavos inteiros (decisão 11, MODELO-DE-DADOS.md §5).
@@ -17,12 +18,25 @@ export function asCents(n: number): Cents | null {
   return Number.isSafeInteger(n) && Math.abs(n) <= MAX_CENTS ? (n as Cents) : null
 }
 
-/** 125050 -> "R$ 1.250,50"; -3000 -> "-R$ 30,00". Só formata, sem aritmética em reais. */
-export function formatBRL(cents: Cents): string {
+function brlReal(cents: Cents): string {
   const abs = Math.abs(cents)
   const reais = milhar.format(Math.floor(abs / 100))
   const centavos = String(abs % 100).padStart(2, '0')
   return `${cents < 0 ? '-' : ''}R$ ${reais},${centavos}`
+}
+
+/**
+ * 125050 -> "R$ 1.250,50"; -3000 -> "-R$ 30,00". Só formata, sem aritmética em reais.
+ * Para MOSTRAR na tela: com "ocultar valores" ligado devolve a máscara. Nunca use para preencher campo de
+ * edição ou qualquer coisa que depois seja lida de volta: para isso existe `formatBRLCampo`.
+ */
+export function formatBRL(cents: Cents): string {
+  return valoresOcultos() ? MASCARA : brlReal(cents)
+}
+
+/** "1.250,50" / "-30,00": o valor de verdade (sem "R$ "), para preencher campos de edição; nunca é mascarado. */
+export function formatBRLCampo(cents: Cents): string {
+  return brlReal(cents).replace('R$ ', '')
 }
 
 /**
