@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { limitesDoMes, somarMeses } from './lancamentos'
 import {
-  diasDoIntervalo, intervaloDoPeriodo, MAX_DIAS_PERSONALIZADO, periodoAnterior, periodoQueContem,
+  DATA_MAX, DATA_MIN, diasDoIntervalo, intervaloDoPeriodo, MAX_DIAS_PERSONALIZADO, periodoAnterior, periodoQueContem,
   periodoSeguinte, PeriodoInvalidoError, rotuloDoPeriodo, validarPersonalizado,
   type Periodo,
 } from './periodos'
@@ -56,11 +56,16 @@ describe('mês-calendário', () => {
     expect(validarPersonalizado('2000-02-29', '2000-03-01')).toMatchObject({ ok: true, dias: 2 })
     expect(diasDoIntervalo('2000-02-28', '2000-03-01')).toBe(3)
     expect(periodoQueContem('2000-02-29', { dia: null })).toEqual(mes('2000-02'))
-    // 2100: 29/02 não existe; de 28/02 a 01/03 são só 2 dias. (O mês 2100-02 fica fora da faixa de
-    // mês/ciclo, 2000-01 a 2099-12, por isso a prova de 2100 é feita pela validação de datas.)
+    // 2100: fevereiro inteiro está depois do último dia que o banco grava (2100-01-01). A regra do
+    // calendário é conferida pelo motivo do erro: 29/02/2100 não EXISTE (a data é checada antes da faixa),
+    // enquanto 28/02/2100 existe e só está FORA da faixa. Se 2100 fosse bissexto, as duas dariam fora_da_faixa.
     expect(validarPersonalizado('2100-02-29', '2100-03-01')).toMatchObject({ ok: false, motivo: 'data_inexistente' })
-    expect(validarPersonalizado('2100-02-28', '2100-03-01')).toMatchObject({ ok: true, dias: 2 })
-    expect(diasDoIntervalo('2100-02-28', '2100-03-01')).toBe(2)
+    expect(validarPersonalizado('2100-02-28', '2100-03-01')).toMatchObject({ ok: false, motivo: 'fora_da_faixa' })
+    expect(() => periodoQueContem('2100-02-29', { dia: null })).toThrow(/não existe/)
+    expect(() => periodoQueContem('2100-02-28', { dia: null })).toThrow(/01\/01\/2100/)
+    // comparação com um ano comum e um bissexto dentro da faixa
+    expect(validarPersonalizado('2099-02-29', '2099-03-01')).toMatchObject({ ok: false, motivo: 'data_inexistente' })
+    expect(validarPersonalizado('2096-02-29', '2096-03-01')).toMatchObject({ ok: true, dias: 2 })
   })
 
   it('período que contém uma data, sem configuração, é o mês dela', () => {
@@ -161,8 +166,9 @@ describe('ciclo: todos os dias de início, 2000 a 2099', () => {
       const refs = todosOsMeses()
       const intervalos = refs.map((r) => iv(ciclo(D, r)))
       let i = 0
-      // do primeiro dia do primeiro ciclo ao último dia do último ciclo
-      for (let t = dia(intervalos[0].de); t <= dia(intervalos[intervalos.length - 1].ate); t += MS) {
+      // do primeiro dia do primeiro ciclo ao último dia que pode ser informado (DATA_MAX ou o fim do último ciclo)
+      const fim = Math.min(dia(intervalos[intervalos.length - 1].ate), dia(DATA_MAX))
+      for (let t = dia(intervalos[0].de); t <= fim; t += MS) {
         const d = iso(t)
         while (intervalos[i].ate < d) i++
         const donos = [intervalos[i], intervalos[i + 1]].filter((x) => x && x.de <= d && d <= x.ate)
@@ -217,12 +223,23 @@ describe('personalizado: validação', () => {
     }
   })
 
-  it('recusa datas fora de 2000-01-01 a 2100-12-31 e aceita as bordas', () => {
-    expect(validarPersonalizado('1999-12-31', '2000-01-05')).toMatchObject({ ok: false, motivo: 'fora_da_faixa' })
+  it('faixa igual à do banco: 2000-01-01 a 2100-01-01, com os dois extremos incluídos', () => {
+    expect(DATA_MIN).toBe('2000-01-01')
+    expect(DATA_MAX).toBe('2100-01-01')
+    // extremos aceitos, inclusive o intervalo de um dia em cada ponta
+    expect(validarPersonalizado('2000-01-01', '2000-01-01')).toMatchObject({ ok: true, dias: 1 })
+    expect(validarPersonalizado('2100-01-01', '2100-01-01')).toMatchObject({ ok: true, dias: 1 })
+    expect(validarPersonalizado('2000-01-01', '2000-01-31')).toMatchObject({ ok: true, dias: 31 })
+    expect(validarPersonalizado('2099-01-01', '2100-01-01')).toMatchObject({ ok: true, dias: 366 }) // 365 + 1
+    // um dia além de cada extremo: recusado, nunca cortado
+    const antes = validarPersonalizado('1999-12-31', '2000-01-05')
+    expect(antes).toMatchObject({ ok: false, motivo: 'fora_da_faixa' })
+    if (!antes.ok) expect(antes.mensagem).toBe('Use datas entre 01/01/2000 e 01/01/2100.')
+    expect(validarPersonalizado('2099-12-31', '2100-01-02')).toMatchObject({ ok: false, motivo: 'fora_da_faixa' })
     expect(validarPersonalizado('2100-12-30', '2101-01-01')).toMatchObject({ ok: false, motivo: 'fora_da_faixa' })
     expect(validarPersonalizado('0050-01-01', '2000-01-05')).toMatchObject({ ok: false, motivo: 'fora_da_faixa' })
-    expect(validarPersonalizado('2000-01-01', '2000-01-31')).toMatchObject({ ok: true })
-    expect(validarPersonalizado('2100-12-01', '2100-12-31')).toMatchObject({ ok: true })
+    expect(() => diasDoIntervalo('2099-12-31', '2100-01-02')).toThrow(PeriodoInvalidoError)
+    expect(() => iv({ tipo: 'personalizado', de: '2099-12-31', ate: '2100-01-02' })).toThrow(/01\/01\/2100/)
   })
 
   it('não corrige nada: o intervalo devolvido é exatamente o informado', () => {
@@ -261,9 +278,21 @@ describe('personalizado: navegação', () => {
     })
   })
 
-  it('não navega para fora da faixa: lança em vez de devolver outro período', () => {
-    expect(() => periodoAnterior({ tipo: 'personalizado', de: '2000-01-01', ate: '2000-01-10' })).toThrow(PeriodoInvalidoError)
-    expect(() => periodoSeguinte({ tipo: 'personalizado', de: '2100-12-20', ate: '2100-12-31' })).toThrow(PeriodoInvalidoError)
+  it('nos limites da faixa: chega exatamente às pontas e, além delas, lança (sem encurtar o período)', () => {
+    // chega exatamente ao primeiro e ao último dia permitidos, com a mesma duração
+    expect(periodoAnterior({ tipo: 'personalizado', de: '2000-01-11', ate: '2000-01-20' }))
+      .toEqual({ tipo: 'personalizado', de: '2000-01-01', ate: '2000-01-10' })
+    expect(periodoSeguinte({ tipo: 'personalizado', de: '2099-12-23', ate: '2099-12-27' }))
+      .toEqual({ tipo: 'personalizado', de: '2099-12-28', ate: '2100-01-01' })
+    // um passo além: erro, e nunca um período mais curto que caiba
+    expect(() => periodoAnterior({ tipo: 'personalizado', de: '2000-01-01', ate: '2000-01-10' })).toThrow(/01\/01\/2000/)
+    expect(() => periodoAnterior({ tipo: 'personalizado', de: '2000-01-05', ate: '2000-01-14' })).toThrow(PeriodoInvalidoError)
+    expect(() => periodoSeguinte({ tipo: 'personalizado', de: '2099-12-28', ate: '2100-01-01' })).toThrow(/01\/01\/2100/)
+    expect(() => periodoSeguinte({ tipo: 'personalizado', de: '2099-12-25', ate: '2099-12-30' })).toThrow(PeriodoInvalidoError)
+    // período de 366 dias encostado na ponta final
+    const ano: Periodo = { tipo: 'personalizado', de: '2099-01-01', ate: '2100-01-01' }
+    expect(periodoAnterior(ano)).toEqual({ tipo: 'personalizado', de: '2097-12-31', ate: '2098-12-31' }) // 366 dias
+    expect(() => periodoSeguinte(ano)).toThrow(PeriodoInvalidoError)
   })
 })
 
@@ -287,13 +316,13 @@ describe('entradas inválidas: erro explícito, nunca outro período', () => {
   })
 
   it('periodoQueContem recusa data inválida ou fora da faixa', () => {
-    for (const d of ['2027-02-29', '2026-10-5', '', '1999-12-31', '2101-01-01']) {
+    for (const d of ['2027-02-29', '2026-10-5', '', '1999-12-31', '2100-01-02', '2101-01-01']) {
       expect(() => periodoQueContem(d, { dia: null })).toThrow(PeriodoInvalidoError)
       expect(() => periodoQueContem(d, { dia: 20 })).toThrow(PeriodoInvalidoError)
     }
   })
 
-  it('bordas da faixa de referência: o ciclo que não cabe em 2000-01 a 2100-12 lança', () => {
+  it('bordas da faixa de referência (2000-01 a 2099-12): fora dela, erro explícito', () => {
     expect(par(ciclo(20, '2000-01'))).toEqual(['2000-01-20', '2000-02-19'])
     expect(par(ciclo(20, '2099-12'))).toEqual(['2099-12-20', '2100-01-19'])
     expect(() => periodoAnterior(ciclo(20, '2000-01'))).toThrow(PeriodoInvalidoError)
@@ -303,8 +332,6 @@ describe('entradas inválidas: erro explícito, nunca outro período', () => {
     // 01/01/2000 com D=20 pertence ao ciclo de dez/1999, fora da faixa
     expect(() => periodoQueContem('2000-01-05', { dia: 20 })).toThrow(PeriodoInvalidoError)
     expect(periodoQueContem('2000-01-05', { dia: 1 })).toEqual(ciclo(1, '2000-01'))
-    // com D=1 o último ciclo é 2100-12, fora de MES_MAX, então também lança
-    expect(() => periodoQueContem('2100-12-31', { dia: 1 })).toThrow(PeriodoInvalidoError)
     expect(periodoQueContem('2099-12-31', { dia: 1 })).toEqual(ciclo(1, '2099-12'))
     // 2100-01-01 é a última data que o banco grava: sem período no mês-calendário e com D=1;
     // com D>=2 ela cai no ciclo de dez/2099
@@ -315,6 +342,40 @@ describe('entradas inválidas: erro explícito, nunca outro período', () => {
     expect(() => periodoQueContem('2000-01-30', { dia: 31 })).toThrow(PeriodoInvalidoError)
     expect(periodoQueContem('2000-01-31', { dia: 31 })).toEqual(ciclo(31, '2000-01'))
   })
+
+  it('ciclos que cruzam a fronteira: o de dez/2099 vai até jan/2100 e não é cortado', () => {
+    // D=2 termina exatamente no último dia do banco; D>=3 passa dele (sem dado depois de 2100-01-01)
+    expect(par(ciclo(2, '2099-12'))).toEqual(['2099-12-02', '2100-01-01'])
+    expect(par(ciclo(3, '2099-12'))).toEqual(['2099-12-03', '2100-01-02'])
+    expect(par(ciclo(31, '2099-12'))).toEqual(['2099-12-31', '2100-01-30'])
+    expect(rotuloDoPeriodo(ciclo(31, '2099-12'))).toBe('Ciclo de dezembro/2099 · 31/12/2099 a 30/01/2100')
+    // todas as datas do banco dentro desse ciclo têm período; 2100-01-01 inclusive
+    for (let D = 2; D <= 31; D++) {
+      expect(periodoQueContem('2100-01-01', { dia: D })).toEqual(ciclo(D, '2099-12'))
+      expect(periodoQueContem(`2099-12-${String(Math.min(D, 31)).padStart(2, '0')}`, { dia: D })).toEqual(ciclo(D, '2099-12'))
+    }
+    // o seguinte já é ref 2100-01: erro, e não um ciclo encurtado
+    expect(() => periodoSeguinte(ciclo(31, '2099-12'))).toThrow(PeriodoInvalidoError)
+    // no começo: o primeiro ciclo é o de jan/2000 e o anterior não existe
+    expect(par(ciclo(31, '2000-01'))).toEqual(['2000-01-31', '2000-02-28'])
+    expect(() => periodoAnterior(ciclo(2, '2000-01'))).toThrow(PeriodoInvalidoError)
+  })
+
+  it('D=1 é o mês-calendário: mesmo intervalo, mesma data → mesmo período e mesma navegação', () => {
+    for (const m of todosOsMeses()) {
+      const [de, ate] = limitesDoMes(m)
+      for (const d of [de, ate]) {
+        expect(iv(periodoQueContem(d, { dia: 1 }))).toEqual(iv(periodoQueContem(d, { dia: null })))
+      }
+    }
+    for (const m of todosOsMeses().slice(1, -1)) {
+      expect(iv(periodoSeguinte(ciclo(1, m)))).toEqual(iv(periodoSeguinte(mes(m))))
+      expect(iv(periodoAnterior(ciclo(1, m)))).toEqual(iv(periodoAnterior(mes(m))))
+    }
+    // e falham nos mesmos lugares
+    expect(() => periodoQueContem('2100-01-01', { dia: 1 })).toThrow(PeriodoInvalidoError)
+    expect(() => periodoQueContem('2100-01-01', { dia: null })).toThrow(PeriodoInvalidoError)
+  }, 60_000)
 
   it('tipo desconhecido', () => {
     // @ts-expect-error tipo inexistente

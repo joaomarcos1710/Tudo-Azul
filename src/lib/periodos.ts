@@ -40,12 +40,18 @@ export interface ConfigPeriodo {
 }
 
 /**
- * Faixa de datas aceita pelo personalizado e por `periodoQueContem`. Atenção: o banco só grava datas de
- * 2000-01-01 a 2100-01-01 (CHECK das tabelas), então de 2100-01-02 em diante não há dado para mostrar.
+ * Datas aceitas (personalizado, `periodoQueContem`, `diasDoIntervalo`): as mesmas que o banco grava.
+ * Nas tabelas a regra é `between date '2000-01-01' and date '2100-01-01'`, que inclui os dois extremos.
  */
 export const DATA_MIN: DataISO = '2000-01-01'
-export const DATA_MAX: DataISO = '2100-12-31'
-/** Meses de referência de mês/ciclo: de 2000-01 a 2099-12 (1.200 meses). */
+export const DATA_MAX: DataISO = '2100-01-01'
+/**
+ * Meses de referência de mês/ciclo: de 2000-01 a 2099-12 (1.200 meses). Consequências, tratadas com erro:
+ *  - 2100-01-01 não tem mês-calendário nem ciclo com D=1 (seria o mês 2100-01);
+ *  - com D>=2, os dias 2000-01-01 a 2000-01-(D-1) pertenceriam ao ciclo de dez/1999.
+ * O ciclo de dez/2099 com D>=3 termina em jan/2100, depois de DATA_MAX (no máximo 2100-01-30, com D=31):
+ * o intervalo não é cortado; o banco simplesmente não tem dado depois de 2100-01-01.
+ */
 export const MES_MIN: MesISO = '2000-01'
 export const MES_MAX: MesISO = '2099-12'
 /** Limite do personalizado, contando os dois extremos. */
@@ -83,7 +89,7 @@ function diasNoMes(a: number, m: number): number {
 
 const dd = (n: number) => String(n).padStart(2, '0')
 
-/** Dias desde 1970-01-01; só chamar com ano já dentro da faixa (2000–2101). */
+/** Dias desde 1970-01-01; só chamar com ano de 2000 a 2100 (fim de ciclo de dez/2099 cai em 2100). */
 function epoca(a: number, m: number, d: number): number {
   return Math.round(Date.UTC(a, m - 1, d) / MS_DIA)
 }
@@ -116,7 +122,7 @@ function lerData(texto: unknown): { a: number; m: number; d: number } | Falha {
     return { motivo: 'data_inexistente', mensagem: `A data ${texto} não existe.` }
   }
   if (texto < DATA_MIN || texto > DATA_MAX) {
-    return { motivo: 'fora_da_faixa', mensagem: 'Use datas entre 01/01/2000 e 31/12/2100.' }
+    return { motivo: 'fora_da_faixa', mensagem: 'Use datas entre 01/01/2000 e 01/01/2100.' }
   }
   return { a, m, d }
 }

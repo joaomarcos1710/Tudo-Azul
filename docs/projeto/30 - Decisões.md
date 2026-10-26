@@ -21,6 +21,6 @@ tags: [tudo-azul, decisoes]
 | Inspiração de outros apps: só estrutura de ideias | Não copiar marca, texto, tela ou código |
 | Documentação do projeto vive no repositório (`docs/projeto/`), atualizada a cada PR; Obsidian é opcional | A máquina de trabalho é temporária; o repositório é o que persiste e tem histórico |
 | Períodos financeiros: mês-calendário continua o padrão; ciclo com dia de início 1–31 (ajusta ao último dia do mês curto), nomeado pelo mês em que começa | Quem recebe fora do dia 1 enxerga o mês dele; sem configuração nada muda |
-| Período personalizado: no máximo 366 dias contando os dois extremos; datas de 2000 a 2100 | Cabe nos gráficos do banco (`daily_expenses` aceita até 367 inclusivos) sem resultado vazio silencioso |
+| Período personalizado: no máximo 366 dias contando os dois extremos; datas de 01/01/2000 a 01/01/2100, a mesma faixa (inclusiva) do banco; fora dela, erro explícito, nunca corte | Cabe nos gráficos do banco (`daily_expenses` aceita até 367 inclusivos) sem resultado vazio silencioso |
 | Orçamento e projeção continuam mensais; saldo não depende de período; cartão segue as próprias regras | Não misturar intervalos nem mudar regra financeira para totais "parecerem" iguais |
 | Ciclo é preferência da família (só o dono altera); sem preferência individual nesta fase | Casais com datas de recebimento diferentes ficam como limitação conhecida |
