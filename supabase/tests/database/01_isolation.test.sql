@@ -112,7 +112,8 @@ select is(pg_temp.rows_of($q$update public.transactions set description = 'hacke
 select is(pg_temp.rows_of($q$update public.transactions set deleted_at = now() where id = pg_temp.fx('tx1')$q$), 0::bigint, 'U3 não manda lançamento da H1 para a lixeira');
 select is(pg_temp.rows_of($q$update public.budgets set amount_limit = 1 where id = pg_temp.fx('b1')$q$), 0::bigint, 'U3 não atualiza orçamento da H1');
 select is(pg_temp.rows_of($q$update public.households set name = 'hackeada' where id = pg_temp.fx('h1')$q$), 0::bigint, 'U3 não renomeia a H1');
-select is(pg_temp.rows_of($q$delete from public.accounts where id = pg_temp.fx('a1')$q$), 0::bigint, 'U3 não apaga conta da H1');
+-- migration 014: ninguém apaga conta pela API (nem a própria família): o privilégio DELETE foi revogado
+select is(pg_temp.sqlstate_of($q$delete from public.accounts where id = pg_temp.fx('a1')$q$), '42501', 'U3 não apaga conta da H1 (sem privilégio de delete)');
 select is(pg_temp.rows_of($q$delete from public.budgets where id = pg_temp.fx('b1')$q$), 0::bigint, 'U3 não apaga orçamento da H1');
 select is(pg_temp.rows_of($q$delete from public.categories where id = pg_temp.fx('c1')$q$), 0::bigint, 'U3 não apaga categoria da H1');
 
