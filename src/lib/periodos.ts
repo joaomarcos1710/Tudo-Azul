@@ -39,7 +39,10 @@ export interface ConfigPeriodo {
   dia: number | null
 }
 
-/** Faixa de datas aceita (a mesma que o banco trata). */
+/**
+ * Faixa de datas aceita pelo personalizado e por `periodoQueContem`. Atenção: o banco só grava datas de
+ * 2000-01-01 a 2100-01-01 (CHECK das tabelas), então de 2100-01-02 em diante não há dado para mostrar.
+ */
 export const DATA_MIN: DataISO = '2000-01-01'
 export const DATA_MAX: DataISO = '2100-12-31'
 /** Meses de referência de mês/ciclo: de 2000-01 a 2099-12 (1.200 meses). */

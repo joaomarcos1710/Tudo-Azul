@@ -44,11 +44,23 @@ describe('mês-calendário', () => {
   it('fevereiro comum e bissexto, e virada de ano', () => {
     expect(par(mes('2027-02'))).toEqual(['2027-02-01', '2027-02-28'])
     expect(par(mes('2028-02'))).toEqual(['2028-02-01', '2028-02-29'])
-    expect(par(mes('2099-02'))).toEqual(['2099-02-01', '2099-02-28']) // 2100 não é bissexto, mas fica fora da faixa de mês
+    expect(par(mes('2099-02'))).toEqual(['2099-02-01', '2099-02-28'])
     expect(par(mes('2096-02'))).toEqual(['2096-02-01', '2096-02-29'])
-    expect(par(mes('2000-02'))).toEqual(['2000-02-01', '2000-02-29']) // 2000 é
+    expect(par(mes('2000-02'))).toEqual(['2000-02-01', '2000-02-29'])
     expect(periodoSeguinte(mes('2026-12'))).toEqual(mes('2027-01'))
     expect(periodoAnterior(mes('2027-01'))).toEqual(mes('2026-12'))
+  })
+
+  it('anos de século: 2000 é bissexto (divisível por 400) e 2100 não é (divisível por 100)', () => {
+    // 2000: 29/02 existe nas três portas de entrada
+    expect(validarPersonalizado('2000-02-29', '2000-03-01')).toMatchObject({ ok: true, dias: 2 })
+    expect(diasDoIntervalo('2000-02-28', '2000-03-01')).toBe(3)
+    expect(periodoQueContem('2000-02-29', { dia: null })).toEqual(mes('2000-02'))
+    // 2100: 29/02 não existe; de 28/02 a 01/03 são só 2 dias. (O mês 2100-02 fica fora da faixa de
+    // mês/ciclo, 2000-01 a 2099-12, por isso a prova de 2100 é feita pela validação de datas.)
+    expect(validarPersonalizado('2100-02-29', '2100-03-01')).toMatchObject({ ok: false, motivo: 'data_inexistente' })
+    expect(validarPersonalizado('2100-02-28', '2100-03-01')).toMatchObject({ ok: true, dias: 2 })
+    expect(diasDoIntervalo('2100-02-28', '2100-03-01')).toBe(2)
   })
 
   it('período que contém uma data, sem configuração, é o mês dela', () => {
@@ -294,6 +306,14 @@ describe('entradas inválidas: erro explícito, nunca outro período', () => {
     // com D=1 o último ciclo é 2100-12, fora de MES_MAX, então também lança
     expect(() => periodoQueContem('2100-12-31', { dia: 1 })).toThrow(PeriodoInvalidoError)
     expect(periodoQueContem('2099-12-31', { dia: 1 })).toEqual(ciclo(1, '2099-12'))
+    // 2100-01-01 é a última data que o banco grava: sem período no mês-calendário e com D=1;
+    // com D>=2 ela cai no ciclo de dez/2099
+    expect(() => periodoQueContem('2100-01-01', { dia: null })).toThrow(PeriodoInvalidoError)
+    expect(() => periodoQueContem('2100-01-01', { dia: 1 })).toThrow(PeriodoInvalidoError)
+    expect(periodoQueContem('2100-01-01', { dia: 2 })).toEqual(ciclo(2, '2099-12'))
+    // primeiros dias de jan/2000 com D>=2 pertencem ao ciclo de dez/1999, fora da faixa
+    expect(() => periodoQueContem('2000-01-30', { dia: 31 })).toThrow(PeriodoInvalidoError)
+    expect(periodoQueContem('2000-01-31', { dia: 31 })).toEqual(ciclo(31, '2000-01'))
   })
 
   it('tipo desconhecido', () => {
