@@ -15,6 +15,8 @@ atualizado: 2026-10-26
 - [ ] Remover o crédito de teste de R$ 100 por **Anular** no cartão.
 - [ ] Configuração **Confirm email** no Supabase.
 - [ ] Baixar a exportação completa e conferir com o extrato (critério 3).
+- [ ] Recorrências já reajustadas antes da migration 015: conferir os planejados futuros (correções feitas à mão podem ter sido sobrescritas e não há como recuperar automaticamente).
+- [ ] Depois do merge do PR da 015: aplicar em produção pelo workflow (simular → ler o log → aplicar), só com o seu "pode".
 
 ## Próximos PRs sugeridos
 1. **Início × Análises** — separar a Visão geral (o que fazer agora × como estou indo).

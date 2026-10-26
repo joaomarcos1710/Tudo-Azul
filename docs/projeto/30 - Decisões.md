@@ -20,3 +20,4 @@ tags: [tudo-azul, decisoes]
 | Importar do Organizze só com CSV de exemplo inventado | Nunca expor dados reais |
 | Inspiração de outros apps: só estrutura de ideias | Não copiar marca, texto, tela ou código |
 | Documentação do projeto vive no repositório (`docs/projeto/`), atualizada a cada PR; Obsidian é opcional | A máquina de trabalho é temporária; o repositório é o que persiste e tem histórico |
+| Reajustar uma recorrência preserva, campo a campo, o que foi corrigido à mão nos planejados futuros (valor, descrição, categoria) | A conta chega com valor diferente e é corrigida no mês; o reajuste da regra não pode desfazer isso. Sem coluna nova: compara com o valor anterior da regra (migration 015) |
