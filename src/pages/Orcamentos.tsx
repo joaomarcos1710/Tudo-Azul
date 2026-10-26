@@ -49,15 +49,19 @@ export default function Orcamentos() {
 
   useEffect(() => { setItens(null); setAviso(''); setAdicionando(false); setEditando(null); void carregar() }, [carregar])
 
+  const [copiando, setCopiando] = useState(false)
   async function copiar() {
-    if (!familiaId) return
+    if (!familiaId || copiando) return
     setAviso('')
+    setCopiando(true)
     try {
       const n = await copiarDoMesAnterior(familiaId, mes, somarMeses(mes, -1))
       setAviso(n === 0 ? 'Nada para copiar: o mês anterior não tem limites que faltem aqui.' : `${n} ${n === 1 ? 'limite copiado' : 'limites copiados'} de ${formatMonth(somarMeses(mes, -1))}.`)
       await carregar()
     } catch (err) {
       setErro(mensagemErroBanco(err))
+    } finally {
+      setCopiando(false)
     }
   }
 
@@ -119,7 +123,7 @@ export default function Orcamentos() {
           acao={
             <div className="flex flex-wrap justify-center gap-2">
               {disponiveis.length > 0 && <Button onClick={() => setAdicionando(true)}>Definir o primeiro</Button>}
-              <Button variante="secundario" onClick={copiar}>Copiar do mês anterior</Button>
+              <Button variante="secundario" onClick={copiar} carregando={copiando}>Copiar do mês anterior</Button>
             </div>
           }
         />
@@ -164,7 +168,7 @@ export default function Orcamentos() {
       </ul>
 
       {itens !== null && itens.length > 0 && (
-        <div className="mt-4"><Button variante="secundario" onClick={copiar}>Copiar limites do mês anterior</Button></div>
+        <div className="mt-4"><Button variante="secundario" onClick={copiar} carregando={copiando}>Copiar limites do mês anterior</Button></div>
       )}
     </>
   )

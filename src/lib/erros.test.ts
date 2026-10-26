@@ -15,3 +15,11 @@ describe('mensagemErroBanco', () => {
     expect(mensagemErroBanco(new Error('Failed to fetch'))).toMatch(/Sem conexão/)
   })
 })
+
+describe('erros de rede do Safari/iOS', () => {
+  it('"Load failed" e "internet connection appears to be offline" viram "Sem conexão"', () => {
+    for (const m of ['Load failed', 'The Internet connection appears to be offline.', 'Failed to fetch']) {
+      expect(mensagemErroBanco(new Error(m)), m).toMatch(/Sem conexão/)
+    }
+  })
+})

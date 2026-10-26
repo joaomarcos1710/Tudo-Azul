@@ -23,6 +23,6 @@ export function mensagemErroBanco(erro: unknown): string {
   }
   if (e.code === '23505') return 'Já existe um registro com esse nome.'
   if (e.code === '42501') return 'Você não tem permissão para esta ação.'
-  if (/failed to fetch|network/i.test(e.message ?? '')) return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.'
+  if (/failed to fetch|network|load failed|internet connection|offline/i.test(e.message ?? '')) return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.'
   return 'Não foi possível concluir agora. Tente de novo em instantes.'
 }

@@ -46,6 +46,12 @@ describe('parseBRL (devolve centavos)', () => {
       expect(parseBRL(ruim), `entrada: "${ruim}"`).toBeNull()
     }
   })
+  it('aceita o sinal antes do R$ e R$ em minúsculas, mas segue recusando espaço no meio do número', () => {
+    expect(parseBRL('-R$ 30,00')).toBe(-3000)
+    expect(parseBRL('r$ 10')).toBe(1000)
+    expect(parseBRL('\u00a0R$ 1.250,50\u00a0')).toBe(125050)
+    expect(parseBRL('1 234,56')).toBeNull()
+  })
   it('respeita o limite de numeric(14,2)', () => {
     expect(parseBRL('999.999.999.999,99')).toBe(MAX_CENTS)
     expect(parseBRL('-999.999.999.999,99')).toBe(-MAX_CENTS)

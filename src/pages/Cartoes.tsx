@@ -267,8 +267,13 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
 
   useEffect(() => {
     if (!mes) return
+    // resposta de uma fatura que já não é a escolhida não pode preencher a lista da outra (Editar/Excluir ficariam no item errado)
+    let vivo = true
     setItens(null)
-    listarItens(cartaoId, mes).then(setItens).catch((err) => setErro(mensagemErroBanco(err)))
+    listarItens(cartaoId, mes)
+      .then((i) => { if (vivo) setItens(i) })
+      .catch((err) => { if (vivo) setErro(mensagemErroBanco(err)) })
+    return () => { vivo = false }
   }, [cartaoId, mes, versao])
 
   const nomeCategoria = new Map(categorias.map((c) => [c.id, c.nome]))
@@ -550,6 +555,8 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
   const [valorTexto, setValorTexto] = useState(cartao.divida > 0 ? formatBRL(cartao.divida).replace('R$ ', '') : '')
   const [data, setData] = useState(hojeSP())
   const [fatura, setFatura] = useState<Fatura | null>(null)
+  // 'carregando' bloqueia o envio: sem saber qual fatura quitar, o pagamento viraria adiantamento (crédito) em vez de quitar a fatura
+  const [faturaEstado, setFaturaEstado] = useState<'carregando' | 'ok' | 'falhou'>('carregando')
   const [tentou, setTentou] = useState(false)
   const [chave] = useState(novaChave)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
@@ -557,7 +564,11 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
   useEffect(() => {
     const hoje = hojeSP()
     // fatura mais antiga já fechada e não paga: é a que o pagamento quita
-    listarFaturas(cartao.id).then((fs) => setFatura(fs.find((f) => situacaoFatura(f, hoje) === 'fechada') ?? null)).catch(() => setFatura(null))
+    let vivo = true
+    listarFaturas(cartao.id)
+      .then((fs) => { if (vivo) { setFatura(fs.find((f) => situacaoFatura(f, hoje) === 'fechada') ?? null); setFaturaEstado('ok') } })
+      .catch(() => { if (vivo) { setFatura(null); setFaturaEstado('falhou') } })
+    return () => { vivo = false }
   }, [cartao.id])
 
   const valor = parseBRL(valorTexto)
@@ -567,6 +578,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
     e.preventDefault()
     setTentou(true)
     if (!contaId || valor === null || valor <= 0 || !data) return
+    if (cartao.divida > 0 && faturaEstado !== 'ok') return
     // só liga a uma fatura quando há dívida fechada; sem ela, é adiantamento (vira crédito no cartão)
     void enviar(() => pagarFatura(cartao.id, { contaId, data, valor, faturaId: cartao.divida > 0 ? fatura?.faturaId ?? null : null }, chave))
   }
@@ -595,7 +607,12 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
             <Aviso tipo="info">É mais do que tudo o que este cartão tem a pagar hoje (fatura fechada e parcelas futuras). Confira o valor antes de registrar.</Aviso>
           </div>
         )}
-        <Botoes rotulo="Registrar pagamento" enviando={enviando} aoCancelar={aoCancelar} />
+        {cartao.divida > 0 && faturaEstado === 'falhou' && (
+          <div className="md:col-span-2">
+            <Aviso tipo="erro">Não foi possível ver qual fatura este pagamento quita. Feche e abra de novo; registrar agora o deixaria como adiantamento.</Aviso>
+          </div>
+        )}
+        <Botoes rotulo="Registrar pagamento" enviando={enviando || (cartao.divida > 0 && faturaEstado !== 'ok')} aoCancelar={aoCancelar} />
       </form>
     </Card>
   )

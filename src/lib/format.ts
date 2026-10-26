@@ -37,8 +37,10 @@ export function formatBRL(cents: Cents): string {
  * Recusa: "1.2.3", "1,2,3", "1,234" (3 casas decimais), "12..5", texto.
  */
 export function parseBRL(input: string): Cents | null {
+  // trim também tira o NBSP de valores colados; aceita "R$"/"r$" e o sinal antes dele ("-R$ 30,00"). Espaço no MEIO do número
+  // continua recusado ("1 2" é ambíguo)
   const bruto = input.trim()
-  const t = bruto.startsWith('R$') ? bruto.slice(2).trim() : bruto
+  const t = bruto.replace(/^(-?)\s*r\$\s*/i, '$1')
   const inteiroMilhar = '\\d{1,3}(?:\\.\\d{3})+'
   const comVirgula = new RegExp(`^(-?)(${inteiroMilhar}|\\d+),(\\d{1,2})$`)
   const semVirgulaMilhar = new RegExp(`^(-?)(${inteiroMilhar})()$`)
