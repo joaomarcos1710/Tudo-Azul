@@ -387,6 +387,25 @@ describe('Lançamentos', () => {
     expect((screen.getByLabelText('Categoria') as HTMLSelectElement).value).toBe('')
   })
 
+  it('atalho do painel ?novo=receita abre o formulário já como receita; ?novo=cartao já como compra no cartão', async () => {
+    const { unmount } = render(<MemoryRouter initialEntries={['/lancamentos?novo=receita']}><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Novo lançamento', { selector: 'h2' })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Receita' }).getAttribute('aria-checked')).toBe('true')
+    unmount()
+    render(<MemoryRouter initialEntries={['/lancamentos?novo=cartao']}><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Novo lançamento', { selector: 'h2' })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Cartão de crédito' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('?mes=AAAA-MM abre aquele mês; valor inválido volta para o mês atual', async () => {
+    const { unmount } = render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-03']}><Lancamentos /></MemoryRouter>)
+    await screen.findByText(/março de 2026/i)
+    unmount()
+    render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-13']}><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Novo lançamento')
+    expect(screen.queryByText(/2026-13/)).toBeNull()
+  })
+
   describe('filtros da lista', () => {
     const opcoesDe = (rotulo: string) => Array.from((screen.getByLabelText(rotulo) as HTMLSelectElement).options).map((o) => o.textContent)
 
