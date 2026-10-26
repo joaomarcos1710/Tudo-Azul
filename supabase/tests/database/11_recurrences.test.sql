@@ -145,8 +145,28 @@ select is(pg_temp.divergentes(), 3::bigint, 'RC6b depois dos reajustes, só as 3
 select lives_ok($$select public.recurrence_update(pg_temp.fx('e_gas'), 'Gás encanado', 65.00, pg_temp.fx('cexp2'))$$,
                 'RC6b muda a categoria da regra do gás');
 select is(pg_temp.occ(pg_temp.fx('e_gas'), 2), '65.00|Gás encanado|' || pg_temp.fx('cexp2'), 'RC6b categoria nova chega ao mês não corrigido');
+-- o reajuste não toca planejado na LIXEIRA nem planejado com data PASSADA.
+-- Regra todo dia 1 desde o mês passado: o dia 1 do mês passado é sempre passado (qualquer que seja hoje);
+-- o do mês que vem vai para a lixeira; o de daqui a 2 meses é o controle (sem edição, deve seguir a regra).
+insert into fixture select 'e_alug', public.recurrence_create('expense', 'Aluguel', 1000.00, 1, pg_temp.mes(-1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
+select is(public.recurrence_materialize(), 4, 'RC6b aluguel: mês −1 a +2');
+create function pg_temp.alug(p_n integer) returns text language sql as $f$
+  select amount || '|' || description || '|' || category_id || '|' || status || '|' || (deleted_at is not null)
+    from public.transactions where recurrence_id = pg_temp.fx('e_alug') and date = pg_temp.mes(p_n) $f$;
+grant execute on function pg_temp.alug(integer) to public;
+update public.transactions set deleted_at = now() where recurrence_id = pg_temp.fx('e_alug') and date = pg_temp.mes(1);
+select ok(pg_temp.mes(-1) < pg_temp.hoje(), 'RC6b o planejado do mês −1 está no passado');
+select lives_ok($$select public.recurrence_update(pg_temp.fx('e_alug'), 'Aluguel novo', 1100.00, pg_temp.fx('cexp2'))$$,
+                'RC6b reajusta o aluguel (valor, descrição e categoria)');
+select is(pg_temp.alug(-1), '1000.00|Aluguel|' || pg_temp.fx('cexp') || '|planned|false',
+          'RC6b planejado com data passada não muda (valor, descrição e categoria)');
+select is(pg_temp.alug(1), '1000.00|Aluguel|' || pg_temp.fx('cexp') || '|planned|true',
+          'RC6b planejado na lixeira não muda e continua na lixeira');
+select is(pg_temp.alug(2), '1100.00|Aluguel novo|' || pg_temp.fx('cexp2') || '|planned|false',
+          'RC6b controle: planejado futuro sem edição segue a regra');
+
 -- encerra as regras de teste (planejados futuros para a lixeira), para não interferir nos casos seguintes
-select public.recurrence_end(pg_temp.fx(k)) from unnest(array['e_luz','e_agua','e_gas','e_guar','e_net']) k;
+select public.recurrence_end(pg_temp.fx(k)) from unnest(array['e_luz','e_agua','e_gas','e_guar','e_net','e_alug']) k;
 
 -- RC7: dia 31 vira o último dia do mês; transferência e receita também geram
 insert into fixture select 'poupar', public.recurrence_create('transfer', 'Guardar', 500.00, 31, pg_temp.mes(0), pg_temp.fx('bank'), pg_temp.fx('poup'));
