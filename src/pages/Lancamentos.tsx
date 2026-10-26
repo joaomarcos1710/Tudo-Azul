@@ -55,6 +55,16 @@ export default function Lancamentos() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
+
+  /** Categorias oferecidas no filtro: só as do tipo escolhido; transferência não tem categoria. */
+  const categoriasDoFiltro = filtros.tipo === 'transfer' ? [] : categorias.filter((c) => !filtros.tipo || c.tipo === filtros.tipo)
+  /** Trocar o tipo limpa a categoria que deixou de combinar (e a de qualquer categoria, em transferência); o resto do filtro fica. */
+  function mudarTipoDoFiltro(v: string) {
+    const tipo = (v || undefined) as TipoLancamento | undefined
+    const categoria = categorias.find((c) => c.id === filtros.categoriaId)
+    const incompativel = tipo === 'transfer' || (tipo !== undefined && categoria !== undefined && categoria.tipo !== tipo)
+    setFiltros({ ...filtros, tipo, categoriaId: incompativel ? undefined : filtros.categoriaId })
+  }
   const [naLixeira, setNaLixeira] = useState<Lancamento | null>(null)
   const [pagando, setPagando] = useState<Lancamento | null>(null)
 
@@ -185,14 +195,20 @@ export default function Lancamentos() {
       )}
 
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-3">
-        <Selecao rotulo="Filtrar por conta" valor={filtros.contaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, contaId: v || undefined })}
-          opcoes={contas.map((c) => [c.id, c.nome])} todos="Todas as contas" />
-        <Selecao rotulo="Filtrar por categoria" valor={filtros.categoriaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, categoriaId: v || undefined })}
-          opcoes={categorias.map((c) => [c.id, `${c.nome} (${c.tipo === 'income' ? 'receita' : 'despesa'})`])} todos="Todas as categorias" />
-        <Selecao rotulo="Filtrar por tipo" valor={filtros.tipo ?? ''} aoMudar={(v) => setFiltros({ ...filtros, tipo: (v || undefined) as TipoLancamento | undefined })}
-          opcoes={Object.entries(rotuloTipo)} todos="Todos os tipos" />
-      </div>
+      {/* Filtros só com o formulário fechado: criar/editar ocupa o foco e "Novo lançamento" não deve mostrar filtro.
+          Tipo vem antes da categoria porque ele decide quais categorias existem (receita × despesa; transferência não tem). */}
+      {editando === null && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <Selecao rotulo="Filtrar por conta" valor={filtros.contaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, contaId: v || undefined })}
+            opcoes={contas.map((c) => [c.id, c.nome])} todos="Todas as contas" />
+          <Selecao rotulo="Filtrar por tipo" valor={filtros.tipo ?? ''} aoMudar={mudarTipoDoFiltro}
+            opcoes={Object.entries(rotuloTipo)} todos="Todos os tipos" />
+          <Selecao rotulo="Filtrar por categoria" valor={filtros.categoriaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, categoriaId: v || undefined })}
+            opcoes={categoriasDoFiltro.map((c) => [c.id, filtros.tipo ? c.nome : `${c.nome} (${c.tipo === 'income' ? 'receita' : 'despesa'})`])}
+            todos={filtros.tipo === 'transfer' ? 'Transferência não tem categoria' : 'Todas as categorias'}
+            desabilitado={filtros.tipo === 'transfer'} />
+        </div>
+      )}
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
 
