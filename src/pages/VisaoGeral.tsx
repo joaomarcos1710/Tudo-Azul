@@ -77,7 +77,11 @@ function variacao(atual: Cents, anterior: Cents): number | null {
 }
 
 /** Painel: todo valor em reais vem calculado do banco (net_worth, period_summary, expenses_by_category, daily_expenses). */
-export default function VisaoGeral() {
+/** Início ("o que fazer agora") e Análises ("como estou indo"): mesmo carregamento, cada seção mostra os seus blocos. */
+export type SecaoResumo = 'inicio' | 'analises'
+
+export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }) {
+  const noInicio = secao === 'inicio'
   const { familia } = useFamilia()
   const { sessao } = useAuth()
   const familiaId = familia?.id
@@ -128,13 +132,15 @@ export default function VisaoGeral() {
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>
   if (!dados) return <p className="text-sm text-slate-600" role="status">Carregando…</p>
 
-  const { patrimonio: p, mes: m, anterior: a } = dados
+  const { patrimonio: p, mes: m } = dados
+  // comparação com o mês anterior: se a consulta falhou, os indicadores seguem sem variação (sem quebrar a tela)
+  const a = dados.anterior ?? { receitas: 0 as Cents, despesas: 0 as Cents, resultado: 0 as Cents, receitasPrevistas: 0 as Cents, despesasPrevistas: 0 as Cents }
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   return (
     <>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">{saudacao()}{nome ? `, ${nome}` : ''}!</h1>
-        <p className="text-sm text-slate-600">Veja como estão as finanças da família em {formatMonth(mes).replace(/^./, (c) => c.toUpperCase())}.</p>
+        <h1 className="text-2xl font-bold">{noInicio ? `${saudacao()}${nome ? `, ${nome}` : ''}!` : 'Análises'}</h1>
+        <p className="text-sm text-slate-600">{noInicio ? 'O que pede atenção agora na família.' : `Como as finanças da família estão indo em ${formatMonth(mes).replace(/^./, (c) => c.toUpperCase())}.`}</p>
       </div>
       {cobrancaFalhou && (
         <div className="mb-4">
@@ -218,6 +224,7 @@ export default function VisaoGeral() {
         </Card>
       )}
 
+      {!noInicio && <>
       <section aria-label="Resumo do mês" className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-red-50 text-negativo"
           var={variacao(m.despesas, a.despesas)} subirEhBom={false} comparado={mesAnteriorCurto} />
@@ -241,8 +248,9 @@ export default function VisaoGeral() {
       {(m.receitasPrevistas > 0 || m.despesasPrevistas > 0) && (
         <p className="mb-4 text-xs text-planejado">Ainda planejado no mês: +{formatBRL(m.receitasPrevistas)} / −{formatBRL(m.despesasPrevistas)}</p>
       )}
+      </>}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      {!noInicio && <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
           <CardTitle>Despesas por categoria</CardTitle>
           {dados.categorias === null ? (
@@ -305,16 +313,20 @@ export default function VisaoGeral() {
           <Card className="lg:col-span-2">
             <CardTitle>Comparação com o ano passado</CardTitle>
             <div className="grid gap-4 sm:grid-cols-2">
-              <BlocoAnual titulo={`${formatMonth(mes)} até o dia ${Number(hoje.slice(8, 10))}`} rotuloAnterior={formatMonth(somarMeses(mes, -12))}
-                atual={dados.anoPassado.mesAtual} anterior={dados.anoPassado.mesAnterior} />
-              <BlocoAnual titulo={`Ano até hoje (${hoje.slice(0, 4)})`} rotuloAnterior={`mesmo período de ${Number(hoje.slice(0, 4)) - 1}`}
-                atual={dados.anoPassado.anoAtual} anterior={dados.anoPassado.anoAnterior} />
+              {dados.anoPassado.mesAtual && dados.anoPassado.mesAnterior && (
+                <BlocoAnual titulo={`${formatMonth(mes)} até o dia ${Number(hoje.slice(8, 10))}`} rotuloAnterior={formatMonth(somarMeses(mes, -12))}
+                  atual={dados.anoPassado.mesAtual} anterior={dados.anoPassado.mesAnterior} />
+              )}
+              {dados.anoPassado.anoAtual && dados.anoPassado.anoAnterior && (
+                <BlocoAnual titulo={`Ano até hoje (${hoje.slice(0, 4)})`} rotuloAnterior={`mesmo período de ${Number(hoje.slice(0, 4)) - 1}`}
+                  atual={dados.anoPassado.anoAtual} anterior={dados.anoPassado.anoAnterior} />
+              )}
             </div>
             <p className="mt-3 text-xs text-slate-500">Mesmos dias nos dois anos, para a comparação ser justa. Cartão conta na data de fechamento da fatura. Só entra o que já está pago: contas ainda planejadas ou fatura que não fechou não aparecem em nenhum dos dois anos.</p>
           </Card>
         )}
 
-        {dados.regularidade && (
+        {dados.regularidade?.[0] && dados.regularidade[1] && (
           <Card className="lg:col-span-2">
             <CardTitle>Renda regular × despesas</CardTitle>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -330,6 +342,8 @@ export default function VisaoGeral() {
           </Card>
         )}
 
+      </div>}
+      {noInicio && <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card className="lg:col-span-2 p-0">
           <div className="flex items-center justify-between px-5 pt-5">
             <CardTitle>Últimos lançamentos</CardTitle>
@@ -393,7 +407,7 @@ export default function VisaoGeral() {
             </ul>
           )}
         </Card>
-      </div>
+      </div>}
     </>
   )
 }

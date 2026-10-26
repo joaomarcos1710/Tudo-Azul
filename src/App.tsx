@@ -33,6 +33,7 @@ export default function App() {
         <Route path="familia" element={<Familia />} />
         <Route element={<ExigeFamilia />}>
           <Route index element={<VisaoGeral />} />
+          <Route path="analises" element={<VisaoGeral secao="analises" />} />
           <Route path="lancamentos" element={<Lancamentos />} />
           <Route path="recorrentes" element={<Recorrentes />} />
           <Route path="contas" element={<Contas />} />
