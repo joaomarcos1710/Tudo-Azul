@@ -253,6 +253,14 @@ describe('personalizado: validação', () => {
     expect(diasDoIntervalo('2028-02-28', '2028-03-01')).toBe(3)
   })
 
+  it('diasDoIntervalo recusa intervalo invertido, em vez de devolver zero ou número negativo', () => {
+    expect(diasDoIntervalo('2026-10-20', '2026-10-21')).toBe(2)
+    expect(() => diasDoIntervalo('2026-10-21', '2026-10-20')).toThrow(PeriodoInvalidoError) // invertido por 1 dia (antes: 0)
+    expect(() => diasDoIntervalo('2026-10-21', '2026-10-20')).toThrow('A data inicial não pode ser depois da final.')
+    expect(() => diasDoIntervalo('2026-11-05', '2026-10-20')).toThrow(PeriodoInvalidoError) // vários dias (antes: −15)
+    expect(() => diasDoIntervalo('2028-01-01', '2027-01-01')).toThrow(PeriodoInvalidoError) // anos
+  })
+
   it('intervaloDoPeriodo de personalizado inválido lança, em vez de devolver outro intervalo', () => {
     expect(iv({ tipo: 'personalizado', de: '2026-10-20', ate: '2026-11-05' })).toEqual({ de: '2026-10-20', ate: '2026-11-05' })
     expect(() => iv({ tipo: 'personalizado', de: '2026-11-05', ate: '2026-10-20' })).toThrow(PeriodoInvalidoError)

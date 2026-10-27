@@ -146,13 +146,15 @@ function lerDia(dia: unknown): number {
   return dia
 }
 
-/** Número de dias do intervalo contando os dois extremos (mesmo dia = 1). */
+/** Número de dias do intervalo contando os dois extremos (mesmo dia = 1). Intervalo invertido lança. */
 export function diasDoIntervalo(de: DataISO, ate: DataISO): number {
   const x = lerData(de)
   const y = lerData(ate)
   if (falhou(x)) throw new PeriodoInvalidoError(x.mensagem)
   if (falhou(y)) throw new PeriodoInvalidoError(y.mensagem)
-  return epoca(y.a, y.m, y.d) - epoca(x.a, x.m, x.d) + 1
+  const dias = epoca(y.a, y.m, y.d) - epoca(x.a, x.m, x.d) + 1
+  if (dias < 1) throw new PeriodoInvalidoError('A data inicial não pode ser depois da final.')
+  return dias
 }
 
 /** Valida o intervalo livre. Quem usa mostra `mensagem`; nada é corrigido por conta própria. */
@@ -223,7 +225,8 @@ export function periodoQueContem(data: DataISO, cfg: ConfigPeriodo): Periodo {
   const ref = `${ra}-${dd(rm)}`
   lerMes(ref)
   const p: PeriodoCiclo = { tipo: 'ciclo', dia, ref }
-  intervaloDoCiclo(dia, ref) // garante que o ciclo inteiro (inclusive o fim) está na faixa
+  // valida o dia e o mês de referência; o fim do ciclo pode passar de DATA_MAX (ciclo de dez/2099, ver MES_MAX)
+  intervaloDoCiclo(dia, ref)
   return p
 }
 
