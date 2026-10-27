@@ -136,6 +136,8 @@ describe('Recorrentes', () => {
     montar()
     await u.click(await screen.findByRole('button', { name: 'Editar' }))
     expect(screen.queryByLabelText('Todo dia')).toBeNull() // dia e conta não mudam na edição
+    // avisa que a correção feita à mão em um mês não é desfeita pelo reajuste
+    expect(screen.getByText(/o que você corrigiu à mão em um mês \(valor, descrição ou categoria\) fica como está/)).toBeTruthy()
     const valor = screen.getByLabelText('Valor estimado (R$)')
     await u.clear(valor)
     await u.type(valor, '200,00')

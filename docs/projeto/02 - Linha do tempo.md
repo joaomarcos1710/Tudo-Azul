@@ -39,6 +39,8 @@ tags: [tudo-azul, historico]
 ## Fase 4 · 26/10 — auditoria, dependências, painel, menu
 - **Dois agentes** auditaram o banco e os valores ([[Auditorias/2026-10-26 Auditoria]]).
 - **Migration 014** corrige o bug de valor e furos de integridade (#51) — aplicada em produção.
+- **Recorrências preservam correções manuais**: PR #59, migration 015; merge na `main` no commit `5ad36f1`.
+- **Migration 015 aplicada em produção** em 26/10/2026, comprovada pela [execução 20 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580), a partir do commit de merge `5ad36f1`.
 - **Abrir no Início**, não na Família + **versão 2026.1** (#52) · **filtros de Lançamentos** (#53).
 - Dependências: **Vite 8, Vitest 5, plugin React 6** (#47) · política de dependências e exceção do Tailwind 3 (#49).
 - **Painel**: ações rápidas, vencidos, resumo dos cartões e conferência de saldo (#48).

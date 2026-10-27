@@ -87,6 +87,87 @@ select is((select amount from public.transactions where recurrence_id = pg_temp.
 select is((select description from public.transactions where recurrence_id = pg_temp.fx('luz') and date = pg_temp.mes(2) + 9),
           'Conta de luz', 'RC6 descrição atualizada');
 
+-- RC6b (migration 015): o reajuste não desfaz o que foi corrigido à mão, campo a campo.
+-- Regras a partir do mês que vem (dia 10): os dois planejados (+1 e +2) são sempre futuros, qualquer que seja hoje.
+insert into fixture select 'cexp2', id from public.categories
+ where household_id = pg_temp.fx('h') and type = 'expense' and system_key is null and id <> pg_temp.fx('cexp') order by name limit 1;
+insert into fixture select 'e_luz',  public.recurrence_create('expense', 'Luz', 180.00, 10, pg_temp.mes(1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
+insert into fixture select 'e_agua', public.recurrence_create('expense', 'Água', 90.00, 10, pg_temp.mes(1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
+insert into fixture select 'e_gas',  public.recurrence_create('expense', 'Gás', 60.00, 10, pg_temp.mes(1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
+insert into fixture select 'e_guar', public.recurrence_create('transfer', 'Reserva', 500.00, 10, pg_temp.mes(1), pg_temp.fx('bank'), pg_temp.fx('poup'));
+insert into fixture select 'e_net',  public.recurrence_create('expense', 'Internet', 100.00, 10, pg_temp.mes(1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
+select is(public.recurrence_materialize(), 10, 'RC6b 5 regras x 2 meses futuros');
+-- valor|descrição|categoria do planejado do mês n de uma regra
+create function pg_temp.occ(p_rec uuid, p_n integer) returns text language sql as $f$
+  select amount || '|' || description || '|' || coalesce(category_id::text, 'null') from public.transactions
+   where recurrence_id = p_rec and date = pg_temp.mes(p_n) + 9 $f$;
+-- planejados futuros dessas regras que diferem da regra em algum dos três campos
+create function pg_temp.divergentes() returns bigint language sql as $f$
+  select count(*) from public.transactions t join public.recurrences r on r.id = t.recurrence_id
+   where r.description in ('Luz', 'Água', 'Água e esgoto', 'Gás', 'Gás encanado', 'Reserva', 'Internet')
+     and t.status = 'planned' and t.deleted_at is null and t.date >= pg_temp.hoje()
+     and (t.amount <> r.amount or t.description <> r.description or t.category_id is distinct from r.category_id) $f$;
+grant execute on function pg_temp.occ(uuid, integer), pg_temp.divergentes() to public;
+select is(pg_temp.divergentes(), 0::bigint, 'RC6b premissa: sem edição manual, todo planejado futuro é igual à regra');
+
+-- correções à mão no mês +1, pelo mesmo caminho do app (UPDATE do cliente)
+update public.transactions set amount = 213.40 where recurrence_id = pg_temp.fx('e_luz') and date = pg_temp.mes(1) + 9;
+update public.transactions set description = 'Água (conta chegou)' where recurrence_id = pg_temp.fx('e_agua') and date = pg_temp.mes(1) + 9;
+update public.transactions set category_id = pg_temp.fx('cexp2') where recurrence_id = pg_temp.fx('e_gas') and date = pg_temp.mes(1) + 9;
+update public.transactions set amount = 100.00 where recurrence_id = pg_temp.fx('e_net') and date = pg_temp.mes(1) + 9; -- igual à regra
+select is(pg_temp.divergentes(), 3::bigint, 'RC6b só as 3 correções reais divergem da regra');
+
+select lives_ok($$select public.recurrence_update(pg_temp.fx('e_luz'), 'Luz', 200.00)$$, 'RC6b reajusta a luz para 200');
+select lives_ok($$select public.recurrence_update(pg_temp.fx('e_agua'), 'Água e esgoto', 95.00)$$, 'RC6b reajusta a água (valor e descrição)');
+select lives_ok($$select public.recurrence_update(pg_temp.fx('e_gas'), 'Gás encanado', 65.00)$$, 'RC6b reajusta o gás (valor e descrição)');
+select lives_ok($$select public.recurrence_update(pg_temp.fx('e_guar'), 'Reserva', 600.00)$$, 'RC6b reajusta a transferência');
+select lives_ok($$select public.recurrence_update(pg_temp.fx('e_net'), 'Internet', 120.00)$$, 'RC6b reajusta a internet');
+
+select is(pg_temp.occ(pg_temp.fx('e_luz'), 1), '213.40|Luz|' || pg_temp.fx('cexp'),
+          'RC6b valor corrigido à mão (213,40) fica');
+select is(pg_temp.occ(pg_temp.fx('e_luz'), 2), '200.00|Luz|' || pg_temp.fx('cexp'),
+          'RC6b o mês não corrigido segue a regra (200)');
+select is(pg_temp.occ(pg_temp.fx('e_agua'), 1), '95.00|Água (conta chegou)|' || pg_temp.fx('cexp'),
+          'RC6b descrição corrigida fica; o valor segue a regra');
+select is(pg_temp.occ(pg_temp.fx('e_agua'), 2), '95.00|Água e esgoto|' || pg_temp.fx('cexp'),
+          'RC6b sem correção: valor e descrição da regra');
+select is(pg_temp.occ(pg_temp.fx('e_gas'), 1), '65.00|Gás encanado|' || pg_temp.fx('cexp2'),
+          'RC6b categoria corrigida fica; valor e descrição seguem a regra');
+select is(pg_temp.occ(pg_temp.fx('e_guar'), 1), '600.00|Reserva|null', 'RC6b transferência (sem categoria) segue a regra');
+select is(pg_temp.occ(pg_temp.fx('e_net'), 1), '120.00|Internet|' || pg_temp.fx('cexp'),
+          'RC6b limite conhecido: "corrigir" para o mesmo valor da regra não deixa rastro e segue a regra');
+-- segundo reajuste: quem foi corrigido continua; quem não foi continua acompanhando
+select lives_ok($$select public.recurrence_update(pg_temp.fx('e_luz'), 'Luz', 210.00)$$, 'RC6b 2º reajuste da luz');
+select is(pg_temp.occ(pg_temp.fx('e_luz'), 1), '213.40|Luz|' || pg_temp.fx('cexp'), 'RC6b 2º reajuste: a correção continua');
+select is(pg_temp.occ(pg_temp.fx('e_luz'), 2), '210.00|Luz|' || pg_temp.fx('cexp'), 'RC6b 2º reajuste: o mês não corrigido acompanha (210)');
+select is(pg_temp.divergentes(), 3::bigint, 'RC6b depois dos reajustes, só as 3 correções reais divergem');
+-- trocar a categoria da regra leva os não corrigidos e preserva quem teve a categoria corrigida
+select lives_ok($$select public.recurrence_update(pg_temp.fx('e_gas'), 'Gás encanado', 65.00, pg_temp.fx('cexp2'))$$,
+                'RC6b muda a categoria da regra do gás');
+select is(pg_temp.occ(pg_temp.fx('e_gas'), 2), '65.00|Gás encanado|' || pg_temp.fx('cexp2'), 'RC6b categoria nova chega ao mês não corrigido');
+-- o reajuste não toca planejado na LIXEIRA nem planejado com data PASSADA.
+-- Regra todo dia 1 desde o mês passado: o dia 1 do mês passado é sempre passado (qualquer que seja hoje);
+-- o do mês que vem vai para a lixeira; o de daqui a 2 meses é o controle (sem edição, deve seguir a regra).
+insert into fixture select 'e_alug', public.recurrence_create('expense', 'Aluguel', 1000.00, 1, pg_temp.mes(-1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
+select is(public.recurrence_materialize(), 4, 'RC6b aluguel: mês −1 a +2');
+create function pg_temp.alug(p_n integer) returns text language sql as $f$
+  select amount || '|' || description || '|' || category_id || '|' || status || '|' || (deleted_at is not null)
+    from public.transactions where recurrence_id = pg_temp.fx('e_alug') and date = pg_temp.mes(p_n) $f$;
+grant execute on function pg_temp.alug(integer) to public;
+update public.transactions set deleted_at = now() where recurrence_id = pg_temp.fx('e_alug') and date = pg_temp.mes(1);
+select ok(pg_temp.mes(-1) < pg_temp.hoje(), 'RC6b o planejado do mês −1 está no passado');
+select lives_ok($$select public.recurrence_update(pg_temp.fx('e_alug'), 'Aluguel novo', 1100.00, pg_temp.fx('cexp2'))$$,
+                'RC6b reajusta o aluguel (valor, descrição e categoria)');
+select is(pg_temp.alug(-1), '1000.00|Aluguel|' || pg_temp.fx('cexp') || '|planned|false',
+          'RC6b planejado com data passada não muda (valor, descrição e categoria)');
+select is(pg_temp.alug(1), '1000.00|Aluguel|' || pg_temp.fx('cexp') || '|planned|true',
+          'RC6b planejado na lixeira não muda e continua na lixeira');
+select is(pg_temp.alug(2), '1100.00|Aluguel novo|' || pg_temp.fx('cexp2') || '|planned|false',
+          'RC6b controle: planejado futuro sem edição segue a regra');
+
+-- encerra as regras de teste (planejados futuros para a lixeira), para não interferir nos casos seguintes
+select public.recurrence_end(pg_temp.fx(k)) from unnest(array['e_luz','e_agua','e_gas','e_guar','e_net','e_alug']) k;
+
 -- RC7: dia 31 vira o último dia do mês; transferência e receita também geram
 insert into fixture select 'poupar', public.recurrence_create('transfer', 'Guardar', 500.00, 31, pg_temp.mes(0), pg_temp.fx('bank'), pg_temp.fx('poup'));
 insert into fixture select 'sal', public.recurrence_create('income', 'Salário', 8000.00, 5, pg_temp.mes(0), pg_temp.fx('bank'), null, null, pg_temp.fx('cinc'));
