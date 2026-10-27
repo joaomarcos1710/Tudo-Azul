@@ -40,14 +40,21 @@ tags: [tudo-azul, historico]
 - **Dois agentes** auditaram o banco e os valores ([[Auditorias/2026-10-26 Auditoria]]).
 - **Migration 014** corrige o bug de valor e furos de integridade (#51) — aplicada em produção.
 - **Recorrências preservam correções manuais**: PR #59, migration 015; merge na `main` no commit `5ad36f1`.
-- **Migration 015 aplicada em produção** em 26/10/2026, comprovada pela [execução 20 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580), a partir do commit de merge `5ad36f1`.
+- **Migration 015 aplicada em produção** em 26/10/2026, comprovada pela [execução 20 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580), a partir do commit de merge `5ad36f1`; registro no diário (#60).
 - **Abrir no Início**, não na Família + **versão 2026.1** (#52) · **filtros de Lançamentos** (#53).
 - Dependências: **Vite 8, Vitest 5, plugin React 6** (#47) · política de dependências e exceção do Tailwind 3 (#49).
 - **Painel**: ações rápidas, vencidos, resumo dos cartões e conferência de saldo (#48).
 - **Robustez do front**: respostas velhas, envio duplicado, pagar fatura e PWA (#50).
 - **Menu em grupos**, "Mais" no celular e **ocultar valores** (#54).
 - **Diário do projeto** (`docs/projeto/`) e regra de mantê-lo atualizado (`CLAUDE.md`) — PR #55.
-- **Versão 2026.2** — este lote (painel, robustez, menu, ocultar valores, dependências, diário).
+- **Versão 2026.2** — este lote (painel, robustez, menu, ocultar valores, dependências, diário); commit do build só na tela Família (#56, mesclado em 27/10).
 
-## Ainda abertos (rascunhos, não mergeados)
-#40 pesquisa de ideias (rodada 2) · #10 proposta de multimoeda · #9 preparação da importação do Organizze.
+## Fase 5 · 27/10 — revisão independente, períodos e Início × Análises
+- **Auditoria independente** de 27/10: achados confirmados e corrigidos antes dos merges.
+- **Períodos financeiros, etapa 1**: cálculo puro de mês, ciclo (dia 1–31) e período personalizado, faixa igual à do banco (#58). Sem efeito visível ainda.
+- **Início × Análises**: a Visão geral virou duas telas; cada uma carrega só o que mostra e um bloco que falha some sozinho (#57).
+- **Pesquisa de ideias, rodada 2**, com os achados já resolvidos marcados (#40).
+- **Propostas antigas guardadas como histórico**, com nota de status e os pontos a corrigir: importação do Organizze (#9), multimoeda e início operacional (#10).
+
+## Ainda abertos
+Nenhum PR aberto em 27/10/2026.
