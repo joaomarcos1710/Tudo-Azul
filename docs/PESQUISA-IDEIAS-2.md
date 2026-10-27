@@ -1,5 +1,7 @@
 # Pesquisa de ideias, rodada 2 (24/10/2026, de madrugada)
 
+> **Atualização em 27/10/2026.** Este documento é o registro de 24/10 e foi mantido como estava. Dois achados dele **já foram resolvidos** e estão marcados no texto: o "Marcar pago" com data e valor reais (A0, fato 1), no PR #41 em 25/10; e o reajuste de recorrência que sobrescrevia correções manuais (fato 2), no PR #59 (migration 015, aplicada em produção em 26/10). O restante não foi reavaliado aqui.
+
 Quatro pesquisadores independentes rodaram em paralelo e um quinto agente (o revisor de dinheiro) atacou o consolidado. **Nada aqui é decisão**: são ideias com fonte, para o dono escolher. As decisões já tomadas (`docs/PLANO.md`) continuam valendo: corte do Organizze em 1/12/2026 sem escopo novo, Open Finance, IA e app nativo fora, multimoeda dez–jan, investimentos fev–abr/2027, IR fora do app, nada de copiar código AGPL/GPL.
 
 ## O que foi e o que NÃO foi possível
@@ -26,7 +28,7 @@ Legenda: esforço P/M/G; **Mig.** = precisa de migration; fontes nas seções ab
 
 | # | Ideia | Estado hoje | Esforço real | Mig. | Risco |
 |---|---|---|---|---|---|
-| **A0** | **"Marcar pago" com valor e data reais** (nenhum pesquisador viu; o crítico achou e foi confirmado em `src/lib/lancamentos.ts:200`) | `marcarComoPago` só troca o status: a data fica a **planejada** e o valor, o **estimado**. Conta de luz paga dia 12 por R$ 143,20 continua no dia 10 por R$ 150,00 até alguém abrir "Editar". | P/M | Não | **Ameaça o critério 1**: saldo do dia diferente do extrato. Em período conciliado a ação falha com 55000. |
+| **A0** | **"Marcar pago" com valor e data reais** (nenhum pesquisador viu; o crítico achou e foi confirmado em `src/lib/lancamentos.ts:200`) | `marcarComoPago` só troca o status: a data fica a **planejada** e o valor, o **estimado**. Conta de luz paga dia 12 por R$ 143,20 continua no dia 10 por R$ 150,00 até alguém abrir "Editar". **Resolvido em 25/10 (PR #41):** "Marcar pago" pede a data e o valor reais. | P/M | Não | **Ameaça o critério 1**: saldo do dia diferente do extrato. Em período conciliado a ação falha com 55000. |
 | **A0b** | **Mensagem clara quando o período está travado** ("conta conciliada até DD/MM") | O banco recusa com 55000; a tela repassa o texto do banco | P | Não | Baixo |
 | **A0c** | **Tela "divergência" na conferência**: ao não bater, listar candidatos óbvios (planejado vencido e não pago, lançamento do dia do corte, pagamento de fatura) | `account_movements` já traz parte | M | Não | Baixo; é o que fecha o critério 1 |
 | A1 | "n/N, falta R$ X" por compra parcelada (reduzido) | `card_months`/`card_items` já devolvem `pending`, `seq`, `plan_count`; a tela mostra o total de parcelas futuras do cartão | P (por compra, via banco); M (total por mês) | Não/talvez | Médio se somar "comprometido" ao saldo ou à dívida (`net_worth` deixa de propósito de fora). Nunca somar no front. Assinatura de cartão só vira parcela no dia. |
@@ -63,8 +65,8 @@ Multimoeda gravando os **dois valores digitados** e derivando a taxa; investimen
 
 Veredito: **a lista original dos pesquisadores priorizava cosmético e deixava de fora o que mais ameaça o critério 1** (saldos batendo com o extrato por 2 semanas). Por isso a seção A foi reordenada. Dois fatos que ele apontou foram **confirmados no código**:
 
-1. `marcarComoPago` (`src/lib/lancamentos.ts:200`) só troca `status`; a data e o valor ficam os planejados.
-2. `recurrence_update` (`20261017140100_recurrences.sql`) reescreve valor, descrição e categoria de **todos** os planejados futuros ainda não pagos, apagando uma correção manual feita num deles, sem aviso.
+1. `marcarComoPago` (`src/lib/lancamentos.ts:200`) só troca `status`; a data e o valor ficam os planejados. **Resolvido em 25/10 (PR #41):** a função grava status, data e valor reais.
+2. `recurrence_update` (`20261017140100_recurrences.sql`) reescreve valor, descrição e categoria de **todos** os planejados futuros ainda não pagos, apagando uma correção manual feita num deles, sem aviso. **Resolvido em 26/10 (PR #59, migration 015, aplicada em produção):** o reajuste preserva, campo a campo, o que foi corrigido à mão.
 
 **Ordem proposta dos 5 primeiros (revista):**
 1. A0, "Marcar pago" com valor e data reais (testes vitest e pgTAP).
@@ -83,7 +85,7 @@ Todo o resto de A (A4, A8) depois do corte, salvo confirmação do dono.
 - saldo inicial e data de abertura errados (o dia da abertura conta; lançamentos anteriores à abertura não mexem no saldo): principal causa de "não bate" no primeiro dia;
 - lançamento esquecido ou duplicado (sem importação, o único controle é a conciliação);
 - pagamento de fatura que sai de uma conta e é lançado em outra;
-- editar uma regra recorrente sobrescreve a correção manual dos planejados futuros (fato 2);
+- editar uma regra recorrente sobrescreve a correção manual dos planejados futuros (fato 2; resolvido pela migration 015, PR #59);
 - reabrir fatura e tarifas de cartão contra o extrato.
 
 ## Armadilhas de dinheiro a testar (de projetos open source e reclamações de usuários)
