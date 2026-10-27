@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
-  IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral,
+  IconeAnalises, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral,
 } from './icons'
 
 export interface ItemNavegacao {
@@ -25,6 +25,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     titulo: 'Visão geral',
     itens: [
       { caminho: '/', rotulo: 'Início', curto: 'Início', Icone: IconeVisaoGeral, fixoNoCelular: true },
+      { caminho: '/analises', rotulo: 'Análises', curto: 'Análises', Icone: IconeAnalises },
       { caminho: '/relatorios', rotulo: 'Relatórios e exportação', curto: 'Relat.', Icone: IconeRelatorios },
     ],
   },
