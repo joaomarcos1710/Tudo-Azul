@@ -1,5 +1,15 @@
 # Proposta técnica: múltiplas moedas no Tudo Azul
 
+> **Status em 27/10/2026: proposta de 13/10, não aprovada como especificação e não implementada** (multimoeda está no
+> roadmap para dez–jan). Revalidar contra o esquema atual antes de virar migration. Pontos já confirmados na auditoria de
+> 26/10, que precisam ser corrigidos na proposta:
+> 1. **Mesma moeda.** `fx_rate_at` "nunca devolve 1,0" e a ordem de busca (5.4) não tem o caso `base = quote`, que a
+>    ingestão também recusa. Do jeito que está, BRL→BRL com moeda de referência BRL vira "sem cotação" e as contas em BRL
+>    saem do total (5.5). Falta a regra de identidade: mesma moeda = 1, sem consulta.
+> 2. **Custo do câmbio** (seção 7): `from_amount × cotação − to_amount` dá o resultado na moeda de **destino**, não na
+>    de referência, e a direção da cotação não está definida.
+> 3. **Data futura** (5.2): "usa a última disponível" contradiz o limite de arrasto de 7 dias da mesma seção.
+
 > **Status: proposta para aprovação. Nada implementado, nenhuma migration, nada no Supabase hospedado.**
 > Base: [`MODELO-DE-DADOS.md`](MODELO-DE-DADOS.md) v3 e as migrations do PR #7 (lidas, não alteradas).
 > Relacionada: [`PROPOSTA-INICIO-OPERACIONAL-E-HISTORICO.md`](PROPOSTA-INICIO-OPERACIONAL-E-HISTORICO.md).

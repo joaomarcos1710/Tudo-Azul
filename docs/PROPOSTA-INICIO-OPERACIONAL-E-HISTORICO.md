@@ -1,6 +1,11 @@
 # Proposta: início operacional em 11/2026 e suporte a histórico retroativo
 
-> **Status: proposta para aprovação. Nada implementado, nenhuma migration, nada no Supabase hospedado.**
+> **Status em 27/10/2026: proposta histórica de 13/10, não aprovada como especificação.** Partes já foram superadas
+> pelo que existe hoje: a conciliação com o extrato foi implementada (migration 007, com trava de período), e cartões e
+> dívidas foram implementados com outro desenho (migrations 003 a 010). A meta atual de largar o Organizze é
+> 01/12/2026 ([[01 - Visão e metas]] em `docs/projeto/`). Use este texto como histórico de raciocínio, não como plano.
+>
+> **Status original: proposta para aprovação. Nada implementado, nenhuma migration, nada no Supabase hospedado.**
 > A mensagem que originou este documento chegou **cortada** (parou em "caso esse recebimento…", no item 4, Financiamentos). Os itens 1–4 foram tratados; se havia mais requisitos depois, preciso deles.
 > Base: [`MODELO-DE-DADOS.md`](MODELO-DE-DADOS.md) v3 e as migrations do PR #7 (lidas, não alteradas).
 
