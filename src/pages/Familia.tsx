@@ -20,7 +20,7 @@ export default function Familia() {
     <>
       <h1 className="mb-6 text-2xl font-bold">Família</h1>
       {familia ? <MinhaFamilia /> : <SemFamilia />}
-      <Versao className="mt-8 text-slate-500" />
+      <Versao className="mt-8 text-slate-500" comCommit />
     </>
   )
 }

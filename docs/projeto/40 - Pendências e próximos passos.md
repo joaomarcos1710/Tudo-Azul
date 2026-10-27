@@ -5,7 +5,7 @@ atualizado: 2026-10-26
 # Pendências e próximos passos
 
 ## Decisões suas
-- [ ] Subir a versão para **2026.2**? ([[03 - Edições e versões]])
+- [x] Versão **2026.2** (feito).
 - [ ] Commit na versão: mostrar **só em Família** ou **tirar**?
 - [ ] Alerta de vencimento por **push**? (iPhone/Android? você usa iPad, celular e site; hoje o card "Vencidos" cobre)
 

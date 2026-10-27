@@ -46,7 +46,8 @@ tags: [tudo-azul, historico]
 - **Painel**: ações rápidas, vencidos, resumo dos cartões e conferência de saldo (#48).
 - **Robustez do front**: respostas velhas, envio duplicado, pagar fatura e PWA (#50).
 - **Menu em grupos**, "Mais" no celular e **ocultar valores** (#54).
-- **Diário do projeto** (`docs/projeto/`) e regra de mantê-lo atualizado (`CLAUDE.md`).
+- **Diário do projeto** (`docs/projeto/`) e regra de mantê-lo atualizado (`CLAUDE.md`) — PR #55.
+- **Versão 2026.2** — este lote (painel, robustez, menu, ocultar valores, dependências, diário).
 
 ## Ainda abertos (rascunhos, não mergeados)
 #40 pesquisa de ideias (rodada 2) · #10 proposta de multimoeda · #9 preparação da importação do Organizze.
