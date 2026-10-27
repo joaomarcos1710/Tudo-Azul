@@ -264,7 +264,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando
-            ? 'O novo valor vale para os planejados ainda não pagos de hoje em diante. O que já foi pago não muda.'
+            ? 'A mudança vale para os planejados ainda não pagos de hoje em diante. O que já foi pago não muda, e o que você corrigiu à mão em um mês (valor, descrição ou categoria) fica como está.'
             : 'Dia 29, 30 ou 31 em mês mais curto cai no último dia do mês.'}
           {!editando && tipo === 'card' && cartoesComCiclo.length === 0 && ' Cadastre um cartão com fechamento e vencimento em Cartões antes.'}
         </p>
