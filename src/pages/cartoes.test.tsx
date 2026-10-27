@@ -7,8 +7,11 @@ import type { Cents } from '../lib/format'
 const mock = vi.hoisted(() => ({
   cobrarFaturasFechadas: vi.fn(),
   listarCartoes: vi.fn(),
+  listarMovimentosDoCartao: vi.fn(),
+  anularMovimentoCartao: vi.fn(),
   criarCartao: vi.fn(),
   definirCiclo: vi.fn(),
+  definirLimite: vi.fn(),
   registrarCompra: vi.fn(),
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
@@ -26,7 +29,8 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/cartoes', async (o) => ({
   ...(await o<typeof import('../lib/cartoes')>()),
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
-  definirCiclo: mock.definirCiclo, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
+  listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
+  definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
   listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
 }))
@@ -39,24 +43,25 @@ import { ontemSP, situacaoFatura } from '../lib/cartoes'
 import type { Fatura } from '../lib/cartoes'
 
 const c = (n: number) => n as Cents
-const nubank = { id: 'k1', nome: 'Nubank', fechamento: 17, vencimento: 25, ativo: true, divida: c(13334), credito: c(0), compromissos: c(39666) }
+const nubank = { id: 'k1', nome: 'Nubank', fechamento: 17, vencimento: 25, ativo: true, divida: c(13334), credito: c(0), compromissos: c(39666), limite: null, limiteComprometido: null, limiteDisponivel: null }
 const fatura = (f: Partial<Fatura>): Fatura => ({
   mes: '2026-03', fechamento: '2026-03-17', vencimento: '2026-03-25', cobrado: c(0), aCobrar: c(0), total: c(0), pago: c(0), itens: 1, faturaId: null,
   saldoAnterior: c(0), adiantamentoEntrada: c(0), adiantamentoSaida: c(0), ...f,
 })
 
 beforeEach(() => {
+  mock.listarMovimentosDoCartao.mockResolvedValue([])
   mock.cobrarFaturasFechadas.mockResolvedValue(0)
   mock.listarCartoes.mockResolvedValue([nubank])
   mock.listarContas.mockResolvedValue({ contas: [{ id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(500000) }], total: c(500000) })
   mock.listarCategorias.mockResolvedValue([
-    { id: 'g1', nome: 'Compras pessoais', tipo: 'expense', paiId: null, sistema: false, ativa: true },
-    { id: 'g2', nome: 'Salário', tipo: 'income', paiId: null, sistema: false, ativa: true },
+    { id: 'g1', nome: 'Compras pessoais', tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false },
+    { id: 'g2', nome: 'Salário', tipo: 'income', paiId: null, sistema: false, ativa: true, eventual: false },
   ])
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
   mock.previaExclusao.mockResolvedValue([])
-  for (const f of [mock.criarCartao, mock.definirCiclo, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
+  for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -176,15 +181,52 @@ describe('Cartões', () => {
     expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 13334, faturaId: 'f3' }), expect.any(String))
   })
 
-  it('sem fatura fechada, o botão fica desligado e explica por quê (compra de hoje cai na próxima fatura)', async () => {
+  it('sem fatura fechada, dá para pagar adiantado: o aviso explica que vira crédito e o pagamento não liga a nenhuma fatura', async () => {
+    const u = userEvent.setup()
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(20000) }])
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(10000), total: c(10000) })])
     render(<Cartoes />)
     const botao = (await screen.findByRole('button', { name: 'Pagar fatura' })) as HTMLButtonElement
-    expect(botao.disabled).toBe(true)
-    const aviso = await screen.findByText(/Não há fatura fechada para pagar/)
+    expect(botao.disabled).toBe(false)
+    const aviso = await screen.findByText(/Não há fatura fechada/)
     expect(aviso.textContent).toMatch(/R\$ 200,00/)
     expect(aviso.textContent).toMatch(/fecha no dia 17/)
+    expect(aviso.textContent).toMatch(/vira crédito no cartão/)
     expect(botao.getAttribute('aria-describedby')).toBe(aviso.id)
+
+    await u.click(botao)
+    expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('') // sem dívida, não sugere valor
+    await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
+    await u.type(screen.getByLabelText('Valor (R$)'), '120,00')
+    expect(await screen.findByText(/fica como crédito no cartão/)).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 12000, faturaId: null }), expect.any(String))
+  })
+
+  it('pagar mais que a fatura fechada: o excedente vira crédito e a tela avisa; mais que tudo, pede para conferir', async () => {
+    const u = userEvent.setup()
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(13334), total: c(13334), faturaId: 'f3' })])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    const valor = screen.getByLabelText('Valor (R$)')
+    await u.clear(valor)
+    await u.type(valor, '200,00') // fatura 133,34; passa da fatura, mas cabe nas parcelas futuras (396,66)
+    expect(await screen.findByText(/O que passar da fatura fechada \(R\$ 133,34\)/)).toBeTruthy()
+    expect(screen.queryByText(/mais do que tudo o que este cartão tem a pagar/)).toBeNull()
+    await u.clear(valor)
+    await u.type(valor, '900,00') // passa de fatura + parcelas futuras (133,34 + 396,66 = 530,00)
+    expect(await screen.findByText(/mais do que tudo o que este cartão tem a pagar/)).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ valor: 90000, faturaId: 'f3' }), expect.any(String))
+  })
+
+  it('o aviso de "mais que tudo" desconta o crédito que o cartão já tem', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(20000), credito: c(12000) }])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    await u.type(screen.getByLabelText('Valor (R$)'), '100,00') // 100 > 200 − 120 = 80 que ainda falta cobrir
+    expect(await screen.findByText(/mais do que tudo o que este cartão tem a pagar/)).toBeTruthy()
   })
 
   it('mostra as faturas com total e os itens com n/N', async () => {
@@ -257,5 +299,79 @@ describe('Cartões', () => {
     render(<Cartoes />)
     expect(await screen.findByText('Nubank')).toBeTruthy()
     expect(screen.getByText(/Não foi possível fechar as faturas agora/)).toBeTruthy()
+  })
+
+  it('anular um pagamento: pede confirmação, anula e recarrega; cancelar a confirmação não anula', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(0), credito: c(10000) }])
+    mock.listarMovimentosDoCartao.mockResolvedValue([
+      { id: 'ev1', data: '2026-10-24', tipo: 'pagamento', valor: c(10000), ligadoAFatura: false },
+    ])
+    mock.anularMovimentoCartao.mockResolvedValue(undefined)
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await screen.findByRole('button', { name: 'Anular' }))
+    expect(confirmar).toHaveBeenCalled()
+    expect(mock.anularMovimentoCartao).not.toHaveBeenCalled()
+    confirmar.mockReturnValue(true)
+    await u.click(screen.getByRole('button', { name: 'Anular' }))
+    expect(mock.anularMovimentoCartao).toHaveBeenCalledWith('ev1', expect.any(String))
+  })
+})
+
+describe('Limite do cartão', () => {
+  const comLimite = { ...nubank, limite: c(580000), limiteComprometido: c(53000), limiteDisponivel: c(527000) }
+
+  it('sem limite, não mostra barra e oferece "Definir limite"', async () => {
+    render(<Cartoes />)
+    await screen.findByText('Nubank')
+    expect(screen.queryByText(/Disponível R\$/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Definir limite' })).toBeTruthy()
+  })
+
+  it('com limite, mostra limite, disponível e comprometido vindos do banco', async () => {
+    mock.listarCartoes.mockResolvedValue([comLimite])
+    render(<Cartoes />)
+    expect(await screen.findByText('Limite R$ 5.800,00')).toBeTruthy()
+    expect(screen.getByText('Disponível R$ 5.270,00')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Comprometido R$ 530,00 de R$ 5.800,00' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Alterar limite' })).toBeTruthy()
+  })
+
+  it('passou do limite: avisa o quanto, sem bloquear nada', async () => {
+    mock.listarCartoes.mockResolvedValue([{ ...comLimite, limiteComprometido: c(600000), limiteDisponivel: c(-20000) }])
+    render(<Cartoes />)
+    expect(await screen.findByText('Passou do limite em R$ 200,00')).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Nova compra' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('grava o limite em centavos', async () => {
+    const u = userEvent.setup()
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Definir limite' }))
+    await u.type(screen.getByLabelText('Limite do cartão (R$)'), '5.800,00')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.definirLimite).toHaveBeenCalledWith('k1', 580000)
+  })
+
+  it('campo em branco remove o limite', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([comLimite])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Alterar limite' }))
+    await u.clear(screen.getByLabelText('Limite do cartão (R$)'))
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.definirLimite).toHaveBeenCalledWith('k1', null)
+  })
+
+  it('valor inválido ou zero não chega ao banco', async () => {
+    const u = userEvent.setup()
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Definir limite' }))
+    await u.type(screen.getByLabelText('Limite do cartão (R$)'), '0')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(await screen.findByText(/Valor inválido/)).toBeTruthy()
+    expect(mock.definirLimite).not.toHaveBeenCalled()
   })
 })

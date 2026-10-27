@@ -8,22 +8,24 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  criarCartao, definirCiclo, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
+  criarCartao, definirCiclo, definirLimite, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
   novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
+  anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
-import type { Cartao, Fatura, ItemFatura, ItemPrevia } from '../lib/cartoes'
+import type { Cartao, Fatura, ItemFatura, ItemPrevia, MovimentoCartao } from '../lib/cartoes'
 import { listarCategorias } from '../lib/categorias'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { asCents, formatBRL, formatDate, formatMonth, parseBRL } from '../lib/format'
+import { asCents, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 
 type Painel =
   | { tipo: 'novo' }
   | { tipo: 'ciclo'; cartao: Cartao }
+  | { tipo: 'limite'; cartao: Cartao }
   | { tipo: 'compra'; cartao: Cartao }
   | { tipo: 'pagar'; cartao: Cartao }
 
@@ -84,6 +86,7 @@ export default function Cartoes() {
 
       {painel?.tipo === 'novo' && <FormCartao aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'ciclo' && <FormCiclo cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
+      {painel?.tipo === 'limite' && <FormLimite cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'compra' && (
         <FormCompra cartao={painel.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />
       )}
@@ -126,9 +129,12 @@ export default function Cartoes() {
                 </dl>
               </div>
               {c.credito > 0 && <p className="mt-2 text-sm text-positivo">Crédito a receber: {formatBRL(c.credito)}</p>}
+              {c.limite !== null && c.limiteComprometido !== null && c.limiteDisponivel !== null && (
+                <Limite limite={c.limite} comprometido={c.limiteComprometido} disponivel={c.limiteDisponivel} />
+              )}
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button onClick={() => setPainel({ tipo: 'compra', cartao: c })} disabled={c.fechamento === null || painel !== null}>Nova compra</Button>
-                <Button variante="secundario" onClick={() => setPainel({ tipo: 'pagar', cartao: c })} disabled={c.divida <= 0 || painel !== null}
+                <Button variante="secundario" onClick={() => setPainel({ tipo: 'pagar', cartao: c })} disabled={c.fechamento === null || painel !== null}
                   aria-describedby={c.divida <= 0 && c.fechamento !== null ? `sem-fatura-${c.id}` : undefined}>Pagar fatura</Button>
                 <Button variante="fantasma" onClick={() => setAberto(aberto === c.id ? null : c.id)} aria-expanded={aberto === c.id}>
                   {aberto === c.id ? 'Ocultar faturas' : 'Ver faturas'}
@@ -136,20 +142,47 @@ export default function Cartoes() {
                 <Button variante="fantasma" onClick={() => setPainel({ tipo: 'ciclo', cartao: c })} disabled={painel !== null}>
                   {c.fechamento === null ? 'Definir fechamento' : 'Alterar dias'}
                 </Button>
+                <Button variante="fantasma" onClick={() => setPainel({ tipo: 'limite', cartao: c })} disabled={painel !== null}>
+                  {c.limite === null ? 'Definir limite' : 'Alterar limite'}
+                </Button>
               </div>
               {c.divida <= 0 && c.fechamento !== null && (
                 <p id={`sem-fatura-${c.id}`} className="mt-3 text-sm text-slate-600">
                   {c.compromissos > 0
-                    ? <>Não há fatura fechada para pagar. Você tem {formatBRL(c.compromissos)} em parcelas futuras: cada uma entra na fatura que fecha no dia {c.fechamento} do seu mês, e só depois do fechamento o botão <strong>Pagar fatura</strong> libera.</>
-                    : <>Não há fatura fechada para pagar agora.</>}
+                    ? <>Não há fatura fechada. Você tem {formatBRL(c.compromissos)} em parcelas futuras: cada uma entra na fatura que fecha no dia {c.fechamento} do seu mês. Se pagar agora, o valor <strong>vira crédito no cartão</strong> e abate as próximas faturas.</>
+                    : <>Não há fatura fechada. Se pagar agora, o valor <strong>vira crédito no cartão</strong> e abate as próximas faturas.</>}
                 </p>
               )}
               {aberto === c.id && <Faturas cartaoId={c.id} versao={versao} categorias={categorias} contas={contas} aoAlterar={carregar} />}
+              {aberto === c.id && <MovimentosCartao cartaoId={c.id} versao={versao} aoAlterar={carregar} />}
             </Card>
           </li>
         ))}
       </ul>
     </>
+  )
+}
+
+/** Barra do limite: a proporção é só apresentação; os três valores vêm calculados do banco (card_limits). */
+function Limite({ limite, comprometido, disponivel }: { limite: Cents; comprometido: Cents; disponivel: Cents }) {
+  const passou = disponivel < 0
+  const pct = Math.max(0, Math.min(100, (comprometido / limite) * 100))
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 text-sm">
+        <span className="text-slate-500">Limite {formatBRL(limite)}</span>
+        <span className={`tabular-nums font-semibold ${passou ? 'text-negativo' : ''}`}>
+          {passou ? `Passou do limite em ${formatBRL(-disponivel as Cents)}` : `Disponível ${formatBRL(disponivel)}`}
+        </span>
+      </div>
+      <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100" role="img"
+        aria-label={`Comprometido ${formatBRL(comprometido)} de ${formatBRL(limite)}`}>
+        <div className={`h-full rounded-full ${passou ? 'bg-negativo' : 'bg-azul'}`} style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        Comprometido {formatBRL(comprometido)}: faturas a pagar + parcelas futuras − crédito no cartão. É só acompanhamento: o app não bloqueia compras.
+      </p>
+    </div>
   )
 }
 
@@ -163,6 +196,54 @@ type Acao =
   | { tipo: 'reabrir'; fatura: Fatura }
   | { tipo: 'editar'; item: ItemFatura }
   | { tipo: 'excluir'; item: ItemFatura }
+
+/** Pagamentos e devoluções do cartão, com "Anular" para corrigir lançamento errado (ex.: crédito de teste). */
+function MovimentosCartao({ cartaoId, versao, aoAlterar }: { cartaoId: string; versao: number; aoAlterar: () => Promise<void> }) {
+  const [movs, setMovs] = useState<MovimentoCartao[] | null>(null)
+  const [erro, setErro] = useState('')
+  const [anulando, setAnulando] = useState<string | null>(null)
+
+  useEffect(() => {
+    listarMovimentosDoCartao(cartaoId).then(setMovs).catch((err) => setErro(mensagemErroBanco(err)))
+  }, [cartaoId, versao])
+
+  async function anular(m: MovimentoCartao) {
+    const rotulo = m.tipo === 'devolucao' ? 'devolução' : m.tipo === 'amortizacao' ? 'amortização' : 'pagamento'
+    if (!window.confirm(`Anular ${rotulo} de ${formatBRL(m.valor)} de ${formatDate(m.data)}? O dinheiro volta para a conta e a dívida ou o crédito são recalculados. Fica registrado.`)) return
+    setErro('')
+    setAnulando(m.id)
+    try {
+      await anularMovimentoCartao(m.id, 'anulado pela tela (correção)')
+      await aoAlterar()
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    } finally {
+      setAnulando(null)
+    }
+  }
+
+  return (
+    <div className="mt-4 border-t border-slate-100 pt-4">
+      <h3 className="mb-2 text-sm font-semibold text-slate-600">Pagamentos e devoluções</h3>
+      {erro && <div className="mb-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {movs === null && !erro && <p className="text-sm text-slate-500" role="status">Carregando…</p>}
+      {movs?.length === 0 && <p className="text-sm text-slate-500">Nenhum pagamento ou devolução lançado.</p>}
+      <ul className="flex flex-col gap-2">
+        {movs?.map((m) => (
+          <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+            <span>
+              {formatDate(m.data)} · {m.tipo === 'devolucao' ? 'Devolução em dinheiro' : m.tipo === 'amortizacao' ? 'Amortização' : 'Pagamento'}
+              {m.ligadoAFatura ? ' (fatura)' : ' (sem fatura: adiantado)'} · <span className="tabular-nums font-semibold">{formatBRL(m.valor)}</span>
+            </span>
+            <Button variante="perigo" carregando={anulando === m.id} disabled={anulando !== null} onClick={() => void anular(m)}>
+              Anular
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
 
 function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
   cartaoId: string; versao: number; categorias: Categoria[]; contas: Conta[]; aoAlterar: () => Promise<void>
@@ -186,8 +267,13 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
 
   useEffect(() => {
     if (!mes) return
+    // resposta de uma fatura que já não é a escolhida não pode preencher a lista da outra (Editar/Excluir ficariam no item errado)
+    let vivo = true
     setItens(null)
-    listarItens(cartaoId, mes).then(setItens).catch((err) => setErro(mensagemErroBanco(err)))
+    listarItens(cartaoId, mes)
+      .then((i) => { if (vivo) setItens(i) })
+      .catch((err) => { if (vivo) setErro(mensagemErroBanco(err)) })
+    return () => { vivo = false }
   }, [cartaoId, mes, versao])
 
   const nomeCategoria = new Map(categorias.map((c) => [c.id, c.nome]))
@@ -363,6 +449,38 @@ function FormCiclo({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Carta
   )
 }
 
+function FormLimite({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao }) {
+  const [texto, setTexto] = useState(cartao.limite !== null ? formatBRLCampo(cartao.limite) : '')
+  const [tentou, setTentou] = useState(false)
+  const { erro, enviando, enviar } = useEnvio(aoSalvar)
+  const vazio = texto.trim() === ''
+  const valor = vazio ? null : parseBRL(texto)
+  const invalido = !vazio && (valor === null || valor <= 0)
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    setTentou(true)
+    if (invalido) return
+    void enviar(() => definirLimite(cartao.id, valor))
+  }
+
+  return (
+    <Card className="mb-6">
+      <h2 className="mb-4 text-lg font-semibold">Limite · {cartao.nome}</h2>
+      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Field rotulo="Limite do cartão (R$)" inputMode="decimal" placeholder="Ex.: 5.800,00" value={texto}
+          onChange={(e) => setTexto(e.target.value)} erro={tentou && invalido ? 'Valor inválido. Exemplo: 5.800,00' : undefined} />
+        <p className="text-sm text-slate-600 md:col-span-2">
+          Use o limite total que o banco informa. O app mostra quanto sobra descontando faturas a pagar e parcelas futuras.
+          Deixe em branco para remover o limite. Nenhuma compra é bloqueada por causa dele.
+        </p>
+        <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
+      </form>
+    </Card>
+  )
+}
+
 function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; categorias: Categoria[] }) {
   const hoje = hojeSP()
   const [andamento, setAndamento] = useState(false)
@@ -433,9 +551,12 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
 function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; contas: Conta[] }) {
   const ativas = contas.filter((c) => c.ativa)
   const [contaId, setContaId] = useState(ativas[0]?.id ?? '')
-  const [valorTexto, setValorTexto] = useState(formatBRL(cartao.divida).replace('R$ ', ''))
+  // com fatura fechada, sugere a dívida; sem fatura, é pagamento adiantado e o valor fica por conta do dono
+  const [valorTexto, setValorTexto] = useState(cartao.divida > 0 ? formatBRLCampo(cartao.divida) : '')
   const [data, setData] = useState(hojeSP())
   const [fatura, setFatura] = useState<Fatura | null>(null)
+  // 'carregando' bloqueia o envio: sem saber qual fatura quitar, o pagamento viraria adiantamento (crédito) em vez de quitar a fatura
+  const [faturaEstado, setFaturaEstado] = useState<'carregando' | 'ok' | 'falhou'>('carregando')
   const [tentou, setTentou] = useState(false)
   const [chave] = useState(novaChave)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
@@ -443,7 +564,11 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
   useEffect(() => {
     const hoje = hojeSP()
     // fatura mais antiga já fechada e não paga: é a que o pagamento quita
-    listarFaturas(cartao.id).then((fs) => setFatura(fs.find((f) => situacaoFatura(f, hoje) === 'fechada') ?? null)).catch(() => setFatura(null))
+    let vivo = true
+    listarFaturas(cartao.id)
+      .then((fs) => { if (vivo) { setFatura(fs.find((f) => situacaoFatura(f, hoje) === 'fechada') ?? null); setFaturaEstado('ok') } })
+      .catch(() => { if (vivo) { setFatura(null); setFaturaEstado('falhou') } })
+    return () => { vivo = false }
   }, [cartao.id])
 
   const valor = parseBRL(valorTexto)
@@ -453,8 +578,15 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
     e.preventDefault()
     setTentou(true)
     if (!contaId || valor === null || valor <= 0 || !data) return
-    void enviar(() => pagarFatura(cartao.id, { contaId, data, valor, faturaId: fatura?.faturaId ?? null }, chave))
+    if (cartao.divida > 0 && faturaEstado !== 'ok') return
+    // só liga a uma fatura quando há dívida fechada; sem ela, é adiantamento (vira crédito no cartão)
+    void enviar(() => pagarFatura(cartao.id, { contaId, data, valor, faturaId: cartao.divida > 0 ? fatura?.faturaId ?? null : null }, chave))
   }
+
+  // comparações entre valores exatos em centavos; o banco é quem decide e recalcula o crédito
+  const adiantado = valor !== null && valor > 0 && valor > cartao.divida
+  // o crédito que o cartão já tem também cobre parcelas futuras: só avisa quando passa de (dívida + parcelas futuras − crédito)
+  const maisQueTudo = valor !== null && valor > cartao.divida + cartao.compromissos - cartao.credito
 
   return (
     <Card className="mb-6">
@@ -465,10 +597,22 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
         <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
         <Field rotulo="Data do pagamento" type="date" value={data} onChange={(e) => setData(e.target.value)} />
         <p className="text-sm text-slate-600 md:col-span-2">
-          {fatura ? <>Quita a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong>. </> : null}
-          O pagamento sai da conta e reduz a dívida do cartão. Não é despesa: as compras já contaram no mês de cada fatura.
+          {cartao.divida > 0 && fatura ? <>Quita a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong>. </> : null}
+          {adiantado && cartao.divida > 0 && <>O que passar da fatura fechada ({formatBRL(cartao.divida)}) <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
+          {adiantado && cartao.divida <= 0 && <>Não há fatura fechada: o valor <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
+          O pagamento sai da conta na data escolhida e reduz a dívida do cartão. Não é despesa: as compras contam no mês de cada fatura.
         </p>
-        <Botoes rotulo="Registrar pagamento" enviando={enviando} aoCancelar={aoCancelar} />
+        {maisQueTudo && (
+          <div className="md:col-span-2">
+            <Aviso tipo="info">É mais do que tudo o que este cartão tem a pagar hoje (fatura fechada e parcelas futuras). Confira o valor antes de registrar.</Aviso>
+          </div>
+        )}
+        {cartao.divida > 0 && faturaEstado === 'falhou' && (
+          <div className="md:col-span-2">
+            <Aviso tipo="erro">Não foi possível ver qual fatura este pagamento quita. Feche e abra de novo; registrar agora o deixaria como adiantamento.</Aviso>
+          </div>
+        )}
+        <Botoes rotulo="Registrar pagamento" enviando={enviando || (cartao.divida > 0 && faturaEstado !== 'ok')} aoCancelar={aoCancelar} />
       </form>
     </Card>
   )
@@ -483,7 +627,7 @@ function PainelReabrir({ cartaoId, fatura, aoFechar, aoConcluir }: {
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
       <p className="text-sm">
         Reabrir a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong> desfaz os pagamentos dela
-        ({formatBRL(fatura.pago)}) e o dinheiro volta para as contas de onde saiu. Depois você pode editar as parcelas e pagar de novo.
+        ({formatBRL(fatura.pago)}), <strong>inclusive a parte que passou da fatura e ficou como crédito</strong>, e o dinheiro volta para as contas de onde saiu. Depois você pode editar as parcelas e pagar de novo.
       </p>
       <div className="mt-3 flex gap-2">
         <Button variante="perigo" carregando={enviando} onClick={() => void enviar(async () => { await reabrirFatura(cartaoId, fatura.mes) })}>
@@ -496,7 +640,7 @@ function PainelReabrir({ cartaoId, fatura, aoFechar, aoConcluir }: {
 }
 
 function PainelEditar({ item, aoFechar, aoConcluir }: { item: ItemFatura; aoFechar: () => void; aoConcluir: () => Promise<void> }) {
-  const [valorTexto, setValorTexto] = useState(formatBRL(item.valor).replace('R$ ', '').replace(/\u00a0/g, ''))
+  const [valorTexto, setValorTexto] = useState(formatBRLCampo(item.valor).replace(/\u00a0/g, ''))
   const [tentou, setTentou] = useState(false)
   const { erro, enviando, enviar } = useEnvio(aoConcluir)
   const valor = parseBRL(valorTexto)

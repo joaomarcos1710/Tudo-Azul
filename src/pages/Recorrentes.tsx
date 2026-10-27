@@ -15,7 +15,7 @@ import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { formatBRL, formatDate, parseBRL } from '../lib/format'
+import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
 import {
   criarRecorrencia, editarRecorrencia, encerrarRecorrencia, listarRecorrencias, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
@@ -162,7 +162,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
   const cartoesComCiclo = cartoes.filter((c) => c.ativo && c.fechamento !== null)
   const [tipo, setTipo] = useState<TipoRecorrencia>(r?.tipo ?? 'expense')
   const [descricao, setDescricao] = useState(r?.descricao ?? '')
-  const [valorTexto, setValorTexto] = useState(r ? formatBRL(r.valor).replace('R$ ', '') : '')
+  const [valorTexto, setValorTexto] = useState(r ? formatBRLCampo(r.valor) : '')
   const [dia, setDia] = useState(r ? String(r.dia) : '')
   const [inicio, setInicio] = useState(r?.inicio ?? hojeSP())
   const [contaId, setContaId] = useState(r?.contaId ?? contasAtivas[0]?.id ?? '')
@@ -264,7 +264,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando
-            ? 'O novo valor vale para os planejados ainda não pagos de hoje em diante. O que já foi pago não muda.'
+            ? 'A mudança vale para os planejados ainda não pagos de hoje em diante. O que já foi pago não muda, e o que você corrigiu à mão em um mês (valor, descrição ou categoria) fica como está.'
             : 'Dia 29, 30 ou 31 em mês mais curto cai no último dia do mês.'}
           {!editando && tipo === 'card' && cartoesComCiclo.length === 0 && ' Cadastre um cartão com fechamento e vencimento em Cartões antes.'}
         </p>

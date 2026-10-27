@@ -5,6 +5,8 @@ import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card, CardTitle } from '../components/ui/Card'
 import { Field } from '../components/ui/Field'
+import { Versao } from '../components/layout/Versao'
+import { ZerarTudo } from '../components/ZerarTudo'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
   criarConvite, criarFamilia, linkDoConvite, listarConvitesPendentes, listarMembros, mensagemErroBanco, tokenDoTexto,
@@ -18,6 +20,7 @@ export default function Familia() {
     <>
       <h1 className="mb-6 text-2xl font-bold">Família</h1>
       {familia ? <MinhaFamilia /> : <SemFamilia />}
+      <Versao className="mt-8 text-slate-500" />
     </>
   )
 }
@@ -125,6 +128,7 @@ function MinhaFamilia() {
         )}
       </Card>
       {dono && <Convidar aoConvidar={carregarListas} />}
+      {dono && <div className="md:col-span-2"><ZerarTudo /></div>}
     </div>
   )
 }

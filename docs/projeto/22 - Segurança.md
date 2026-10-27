@@ -1,0 +1,14 @@
+---
+tags: [tudo-azul, seguranca]
+---
+# Segurança
+
+- **Isolamento por família**: RLS em todas as tabelas + chaves compostas (nunca referencia dado de outra família). Testado com dados de duas famílias (auditoria: nenhum vazamento).
+- **Chaves**: o front só aceita a *publishable key*; chave secreta é recusada, com teste. `service_role` e senhas nunca entram em chat nem no repositório.
+- **Convites**: o token aparece uma vez; no banco só o hash (SHA-256). Convite expira em 7 dias, é por e-mail e respeita o limite de membros.
+- **Funções SECURITY DEFINER**: `search_path` fixo, checagem explícita de dono/membro, EXECUTE só para usuários logados (anon sem acesso a nada).
+- **Ações destrutivas**: "Zerar tudo" só o dono; conta não é apagada (só desativada).
+- **Dependências**: `npm audit --omit=dev` em zero; o CI barra qualquer vulnerabilidade de produção.
+
+## Ponto em aberto
+Aceitar convite **sem e-mail confirmado** depende da configuração do Supabase de produção. Conferir em *Authentication → Providers → Email → Confirm email* ([[40 - Pendências e próximos passos]]).

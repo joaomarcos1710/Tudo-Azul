@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Field } from '../components/ui/Field'
 import { useFamilia } from '../lib/FamiliaContext'
-import { agrupar, criarCategoria, definirCategoriaAtiva, editarCategoria, listarCategorias } from '../lib/categorias'
+import { agrupar, criarCategoria, definirCategoriaAtiva, definirCategoriaEventual, editarCategoria, listarCategorias } from '../lib/categorias'
 import type { Categoria, TipoCategoria } from '../lib/categorias'
 import { mensagemErroBanco } from '../lib/erros'
 
@@ -26,7 +26,7 @@ export default function Categorias() {
   const carregar = useCallback(async () => {
     if (!familiaId) return
     try {
-      setCategorias(await listarCategorias(familiaId))
+      setCategorias(await listarCategorias(familiaId, { comEventual: true }))
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -38,6 +38,15 @@ export default function Categorias() {
   async function alternarAtiva(c: Categoria) {
     try {
       await definirCategoriaAtiva(c.id, !c.ativa)
+      await carregar()
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    }
+  }
+
+  async function alternarEventual(c: Categoria) {
+    try {
+      await definirCategoriaEventual(c.id, !c.eventual)
       await carregar()
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -82,18 +91,25 @@ export default function Categorias() {
         />
       )}
 
+      {tipo === 'income' && (
+        <p className="mb-4 text-sm text-slate-600">
+          Marque como <strong>eventual</strong> a receita que não se repete todo mês (13º, férias, PLR, restituição, FGTS).
+          A Visão geral mostra se a renda <strong>regular</strong> cobre as despesas. Os totais do mês não mudam.
+        </p>
+      )}
+
       {categorias === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
       <ul className="flex flex-col gap-3">
         {grupos.map((g) => (
           <li key={g.id}>
             <Card className="p-0">
-              <Linha categoria={g} aoEditar={() => setEditando(g)} aoAlternar={() => alternarAtiva(g)} />
+              <Linha categoria={g} aoEditar={() => setEditando(g)} aoAlternar={() => alternarAtiva(g)} aoEventual={() => alternarEventual(g)} herdaEventual={false} />
               {g.filhas.length > 0 && (
                 <ul className="border-t border-slate-100">
                   {g.filhas.map((f) => (
                     <li key={f.id} className="pl-6">
-                      <Linha categoria={f} aoEditar={() => setEditando(f)} aoAlternar={() => alternarAtiva(f)} />
+                      <Linha categoria={f} aoEditar={() => setEditando(f)} aoAlternar={() => alternarAtiva(f)} aoEventual={() => alternarEventual(f)} herdaEventual={g.eventual} />
                     </li>
                   ))}
                 </ul>
@@ -106,7 +122,9 @@ export default function Categorias() {
   )
 }
 
-function Linha({ categoria: c, aoEditar, aoAlternar }: { categoria: Categoria; aoEditar: () => void; aoAlternar: () => void }) {
+function Linha({ categoria: c, aoEditar, aoAlternar, aoEventual, herdaEventual }: {
+  categoria: Categoria; aoEditar: () => void; aoAlternar: () => void; aoEventual: () => void; herdaEventual: boolean
+}) {
   return (
     <div className={`flex flex-wrap items-center justify-between gap-2 px-5 py-3 ${c.ativa ? '' : 'opacity-70'}`}>
       <span className={c.paiId ? 'text-sm' : 'font-semibold'}>
@@ -114,9 +132,13 @@ function Linha({ categoria: c, aoEditar, aoAlternar }: { categoria: Categoria; a
         {c.nome}
         {!c.ativa && <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">desativada</span>}
         {c.sistema && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">padrão</span>}
+        {(c.eventual || herdaEventual) && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">eventual{herdaEventual && !c.eventual ? ' (da principal)' : ''}</span>}
       </span>
       {!c.sistema && (
         <span className="flex gap-1">
+          {c.tipo === 'income' && (!herdaEventual || c.eventual) && (
+            <Button variante="fantasma" onClick={aoEventual}>{c.eventual ? 'Marcar como regular' : 'Marcar como eventual'}</Button>
+          )}
           <Button variante="fantasma" onClick={aoEditar}>Editar</Button>
           <Button variante="fantasma" onClick={aoAlternar}>{c.ativa ? 'Desativar' : 'Reativar'}</Button>
         </span>

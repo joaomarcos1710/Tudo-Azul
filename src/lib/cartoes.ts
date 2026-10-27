@@ -20,6 +20,12 @@ export interface Cartao {
   credito: Cents
   /** Parcelas futuras ainda não cobradas. */
   compromissos: Cents
+  /** Limite informado pelo dono (migration 011); null = não informado. Só acompanhamento, nada é bloqueado. */
+  limite: Cents | null
+  /** Dívida + parcelas futuras − crédito, calculado no banco (card_limits). null sem limite. */
+  limiteComprometido: Cents | null
+  /** Limite − comprometido; negativo = passou do limite. null sem limite. */
+  limiteDisponivel: Cents | null
 }
 
 export interface Fatura {
@@ -83,17 +89,24 @@ export function ontemSP(agora: Date = new Date()): string {
 
 export async function listarCartoes(familiaId: string, dataRef: string = hojeSP()): Promise<Cartao[]> {
   const db = cliente()
-  const [cartoes, saldos] = await Promise.all([
+  const [cartoes, saldos, limites] = await Promise.all([
     db.from('debts').select('id, name, closing_day, due_day, active').eq('household_id', familiaId).eq('kind', 'card').order('name'),
     db.rpc('debt_balances', { p_household: familiaId, p_as_of: dataRef }),
+    // o limite é um extra: se a consulta falhar (ex.: banco ainda sem a migration 011), a tela segue sem ele
+    db.rpc('card_limits', { p_household: familiaId, p_as_of: dataRef }),
   ])
   for (const r of [cartoes, saldos]) if (r.error) throw r.error
+  const limitePorId = new Map(
+    (limites.error ? [] : ((limites.data ?? []) as { debt_id: string; credit_limit: number | string; committed: number | string; available: number | string }[]))
+      .map((l) => [l.debt_id, l]),
+  )
   const porId = new Map(
     ((saldos.data ?? []) as { debt_id: string; debt: number | string; credit_receivable: number | string; planned_remaining: number | string }[])
       .map((s) => [s.debt_id, s]),
   )
   return (cartoes.data ?? []).map((c) => {
     const s = porId.get(c.id)
+    const l = limitePorId.get(c.id)
     return {
       id: c.id,
       nome: c.name,
@@ -103,6 +116,9 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
       divida: centsFromDb(s?.debt ?? 0),
       credito: centsFromDb(s?.credit_receivable ?? 0),
       compromissos: centsFromDb(s?.planned_remaining ?? 0),
+      limite: l ? centsFromDb(l.credit_limit) : null,
+      limiteComprometido: l ? centsFromDb(l.committed) : null,
+      limiteDisponivel: l ? centsFromDb(l.available) : null,
     }
   })
 }
@@ -123,6 +139,12 @@ export async function criarCartao(d: { nome: string; fechamento: number; vencime
 
 export async function definirCiclo(cartaoId: string, fechamento: number, vencimento: number): Promise<void> {
   const { error } = await cliente().rpc('set_card_cycle', { p_debt: cartaoId, p_closing_day: fechamento, p_due_day: vencimento })
+  if (error) throw error
+}
+
+/** Define ou muda o limite do cartão; null apaga. O banco recusa valor zero, negativo ou com mais de 2 casas. */
+export async function definirLimite(cartaoId: string, limite: Cents | null): Promise<void> {
+  const { error } = await cliente().rpc('set_card_limit', { p_debt: cartaoId, p_limit: limite === null ? null : centsToDecimal(limite) })
   if (error) throw error
 }
 
@@ -230,4 +252,80 @@ export async function editarParcela(parcelaId: string, valor: Cents, motivo?: st
 export function situacaoFatura(f: Fatura, hoje: string): 'aberta' | 'fechada' | 'paga' {
   if (f.fechamento > hoje) return 'aberta'
   return f.cobrado <= 0 || f.pago >= f.cobrado ? 'paga' : 'fechada'
+}
+
+/** Pagamentos e devoluções que mexem no saldo do cartão (os que podem ser anulados pela tela). */
+export interface MovimentoCartao {
+  id: string
+  data: string
+  tipo: 'pagamento' | 'amortizacao' | 'devolucao'
+  valor: Cents
+  /** Pagamento ligado a uma fatura (vira "fatura paga" nela). */
+  ligadoAFatura: boolean
+}
+
+export async function listarMovimentosDoCartao(cartaoId: string): Promise<MovimentoCartao[]> {
+  const { data, error } = await cliente()
+    .from('debt_events')
+    .select('id, date, kind, amount, invoice_id, created_at')
+    .eq('debt_id', cartaoId)
+    .is('voided_at', null)
+    .in('kind', ['payment', 'extra_principal', 'refund_cash'])
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(30)
+  if (error) throw error
+  const tipos: Record<string, MovimentoCartao['tipo']> = { payment: 'pagamento', extra_principal: 'amortizacao', refund_cash: 'devolucao' }
+  return (data ?? []).map((e) => ({
+    id: e.id,
+    data: e.date,
+    tipo: tipos[e.kind],
+    valor: centsFromDb(e.amount),
+    ligadoAFatura: e.invoice_id != null,
+  }))
+}
+
+/** Anula um pagamento ou devolução (correção). O banco recalcula dívida e crédito e registra o motivo. */
+export async function anularMovimentoCartao(eventoId: string, motivo: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_void', { p_event: eventoId, p_reason: motivo })
+  if (error) throw error
+}
+
+/**
+ * Linha do painel: o que pagar em cada cartão e quando. Valores e datas vêm do banco (debt_balances, card_months, card_limits).
+ * Limitação conhecida: a dívida inclui o "saldo de referência" informado ao criar o cartão (fatura anterior ao app), que não
+ * tem fatura própria; nesse caso o vencimento mostrado é o da fatura fechada mais antiga que existe, ou nenhum.
+ */
+export interface ResumoCartao {
+  id: string
+  nome: string
+  /** Faturas já fechadas e ainda não pagas. */
+  divida: Cents
+  /** Vencimento da fatura fechada mais antiga ainda não paga; null sem fatura a pagar. */
+  vencimento: string | null
+  vencida: boolean
+  limiteDisponivel: Cents | null
+  /** Crédito no cartão (pagamento adiantado ou estorno maior que a dívida). */
+  credito: Cents
+}
+
+export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP()): Promise<ResumoCartao[]> {
+  // cartão inativo que ainda deve continua aparecendo: a dívida dele entra no patrimônio
+  const cartoes = (await listarCartoes(familiaId, hoje)).filter((c) => c.ativo || c.divida > 0)
+  return Promise.all(cartoes.map(async (c) => {
+    let vencimento: string | null = null
+    if (c.divida > 0) {
+      // falha ao ler as faturas de UM cartão não derruba o bloco: ele aparece com a dívida e sem data
+      try {
+        const faturas = await listarFaturas(c.id)
+        vencimento = faturas.find((f) => situacaoFatura(f, hoje) === 'fechada')?.vencimento ?? null
+      } catch {
+        vencimento = null
+      }
+    }
+    return {
+      id: c.id, nome: c.nome, divida: c.divida, vencimento,
+      vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel, credito: c.credito,
+    }
+  }))
 }

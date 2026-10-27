@@ -73,10 +73,11 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
     p_category: d.tipo === 'transfer' ? null : d.categoriaId,
   })
   if (error) throw error
-  await gerarOcorrencias()
+  // a regra já está gravada: se só a geração falhar, ela roda de novo ao abrir as telas. Lançar erro aqui faria a pessoa reenviar e duplicar a regra.
+  await gerarOcorrencias().catch(() => undefined)
 }
 
-/** Novo valor/descrição/categoria: vale para os planejados não pagos de hoje em diante. */
+/** Novo valor/descrição/categoria: vale para os planejados não pagos de hoje em diante, campo a campo, sem desfazer o que foi corrigido à mão (migration 015). */
 export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null }): Promise<void> {
   const { error } = await cliente().rpc('recurrence_update', {
     p_id: id, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor), p_category: d.categoriaId,

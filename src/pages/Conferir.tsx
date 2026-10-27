@@ -34,12 +34,13 @@ export default function Conferir() {
   const [enviando, setEnviando] = useState(false)
   // descarta respostas de uma data anterior que cheguem depois (evita "Zero ✓" da data errada)
   const pedido = useRef(0)
+  const [desfazendo, setDesfazendo] = useState(false)
 
   const carregar = useCallback(async () => {
+    const meu = ++pedido.current // antes de qualquer retorno: data apagada invalida a consulta em voo
     setSaldoApp(null)
     setMovimentos(null)
     if (!familiaId || !contaId || !data) return
-    const meu = ++pedido.current
     try {
       const [contas, saldo, movs, hist] = await Promise.all([
         listarContas(familiaId), saldoNaData(familiaId, contaId, data), movimentosAte(contaId, data), ultimasConciliacoes(contaId),
@@ -81,14 +82,18 @@ export default function Conferir() {
   }
 
   async function desfazer() {
-    if (!travadaAte) return
+    if (!travadaAte || desfazendo) return
     if (!window.confirm(`Desfazer a conciliação de ${formatDate(travadaAte)}? O período volta a poder ser editado e as marcas de "Conferido" dessa conciliação somem.`)) return
+    // o RPC desfaz "a última": um segundo toque durante a chamada desfaria a conciliação anterior à que a pessoa viu
+    setDesfazendo(true)
     try {
       await desfazerUltimaConciliacao(contaId)
       setSucesso('')
       await carregar()
     } catch (err) {
       setErro(mensagemErroBanco(err))
+    } finally {
+      setDesfazendo(false)
     }
   }
 
@@ -171,7 +176,7 @@ export default function Conferir() {
         <Card className="mt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle>Conciliações</CardTitle>
-            <Button variante="fantasma" onClick={desfazer}>Desfazer a de {formatDate(historico[0].data)}</Button>
+            <Button variante="fantasma" onClick={desfazer} carregando={desfazendo}>Desfazer a de {formatDate(historico[0].data)}</Button>
           </div>
           <ul className="flex flex-col gap-1 text-sm text-slate-600">
             {historico.map((h) => (

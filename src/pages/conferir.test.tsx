@@ -96,4 +96,21 @@ describe('Conferir conta', () => {
     expect(window.confirm).toHaveBeenCalled()
     expect(mock.desfazerUltimaConciliacao).toHaveBeenCalledWith('a1')
   })
+
+  it('desfazer: dois toques seguidos durante a chamada desfazem só UMA conciliação', async () => {
+    mock.ultimasConciliacoes.mockResolvedValue([
+      { data: '2026-10-10', saldoExtrato: c(100000), lancamentos: 3, criadaEm: '2026-10-10T10:00:00Z' },
+      { data: '2026-09-10', saldoExtrato: c(90000), lancamentos: 2, criadaEm: '2026-09-10T10:00:00Z' },
+    ])
+    let terminar: (v: unknown) => void = () => {}
+    mock.desfazerUltimaConciliacao.mockReturnValue(new Promise((r) => { terminar = r }))
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const u = userEvent.setup()
+    montar()
+    const botao = await screen.findByRole('button', { name: 'Desfazer a de 10/10/2026' })
+    await u.click(botao)
+    await u.click(screen.getByRole('button', { name: /Aguarde/ }))
+    expect(mock.desfazerUltimaConciliacao).toHaveBeenCalledTimes(1)
+    terminar(null)
+  })
 })

@@ -17,8 +17,11 @@ import Cadastro from './pages/auth/Cadastro'
 import RecuperarSenha from './pages/auth/RecuperarSenha'
 import NovaSenha from './pages/auth/NovaSenha'
 import Convite from './pages/Convite'
+import { useValoresOcultos } from './lib/privacidade'
 
 export default function App() {
+  // Ao ocultar/mostrar valores o App re-renderiza e, com ele, todas as telas (que recebem elementos novos).
+  useValoresOcultos()
   return (
     <Routes>
       <Route path="entrar" element={<Entrar />} />

@@ -88,3 +88,70 @@ export async function despesasPorDia(familiaId: string, de: string, ate: string)
     acumulado: centsFromDb(r.cumulative ?? 0),
   }))
 }
+
+/** Renda regular × eventual de um período e quanto da despesa a renda regular cobre (income_regularity). */
+export interface RegularidadeRenda {
+  regular: Cents
+  eventual: Cents
+  despesas: Cents
+  /** % da despesa coberta pela renda regular, já arredondado no banco (1 casa). null sem despesa no período. */
+  cobertura: number | null
+}
+
+export async function regularidadeRenda(familiaId: string, de: string, ate: string): Promise<RegularidadeRenda> {
+  const { data, error } = await cliente().rpc('income_regularity', { p_household: familiaId, p_from: de, p_to: ate })
+  if (error) throw error
+  const r = ((data ?? []) as Record<string, number | string | null>[])[0] ?? {}
+  return {
+    regular: centsFromDb(r.income_regular ?? 0),
+    eventual: centsFromDb(r.income_eventual ?? 0),
+    despesas: centsFromDb(r.expense_paid ?? 0),
+    cobertura: r.coverage_pct === null || r.coverage_pct === undefined ? null : Number(r.coverage_pct),
+  }
+}
+
+/** Projeção do mês (month_projection): já gasto + já previsto + ritmo do que é variável × dias que faltam. */
+export interface ProjecaoMes {
+  diasNoMes: number
+  diasDecorridos: number
+  diasRestantes: number
+  gasto: Cents
+  previsto: Cents
+  /** Pago no mês e que não é recorrente (base do ritmo). */
+  variavelAteAgora: Cents
+  ritmoPorDia: Cents
+  /** Ritmo × dias que faltam. */
+  ritmoRestante: Cents
+  projetado: Cents
+}
+
+export async function projecaoDoMes(familiaId: string, mes: string, hoje: string): Promise<ProjecaoMes | null> {
+  const { data, error } = await cliente().rpc('month_projection', { p_household: familiaId, p_month: `${mes}-01`, p_today: hoje })
+  if (error) throw error
+  const r = ((data ?? []) as Record<string, number | string>[])[0]
+  if (!r) return null
+  return {
+    diasNoMes: Number(r.days_in_month), diasDecorridos: Number(r.days_elapsed), diasRestantes: Number(r.days_left),
+    gasto: centsFromDb(r.spent), previsto: centsFromDb(r.planned), variavelAteAgora: centsFromDb(r.variable_so_far),
+    ritmoPorDia: centsFromDb(r.pace_per_day), ritmoRestante: centsFromDb(r.pace_extra), projetado: centsFromDb(r.projected),
+  }
+}
+
+/** Planejado que já passou da data e continua sem ser pago/recebido. */
+export interface Vencidos {
+  /** Os mais antigos primeiro (até o limite pedido). */
+  itens: ProximoPlanejado[]
+  /** Quantos vencidos existem no total (pode ser maior que itens.length). */
+  total: number
+}
+
+export async function vencidosPlanejados(familiaId: string, hoje: string, limite = 5): Promise<Vencidos> {
+  const base = () => cliente().from('transactions').select('id, type, description, amount, date', { count: 'exact' })
+    .eq('household_id', familiaId).eq('status', 'planned').is('deleted_at', null).lt('date', hoje)
+  const { data, error, count } = await base().order('date').order('id').limit(limite)
+  if (error) throw error
+  return {
+    itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date })),
+    total: count ?? (data ?? []).length,
+  }
+}

@@ -59,7 +59,7 @@ const mensagens: Record<string, string> = {
 export function mensagemErroAuth(erro: { code?: string; message?: string; status?: number } | null | undefined): string {
   if (!erro) return ''
   if (erro.code && mensagens[erro.code]) return mensagens[erro.code]
-  if (erro.status === 0 || /failed to fetch|network/i.test(erro.message ?? '')) {
+  if (erro.status === 0 || /failed to fetch|network|load failed|internet connection|offline/i.test(erro.message ?? '')) {
     return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.'
   }
   // O código ajuda a diagnosticar sem expor a mensagem técnica.

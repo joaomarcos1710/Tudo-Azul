@@ -1,4 +1,5 @@
 /** Formatadores pt-BR. Valores monetários em BRL, datas em DD/MM/AAAA. */
+import { MASCARA, valoresOcultos } from './privacidade'
 
 /**
  * Dinheiro no front é sempre `Cents`: centavos inteiros (decisão 11, MODELO-DE-DADOS.md §5).
@@ -17,12 +18,25 @@ export function asCents(n: number): Cents | null {
   return Number.isSafeInteger(n) && Math.abs(n) <= MAX_CENTS ? (n as Cents) : null
 }
 
-/** 125050 -> "R$ 1.250,50"; -3000 -> "-R$ 30,00". Só formata, sem aritmética em reais. */
-export function formatBRL(cents: Cents): string {
+function brlReal(cents: Cents): string {
   const abs = Math.abs(cents)
   const reais = milhar.format(Math.floor(abs / 100))
   const centavos = String(abs % 100).padStart(2, '0')
   return `${cents < 0 ? '-' : ''}R$ ${reais},${centavos}`
+}
+
+/**
+ * 125050 -> "R$ 1.250,50"; -3000 -> "-R$ 30,00". Só formata, sem aritmética em reais.
+ * Para MOSTRAR na tela: com "ocultar valores" ligado devolve a máscara. Nunca use para preencher campo de
+ * edição ou qualquer coisa que depois seja lida de volta: para isso existe `formatBRLCampo`.
+ */
+export function formatBRL(cents: Cents): string {
+  return valoresOcultos() ? MASCARA : brlReal(cents)
+}
+
+/** "1.250,50" / "-30,00": o valor de verdade (sem "R$ "), para preencher campos de edição; nunca é mascarado. */
+export function formatBRLCampo(cents: Cents): string {
+  return brlReal(cents).replace('R$ ', '')
 }
 
 /**
@@ -37,8 +51,10 @@ export function formatBRL(cents: Cents): string {
  * Recusa: "1.2.3", "1,2,3", "1,234" (3 casas decimais), "12..5", texto.
  */
 export function parseBRL(input: string): Cents | null {
+  // trim também tira o NBSP de valores colados; aceita "R$"/"r$" e o sinal antes dele ("-R$ 30,00"). Espaço no MEIO do número
+  // continua recusado ("1 2" é ambíguo)
   const bruto = input.trim()
-  const t = bruto.startsWith('R$') ? bruto.slice(2).trim() : bruto
+  const t = bruto.replace(/^(-?)\s*r\$\s*/i, '$1')
   const inteiroMilhar = '\\d{1,3}(?:\\.\\d{3})+'
   const comVirgula = new RegExp(`^(-?)(${inteiroMilhar}|\\d+),(\\d{1,2})$`)
   const semVirgulaMilhar = new RegExp(`^(-?)(${inteiroMilhar})()$`)
