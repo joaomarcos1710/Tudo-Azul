@@ -13,6 +13,7 @@ Menu em **grupos** (barra lateral no iPad/computador; no celular, 4 atalhos + "M
 
 ## Movimentações
 - **Lançamentos** — receitas, despesas e transferências do mês; filtros conta → tipo → categoria (categoria só do tipo escolhido); formulário único: conta **ou** cartão; marcar como pago pede data e valor reais; lixeira (desfazer a última exclusão).
+- **Calendário** (`/calendario?mes=AAAA-MM`) — o mês em grade (semana começa na segunda); cada dia mostra marcas de entrada paga (verde), saída paga (vermelha) e planejado (âmbar); tocar no dia lista os lançamentos com valor e "Pago"/"Planejado" (inclui pagamento de fatura e de dívida saindo da conta). **Não soma por dia**: os totais do mês (receitas pagas, despesas pagas, resultado) vêm do banco. Compra no cartão aparece no fechamento da fatura, não no dia da compra. Ideia trazida do protótipo do Base44.
 - **Recorrentes** — contas mensais e assinaturas no cartão.
 - **Cartões** — fatura por mês, parcelas, pagar fatura, reabrir fatura, excluir compra, editar parcela, anular pagamento/devolução, **limite**.
 - **Contas e conferência** — contas (cadastrar, editar, desativar), saldo vindo do banco, e **Conferir com o extrato** (trava o período conferido; dá para desfazer a última).

@@ -39,3 +39,7 @@ Dez–Jan multimoeda · Fev–Abr/2027 investimentos · importar do Organizze (v
 
 ## Ideias guardadas
 Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app · foco/rolagem nos formulários · contraste · taxa de poupança e meses de reserva · metas com prazo (junto com investimentos) · detector de recorrência (depois da importação).
+
+## Do protótipo do Base44
+- [ ] **Calendário do mês** (PR em rascunho): conferir no celular e no iPad, depois do merge.
+- Ainda não feitos (só com a sua autorização): destaques do mês e comparativo por categoria em Análises.
