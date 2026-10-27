@@ -363,11 +363,68 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     expect(screen.queryByText('Projeção do mês')).toBeNull()
     expect(screen.queryByText('R$ 10.875,60')).toBeNull()
   })
-  it('Análises não mostra as ações do dia a dia (vencidos, próximos, contas)', async () => {
+  it('Análises não mostra as ações do dia a dia (ações rápidas, vencidos, cartões, próximos, contas)', async () => {
+    // com dados de vencidos e cartões, para a ausência não ser só "lista vazia"
+    mock.vencidosPlanejados.mockResolvedValue({ total: 1, itens: [{ id: 'v1', tipo: 'expense', descricao: 'Luz', valor: c(18000), data: '2026-10-05' }] })
+    mock.resumoDosCartoes.mockResolvedValue([
+      { id: 'k1', nome: 'Nubank', divida: c(133334), vencimento: '2099-12-25', vencida: false, limiteDisponivel: c(527000), credito: c(0) },
+    ])
     montar('analises')
     await screen.findByRole('heading', { name: 'Análises' })
+    expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Ações rápidas' })).toBeNull()
+    expect(screen.queryByText('+ Despesa')).toBeNull()
+    expect(screen.queryByText('Vencidos e precisam de atenção')).toBeNull()
+    expect(screen.queryByText('Nubank')).toBeNull()
     expect(screen.queryByText('Próximos planejados')).toBeNull()
     expect(screen.queryByText('Contas')).toBeNull()
+    // e o Início continua com tudo isso
+    cleanup()
+    montar()
+    expect(await screen.findByText('Vencidos e precisam de atenção')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Ações rápidas' })).toBeTruthy()
+    expect(screen.getByText('Nubank')).toBeTruthy()
+  })
+  it('Início não consulta patrimônio nem resumos do mês: uma falha neles não derruba o Início', async () => {
+    mock.carregarPatrimonio.mockRejectedValue(new Error('rede'))
+    mock.resumoDoMes.mockRejectedValue(new Error('rede'))
+    montar()
+    expect(await screen.findByText('Próximos planejados')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(mock.carregarPatrimonio).not.toHaveBeenCalled()
+    expect(mock.resumoDoMes).not.toHaveBeenCalled()
+  })
+})
+
+describe('Análises: falha isolada derruba só o bloco dela', () => {
+  it('mês anterior falhou: indicadores aparecem sem a variação; nada de erro na tela', async () => {
+    mock.resumoDoMes
+      .mockResolvedValueOnce({ receitas: c(1215000), despesas: c(866726), resultado: c(348274), receitasPrevistas: c(0), despesasPrevistas: c(38990) })
+      .mockRejectedValueOnce(new Error('rede'))
+    montar('analises')
+    expect(await screen.findByText('Despesas do mês')).toBeTruthy()
+    expect(screen.getByText('−R$ 8.667,26')).toBeTruthy()
+    expect(screen.queryByText(/vs set|vs out|vs nov/)).toBeNull()
+    expect(screen.queryByText(/No mês passado inteiro/)).toBeNull()
+    expect(screen.getByText('R$ 10.875,60')).toBeTruthy() // patrimônio segue
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+  it('patrimônio falhou: o resumo do mês segue e o patrimônio avisa que está indisponível', async () => {
+    mock.carregarPatrimonio.mockRejectedValue(new Error('rede'))
+    montar('analises')
+    expect(await screen.findByText('Despesas do mês')).toBeTruthy()
+    expect(screen.getByText('Patrimônio indisponível agora.')).toBeTruthy()
+    expect(screen.queryByText('Patrimônio líquido')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+  it('resumo do mês falhou: patrimônio e os outros blocos seguem; o gráfico que depende do total fica indisponível', async () => {
+    mock.resumoDoMes.mockRejectedValue(new Error('rede'))
+    montar('analises')
+    expect(await screen.findByText('Resumo do mês indisponível agora. O restante da tela continua.')).toBeTruthy()
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.queryByText('Despesas do mês')).toBeNull()
+    expect(screen.getByText('Gráfico indisponível agora.')).toBeTruthy()
+    expect(screen.getByText('Renda regular × despesas')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

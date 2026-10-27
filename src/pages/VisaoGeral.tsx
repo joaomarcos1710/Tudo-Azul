@@ -22,10 +22,16 @@ import type { Lancamento, ResumoMes } from '../lib/lancamentos'
 import { carregarPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
 import type { DespesaCategoria, DespesaDia, Patrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, Vencidos } from '../lib/painel'
 
+/**
+ * Cada tela carrega só o que mostra. Início: contas, lançamentos e planejados são essenciais (se falharem, a tela
+ * avisa o erro); o resto é opcional. Análises: tudo é opcional — cada bloco some sozinho se a consulta dele falhar.
+ * Campo da outra tela fica vazio (não é consultado).
+ */
 interface Dados {
-  patrimonio: Patrimonio
-  mes: ResumoMes
-  anterior: ResumoMes
+  /** null = não carregou (ou não é desta tela) */
+  patrimonio: Patrimonio | null
+  mes: ResumoMes | null
+  anterior: ResumoMes | null
   contas: Conta[]
   proximos: ProximoPlanejado[]
   /** null = os gráficos não carregaram (ex.: banco ainda sem as consultas novas); o resto da tela segue normal */
@@ -77,7 +83,7 @@ function variacao(atual: Cents, anterior: Cents): number | null {
 }
 
 /** Painel: todo valor em reais vem calculado do banco (net_worth, period_summary, expenses_by_category, daily_expenses). */
-/** Início ("o que fazer agora") e Análises ("como estou indo"): mesmo carregamento, cada seção mostra os seus blocos. */
+/** Início ("o que fazer agora") e Análises ("como estou indo"): cada seção carrega e mostra só os seus blocos. */
 export type SecaoResumo = 'inicio' | 'analises'
 
 export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }) {
@@ -96,45 +102,51 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   useEffect(() => {
     if (!familiaId) return
     const [de, ate] = limitesDoMes(mes)
+    const opcional = <T,>(p: Promise<T>) => p.catch(() => null)
     // gera recorrentes e cobra faturas fechadas; se falhar, o painel mostra o que já está gravado, com aviso
     atualizarAutomaticos()
       .then((r) => { setCobrancaFalhou(!r.faturasOk); setRecorrentesFalhou(!r.recorrentesOk) })
-      .then(() => Promise.all([
-        carregarPatrimonio(familiaId, hoje), resumoDoMes(familiaId, mes), resumoDoMes(familiaId, somarMeses(mes, -1)),
-        listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje),
-        despesasPorCategoria(familiaId, de, ate, 4).catch(() => null), despesasPorDia(familiaId, de, ate).catch(() => null),
-        listarLancamentos(familiaId, mes), listarCategorias(familiaId),
-        Promise.all([
-          regularidadeRenda(familiaId, de, ate),
-          regularidadeRenda(familiaId, limitesDoMes(somarMeses(mes, -11))[0], ate),
-        ]).catch(() => null),
-        // mesmo recorte de dias nos dois anos: este mês até hoje × o mesmo mês até o mesmo dia do ano passado; o ano até hoje idem
-        Promise.all([
-          resumoDoPeriodo(familiaId, de, hoje),
-          resumoDoPeriodo(familiaId, `${somarMeses(mes, -12)}-01`, mesmoDiaAnoPassado(hoje)),
-          resumoDoPeriodo(familiaId, `${hoje.slice(0, 4)}-01-01`, hoje),
-          resumoDoPeriodo(familiaId, `${Number(hoje.slice(0, 4)) - 1}-01-01`, mesmoDiaAnoPassado(hoje)),
-        ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior })).catch(() => null),
-        projecaoDoMes(familiaId, mes, hoje).catch(() => null),
-        vencidosPlanejados(familiaId, hoje, 5).catch(() => null),
-        resumoDosCartoes(familiaId, hoje).catch(() => null),
-        ultimasConferencias(familiaId).catch(() => null),
-      ]))
-      .then(([patrimonio, resumo, anterior, c, proximos, categorias, dias, lancs, cats, regularidade, anoPassado, projecao, vencidos, cartoes, conferencias]) => setDados({
-        patrimonio, mes: resumo, anterior, contas: c.contas.filter((x) => x.ativa), proximos, categorias, dias, regularidade, anoPassado, projecao, vencidos, cartoes, conferencias,
-        ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
-        nomeCategoria: new Map(cats.map((x) => [x.id, x.nome])),
-      }))
+      .then(() => noInicio
+        ? Promise.all([
+            // essenciais do Início: se falharem, a tela inteira avisa o erro
+            listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje), listarLancamentos(familiaId, mes), listarCategorias(familiaId),
+            opcional(vencidosPlanejados(familiaId, hoje, 5)), opcional(resumoDosCartoes(familiaId, hoje)), opcional(ultimasConferencias(familiaId)),
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, conferencias]): Dados => ({
+            patrimonio: null, mes: null, anterior: null, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
+            contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, conferencias,
+            ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
+            nomeCategoria: new Map(cats.map((x) => [x.id, x.nome])),
+          }))
+        : Promise.all([
+            // Análises: cada consulta é opcional; um bloco que falha some, o resto segue
+            opcional(carregarPatrimonio(familiaId, hoje)), opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
+            opcional(despesasPorCategoria(familiaId, de, ate, 4)), opcional(despesasPorDia(familiaId, de, ate)),
+            opcional(Promise.all([
+              regularidadeRenda(familiaId, de, ate),
+              regularidadeRenda(familiaId, limitesDoMes(somarMeses(mes, -11))[0], ate),
+            ])),
+            // mesmo recorte de dias nos dois anos: este mês até hoje × o mesmo mês até o mesmo dia do ano passado; o ano até hoje idem
+            opcional(Promise.all([
+              resumoDoPeriodo(familiaId, de, hoje),
+              resumoDoPeriodo(familiaId, `${somarMeses(mes, -12)}-01`, mesmoDiaAnoPassado(hoje)),
+              resumoDoPeriodo(familiaId, `${hoje.slice(0, 4)}-01-01`, hoje),
+              resumoDoPeriodo(familiaId, `${Number(hoje.slice(0, 4)) - 1}-01-01`, mesmoDiaAnoPassado(hoje)),
+            ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior }))),
+            opcional(projecaoDoMes(familiaId, mes, hoje)),
+          ]).then(([patrimonio, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao]): Dados => ({
+            patrimonio, mes: resumo, anterior, categorias, dias, regularidade, anoPassado, projecao,
+            contas: [], proximos: [], vencidos: null, cartoes: null, conferencias: null, ultimos: [], nomeCategoria: new Map(),
+          })))
+      .then(setDados)
       .catch((err) => setErro(mensagemErroBanco(err)))
-  }, [familiaId, hoje, mes])
+  }, [familiaId, hoje, mes, noInicio])
 
   if (!familiaId) return null
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>
   if (!dados) return <p className="text-sm text-slate-600" role="status">Carregando…</p>
 
-  const { patrimonio: p, mes: m } = dados
-  // comparação com o mês anterior: se a consulta falhou, os indicadores seguem sem variação (sem quebrar a tela)
-  const a = dados.anterior ?? { receitas: 0 as Cents, despesas: 0 as Cents, resultado: 0 as Cents, receitasPrevistas: 0 as Cents, despesasPrevistas: 0 as Cents }
+  // null = não carregou; o bloco correspondente some e o resto da tela segue
+  const { patrimonio: p, mes: m, anterior: a } = dados
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   return (
     <>
@@ -153,14 +165,14 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </div>
       )}
 
-      <section aria-label="Ações rápidas" className="mb-4 flex flex-wrap gap-2">
+      {noInicio && <section aria-label="Ações rápidas" className="mb-4 flex flex-wrap gap-2">
         <Link to="/lancamentos?novo=despesa" className={`${atalho} bg-azul text-white hover:bg-blue-700`}>+ Despesa</Link>
         <Link to="/lancamentos?novo=receita" className={`${atalho} border border-slate-300 bg-white text-marinho hover:bg-azul-claro`}>+ Receita</Link>
         <Link to="/lancamentos?novo=transferencia" className={`${atalho} border border-slate-300 bg-white text-marinho hover:bg-azul-claro`}>⇄ Transferência</Link>
         <Link to="/lancamentos?novo=cartao" className={`${atalho} border border-slate-300 bg-white text-marinho hover:bg-azul-claro`}>Compra no cartão</Link>
-      </section>
+      </section>}
 
-      {dados.vencidos && dados.vencidos.total > 0 && (
+      {noInicio && dados.vencidos && dados.vencidos.total > 0 && (
         <Card className="mb-4 !border !border-red-200">
           <CardTitle>Vencidos e precisam de atenção</CardTitle>
           <p className="mb-2 text-sm text-slate-600">
@@ -191,7 +203,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </Card>
       )}
 
-      {dados.cartoes && dados.cartoes.length > 0 && (
+      {noInicio && dados.cartoes && dados.cartoes.length > 0 && (
         <Card className="mb-4">
           <div className="flex items-center justify-between">
             <CardTitle>Cartões</CardTitle>
@@ -225,27 +237,37 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
 
       {!noInicio && <>
-      <section aria-label="Resumo do mês" className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-red-50 text-negativo"
-          var={variacao(m.despesas, a.despesas)} subirEhBom={false} comparado={mesAnteriorCurto} />
-        <Indicador rotulo="Receitas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-green-50 text-positivo"
-          var={variacao(m.receitas, a.receitas)} subirEhBom comparado={mesAnteriorCurto} />
-        <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
-          var={variacao(m.resultado, a.resultado)} subirEhBom comparado={mesAnteriorCurto} negativoVermelho />
-        <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-          rodape={`Disponível ${formatBRL(p.disponivel)} · dívida ${formatBRL(p.divida)}`} />
-      </section>
-      <p className="mb-2 text-xs text-slate-500">
-        Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} − dívida {formatBRL(p.divida)}.
-        Contas e dívidas. Não inclui bens nem investimentos.
-      </p>
-      {p.compromissos > 0 && (
+      {(m || p) ? (
+        <section aria-label="Resumo do mês" className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {m && <>
+            <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-red-50 text-negativo"
+              var={a && variacao(m.despesas, a.despesas)} subirEhBom={false} comparado={mesAnteriorCurto} />
+            <Indicador rotulo="Receitas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-green-50 text-positivo"
+              var={a && variacao(m.receitas, a.receitas)} subirEhBom comparado={mesAnteriorCurto} />
+            <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
+              var={a && variacao(m.resultado, a.resultado)} subirEhBom comparado={mesAnteriorCurto} negativoVermelho />
+          </>}
+          {p && (
+            <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
+              rodape={`Disponível ${formatBRL(p.disponivel)} · dívida ${formatBRL(p.divida)}`} />
+          )}
+        </section>
+      ) : null}
+      {!m && <p className="mb-2 text-sm text-slate-500" role="status">Resumo do mês indisponível agora. O restante da tela continua.</p>}
+      {!p && <p className="mb-2 text-sm text-slate-500" role="status">Patrimônio indisponível agora.</p>}
+      {p && (
+        <p className="mb-2 text-xs text-slate-500">
+          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} − dívida {formatBRL(p.divida)}.
+          Contas e dívidas. Não inclui bens nem investimentos.
+        </p>
+      )}
+      {p && p.compromissos > 0 && (
         <div className="mb-4 rounded-card border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-600">
           Compromissos futuros (parcelas de cartão ainda não cobradas): <strong className="tabular-nums">{formatBRL(p.compromissos)}</strong>.
           Não entram no patrimônio de hoje.
         </div>
       )}
-      {(m.receitasPrevistas > 0 || m.despesasPrevistas > 0) && (
+      {m && (m.receitasPrevistas > 0 || m.despesasPrevistas > 0) && (
         <p className="mb-4 text-xs text-planejado">Ainda planejado no mês: +{formatBRL(m.receitasPrevistas)} / −{formatBRL(m.despesasPrevistas)}</p>
       )}
       </>}
@@ -253,8 +275,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {!noInicio && <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card>
           <CardTitle>Despesas por categoria</CardTitle>
-          {dados.categorias === null ? (
-            <p className="text-sm text-slate-500" role="status">Gráfico indisponível agora. Os valores acima continuam corretos.</p>
+          {dados.categorias === null || m === null ? (
+            <p className="text-sm text-slate-500" role="status">Gráfico indisponível agora.</p>
           ) : dados.categorias.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
           ) : (
@@ -269,7 +291,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           {dados.dias === null
             ? <p className="text-sm text-slate-500" role="status">Gráfico indisponível agora. Os valores acima continuam corretos.</p>
             : <LinhaAcumulada pontos={dados.dias} ate={hoje} />}
-          {a.despesas > 0 && (
+          {a && m && a.despesas > 0 && (
             <p className="mt-2 rounded-lg bg-azul-claro px-3 py-2 text-sm text-marinho">
               No mês passado inteiro foram {formatBRL(a.despesas)}; neste mês, até hoje, {formatBRL(m.despesas)}.
             </p>
@@ -284,7 +306,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                 <p className="text-sm text-slate-500">Até o fim de {formatMonth(mes)}, no ritmo atual, você terá gasto</p>
                 <p className="tabular-nums text-2xl font-bold text-negativo">{formatBRL(dados.projecao.projetado)}</p>
               </div>
-              {variacao(dados.projecao.projetado, a.despesas) !== null && (
+              {a && variacao(dados.projecao.projetado, a.despesas) !== null && (
                 <p className="text-sm text-slate-600">
                   {(variacao(dados.projecao.projetado, a.despesas) as number) >= 0 ? '▲' : '▼'}{' '}
                   {Math.abs(variacao(dados.projecao.projetado, a.despesas) as number).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%

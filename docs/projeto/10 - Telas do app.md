@@ -6,7 +6,9 @@ tags: [tudo-azul, telas]
 Menu em **grupos** (barra lateral no iPad/computador; no celular, 4 atalhos + "Mais"). Botão de **olho** oculta os valores (só apresentação).
 
 ## Visão geral
-- **Início** — o que fazer agora: patrimônio, ações rápidas (+ Despesa, + Receita, Transferência, Compra no cartão), **Vencidos**, **Cartões** (fatura, vencimento, limite disponível), **Conferência de saldo** por conta, projeção do mês, comparação com o ano passado, renda regular × despesas, gráficos.
+- **Início** (`/`) — o que fazer agora: ações rápidas (+ Despesa, + Receita, Transferência, Compra no cartão), **Vencidos**, **Cartões** (fatura, vencimento, limite disponível), últimos lançamentos, próximos planejados e contas com **conferência de saldo**.
+- **Análises** (`/analises`) — como estou indo: patrimônio e resumo do mês (com variação contra o mês anterior), projeção do mês, comparação com o ano passado, renda regular × despesas e gráficos por categoria e por dia.
+- Cada tela carrega só o que mostra. Em Análises, cada bloco é independente: se a consulta dele falhar, só ele some (com aviso), e o resto segue. No Início, contas, lançamentos e planejados são essenciais; vencidos, cartões e conferência são opcionais.
 - **Relatórios e exportação** — CSV do mês e **exportação completa** (5 arquivos: lançamentos, movimentos por conta, cadastros, parcelas de cartão, eventos de cartão/dívidas).
 
 ## Movimentações
