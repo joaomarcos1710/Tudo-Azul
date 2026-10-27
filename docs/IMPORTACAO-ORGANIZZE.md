@@ -1,5 +1,19 @@
 # Importação do Organizze — plano de preparação
 
+> **Status em 27/10/2026: plano de 13/10, não aprovado como especificação e não implementado.** Foi escrito antes da
+> conciliação (migration 007), de cartões e dívidas na forma atual e da migration 015. Antes de implementar, revalidar
+> contra o esquema atual. Pontos já confirmados no código na auditoria de 26/10:
+> 1. **Duplicidade com o que já foi lançado no Tudo Azul.** A chave da seção 6 só compara uma importação com outra.
+>    Importar um período que também foi lançado à mão no app duplica os lançamentos. É preciso decidir uma data de corte.
+> 2. **Conciliação.** Lançamento pago em período conciliado é recusado (erro 55000); em conta conciliada, saldo inicial e
+>    data de abertura não mudam; o "desfazer lote" também esbarra nessa trava. Decidir se a importação vem antes ou
+>    depois de conciliar.
+> 3. **Pagamento de fatura (D1).** "Saída sem categoria de despesa" não é representável: despesa exige categoria. As
+>    opções reais são transferência, evento de dívida ou despesa com categoria (esta duplica quando o cartão for importado).
+> 4. **Chave com o nome da aba.** Renomear uma conta no Organizze faz todas as linhas dela parecerem novas.
+> 5. **Saldo inicial (seção 7).** A fórmula está certa, mas falta dizer que X é o saldo no **fim do dia** e que a soma é só
+>    do que foi de fato importado, da data de abertura até X, incluindo eventos de dívida que mexem na conta.
+
 > **Status: análise e documentação. Nada foi implementado, aplicado ou gravado.**
 > Não há importador, migration nem dados neste repositório. Os relatórios com dados reais
 > (contas, categorias, pessoas, valores) ficam fora do Git, com o dono dos dados.
