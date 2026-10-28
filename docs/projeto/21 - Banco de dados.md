@@ -24,9 +24,9 @@ Supabase (Postgres), projeto `vbhzilsqzzevaodqsenr`. **Regra:** migration aplica
 | 013 | `projection` (25/10) | Projeção do mês e do orçamento. |
 | **014** | `audit_fixes` (25/10, aplicada 26/10) | Correções da auditoria (ver [[Auditorias/2026-10-26 Auditoria]]). |
 | **015** | `recurrence_keep_edits` (26/10, **aplicada em produção em 26/10/2026**) | Reajustar uma recorrência não desfaz o que foi corrigido à mão nos planejados futuros. |
-| **016** | `recurrence_frequency` (28/10, **ainda não aplicada em produção**) | Frequências de recorrência: semanal, quinzenal, mensal, bimestral, trimestral, semestral, anual e personalizada. |
+| **016** | `recurrence_frequency` (28/10, **aplicada em produção em 28/10/2026**) | Frequências de recorrência: semanal, quinzenal, mensal, bimestral, trimestral, semestral, anual e personalizada. |
 
-Total: **21 arquivos** no repositório; 20 sincronizados com a produção em 26/10/2026 (a 016 ainda não foi aplicada). A migration 015 foi aplicada pelo workflow de produção após o merge do PR #59; ver execução 20 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580).
+Total: **21 arquivos**, sincronizados entre o repositório e a produção em 28/10/2026. A migration 016 foi aplicada pelo workflow de produção após o merge do PR #65; ver execução 22 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40690330495). A migration 015 foi aplicada pelo workflow de produção após o merge do PR #59; ver execução 20 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580).
 
 ## Detalhes da 016
 - `recurrences` ganha `freq_unit` (`month` | `week`) e `freq_every` (meses 1–12, semanas 1–4), com padrão `month`/1: as regras existentes continuam mensais e geram **as mesmas datas** (teste RF1: 93 regras × 5 anos contra a fórmula antiga). `day` passa a ser nulo na unidade semana (constraint `recurrences_frequency`).

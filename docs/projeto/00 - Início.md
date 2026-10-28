@@ -1,6 +1,6 @@
 ---
 tags: [tudo-azul, indice]
-atualizado: 2026-10-26
+atualizado: 2026-10-28
 ---
 # Tudo Azul — mapa do projeto
 
@@ -11,7 +11,7 @@ App web de finanças da família (React + Vite + TypeScript + Tailwind + Supabas
 2. [[02 - Linha do tempo]] — **o passo a passo** do que foi feito, dia a dia, PR por PR.
 3. [[10 - Telas do app]] — o que cada tela faz hoje.
 4. [[20 - Regras do dinheiro]] — as regras que não podem quebrar.
-5. [[21 - Banco de dados]] — as migrations, uma a uma (21 arquivos; a 016, de frequências de recorrência, ainda não aplicada em produção).
+5. [[21 - Banco de dados]] — as migrations, uma a uma (21 arquivos; em 28/10/2026 todos aplicados em produção, conforme o workflow).
 6. [[22 - Segurança]] · [[23 - Qualidade e testes]] · [[24 - Deploy e operação]]
 7. [[Auditorias/2026-10-26 Auditoria]] — o que os agentes acharam e o que foi corrigido.
 8. [[30 - Decisões]] — por que foi feito de cada jeito.

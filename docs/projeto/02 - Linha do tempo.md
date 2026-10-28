@@ -56,5 +56,13 @@ tags: [tudo-azul, historico]
 - **Pesquisa de ideias, rodada 2**, com os achados já resolvidos marcados (#40).
 - **Propostas antigas guardadas como histórico**, com nota de status e os pontos a corrigir: importação do Organizze (#9), multimoeda e início operacional (#10).
 
+## Fase 6 · 28/10 — calendário, redesenho (2026.3) e frequências de recorrência
+- **Linha do tempo e pendências** de 27/10 no diário (#61).
+- **Calendário do mês**: grade com marcas de entrada, saída e planejado; detalhe do dia; totais do mês vindos do banco (#62).
+- **Versão 2026.3 — redesenho visual** pelo design system "Tudo Azul": padding dobrado dos painéis corrigido em 5 telas, títulos de mês com maiúscula certa, Lançamentos compacto, ações rápidas com ícone, contraste dos campos, Início sem rolagem lateral no celular; verificado em 320–1280px (#64, merge `2f178e1`).
+- **Recorrências com frequência** — banco: migration 016 (semanal, quinzenal, mensal, bimestral, trimestral, semestral, anual, personalizada), série de datas numa função só, projeção do cartão corrigida (#65, merge `5c4cea5`).
+- **Migration 016 aplicada em produção** em 28/10/2026, pela [execução 22 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40690330495) (simulação antes: execução 21), a partir do commit `5c4cea5`; 21 migrations iguais no repositório e na produção.
+- **Recorrências com frequência** — tela: escolher a frequência, data final e prévia das próximas datas (#66, merge `b4b059f`, depois da 016 aplicada).
+
 ## Ainda abertos
-Nenhum PR aberto em 27/10/2026.
+Só este registro do diário em 28/10/2026.
