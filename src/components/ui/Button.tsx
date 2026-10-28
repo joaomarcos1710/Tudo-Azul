@@ -14,16 +14,18 @@ const estilos: Record<Variante, string> = {
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variante?: Variante
   carregando?: boolean
+  /** Padding lateral menor (px-3), para fileiras de ações em lista no celular. Não use className com px-*: o px-4 venceria. */
+  compacto?: boolean
 }
 
-export function Button({ variante = 'primario', carregando, disabled, className = '', children, ...rest }: Props) {
+export function Button({ variante = 'primario', carregando, compacto = false, disabled, className = '', children, ...rest }: Props) {
   return (
     <button
       type="button"
       {...rest}
       disabled={disabled || carregando}
       aria-busy={carregando || undefined}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed ${estilos[variante]} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg ${compacto ? 'px-3' : 'px-4'} text-sm font-semibold transition-colors disabled:cursor-not-allowed ${estilos[variante]} ${className}`}
     >
       {carregando ? 'Aguarde…' : children}
     </button>

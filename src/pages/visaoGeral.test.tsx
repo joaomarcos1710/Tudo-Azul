@@ -272,6 +272,13 @@ describe('Visão geral', () => {
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
 
+  it('grades de painéis têm grid-cols-1 no celular (sem ela a coluna cresce até o item mais largo e a tela rola de lado)', async () => {
+    // jsdom não calcula layout; a medição real (sem rolagem lateral em 320px) foi feita no navegador. Aqui fica a trava.
+    montar()
+    const painel = (await screen.findByText('Últimos lançamentos')).closest('div.grid')
+    expect(painel?.className.split(/\s+/)).toContain('grid-cols-1')
+  })
+
   it('ações rápidas: despesa, receita, transferência e compra no cartão abrem o lançamento já no tipo certo', async () => {
     montar()
     await screen.findByText(/, João!/)

@@ -68,7 +68,9 @@ function diasEntre(de: string, ate: string): number {
 }
 
 // ações rápidas: painéis-botão do mesmo tamanho, com ícone; o ícone e a palavra dizem o tipo (a cor só reforça)
-const atalho = 'flex min-h-14 items-center gap-3 rounded-card bg-white px-3 text-sm font-semibold text-marinho shadow-card transition-colors hover:bg-azul-claro'
+// celular: ícone em cima e rótulo embaixo ("Transferência" não cabe ao lado do ícone em 320px); a partir de sm, lado a lado
+// 4 colunas só em xl: com o menu lateral, 4 colunas no iPad deixariam ~75px para o rótulo
+const atalho = 'flex flex-col items-start gap-2 rounded-card bg-white p-3 text-sm font-semibold text-marinho shadow-card transition-colors hover:bg-azul-claro sm:min-h-14 sm:flex-row sm:items-center sm:gap-3 sm:py-0'
 const atalhoIcone = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'
 
 function saudacao(agora = new Date()): string {
@@ -168,7 +170,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </div>
       )}
 
-      {noInicio && <section aria-label="Ações rápidas" className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+      {noInicio && <section aria-label="Ações rápidas" className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
         <Link to="/lancamentos?novo=despesa" className={atalho}><span className={`${atalhoIcone} bg-red-50 text-negativo`}><IconeSubtrair /></span>Despesa</Link>
         <Link to="/lancamentos?novo=receita" className={atalho}><span className={`${atalhoIcone} bg-green-50 text-positivo`}><IconeSomar /></span>Receita</Link>
         <Link to="/lancamentos?novo=transferencia" className={atalho}><span className={`${atalhoIcone} bg-azul-claro text-azul`}><IconeTransferir /></span>Transferência</Link>
@@ -275,7 +277,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
       </>}
 
-      {!noInicio && <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      {!noInicio && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardTitle>Despesas por categoria</CardTitle>
           {dados.categorias === null || m === null ? (
@@ -337,7 +339,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         {dados.anoPassado && (
           <Card className="lg:col-span-2">
             <CardTitle>Comparação com o ano passado</CardTitle>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {dados.anoPassado.mesAtual && dados.anoPassado.mesAnterior && (
                 <BlocoAnual titulo={`${formatMonth(mes)} até o dia ${Number(hoje.slice(8, 10))}`} rotuloAnterior={formatMonth(somarMeses(mes, -12))}
                   atual={dados.anoPassado.mesAtual} anterior={dados.anoPassado.mesAnterior} />
@@ -354,7 +356,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         {dados.regularidade?.[0] && dados.regularidade[1] && (
           <Card className="lg:col-span-2">
             <CardTitle>Renda regular × despesas</CardTitle>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <BlocoRegularidade titulo={`Em ${formatMonth(mes)}`} r={dados.regularidade[0]} />
               <BlocoRegularidade titulo="Últimos 12 meses" r={dados.regularidade[1]} />
             </div>
@@ -368,7 +370,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         )}
 
       </div>}
-      {noInicio && <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      {noInicio && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card semPadding className="lg:col-span-2">
           <div className="flex items-center justify-between px-5 pt-5">
             <CardTitle>Últimos lançamentos</CardTitle>

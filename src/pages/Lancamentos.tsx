@@ -353,9 +353,9 @@ export default function Lancamentos() {
                         <span className={`shrink-0 tabular-nums font-semibold ${v.cor}`}>{v.texto}</span>
                       </div>
                       <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
-                        {l.status === 'planned' && <Button variante="fantasma" onClick={() => { setEditando(null); setPagando(l) }} disabled={pagando !== null}>Marcar pago</Button>}
-                        <Button variante="fantasma" onClick={() => setEditando(l)}>Editar</Button>
-                        <Button variante="discreto" onClick={() => excluir(l)}>Excluir</Button>
+                        {l.status === 'planned' && <Button variante="fantasma" compacto onClick={() => { setEditando(null); setPagando(l) }} disabled={pagando !== null}>Marcar pago</Button>}
+                        <Button variante="fantasma" compacto onClick={() => setEditando(l)}>Editar</Button>
+                        <Button variante="discreto" compacto onClick={() => excluir(l)}>Excluir</Button>
                       </div>
                     </li>
                   )

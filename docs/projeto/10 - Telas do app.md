@@ -27,6 +27,6 @@ Menu em **grupos** (barra lateral no iPad/computador; no celular, 4 atalhos + "M
 - **Acesso** — entrar, criar conta, recuperar e trocar senha.
 
 ## Em todo o app
-Visual segue o design system "Tudo Azul" (artefato no claude.ai): painéis brancos sobre o fundo claro, ações principais em azul, valores sempre com sinal. Em 28/10/2026: ações rápidas do Início viraram 4 painéis-botão iguais com ícone; a lista de Lançamentos ficou compacta (valor na linha da descrição, Excluir discreto) e os totais viram linhas no celular.
+Visual segue o design system "Tudo Azul" (artefato no claude.ai): painéis brancos sobre o fundo claro, ações principais em azul, valores sempre com sinal. Em 28/10/2026: ações rápidas do Início viraram 4 painéis-botão iguais com ícone (2×2 até telas bem largas; no celular o ícone fica acima do rótulo para "Transferência" caber em 320px); a lista de Lançamentos ficou compacta (valor na linha da descrição, Excluir discreto) e os totais viram linhas no celular.
 
 PWA instalável · versão `AAAA.E` · ocultar valores · valores sempre vindos do banco (o front não soma dinheiro).
