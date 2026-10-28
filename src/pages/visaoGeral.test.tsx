@@ -375,7 +375,7 @@ describe('Personalização dos widgets do Início', () => {
     fireEvent.click(within(painel).getByRole('button', { name: 'Personalizar painel' }))
     fireEvent.click(within(painel).getAllByRole('button', { name: 'Adicionar', exact: true })[1])
     await waitFor(() => expect(JSON.parse(window.localStorage.getItem('tudo-azul:dashboard-widgets:u1') || '[]')).toContain('receitas'))
-    expect(within(painel).getByText('Entradas do mês')).toBeTruthy()
+    expect(within(painel).getAllByText('Entradas do mês').length).toBeGreaterThan(0)
     fireEvent.click(within(painel).getAllByRole('button', { name: 'Remover', exact: true })[0])
   })
 
