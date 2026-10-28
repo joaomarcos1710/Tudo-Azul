@@ -31,7 +31,8 @@ atualizado: 2026-10-27
 
 ## Recorrência com frequência
 - [ ] **PR do banco (migration 016)**: revisar, mesclar e aplicar em produção pelo workflow (simular → ler o log → aplicar).
-- [ ] **PR do app**: escolher a frequência no cadastro, data final opcional, prévia das próximas datas. Só mesclar **depois** da 016 aplicada em produção.
+- [ ] **PR do app** (aberto em rascunho): escolher a frequência no cadastro, data final opcional, prévia das próximas datas. Só mesclar **depois** da 016 aplicada em produção.
+- [ ] Conferir no app, depois dos dois merges: cadastrar uma quinzenal e a PLR anual de teste e ver os planejados em Lançamentos e no Calendário.
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
 ## Banco (baixo risco, não bloqueiam)
