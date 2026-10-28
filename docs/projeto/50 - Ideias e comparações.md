@@ -51,6 +51,22 @@ Os prints mostram o **cadastro de conta** (e a tela de termos de uso); a página
 | 2 | **Escolher o banco numa lista com busca** ("Buscar Banco ou Cartão"), com os mais comuns primeiro; o **apelido da conta vem preenchido** com o nome do banco | Hoje o nome é texto livre (placeholder "Ex.: Itaú João"). Lista fixa de instituições no front (sem banco), nome sugerido que a pessoa pode editar. **Sem logos de marca**: ícone neutro e cor do design system, para não usar marca de terceiros | Médio, só front |
 | 3 | **Termos de Uso e Política de Privacidade** com aceite | Não achei no app. Vale ter antes de abrir para outras famílias (planos pagos) e por causa da LGPD: o app guarda dados financeiros. Pede texto revisado por quem entende de LGPD, não só código | Médio (texto + tela + registro do aceite) |
 
+**Mais prints (Início, Patrimônio e Registrar transação)** — ideias novas, em ordem de valor:
+
+| # | Ideia | Situação no Tudo Azul | Esforço |
+|---|---|---|---|
+| 4 | **Atribuir o lançamento a um membro** ("quem gastou") e ver os gastos de cada pessoa | O lançamento guarda quem **registrou** (`created_by`), não quem **gastou**; as duas coisas são diferentes. Para uma família é a ideia de mais valor desta rodada. Precisa de coluna nova, migration, e o relatório por pessoa tem de vir do banco (o front não soma). Decidir antes: lançamento antigo fica "sem membro"? qualquer membro pode atribuir a outro? | Alto (banco + telas) |
+| 5 | **Botão "+" flutuante** sempre visível, abre o lançamento | Hoje as ações rápidas só existem no Início; nas outras telas é preciso voltar. Junta com o formulário novo (ideias 2 e 3 do Livro de contas) | Baixo, só front |
+| 6 | **Formulário de lançamento enxuto**: abas Gasto/Ganho/Transferência no topo, nome primeiro, **valor grande**, data com "Hoje", conta já preenchida, um botão com o nome da ação ("Registrar ganho") | Já temos o tipo e todos os campos, mas num formulário comum. Entra no mesmo PR da grade de categorias e da conta principal | Médio, só front |
+| 7 | **Aviso de confirmação** depois de registrar ("Ganho registrado") | O Lançamentos só avisa quando dá erro; quem registra não vê confirmação além da linha na lista | Baixo |
+| 8 | **Composição do patrimônio** (rosca "Meus ativos" por instituição, com % e opção de barras) e **Ativos × Passivos** | Temos o patrimônio total e as contas com saldo do banco. A rosca pede o percentual de cada conta vindo do banco (como já é em despesas por categoria) | Médio |
+| 9 | **Etiquetas (tags)** além da categoria (ex.: "Viagem Floripa") | Não existem. Cuidado: duplica o papel da categoria e da subcategoria; só vale se o dono sentir falta de um recorte que a categoria não dá | Médio (tabela + migration); baixa prioridade |
+| 10 | **Personalizar página inicial** (escolher e ordenar os cartões) | O Início é fixo. Pode ser por aparelho (sem banco). Baixa prioridade | Médio |
+
+**Observação sobre o Início do Minhas Economias:** é uma rolagem longa com um cartão para cada coisa, vários ainda vazios ("Objetivos", "Membros", "Cartões"). O Início do Tudo Azul é mais enxuto e orientado a ação ("o que pede atenção agora": vencidos, cartões, últimos lançamentos). Não vale copiar a quantidade de cartões; vale copiar o botão "+" e a composição do patrimônio.
+**Tema escuro:** reaparece no topo do app deles (ícone de lua); confirma a ideia 5 do Livro de contas.
+**Objetivos** e **Ver meus investimentos:** já estão nas ideias guardadas (metas com prazo junto com investimentos, previsto para fev–abr/2027).
+
 **Já temos:** tipos de conta (corrente, poupança, carteira…), saldo inicial com data, conferência com o extrato.
 **Fora de escopo:** o app mostra contas conectadas por Open Finance ("conta manual" × conectada); o Tudo Azul é 100% manual por decisão do projeto.
 
