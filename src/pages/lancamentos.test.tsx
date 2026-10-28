@@ -71,6 +71,7 @@ const lancs = [
 ]
 
 beforeEach(() => {
+  window.localStorage.clear() // a conta/cartão lembrados de um teste não podem vazar para o próximo
   automaticos.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: true, faturasOk: true })
   mock.listarContas.mockResolvedValue({ contas, total: c(0) })
   mock.listarCategorias.mockResolvedValue(categorias)
@@ -132,7 +133,7 @@ describe('Lançamentos', () => {
     await u.type(screen.getByLabelText('Valor (R$)'), '1.234,56')
     await u.type(screen.getByLabelText('Descrição'), 'Feira')
     await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', {
       tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'mer', descricao: 'Feira',
       valor: 123456, data: hojeSP(), status: 'paid', notas: '',
@@ -145,7 +146,7 @@ describe('Lançamentos', () => {
     await screen.findByText('Supermercado')
     await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
     await u.type(screen.getByLabelText('Valor (R$)'), '1.2.3')
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect(screen.getByText(/Informe um valor maior que zero/)).toBeTruthy()
     expect(screen.getByText('Escolha a categoria.')).toBeTruthy()
     expect(mock.criarLancamento).not.toHaveBeenCalled()
@@ -159,7 +160,7 @@ describe('Lançamentos', () => {
     await u.click(screen.getByRole('radio', { name: 'Transferência' }))
     await u.type(screen.getByLabelText('Valor (R$)'), '100')
     await u.selectOptions(screen.getByLabelText('Para a conta'), 'a2')
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar transferência' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({
       tipo: 'transfer', contaId: 'a1', destinoId: 'a2', categoriaId: null, valor: 10000,
     }))
@@ -254,7 +255,7 @@ describe('Lançamentos', () => {
     await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
     await u.type(screen.getByLabelText('Valor (R$)'), '10')
     await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Conta de origem desativada.')
   })
 
@@ -297,7 +298,7 @@ describe('Lançamentos', () => {
     await u.clear(screen.getByLabelText('Parcelas'))
     await u.type(screen.getByLabelText('Parcelas'), '3')
     await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
     expect(mock.registrarCompra).toHaveBeenCalledWith('k1',
       expect.objectContaining({ descricao: 'Fone', total: 30000, parcelas: 3, categoriaId: 'mer' }), expect.any(String))
     expect(mock.criarLancamento).not.toHaveBeenCalled()
@@ -312,7 +313,7 @@ describe('Lançamentos', () => {
     await u.type(screen.getByLabelText('Descrição'), 'Pão')
     await u.clear(screen.getByLabelText('Parcelas'))
     await u.type(screen.getByLabelText('Parcelas'), '0')
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
     expect(screen.getByText('Escolha o cartão.')).toBeTruthy()
     expect(screen.getByText('De 1 a 72 parcelas.')).toBeTruthy()
     expect(mock.registrarCompra).not.toHaveBeenCalled()
@@ -371,12 +372,12 @@ describe('Lançamentos', () => {
     await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
     await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
     mock.registrarCompra.mockRejectedValueOnce(new Error('failed to fetch'))
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
     const valor = screen.getByLabelText('Valor (R$)')
     await u.clear(valor)
     await u.type(valor, '120,00')
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
     const [, , chave1] = mock.registrarCompra.mock.calls[0]
     const [, dados2, chave2] = mock.registrarCompra.mock.calls[1]
     expect(dados2.total).toBe(12000)
@@ -393,9 +394,9 @@ describe('Lançamentos', () => {
     await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
     await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
     mock.registrarCompra.mockRejectedValueOnce(new Error('failed to fetch'))
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
     await screen.findByRole('alert')
-    await u.click(screen.getByRole('button', { name: 'Lançar' }))
+    await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
     expect(mock.registrarCompra.mock.calls[0][2]).toBe(mock.registrarCompra.mock.calls[1][2])
   })
 
@@ -517,5 +518,74 @@ describe('Lançamentos', () => {
       await u.click(screen.getByRole('button', { name: 'Cancelar' }))
       expect(screen.getByLabelText('Filtrar por tipo')).toBeTruthy()
     })
+  })
+})
+
+describe('Formulário de lançamento (novo visual)', () => {
+  const abrir = async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    return u
+  }
+
+  it('uma linha de abas (Despesa, Receita, Transferência, Cartão) e o botão diz a ação', async () => {
+    const u = await abrir()
+    const abas = screen.getByRole('radiogroup', { name: 'Tipo do lançamento' })
+    expect(within(abas).getAllByRole('radio').map((r) => r.getAttribute('aria-label')))
+      .toEqual(['Despesa', 'Receita', 'Transferência', 'Cartão de crédito'])
+    expect(screen.getByRole('button', { name: 'Registrar despesa' })).toBeTruthy()
+    await u.click(within(abas).getByRole('radio', { name: 'Receita' }))
+    expect(screen.getByRole('button', { name: 'Registrar receita' })).toBeTruthy()
+    expect(screen.getByRole('radio', { name: 'Recebido' })).toBeTruthy() // em receita, "Pago" vira "Recebido"
+    await u.click(within(abas).getByRole('radio', { name: 'Cartão de crédito' }))
+    expect(screen.getByRole('button', { name: 'Registrar compra' })).toBeTruthy()
+  })
+
+  it('editar não oferece a aba Cartão e o botão é "Salvar alterações"', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const item = (await screen.findByText('Supermercado')).closest('li') as HTMLElement
+    await u.click(within(item).getByRole('button', { name: 'Editar' }))
+    const abas = screen.getByRole('radiogroup', { name: 'Tipo do lançamento' })
+    expect(within(abas).getAllByRole('radio')).toHaveLength(3)
+    expect(screen.getByRole('button', { name: 'Salvar alterações' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Registrar e lançar outro' })).toBeNull()
+  })
+
+  it('conta principal: o lançamento novo abre na última conta usada; conta que não existe mais cai na primeira', async () => {
+    let u = await abrir()
+    expect((screen.getByLabelText('Conta') as HTMLSelectElement).value).toBe('a1')
+    await u.selectOptions(screen.getByLabelText('Conta'), 'a2')
+    await u.type(screen.getByLabelText('Valor (R$)'), '10')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
+    expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({ contaId: 'a2' }))
+    cleanup()
+    u = await abrir()
+    expect((screen.getByLabelText('Conta') as HTMLSelectElement).value).toBe('a2')
+    cleanup()
+    window.localStorage.setItem('tudoazul:ultima-conta:h1', 'conta-apagada')
+    u = await abrir()
+    expect((screen.getByLabelText('Conta') as HTMLSelectElement).value).toBe('a1')
+  })
+
+  it('"Registrar e lançar outro": grava, avisa, recarrega a lista e deixa o formulário aberto e limpo, na mesma conta', async () => {
+    const u = await abrir()
+    await u.selectOptions(screen.getByLabelText('Conta'), 'a2')
+    await u.type(screen.getByLabelText('Valor (R$)'), '25,00')
+    await u.type(screen.getByLabelText('Descrição'), 'Pão')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    const chamadasAntes = mock.listarLancamentos.mock.calls.length
+    await u.click(screen.getByRole('button', { name: 'Registrar e lançar outro' }))
+    expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({ valor: 2500, descricao: 'Pão', contaId: 'a2' }))
+    expect(await screen.findByText(/Despesa registrada\./)).toBeTruthy()
+    expect(mock.listarLancamentos.mock.calls.length).toBeGreaterThan(chamadasAntes)
+    expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
+    expect((screen.getByLabelText('Categoria') as HTMLSelectElement).value).toBe('')
+    expect((screen.getByLabelText('Conta') as HTMLSelectElement).value).toBe('a2')
+    expect(screen.getByRole('button', { name: 'Registrar despesa' })).toBeTruthy() // continua aberto
   })
 })

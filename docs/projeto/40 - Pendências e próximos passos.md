@@ -35,8 +35,11 @@ atualizado: 2026-10-28
 - [ ] Conferir no app, depois dos dois merges: cadastrar uma quinzenal e a PLR anual de teste e ver os planejados em Lançamentos e no Calendário.
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
-## Menu do celular
-- [ ] Menu "Mais" com cartões de atalho e frase em cada tela (PR de rascunho, opção A do dono). Conferir no iPhone depois do merge. Sem mudança de versão: entra na próxima edição (2026.5) junto com o próximo lote visível.
+## Menu e formulário de lançamento
+- [ ] Menu "Mais" com cartões de atalho e frase em cada tela (#75, mesclado; opção A do dono). Conferir no iPhone. Sem mudança de versão: entra na próxima edição (2026.5) junto com o próximo lote visível.
+
+- [ ] **Formulário de lançamento em visual de app** (PR de rascunho, pedido do dono): abas, valor grande, campos em linhas, "Registrar e lançar outro" e última conta/cartão lembrados (ideias 2, 3, 6 e 7 de [[50 - Ideias e comparações]]; conta principal na versão "lembrar a última usada", sem banco). Conferir no iPhone a linha da **data**: o iOS escreve a data por extenso e pode não caber.
+- Próximo do mesmo pacote (só com autorização): grade de categorias com ícone, botão "+" flutuante, pré-preencher pela URL (atalho do iPhone nível 1).
 
 ## Cartão: antecipar parcelas (pedido do dono em 28/10/2026, para depois)
 - Hoje não dá para **antecipar** parcelas de uma compra parcelada (pagar antes ou pedir a antecipação ao banco). Alguns cartões dão **desconto** na antecipação.
