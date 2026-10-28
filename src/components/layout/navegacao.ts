@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
-  IconeAnalises, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral,
+  IconeAnalises, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeRegras,
 } from './icons'
 
 export interface ItemNavegacao {
@@ -35,6 +35,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
       { caminho: '/lancamentos', rotulo: 'Lançamentos', curto: 'Lançam.', Icone: IconeLancamentos, fixoNoCelular: true },
       { caminho: '/calendario', rotulo: 'Calendário', curto: 'Calend.', Icone: IconeCalendario },
       { caminho: '/recorrentes', rotulo: 'Recorrentes', curto: 'Recorr.', Icone: IconeRecorrentes },
+      { caminho: '/regras-automaticas', rotulo: 'Regras automáticas', curto: 'Regras', Icone: IconeRegras },
       { caminho: '/cartoes', rotulo: 'Cartões', curto: 'Cartões', Icone: IconeCartoes, fixoNoCelular: true },
       { caminho: '/contas', rotulo: 'Contas e conferência', curto: 'Contas', Icone: IconeContas },
     ],
