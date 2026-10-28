@@ -17,11 +17,13 @@ import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
 import {
-  criarRecorrencia, editarRecorrencia, encerrarRecorrencia, listarRecorrencias, rotuloTipoRecorrencia,
+  criarRecorrencia, diaDaSemana, editarRecorrencia, encerrarRecorrencia, frequencias, listarRecorrencias, MAX_CADA,
+  proximasOcorrencias, rotuloFrequencia, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
-import type { Recorrencia, TipoRecorrencia } from '../lib/recorrencias'
+import type { Recorrencia, TipoRecorrencia, UnidadeFrequencia } from '../lib/recorrencias'
 
 const dias: [string, string][] = Array.from({ length: 31 }, (_, i) => [String(i + 1), `Dia ${i + 1}`])
+const toda = (diaSemana: string) => `${diaSemana === 'sábado' || diaSemana === 'domingo' ? 'todo' : 'toda'} ${diaSemana}`
 
 export default function Recorrentes() {
   const { familia } = useFamilia()
@@ -69,6 +71,8 @@ export default function Recorrentes() {
   const ativas = recorrencias?.filter((r) => r.ativa) ?? []
   const encerradas = recorrencias?.filter((r) => !r.ativa) ?? []
 
+  const proxima = (r: Recorrencia) => proximasOcorrencias(r, hojeSP(), 1)[0] ?? null
+
   function onde(r: Recorrencia) {
     if (r.tipo === 'card') return `Cartão ${nomeCartao.get(r.cartaoId ?? '') ?? '?'}`
     if (r.tipo === 'transfer') return `${nomeConta.get(r.contaId ?? '') ?? '?'} → ${nomeConta.get(r.destinoId ?? '') ?? '?'}`
@@ -82,7 +86,8 @@ export default function Recorrentes() {
         {editando === null && <Button onClick={() => setEditando('nova')}>Novo recorrente</Button>}
       </div>
       <p className="mb-6 text-sm text-slate-600">
-        Contas mensais e assinaturas. Em conta, os próximos 2 meses aparecem como <strong>Planejado</strong> em{' '}
+        Contas, salários e assinaturas que se repetem: toda semana, a cada 14 dias, todo mês, a cada 2, 3 ou 6 meses ou todo ano.
+        Em conta, os próximos 2 meses aparecem como <strong>Planejado</strong> em{' '}
         <Link to="/lancamentos" className="font-semibold text-azul hover:underline">Lançamentos</Link>: quando a conta chegar,
         corrija o valor e marque como pago. No cartão, a compra entra no dia, na fatura certa.
       </p>
@@ -103,7 +108,7 @@ export default function Recorrentes() {
       {recorrencias?.length === 0 && editando === null && (
         <EmptyState
           titulo="Nenhum recorrente ainda"
-          descricao="Cadastre aluguel, luz, salário, condomínio e assinaturas (Netflix, Spotify) uma vez só: o app lança todo mês."
+          descricao="Cadastre aluguel, luz, salário, PLR, condomínio e assinaturas (Netflix, Spotify) uma vez só: o app lança nas datas certas."
           acao={<Button onClick={() => setEditando('nova')}>Cadastrar o primeiro</Button>}
         />
       )}
@@ -116,9 +121,13 @@ export default function Recorrentes() {
                 <div className="min-w-0">
                   <p className="font-medium">{r.descricao}</p>
                   <p className="text-sm text-slate-500">
-                    Todo dia {r.dia} · {onde(r)}{r.categoriaId && <> · {nomeCategoria.get(r.categoriaId) ?? 'Sem categoria'}</>}
+                    {rotuloFrequencia(r)} · {onde(r)}{r.categoriaId && <> · {nomeCategoria.get(r.categoriaId) ?? 'Sem categoria'}</>}
                   </p>
-                  <p className="text-xs text-slate-500">{rotuloTipoRecorrencia[r.tipo]} · desde {formatDate(r.inicio)}</p>
+                  <p className="text-xs text-slate-500">
+                    {rotuloTipoRecorrencia[r.tipo]} · desde {formatDate(r.inicio)}
+                    {proxima(r) && <> · próxima {formatDate(proxima(r)!)}</>}
+                    {r.fim && <> · até {formatDate(r.fim)}</>}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
                   <span className={`tabular-nums font-semibold ${r.tipo === 'income' ? 'text-positivo' : r.tipo === 'transfer' ? 'text-slate-600' : 'text-negativo'}`}>
@@ -163,8 +172,13 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
   const [tipo, setTipo] = useState<TipoRecorrencia>(r?.tipo ?? 'expense')
   const [descricao, setDescricao] = useState(r?.descricao ?? '')
   const [valorTexto, setValorTexto] = useState(r ? formatBRLCampo(r.valor) : '')
-  const [dia, setDia] = useState(r ? String(r.dia) : '')
+  const [dia, setDia] = useState(r?.dia ? String(r.dia) : '')
   const [inicio, setInicio] = useState(r?.inicio ?? hojeSP())
+  const [fim, setFim] = useState(r?.fim ?? '')
+  // frequência: uma das opções prontas ou "personalizada" (a cada N semanas/meses)
+  const [freq, setFreq] = useState(r ? (frequencias.find((f) => f.unidade === r.unidade && f.cada === r.cada)?.chave ?? 'personalizada') : 'mensal')
+  const [unidadeP, setUnidadeP] = useState<UnidadeFrequencia>(r?.unidade ?? 'month')
+  const [cadaP, setCadaP] = useState(r ? String(r.cada) : '2')
   const [contaId, setContaId] = useState(r?.contaId ?? contasAtivas[0]?.id ?? '')
   const [destinoId, setDestinoId] = useState(r?.destinoId ?? '')
   const [cartaoId, setCartaoId] = useState(r?.cartaoId ?? cartoesComCiclo[0]?.id ?? '')
@@ -174,6 +188,16 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
   const [enviando, setEnviando] = useState(false)
 
   const valor = parseBRL(valorTexto)
+  const pronta = frequencias.find((f) => f.chave === freq)
+  const unidade: UnidadeFrequencia = pronta ? pronta.unidade : unidadeP
+  const cada = pronta ? pronta.cada : Number(cadaP)
+  const cadaValido = Number.isInteger(cada) && cada >= 1 && cada <= MAX_CADA[unidade]
+  const hoje = hojeSP()
+  // prévia (mesma regra do banco); frequência nova com início no passado começa no dia do cadastro (migration 016)
+  const previa = !editando && cadaValido && inicio && (unidade === 'week' || dia)
+    ? proximasOcorrencias({ unidade, cada, dia: unidade === 'week' ? null : Number(dia), inicio, fim: fim || null }, hoje, 3)
+    : []
+  const mensal = unidade === 'month' && cada === 1
   const tipoCategoria = tipo === 'income' ? 'income' : 'expense'
   const categoriasDoTipo = categorias.filter((c) => c.tipo === tipoCategoria && (c.ativa || c.id === r?.categoriaId))
   const precisaCategoria = tipo !== 'transfer'
@@ -181,7 +205,10 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
   const problemas = {
     descricao: !descricao.trim() ? 'Informe a descrição.' : undefined,
     valor: valor === null || valor <= 0 ? 'Valor inválido. Exemplo: 180,00' : undefined,
-    dia: !dia ? 'Escolha o dia do mês.' : undefined,
+    dia: !editando && unidade === 'month' && !dia ? 'Escolha o dia do mês.' : undefined,
+    cada: !editando && !cadaValido ? `Use de 1 a ${MAX_CADA[unidade]} ${unidade === 'week' ? 'semanas' : 'meses'}.` : undefined,
+    inicio: !editando && !inicio ? 'Informe a data.' : undefined,
+    fim: !editando && fim && inicio && fim < inicio ? 'A data final não pode ser antes do início.' : undefined,
     categoria: precisaCategoria && !categoriaId ? 'Escolha a categoria.' : undefined,
     conta: !editando && tipo !== 'card' && !contaId ? 'Escolha a conta.' : undefined,
     destino: !editando && tipo === 'transfer' && (!destinoId || destinoId === contaId) ? 'Escolha uma conta de destino diferente.' : undefined,
@@ -199,7 +226,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         await editarRecorrencia(r.id, { descricao, valor, categoriaId: precisaCategoria ? categoriaId : null })
       } else {
         await criarRecorrencia({
-          tipo, descricao, valor, dia: Number(dia), inicio,
+          tipo, descricao, valor, dia: unidade === 'week' ? null : Number(dia), inicio, fim: fim || null, unidade, cada,
           contaId: tipo === 'card' ? null : contaId,
           destinoId: tipo === 'transfer' ? destinoId : null,
           cartaoId: tipo === 'card' ? cartaoId : null,
@@ -231,9 +258,25 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
           onChange={(e) => setValorTexto(e.target.value)} erro={erroDe('valor')} />
         {!editando && (
           <>
-            <Selecao rotulo="Todo dia" valor={dia} aoMudar={setDia} opcoes={dias} todos="Escolha…" />
-            {erroDe('dia') && <p role="alert" className="text-sm text-negativo">{erroDe('dia')}</p>}
-            <Field rotulo="A partir de" type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+            <Selecao rotulo="Frequência" valor={freq} aoMudar={setFreq}
+              opcoes={[...frequencias.map((f): [string, string] => [f.chave, f.rotulo]), ['personalizada', 'Personalizada…']]} />
+            {freq === 'personalizada' && (
+              <div className="grid grid-cols-2 gap-2">
+                <Field rotulo="A cada" type="number" inputMode="numeric" min={1} max={MAX_CADA[unidadeP]} value={cadaP}
+                  onChange={(e) => setCadaP(e.target.value)} erro={erroDe('cada')} />
+                <Selecao rotulo="Unidade" valor={unidadeP} aoMudar={(v) => setUnidadeP(v as UnidadeFrequencia)}
+                  opcoes={[['month', 'meses'], ['week', 'semanas']]} />
+              </div>
+            )}
+            {unidade === 'month' && (
+              <>
+                <Selecao rotulo="Dia do mês" valor={dia} aoMudar={setDia} opcoes={dias} todos="Escolha…" />
+                {erroDe('dia') && <p role="alert" className="text-sm text-negativo">{erroDe('dia')}</p>}
+              </>
+            )}
+            <Field rotulo={unidade === 'week' ? 'Primeira vez em' : 'A partir de'} type="date" value={inicio}
+              onChange={(e) => setInicio(e.target.value)} erro={erroDe('inicio')} />
+            <Field rotulo="Até (opcional)" type="date" value={fim} onChange={(e) => setFim(e.target.value)} erro={erroDe('fim')} />
             {tipo === 'card' ? (
               <>
                 <Selecao rotulo="Cartão" valor={cartaoId} aoMudar={setCartaoId} opcoes={cartoesComCiclo.map((c) => [c.id, c.nome])} todos="Escolha…" />
@@ -264,10 +307,20 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando
-            ? 'A mudança vale para os planejados ainda não pagos de hoje em diante. O que já foi pago não muda, e o que você corrigiu à mão em um mês (valor, descrição ou categoria) fica como está.'
-            : 'Dia 29, 30 ou 31 em mês mais curto cai no último dia do mês.'}
+            ? `${rotuloFrequencia(r!)}. A mudança vale para os planejados ainda não pagos de hoje em diante. O que já foi pago não muda, e o que você corrigiu à mão em um mês (valor, descrição ou categoria) fica como está. Para mudar a frequência ou o dia, encerre este recorrente e cadastre outro.`
+            : unidade === 'week'
+              ? `Repete ${inicio ? toda(diaDaSemana(inicio)) : 'no mesmo dia da semana da primeira data'}, a cada ${7 * (cadaValido ? cada : 1)} dias.`
+              : 'Dia 29, 30 ou 31 em mês mais curto cai no último dia do mês.'}
+          {!editando && inicio && inicio < hoje && (mensal
+            ? ' Os meses desde o início que já passaram também entram, como planejados atrasados.'
+            : ' Datas antes de hoje não são criadas.')}
           {!editando && tipo === 'card' && cartoesComCiclo.length === 0 && ' Cadastre um cartão com fechamento e vencimento em Cartões antes.'}
         </p>
+        {previa.length > 0 && (
+          <p className="text-sm text-marinho md:col-span-2" aria-live="polite">
+            <strong>Próximas datas:</strong> {previa.map(formatDate).join(' · ')}
+          </p>
+        )}
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando}>{r ? 'Salvar' : 'Cadastrar recorrente'}</Button>
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
