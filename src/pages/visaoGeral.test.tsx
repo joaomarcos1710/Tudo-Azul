@@ -362,13 +362,18 @@ describe('Visão geral', () => {
 })
 
 describe('Início × Análises: cada seção mostra só os seus blocos', () => {
-  it('Início não mostra os números de análise (patrimônio, comparação, renda regular)', async () => {
+  it('Início mostra os widgets financeiros, sem os blocos detalhados de Análises', async () => {
     montar()
     await screen.findByText('Próximos planejados')
+    expect(screen.getByRole('heading', { name: 'Visão geral financeira' })).toBeTruthy()
+    expect(screen.getByText('Patrimônio líquido')).toBeTruthy()
+    expect(screen.getByText('Saldo disponível')).toBeTruthy()
+    expect(screen.getByText('Entradas do mês')).toBeTruthy()
+    expect(screen.getByText('Despesas do mês')).toBeTruthy()
+    expect(screen.getByText('Resultado do mês')).toBeTruthy()
     expect(screen.queryByText('Renda regular × despesas')).toBeNull()
     expect(screen.queryByText('Comparação com o ano passado')).toBeNull()
     expect(screen.queryByText('Projeção do mês')).toBeNull()
-    expect(screen.queryByText('R$ 10.875,60')).toBeNull()
   })
   it('Análises não mostra as ações do dia a dia (ações rápidas, vencidos, cartões, próximos, contas)', async () => {
     // com dados de vencidos e cartões, para a ausência não ser só "lista vazia"
@@ -392,14 +397,15 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     expect(screen.getByRole('region', { name: 'Ações rápidas' })).toBeTruthy()
     expect(screen.getByText('Nubank')).toBeTruthy()
   })
-  it('Início não consulta patrimônio nem resumos do mês: uma falha neles não derruba o Início', async () => {
+  it('falha nos indicadores financeiros não derruba as demais seções do Início', async () => {
     mock.carregarPatrimonio.mockRejectedValue(new Error('rede'))
     mock.resumoDoMes.mockRejectedValue(new Error('rede'))
     montar()
     expect(await screen.findByText('Próximos planejados')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(mock.carregarPatrimonio).not.toHaveBeenCalled()
-    expect(mock.resumoDoMes).not.toHaveBeenCalled()
+    expect(mock.carregarPatrimonio).toHaveBeenCalled()
+    expect(mock.resumoDoMes).toHaveBeenCalled()
+    expect(screen.getByText('Indicador indisponível agora.')).toBeTruthy()
   })
 })
 
