@@ -24,7 +24,7 @@ describe('menu em grupos', () => {
   it('toda tela do app está no menu (inclui Recorrentes, que antes não aparecia) e sem caminhos repetidos', () => {
     const caminhos = itensNavegacao.map((i) => i.caminho)
     expect(new Set(caminhos).size).toBe(caminhos.length)
-    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/categorias', '/orcamentos', '/relatorios', '/familia']) {
+    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/regras-automaticas', '/cartoes', '/contas', '/categorias', '/orcamentos', '/relatorios', '/familia']) {
       expect(caminhos).toContain(c)
     }
   })
@@ -36,7 +36,7 @@ describe('menu em grupos', () => {
       .toEqual(['Visão geral', 'Movimentações', 'Planejamento', 'Conta'])
     const mov = within(lateral).getByRole('group', { name: 'Movimentações' })
     expect(within(mov).getAllByRole('link').map((a) => a.textContent))
-      .toEqual(['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas e conferência'])
+      .toEqual(['Lançamentos', 'Calendário', 'Recorrentes', 'Regras automáticas', 'Cartões', 'Contas e conferência'])
     expect(within(lateral).getByRole('link', { name: 'Recorrentes' }).getAttribute('href')).toBe('/recorrentes')
   })
 
