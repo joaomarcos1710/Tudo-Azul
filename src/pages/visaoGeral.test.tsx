@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../lib/format'
 
@@ -31,7 +31,7 @@ vi.mock('../lib/painel', () => ({
   vencidosPlanejados: mock.vencidosPlanejados,
 }))
 vi.mock('../lib/conciliacao', () => ({ ultimasConferencias: mock.ultimasConferencias }))
-vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
+vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1', user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', () => ({ listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos }))
 const cobrar = vi.hoisted(() => vi.fn())
@@ -46,6 +46,7 @@ const c = (n: number) => n as Cents
 const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(<MemoryRouter><VisaoGeral secao={secao} /></MemoryRouter>)
 
 beforeEach(() => {
+  window.localStorage.clear()
   cobrar.mockResolvedValue(0)
   gerar.mockResolvedValue(0)
   mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), patrimonio: c(1087560), compromissos: c(482000) })
@@ -358,6 +359,32 @@ describe('Visão geral', () => {
     const hrefs = screen.getAllByRole('link', { name: /^Conferir / }).map((l) => l.getAttribute('href'))
     expect(screen.getByRole('link', { name: 'Conferir Itaú' })).toBeTruthy()
     expect(hrefs).toEqual(['/contas/a1/conferir', '/contas/a3/conferir', '/contas/a4/conferir'])
+  })
+})
+
+describe('Personalização dos widgets do Início', () => {
+  it('restaura a preferência salva do usuário e permite remover e adicionar indicadores', async () => {
+    window.localStorage.setItem('tudo-azul:dashboard-widgets:u1', JSON.stringify(['disponivel', 'resultado']))
+    montar()
+    expect(await screen.findByText('Próximos planejados')).toBeTruthy()
+    const painel = screen.getByRole('region', { name: 'Resumo financeiro personalizável' })
+    expect(within(painel).getByText('Saldo disponível')).toBeTruthy()
+    expect(within(painel).getByText('Resultado do mês')).toBeTruthy()
+    expect(within(painel).queryByText('Entradas do mês')).toBeNull()
+
+    fireEvent.click(within(painel).getByRole('button', { name: 'Personalizar painel' }))
+    fireEvent.click(within(painel).getByRole('button', { name: 'Adicionar', exact: true }))
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem('tudo-azul:dashboard-widgets:u1') || '[]')).toContain('receitas'))
+    expect(within(painel).getByText('Entradas do mês')).toBeTruthy()
+    fireEvent.click(within(painel).getByRole('button', { name: 'Remover', exact: true }))
+  })
+
+  it('ignora IDs desconhecidos e repetidos na preferência salva', async () => {
+    window.localStorage.setItem('tudo-azul:dashboard-widgets:u1', JSON.stringify(['disponivel', 'desconhecido', 'disponivel']))
+    montar()
+    const painel = await screen.findByRole('region', { name: 'Resumo financeiro personalizável' })
+    expect(within(painel).getAllByText('Saldo disponível')).toHaveLength(1)
+    expect(within(painel).queryByText('Patrimônio líquido')).toBeNull()
   })
 })
 
