@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { definirValoresOcultos, useValoresOcultos } from '../../lib/privacidade'
 import { supabase } from '../../lib/supabase'
 import { IconeMais, IconeOlho, IconeOlhoFechado } from './icons'
-import { gruposNavegacao, itemAtivo, itensFixosNoCelular } from './navegacao'
+import { gruposNavegacao, itemAtivo, itensFixosNoCelular, itensNavegacao } from './navegacao'
 import { Marca } from './Marca'
 import { Versao } from './Versao'
 
@@ -62,21 +62,46 @@ function MenuMais({ aoFechar }: { aoFechar: () => void }) {
             ×
           </button>
         </div>
+        <div role="group" aria-label="Atalhos" className="mb-4 grid grid-cols-2 gap-2">
+          {itensNavegacao.filter((i) => i.atalho).map(({ caminho, rotulo, descricao, Icone }) => (
+            <NavLink
+              key={caminho}
+              to={caminho}
+              aria-label={rotulo}
+              aria-describedby={`desc-${caminho}`}
+              onClick={aoFechar}
+              className={({ isActive }) =>
+                `flex min-h-[5.5rem] flex-col justify-between gap-2 rounded-xl border p-3 ${
+                  isActive ? 'border-azul bg-azul-claro' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+            >
+              <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-lg bg-azul-claro text-azul"><Icone /></span>
+              <span aria-hidden="true">
+                <span className="block text-sm font-semibold text-marinho">{rotulo}</span>
+                <span id={`desc-${caminho}`} className="block text-xs leading-snug text-slate-600">{descricao}</span>
+              </span>
+            </NavLink>
+          ))}
+        </div>
         <div className="flex flex-col gap-4">
-          {gruposNavegacao.map((g) => (
+          {gruposNavegacao.map((g) => ({ ...g, itens: g.itens.filter((i) => !i.atalho) })).filter((g) => g.itens.length > 0).map((g) => (
             <div key={g.titulo} role="group" aria-label={g.titulo}>
               <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-slate-500" aria-hidden="true">{g.titulo}</p>
               <ul className="flex flex-col gap-1">
-                {g.itens.map(({ caminho, rotulo, Icone }) => (
+                {g.itens.map(({ caminho, rotulo, descricao, Icone }) => (
                   <li key={caminho}>
                     <NavLink
                       to={caminho}
                       end={caminho === '/'}
+                      aria-label={rotulo}
+                      aria-describedby={`desc-${caminho}`}
                       onClick={aoFechar}
                       className={({ isActive }) => `${base} min-h-11 ${isActive ? 'bg-azul/10 text-azul' : 'text-slate-700 hover:bg-slate-100'}`}
                     >
                       <Icone />
-                      {rotulo}
+                      <span aria-hidden="true" className="min-w-0">
+                        <span className="block">{rotulo}</span>
+                        <span id={`desc-${caminho}`} className="block text-xs font-normal text-slate-600">{descricao}</span>
+                      </span>
                     </NavLink>
                   </li>
                 ))}

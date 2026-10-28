@@ -56,6 +56,42 @@ describe('menu em grupos', () => {
     expect(within(folha).getByRole('link', { name: 'Categorias' })).toBeTruthy()
   })
 
+  it('toda tela tem uma frase curta dizendo para que serve', () => {
+    for (const i of itensNavegacao) {
+      expect(i.descricao.trim(), i.caminho).not.toBe('')
+      expect(i.descricao.length, i.caminho).toBeLessThanOrEqual(60)
+      expect(i.descricao.endsWith('.'), i.caminho).toBe(true)
+    }
+  })
+
+  it('o Mais mostra 4 atalhos em cartões e o resto em lista, cada tela uma vez só, com a frase como descrição', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(screen.getByRole('button', { name: 'Mais' }))
+    const folha = screen.getByRole('dialog', { name: 'Menu' })
+    const atalhos = within(folha).getByRole('group', { name: 'Atalhos' })
+    expect(within(atalhos).getAllByRole('link').map((a) => a.getAttribute('aria-label')))
+      .toEqual(['Calendário', 'Recorrentes', 'Contas e conferência', 'Categorias'])
+    // nenhuma tela aparece duas vezes (cartão e linha)
+    const hrefs = within(folha).getAllByRole('link').map((a) => a.getAttribute('href'))
+    expect(new Set(hrefs).size).toBe(hrefs.length)
+    // o nome do link continua só o rótulo; a frase é a descrição (leitor de tela lê as duas)
+    const cartoes = within(folha).getByRole('link', { name: 'Cartões' })
+    expect(cartoes.getAttribute('href')).toBe('/cartoes')
+    expect(cartoes.getAttribute('aria-describedby')).toBe('desc-/cartoes')
+    expect(folha.querySelector('[id="desc-/cartoes"]')!.textContent).toBe('Fatura, parcelas e limite de cada cartão.')
+    // as linhas que sobraram mantêm seus grupos; o grupo que ficou vazio some
+    expect(within(folha).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
+      .toEqual(['Atalhos', 'Visão geral', 'Movimentações', 'Planejamento', 'Conta'])
+  })
+
+  it('o menu lateral (iPad e computador) não muda: só os nomes, sem frases', () => {
+    montar()
+    const lateral = screen.getByRole('navigation', { name: 'Principal' })
+    expect(within(lateral).queryByText('Fatura, parcelas e limite de cada cartão.')).toBeNull()
+    expect(within(lateral).getAllByRole('link')).toHaveLength(itensNavegacao.length)
+  })
+
   it('o Mais fecha com Esc, no fundo, no ×, e ao escolher um item (que leva à tela)', async () => {
     const u = userEvent.setup()
     montar()

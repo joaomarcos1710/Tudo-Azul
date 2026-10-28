@@ -10,8 +10,12 @@ export interface ItemNavegacao {
   /** Rótulo curto para a barra inferior do celular. */
   curto: string
   Icone: ComponentType
+  /** Uma linha dizendo para que a tela serve (aparece no "Mais" do celular). */
+  descricao: string
   /** Fica sempre na barra inferior do celular; os demais ficam no "Mais". */
   fixoNoCelular?: boolean
+  /** No "Mais" do celular aparece como cartão de atalho no topo, em vez de linha da lista. */
+  atalho?: boolean
 }
 
 export interface GrupoNavegacao {
@@ -24,32 +28,32 @@ export const gruposNavegacao: GrupoNavegacao[] = [
   {
     titulo: 'Visão geral',
     itens: [
-      { caminho: '/', rotulo: 'Início', curto: 'Início', Icone: IconeVisaoGeral, fixoNoCelular: true },
-      { caminho: '/analises', rotulo: 'Análises', curto: 'Análises', Icone: IconeAnalises },
-      { caminho: '/relatorios', rotulo: 'Relatórios e exportação', curto: 'Relat.', Icone: IconeRelatorios },
+      { caminho: '/', rotulo: 'Início', curto: 'Início', Icone: IconeVisaoGeral, descricao: 'O que pede atenção agora na família.', fixoNoCelular: true },
+      { caminho: '/analises', rotulo: 'Análises', curto: 'Análises', Icone: IconeAnalises, descricao: 'Como as finanças estão indo no mês.' },
+      { caminho: '/relatorios', rotulo: 'Relatórios e exportação', curto: 'Relat.', Icone: IconeRelatorios, descricao: 'Planilha e cópia completa dos dados.' },
     ],
   },
   {
     titulo: 'Movimentações',
     itens: [
-      { caminho: '/lancamentos', rotulo: 'Lançamentos', curto: 'Lançam.', Icone: IconeLancamentos, fixoNoCelular: true },
-      { caminho: '/calendario', rotulo: 'Calendário', curto: 'Calend.', Icone: IconeCalendario },
-      { caminho: '/recorrentes', rotulo: 'Recorrentes', curto: 'Recorr.', Icone: IconeRecorrentes },
-      { caminho: '/cartoes', rotulo: 'Cartões', curto: 'Cartões', Icone: IconeCartoes, fixoNoCelular: true },
-      { caminho: '/contas', rotulo: 'Contas e conferência', curto: 'Contas', Icone: IconeContas },
+      { caminho: '/lancamentos', rotulo: 'Lançamentos', curto: 'Lançam.', Icone: IconeLancamentos, descricao: 'Receitas, despesas e transferências do mês.', fixoNoCelular: true },
+      { caminho: '/calendario', rotulo: 'Calendário', curto: 'Calend.', Icone: IconeCalendario, descricao: 'O que entra e sai a cada dia do mês.', atalho: true },
+      { caminho: '/recorrentes', rotulo: 'Recorrentes', curto: 'Recorr.', Icone: IconeRecorrentes, descricao: 'Contas e receitas que se repetem.', atalho: true },
+      { caminho: '/cartoes', rotulo: 'Cartões', curto: 'Cartões', Icone: IconeCartoes, descricao: 'Fatura, parcelas e limite de cada cartão.', fixoNoCelular: true },
+      { caminho: '/contas', rotulo: 'Contas e conferência', curto: 'Contas', Icone: IconeContas, descricao: 'Saldo de cada conta e conferência com o extrato.', atalho: true },
     ],
   },
   {
     titulo: 'Planejamento',
     itens: [
-      { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos, fixoNoCelular: true },
-      { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias },
+      { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos, descricao: 'Quanto gastar por categoria no mês.', fixoNoCelular: true },
+      { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias, descricao: 'Como receitas e despesas são agrupadas.', atalho: true },
     ],
   },
   {
     titulo: 'Conta',
     itens: [
-      { caminho: '/familia', rotulo: 'Família', curto: 'Família', Icone: IconeFamilia },
+      { caminho: '/familia', rotulo: 'Família', curto: 'Família', Icone: IconeFamilia, descricao: 'Quem participa, convites e versão do app.' },
     ],
   },
 ]
