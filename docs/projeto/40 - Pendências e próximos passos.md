@@ -1,6 +1,6 @@
 ---
 tags: [tudo-azul, pendencias]
-atualizado: 2026-10-27
+atualizado: 2026-10-28
 ---
 # Pendências e próximos passos
 
@@ -30,8 +30,8 @@ atualizado: 2026-10-27
 - **PR 1 (mesclado, #58):** só a função pura de intervalos e testes (`src/lib/periodos.ts`), sem efeito visível. Próximas etapas (preferência da família, seletor, Lançamentos, Início/Análises, exportação, personalizado) só com a sua autorização de cada uma.
 
 ## Recorrência com frequência
-- [ ] **PR do banco (migration 016)**: revisar, mesclar e aplicar em produção pelo workflow (simular → ler o log → aplicar).
-- [ ] **PR do app** (aberto em rascunho): escolher a frequência no cadastro, data final opcional, prévia das próximas datas. Só mesclar **depois** da 016 aplicada em produção.
+- [x] **Banco (migration 016)**: PR #65 mesclado e aplicado em produção em 28/10/2026 (execução 22).
+- [x] **App**: PR #66 mesclado depois da 016 aplicada.
 - [ ] Conferir no app, depois dos dois merges: cadastrar uma quinzenal e a PLR anual de teste e ver os planejados em Lançamentos e no Calendário.
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
@@ -48,7 +48,7 @@ Nenhum em 27/10/2026. As propostas de multimoeda (#10) e de importação do Orga
 Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app · foco/rolagem nos formulários · contraste · taxa de poupança e meses de reserva · metas com prazo (junto com investimentos) · detector de recorrência (depois da importação).
 
 ## Redesenho visual (design system)
-- [ ] **Parte 1** (PR em rascunho): padding dobrado nos painéis, mês com maiúscula certa, lista de Lançamentos compacta, ações rápidas com ícone, contorno de campos com contraste. Conferir no celular e no iPad depois do merge.
+- [ ] **Parte 1** (#64, mesclada como versão 2026.3): padding dobrado nos painéis, mês com maiúscula certa, lista de Lançamentos compacta, ações rápidas com ícone, contorno de campos com contraste. Conferir no celular e no iPad depois do merge.
 - Próximas partes (só com a sua autorização): cabeçalho padrão de tela com ações à direita; ícone de categoria nas listas; seletor de mês em painel próprio; Cartões com a fatura em destaque; formulário de lançamento em folha no celular.
 
 ## Do protótipo do Base44
