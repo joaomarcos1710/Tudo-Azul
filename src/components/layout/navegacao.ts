@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import {
-  IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
+  IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
   IconeAnalises, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral,
 } from './icons'
 
@@ -33,6 +33,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     titulo: 'Movimentações',
     itens: [
       { caminho: '/lancamentos', rotulo: 'Lançamentos', curto: 'Lançam.', Icone: IconeLancamentos, fixoNoCelular: true },
+      { caminho: '/calendario', rotulo: 'Calendário', curto: 'Calend.', Icone: IconeCalendario },
       { caminho: '/recorrentes', rotulo: 'Recorrentes', curto: 'Recorr.', Icone: IconeRecorrentes },
       { caminho: '/cartoes', rotulo: 'Cartões', curto: 'Cartões', Icone: IconeCartoes, fixoNoCelular: true },
       { caminho: '/contas', rotulo: 'Contas e conferência', curto: 'Contas', Icone: IconeContas },

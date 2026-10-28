@@ -22,3 +22,4 @@ export const IconeMais = () => <Icone><circle cx="5" cy="12" r="1.4" /><circle c
 export const IconeOlho = () => <Icone><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" /></Icone>
 export const IconeOlhoFechado = () => <Icone><path d="M3 3l18 18" /><path d="M10.6 6.1A9.6 9.6 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.5 6.9C3.9 8.6 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4.1-.9" /><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" /></Icone>
 export const IconeAnalises = () => <Icone><path d="M3 3v18h18" /><path d="M7 15l4-4 3 3 5-6" /></Icone>
+export const IconeCalendario = () => <Icone><rect x="3" y="4.5" width="18" height="16.5" rx="2" /><path d="M3 9.5h18M8 2.5v4M16 2.5v4M7.5 13.5h2M11 13.5h2M14.5 13.5h2M7.5 17h2M11 17h2" /></Icone>
