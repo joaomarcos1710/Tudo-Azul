@@ -18,6 +18,7 @@ export interface ProximoPlanejado {
   descricao: string
   valor: Cents
   data: string
+  categoriaId: string | null
 }
 
 function cliente() {
@@ -42,7 +43,7 @@ export async function carregarPatrimonio(familiaId: string, dataRef: string): Pr
 export async function proximosPlanejados(familiaId: string, deData: string, limite = 5): Promise<ProximoPlanejado[]> {
   const { data, error } = await cliente()
     .from('transactions')
-    .select('id, type, description, amount, date')
+    .select('id, type, description, amount, date, category_id')
     .eq('household_id', familiaId)
     .eq('status', 'planned')
     .is('deleted_at', null)
@@ -50,7 +51,7 @@ export async function proximosPlanejados(familiaId: string, deData: string, limi
     .order('date')
     .limit(limite)
   if (error) throw error
-  return (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date }))
+  return (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null }))
 }
 
 /** Fatia do gráfico de categorias; categoriaId nulo = "Outros" (somado no banco). */
@@ -146,12 +147,12 @@ export interface Vencidos {
 }
 
 export async function vencidosPlanejados(familiaId: string, hoje: string, limite = 5): Promise<Vencidos> {
-  const base = () => cliente().from('transactions').select('id, type, description, amount, date', { count: 'exact' })
+  const base = () => cliente().from('transactions').select('id, type, description, amount, date, category_id', { count: 'exact' })
     .eq('household_id', familiaId).eq('status', 'planned').is('deleted_at', null).lt('date', hoje)
   const { data, error, count } = await base().order('date').order('id').limit(limite)
   if (error) throw error
   return {
-    itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date })),
+    itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null })),
     total: count ?? (data ?? []).length,
   }
 }

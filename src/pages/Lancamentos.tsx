@@ -13,6 +13,7 @@ import { listarCategorias } from '../lib/categorias'
 import { listarCartoes, novaChave, registrarCompra } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
 import type { Categoria } from '../lib/categorias'
+import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
@@ -137,6 +138,7 @@ export default function Lancamentos() {
 
   const nomeConta = useMemo(() => new Map(contas.map((c) => [c.id, c.nome])), [contas])
   const nomeCategoria = useMemo(() => new Map(categorias.map((c) => [c.id, c.nome])), [categorias])
+  const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
 
   async function agir(acao: () => Promise<void>) {
     try {
@@ -289,7 +291,8 @@ export default function Lancamentos() {
                     return (
                       <li key={`cartao-${c.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
                         <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <IconeCategoria visual={visualPorId(c.categoriaId, categoriaPorId, 'expense')} />
+                        <div className="min-w-0 flex-1">
                           <p className="font-medium">
                             {c.descricao}
                             {c.deParcelas > 1 && <span className="ml-2 text-xs text-slate-500">parcela {c.parcela}/{c.deParcelas}</span>}
@@ -314,7 +317,8 @@ export default function Lancamentos() {
                     return (
                       <li key={`divida-${m.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
                         <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <IconeCategoria fixo="cartao" />
+                        <div className="min-w-0 flex-1">
                           <p className="font-medium">
                             {m.descricao}
                             <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
@@ -341,7 +345,8 @@ export default function Lancamentos() {
                   return (
                     <li key={l.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
                       <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                      <div className="min-w-0">
+                      {l.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" /> : <IconeCategoria visual={visualPorId(l.categoriaId, categoriaPorId, l.tipo)} />}
+                      <div className="min-w-0 flex-1">
                         <p className="font-medium">
                           {l.descricao || rotuloTipo[l.tipo]}
                           {l.status === 'planned' && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado</span>}

@@ -12,6 +12,10 @@ export interface Categoria {
   ativa: boolean
   /** Receita eventual (13º, férias, PLR…): fica fora da "renda regular" do relatório. Só vale em receita. */
   eventual: boolean
+  /** Ícone escolhido pela pessoa (chave de ICONES); null/ausente = sugestão do app (ver visualCategoria). */
+  icone?: string | null
+  /** Cor escolhida (#RRGGBB); null/ausente = sugestão do app. */
+  cor?: string | null
 }
 
 /** Categoria raiz com suas subcategorias (só 1 nível, regra do banco). */
@@ -29,7 +33,7 @@ function cliente() {
  * devem quebrar se o front subir antes da migration 012; se a coluna não existir, lê sem ela (tudo regular).
  */
 export async function listarCategorias(familiaId: string, opcoes: { comEventual?: boolean } = {}): Promise<Categoria[]> {
-  const base = 'id, name, type, parent_id, system_key, active'
+  const base = 'id, name, type, parent_id, system_key, active, color, icon'
   const ler = (colunas: string) => cliente().from('categories').select(colunas).eq('household_id', familiaId).order('name')
   let { data, error } = opcoes.comEventual ? await ler(`${base}, eventual`) : await ler(base)
   if (error && opcoes.comEventual) ({ data, error } = await ler(base))
@@ -42,6 +46,8 @@ export async function listarCategorias(familiaId: string, opcoes: { comEventual?
     sistema: c.system_key !== null,
     ativa: c.active as boolean,
     eventual: c.eventual === true,
+    icone: (c.icon as string | null) ?? null,
+    cor: (c.color as string | null) ?? null,
   }))
 }
 
@@ -55,16 +61,22 @@ export function agrupar(categorias: Categoria[], tipo: TipoCategoria): GrupoCate
     .map((r) => ({ ...r, filhas: doTipo.filter((c) => c.paiId === r.id).sort(porNome) }))
 }
 
-export async function criarCategoria(familiaId: string, d: { nome: string; tipo: TipoCategoria; paiId: string | null }): Promise<void> {
+/** Ícone e cor: null = usar a sugestão do app. */
+export interface EscolhaVisual { icone: string | null; cor: string | null }
+
+export async function criarCategoria(
+  familiaId: string, d: { nome: string; tipo: TipoCategoria; paiId: string | null } & Partial<EscolhaVisual>,
+): Promise<void> {
   const { error } = await cliente().from('categories').insert({
-    household_id: familiaId, name: d.nome.trim(), type: d.tipo, parent_id: d.paiId,
+    household_id: familiaId, name: d.nome.trim(), type: d.tipo, parent_id: d.paiId, icon: d.icone ?? null, color: d.cor ?? null,
   })
   if (error) throw error
 }
 
-/** O tipo não muda (o banco recusa); nome e categoria mãe podem mudar. */
-export async function editarCategoria(id: string, d: { nome: string; paiId: string | null }): Promise<void> {
-  const { error } = await cliente().from('categories').update({ name: d.nome.trim(), parent_id: d.paiId }).eq('id', id)
+/** O tipo não muda (o banco recusa); nome, categoria mãe, ícone e cor podem mudar. */
+export async function editarCategoria(id: string, d: { nome: string; paiId: string | null } & Partial<EscolhaVisual>): Promise<void> {
+  const visual = d.icone === undefined && d.cor === undefined ? {} : { icon: d.icone ?? null, color: d.cor ?? null }
+  const { error } = await cliente().from('categories').update({ name: d.nome.trim(), parent_id: d.paiId, ...visual }).eq('id', id)
   if (error) throw error
 }
 

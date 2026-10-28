@@ -259,6 +259,18 @@ describe('Cartões', () => {
     expect(mock.listarItens).toHaveBeenCalledWith('k1', '2099-04')
   })
 
+  it('cada item da fatura mostra o ícone da categoria da compra', async () => {
+    const u = userEvent.setup()
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(10000), total: c(10000), itens: 1 })])
+    mock.listarItens.mockResolvedValue([
+      { parcelaId: 'p1', compra: 'x', parcela: 1, deParcelas: 10, descricao: 'Viagem', dataCompra: '2099-03-24', valor: c(10000), falta: c(10000), categoriaId: 'g1' },
+    ])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    const linha = (await screen.findByText('Viagem')).closest('li')!
+    expect(linha.querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('sacola') // g1 = Compras pessoais
+  })
+
   const item = { parcelaId: 'p1', compra: 'x', parcela: 2, deParcelas: 3, descricao: 'TV', dataCompra: '2099-03-15', valor: c(10000), falta: c(10000), categoriaId: 'g1' }
   const abrirFatura = async (u: ReturnType<typeof userEvent.setup>, f: Partial<Fatura> = {}) => {
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(10000), total: c(10000), itens: 1, ...f })])

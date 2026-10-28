@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { IconeCartoes } from '../components/layout/icons'
+import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -291,6 +292,7 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
   }, [cartaoId, mes, versao])
 
   const nomeCategoria = new Map(categorias.map((c) => [c.id, c.nome]))
+  const categoriaPorId = new Map(categorias.map((c) => [c.id, c]))
   if (erro) return <div className="mt-4"><Aviso tipo="erro">{erro}</Aviso></div>
   if (!faturas) return <p className="mt-4 text-sm text-slate-600" role="status">Carregando faturas…</p>
   if (faturas.length === 0) return <p className="mt-4 text-sm text-slate-500">Nenhuma compra lançada neste cartão.</p>
@@ -343,7 +345,8 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
               <ul className="mt-2 divide-y divide-slate-100">
                 {itens.map((i) => (
                   <li key={i.parcelaId} className="flex items-center justify-between gap-3 py-2 text-sm">
-                    <div className="min-w-0">
+                    <IconeCategoria visual={visualPorId(i.categoriaId, categoriaPorId, 'expense')} tamanho="pequeno" />
+                    <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">
                         {i.descricao}{i.deParcelas > 1 && <span className="text-slate-500"> · {i.parcela}/{i.deParcelas}</span>}
                       </p>

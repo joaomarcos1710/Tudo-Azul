@@ -113,6 +113,17 @@ describe('Lançamentos', () => {
     expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
   })
 
+  it('cada linha tem o ícone da categoria (transferência: setas); o valor continua na cor de receita/despesa', async () => {
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const linha = (texto: string) => screen.getByText(texto).closest('li')!
+    await screen.findByText('Supermercado')
+    expect(linha('Supermercado').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
+    expect(linha('Itaú → Nubank').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('transferencia')
+    const valor = within(linha('Supermercado')).getByText('−R$ 250,50')
+    expect(valor.className).toContain('text-negativo')
+    expect(valor.getAttribute('style')).toBeNull()
+  })
+
   it('lança despesa em centavos, com categoria e status pago para hoje', async () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
@@ -319,6 +330,15 @@ describe('Lançamentos', () => {
     expect(within(item).getByText('R$ 100,00')).toBeTruthy()
     expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
     expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
+  })
+
+  it('compra no cartão mostra o ícone da categoria da compra', async () => {
+    mock.listarComprasDeCartao.mockResolvedValue({ semData: 0, parcelas: [
+      { id: 'p2', data: `${hojeSP().slice(0, 8)}02`, compra: '2026-01-02', fechaEm: '2026-03-17', descricao: 'Fone', cartaoNome: 'Nubank', fechamento: 17, parcela: 2, deParcelas: 3, valor: c(10000), categoriaId: 'mer' },
+    ] })
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const item = (await screen.findByText('Fone')).closest('li') as HTMLElement
+    expect(item.querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
   })
 
   it('se as compras no cartão falharem, a lista de conta continua e só o bloco avisa', async () => {

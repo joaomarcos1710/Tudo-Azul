@@ -36,12 +36,12 @@ beforeEach(() => {
 describe('vencidosPlanejados', () => {
   it('pede só planejado, fora da lixeira, antes de hoje, do mais antigo para o mais novo, e devolve o total', async () => {
     fake.e.tabelas.transactions = {
-      data: [{ id: 't1', type: 'expense', description: 'Luz', amount: '180.00', date: '2026-10-01' }],
+      data: [{ id: 't1', type: 'expense', description: 'Luz', amount: '180.00', date: '2026-10-01', category_id: 'cat-luz' }],
       count: 4,
     }
     const r = await vencidosPlanejados('h1', '2026-10-25', 1)
     expect(r.total).toBe(4)
-    expect(r.itens).toEqual([{ id: 't1', tipo: 'expense', descricao: 'Luz', valor: 18000, data: '2026-10-01' }])
+    expect(r.itens).toEqual([{ id: 't1', tipo: 'expense', descricao: 'Luz', valor: 18000, data: '2026-10-01', categoriaId: 'cat-luz' }])
     const f = fake.e.filtros.filter((x) => x.tabela === 'transactions')
     expect(f).toContainEqual({ tabela: 'transactions', op: 'eq', args: ['status', 'planned'] })
     expect(f).toContainEqual({ tabela: 'transactions', op: 'is', args: ['deleted_at', null] })

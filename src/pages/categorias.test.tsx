@@ -89,7 +89,7 @@ describe('Categorias', () => {
     expect(within(screen.getByLabelText('Dentro de (opcional)')).queryByText('Sem categoria')).toBeNull()
     await u.selectOptions(screen.getByLabelText('Dentro de (opcional)'), 'm')
     await u.click(screen.getByRole('button', { name: 'Criar categoria' }))
-    expect(mock.criarCategoria).toHaveBeenCalledWith('h1', { nome: 'Condomínio', tipo: 'expense', paiId: 'm' })
+    expect(mock.criarCategoria).toHaveBeenCalledWith('h1', { nome: 'Condomínio', tipo: 'expense', paiId: 'm', icone: null, cor: null })
   })
 
   it('reativa categoria desativada', async () => {
@@ -107,7 +107,7 @@ describe('Categorias', () => {
     await u.click(within(linha).getByRole('button', { name: 'Editar' }))
     await u.selectOptions(screen.getByLabelText('Dentro de (opcional)'), 'l')
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(mock.editarCategoria).toHaveBeenCalledWith('m', { nome: 'Moradia', paiId: 'l' })
+    expect(mock.editarCategoria).toHaveBeenCalledWith('m', { nome: 'Moradia', paiId: 'l', icone: null, cor: null })
     expect((await screen.findByRole('alert')).textContent).toBe('Categoria com subcategorias não pode virar subcategoria.')
   })
 })
@@ -136,5 +136,49 @@ describe('Receita eventual', () => {
     const filha = screen.getByText('Bônus').closest('div')!
     expect(within(filha).getByText('eventual (da principal)')).toBeTruthy()
     expect(within(filha).queryByRole('button', { name: /eventual|regular/ })).toBeNull()
+  })
+})
+
+describe('Ícone e cor', () => {
+  const iconeDa = (nome: string) => screen.getByText(nome).closest('div')!.querySelector('[data-icone]')!.getAttribute('data-icone')
+
+  it('cada linha mostra o ícone: sugerido pelo nome, herdado pela subcategoria e fixo em "Sem categoria"', async () => {
+    mock.listarCategorias.mockResolvedValue([...base, cat('mer', 'Mercado', { icone: 'sacola', cor: '#9333EA' })])
+    render(<Categorias />)
+    await screen.findByText('Moradia')
+    expect(iconeDa('Moradia')).toBe('casa')
+    expect(iconeDa('Água')).toBe('casa') // herda da mãe, não vira "energia"
+    expect(iconeDa('Sem categoria')).toBe('etiqueta')
+    expect(iconeDa('Mercado')).toBe('sacola') // a escolha gravada vence a sugestão
+  })
+
+  it('escolher ícone e cor grava a escolha; "Auto" volta para a sugestão (null)', async () => {
+    mock.listarCategorias.mockResolvedValue([...base, cat('mer', 'Mercado', { icone: 'sacola', cor: '#9333EA' })])
+    render(<Categorias />)
+    const u = userEvent.setup()
+    const linha = (await screen.findByText('Moradia')).closest('div')!
+    await u.click(within(linha).getByRole('button', { name: 'Editar' }))
+    expect(screen.getByRole('button', { name: 'Ícone sugerido pelo nome' }).getAttribute('aria-pressed')).toBe('true')
+    await u.click(screen.getByRole('button', { name: 'Coração' }))
+    await u.click(screen.getByRole('button', { name: 'Rosa' }))
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarCategoria).toHaveBeenCalledWith('m', { nome: 'Moradia', paiId: null, icone: 'coracao', cor: '#DB2777' })
+
+    const mercado = (await screen.findByText('Mercado')).closest('div')!
+    await u.click(within(mercado).getByRole('button', { name: 'Editar' }))
+    expect(screen.getByRole('button', { name: 'Compras' }).getAttribute('aria-pressed')).toBe('true')
+    await u.click(screen.getByRole('button', { name: 'Ícone sugerido pelo nome' }))
+    await u.click(screen.getByRole('button', { name: 'Cor sugerida pelo nome' }))
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarCategoria).toHaveBeenLastCalledWith('mer', { nome: 'Mercado', paiId: null, icone: null, cor: null })
+  })
+
+  it('na subcategoria, o automático é o da principal', async () => {
+    render(<Categorias />)
+    const u = userEvent.setup()
+    const linha = (await screen.findByText('Aluguel')).closest('div')!
+    await u.click(within(linha).getByRole('button', { name: 'Editar' }))
+    expect(screen.getByRole('button', { name: 'Ícone igual ao da principal' })).toBeTruthy()
+    expect(screen.getByText(/usa o ícone e a cor da principal/)).toBeTruthy()
   })
 })
