@@ -99,6 +99,17 @@ Ordem sugerida da tela Segurança: (18) trocar senha → (13) segundo fator → 
 
 Recomendação: nível 1 primeiro (barato, seguro, já entrega a maior parte do valor); o nível 2 só se o nível 1 não bastar.
 
+**Recorrências (prints do dono, 28/10/2026 — "gostei desse projeto"):** criar recorrência em lista de campos (Nome, Valor, Frequência, Data, Conta/Cartão, A partir de, Até, Categoria; obrigatórios com asterisco); cada campo abre uma folha de baixo; o valor tem a chave Gasto/Ganho; embaixo aparece a **"Próxima projeção"** como um lançamento de verdade (nome, valor, data, conta, categoria) que muda enquanto se digita; e **"N transações identificadas — Criar"**.
+
+| # | Ideia | Situação no Tudo Azul | Esforço |
+|---|---|---|---|
+| 20 | **Prévia como cartão de lançamento**: mostrar a próxima ocorrência com cara de lançamento (ícone da categoria, nome, valor, data, conta ou cartão), atualizada ao digitar | Hoje a prévia é uma linha de texto ("Próximas datas: …"). O cálculo das datas já existe (mesma regra do banco); falta só a apresentação | Baixo, só front |
+| 21 | **"N transações identificadas"**: ao digitar o nome, achar lançamentos anteriores parecidos e oferecer criar a recorrência a partir deles, ou avisar para não duplicar | É a ideia "detector de recorrência", que já estava guardada "depois da importação". Aqui ela aparece dentro do formulário, que é o lugar certo: evita lançar à mão o que já se repete. Só leitura de descrições (sem somar dinheiro) | Médio |
+| 22 | **Formulário em lista de campos com folha por campo** (e asterisco nos obrigatórios) | Mesmo padrão do formulário de lançamento (ideia 6) e do cadastro de conta (ideia 2). Vale decidir **um padrão só** para os três formulários, em vez de três soluções diferentes | Médio, só front |
+| 23 | **Texto da tela vazia que liga a recorrência à previsão** ("você monta uma previsão dos seus gastos e saldo no futuro") | Nosso texto vazio diz o que cadastrar; falta dizer **para que serve**: a recorrência alimenta a projeção do mês e o Calendário | Baixo |
+
+**Já temos, e com mais recursos:** frequência quinzenal, bimestral, anual e personalizada (a deles tem só semanal, mensal, trimestral, semestral e anual), os quatro tipos (despesa, receita, transferência, compra no cartão), data final, reajuste que preserva as correções feitas à mão.
+
 **Não copiar do menu:** "Meu Aprendizado" (conteúdo educativo: fora do foco; a ideia 14, Ajuda/FAQ, cobre o essencial), "Convide seus amigos" (crescimento), "Meu Clube/premium" (planos pagos são futuro), "Avalie o app" e redes sociais, "Gerenciar conexões" (Open Finance, fora de escopo). "Resumo do mês" e "Categorias" já existem (Análises e Categorias).
 
 **Observação sobre o Início do Minhas Economias:** é uma rolagem longa com um cartão para cada coisa, vários ainda vazios ("Objetivos", "Membros", "Cartões"). O Início do Tudo Azul é mais enxuto e orientado a ação ("o que pede atenção agora": vencidos, cartões, últimos lançamentos). Não vale copiar a quantidade de cartões; vale copiar o botão "+" e a composição do patrimônio.
