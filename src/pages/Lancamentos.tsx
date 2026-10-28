@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -14,6 +14,8 @@ import { listarCartoes, novaChave, registrarCompra } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
 import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
+import { IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeTransferir } from '../components/layout/icons'
+import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
@@ -250,6 +252,7 @@ export default function Lancamentos() {
           cartoes={cartoes}
           familiaId={familiaId}
           aoSalvar={async () => { setEditando(null); await carregar() }}
+          aoRegistrarOutro={carregar}
           aoCancelar={() => setEditando(null)}
         />
       )}
@@ -434,17 +437,51 @@ interface PropsForm {
   cartoes: Cartao[]
   familiaId: string
   aoSalvar: () => Promise<void>
+  /** "Registrar e lançar outro": recarrega a lista sem fechar o formulário. */
+  aoRegistrarOutro: () => Promise<void>
   aoCancelar: () => void
 }
 
-function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoCancelar }: PropsForm) {
+const rotuloAcao: Record<TipoLancamento | 'cartao', string> = {
+  expense: 'Registrar despesa', income: 'Registrar receita', transfer: 'Registrar transferência', cartao: 'Registrar compra',
+}
+const corAba: Record<TipoLancamento | 'cartao', string> = {
+  expense: 'bg-negativo text-white', income: 'bg-positivo text-white', transfer: 'bg-marinho text-white', cartao: 'bg-azul text-white',
+}
+
+/** Linha do formulário: ícone, nome do campo e o controle à direita (select/data nativos: no iPhone abrem a roda de opções). */
+function Linha({ icone, rotulo, dica, htmlFor, fixo = false, children }: {
+  icone: ReactNode; rotulo: string; dica?: string; htmlFor: string
+  /** O controle tem largura fixa (data): ele não encolhe; o nome do campo quebra a linha. */
+  fixo?: boolean; children: ReactNode
+}) {
+  return (
+    <div className="flex min-h-14 items-center gap-3 px-3 py-2">
+      <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-fundo text-slate-600">{icone}</span>
+      <span className="flex min-w-0 flex-col">
+        <label htmlFor={htmlFor} className="text-sm font-medium leading-tight text-marinho">{rotulo}</label>
+        {dica && <span className="text-xs text-slate-500">{dica}</span>}
+      </span>
+      <div className={`flex flex-1 items-center justify-end gap-1 ${fixo ? 'shrink-0' : 'min-w-0'}`}>{children}</div>
+    </div>
+  )
+}
+const controleLinha = 'min-h-11 min-w-0 max-w-full appearance-none truncate rounded-md bg-transparent px-1 text-right text-base text-slate-700 focus:outline focus:outline-2 focus:outline-azul'
+const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</span>
+
+function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
   const hoje = hojeSP()
   const ativas = contas.filter((c) => c.ativa || c.id === l?.contaId || c.id === l?.destinoId)
   const [tipo, setTipo] = useState<TipoLancamento>(l?.tipo ?? (inicial && inicial !== 'cartao' ? inicial : 'expense'))
   const [valorTexto, setValorTexto] = useState(l ? formatBRLCampo(l.valor) : '')
   const [data, setData] = useState(l?.data ?? hoje)
   const [descricao, setDescricao] = useState(l?.descricao ?? '')
-  const [contaId, setContaId] = useState(l?.contaId ?? ativas[0]?.id ?? '')
+  // conta principal: o formulário novo abre na última conta usada neste aparelho (se ainda estiver ativa)
+  const [contaId, setContaId] = useState(() => {
+    if (l) return l.contaId
+    const ultima = ultimaEscolha(familiaId, 'conta')
+    return (ultima && ativas.some((c) => c.id === ultima) ? ultima : ativas[0]?.id) ?? ''
+  })
   const [destinoId, setDestinoId] = useState(l?.destinoId ?? '')
   const [categoriaId, setCategoriaId] = useState(l?.categoriaId ?? '')
   // planejado por padrão quando a data é futura; a pessoa pode trocar
@@ -457,7 +494,12 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   // Onde foi: conta (dinheiro saiu/entrou agora) ou cartão (compra parcelada; a despesa conta na fatura).
   // Só para lançamento novo: editar continua sendo conta, como antes.
   const [onde, setOnde] = useState<'conta' | 'cartao'>(!l && inicial === 'cartao' ? 'cartao' : 'conta')
-  const [cartaoId, setCartaoId] = useState('')
+  const [cartaoId, setCartaoId] = useState(() => {
+    const ultimo = ultimaEscolha(familiaId, 'cartao')
+    return ultimo && cartoes.some((c) => c.id === ultimo && c.ativo && c.fechamento !== null) ? ultimo : ''
+  })
+  const [registrado, setRegistrado] = useState('')
+  const outroRef = useRef(false)
   const [parcelasTexto, setParcelasTexto] = useState('1')
   const chaveRef = useRef<{ sig: string; chave: string } | null>(null)
   const cartaoMode = !l && onde === 'cartao'
@@ -480,8 +522,18 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     data: !data ? 'Informe a data.' : undefined,
   }
 
+  /** Depois de gravar: fecha o formulário, ou (em "Registrar e lançar outro") limpa valor, descrição e categoria e continua aberto. */
+  async function concluir(mensagem: string) {
+    if (!outroRef.current || l) { await aoSalvar(); return }
+    setValorTexto(''); setDescricao(''); setCategoriaId(''); setNotas(''); setParcelasTexto('1'); setStatus(null)
+    setTentou(false); chaveRef.current = null
+    setRegistrado(mensagem)
+    await aoRegistrarOutro()
+  }
+
   async function salvar(e: FormEvent) {
     e.preventDefault()
+    setRegistrado('')
     setTentou(true)
     if (Object.values(erros).some(Boolean) || valor === null) return
     setErro('')
@@ -493,7 +545,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         const sig = JSON.stringify([cartaoId, descricao.trim(), data, valor, parcelas, categoriaId])
         if (chaveRef.current?.sig !== sig) chaveRef.current = { sig, chave: novaChave() }
         await registrarCompra(cartaoId, { descricao: descricao.trim(), data, total: valor as Cents, parcelas, categoriaId }, chaveRef.current.chave)
-        await aoSalvar()
+        lembrarEscolha(familiaId, 'cartao', cartaoId)
+        await concluir('Compra registrada.')
         return
       }
       const dados = {
@@ -502,7 +555,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
       }
       if (l) await editarLancamento(l.id, dados)
       else await criarLancamento(familiaId, dados)
-      await aoSalvar()
+      if (!l) lembrarEscolha(familiaId, 'conta', contaId)
+      await concluir(`${rotuloTipo[tipo]} registrada.`)
     } catch (err) {
       setErro(mensagemErroBanco(err))
     } finally {
@@ -510,106 +564,153 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     }
   }
 
+  const aba: TipoLancamento | 'cartao' = cartaoMode ? 'cartao' : tipo
+  const abas: [TipoLancamento | 'cartao', string, string][] = [
+    ['expense', 'Despesa', 'Despesa'], ['income', 'Receita', 'Receita'], ['transfer', 'Transferência', 'Transferência'],
+    ...(!l ? [['cartao', 'Cartão', 'Cartão de crédito'] as [TipoLancamento | 'cartao', string, string]] : []),
+  ]
+  const porId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
+  const sinal = aba === 'income' ? '+' : aba === 'transfer' ? '' : '−'
+  const corValor = aba === 'income' ? 'text-positivo' : aba === 'transfer' ? 'text-marinho' : 'text-negativo'
+
   return (
     <Card className="mb-6">
       <h2 className="mb-4 text-lg font-semibold">{l ? 'Editar lançamento' : 'Novo lançamento'}</h2>
-      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
-        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <form onSubmit={salvar} className="mx-auto flex max-w-xl flex-col gap-4" noValidate>
+        {erro && <Aviso tipo="erro">{erro}</Aviso>}
+        {registrado && <p role="status" className="rounded-lg bg-pago-fundo px-3 py-2 text-sm font-medium text-pago">{registrado} Pode lançar o próximo.</p>}
 
-        {!l && (
-          <div role="radiogroup" aria-label="Onde foi lançado" className="inline-flex w-fit rounded-lg bg-slate-100 p-1 md:col-span-2">
-            {([['conta', 'Conta'], ['cartao', 'Cartão de crédito']] as const).map(([valorOnde, rotulo]) => (
-              <button key={valorOnde} type="button" role="radio" aria-checked={onde === valorOnde}
-                onClick={() => { setOnde(valorOnde); if (valorOnde === 'cartao') { setTipo('expense'); setCategoriaId('') } }}
-                className={`min-h-11 rounded-md px-4 text-sm font-semibold ${onde === valorOnde ? 'bg-white text-marinho shadow-card' : 'text-slate-600'}`}>
-                {rotulo}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {!cartaoMode && (
-        <div role="radiogroup" aria-label="Tipo do lançamento" className="inline-flex w-fit rounded-lg bg-slate-100 p-1 md:col-span-2">
-          {(Object.keys(rotuloTipo) as TipoLancamento[]).map((t) => (
-            <button key={t} type="button" role="radio" aria-checked={tipo === t}
-              onClick={() => { setTipo(t); setCategoriaId('') }}
-              className={`min-h-11 rounded-md px-4 text-sm font-semibold ${tipo === t ? 'bg-white text-marinho shadow-card' : 'text-slate-600'}`}>
-              {rotuloTipo[t]}
+        <div role="radiogroup" aria-label="Tipo do lançamento" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:flex">
+          {abas.map(([a, rotulo, nome]) => (
+            <button key={a} type="button" role="radio" aria-checked={aba === a} aria-label={nome}
+              onClick={() => {
+                if (a === 'cartao') { setOnde('cartao'); setTipo('expense') } else { setOnde('conta'); setTipo(a) }
+                setCategoriaId('')
+              }}
+              className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors ${aba === a ? corAba[a] : 'text-slate-600 hover:bg-white'}`}>
+              {rotulo}
             </button>
           ))}
         </div>
-        )}
 
-        <Field rotulo="Valor (R$)" inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={tentou ? erros.valor : undefined} />
-        <Field rotulo={cartaoMode ? 'Data da compra' : 'Data'} type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou ? erros.data : undefined} />
-        <Field rotulo="Descrição" maxLength={200} placeholder="Ex.: Supermercado" value={descricao} onChange={(e) => setDescricao(e.target.value)}
-          erro={tentou ? erros.descricao : undefined} />
+        <div className="rounded-xl bg-fundo p-4">
+          <div className="flex items-center gap-3">
+            {transferencia
+              ? <IconeCategoria fixo="transferencia" />
+              : <IconeCategoria visual={visualPorId(categoriaId || null, porId, 'expense' === tipo || cartaoMode ? 'expense' : 'income')} />}
+            <label htmlFor="lanc-descricao" className="sr-only">Descrição</label>
+            <input id="lanc-descricao" maxLength={200} value={descricao} onChange={(e) => setDescricao(e.target.value)}
+              placeholder={cartaoMode ? 'Ex.: Fone, mercado' : tipo === 'income' ? 'Ex.: Salário' : transferencia ? 'Ex.: Reserva' : 'Ex.: Supermercado'}
+              aria-invalid={tentou && !!erros.descricao}
+              className="min-h-11 min-w-0 flex-1 rounded-md bg-transparent px-1 text-lg font-medium text-marinho placeholder:text-slate-500 focus:outline focus:outline-2 focus:outline-azul" />
+          </div>
+          {tentou && erros.descricao && <p className="mt-1 text-sm text-negativo" role="alert">{erros.descricao}</p>}
+          <div className={`mt-2 flex items-baseline gap-1 ${corValor}`}>
+            <span aria-hidden="true" className="text-xl font-semibold">{sinal}R$</span>
+            <label htmlFor="lanc-valor" className="sr-only">Valor (R$)</label>
+            <input id="lanc-valor" inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)}
+              aria-invalid={tentou && !!erros.valor}
+              className="min-h-14 w-full min-w-0 rounded-md bg-transparent px-1 text-4xl font-bold tabular-nums tracking-tight placeholder:text-current placeholder:opacity-40 focus:outline focus:outline-2 focus:outline-azul" />
+          </div>
+          {tentou && erros.valor && <p className="mt-1 text-sm text-negativo" role="alert">{erros.valor}</p>}
+        </div>
 
-        {cartaoMode ? (
-          <>
-            <Selecao rotulo="Cartão" valor={cartaoId} aoMudar={setCartaoId}
-              opcoes={cartoesComCiclo.map((c) => [c.id, c.nome])} todos="Escolha…" />
-            {tentou && erros.cartao && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.cartao}</p>}
-            {cartoesComCiclo.length === 0 && (
-              <p className="text-sm text-slate-600 md:col-span-2">Nenhum cartão com fechamento definido. Defina em <Link to="/cartoes" className="font-semibold text-azul underline">Cartões</Link>.</p>
-            )}
-            <Field rotulo="Parcelas" type="number" min={1} max={72} value={parcelasTexto} onChange={(e) => setParcelasTexto(e.target.value)}
-              erro={tentou ? erros.parcelas : undefined} />
-          </>
-        ) : (
-          <>
-            <Selecao rotulo={transferencia ? 'Da conta' : 'Conta'} valor={contaId} aoMudar={setContaId}
-              opcoes={ativas.map((c) => [c.id, c.nome])} todos={contaId ? undefined : 'Escolha…'} />
-            {tentou && erros.conta && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.conta}</p>}
-          </>
-        )}
-
-        {transferencia ? (
-          <>
-            <Selecao rotulo="Para a conta" valor={destinoId} aoMudar={setDestinoId}
-              opcoes={ativas.filter((c) => c.id !== contaId).map((c) => [c.id, c.nome])} todos="Escolha…" />
-            {tentou && erros.destino && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.destino}</p>}
-          </>
-        ) : (
-          <>
-            <Selecao rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId}
-              opcoes={categoriasDoTipo.map((c) => [c.id, c.paiId ? `↳ ${c.nome}` : c.nome])} todos="Escolha…" />
-            {tentou && erros.categoria && <p className="text-sm text-negativo md:col-span-2" role="alert">{erros.categoria}</p>}
-          </>
-        )}
-
-        {!cartaoMode && <fieldset className="flex flex-col gap-1">
-          <legend className="text-sm font-medium">Situação</legend>
-          <div className="flex gap-4">
-            {(['paid', 'planned'] as StatusLancamento[]).map((s) => (
-              <label key={s} className="flex min-h-11 items-center gap-2">
-                <input type="radio" name="status" checked={statusEfetivo === s} onChange={() => setStatus(s)} />
-                {s === 'paid' ? 'Pago' : 'Planejado'}
-              </label>
+        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+          <Linha icone={<IconeCalendario />} rotulo={cartaoMode ? 'Data da compra' : 'Data'} dica={data === hoje ? 'Hoje' : undefined} htmlFor="lanc-data" fixo>
+            <input id="lanc-data" type="date" value={data} onChange={(e) => setData(e.target.value)} aria-invalid={tentou && !!erros.data} className="min-h-11 w-36 shrink-0 appearance-none rounded-md bg-transparent px-1 text-right text-base text-slate-700 focus:outline focus:outline-2 focus:outline-azul" />
+          </Linha>
+          {cartaoMode ? (
+            <>
+              <Linha icone={<IconeCartoes />} rotulo="Cartão" htmlFor="lanc-cartao">
+                <select id="lanc-cartao" value={cartaoId} onChange={(e) => setCartaoId(e.target.value)} className={controleLinha}>
+                  <option value="">Escolher</option>
+                  {cartoesComCiclo.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>{seta}
+              </Linha>
+              <Linha icone={<IconeCartoes />} rotulo="Parcelas" htmlFor="lanc-parcelas">
+                <input id="lanc-parcelas" type="number" min={1} max={72} value={parcelasTexto} onChange={(e) => setParcelasTexto(e.target.value)}
+                  aria-invalid={tentou && !!erros.parcelas} className={`${controleLinha} w-20`} />
+                <span className="text-sm text-slate-500">x</span>
+              </Linha>
+            </>
+          ) : (
+            <Linha icone={<IconeContas />} rotulo={transferencia ? 'Da conta' : 'Conta'} htmlFor="lanc-conta">
+              <select id="lanc-conta" value={contaId} onChange={(e) => setContaId(e.target.value)} className={controleLinha}>
+                {!contaId && <option value="">Escolher</option>}
+                {ativas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>{seta}
+            </Linha>
+          )}
+          {transferencia ? (
+            <Linha icone={<IconeTransferir />} rotulo="Para a conta" htmlFor="lanc-destino">
+              <select id="lanc-destino" value={destinoId} onChange={(e) => setDestinoId(e.target.value)} className={controleLinha}>
+                <option value="">Escolher</option>
+                {ativas.filter((c) => c.id !== contaId).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>{seta}
+            </Linha>
+          ) : (
+            <Linha icone={<IconeCategorias />} rotulo="Categoria" htmlFor="lanc-categoria">
+              <select id="lanc-categoria" value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={controleLinha}>
+                <option value="">Escolher</option>
+                {categoriasDoTipo.map((c) => <option key={c.id} value={c.id}>{c.paiId ? `↳ ${c.nome}` : c.nome}</option>)}
+              </select>{seta}
+            </Linha>
+          )}
+        </div>
+        {tentou && (erros.data || erros.conta || erros.cartao || erros.parcelas || erros.destino || erros.categoria) && (
+          <div className="flex flex-col gap-1">
+            {[erros.data, erros.conta, erros.cartao, erros.parcelas, erros.destino, erros.categoria].filter(Boolean).map((m) => (
+              <p key={m} className="text-sm text-negativo" role="alert">{m}</p>
             ))}
           </div>
-        </fieldset>}
-        {!cartaoMode && <Field rotulo="Observações (opcional)" maxLength={1000} value={notas} onChange={(e) => setNotas(e.target.value)} />}
+        )}
+        {cartaoMode && cartoesComCiclo.length === 0 && (
+          <p className="text-sm text-slate-600">Nenhum cartão com fechamento definido. Defina em <Link to="/cartoes" className="font-semibold text-azul underline">Cartões</Link>.</p>
+        )}
+
+        {!cartaoMode && (
+          <fieldset className="flex flex-wrap items-center gap-2">
+            <legend className="sr-only">Situação</legend>
+            {(['paid', 'planned'] as StatusLancamento[]).map((s) => (
+              <label key={s} className="relative">
+                <input type="radio" name="status" checked={statusEfetivo === s} onChange={() => setStatus(s)} className="peer sr-only" />
+                <span className={`inline-flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm font-semibold peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-azul ${
+                  statusEfetivo === s ? (s === 'paid' ? 'border-pago bg-pago-fundo text-pago' : 'border-planejado bg-planejado-fundo text-planejado') : 'border-slate-300 text-slate-600'}`}>
+                  {s === 'paid' ? (aba === 'income' ? 'Recebido' : 'Pago') : 'Planejado'}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+        {!cartaoMode && (
+          <details open={!!l?.notas} className="rounded-xl border border-slate-200 px-3 py-2">
+            <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Mais detalhes</summary>
+            <div className="pb-2"><Field rotulo="Observações (opcional)" maxLength={1000} value={notas} onChange={(e) => setNotas(e.target.value)} /></div>
+          </details>
+        )}
 
         {!transferencia && !cartaoMode && conta && data && data < conta.abertura && (
-          <div className="md:col-span-2">
-            <Aviso tipo="info">
-              Data anterior ao saldo inicial de {conta.nome} ({formatDate(conta.abertura)}): o lançamento entra nos relatórios, mas <strong>não altera o saldo</strong> da conta.
-            </Aviso>
-          </div>
+          <Aviso tipo="info">
+            Data anterior ao saldo inicial de {conta.nome} ({formatDate(conta.abertura)}): o lançamento entra nos relatórios, mas <strong>não altera o saldo</strong> da conta.
+          </Aviso>
         )}
         {statusEfetivo === 'planned' && !cartaoMode && (
-          <p className="text-sm text-slate-600 md:col-span-2">Planejado não entra no saldo nem nos totais pagos até ser marcado como pago.</p>
+          <p className="text-sm text-slate-600">Planejado não entra no saldo nem nos totais pagos até ser marcado como pago.</p>
         )}
         {cartaoMode && (
-          <p className="text-sm text-slate-600 md:col-span-2">
+          <p className="text-sm text-slate-600">
             Compra no cartão: não mexe no saldo da conta agora. Cada parcela vira despesa no mês em que a fatura fecha, e o pagamento da fatura é separado.
           </p>
         )}
 
-        <div className="flex gap-2 md:col-span-2">
-          <Button type="submit" carregando={enviando}>{l ? 'Salvar' : 'Lançar'}</Button>
-          <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
+        <div className="flex flex-col gap-2">
+          <Button type="submit" carregando={enviando} className="w-full" onClick={() => { outroRef.current = false }}>
+            {l ? 'Salvar alterações' : rotuloAcao[aba]}
+          </Button>
+          <div className="flex flex-wrap justify-center gap-2">
+            {!l && <Button type="submit" variante="fantasma" disabled={enviando} onClick={() => { outroRef.current = true }}>Registrar e lançar outro</Button>}
+            <Button variante="discreto" onClick={aoCancelar}>Cancelar</Button>
+          </div>
         </div>
       </form>
     </Card>
