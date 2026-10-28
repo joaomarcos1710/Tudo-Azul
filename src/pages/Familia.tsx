@@ -12,13 +12,14 @@ import {
   criarConvite, criarFamilia, linkDoConvite, listarConvitesPendentes, listarMembros, mensagemErroBanco, tokenDoTexto,
 } from '../lib/familia'
 import type { ConvitePendente, Membro } from '../lib/familia'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 export default function Familia() {
   const { familia, carregando } = useFamilia()
   if (carregando) return <p className="text-sm text-slate-600" role="status">Carregando…</p>
   return (
     <>
-      <h1 className="mb-6 text-2xl font-bold">Família</h1>
+      <CabecalhoPagina titulo="Família" descricao="Quem participa, os convites e a versão do app." />
       {familia ? <MinhaFamilia /> : <SemFamilia />}
       <Versao className="mt-8 text-slate-500" comCommit />
     </>

@@ -11,6 +11,7 @@ import { currentMonth, formatBRL, formatDate, formatMonth, primeiraMaiuscula } f
 import type { Cents } from '../lib/format'
 import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, somarMeses } from '../lib/lancamentos'
 import type { ResumoMes } from '../lib/lancamentos'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 /**
  * Calendário do mês: o que entra e sai das contas em cada dia (pago e planejado).
@@ -114,10 +115,7 @@ export default function Calendario() {
 
   return (
     <>
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold">Calendário</h1>
-        <p className="text-sm text-slate-600">O que entra e sai das contas a cada dia do mês.</p>
-      </div>
+      <CabecalhoPagina titulo="Calendário" descricao="O que entra e sai das contas a cada dia do mês." />
 
       {automaticosFalharam && (
         <div className="mb-4">

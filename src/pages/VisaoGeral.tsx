@@ -22,6 +22,7 @@ import { limitesDoMes, listarLancamentos, mesmoDiaAnoPassado, resumoDoMes, resum
 import type { Lancamento, ResumoMes } from '../lib/lancamentos'
 import { carregarPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
 import type { DespesaCategoria, DespesaDia, Patrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, Vencidos } from '../lib/painel'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 /**
  * Cada tela carrega só o que mostra. Início: contas, lançamentos e planejados são essenciais (se falharem, a tela
@@ -155,10 +156,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">{noInicio ? `${saudacao()}${nome ? `, ${nome}` : ''}!` : 'Análises'}</h1>
-        <p className="text-sm text-slate-600">{noInicio ? 'O que pede atenção agora na família.' : `Como as finanças da família estão indo em ${formatMonth(mes).replace(/^./, (c) => c.toUpperCase())}.`}</p>
-      </div>
+      <CabecalhoPagina titulo={noInicio ? `${saudacao()}${nome ? `, ${nome}` : ''}!` : 'Análises'}
+        descricao={noInicio ? 'O que pede atenção agora na família.' : `Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />
       {cobrancaFalhou && (
         <div className="mb-4">
           <Aviso tipo="erro">Não foi possível fechar as faturas dos cartões agora. Os valores de cartão podem estar defasados.</Aviso>

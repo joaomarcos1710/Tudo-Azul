@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card, CardTitle } from '../components/ui/Card'
@@ -13,6 +13,7 @@ import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { asCents, formatBRL, formatDate, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 /**
  * Conferir a conta com o extrato do banco (critério 1 do corte do Organizze).
@@ -100,12 +101,11 @@ export default function Conferir() {
   if (!familiaId) return null
   return (
     <>
-      <Link to="/contas" className="text-sm font-semibold text-azul hover:underline">← Contas</Link>
-      <h1 className="mb-2 mt-2 text-2xl font-bold">Conferir {conta?.nome ?? 'conta'}</h1>
-      <p className="mb-6 text-sm text-slate-600">
-        Compare com o extrato do banco. Quando a diferença for zero, conclua: o período até a data fica <strong>travado</strong>{' '}
-        (nada que mude o saldo pode ser lançado, editado ou excluído nele) até você desfazer a conciliação.
-      </p>
+      <CabecalhoPagina titulo={`Conferir ${conta?.nome ?? 'conta'}`} voltar={{ para: '/contas', rotulo: 'Contas' }}
+        descricao={<>
+          Compare com o extrato do banco. Quando a diferença for zero, conclua: o período até a data fica <strong>travado</strong>{' '}
+          (nada que mude o saldo pode ser lançado, editado ou excluído nele) até você desfazer a conciliação.
+        </>} />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {sucesso && <div className="mb-4"><Aviso tipo="sucesso">{sucesso}</Aviso></div>}

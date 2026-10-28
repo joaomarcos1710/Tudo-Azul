@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { EmptyState } from '../components/ui/EmptyState'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 interface Props {
   titulo: string
@@ -12,7 +13,7 @@ interface Props {
 export function PaginaBase({ titulo, etapa, descricao, children }: Props) {
   return (
     <>
-      <h1 className="mb-6 text-2xl font-bold">{titulo}</h1>
+      <CabecalhoPagina titulo={titulo} />
       {children ?? (
         <EmptyState titulo="Disponível em breve" descricao={`${descricao} Planejado para a ${etapa}.`} />
       )}

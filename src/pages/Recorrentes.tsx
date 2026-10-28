@@ -21,6 +21,7 @@ import {
   proximasOcorrencias, rotuloFrequencia, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
 import type { Recorrencia, TipoRecorrencia, UnidadeFrequencia } from '../lib/recorrencias'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 const dias: [string, string][] = Array.from({ length: 31 }, (_, i) => [String(i + 1), `Dia ${i + 1}`])
 const toda = (diaSemana: string) => `${diaSemana === 'sábado' || diaSemana === 'domingo' ? 'todo' : 'toda'} ${diaSemana}`
@@ -81,16 +82,14 @@ export default function Recorrentes() {
 
   return (
     <>
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Recorrentes</h1>
-        {editando === null && <Button onClick={() => setEditando('nova')}>Novo recorrente</Button>}
-      </div>
-      <p className="mb-6 text-sm text-slate-600">
-        Contas, salários e assinaturas que se repetem: toda semana, a cada 14 dias, todo mês, a cada 2, 3 ou 6 meses ou todo ano.
-        Em conta, os próximos 2 meses aparecem como <strong>Planejado</strong> em{' '}
-        <Link to="/lancamentos" className="font-semibold text-azul hover:underline">Lançamentos</Link>: quando a conta chegar,
-        corrija o valor e marque como pago. No cartão, a compra entra no dia, na fatura certa.
-      </p>
+      <CabecalhoPagina titulo="Recorrentes"
+        acoes={editando === null && <Button onClick={() => setEditando('nova')}>Novo recorrente</Button>}
+        descricao={<>
+          Contas, salários e assinaturas que se repetem: toda semana, a cada 14 dias, todo mês, a cada 2, 3 ou 6 meses ou todo ano.
+          Em conta, os próximos 2 meses aparecem como <strong>Planejado</strong> em{' '}
+          <Link to="/lancamentos" className="font-semibold text-azul hover:underline">Lançamentos</Link>: quando a conta chegar,
+          corrija o valor e marque como pago. No cartão, a compra entra no dia, na fatura certa.
+        </>} />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
 

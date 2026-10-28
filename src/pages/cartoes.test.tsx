@@ -91,6 +91,22 @@ describe('Cartões', () => {
     expect(screen.getByText('R$ 396,66')).toBeTruthy()
   })
 
+  it('a ação principal segue a fatura: com fatura a pagar é "Pagar fatura" (valor em vermelho); sem ela, "Nova compra"', async () => {
+    const { unmount } = render(<Cartoes />)
+    await screen.findByText('Nubank')
+    expect(screen.getByRole('button', { name: 'Pagar fatura' }).className.split(' ')).toContain('bg-azul')
+    expect(screen.getByRole('button', { name: 'Nova compra' }).className.split(' ')).not.toContain('bg-azul')
+    expect(screen.getByText('R$ 133,34').className).toContain('text-negativo')
+    unmount()
+
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }])
+    render(<Cartoes />)
+    await screen.findByText('Nubank')
+    expect(screen.getByRole('button', { name: 'Nova compra' }).className.split(' ')).toContain('bg-azul')
+    expect(screen.getByRole('button', { name: 'Pagar fatura' }).className.split(' ')).not.toContain('bg-azul')
+    expect(screen.getByText('R$ 0,00').className).not.toContain('text-negativo')
+  })
+
   it('sem cartões, convida a cadastrar', async () => {
     mock.listarCartoes.mockResolvedValue([])
     render(<Cartoes />)

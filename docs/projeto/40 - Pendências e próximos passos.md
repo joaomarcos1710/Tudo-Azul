@@ -49,7 +49,8 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Redesenho visual (design system)
 - [ ] **Parte 1** (#64, mesclada como versão 2026.3): padding dobrado nos painéis, mês com maiúscula certa, lista de Lançamentos compacta, ações rápidas com ícone, contorno de campos com contraste. Conferir no celular e no iPad depois do merge.
-- Próximas partes (só com a sua autorização): cabeçalho padrão de tela com ações à direita; ícone de categoria nas listas; seletor de mês em painel próprio; Cartões com a fatura em destaque; formulário de lançamento em folha no celular.
+- [ ] **Parte 2** (versão 2026.4): cabeçalho padrão em todas as telas e Cartões com a fatura em destaque. Conferir no celular e no iPad depois do merge.
+- Parte 3 (precisa de decisão sua): ícone/cor de categoria nas listas (as colunas `color` e `icon` existem no banco, mas estão vazias: escolher à mão por categoria ou o app sugerir?); formulário de lançamento em folha no celular; seletor de mês em painel próprio.
 
 ## Do protótipo do Base44
 - [ ] **Calendário do mês** (#62, mesclado em 28/10): conferir no celular e no iPad.

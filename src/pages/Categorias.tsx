@@ -8,6 +8,7 @@ import { useFamilia } from '../lib/FamiliaContext'
 import { agrupar, criarCategoria, definirCategoriaAtiva, definirCategoriaEventual, editarCategoria, listarCategorias } from '../lib/categorias'
 import type { Categoria, TipoCategoria } from '../lib/categorias'
 import { mensagemErroBanco } from '../lib/erros'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 const abas: { tipo: TipoCategoria; rotulo: string }[] = [
   { tipo: 'expense', rotulo: 'Despesas' },
@@ -58,10 +59,8 @@ export default function Categorias() {
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Categorias</h1>
-        {editando === null && <Button onClick={() => setEditando('nova')}>Nova categoria</Button>}
-      </div>
+      <CabecalhoPagina titulo="Categorias" descricao="Como as receitas e despesas da família são agrupadas nos relatórios e orçamentos."
+        acoes={editando === null && <Button onClick={() => setEditando('nova')}>Nova categoria</Button>} />
 
       <div role="tablist" aria-label="Tipo de categoria" className="mb-4 inline-flex rounded-lg bg-slate-100 p-1">
         {abas.map((a) => (
