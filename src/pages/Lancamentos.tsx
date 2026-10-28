@@ -16,7 +16,7 @@ import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL } from '../lib/format'
+import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
   criarLancamento, editarLancamento, listarComprasDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
@@ -32,6 +32,10 @@ function valorComSinal(l: Lancamento) {
   if (l.tipo === 'expense') return { texto: `−${formatBRL(l.valor)}`, cor: 'text-negativo' }
   return { texto: `⇄ ${formatBRL(l.valor)}`, cor: 'text-slate-600' }
 }
+
+const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
+const totalRotulo = 'shrink-0 text-sm text-slate-500'
+const totalValor = 'whitespace-nowrap tabular-nums text-base font-bold sm:text-xl'
 
 export default function Lancamentos() {
   const { familia } = useFamilia()
@@ -179,22 +183,25 @@ export default function Lancamentos() {
 
       <div className="mb-4 flex items-center gap-2">
         <Button variante="secundario" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
-        <span className="min-w-44 text-center font-semibold capitalize">{formatMonth(mes)}</span>
+        <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
         <Button variante="secundario" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
       </div>
 
       {resumo && (
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
-          <Card><p className="text-sm text-slate-500">Receitas pagas</p><p className="tabular-nums text-xl font-bold text-positivo">+{formatBRL(resumo.receitas)}</p></Card>
-          <Card><p className="text-sm text-slate-500">Despesas pagas</p><p className="tabular-nums text-xl font-bold text-negativo">−{formatBRL(resumo.despesas)}</p></Card>
-          <Card>
-            <p className="text-sm text-slate-500">Resultado do mês</p>
-            <p className={`tabular-nums text-xl font-bold ${resumo.resultado < 0 ? 'text-negativo' : ''}`}>{formatBRL(resumo.resultado)}</p>
-            {(resumo.receitasPrevistas > 0 || resumo.despesasPrevistas > 0) && (
-              <p className="mt-1 text-xs text-planejado">
-                Planejado: +{formatBRL(resumo.receitasPrevistas)} / −{formatBRL(resumo.despesasPrevistas)}
-              </p>
-            )}
+        <div className="mb-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
+          {/* celular: uma linha por total (rótulo à esquerda, valor à direita); a partir de sm: três painéis */}
+          <Card semPadding className={totalCard}><p className={totalRotulo}>Receitas pagas</p><p className={`${totalValor} text-positivo`}>+{formatBRL(resumo.receitas)}</p></Card>
+          <Card semPadding className={totalCard}><p className={totalRotulo}>Despesas pagas</p><p className={`${totalValor} text-negativo`}>−{formatBRL(resumo.despesas)}</p></Card>
+          <Card semPadding className={totalCard}>
+            <p className={totalRotulo}>Resultado do mês</p>
+            <div className="text-right sm:text-left">
+              <p className={`${totalValor} ${resumo.resultado < 0 ? 'text-negativo' : ''}`}>{formatBRL(resumo.resultado)}</p>
+              {(resumo.receitasPrevistas > 0 || resumo.despesasPrevistas > 0) && (
+                <p className="mt-1 text-xs text-planejado">
+                  Planejado: <span className="whitespace-nowrap">+{formatBRL(resumo.receitasPrevistas)}</span> / <span className="whitespace-nowrap">−{formatBRL(resumo.despesasPrevistas)}</span>
+                </p>
+              )}
+            </div>
           </Card>
         </div>
       )}
@@ -275,13 +282,14 @@ export default function Lancamentos() {
         {porDia.map(([data, itens]) => (
           <section key={data} aria-label={formatDate(data)}>
             <h2 className="mb-2 text-sm font-semibold text-slate-500">{formatDate(data)}</h2>
-            <Card className="p-0">
+            <Card semPadding>
               <ul className="divide-y divide-slate-100">
                 {itens.map((item) => {
                   if (item.origem === 'cartao') {
                     const c = item.c
                     return (
-                      <li key={`cartao-${c.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
+                      <li key={`cartao-${c.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
+                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-medium">
                             {c.descricao}
@@ -294,8 +302,9 @@ export default function Lancamentos() {
                             {` · a despesa conta em ${formatDate(c.fechaEm)} (fechamento da fatura)`}
                           </p>
                         </div>
-                        <div className="flex flex-wrap items-center gap-1">
-                          <span className="tabular-nums font-semibold text-slate-700">{formatBRL(c.valor)}</span>
+                          <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatBRL(c.valor)}</span>
+                        </div>
+                        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
                           <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
                         </div>
                       </li>
@@ -304,7 +313,8 @@ export default function Lancamentos() {
                   if (item.origem === 'divida') {
                     const m = item.m
                     return (
-                      <li key={`divida-${m.id}`} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
+                      <li key={`divida-${m.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
+                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-medium">
                             {m.descricao}
@@ -314,10 +324,11 @@ export default function Lancamentos() {
                           </p>
                           <p className="text-sm text-slate-500">{nomeConta.get(m.contaId) ?? '?'}</p>
                         </div>
-                        <div className="flex flex-wrap items-center gap-1">
-                          <span className={`tabular-nums font-semibold ${m.valor < 0 ? 'text-slate-700' : 'text-positivo'}`}>
+                          <span className={`shrink-0 tabular-nums font-semibold ${m.valor < 0 ? 'text-slate-700' : 'text-positivo'}`}>
                             {m.valor < 0 ? '−' : '+'}{formatBRL(Math.abs(m.valor) as Cents)}
                           </span>
+                        </div>
+                        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
                           <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
                         </div>
                       </li>
@@ -329,7 +340,8 @@ export default function Lancamentos() {
                     ? `${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`
                     : `${nomeCategoria.get(l.categoriaId ?? '') ?? 'Sem categoria'} · ${nomeConta.get(l.contaId) ?? '?'}`
                   return (
-                    <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
+                    <li key={l.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
+                      <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium">
                           {l.descricao || rotuloTipo[l.tipo]}
@@ -338,11 +350,12 @@ export default function Lancamentos() {
                         </p>
                         <p className="text-sm text-slate-500">{subtitulo}</p>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span className={`tabular-nums font-semibold ${v.cor}`}>{v.texto}</span>
+                        <span className={`shrink-0 tabular-nums font-semibold ${v.cor}`}>{v.texto}</span>
+                      </div>
+                      <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
                         {l.status === 'planned' && <Button variante="fantasma" onClick={() => { setEditando(null); setPagando(l) }} disabled={pagando !== null}>Marcar pago</Button>}
                         <Button variante="fantasma" onClick={() => setEditando(l)}>Editar</Button>
-                        <Button variante="fantasma" onClick={() => excluir(l)}>Excluir</Button>
+                        <Button variante="discreto" onClick={() => excluir(l)}>Excluir</Button>
                       </div>
                     </li>
                   )

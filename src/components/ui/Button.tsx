@@ -1,12 +1,14 @@
 import type { ButtonHTMLAttributes } from 'react'
 
-type Variante = 'primario' | 'secundario' | 'perigo' | 'fantasma'
+type Variante = 'primario' | 'secundario' | 'perigo' | 'fantasma' | 'discreto'
 
 const estilos: Record<Variante, string> = {
   primario: 'bg-azul text-white hover:bg-blue-700 disabled:opacity-60',
   secundario: 'bg-white text-marinho border border-slate-300 hover:bg-azul-claro disabled:opacity-50',
   perigo: 'bg-negativo text-white hover:bg-red-800 disabled:opacity-50',
   fantasma: 'text-azul hover:bg-azul-claro disabled:opacity-50',
+  // ação destrutiva repetida em lista (Excluir): cinza em repouso, vermelha só no hover/foco
+  discreto: 'text-slate-600 hover:bg-red-50 hover:text-negativo focus-visible:text-negativo disabled:opacity-50',
 }
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {

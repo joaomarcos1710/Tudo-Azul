@@ -7,7 +7,7 @@ import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatDate, formatMonth } from '../lib/format'
+import { currentMonth, formatBRL, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, somarMeses } from '../lib/lancamentos'
 import type { ResumoMes } from '../lib/lancamentos'
@@ -110,7 +110,7 @@ export default function Calendario() {
   const porDia = new Map<string, ItemDoDia[]>()
   for (const item of itens ?? []) porDia.set(item.data, [...(porDia.get(item.data) ?? []), item])
   const doDia = dia ? porDia.get(dia) ?? [] : []
-  const titulo = formatMonth(mes).replace(/^./, (c) => c.toUpperCase())
+  const titulo = primeiraMaiuscula(formatMonth(mes))
 
   return (
     <>

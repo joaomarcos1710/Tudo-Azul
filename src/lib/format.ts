@@ -103,6 +103,11 @@ export function formatMonth(ym: string): string {
   return `${nome} de ${a}`
 }
 
+/** Maiúscula só na primeira letra ("outubro de 2026" → "Outubro de 2026"). Não use a classe CSS capitalize: ela faz "Outubro De 2026". */
+export function primeiraMaiuscula(texto: string): string {
+  return texto.charAt(0).toLocaleUpperCase('pt-BR') + texto.slice(1)
+}
+
 /** Mês atual (YYYY-MM) no fuso de São Paulo. */
 export function currentMonth(now: Date = new Date()): string {
   const partes = new Intl.DateTimeFormat('en-CA', {

@@ -148,7 +148,7 @@ export default function Conferir() {
         )}
       </Card>
 
-      <Card className="p-0">
+      <Card semPadding>
         <div className="px-5 pt-5"><CardTitle>{data ? `Movimentos até ${formatDate(data)}` : 'Movimentos'}</CardTitle></div>
         {movimentos === null ? <p className="px-5 pb-5 text-sm text-slate-600" role="status">{data ? 'Carregando…' : 'Informe a data.'}</p> : (
           <ul className="divide-y divide-slate-100">

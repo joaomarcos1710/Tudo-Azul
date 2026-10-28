@@ -19,7 +19,7 @@ import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { asCents, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL } from '../lib/format'
+import { asCents, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 
 type Painel =
@@ -289,7 +289,7 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
           return (
             <button key={f.mes} type="button" role="tab" aria-selected={mes === f.mes} onClick={() => setMes(f.mes)}
               className={`min-w-32 shrink-0 rounded-lg border px-3 py-2 text-left text-sm ${mes === f.mes ? 'border-azul bg-azul-claro' : 'border-slate-200'}`}>
-              <span className="block font-semibold capitalize">{formatMonth(f.mes)}</span>
+              <span className="block font-semibold">{primeiraMaiuscula(formatMonth(f.mes))}</span>
               <span className="block tabular-nums">{formatBRL(f.total)}</span>
               <span className={`mt-1 inline-block rounded px-1.5 text-xs font-medium ${s.estilo}`}>{s.texto}</span>
             </button>
@@ -597,7 +597,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
         <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
         <Field rotulo="Data do pagamento" type="date" value={data} onChange={(e) => setData(e.target.value)} />
         <p className="text-sm text-slate-600 md:col-span-2">
-          {cartao.divida > 0 && fatura ? <>Quita a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong>. </> : null}
+          {cartao.divida > 0 && fatura ? <>Quita a fatura de <strong>{formatMonth(fatura.mes)}</strong>. </> : null}
           {adiantado && cartao.divida > 0 && <>O que passar da fatura fechada ({formatBRL(cartao.divida)}) <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
           {adiantado && cartao.divida <= 0 && <>Não há fatura fechada: o valor <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
           O pagamento sai da conta na data escolhida e reduz a dívida do cartão. Não é despesa: as compras contam no mês de cada fatura.
@@ -626,7 +626,7 @@ function PainelReabrir({ cartaoId, fatura, aoFechar, aoConcluir }: {
     <div className="mt-3 rounded-lg border border-slate-200 bg-azul-claro p-4" role="group" aria-label="Reabrir fatura">
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
       <p className="text-sm">
-        Reabrir a fatura de <strong className="capitalize">{formatMonth(fatura.mes)}</strong> desfaz os pagamentos dela
+        Reabrir a fatura de <strong>{formatMonth(fatura.mes)}</strong> desfaz os pagamentos dela
         ({formatBRL(fatura.pago)}), <strong>inclusive a parte que passou da fatura e ficou como crédito</strong>, e o dinheiro volta para as contas de onde saiu. Depois você pode editar as parcelas e pagar de novo.
       </p>
       <div className="mt-3 flex gap-2">

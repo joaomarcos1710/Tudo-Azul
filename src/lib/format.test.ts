@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   asCents, centsFromDb, centsToDecimal, currentMonth, formatBRL, formatDate, formatMonth,
-  MAX_CENTS, parseBRL, type Cents,
+  MAX_CENTS, primeiraMaiuscula, parseBRL, type Cents,
 } from './format'
 
 const c = (n: number) => n as Cents
@@ -135,5 +135,14 @@ describe('datas', () => {
   it('currentMonth usa o fuso de São Paulo', () => {
     // 01/11 02:00 UTC ainda é 31/10 23:00 em São Paulo
     expect(currentMonth(new Date('2026-11-01T02:00:00Z'))).toBe('2026-10')
+  })
+})
+
+describe('primeiraMaiuscula', () => {
+  it('põe maiúscula só na primeira letra do título do mês', () => {
+    expect(primeiraMaiuscula(formatMonth('2026-10'))).toBe('Outubro de 2026')
+    expect(primeiraMaiuscula('em março de 2027')).toBe('Em março de 2027')
+    expect(primeiraMaiuscula('últimos 12 meses')).toBe('Últimos 12 meses')
+    expect(primeiraMaiuscula('')).toBe('')
   })
 })

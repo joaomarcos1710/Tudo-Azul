@@ -109,7 +109,7 @@ export default function Recorrentes() {
       )}
 
       {ativas.length > 0 && (
-        <Card className="p-0">
+        <Card semPadding>
           <ul className="divide-y divide-slate-100">
             {ativas.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
