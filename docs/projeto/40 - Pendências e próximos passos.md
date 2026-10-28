@@ -35,6 +35,9 @@ atualizado: 2026-10-28
 - [ ] Conferir no app, depois dos dois merges: cadastrar uma quinzenal e a PLR anual de teste e ver os planejados em Lançamentos e no Calendário.
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
+## Menu do celular
+- [ ] Menu "Mais" com cartões de atalho e frase em cada tela (PR de rascunho, opção A do dono). Conferir no iPhone depois do merge. Sem mudança de versão: entra na próxima edição (2026.5) junto com o próximo lote visível.
+
 ## Cartão: antecipar parcelas (pedido do dono em 28/10/2026, para depois)
 - Hoje não dá para **antecipar** parcelas de uma compra parcelada (pagar antes ou pedir a antecipação ao banco). Alguns cartões dão **desconto** na antecipação.
 - A pensar antes de implementar: as parcelas antecipadas entram em qual fatura; o desconto vira abatimento da despesa (a despesa da compra diminui) e em qual mês; o limite libera na hora; precisa de migration (função nova no banco, com teste pgTAP) e passa pelo workflow de produção.
