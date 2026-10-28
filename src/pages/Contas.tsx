@@ -12,6 +12,7 @@ import type { Conta, TipoConta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 export default function Contas() {
   const { familia } = useFamilia()
@@ -48,10 +49,8 @@ export default function Contas() {
   if (!familia) return null
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Contas</h1>
-        {editando === null && <Button onClick={() => setEditando('nova')}>Nova conta</Button>}
-      </div>
+      <CabecalhoPagina titulo="Contas" descricao="Saldo de cada conta, vindo do banco, e a conferência com o extrato."
+        acoes={editando === null && <Button onClick={() => setEditando('nova')}>Nova conta</Button>} />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
 

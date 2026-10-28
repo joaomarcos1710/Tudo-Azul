@@ -23,6 +23,7 @@ import {
   moverParaLixeira, restaurarDaLixeira, resumoDoMes, somarMeses,
 } from '../lib/lancamentos'
 import type { Filtros, Lancamento, MovimentoDivida, ParcelaDeCartao, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', income: 'Receita', transfer: 'Transferência' }
 
@@ -169,13 +170,11 @@ export default function Lancamentos() {
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Lançamentos</h1>
-        <div className="flex flex-wrap gap-2">
+      <CabecalhoPagina titulo="Lançamentos" descricao="Receitas, despesas e transferências do mês, pagas e planejadas."
+        acoes={<>
           <Link to="/recorrentes" className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-azul hover:bg-azul-claro">↻ Recorrentes</Link>
           {editando === null && <Button onClick={() => { setInicial(undefined); setEditando('novo') }} disabled={contas.length === 0}>Novo lançamento</Button>}
-        </div>
-      </div>
+        </>} />
 
       {contas.length === 0 && lancamentos !== null && (
         <div className="mb-4"><Aviso tipo="info">Cadastre uma conta em <strong>Contas</strong> antes do primeiro lançamento.</Aviso></div>

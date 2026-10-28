@@ -15,7 +15,7 @@ Menu em **grupos** (barra lateral no iPad/computador; no celular, 4 atalhos + "M
 - **Lançamentos** — receitas, despesas e transferências do mês; filtros conta → tipo → categoria (categoria só do tipo escolhido); formulário único: conta **ou** cartão; marcar como pago pede data e valor reais; lixeira (desfazer a última exclusão).
 - **Calendário** (`/calendario?mes=AAAA-MM`) — o mês em grade (semana começa na segunda); cada dia mostra marcas de entrada paga (verde), saída paga (vermelha) e planejado (âmbar); tocar no dia lista os lançamentos com valor e "Pago"/"Planejado" (inclui pagamento de fatura e de dívida saindo da conta). **Não soma por dia**: os totais do mês (receitas pagas, despesas pagas, resultado) vêm do banco. Compra no cartão aparece no fechamento da fatura, não no dia da compra. Ideia trazida do protótipo do Base44.
 - **Recorrentes** — contas, salários e assinaturas no cartão que se repetem: semanal, quinzenal (14 dias), mensal, bimestral, trimestral, semestral, anual ou personalizada (a cada 1–4 semanas ou 1–12 meses). No cadastro: dia do mês (unidade mês) ou primeira data (unidade semana), data final opcional e prévia das próximas 3 datas. A lista mostra a frequência, a próxima data e a data final. Frequência e dia não mudam na edição (encerrar e cadastrar outro).
-- **Cartões** — fatura por mês, parcelas, pagar fatura, reabrir fatura, excluir compra, editar parcela, anular pagamento/devolução, **limite**.
+- **Cartões** — fatura a pagar em destaque (vermelha se houver, com "Pagar fatura" como ação principal; sem fatura, a principal é "Nova compra"), fatura por mês, parcelas, pagar fatura, reabrir fatura, excluir compra, editar parcela, anular pagamento/devolução, **limite**.
 - **Contas e conferência** — contas (cadastrar, editar, desativar), saldo vindo do banco, e **Conferir com o extrato** (trava o período conferido; dá para desfazer a última).
 
 ## Planejamento
@@ -27,6 +27,6 @@ Menu em **grupos** (barra lateral no iPad/computador; no celular, 4 atalhos + "M
 - **Acesso** — entrar, criar conta, recuperar e trocar senha.
 
 ## Em todo o app
-Visual segue o design system "Tudo Azul" (artefato no claude.ai): painéis brancos sobre o fundo claro, ações principais em azul, valores sempre com sinal. Em 28/10/2026: ações rápidas do Início viraram 4 painéis-botão iguais com ícone (2×2 até telas bem largas; no celular o ícone fica acima do rótulo para "Transferência" caber em 320px); a lista de Lançamentos ficou compacta (valor na linha da descrição, Excluir discreto) e os totais viram linhas no celular.
+Visual segue o design system "Tudo Azul" (artefato no claude.ai): painéis brancos sobre o fundo claro, ações principais em azul, valores sempre com sinal. Em 28/10/2026: ações rápidas do Início viraram 4 painéis-botão iguais com ícone (2×2 até telas bem largas; no celular o ícone fica acima do rótulo para "Transferência" caber em 320px); a lista de Lançamentos ficou compacta (valor na linha da descrição, Excluir discreto) e os totais viram linhas no celular. Parte 2 (2026.4): toda tela abre com o mesmo cabeçalho (`CabecalhoPagina`: título, uma linha dizendo para que serve e as ações à direita no computador, embaixo no celular); Conferir tem o link "← Contas" acima do título.
 
 PWA instalável · versão `AAAA.E` · ocultar valores · valores sempre vindos do banco (o front não soma dinheiro).

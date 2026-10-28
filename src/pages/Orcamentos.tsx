@@ -16,6 +16,7 @@ import type { Cents } from '../lib/format'
 import { somarMeses } from '../lib/lancamentos'
 import { copiarDoMesAnterior, definirOrcamento, listarOrcamentos, removerOrcamento } from '../lib/orcamentos'
 import type { OrcamentoMes } from '../lib/orcamentos'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 /** Orçamento mensal por categoria principal, com a projeção até o fim do mês (calculada no banco). */
 export default function Orcamentos() {
@@ -84,10 +85,8 @@ export default function Orcamentos() {
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Orçamentos</h1>
-        {!adicionando && itens !== null && disponiveis.length > 0 && <Button onClick={() => setAdicionando(true)}>Novo orçamento</Button>}
-      </div>
+      <CabecalhoPagina titulo="Orçamentos" descricao="Quanto a família quer gastar por categoria no mês, o que já foi e para onde está indo."
+        acoes={!adicionando && itens !== null && disponiveis.length > 0 && <Button onClick={() => setAdicionando(true)}>Novo orçamento</Button>} />
 
       <div className="mb-4 flex items-center gap-2">
         <Button variante="secundario" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>

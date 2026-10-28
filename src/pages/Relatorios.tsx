@@ -8,6 +8,7 @@ import { baixarArquivo, gerarCsv, lancamentosParaExportar } from '../lib/csv'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatMonth } from '../lib/format'
 import { limitesDoMes } from '../lib/lancamentos'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 export default function Relatorios() {
   const { familia } = useFamilia()
@@ -36,7 +37,7 @@ export default function Relatorios() {
 
   return (
     <>
-      <h1 className="mb-6 text-2xl font-bold">Relatórios</h1>
+      <CabecalhoPagina titulo="Relatórios e exportação" descricao="Leve os dados para a planilha ou guarde uma cópia completa." />
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {ok && <div className="mb-4"><Aviso tipo="sucesso">{ok}</Aviso></div>}
       <Card className="mb-4">

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { IconeCartoes } from '../components/layout/icons'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -21,6 +22,7 @@ import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { asCents, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
+import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 type Painel =
   | { tipo: 'novo' }
@@ -76,10 +78,8 @@ export default function Cartoes() {
   if (!familia) return null
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Cartões</h1>
-        {painel === null && <Button onClick={() => setPainel({ tipo: 'novo' })}>Novo cartão</Button>}
-      </div>
+      <CabecalhoPagina titulo="Cartões" descricao="Fatura, parcelas e limite de cada cartão. A compra vira despesa no mês do fechamento."
+        acoes={painel === null && <Button onClick={() => setPainel({ tipo: 'novo' })}>Novo cartão</Button>} />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {aviso && !erro && <div className="mb-4"><Aviso tipo="erro">{aviso}</Aviso></div>}
@@ -108,44 +108,44 @@ export default function Cartoes() {
         {cartoes?.map((c) => (
           <li key={c.id}>
             <Card>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-semibold">{c.nome}</p>
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-marinho text-white" aria-hidden="true"><IconeCartoes /></span>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold">{c.nome}</h2>
                   {c.fechamento !== null ? (
                     <p className="text-sm text-slate-500">Fecha dia {c.fechamento} · vence dia {c.vencimento}</p>
                   ) : (
                     <p className="text-sm text-planejado">Defina o dia de fechamento e de vencimento para lançar compras.</p>
                   )}
                 </div>
-                <dl className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <dt className="text-slate-500">Fatura a pagar</dt>
-                    <dd className={`tabular-nums text-lg font-semibold ${c.divida > 0 ? 'text-negativo' : ''}`}>{formatBRL(c.divida)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Parcelas futuras</dt>
-                    <dd className="tabular-nums text-lg font-semibold text-planejado">{formatBRL(c.compromissos)}</dd>
-                  </div>
-                </dl>
               </div>
-              {c.credito > 0 && <p className="mt-2 text-sm text-positivo">Crédito a receber: {formatBRL(c.credito)}</p>}
+
+              {/* destaque: a fatura fechada a pagar, com a ação de pagar ao lado */}
+              <div className="mt-4 flex flex-col gap-3 rounded-lg bg-fundo p-4 sm:flex-row sm:items-center sm:justify-between">
+                <dl>
+                  <dt className="text-sm text-slate-500">Fatura a pagar</dt>
+                  <dd className={`tabular-nums text-3xl font-bold tracking-tight ${c.divida > 0 ? 'text-negativo' : 'text-marinho'}`}>{formatBRL(c.divida)}</dd>
+                </dl>
+                <Button variante={c.divida > 0 ? 'primario' : 'secundario'} onClick={() => setPainel({ tipo: 'pagar', cartao: c })}
+                  disabled={c.fechamento === null || painel !== null}
+                  aria-describedby={c.divida <= 0 && c.fechamento !== null ? `sem-fatura-${c.id}` : undefined}>Pagar fatura</Button>
+              </div>
+
+              <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <div className="flex gap-2">
+                  <dt className="text-slate-500">Parcelas futuras</dt>
+                  <dd className="tabular-nums font-semibold text-planejado">{formatBRL(c.compromissos)}</dd>
+                </div>
+                {c.credito > 0 && (
+                  <div className="flex gap-2">
+                    <dt className="text-slate-500">Crédito a receber</dt>
+                    <dd className="tabular-nums font-semibold text-positivo">{formatBRL(c.credito)}</dd>
+                  </div>
+                )}
+              </dl>
               {c.limite !== null && c.limiteComprometido !== null && c.limiteDisponivel !== null && (
                 <Limite limite={c.limite} comprometido={c.limiteComprometido} disponivel={c.limiteDisponivel} />
               )}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button onClick={() => setPainel({ tipo: 'compra', cartao: c })} disabled={c.fechamento === null || painel !== null}>Nova compra</Button>
-                <Button variante="secundario" onClick={() => setPainel({ tipo: 'pagar', cartao: c })} disabled={c.fechamento === null || painel !== null}
-                  aria-describedby={c.divida <= 0 && c.fechamento !== null ? `sem-fatura-${c.id}` : undefined}>Pagar fatura</Button>
-                <Button variante="fantasma" onClick={() => setAberto(aberto === c.id ? null : c.id)} aria-expanded={aberto === c.id}>
-                  {aberto === c.id ? 'Ocultar faturas' : 'Ver faturas'}
-                </Button>
-                <Button variante="fantasma" onClick={() => setPainel({ tipo: 'ciclo', cartao: c })} disabled={painel !== null}>
-                  {c.fechamento === null ? 'Definir fechamento' : 'Alterar dias'}
-                </Button>
-                <Button variante="fantasma" onClick={() => setPainel({ tipo: 'limite', cartao: c })} disabled={painel !== null}>
-                  {c.limite === null ? 'Definir limite' : 'Alterar limite'}
-                </Button>
-              </div>
               {c.divida <= 0 && c.fechamento !== null && (
                 <p id={`sem-fatura-${c.id}`} className="mt-3 text-sm text-slate-600">
                   {c.compromissos > 0
@@ -153,6 +153,20 @@ export default function Cartoes() {
                     : <>Não há fatura fechada. Se pagar agora, o valor <strong>vira crédito no cartão</strong> e abate as próximas faturas.</>}
                 </p>
               )}
+
+              <div className="mt-4 flex flex-wrap items-center gap-1 border-t border-slate-100 pt-3">
+                <Button variante={c.divida > 0 ? 'secundario' : 'primario'} onClick={() => setPainel({ tipo: 'compra', cartao: c })}
+                  disabled={c.fechamento === null || painel !== null}>Nova compra</Button>
+                <Button variante="fantasma" compacto onClick={() => setAberto(aberto === c.id ? null : c.id)} aria-expanded={aberto === c.id}>
+                  {aberto === c.id ? 'Ocultar faturas' : 'Ver faturas'}
+                </Button>
+                <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'ciclo', cartao: c })} disabled={painel !== null}>
+                  {c.fechamento === null ? 'Definir fechamento' : 'Alterar dias'}
+                </Button>
+                <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'limite', cartao: c })} disabled={painel !== null}>
+                  {c.limite === null ? 'Definir limite' : 'Alterar limite'}
+                </Button>
+              </div>
               {aberto === c.id && <Faturas cartaoId={c.id} versao={versao} categorias={categorias} contas={contas} aoAlterar={carregar} />}
               {aberto === c.id && <MovimentosCartao cartaoId={c.id} versao={versao} aoAlterar={carregar} />}
             </Card>
