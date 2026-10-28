@@ -1,24 +1,28 @@
-# Regras automáticas de classificação — proposta 2026.3
+# Regras automáticas de classificação — edição 2026.3
 
 ## Objetivo
-Reduzir trabalho repetitivo ao classificar lançamentos, aproveitando a ideia de regras de transação vista em gestores financeiros como Firefly III, com implementação própria e compatível com o Tudo Azul.
+Reduzir trabalho repetitivo ao classificar lançamentos, adaptando a ideia de regras de transação de gestores financeiros como Firefly III com implementação própria, sem copiar código do projeto externo.
 
-## Contrato da primeira etapa
-- Uma regra identifica um trecho da descrição e o tipo de lançamento.
-- A correspondência ignora diferenças entre maiúsculas/minúsculas, acentos e espaços repetidos.
-- Regras com maior prioridade aparecem primeiro; em empate, a regra mais específica aparece primeiro.
-- A regra produz uma **sugestão de categoria**. A classificação não deve alterar valor, conta, data, notas ou tipo.
-- Transferências não recebem categoria, seguindo as invariantes atuais do banco.
-- Regras inativas e critérios vazios não correspondem.
-- A lógica de correspondência é pura e testável, sem acesso ao Supabase.
+## Como funciona
+- Cada regra tem nome, trecho da descrição, tipo (receita ou despesa), categoria sugerida, prioridade e estado ativo/inativo.
+- A correspondência ignora maiúsculas/minúsculas, acentos e espaços repetidos.
+- Maior prioridade aparece primeiro; em empate, o trecho mais específico aparece primeiro.
+- No formulário de novo lançamento, as regras correspondentes aparecem como sugestões. A pessoa escolhe explicitamente **Usar sugestão**.
+- Transferências não recebem sugestões de categoria.
+- Regras e categorias são armazenadas por família. O banco impõe isolamento com RLS e chave estrangeira composta para impedir categoria de outra família ou de tipo incompatível.
+- A edição de uma regra não altera lançamentos antigos nem dispara reclassificação em lote.
 
-## Segurança e etapas antes de liberar na interface
-1. Persistir regras por família com RLS e testes de isolamento entre famílias.
-2. Permitir criar, editar, desativar e excluir regras.
-3. Exibir uma sugestão explícita no formulário de lançamento; a pessoa confirma antes de aplicá-la.
-4. Não executar regras em lote sobre histórico nem reclassificar lançamentos existentes.
-5. Testar com os testes unitários, typecheck, build e CI oficial antes de merge.
-6. Não aplicar migrations no Supabase de produção sem autorização explícita.
+## Segurança
+- O motor de correspondência é uma função pura e testável, sem acesso ao Supabase.
+- A sugestão não altera valor, conta, data, observações ou tipo do lançamento.
+- Regras só sugerem categorias ativas disponíveis para o tipo atual do formulário.
+- A tabela tem privilégios por coluna, RLS em todas as operações e políticas que exigem participação na família.
+- A migration fica versionada no repositório. Não aplicar ao Supabase de produção sem autorização explícita.
 
-## Limite desta etapa
-Este documento e o motor de correspondência são a fundação da funcionalidade; a persistência e a interface ainda precisam ser implementadas antes de considerar as regras automáticas prontas para uso.
+## Validação
+- Testes unitários para normalização, prioridade, especificidade, regra inativa, critério vazio, tipo incompatível e imutabilidade.
+- Teste de banco para isolamento entre famílias.
+- CI oficial valida typecheck, testes, build e testes de banco antes de a PR poder ser considerada pronta.
+
+## Limites desta entrega
+As regras não são aplicadas automaticamente a lançamentos existentes nem em lote. A categoria é apenas sugerida no formulário e depende de confirmação. Não há correspondência por regex, múltiplos critérios, tags ou ações automáticas sobre outras propriedades nesta primeira versão.
