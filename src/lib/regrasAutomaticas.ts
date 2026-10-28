@@ -1,18 +1,19 @@
+import { supabase } from './supabase'
 import type { TipoLancamento } from './lancamentos'
 
-/**
- * Regra de classificação sugerida para um lançamento.
- * A função é pura: não grava nada e nunca altera valor, conta, data ou tipo.
- */
+export type TipoRegraAutomatica = Extract<TipoLancamento, 'income' | 'expense'>
+
 export interface RegraAutomatica {
   id: string
   nome: string
   trechoDescricao: string
-  tipo: TipoLancamento
+  tipo: TipoRegraAutomatica
   categoriaId: string
   ativa: boolean
   prioridade: number
 }
+
+export type DadosRegraAutomatica = Omit<RegraAutomatica, 'id'>
 
 export interface SugestaoRegra {
   regraId: string
@@ -21,28 +22,23 @@ export interface SugestaoRegra {
   trechoCorrespondente: string
 }
 
-function normalizar(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase('pt-BR')
-    .replace(/\s+/g, ' ')
-    .trim()
+function cliente() {
+  if (!supabase) throw new Error('Supabase não configurado')
+  return supabase
 }
 
-/**
- * Retorna sugestões de classificação em ordem determinística.
- * Maior prioridade vem primeiro; em empate, o critério mais específico vem primeiro.
- * Regras inativas, sem critério e de outro tipo nunca correspondem.
- */
+function normalizar(texto: string): string {
+  return texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR').replace(/\s+/g, ' ').trim()
+}
+
 export function sugerirRegras(
   descricao: string,
   tipo: TipoLancamento,
   regras: readonly RegraAutomatica[],
 ): SugestaoRegra[] {
   const texto = normalizar(descricao)
-  if (!texto) return []
-
+  if (!texto || tipo === 'transfer') return []
   return regras
     .filter((r) => r.ativa && r.tipo === tipo && normalizar(r.trechoDescricao).length > 0)
     .filter((r) => texto.includes(normalizar(r.trechoDescricao)))
@@ -50,9 +46,40 @@ export function sugerirRegras(
       || normalizar(b.trechoDescricao).length - normalizar(a.trechoDescricao).length
       || a.id.localeCompare(b.id))
     .map((r) => ({
-      regraId: r.id,
-      nomeRegra: r.nome,
-      categoriaId: r.categoriaId,
+      regraId: r.id, nomeRegra: r.nome, categoriaId: r.categoriaId,
       trechoCorrespondente: r.trechoDescricao.trim(),
     }))
+}
+
+export async function listarRegrasAutomaticas(familiaId: string): Promise<RegraAutomatica[]> {
+  const { data, error } = await cliente().from('transaction_rules')
+    .select('id, name, description_contains, type, category_id, active, priority')
+    .eq('household_id', familiaId)
+    .order('active', { ascending: false }).order('priority', { ascending: false }).order('name')
+  if (error) throw error
+  return (data ?? []).map((r) => ({
+    id: r.id, nome: r.name, trechoDescricao: r.description_contains, tipo: r.type,
+    categoriaId: r.category_id, ativa: r.active, prioridade: r.priority,
+  }))
+}
+
+export async function criarRegraAutomatica(familiaId: string, d: DadosRegraAutomatica): Promise<void> {
+  const { error } = await cliente().from('transaction_rules').insert({
+    household_id: familiaId, name: d.nome.trim(), description_contains: d.trechoDescricao.trim(),
+    type: d.tipo, category_id: d.categoriaId, active: d.ativa, priority: d.prioridade,
+  })
+  if (error) throw error
+}
+
+export async function atualizarRegraAutomatica(id: string, d: DadosRegraAutomatica): Promise<void> {
+  const { error } = await cliente().from('transaction_rules').update({
+    name: d.nome.trim(), description_contains: d.trechoDescricao.trim(),
+    type: d.tipo, category_id: d.categoriaId, active: d.ativa, priority: d.prioridade,
+  }).eq('id', id)
+  if (error) throw error
+}
+
+export async function excluirRegraAutomatica(id: string): Promise<void> {
+  const { error } = await cliente().from('transaction_rules').delete().eq('id', id)
+  if (error) throw error
 }
