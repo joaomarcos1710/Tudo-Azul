@@ -66,6 +66,8 @@ tags: [tudo-azul, historico]
 - **Diário** em dia até o #66 (#67, merge `7681906`).
 - **Versão 2026.4 — redesenho parte 2**: cabeçalho padrão em todas as telas (título, descrição curta, ações à direita) e Cartões com a fatura a pagar em destaque e a ação principal que muda com ela; a edição junta as frequências de recorrência (#69, merge `629bce0`).
 - **Diário** com #67 e #69 (#70, merge `1567e15`). Versão 2026.4 testada pelo dono no app e mantida.
+- **Diário**: 2026.4 testada (#71, merge `ca49147`).
+- **Ícone e cor de categoria** (redesenho parte 3, PR 1): o app sugere pelo nome e a pessoa troca em Categorias; ícone em Lançamentos, faturas de Cartões e Início; paleta de 5 cores sem vermelho/verde/âmbar; sem migration (#72, merge `9160ee5`).
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

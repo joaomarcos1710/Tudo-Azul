@@ -35,6 +35,10 @@ atualizado: 2026-10-28
 - [ ] Conferir no app, depois dos dois merges: cadastrar uma quinzenal e a PLR anual de teste e ver os planejados em Lançamentos e no Calendário.
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
+## Cartão: antecipar parcelas (pedido do dono em 28/10/2026, para depois)
+- Hoje não dá para **antecipar** parcelas de uma compra parcelada (pagar antes ou pedir a antecipação ao banco). Alguns cartões dão **desconto** na antecipação.
+- A pensar antes de implementar: as parcelas antecipadas entram em qual fatura; o desconto vira abatimento da despesa (a despesa da compra diminui) e em qual mês; o limite libera na hora; precisa de migration (função nova no banco, com teste pgTAP) e passa pelo workflow de produção.
+
 ## Banco (baixo risco, não bloqueiam)
 Idempotência com conteúdo diferente · `debt_chk` quadrático · `card_months` com data futura · "Conferido" de transferência · estorno em mês diferente · trava de reclassificar categoria.
 
@@ -50,7 +54,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Redesenho visual (design system)
 - [ ] **Parte 1** (#64, mesclada como versão 2026.3): padding dobrado nos painéis, mês com maiúscula certa, lista de Lançamentos compacta, ações rápidas com ícone, contorno de campos com contraste. Conferir no celular e no iPad depois do merge.
 - [x] **Parte 2** (#69, versão 2026.4): cabeçalho padrão em todas as telas e Cartões com a fatura em destaque. Testada pelo dono no app em 28/10/2026.
-- [ ] **Parte 3 — PR 1** (decidido: o app sugere pelo nome e você troca): ícone e cor em Categorias, Lançamentos, itens da fatura em Cartões e listas do Início. Conferir no celular e no iPad depois do merge.
+- [ ] **Parte 3 — PR 1** (#72, mesclado; decidido: o app sugere pelo nome e você troca): ícone e cor em Categorias, Lançamentos, itens da fatura em Cartões e listas do Início. Conferir no celular e no iPad depois do merge.
 - Parte 3 — PR 2 (depois do teste do PR 1): ícone em Orçamentos e no detalhe do dia do Calendário.
 - Depois (só com a sua autorização): formulário de lançamento em folha no celular; seletor de mês em painel próprio.
 
