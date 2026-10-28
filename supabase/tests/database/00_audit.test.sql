@@ -6,7 +6,7 @@ select * from no_plan();
 
 -- Tabelas e policies exatamente as esperadas (nada sobrando sem revisão)
 select tables_are('public',
-  array['account_reconciliations','accounts','budgets','categories','debt_events','debt_installment_edits','debt_installments','debt_invoices','debts','household_members','household_resets','households','invitations','profiles','recurrences','transactions'],
+  array['account_reconciliations','accounts','budgets','categories','debt_events','debt_installment_edits','debt_installments','debt_invoices','debts','household_members','household_resets','households','invitations','profiles','recurrences','transaction_rules','transactions'],
   'schema public contém só as tabelas esperadas');
 
 select is_empty($$
@@ -27,6 +27,7 @@ select policies_are('public','debt_events',       array['debt_events_select']);
 select policies_are('public','transactions',      array['transactions_select','transactions_insert','transactions_update']);
 select policies_are('public','budgets',           array['budgets_select','budgets_insert','budgets_update','budgets_delete']);
 select policies_are('public','recurrences',       array['recurrences_select']);
+select policies_are('public','transaction_rules', array['transaction_rules_select','transaction_rules_insert','transaction_rules_update','transaction_rules_delete']);
 select policies_are('public','account_reconciliations', array['account_reconciliations_select']);
 select policies_are('public','household_resets', array['household_resets_select']);
 
