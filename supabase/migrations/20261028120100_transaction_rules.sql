@@ -44,4 +44,4 @@ create policy transaction_rules_delete on public.transaction_rules
 
 create trigger transaction_rules_updated_at
   before update on public.transaction_rules
-  for each row execute function private.set_updated_at();
+  for each row execute function private.touch_updated_at();
