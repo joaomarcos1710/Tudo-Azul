@@ -52,6 +52,7 @@ Dez–Jan multimoeda · Fev–Abr/2027 investimentos · importar do Organizze (v
 Nenhum em 27/10/2026. As propostas de multimoeda (#10) e de importação do Organizze (#9) estão na `main` como histórico, com nota de status: revalidar antes de implementar.
 
 ## Ideias guardadas
+Ideias do Livro de contas (valor do dia no Calendário, grade de categorias no lançamento, lançar em sequência, tema escuro, relatório anual): ver [[50 - Ideias e comparações]]. O dono vai mandar prints de outros apps; só se aplica o que ele pedir.
 Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app · foco/rolagem nos formulários · contraste · taxa de poupança e meses de reserva · metas com prazo (junto com investimentos) · detector de recorrência (depois da importação).
 
 ## Redesenho visual (design system)

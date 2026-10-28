@@ -68,6 +68,8 @@ tags: [tudo-azul, historico]
 - **Diário** com #67 e #69 (#70, merge `1567e15`). Versão 2026.4 testada pelo dono no app e mantida.
 - **Diário**: 2026.4 testada (#71, merge `ca49147`).
 - **Ícone e cor de categoria** (redesenho parte 3, PR 1): o app sugere pelo nome e a pessoa troca em Categorias; ícone em Lançamentos, faturas de Cartões e Início; paleta de 5 cores sem vermelho/verde/âmbar; sem migration (#72, merge `9160ee5`).
+- **Diário**: ideias de antecipar parcelas (#73, merge `ab5d9ef`).
+- **Menu "Mais" do celular**: 4 cartões de atalho e uma frase em cada tela, formato escolhido pelo dono (#75, merge `6f09dbb`).
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
