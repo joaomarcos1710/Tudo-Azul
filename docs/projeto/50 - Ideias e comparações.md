@@ -72,7 +72,15 @@ Os prints mostram o **cadastro de conta** (e a tela de termos de uso); a página
 | 13 | **Segundo fator no login** ("Token", forma de login em Segurança) | Não encontrei segundo fator no app. O Supabase tem TOTP. O app guarda dados financeiros da família: vale pensar, junto com a configuração "Confirm email" que já está pendente | Médio |
 | 14 | **Ajuda/FAQ dentro do app** ("como pagar a fatura", "o que é renda eventual") | Não existe; o diário tem a explicação, mas só no repositório | Baixo |
 
-**Não copiar do menu:** "Convide seus amigos" (crescimento), "Meu Clube/premium" (planos pagos são futuro), "Avalie o app" e redes sociais, "Gerenciar conexões" (Open Finance, fora de escopo). "Resumo do mês" e "Categorias" já existem (Análises e Categorias).
+**Menu (continuação — atalhos Parcelas, Central de avisos, Meus Bens, Aprendizado):**
+
+| # | Ideia | Situação no Tudo Azul | Esforço |
+|---|---|---|---|
+| 15 | **Tela "Parcelas"**: todas as compras parceladas em andamento, de todos os cartões, num lugar só (descrição, parcela n/N, valor da parcela, quando termina, quanto falta) | Hoje o Cartões mostra só o **total** de "Parcelas futuras" por cartão e as parcelas dentro de cada fatura. **Combina com a pendência "antecipar parcelas"**: a lista é o lugar natural do botão "Antecipar". O "quanto falta" de cada compra precisa vir do banco (o front não soma). Sugestão: fazer a lista primeiro, antecipar depois | Médio (função de leitura + tela) |
+| 16 | **Central de avisos**: um lugar só com tudo que pede atenção (vencidos, fatura perto de vencer, orçamento estourado, conta nunca conferida) | Essas coisas já aparecem espalhadas no Início (Vencidos, Cartões, conferência das contas). Uma central juntaria tudo e prepararia o terreno para o alerta por push, que continua em "Decisões suas" | Médio |
+| 17 | **Meus Bens** (imóvel, carro, com valor) | Não existe. O banco já guarda empréstimo e financiamento (`debts` kind `loan`/`financing`); faltam os bens, para o patrimônio mostrar ativos além das contas. Fica junto com "investimentos" (fev–abr/2027) | Médio; baixa prioridade |
+
+**Não copiar do menu:** "Meu Aprendizado" (conteúdo educativo: fora do foco; a ideia 14, Ajuda/FAQ, cobre o essencial), "Convide seus amigos" (crescimento), "Meu Clube/premium" (planos pagos são futuro), "Avalie o app" e redes sociais, "Gerenciar conexões" (Open Finance, fora de escopo). "Resumo do mês" e "Categorias" já existem (Análises e Categorias).
 
 **Observação sobre o Início do Minhas Economias:** é uma rolagem longa com um cartão para cada coisa, vários ainda vazios ("Objetivos", "Membros", "Cartões"). O Início do Tudo Azul é mais enxuto e orientado a ação ("o que pede atenção agora": vencidos, cartões, últimos lançamentos). Não vale copiar a quantidade de cartões; vale copiar o botão "+" e a composição do patrimônio.
 **Tema escuro:** reaparece no topo do app deles (ícone de lua); confirma a ideia 5 do Livro de contas.
