@@ -65,6 +65,7 @@ tags: [tudo-azul, historico]
 - **Recorrências com frequência** — tela: escolher a frequência, data final e prévia das próximas datas (#66, merge `b4b059f`, depois da 016 aplicada).
 - **Diário** em dia até o #66 (#67, merge `7681906`).
 - **Versão 2026.4 — redesenho parte 2**: cabeçalho padrão em todas as telas (título, descrição curta, ações à direita) e Cartões com a fatura a pagar em destaque e a ação principal que muda com ela; a edição junta as frequências de recorrência (#69, merge `629bce0`).
+- **Diário** com #67 e #69 (#70, merge `1567e15`). Versão 2026.4 testada pelo dono no app e mantida.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
