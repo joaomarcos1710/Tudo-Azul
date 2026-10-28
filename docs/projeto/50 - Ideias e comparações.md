@@ -42,5 +42,17 @@ Só ideias de uso; sem copiar marca, texto, tela ou código. Ficam guardadas: **
 - Bloqueio com senha no app: em app web exige WebAuthn; login e "ocultar valores" já cobrem. Fica para depois, se o dono pedir.
 - Lembrete por notificação: já está nas decisões pendentes (alerta de vencimento por push).
 
+## Minhas Economias (prints do dono, 28/10/2026)
+Os prints mostram o **cadastro de conta** (e a tela de termos de uso); a página inicial do app não veio nos prints. Só ideias de uso; sem copiar marca, logo, texto, tela ou código. **Só se aplica quando o dono pedir.**
+
+| # | Ideia | Situação no Tudo Azul | Esforço |
+|---|---|---|---|
+| 1 | **Conta principal**: o lançamento já abre na conta mais usada | Hoje o formulário abre na **primeira conta ativa** da lista. Duas formas: (a) lembrar a última conta usada no aparelho (só front, sem banco, por aparelho); (b) marcar uma conta como principal (coluna nova + migration, vale para a família toda). Recomendação: começar por (a) | Baixo (a) · Médio (b) |
+| 2 | **Escolher o banco numa lista com busca** ("Buscar Banco ou Cartão"), com os mais comuns primeiro; o **apelido da conta vem preenchido** com o nome do banco | Hoje o nome é texto livre (placeholder "Ex.: Itaú João"). Lista fixa de instituições no front (sem banco), nome sugerido que a pessoa pode editar. **Sem logos de marca**: ícone neutro e cor do design system, para não usar marca de terceiros | Médio, só front |
+| 3 | **Termos de Uso e Política de Privacidade** com aceite | Não achei no app. Vale ter antes de abrir para outras famílias (planos pagos) e por causa da LGPD: o app guarda dados financeiros. Pede texto revisado por quem entende de LGPD, não só código | Médio (texto + tela + registro do aceite) |
+
+**Já temos:** tipos de conta (corrente, poupança, carteira…), saldo inicial com data, conferência com o extrato.
+**Fora de escopo:** o app mostra contas conectadas por Open Finance ("conta manual" × conectada); o Tudo Azul é 100% manual por decisão do projeto.
+
 ## Planos pagos (futuro)
 Famílias com 1, 3 ou 5–10 pessoas já cabem na trava atual. Falta decidir o que acontece ao reduzir o plano com mais gente que o limite.
