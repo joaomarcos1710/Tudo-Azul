@@ -38,7 +38,8 @@ atualizado: 2026-10-28
 ## Menu e formulário de lançamento
 - [ ] Menu "Mais" com cartões de atalho e frase em cada tela (#75, mesclado; opção A do dono). Conferir no iPhone. Sem mudança de versão: entra na próxima edição (2026.5) junto com o próximo lote visível.
 
-- [ ] **Formulário de lançamento em visual de app** (PR de rascunho, pedido do dono): abas, valor grande, campos em linhas, "Registrar e lançar outro" e última conta/cartão lembrados (ideias 2, 3, 6 e 7 de [[50 - Ideias e comparações]]; conta principal na versão "lembrar a última usada", sem banco). Conferir no iPhone a linha da **data**: o iOS escreve a data por extenso e pode não caber.
+- [ ] **Formulário de lançamento em visual de app** (#76, mesclado; pedido do dono): abas, valor grande, campos em linhas, "Registrar e lançar outro" e última conta/cartão lembrados (ideias 2, 3, 6 e 7 de [[50 - Ideias e comparações]]; conta principal na versão "lembrar a última usada", sem banco). Conferir no iPhone a linha da **data**: o iOS escreve a data por extenso e pode não caber.
+- [ ] **Fatura do cartão como extrato** (PR de rascunho, pedido do dono: o nome da compra aparecia cortado em "Vi…" depois do ícone do #72): agrupada por dia, nome inteiro, categoria embaixo, botões compactos. Conferir no iPhone.
 - Próximo do mesmo pacote (só com autorização): grade de categorias com ícone, botão "+" flutuante, pré-preencher pela URL (atalho do iPhone nível 1).
 
 ## Cartão: antecipar parcelas (pedido do dono em 28/10/2026, para depois)

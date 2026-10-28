@@ -254,9 +254,29 @@ describe('Cartões', () => {
     render(<Cartoes />)
     await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
     expect(await screen.findByText('R$ 180,00')).toBeTruthy()
-    expect(await screen.findByText('· 2/3')).toBeTruthy()
+    expect(await screen.findByText('2/3')).toBeTruthy()
     expect(screen.getByText('Aberta')).toBeTruthy()
     expect(mock.listarItens).toHaveBeenCalledWith('k1', '2099-04')
+  })
+
+  it('fatura como extrato: compras agrupadas por dia (mais recente primeiro), nome inteiro, categoria e situação; sem data no fim', async () => {
+    const u = userEvent.setup()
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(30000), total: c(30000), itens: 3 })])
+    mock.listarItens.mockResolvedValue([
+      { parcelaId: 'p1', compra: 'a', parcela: 1, deParcelas: 10, descricao: 'Viagem para Floripa com a família', dataCompra: '2099-03-24', valor: c(10000), falta: c(10000), categoriaId: 'g1' },
+      { parcelaId: 'p2', compra: 'b', parcela: 1, deParcelas: 1, descricao: 'Cinema', dataCompra: '2099-03-28', valor: c(4550), falta: c(0), categoriaId: 'g1' },
+      { parcelaId: 'p3', compra: 'c', parcela: 3, deParcelas: 3, descricao: 'Antiga', dataCompra: null, valor: c(1000), falta: c(0), categoriaId: 'g1' },
+    ])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await screen.findByText('Viagem para Floripa com a família')
+    const dias = screen.getAllByRole('group').filter((g) => /\d{2}\/\d{2}\/\d{4}|Sem data/.test(g.getAttribute('aria-label') ?? ''))
+    expect(dias.map((g) => g.getAttribute('aria-label'))).toEqual(['28/03/2099', '24/03/2099', 'Sem data da compra'])
+    const viagem = within(dias[1]).getByText('Viagem para Floripa com a família').closest('li')!
+    expect(within(viagem).getByText('1/10')).toBeTruthy()
+    expect(within(viagem).getByText('Compras pessoais · a cobrar no fechamento')).toBeTruthy()
+    expect(within(dias[0]).getByText('Compras pessoais')).toBeTruthy() // já cobrada: sem "a cobrar"
+    expect(within(dias[0]).queryByText('1/1')).toBeNull() // à vista não mostra parcela
   })
 
   it('cada item da fatura mostra o ícone da categoria da compra', async () => {
@@ -277,7 +297,7 @@ describe('Cartões', () => {
     mock.listarItens.mockResolvedValue([item])
     render(<Cartoes />)
     await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
-    await screen.findByText('· 2/3')
+    await screen.findByText('2/3')
   }
 
   it('edita o valor de uma parcela (só ela)', async () => {

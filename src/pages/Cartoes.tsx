@@ -34,6 +34,13 @@ type Painel =
 
 const dias: [string, string][] = Array.from({ length: 31 }, (_, i) => [String(i + 1), `Dia ${i + 1}`])
 
+/** Fatura como extrato: compras agrupadas pelo dia da compra, o mais recente primeiro; sem data no fim. */
+function comprasPorDia(itens: ItemFatura[]): [string | null, ItemFatura[]][] {
+  const grupos = new Map<string | null, ItemFatura[]>()
+  for (const i of itens) grupos.set(i.dataCompra, [...(grupos.get(i.dataCompra) ?? []), i])
+  return [...grupos.entries()].sort(([a], [b]) => (a === null ? 1 : b === null ? -1 : a < b ? 1 : a > b ? -1 : 0))
+}
+
 export default function Cartoes() {
   const { familia } = useFamilia()
   const familiaId = familia?.id
@@ -342,29 +349,39 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
                 aoConcluir={async () => { setAcao(null); setMes(null); await aoAlterar() }} />
             )}
             {itens === null ? <p className="mt-2 text-sm text-slate-600" role="status">Carregando…</p> : (
-              <ul className="mt-2 divide-y divide-slate-100">
-                {itens.map((i) => (
-                  <li key={i.parcelaId} className="flex items-center justify-between gap-3 py-2 text-sm">
-                    <IconeCategoria visual={visualPorId(i.categoriaId, categoriaPorId, 'expense')} tamanho="pequeno" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">
-                        {i.descricao}{i.deParcelas > 1 && <span className="text-slate-500"> · {i.parcela}/{i.deParcelas}</span>}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {i.dataCompra && <>compra em {formatDate(i.dataCompra)} · </>}{nomeCategoria.get(i.categoriaId) ?? 'Sem categoria'}
-                        {i.falta > 0 && ' · a cobrar no fechamento'}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <span className="tabular-nums font-semibold text-negativo">−{formatBRL(i.valor)}</span>
-                      <Button variante="fantasma" className="px-2" disabled={acao !== null} aria-label={`Editar valor de ${i.descricao}`}
-                        onClick={() => setAcao({ tipo: 'editar', item: i })}>Editar</Button>
-                      <Button variante="fantasma" className="px-2" disabled={acao !== null} aria-label={`Excluir compra ${i.descricao}`}
-                        onClick={() => setAcao({ tipo: 'excluir', item: i })}>Excluir</Button>
-                    </div>
-                  </li>
+              <div className="mt-3 flex flex-col gap-4">
+                {comprasPorDia(itens).map(([dia, doDia]) => (
+                  <div key={dia ?? 'sem-data'} role="group" aria-label={dia ? formatDate(dia) : 'Sem data da compra'}>
+                    <h4 className="mb-1 text-sm font-semibold text-slate-500">{dia ? formatDate(dia) : 'Sem data da compra'}</h4>
+                    <ul className="divide-y divide-slate-100">
+                      {doDia.map((i) => (
+                        <li key={i.parcelaId} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:gap-3">
+                          <div className="flex min-w-0 flex-1 items-start gap-3">
+                            <IconeCategoria visual={visualPorId(i.categoriaId, categoriaPorId, 'expense')} tamanho="pequeno" />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium">
+                                {i.descricao}
+                                {i.deParcelas > 1 && <span className="ml-2 whitespace-nowrap rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{i.parcela}/{i.deParcelas}</span>}
+                              </p>
+                              <p className="text-sm text-slate-500">
+                                {nomeCategoria.get(i.categoriaId) ?? 'Sem categoria'}
+                                {i.falta > 0 && ' · a cobrar no fechamento'}
+                              </p>
+                            </div>
+                            <span className="shrink-0 whitespace-nowrap tabular-nums font-semibold text-negativo">−{formatBRL(i.valor)}</span>
+                          </div>
+                          <div className="ml-7 flex items-center gap-1 sm:ml-0 sm:shrink-0">
+                            <Button variante="fantasma" compacto disabled={acao !== null} aria-label={`Editar valor de ${i.descricao}`}
+                              onClick={() => setAcao({ tipo: 'editar', item: i })}>Editar</Button>
+                            <Button variante="discreto" compacto disabled={acao !== null} aria-label={`Excluir compra ${i.descricao}`}
+                              onClick={() => setAcao({ tipo: 'excluir', item: i })}>Excluir</Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
+              </div>
             )}
           </section>
         )
