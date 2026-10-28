@@ -24,8 +24,17 @@ Supabase (Postgres), projeto `vbhzilsqzzevaodqsenr`. **Regra:** migration aplica
 | 013 | `projection` (25/10) | Projeção do mês e do orçamento. |
 | **014** | `audit_fixes` (25/10, aplicada 26/10) | Correções da auditoria (ver [[Auditorias/2026-10-26 Auditoria]]). |
 | **015** | `recurrence_keep_edits` (26/10, **aplicada em produção em 26/10/2026**) | Reajustar uma recorrência não desfaz o que foi corrigido à mão nos planejados futuros. |
+| **016** | `recurrence_frequency` (28/10, **ainda não aplicada em produção**) | Frequências de recorrência: semanal, quinzenal, mensal, bimestral, trimestral, semestral, anual e personalizada. |
 
-Total: **20 arquivos**, sincronizados entre o repositório e a produção em 26/10/2026. A migration 015 foi aplicada pelo workflow de produção após o merge do PR #59; ver execução 20 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580).
+Total: **21 arquivos** no repositório; 20 sincronizados com a produção em 26/10/2026 (a 016 ainda não foi aplicada). A migration 015 foi aplicada pelo workflow de produção após o merge do PR #59; ver execução 20 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580).
+
+## Detalhes da 016
+- `recurrences` ganha `freq_unit` (`month` | `week`) e `freq_every` (meses 1–12, semanas 1–4), com padrão `month`/1: as regras existentes continuam mensais e geram **as mesmas datas** (teste RF1: 93 regras × 5 anos contra a fórmula antiga). `day` passa a ser nulo na unidade semana (constraint `recurrences_frequency`).
+- Fonte única da série de datas: `private.recurrence_occurrences(regra, de, até)`, usada por `recurrence_materialize` **e** por `private.card_recurrence_pending` (projeção/orçamento do cartão). Antes, a projeção recalculava "mês a mês" por conta própria: uma assinatura anual no cartão apareceria projetada todo mês (provado: com a função antiga, RF13 dá `{1,1,1,1,1}` em vez de `{1,0,0,0,1}`).
+- `recurrence_create` ganha `p_freq_unit` e `p_freq_every` (opcionais, padrão mensal). A versão antiga foi removida com `DROP FUNCTION` (sem dado envolvido): com as duas, o PostgREST não saberia qual chamar. O app atual, que não manda os parâmetros novos, continua criando regra mensal.
+- Calendário: mês com âncora no dia fixo (dia que o mês não tem = último dia; 29/02 anual vira 28/02 no ano comum); semana com âncora na data inicial (`início + k×7×N`). Frequência, dia e início não mudam depois de criados (a proteção contra duplicação depende disso).
+- Início no passado: a mensal gera desde o início, como sempre; as frequências novas, só do dia do cadastro em diante.
+- Testes: `22_recurrence_frequency.test.sql` (36 casos); `00_audit.test.sql` lista a função nova.
 
 ## Detalhes da 015
 - `recurrence_update` (mesma assinatura) atualiza cada campo do planejado — valor, descrição, categoria — **só se ainda estiver igual ao que a regra tinha antes do reajuste**. Campo diferente = corrigido à mão = fica.

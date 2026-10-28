@@ -103,7 +103,7 @@ select functions_are('private', array[
   'accounts_guard','accounts_period_guard','budgets_guard','card_day_in_month','card_due_date','card_first_closing','card_recurrence_pending',
   'card_reopen_invoice','card_void_events','categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
   'debt_effect','debt_events_guard','debt_events_period_guard','expense_items','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debts_immutable',
-  'handle_new_user','is_member','is_owner','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrences_money_guard','seed_default_categories',
+  'handle_new_user','is_member','is_owner','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrence_occurrences','recurrences_money_guard','seed_default_categories',
   'shares_household','today_sp','touch_updated_at','transactions_guard','transactions_period_guard'],
   'funções do schema private');
 
@@ -129,7 +129,7 @@ select is(
            and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
            and has_function_privilege('authenticated', p.oid, 'EXECUTE')
          order by 1),
-  array['private.card_recurrence_pending','private.expense_items','private.is_member','private.is_owner','private.reconciled_until','private.shares_household',
+  array['private.card_recurrence_pending','private.expense_items','private.is_member','private.is_owner','private.reconciled_until','private.recurrence_occurrences','private.shares_household',
         'public.accept_invitation','public.account_balances','public.account_movements','public.balance_totals',
         'public.budget_projection','public.budget_usage','public.card_bill_due','public.card_installment_edit','public.card_invoice_reopen','public.card_items','public.card_limits','public.card_months','public.card_purchase','public.card_purchase_delete','public.card_purchase_delete_preview','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
         'public.create_household','public.create_invitation','public.daily_expenses','public.debt_anticipate','public.debt_balances',

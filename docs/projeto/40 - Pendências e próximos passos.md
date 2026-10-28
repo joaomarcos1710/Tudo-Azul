@@ -29,6 +29,11 @@ atualizado: 2026-10-27
 ## Períodos financeiros (aprovados por etapa, sem pular)
 - **PR 1 (mesclado, #58):** só a função pura de intervalos e testes (`src/lib/periodos.ts`), sem efeito visível. Próximas etapas (preferência da família, seletor, Lançamentos, Início/Análises, exportação, personalizado) só com a sua autorização de cada uma.
 
+## Recorrência com frequência
+- [ ] **PR do banco (migration 016)**: revisar, mesclar e aplicar em produção pelo workflow (simular → ler o log → aplicar).
+- [ ] **PR do app**: escolher a frequência no cadastro, data final opcional, prévia das próximas datas. Só mesclar **depois** da 016 aplicada em produção.
+- Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
+
 ## Banco (baixo risco, não bloqueiam)
 Idempotência com conteúdo diferente · `debt_chk` quadrático · `card_months` com data futura · "Conferido" de transferência · estorno em mês diferente · trava de reclassificar categoria.
 
