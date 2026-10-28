@@ -1,6 +1,6 @@
 # Versões do Tudo Azul
 
-Formato: **`AAAA.E`** — ano e edição (ex.: `2026.1`, `2026.2`).
+Formato: **`AAAA.E`** — ano e edição (ex.: `2026.1`, `2026.2`, `2026.3`).
 
 - **Edição (`E`)**: sobe 1 a cada lote de entregas que chega à produção e que o dono vai usar de verdade
   (várias PRs juntas contam como uma edição). Recomeça em 1 a cada ano.
@@ -17,3 +17,4 @@ Formato: **`AAAA.E`** — ano e edição (ex.: `2026.1`, `2026.2`).
 |---|---|
 | 2026.1 | Primeira edição numerada: lançamentos, contas com conferência de extrato, cartões (limite, fatura, parcelas), recorrentes, categorias, orçamentos, projeção do mês, exportação CSV, painel e correções da auditoria (migration 014). |
 | 2026.2 | Painel novo (ações rápidas, vencidos, cartões e conferência de saldo na Visão geral); robustez do front (respostas velhas, envio duplicado, pagar fatura, PWA v2); menu em grupos com "Mais" no celular; ocultar valores; dependências Vite 8 / Vitest 5 com auditoria de produção no CI; filtros de Lançamentos por tipo; diário do projeto em `docs/projeto/`. |
+| 2026.3 | Redesenho visual pelo design system "Tudo Azul": painéis sem padding dobrado, títulos de mês com maiúscula certa, lista de Lançamentos compacta (valor na linha da descrição, Excluir discreto, totais em linhas no celular), ações rápidas do Início com ícone, contorno de campos com contraste; Calendário do mês (#62). |

@@ -41,6 +41,10 @@ Nenhum em 27/10/2026. As propostas de multimoeda (#10) e de importação do Orga
 ## Ideias guardadas
 Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app · foco/rolagem nos formulários · contraste · taxa de poupança e meses de reserva · metas com prazo (junto com investimentos) · detector de recorrência (depois da importação).
 
+## Redesenho visual (design system)
+- [ ] **Parte 1** (PR em rascunho): padding dobrado nos painéis, mês com maiúscula certa, lista de Lançamentos compacta, ações rápidas com ícone, contorno de campos com contraste. Conferir no celular e no iPad depois do merge.
+- Próximas partes (só com a sua autorização): cabeçalho padrão de tela com ações à direita; ícone de categoria nas listas; seletor de mês em painel próprio; Cartões com a fatura em destaque; formulário de lançamento em folha no celular.
+
 ## Do protótipo do Base44
-- [ ] **Calendário do mês** (PR em rascunho): conferir no celular e no iPad, depois do merge.
+- [ ] **Calendário do mês** (#62, mesclado em 28/10): conferir no celular e no iPad.
 - Ainda não feitos (só com a sua autorização): destaques do mês e comparativo por categoria em Análises.

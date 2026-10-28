@@ -103,7 +103,7 @@ export default function Conferir() {
       <Link to="/contas" className="text-sm font-semibold text-azul hover:underline">← Contas</Link>
       <h1 className="mb-2 mt-2 text-2xl font-bold">Conferir {conta?.nome ?? 'conta'}</h1>
       <p className="mb-6 text-sm text-slate-600">
-        Compare com o extrato do banco. Quando a diferença for zero, conclua: o período até a data fica <strong>travado</strong>
+        Compare com o extrato do banco. Quando a diferença for zero, conclua: o período até a data fica <strong>travado</strong>{' '}
         (nada que mude o saldo pode ser lançado, editado ou excluído nele) até você desfazer a conciliação.
       </p>
 
@@ -148,7 +148,7 @@ export default function Conferir() {
         )}
       </Card>
 
-      <Card className="p-0">
+      <Card semPadding>
         <div className="px-5 pt-5"><CardTitle>{data ? `Movimentos até ${formatDate(data)}` : 'Movimentos'}</CardTitle></div>
         {movimentos === null ? <p className="px-5 pb-5 text-sm text-slate-600" role="status">{data ? 'Carregando…' : 'Informe a data.'}</p> : (
           <ul className="divide-y divide-slate-100">

@@ -18,7 +18,7 @@ export function Field({ rotulo, erro, className = '', ...rest }: Props) {
         id={id}
         aria-invalid={erro ? true : undefined}
         aria-describedby={erro ? erroId : undefined}
-        className={`min-h-11 rounded-lg border bg-white px-3 text-base ${erro ? 'border-negativo' : 'border-slate-300'} ${className}`}
+        className={`min-h-11 rounded-lg border bg-white px-3 text-base ${erro ? 'border-negativo' : 'border-slate-500'} ${className}`}
       />
       {erro && <p id={erroId} role="alert" className="text-sm text-negativo">{erro}</p>}
     </div>

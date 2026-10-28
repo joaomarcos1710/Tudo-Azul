@@ -11,7 +11,7 @@ import { agrupar, listarCategorias } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatBRLCampo, formatMonth, parseBRL } from '../lib/format'
+import { currentMonth, formatBRL, formatBRLCampo, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { somarMeses } from '../lib/lancamentos'
 import { copiarDoMesAnterior, definirOrcamento, listarOrcamentos, removerOrcamento } from '../lib/orcamentos'
@@ -91,7 +91,7 @@ export default function Orcamentos() {
 
       <div className="mb-4 flex items-center gap-2">
         <Button variante="secundario" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
-        <span className="min-w-44 text-center font-semibold capitalize">{formatMonth(mes)}</span>
+        <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
         <Button variante="secundario" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
       </div>
 

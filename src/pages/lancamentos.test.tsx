@@ -105,7 +105,7 @@ describe('Lançamentos', () => {
   it('lista por dia com sinais do design system e totais vindos do banco', async () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     expect((await screen.findAllByText('−R$ 250,50')).length).toBe(2) // item da lista e card de despesas pagas
-    expect(screen.getByText('+R$ 8.000,00')).toBeTruthy()
+    expect(screen.getAllByText('+R$ 8.000,00').length).toBe(2) // item planejado da lista e "Planejado:" do resultado
     expect(screen.getByText('⇄ R$ 100,00')).toBeTruthy()
     expect(screen.getByText('Itaú → Nubank')).toBeTruthy()
     expect(screen.getByText('Mercado · Itaú')).toBeTruthy()

@@ -160,7 +160,7 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
             id="tipo-conta"
             value={tipo}
             onChange={(e) => setTipo(e.target.value as TipoConta)}
-            className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base"
+            className="min-h-11 rounded-lg border border-slate-500 bg-white px-3 text-base"
           >
             {Object.entries(rotuloTipoConta).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
           </select>

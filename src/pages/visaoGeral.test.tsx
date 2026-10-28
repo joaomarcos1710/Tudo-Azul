@@ -272,13 +272,20 @@ describe('Visão geral', () => {
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
 
+  it('grades de painéis têm grid-cols-1 no celular (sem ela a coluna cresce até o item mais largo e a tela rola de lado)', async () => {
+    // jsdom não calcula layout; a medição real (sem rolagem lateral em 320px) foi feita no navegador. Aqui fica a trava.
+    montar()
+    const painel = (await screen.findByText('Últimos lançamentos')).closest('div.grid')
+    expect(painel?.className.split(/\s+/)).toContain('grid-cols-1')
+  })
+
   it('ações rápidas: despesa, receita, transferência e compra no cartão abrem o lançamento já no tipo certo', async () => {
     montar()
     await screen.findByText(/, João!/)
     const alvo = (nome: string) => (screen.getByRole('link', { name: nome }) as HTMLAnchorElement).getAttribute('href')
-    expect(alvo('+ Despesa')).toBe('/lancamentos?novo=despesa')
-    expect(alvo('+ Receita')).toBe('/lancamentos?novo=receita')
-    expect(alvo('⇄ Transferência')).toBe('/lancamentos?novo=transferencia')
+    expect(alvo('Despesa')).toBe('/lancamentos?novo=despesa')
+    expect(alvo('Receita')).toBe('/lancamentos?novo=receita')
+    expect(alvo('Transferência')).toBe('/lancamentos?novo=transferencia')
     expect(alvo('Compra no cartão')).toBe('/lancamentos?novo=cartao')
   })
 
@@ -373,7 +380,7 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     await screen.findByRole('heading', { name: 'Análises' })
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Ações rápidas' })).toBeNull()
-    expect(screen.queryByText('+ Despesa')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Despesa' })).toBeNull()
     expect(screen.queryByText('Vencidos e precisam de atenção')).toBeNull()
     expect(screen.queryByText('Nubank')).toBeNull()
     expect(screen.queryByText('Próximos planejados')).toBeNull()

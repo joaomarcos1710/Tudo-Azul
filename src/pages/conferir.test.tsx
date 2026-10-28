@@ -65,6 +65,12 @@ describe('Conferir conta', () => {
     expect(screen.getByText('R$ 1.000,00')).toBeTruthy()
   })
 
+  it('o texto de ajuda tem espaço entre "travado" e o parêntese', async () => {
+    montar()
+    await screen.findByText('Conferir Itaú')
+    expect(screen.getByText(/o período até a data fica/).textContent).toContain('travado (nada que mude o saldo')
+  })
+
   it('com diferença, não deixa concluir e mostra o valor', async () => {
     const u = userEvent.setup()
     montar()

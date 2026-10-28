@@ -100,7 +100,7 @@ export function ZerarTudo() {
             </label>
             <input
               id="frase-zerar" autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={!baixou}
-              className="min-h-11 rounded-lg border border-slate-300 px-3 disabled:bg-slate-100"
+              className="min-h-11 rounded-lg border border-slate-500 px-3 disabled:bg-slate-100"
               value={frase} onChange={(e) => setFrase(e.target.value)}
             />
             {!baixou && <p className="text-xs text-slate-500">Libera depois de baixar os arquivos acima.</p>}

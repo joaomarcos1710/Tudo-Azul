@@ -103,7 +103,7 @@ export default function Categorias() {
       <ul className="flex flex-col gap-3">
         {grupos.map((g) => (
           <li key={g.id}>
-            <Card className="p-0">
+            <Card semPadding>
               <Linha categoria={g} aoEditar={() => setEditando(g)} aoAlternar={() => alternarAtiva(g)} aoEventual={() => alternarEventual(g)} herdaEventual={false} />
               {g.filhas.length > 0 && (
                 <ul className="border-t border-slate-100">
@@ -195,7 +195,7 @@ function FormCategoria({ categoria, tipo, possiveisPais, familiaId, aoSalvar, ao
             id="categoria-mae"
             value={paiId}
             onChange={(e) => setPaiId(e.target.value)}
-            className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base"
+            className="min-h-11 rounded-lg border border-slate-500 bg-white px-3 text-base"
           >
             <option value="">Nenhuma (categoria principal)</option>
             {possiveisPais.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
