@@ -88,6 +88,25 @@ function variacao(atual: Cents, anterior: Cents): number | null {
 }
 
 /** Painel: todo valor em reais vem calculado do banco (net_worth, period_summary, expenses_by_category, daily_expenses). */
+type WidgetDashboardId = 'patrimonio' | 'disponivel' | 'receitas' | 'despesas' | 'resultado'
+
+const WIDGETS_DASHBOARD: { id: WidgetDashboardId; rotulo: string }[] = [
+  { id: 'patrimonio', rotulo: 'Patrimônio líquido' },
+  { id: 'disponivel', rotulo: 'Saldo disponível' },
+  { id: 'receitas', rotulo: 'Entradas do mês' },
+  { id: 'despesas', rotulo: 'Despesas do mês' },
+  { id: 'resultado', rotulo: 'Resultado do mês' },
+]
+const WIDGETS_DASHBOARD_PADRAO: WidgetDashboardId[] = WIDGETS_DASHBOARD.map((w) => w.id)
+const CHAVE_WIDGETS_DASHBOARD = (usuarioId: string) => `tudo-azul:dashboard-widgets:${usuarioId}`
+
+function validarWidgetsDashboard(valor: unknown): WidgetDashboardId[] {
+  if (!Array.isArray(valor)) return [...WIDGETS_DASHBOARD_PADRAO]
+  return [...new Set(valor.filter((id): id is WidgetDashboardId =>
+    typeof id === 'string' && WIDGETS_DASHBOARD.some((w) => w.id === id),
+  ))]
+}
+
 /** Início ("o que fazer agora") e Análises ("como estou indo"): cada seção carrega e mostra só os seus blocos. */
 export type SecaoResumo = 'inicio' | 'analises'
 
@@ -104,6 +123,51 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const mes = currentMonth()
   const nome = ((sessao?.user?.user_metadata?.name as string | undefined) ?? '').trim().split(/\s+/)[0]
 
+  const usuarioId = sessao?.user?.id ?? null
+  const [preferenciasWidgets, setPreferenciasWidgets] = useState<{ usuarioId: string | null; ids: WidgetDashboardId[] }>({
+    usuarioId: null, ids: [...WIDGETS_DASHBOARD_PADRAO],
+  })
+  const [preferenciasWidgetsCarregadas, setPreferenciasWidgetsCarregadas] = useState(false)
+  const [personalizandoWidgets, setPersonalizandoWidgets] = useState(false)
+
+  useEffect(() => {
+    let ids = [...WIDGETS_DASHBOARD_PADRAO]
+    if (usuarioId) {
+      try {
+        const salvo = window.localStorage.getItem(CHAVE_WIDGETS_DASHBOARD(usuarioId))
+        if (salvo !== null) ids = validarWidgetsDashboard(JSON.parse(salvo))
+      } catch { /* armazenamento indisponível ou preferência inválida: usa o padrão */ }
+    }
+    setPreferenciasWidgets({ usuarioId, ids })
+    setPreferenciasWidgetsCarregadas(true)
+  }, [usuarioId])
+
+  useEffect(() => {
+    if (!preferenciasWidgetsCarregadas || !usuarioId || preferenciasWidgets.usuarioId !== usuarioId) return
+    try {
+      window.localStorage.setItem(CHAVE_WIDGETS_DASHBOARD(usuarioId), JSON.stringify(preferenciasWidgets.ids))
+    } catch { /* sem armazenamento: a personalização vale só nesta sessão */ }
+  }, [preferenciasWidgets, preferenciasWidgetsCarregadas, usuarioId])
+
+  const widgetsVisiveis = preferenciasWidgets.ids
+  const adicionarWidget = (id: WidgetDashboardId) => {
+    setPreferenciasWidgets((atual) => ({ usuarioId, ids: atual.ids.includes(id) ? atual.ids : [...atual.ids, id] }))
+  }
+  const removerWidget = (id: WidgetDashboardId) => {
+    setPreferenciasWidgets((atual) => ({ usuarioId, ids: atual.ids.filter((x) => x !== id) }))
+  }
+  const moverWidget = (id: WidgetDashboardId, direcao: -1 | 1) => {
+    setPreferenciasWidgets((atual) => {
+      const origem = atual.ids.indexOf(id)
+      const destino = origem + direcao
+      if (origem < 0 || destino < 0 || destino >= atual.ids.length) return atual
+      const ids = [...atual.ids]
+      ;[ids[origem], ids[destino]] = [ids[destino], ids[origem]]
+      return { usuarioId, ids }
+    })
+  }
+  const restaurarWidgets = () => setPreferenciasWidgets({ usuarioId, ids: [...WIDGETS_DASHBOARD_PADRAO] })
+
   useEffect(() => {
     if (!familiaId) return
     const [de, ate] = limitesDoMes(mes)
@@ -116,8 +180,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             // essenciais do Início: se falharem, a tela inteira avisa o erro
             listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje), listarLancamentos(familiaId, mes), listarCategorias(familiaId),
             opcional(vencidosPlanejados(familiaId, hoje, 5)), opcional(resumoDosCartoes(familiaId, hoje)), opcional(ultimasConferencias(familiaId)),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, conferencias]): Dados => ({
-            patrimonio: null, mes: null, anterior: null, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
+            // O resumo do Início reutiliza as mesmas fontes financeiras já usadas em Análises.
+            opcional(carregarPatrimonio(familiaId, hoje)), opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, conferencias, patrimonio, resumo, anterior]): Dados => ({
+            patrimonio, mes: resumo, anterior, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, conferencias,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: new Map(cats.map((x) => [x.id, x.nome])),
@@ -153,6 +219,28 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   // null = não carregou; o bloco correspondente some e o resto da tela segue
   const { patrimonio: p, mes: m, anterior: a } = dados
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
+  const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
+    patrimonio: p ? <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
+      rodape={`Disponível ${formatBRL(p.disponivel)} · dívida ${formatBRL(p.divida)}`} /> : (
+      <Card><CardTitle>Patrimônio líquido</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
+    ),
+    disponivel: p ? <Indicador rotulo="Saldo disponível" valor={p.disponivel} icone={<Cofre />} corIcone="bg-azul-claro text-azul"
+      rodape={`Dívida atual ${formatBRL(p.divida)}`} /> : (
+      <Card><CardTitle>Saldo disponível</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
+    ),
+    receitas: m ? <Indicador rotulo="Entradas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-green-50 text-positivo"
+      var={a ? variacao(m.receitas, a.receitas) : null} subirEhBom comparado={mesAnteriorCurto} /> : (
+      <Card><CardTitle>Entradas do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
+    ),
+    despesas: m ? <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-red-50 text-negativo"
+      var={a ? variacao(m.despesas, a.despesas) : null} subirEhBom={false} comparado={mesAnteriorCurto} /> : (
+      <Card><CardTitle>Despesas do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
+    ),
+    resultado: m ? <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
+      var={a ? variacao(m.resultado, a.resultado) : null} subirEhBom comparado={mesAnteriorCurto} negativoVermelho /> : (
+      <Card><CardTitle>Resultado do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
+    ),
+  }
   return (
     <>
       <div className="mb-6">
@@ -169,6 +257,64 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           <Aviso tipo="erro">Não foi possível lançar os recorrentes agora. Contas mensais e assinaturas podem estar faltando.</Aviso>
         </div>
       )}
+
+      {noInicio && <section aria-label="Resumo financeiro personalizável" className="mb-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-marinho">Visão geral financeira</h2>
+            <p className="text-sm text-slate-600">{formatMonth(mes).replace(/^./, (c) => c.toUpperCase())} · organize os indicadores como preferir.</p>
+          </div>
+          <button type="button" onClick={() => setPersonalizandoWidgets((v) => !v)}
+            aria-expanded={personalizandoWidgets} aria-controls="configurar-widgets-dashboard"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-marinho hover:bg-slate-50">
+            {personalizandoWidgets ? 'Concluir' : 'Personalizar painel'}
+          </button>
+        </div>
+        {personalizandoWidgets && <div id="configurar-widgets-dashboard" className="mb-4 rounded-card border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="font-semibold text-marinho">Seus widgets</h3>
+              <p className="text-xs text-slate-600">Adicione, remova ou mude a ordem. A preferência fica salva neste aparelho, separada por usuário.</p>
+            </div>
+            <button type="button" onClick={restaurarWidgets} className="text-sm font-semibold text-azul hover:underline">Restaurar padrão</button>
+          </div>
+          <ul className="space-y-2">
+            {WIDGETS_DASHBOARD.map((widget) => {
+              const indice = widgetsVisiveis.indexOf(widget.id)
+              const visivel = indice >= 0
+              return <li key={widget.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2">
+                <span className="text-sm font-medium">{widget.rotulo}</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {visivel && <>
+                    <button type="button" onClick={() => moverWidget(widget.id, -1)} disabled={indice === 0}
+                      aria-label={`Mover ${widget.rotulo} para cima`} className="rounded border border-slate-200 px-2 py-1 text-sm disabled:opacity-40">↑</button>
+                    <button type="button" onClick={() => moverWidget(widget.id, 1)} disabled={indice === widgetsVisiveis.length - 1}
+                      aria-label={`Mover ${widget.rotulo} para baixo`} className="rounded border border-slate-200 px-2 py-1 text-sm disabled:opacity-40">↓</button>
+                  </>}
+                  <button type="button" onClick={() => visivel ? removerWidget(widget.id) : adicionarWidget(widget.id)}
+                    className="rounded border border-slate-200 px-2 py-1 text-sm font-semibold text-azul hover:bg-azul-claro">
+                    {visivel ? 'Remover' : 'Adicionar'}
+                  </button>
+                </div>
+              </li>
+            })}
+          </ul>
+        </div>}
+        {widgetsVisiveis.length === 0 ? (
+          <div className="rounded-card border border-dashed border-slate-300 p-5 text-sm text-slate-600">
+            Nenhum widget selecionado. Use <strong>Personalizar painel</strong> para adicionar indicadores.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores financeiros">
+            {widgetsVisiveis.map((id) => <div key={id} className="min-w-0">{indicadoresWidgets[id]}</div>)}
+          </div>
+        )}
+        {p && <p className="mt-2 text-xs text-slate-500">
+          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} − dívida {formatBRL(p.divida)}.
+          Considera contas e dívidas; não inclui bens nem investimentos. Parcelas de cartão ainda não cobradas ficam fora do patrimônio atual.
+        </p>}
+        {!m && <p className="mt-2 text-xs text-slate-500" role="status">Resumo do mês indisponível agora; os demais widgets continuam disponíveis.</p>}
+      </section>}
 
       {noInicio && <section aria-label="Ações rápidas" className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
         <Link to="/lancamentos?novo=despesa" className={atalho}><span className={`${atalhoIcone} bg-red-50 text-negativo`}><IconeSubtrair /></span>Despesa</Link>
