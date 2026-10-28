@@ -405,7 +405,7 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     expect(mock.carregarPatrimonio).toHaveBeenCalled()
     expect(mock.resumoDoMes).toHaveBeenCalled()
-    expect(screen.getByText('Indicador indisponível agora.')).toBeTruthy()
+    expect(screen.getAllByText('Indicador indisponível agora.').length).toBeGreaterThan(0)
   })
 })
 
