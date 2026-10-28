@@ -16,6 +16,8 @@ import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
+import { listarRegrasAutomaticas, sugerirRegras } from '../lib/regrasAutomaticas'
+import type { RegraAutomatica } from '../lib/regrasAutomaticas'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
@@ -437,6 +439,14 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [regras, setRegras] = useState<RegraAutomatica[]>([])
+  const [falhaAoCarregarRegras, setFalhaAoCarregarRegras] = useState(false)
+  useEffect(() => {
+    let atual = true
+    void listarRegrasAutomaticas(familiaId).then((r) => { if (atual) setRegras(r) })
+      .catch(() => { if (atual) setFalhaAoCarregarRegras(true) })
+    return () => { atual = false }
+  }, [familiaId])
   // Onde foi: conta (dinheiro saiu/entrou agora) ou cartão (compra parcelada; a despesa conta na fatura).
   // Só para lançamento novo: editar continua sendo conta, como antes.
   const [onde, setOnde] = useState<'conta' | 'cartao'>(!l && inicial === 'cartao' ? 'cartao' : 'conta')
@@ -451,6 +461,10 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const transferencia = tipo === 'transfer'
   const categoriasDoTipo = categorias.filter((c) => c.tipo === tipo && (c.ativa || c.id === l?.categoriaId))
   const conta = contas.find((c) => c.id === contaId)
+  const categoriasDisponiveis = new Set(categoriasDoTipo.map((c) => c.id))
+  const sugestoes = !l && !cartaoMode && !transferencia
+    ? sugerirRegras(descricao, tipo, regras).filter((s) => categoriasDisponiveis.has(s.categoriaId))
+    : []
 
   const erros = {
     valor: valor === null || valor <= 0 ? 'Informe um valor maior que zero. Exemplo: 1.250,50.' : undefined,
@@ -527,6 +541,21 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         <Field rotulo={cartaoMode ? 'Data da compra' : 'Data'} type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou ? erros.data : undefined} />
         <Field rotulo="Descrição" maxLength={200} placeholder="Ex.: Supermercado" value={descricao} onChange={(e) => setDescricao(e.target.value)}
           erro={tentou ? erros.descricao : undefined} />
+
+        {sugestoes.length > 0 && (
+          <div className="rounded-lg border border-azul/20 bg-azul-claro p-3 md:col-span-2" aria-label="Sugestões de categoria">
+            <p className="mb-2 text-sm font-semibold">Sugestões de regras automáticas</p>
+            <ul className="flex flex-col gap-2">
+              {sugestoes.map((s) => (
+                <li key={s.regraId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span><strong>{s.nomeRegra}</strong> sugere <strong>{categorias.find((c) => c.id === s.categoriaId)?.nome}</strong></span>
+                  <Button variante="secundario" onClick={() => setCategoriaId(s.categoriaId)}>Usar sugestão</Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {falhaAoCarregarRegras && !l && <p className="text-xs text-slate-500 md:col-span-2">Não foi possível carregar as regras; você pode escolher a categoria normalmente.</p>}
 
         {cartaoMode ? (
           <>
