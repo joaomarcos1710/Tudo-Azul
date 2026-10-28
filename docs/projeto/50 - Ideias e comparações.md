@@ -63,6 +63,17 @@ Os prints mostram o **cadastro de conta** (e a tela de termos de uso); a página
 | 9 | **Etiquetas (tags)** além da categoria (ex.: "Viagem Floripa") | Não existem. Cuidado: duplica o papel da categoria e da subcategoria; só vale se o dono sentir falta de um recorte que a categoria não dá | Médio (tabela + migration); baixa prioridade |
 | 10 | **Personalizar página inicial** (escolher e ordenar os cartões) | O Início é fixo. Pode ser por aparelho (sem banco). Baixa prioridade | Médio |
 
+**Menu do Minhas Economias** — ideias novas:
+
+| # | Ideia | Situação no Tudo Azul | Esforço |
+|---|---|---|---|
+| 11 | **Atalho do iPhone** ("lance o gasto do cartão sem abrir o app") | **Sem código, já dá para fazer:** o app aceita `https://tudo-azul.vercel.app/lancamentos?novo=cartao` (também `despesa`, `receita`, `transferencia`) e abre o formulário no tipo certo. No app Atalhos do iPhone, a ação "Abrir URL" com esse link serve. Limite: abre no Safari (não no app instalado) e pode pedir o login. Lançar **de verdade sem abrir o app** exigiria um endereço de API com um token pessoal: **não recomendado** (regra do projeto: nunca aceitar nem guardar chave secreta; um token vazado lança dinheiro na família). Extra barato: pôr "Nova despesa" e "Compra no cartão" nos atalhos do `manifest.webmanifest` (hoje só há Lançamentos e Cartões); pelo que sei o iOS não mostra esses atalhos no ícone, o Android sim (a confirmar) | Zero (URL) · Baixo (manifest) |
+| 12 | **Regras de transação** (descrição "Mercado Extra" → categoria Mercado automático) | Hoje a categoria é escolhida toda vez. Versão barata, só front: ao digitar a descrição, sugerir a categoria usada da última vez com essa descrição. Versão completa: tabela de regras por família (migration). Junta com o formulário enxuto | Baixo (sugestão) · Médio (regras) |
+| 13 | **Segundo fator no login** ("Token", forma de login em Segurança) | Não encontrei segundo fator no app. O Supabase tem TOTP. O app guarda dados financeiros da família: vale pensar, junto com a configuração "Confirm email" que já está pendente | Médio |
+| 14 | **Ajuda/FAQ dentro do app** ("como pagar a fatura", "o que é renda eventual") | Não existe; o diário tem a explicação, mas só no repositório | Baixo |
+
+**Não copiar do menu:** "Convide seus amigos" (crescimento), "Meu Clube/premium" (planos pagos são futuro), "Avalie o app" e redes sociais, "Gerenciar conexões" (Open Finance, fora de escopo). "Resumo do mês" e "Categorias" já existem (Análises e Categorias).
+
 **Observação sobre o Início do Minhas Economias:** é uma rolagem longa com um cartão para cada coisa, vários ainda vazios ("Objetivos", "Membros", "Cartões"). O Início do Tudo Azul é mais enxuto e orientado a ação ("o que pede atenção agora": vencidos, cartões, últimos lançamentos). Não vale copiar a quantidade de cartões; vale copiar o botão "+" e a composição do patrimônio.
 **Tema escuro:** reaparece no topo do app deles (ícone de lua); confirma a ideia 5 do Livro de contas.
 **Objetivos** e **Ver meus investimentos:** já estão nas ideias guardadas (metas com prazo junto com investimentos, previsto para fev–abr/2027).
