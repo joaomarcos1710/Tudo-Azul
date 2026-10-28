@@ -6,6 +6,7 @@ import VisaoGeral from './pages/VisaoGeral'
 import Lancamentos from './pages/Lancamentos'
 import Calendario from './pages/Calendario'
 import Recorrentes from './pages/Recorrentes'
+import RegrasAutomaticas from './pages/RegrasAutomaticas'
 import Contas from './pages/Contas'
 import Conferir from './pages/Conferir'
 import Cartoes from './pages/Cartoes'
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="lancamentos" element={<Lancamentos />} />
           <Route path="calendario" element={<Calendario />} />
           <Route path="recorrentes" element={<Recorrentes />} />
+          <Route path="regras-automaticas" element={<RegrasAutomaticas />} />
           <Route path="contas" element={<Contas />} />
           <Route path="contas/:contaId/conferir" element={<Conferir />} />
           <Route path="cartoes" element={<Cartoes />} />
