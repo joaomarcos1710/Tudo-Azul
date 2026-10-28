@@ -10,7 +10,7 @@ create table public.transaction_rules (
   category_type text generated always as (type) stored,
   priority smallint not null default 0 check (priority between -1000 and 1000),
   active boolean not null default true,
-  created_by uuid not null default auth.uid() references public.profiles (id) on delete restrict,
+  created_by uuid default auth.uid() references public.profiles (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint transaction_rules_category_fk foreign key (household_id, category_id, category_type)
