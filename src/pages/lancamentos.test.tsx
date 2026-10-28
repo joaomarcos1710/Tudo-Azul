@@ -113,6 +113,17 @@ describe('Lançamentos', () => {
     expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
   })
 
+  it('cada linha tem o ícone da categoria (transferência: setas); o valor continua na cor de receita/despesa', async () => {
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const linha = (texto: string) => screen.getByText(texto).closest('li')!
+    await screen.findByText('Supermercado')
+    expect(linha('Supermercado').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
+    expect(linha('Itaú → Nubank').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('transferencia')
+    const valor = within(linha('Supermercado')).getByText('−R$ 250,50')
+    expect(valor.className).toContain('text-negativo')
+    expect(valor.getAttribute('style')).toBeNull()
+  })
+
   it('lança despesa em centavos, com categoria e status pago para hoje', async () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()

@@ -27,8 +27,15 @@ describe('listarCategorias e a migration 012', () => {
   it('sem pedir "eventual", nunca toca na coluna nova (as outras telas não quebram antes da migration)', async () => {
     fake.estado.respostas = [{ data: [linha], error: null }]
     const r = await listarCategorias('h1')
-    expect(fake.estado.colunas).toEqual(['id, name, type, parent_id, system_key, active'])
+    expect(fake.estado.colunas).toEqual(['id, name, type, parent_id, system_key, active, color, icon'])
     expect(r[0].eventual).toBe(false)
+    expect([r[0].icone, r[0].cor]).toEqual([null, null])
+  })
+
+  it('lê ícone e cor escolhidos (colunas da migration 001, sem risco de não existirem)', async () => {
+    fake.estado.respostas = [{ data: [{ ...linha, icon: 'maleta', color: '#2563EB' }], error: null }]
+    const r = await listarCategorias('h1')
+    expect([r[0].icone, r[0].cor]).toEqual(['maleta', '#2563EB'])
   })
 
   it('pedindo "eventual" e o banco ainda sem a coluna: lê sem ela, tudo regular', async () => {
