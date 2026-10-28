@@ -80,6 +80,15 @@ Os prints mostram o **cadastro de conta** (e a tela de termos de uso); a página
 | 16 | **Central de avisos**: um lugar só com tudo que pede atenção (vencidos, fatura perto de vencer, orçamento estourado, conta nunca conferida) | Essas coisas já aparecem espalhadas no Início (Vencidos, Cartões, conferência das contas). Uma central juntaria tudo e prepararia o terreno para o alerta por push, que continua em "Decisões suas" | Médio |
 | 17 | **Meus Bens** (imóvel, carro, com valor) | Não existe. O banco já guarda empréstimo e financiamento (`debts` kind `loan`/`financing`); faltam os bens, para o patrimônio mostrar ativos além das contas. Fica junto com "investimentos" (fev–abr/2027) | Médio; baixa prioridade |
 
+**Segurança (print do dono, 28/10/2026):** a tela deles tem só duas linhas, "Senha de login" (alterar a senha) e "Deletar conta" (apagar a conta). Junto com a ideia 13 (segundo fator), forma uma **tela Segurança** no grupo "Conta":
+
+| # | Ideia | Situação no Tudo Azul | Esforço |
+|---|---|---|---|
+| 18 | **Alterar a senha com a pessoa logada** | Só existe a recuperação por e-mail (`/recuperar-senha` → `/nova-senha`). Dentro do app não há "trocar senha". Só front (o Supabase já tem `updateUser`); pedir a senha atual antes de trocar | Baixo |
+| 19 | **Excluir minha conta** (direito de eliminação da LGPD) | Existe "Zerar tudo" para o dono (apaga os dados da família), mas não existe apagar o **usuário**. Precisa decidir: se o dono sai, o que acontece com a família e os outros membros? Tecnicamente, apagar um usuário do Supabase exige função de servidor com permissão alta; a chave de serviço **nunca** passa pelo front nem por mim (regra do projeto). Junta com a ideia 3 (Termos e Privacidade) | Alto, sensível; só com desenho aprovado |
+
+Ordem sugerida da tela Segurança: (18) trocar senha → (13) segundo fator → (19) excluir conta.
+
 **Não copiar do menu:** "Meu Aprendizado" (conteúdo educativo: fora do foco; a ideia 14, Ajuda/FAQ, cobre o essencial), "Convide seus amigos" (crescimento), "Meu Clube/premium" (planos pagos são futuro), "Avalie o app" e redes sociais, "Gerenciar conexões" (Open Finance, fora de escopo). "Resumo do mês" e "Categorias" já existem (Análises e Categorias).
 
 **Observação sobre o Início do Minhas Economias:** é uma rolagem longa com um cartão para cada coisa, vários ainda vazios ("Objetivos", "Membros", "Cartões"). O Início do Tudo Azul é mais enxuto e orientado a ação ("o que pede atenção agora": vencidos, cartões, últimos lançamentos). Não vale copiar a quantidade de cartões; vale copiar o botão "+" e a composição do patrimônio.
