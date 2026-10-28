@@ -149,22 +149,23 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
     } catch { /* sem armazenamento: a personalização vale só nesta sessão */ }
   }, [preferenciasWidgets, preferenciasWidgetsCarregadas, usuarioId])
 
-  const widgetsVisiveis = preferenciasWidgets.ids
+  // Nunca expõe por um render as preferências do usuário anterior durante uma troca de sessão.
+  const widgetsVisiveis = preferenciasWidgets.usuarioId === usuarioId
+    ? preferenciasWidgets.ids
+    : [...WIDGETS_DASHBOARD_PADRAO]
   const adicionarWidget = (id: WidgetDashboardId) => {
-    setPreferenciasWidgets((atual) => ({ usuarioId, ids: atual.ids.includes(id) ? atual.ids : [...atual.ids, id] }))
+    setPreferenciasWidgets({ usuarioId, ids: widgetsVisiveis.includes(id) ? widgetsVisiveis : [...widgetsVisiveis, id] })
   }
   const removerWidget = (id: WidgetDashboardId) => {
-    setPreferenciasWidgets((atual) => ({ usuarioId, ids: atual.ids.filter((x) => x !== id) }))
+    setPreferenciasWidgets({ usuarioId, ids: widgetsVisiveis.filter((x) => x !== id) })
   }
   const moverWidget = (id: WidgetDashboardId, direcao: -1 | 1) => {
-    setPreferenciasWidgets((atual) => {
-      const origem = atual.ids.indexOf(id)
-      const destino = origem + direcao
-      if (origem < 0 || destino < 0 || destino >= atual.ids.length) return atual
-      const ids = [...atual.ids]
-      ;[ids[origem], ids[destino]] = [ids[destino], ids[origem]]
-      return { usuarioId, ids }
-    })
+    const origem = widgetsVisiveis.indexOf(id)
+    const destino = origem + direcao
+    if (origem < 0 || destino < 0 || destino >= widgetsVisiveis.length) return
+    const ids = [...widgetsVisiveis]
+    ;[ids[origem], ids[destino]] = [ids[destino], ids[origem]]
+    setPreferenciasWidgets({ usuarioId, ids })
   }
   const restaurarWidgets = () => setPreferenciasWidgets({ usuarioId, ids: [...WIDGETS_DASHBOARD_PADRAO] })
 
