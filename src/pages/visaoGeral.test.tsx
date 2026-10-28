@@ -117,6 +117,17 @@ describe('Visão geral', () => {
     expect(await screen.findByText('Aluguel')).toBeTruthy()
     expect(screen.queryByText('Planejado')).toBeNull()
   })
+  it('Início: últimos, próximos e vencidos mostram o ícone da categoria', async () => {
+    mock.proximosPlanejados.mockResolvedValue([{ id: 't1', tipo: 'expense', descricao: 'Internet', valor: c(12000), data: '2026-10-20', categoriaId: 'g1' }])
+    mock.vencidosPlanejados.mockResolvedValue({ itens: [{ id: 'v1', tipo: 'transfer', descricao: 'Reserva', valor: c(100), data: '2026-10-01', categoriaId: null }], total: 1 })
+    montar()
+    const icone = (texto: string | RegExp) => screen.getByText(texto).closest('li')!.querySelector('[data-icone]')!.getAttribute('data-icone')
+    await screen.findByText('Aluguel')
+    expect(icone('Aluguel')).toBe('casa') // g1 = Moradia
+    expect(icone(/Internet/)).toBe('casa')
+    expect(icone(/Reserva/)).toBe('transferencia')
+  })
+
   it('compara com o mês anterior', async () => {
     mock.resumoDoMes.mockResolvedValueOnce({ receitas: c(1215000), despesas: c(866726), resultado: c(348274), receitasPrevistas: c(0), despesasPrevistas: c(0) })
       .mockResolvedValueOnce({ receitas: c(1215000), despesas: c(433363), resultado: c(781637), receitasPrevistas: c(0), despesasPrevistas: c(0) })

@@ -110,6 +110,12 @@ export function visualDaCategoria(c: Categoria, porId: Map<string, Categoria>): 
   return { icone: ehIcone(c.icone) ? c.icone : base.icone, cor: ehCor(c.cor) ? c.cor : base.cor }
 }
 
+/** Visual de uma linha (lançamento, parcela) pelo id da categoria; sem categoria ou ainda não carregada = "Sem categoria". */
+export function visualPorId(id: string | null | undefined, porId: Map<string, Categoria>, tipo: TipoCategoria): Visual {
+  const c = id ? porId.get(id) : undefined
+  return visualDaCategoria(c ?? { id: '', nome: 'Sem categoria', tipo, paiId: null, sistema: true, ativa: true, eventual: false }, porId)
+}
+
 /** Ícones fixos de linhas sem categoria (não aparecem no seletor). */
 const ICONES_FIXOS = {
   transferencia: <path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5" />,

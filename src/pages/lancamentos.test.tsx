@@ -332,6 +332,15 @@ describe('Lançamentos', () => {
     expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
   })
 
+  it('compra no cartão mostra o ícone da categoria da compra', async () => {
+    mock.listarComprasDeCartao.mockResolvedValue({ semData: 0, parcelas: [
+      { id: 'p2', data: `${hojeSP().slice(0, 8)}02`, compra: '2026-01-02', fechaEm: '2026-03-17', descricao: 'Fone', cartaoNome: 'Nubank', fechamento: 17, parcela: 2, deParcelas: 3, valor: c(10000), categoriaId: 'mer' },
+    ] })
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const item = (await screen.findByText('Fone')).closest('li') as HTMLElement
+    expect(item.querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
+  })
+
   it('se as compras no cartão falharem, a lista de conta continua e só o bloco avisa', async () => {
     mock.listarComprasDeCartao.mockRejectedValue(new Error('falhou'))
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)

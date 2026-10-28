@@ -178,6 +178,8 @@ export interface ParcelaDeCartao {
   parcela: number
   deParcelas: number
   valor: Cents
+  /** Categoria da compra (para o ícone na lista). */
+  categoriaId: string | null
 }
 
 export interface ComprasDeCartao {
@@ -199,12 +201,12 @@ export async function listarComprasDeCartao(familiaId: string, mes: string): Pro
   // parcela (due_date). Por isso basta olhar o fechamento deste mês e do próximo, e conferir o mês de exibição abaixo.
   const de = limitesDoMes(mes)[0]
   const ate = limitesDoMes(somarMeses(mes, 1))[1]
-  type Linha = { id: string; debt_id: string; plan: string; seq: number; description: string | null; purchase_date: string | null; due_date: string; face: number | string }
+  type Linha = { id: string; debt_id: string; plan: string; seq: number; description: string | null; purchase_date: string | null; due_date: string; face: number | string; category_id: string | null }
   const candidatas: Linha[] = []
   const pagina = 1000
   for (let inicio = 0; ; inicio += pagina) {
     const { data, error } = await db.from('debt_installments')
-      .select('id, debt_id, plan, seq, description, purchase_date, due_date, face')
+      .select('id, debt_id, plan, seq, description, purchase_date, due_date, face, category_id')
       .eq('household_id', familiaId).gte('due_date', de).lte('due_date', ate)
       .order('due_date', { ascending: false }).order('id')
       .range(inicio, inicio + pagina - 1)
@@ -265,6 +267,7 @@ export async function listarComprasDeCartao(familiaId: string, mes: string): Pro
       parcela: p.seq,
       deParcelas: totalPorPlano.get(`${p.debt_id}|${p.plan}`) ?? 1,
       valor: sobra,
+      categoriaId: p.category_id ?? null,
     }]
   })
   lista.sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : x.parcela - y.parcela))

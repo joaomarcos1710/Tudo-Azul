@@ -13,7 +13,7 @@ import { listarCategorias } from '../lib/categorias'
 import { listarCartoes, novaChave, registrarCompra } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
 import type { Categoria } from '../lib/categorias'
-import { IconeCategoria, visualDaCategoria } from '../lib/visualCategoria'
+import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
@@ -139,11 +139,6 @@ export default function Lancamentos() {
   const nomeConta = useMemo(() => new Map(contas.map((c) => [c.id, c.nome])), [contas])
   const nomeCategoria = useMemo(() => new Map(categorias.map((c) => [c.id, c.nome])), [categorias])
   const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
-  /** Lançamento sem categoria (ou categoria ainda não carregada) usa o visual de "Sem categoria". */
-  const visualDaLinha = (id: string | null, tipo: 'income' | 'expense') => {
-    const c = id ? categoriaPorId.get(id) : undefined
-    return visualDaCategoria(c ?? { id: '', nome: 'Sem categoria', tipo, paiId: null, sistema: true, ativa: true, eventual: false }, categoriaPorId)
-  }
 
   async function agir(acao: () => Promise<void>) {
     try {
@@ -296,7 +291,7 @@ export default function Lancamentos() {
                     return (
                       <li key={`cartao-${c.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
                         <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                        <IconeCategoria fixo="cartao" />
+                        <IconeCategoria visual={visualPorId(c.categoriaId, categoriaPorId, 'expense')} />
                         <div className="min-w-0 flex-1">
                           <p className="font-medium">
                             {c.descricao}
@@ -350,7 +345,7 @@ export default function Lancamentos() {
                   return (
                     <li key={l.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
                       <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                      {l.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" /> : <IconeCategoria visual={visualDaLinha(l.categoriaId, l.tipo)} />}
+                      {l.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" /> : <IconeCategoria visual={visualPorId(l.categoriaId, categoriaPorId, l.tipo)} />}
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">
                           {l.descricao || rotuloTipo[l.tipo]}

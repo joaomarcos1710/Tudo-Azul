@@ -13,6 +13,8 @@ import { resumoDosCartoes } from '../lib/cartoes'
 import type { ResumoCartao } from '../lib/cartoes'
 import { ultimasConferencias } from '../lib/conciliacao'
 import { listarCategorias } from '../lib/categorias'
+import type { Categoria } from '../lib/categorias'
+import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
@@ -52,6 +54,7 @@ interface Dados {
   conferencias: Map<string, string> | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
+  categoriaPorId: Map<string, Categoria>
 }
 
 /** Quatro totais vindos do banco (period_summary): período de agora e o mesmo período um ano antes. */
@@ -122,6 +125,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, conferencias,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: new Map(cats.map((x) => [x.id, x.nome])),
+            categoriaPorId: new Map(cats.map((x) => [x.id, x])),
           }))
         : Promise.all([
             // Análises: cada consulta é opcional; um bloco que falha some, o resto segue
@@ -141,7 +145,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(projecaoDoMes(familiaId, mes, hoje)),
           ]).then(([patrimonio, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao]): Dados => ({
             patrimonio, mes: resumo, anterior, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], proximos: [], vencidos: null, cartoes: null, conferencias: null, ultimos: [], nomeCategoria: new Map(),
+            contas: [], proximos: [], vencidos: null, cartoes: null, conferencias: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then(setDados)
       .catch((err) => setErro(mensagemErroBanco(err)))
@@ -188,8 +192,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               const atraso = diasEntre(x.data, hoje)
               return (
                 <li key={x.id}>
-                  <Link to={`/lancamentos?mes=${x.data.slice(0, 7)}`} className="flex flex-wrap items-center justify-between gap-x-3 py-2 text-sm hover:bg-slate-50">
-                    <span>
+                  <Link to={`/lancamentos?mes=${x.data.slice(0, 7)}`} className="flex items-center gap-3 py-2 text-sm hover:bg-slate-50">
+                    <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
+                    <span className="min-w-0 flex-1">
                       {formatDate(x.data).slice(0, 5)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
                       <span className="ml-2 text-xs text-negativo">{atraso === 1 ? 'venceu ontem' : `venceu há ${atraso} dias`}</span>
                     </span>
@@ -382,6 +387,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               {dados.ultimos.map((l) => (
                 <li key={l.id} className="flex items-center gap-3 px-5 py-3 text-sm">
                   <span className="w-12 shrink-0 text-xs text-slate-500">{formatDate(l.data).slice(0, 5)}</span>
+                  <IconeDaLinha tipo={l.tipo} categoriaId={l.categoriaId} porId={dados.categoriaPorId} />
                   <span className="min-w-0 flex-1 truncate font-medium">{l.descricao || (l.tipo === 'income' ? 'Receita' : l.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
                   {l.categoriaId && (
                     <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 sm:inline">{dados.nomeCategoria.get(l.categoriaId) ?? 'Sem categoria'}</span>
@@ -402,8 +408,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           ) : (
             <ul className="divide-y divide-slate-100">
               {dados.proximos.map((x) => (
-                <li key={x.id} className="flex items-center justify-between py-2 text-sm">
-                  <span>{formatDate(x.data)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
+                <li key={x.id} className="flex items-center gap-3 py-2 text-sm">
+                  <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
+                  <span className="min-w-0 flex-1">{formatDate(x.data)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
                   <span className={`tabular-nums font-semibold ${x.tipo === 'income' ? 'text-positivo' : x.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
                     {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatBRL(x.valor)}
                   </span>
@@ -537,3 +544,10 @@ const SetaBaixo = () => <Icone><path d="M12 5v14M5 12l7 7 7-7" /></Icone>
 const SetaCima = () => <Icone><path d="M12 19V5M5 12l7-7 7 7" /></Icone>
 const Balanca = () => <Icone><path d="M12 3v18M5 7h14M7 7l-3 7a3 3 0 0 0 6 0L7 7M17 7l-3 7a3 3 0 0 0 6 0l-3-7" /></Icone>
 const Cofre = () => <Icone><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M7 6V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1M15 12h2" /></Icone>
+
+/** Ícone da linha: transferência com setas; receita/despesa com o da categoria. */
+function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense' | 'transfer'; categoriaId: string | null; porId: Map<string, Categoria> }) {
+  return tipo === 'transfer'
+    ? <IconeCategoria fixo="transferencia" tamanho="pequeno" />
+    : <IconeCategoria visual={visualPorId(categoriaId, porId, tipo)} tamanho="pequeno" />
+}
