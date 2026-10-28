@@ -89,6 +89,16 @@ Os prints mostram o **cadastro de conta** (e a tela de termos de uso); a página
 
 Ordem sugerida da tela Segurança: (18) trocar senha → (13) segundo fator → (19) excluir conta.
 
+**Atalho do iPhone, como o Minhas Economias faz (prints do dono, 28/10/2026):** um assistente de 3 passos. (1) adicionar um atalho pronto ("Registrar Transações") no app Atalhos; (2) ligar uma **automação da Carteira** ("quando eu aproximar um cartão ou tíquete da Carteira → Registrar Transações"); (3) "Pronto! Como funciona": cada compra por aproximação entra sozinha como gasto, já paga, no cartão certo; **se faltar o valor ou o cartão, aparece um aviso na tela inicial para completar num toque**; sem internet na hora, o gasto fica guardado e entra na próxima vez que abrir o app; botão "Testar atalho"; a automação só vale para contas e cartões **manuais**. Isso **refina a ideia 11**: a minha leitura anterior ("não recomendado") era absoluta demais. Existem três níveis:
+
+| Nível | O que é | Esforço e risco |
+|---|---|---|
+| 0 | **Hoje, sem código:** no app Atalhos, automação da Carteira com a ação "Abrir URL" em `https://tudo-azul.vercel.app/lancamentos?novo=cartao`. Abre o formulário de compra no cartão; a pessoa digita o valor | Zero |
+| 1 | **Pré-preencher pela URL:** o app passa a aceitar `valor`, `descricao` (estabelecimento) e `cartao` (nome) além de `novo` (hoje só entende `novo`). A automação da Carteira manda os dados da compra e o app abre o formulário **já preenchido, para confirmar**. Se o nome do cartão não bater com um cadastrado, pede para escolher. Mais uma tela "Atalhos do iPhone" (guia em passos, como a deles). Nada é lançado sem a pessoa confirmar | Baixo, só front; sem risco de dinheiro |
+| 2 | **Lançamento automático com caixa de pendentes:** o atalho envia a compra para o app sem abrir nada. Para ser seguro: token pessoal **criado e revogável dentro do app**, guardado só no iPhone; o token só pode **criar um pendente** (nada entra no saldo, nas faturas nem nos relatórios até a pessoa confirmar no app); guardado com hash no banco; limite de envios por minuto; o aviso "N compras para confirmar" no Início (junto com a Central de avisos, ideia 16). Evita lançar duas vezes a mesma compra que a pessoa também registrou à mão | **Alto e sensível:** tabela, função com autenticação por token, teste pgTAP de isolamento entre famílias, revisão de segurança e o fluxo de produção do banco. Só com desenho aprovado |
+
+Recomendação: nível 1 primeiro (barato, seguro, já entrega a maior parte do valor); o nível 2 só se o nível 1 não bastar.
+
 **Não copiar do menu:** "Meu Aprendizado" (conteúdo educativo: fora do foco; a ideia 14, Ajuda/FAQ, cobre o essencial), "Convide seus amigos" (crescimento), "Meu Clube/premium" (planos pagos são futuro), "Avalie o app" e redes sociais, "Gerenciar conexões" (Open Finance, fora de escopo). "Resumo do mês" e "Categorias" já existem (Análises e Categorias).
 
 **Observação sobre o Início do Minhas Economias:** é uma rolagem longa com um cartão para cada coisa, vários ainda vazios ("Objetivos", "Membros", "Cartões"). O Início do Tudo Azul é mais enxuto e orientado a ação ("o que pede atenção agora": vencidos, cartões, últimos lançamentos). Não vale copiar a quantidade de cartões; vale copiar o botão "+" e a composição do patrimônio.
