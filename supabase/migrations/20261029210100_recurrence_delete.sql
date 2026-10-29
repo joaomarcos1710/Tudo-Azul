@@ -11,7 +11,9 @@
 
 create function public.recurrence_delete(p_id uuid)
 returns void language plpgsql security definer set search_path = '' as $$
-declare v public.recurrences%rowtype;
+declare
+  v public.recurrences%rowtype;
+  v_card_edit text := current_setting('app.card_edit', true);
 begin
   v := private.recurrence_lock(p_id);
 
@@ -24,9 +26,14 @@ begin
      and deleted_at is null
      and date > private.today_sp();
 
+  -- debt_installments tem trigger de imutabilidade. A flag interna permite somente
+  -- a mudança de recurrence_id (as demais colunas protegidas continuam idênticas).
+  -- Restauramos o valor anterior para não abrir essa exceção a outras operações da transação.
+  perform set_config('app.card_edit', 'on', true);
+  delete from public.recurrences where id = v.id;
+  perform set_config('app.card_edit', coalesce(v_card_edit, ''), true);
   -- As FKs ON DELETE SET NULL preservam transactions e debt_installments,
   -- inclusive parcelas de cartão que já representam compras reais.
-  delete from public.recurrences where id = v.id;
 end $$;
 
 revoke execute on function public.recurrence_delete(uuid) from public, anon;
