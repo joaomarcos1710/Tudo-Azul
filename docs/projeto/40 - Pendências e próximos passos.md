@@ -36,6 +36,7 @@ atualizado: 2026-10-28
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
 ## Menu e formulário de lançamento
+- [ ] **Projeção errada depois de excluir recorrente (migration 019)** — bug achado pela revisão dos agentes (regressão da 018). Correção em PR de rascunho; ordem: CI verde → mesclar → workflow "Supabase — aplicar migrations" simular → ler o log → aplicar. Até aplicar, evitar excluir recorrente que já tem lançamento pago no mês corrente (a projeção do mês e dos orçamentos sobe de forma errada até a virada do mês).
 - [ ] **Excluir recorrente + versão 2026.5** (#84, mesclado em 29/10; **migration 018 aplicada em produção em 29/10/2026**). Falta você: excluir o recorrente já finalizado em Recorrentes → Encerrados, conferir que os lançamentos pagos dele continuam, e testar a 2026.5 no iPhone.
 - [ ] **Banco gravado e bandeira do cartão** (#80, mesclado em 29/10; **migration 017 aplicada em produção em 29/10/2026**). Falta você: escolher o banco das contas (Contas → Editar) e o emissor/bandeira dos cartões (Cartões → "Escolher banco e bandeira") e conferir os logos no iPhone. Next, Original e Will seguem com a sigla (sem logo).
 - [ ] **Logos de banco** (#79, mesclado em 29/10): 20 logos importados de `rzmt/logos-bancos-br` (origem em `src/assets/bancos/ORIGEM.md`); Next, Original e Will continuam com a sigla. Conferir no celular. Banco novo: subir o arquivo com o nome da chave (`LEIAME.md` da pasta).
