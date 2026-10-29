@@ -71,3 +71,35 @@ const arquivos = import.meta.glob('../assets/bancos/*.{svg,png,webp}', { query: 
 export const LOGOS: Record<string, string> = Object.fromEntries(
   Object.entries(arquivos).map(([caminho, url]) => [caminho.replace(/^.*\//, '').replace(/\.[^.]+$/, ''), url]),
 )
+
+/** O banco de uma chave gravada (accounts.bank / debts.issuer), ou null se vazia ou desconhecida. */
+export function bancoPorChave(chave: string | null | undefined): Banco | null {
+  return chave ? BANCOS.find((b) => b.chave === chave) ?? null : null
+}
+
+/** Banco da conta: o escolhido (gravado) vale; sem escolha, tenta o nome ("Conta Caixa"), como antes de existir o campo. */
+export function bancoEscolhidoOuDoNome(chave: string | null | undefined, nome: string, tipo: TipoConta): Banco | null {
+  if (tipo === 'cash') return null
+  return bancoPorChave(chave) ?? bancoDaConta(nome, tipo)
+}
+
+/** Bancos para escolher num seletor, em ordem alfabética. */
+export const BANCOS_POR_NOME: Banco[] = [...BANCOS].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+
+export interface Bandeira { chave: string; nome: string }
+
+/** Chaves aceitas pelo banco em debts.brand (check da migration 017). */
+export const BANDEIRAS: Bandeira[] = [
+  { chave: 'visa', nome: 'Visa' },
+  { chave: 'mastercard', nome: 'Mastercard' },
+  { chave: 'elo', nome: 'Elo' },
+  { chave: 'amex', nome: 'American Express' },
+  { chave: 'hipercard', nome: 'Hipercard' },
+  { chave: 'diners', nome: 'Diners Club' },
+]
+
+const arquivosBandeira = import.meta.glob('../assets/bandeiras/*.svg', { query: '?url', import: 'default', eager: true }) as Record<string, string>
+
+export const LOGOS_BANDEIRA: Record<string, string> = Object.fromEntries(
+  Object.entries(arquivosBandeira).map(([caminho, url]) => [caminho.replace(/^.*\//, '').replace(/\.[^.]+$/, ''), url]),
+)

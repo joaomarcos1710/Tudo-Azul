@@ -6,7 +6,7 @@ import { Rosca } from '../components/graficos/Rosca'
 import { IconeCartoes, IconeSomar, IconeSubtrair, IconeTransferir } from '../components/layout/icons'
 import { Aviso } from '../components/ui/Aviso'
 import { Card, CardTitle } from '../components/ui/Card'
-import { IconeConta } from '../components/ui/IconeConta'
+import { BandeiraCartao, IconeConta, IconeEmissor } from '../components/ui/IconeConta'
 import { useAuth } from '../lib/auth'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
@@ -222,7 +222,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           <ul className="divide-y divide-slate-100">
             {dados.cartoes.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 py-2 text-sm">
-                <span className="font-medium">{c.nome}</span>
+                <span className="flex min-w-0 items-center gap-2 font-medium">
+                  <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />{c.nome}<BandeiraCartao bandeira={c.bandeira} />
+                </span>
                 <span className="text-right">
                   {c.divida > 0 ? (
                     <>
@@ -429,7 +431,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <ul className="divide-y divide-slate-100">
               {dados.contas.map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center justify-between py-2 text-sm">
-                  <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} tamanho="pequeno" />{c.nome}</span>
+                  <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="pequeno" />{c.nome}</span>
                   <span className={`tabular-nums font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
                     {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
                   </span>

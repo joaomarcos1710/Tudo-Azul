@@ -357,8 +357,8 @@ export default function Lancamentos() {
                           {l.status === 'planned' && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado</span>}
                           {l.recorrente && <span className="ml-2 text-xs text-slate-500" title="Gerado por um recorrente">↻ recorrente</span>}
                         </p>
-                        <p className="flex items-center gap-1.5 text-sm text-slate-500">
-                          {l.tipo !== 'transfer' && contaPorId.get(l.contaId) && <IconeConta nome={contaPorId.get(l.contaId)!.nome} tipo={contaPorId.get(l.contaId)!.tipo} tamanho="mini" />}
+                        <p className="flex items-start gap-1.5 text-sm text-slate-500">
+                          {l.tipo !== 'transfer' && contaPorId.get(l.contaId) && <IconeConta nome={contaPorId.get(l.contaId)!.nome} tipo={contaPorId.get(l.contaId)!.tipo} banco={contaPorId.get(l.contaId)!.banco} tamanho="mini" className="mt-1" />}
                           <span className="min-w-0">{subtitulo}</span>
                         </p>
                       </div>

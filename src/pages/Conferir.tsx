@@ -102,7 +102,7 @@ export default function Conferir() {
   if (!familiaId) return null
   return (
     <>
-      <CabecalhoPagina titulo={<span className="flex items-center gap-3">{conta && <IconeConta nome={conta.nome} tipo={conta.tipo} />}<span>Conferir {conta?.nome ?? 'conta'}</span></span>} voltar={{ para: '/contas', rotulo: 'Contas' }}
+      <CabecalhoPagina titulo={<span className="flex items-center gap-3">{conta && <IconeConta nome={conta.nome} tipo={conta.tipo} banco={conta.banco} />}<span>Conferir {conta?.nome ?? 'conta'}</span></span>} voltar={{ para: '/contas', rotulo: 'Contas' }}
         descricao={<>
           Compare com o extrato do banco. Quando a diferença for zero, conclua: o período até a data fica <strong>travado</strong>{' '}
           (nada que mude o saldo pode ser lançado, editado ou excluído nele) até você desfazer a conciliação.

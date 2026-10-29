@@ -25,8 +25,16 @@ Supabase (Postgres), projeto `vbhzilsqzzevaodqsenr`. **Regra:** migration aplica
 | **014** | `audit_fixes` (25/10, aplicada 26/10) | Correções da auditoria (ver [[Auditorias/2026-10-26 Auditoria]]). |
 | **015** | `recurrence_keep_edits` (26/10, **aplicada em produção em 26/10/2026**) | Reajustar uma recorrência não desfaz o que foi corrigido à mão nos planejados futuros. |
 | **016** | `recurrence_frequency` (28/10, **aplicada em produção em 28/10/2026**) | Frequências de recorrência: semanal, quinzenal, mensal, bimestral, trimestral, semestral, anual e personalizada. |
+| **017** | `bank_and_card_brand` (29/10, **ainda não aplicada em produção**) | Banco da conta (`accounts.bank`), emissor e bandeira do cartão (`debts.issuer`, `debts.brand`) e `set_card_identity`. Só aparência: nenhum valor muda. |
 
-Total: **21 arquivos**, sincronizados entre o repositório e a produção em 28/10/2026. A migration 016 foi aplicada pelo workflow de produção após o merge do PR #65; ver execução 22 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40690330495). A migration 015 foi aplicada pelo workflow de produção após o merge do PR #59; ver execução 20 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580).
+Total: **22 arquivos** (a 017 ainda só no repositório); os 21 anteriores estão sincronizados entre o repositório e a produção em 28/10/2026. A migration 016 foi aplicada pelo workflow de produção após o merge do PR #65; ver execução 22 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40690330495). A migration 015 foi aplicada pelo workflow de produção após o merge do PR #59; ver execução 20 na [Actions do GitHub](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580).
+
+## Detalhes da 017
+- `accounts.bank text`: chave do banco (`caixa`, `nubank`...), opcional; formato `^[a-z0-9]{2,30}$`. Carteira em dinheiro não pode ter banco (`accounts_bank_not_cash`). O cliente grava direto (coluna liberada no `grant`); trocar o banco numa conta já conciliada é permitido (só saldo inicial e abertura travam).
+- `debts.issuer text` (banco emissor, mesmo formato) e `debts.brand text` (`visa`, `mastercard`, `elo`, `amex`, `hipercard`, `diners`), só em cartão (`debts_identity_card_only`). `debts` não aceita escrita direta, então a gravação é pela função `set_card_identity(p_debt, p_issuer, p_brand)` (SECURITY DEFINER, `null` apaga; 22023 valor inválido, 23514 não é cartão).
+- Lista de bancos e de logos vive no front (`src/lib/bancos.ts`): banco novo não precisa de migration. Bandeira nova precisa (o `check` fixa a lista).
+- Teste: `24_bank_card_identity.test.sql` (19 verificações); `00_audit` ganhou `set_card_identity`.
+- **Ordem de entrega**: o workflow de produção só roda a partir da `main`, então a 017 **entra na `main` junto com o front e é aplicada logo depois**. Para esse intervalo não quebrar nada, o front é tolerante: se as colunas ainda não existem (erro `42703`), Contas e Cartões leem sem elas e funcionam como antes (teste `bancoGravado.test.ts`); ao aplicar a 017, o banco, o emissor e a bandeira passam a aparecer.
 
 ## Detalhes da 016
 - `recurrences` ganha `freq_unit` (`month` | `week`) e `freq_every` (meses 1–12, semanas 1–4), com padrão `month`/1: as regras existentes continuam mensais e geram **as mesmas datas** (teste RF1: 93 regras × 5 anos contra a fórmula antiga). `day` passa a ser nulo na unidade semana (constraint `recurrences_frequency`).

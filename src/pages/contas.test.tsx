@@ -26,7 +26,7 @@ import Contas from './Contas'
 import { hojeSP } from '../lib/contas'
 
 const c = (n: number) => n as Cents
-const corrente = { id: 'a1', nome: 'Itaú', tipo: 'checking' as const, saldoInicial: c(100000), abertura: '2026-12-01', ativa: true, saldo: c(125050) }
+const corrente = { id: 'a1', nome: 'Itaú', tipo: 'checking' as const, banco: null, saldoInicial: c(100000), abertura: '2026-12-01', ativa: true, saldo: c(125050) }
 
 beforeEach(() => {
   mock.listarContas.mockResolvedValue({ contas: [], total: c(0) })
@@ -81,6 +81,66 @@ describe('Contas', () => {
     await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
     expect(mock.criarConta).toHaveBeenCalledWith('h1', { nome: 'Nubank', tipo: 'savings', saldoInicial: -125050, abertura: hojeSP() })
     expect(mock.listarContas).toHaveBeenCalledTimes(2)
+  })
+
+  it('grava o banco escolhido (a conta pode ter qualquer nome)', async () => {
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
+    await u.type(screen.getByLabelText('Nome'), 'Poupança da família')
+    await u.selectOptions(screen.getByLabelText('Banco'), 'Caixa Econômica Federal')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
+    expect(mock.criarConta).toHaveBeenCalledWith('h1', expect.objectContaining({ nome: 'Poupança da família', banco: 'caixa' }))
+  })
+
+  it('dinheiro não tem banco: o seletor trava e nada é enviado', async () => {
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
+    await u.type(screen.getByLabelText('Nome'), 'Carteira')
+    await u.selectOptions(screen.getByLabelText('Banco'), 'Nubank')
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'cash')
+    expect((screen.getByLabelText('Banco') as HTMLSelectElement).disabled).toBe(true)
+    await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
+    expect(mock.criarConta).toHaveBeenCalledWith('h1', expect.objectContaining({ tipo: 'cash' }))
+    expect(mock.criarConta.mock.calls[0][1]).not.toHaveProperty('banco')
+  })
+
+  it('editar uma conta que tinha banco e escolher "Automático" apaga o banco; sem banco antes e depois, nem toca na coluna', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [{ ...corrente, banco: 'itau' }], total: c(125050) })
+    const u = userEvent.setup()
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Editar' }))
+    await u.selectOptions(screen.getByLabelText('Banco'), 'Automático (pelo nome da conta)')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarConta).toHaveBeenCalledWith('a1', expect.objectContaining({ banco: null }))
+    cleanup()
+    mock.editarConta.mockClear()
+    mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(125050) })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Editar' }))
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarConta.mock.calls[0][1]).not.toHaveProperty('banco')
+  })
+
+  it('o selo segue o banco escolhido, não o nome da conta', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [
+        { ...corrente, id: 'a1', nome: 'Corrente', banco: 'nubank' },
+        { ...corrente, id: 'a2', nome: 'Conta Caixa antiga', banco: 'itau' },
+        { ...corrente, id: 'a3', nome: 'Conta Bradesco', banco: null },
+        { ...corrente, id: 'a4', nome: 'Reserva', banco: null },
+      ],
+      total: c(0),
+    })
+    const { container } = render(<MemoryRouter><Contas /></MemoryRouter>)
+    await screen.findByText('Corrente')
+    const banco = (nome: string) => (screen.getByText(nome).closest('li')!.querySelector('[data-banco]') as HTMLElement).dataset.banco
+    expect(banco('Corrente')).toBe('nubank')
+    expect(banco('Conta Caixa antiga')).toBe('itau')
+    expect(banco('Conta Bradesco')).toBe('bradesco')
+    expect(banco('Reserva')).toBe('')
+    expect(container.querySelectorAll('[data-banco]').length).toBe(4)
   })
 
   it('não envia valor inválido', async () => {
