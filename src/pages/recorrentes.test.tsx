@@ -131,7 +131,7 @@ describe('Recorrentes', () => {
     expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'transfer', contaId: 'a1', destinoId: 'a2', categoriaId: null }))
   })
 
-  it('editar muda valor; finalizar exclui a regra e preserva o histórico', async () => {
+  it('editar muda valor e preserva ajustes manuais', async () => {
     const u = userEvent.setup()
     mock.listarRecorrencias.mockResolvedValue([luz])
     vi.spyOn(window, 'confirm').mockReturnValue(true)
@@ -148,8 +148,16 @@ describe('Recorrentes', () => {
     await u.type(valor, '200,00')
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(mock.editarRecorrencia).toHaveBeenCalledWith('r1', { descricao: 'Luz', valor: 20000, categoriaId: 'g1' })
+  })
+
+  it('finalizar exclui a regra ativa e tira o item da lista', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    montar()
+    expect(await screen.findByText('Luz')).toBeTruthy()
     mock.listarRecorrencias.mockResolvedValueOnce([])
-    await u.click(await screen.findByRole('button', { name: 'Finalizar' }))
+    await u.click(screen.getByRole('button', { name: 'Finalizar' }))
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Os planejados futuros não pagos vão para a lixeira'))
     expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r1')
     expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
