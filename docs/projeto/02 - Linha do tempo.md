@@ -72,6 +72,9 @@ tags: [tudo-azul, historico]
 - **Menu "Mais" do celular**: 4 cartões de atalho e uma frase em cada tela, formato escolhido pelo dono (#75, merge `6f09dbb`).
 - **Diário**: ideias de outros apps (Livro de contas e Minhas Economias) e a decisão do valor do dia no Calendário (#74, merge `735a66d`).
 - **Formulário de lançamento em visual de app**: abas, valor grande, campos em linhas com seletor nativo, "Registrar e lançar outro" e última conta/cartão lembrados (#76, merge `a04364b`).
+- **Subcategoria sob a principal e selo do banco** nas contas: seletores com a filha logo abaixo da principal e "Principal › Filha" nas listas; selo reconhecido pelo nome da conta (#78, merge `55f5e74`).
+- **Fatura do cartão como extrato**: compras agrupadas por dia, nome inteiro, parcela em selo, botões compactos (#77, merge `5b554be`).
+- **Logos de 20 bancos** nas contas, com a sigla colorida onde não há arquivo (#79, merge `95c33ce`).
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

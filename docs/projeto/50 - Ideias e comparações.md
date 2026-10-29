@@ -121,3 +121,16 @@ Recomendação: nível 1 primeiro (barato, seguro, já entrega a maior parte do 
 
 ## Planos pagos (futuro)
 Famílias com 1, 3 ou 5–10 pessoas já cabem na trava atual. Falta decidir o que acontece ao reduzir o plano com mais gente que o limite.
+
+## Sugestão do Perplexity sobre tipos de conta (29/10/2026)
+Lista de 8 tipos (dinheiro, corrente, poupança, cartão, investimento, empréstimo, carteira digital, internacional) e um campo de moeda. **Já temos o essencial:** banco é instituição e tipo é natureza (migration 017 grava o banco), cartão e empréstimo ficam em `debts` (fatura e limite, não saldo) e o patrimônio líquido vem de `net_worth`.
+
+| # | Ideia | O que temos hoje e o que falta | Esforço |
+|---|---|---|---|
+| 24 | **Disponível × reserva no Início**: separar "caixa para gastar" (dinheiro, corrente, carteira digital) de "reserva" (poupança), com faturas e dívidas ao lado e o patrimônio líquido | Hoje o Início soma todas as contas num total só. Falta classificar por tipo no banco (relatório vindo do banco, o front não soma). É a ideia 8 (composição do patrimônio) em outra forma | Médio |
+| 25 | **Tipo "Carteira digital"** (Mercado Pago, PicPay, PayPal) | Hoje entram como "Conta corrente" ou "Outra". Só vale se você sentir falta; exige migration (o tipo é um `check`) | Pequeno |
+
+**Não fazer agora (e por quê):**
+- **Multimoeda** (campo `BRL/USD/EUR`): dinheiro em centavos de uma moeda só e todos os relatórios somam no banco; misturar exige câmbio por data e regra de arredondamento. Já está no roteiro de dez–jan, com o alerta de não cadastrar ativo estrangeiro como BRL.
+- **Tipo "Investimento" como conta**: o saldo entraria como dinheiro disponível, sem cotação nem rentabilidade. Fica para o módulo de investimentos (fev–abr/2027).
+
