@@ -32,7 +32,7 @@ vi.mock('../lib/painel', () => ({
 }))
 vi.mock('../lib/conciliacao', () => ({ ultimasConferencias: mock.ultimasConferencias }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
-vi.mock('../lib/categorias', () => ({ listarCategorias: mock.listarCategorias }))
+vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos }))
 const cobrar = vi.hoisted(() => vi.fn())
 const gerar = vi.hoisted(() => vi.fn())

@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
+import { IconeConta } from '../components/ui/IconeConta'
 import { useFamilia } from '../lib/FamiliaContext'
 import { criarConta, definirAtiva, editarConta, hojeSP, listarContas, rotuloTipoConta } from '../lib/contas'
 import type { Conta, TipoConta } from '../lib/contas'
@@ -84,11 +85,14 @@ export default function Contas() {
             {contas.map((c) => (
               <li key={c.id}>
                 <Card className={`flex flex-wrap items-center justify-between gap-3 ${c.ativa ? '' : 'opacity-70'}`}>
-                  <div className="min-w-0">
-                    <p className="font-semibold">
-                      {c.nome} {!c.ativa && <span className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">desativada</span>}
-                    </p>
-                    <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <IconeConta nome={c.nome} tipo={c.tipo} />
+                    <div className="min-w-0">
+                      <p className="font-semibold">
+                        {c.nome} {!c.ativa && <span className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">desativada</span>}
+                      </p>
+                      <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>

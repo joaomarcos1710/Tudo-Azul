@@ -15,7 +15,7 @@ import {
   anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
 import type { Cartao, Fatura, ItemFatura, ItemPrevia, MovimentoCartao } from '../lib/cartoes'
-import { listarCategorias } from '../lib/categorias'
+import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
@@ -291,7 +291,7 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
     return () => { vivo = false }
   }, [cartaoId, mes, versao])
 
-  const nomeCategoria = new Map(categorias.map((c) => [c.id, c.nome]))
+  const nomeCategoria = nomesCompletos(categorias)
   const categoriaPorId = new Map(categorias.map((c) => [c.id, c]))
   if (erro) return <div className="mt-4"><Aviso tipo="erro">{erro}</Aviso></div>
   if (!faturas) return <p className="mt-4 text-sm text-slate-600" role="status">Carregando faturas…</p>
@@ -544,7 +544,7 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
         <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: TV da sala" value={descricao} onChange={(e) => setDescricao(e.target.value)}
           erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
         <Selecao rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} todos="Escolha…"
-          opcoes={despesas.map((c) => [c.id, c.paiId ? `↳ ${c.nome}` : c.nome])} />
+          opcoes={opcoesDeCategoria(despesas, categorias).map((o) => [o.id, o.rotulo])} />
         {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria.</p>}
         <Field rotulo={andamento ? 'Valor de cada parcela (R$)' : 'Valor total (R$)'} inputMode="decimal" value={valorTexto}
           onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />

@@ -23,7 +23,7 @@ vi.mock('../lib/categorias', async (original) => ({
 }))
 
 import Categorias from './Categorias'
-import { agrupar } from '../lib/categorias'
+import { agrupar, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 
 const cat = (id: string, nome: string, extra: Partial<Categoria> = {}): Categoria =>
@@ -180,5 +180,41 @@ describe('Ícone e cor', () => {
     await u.click(within(linha).getByRole('button', { name: 'Editar' }))
     expect(screen.getByRole('button', { name: 'Ícone igual ao da principal' })).toBeTruthy()
     expect(screen.getByText(/usa o ícone e a cor da principal/)).toBeTruthy()
+  })
+})
+
+describe('opcoesDeCategoria e nomesCompletos', () => {
+  const receitas: Categoria[] = [
+    cat('out', 'Outras receitas', { tipo: 'income' }),
+    cat('ren', 'Rendimentos', { tipo: 'income' }),
+    cat('roy', 'Royalty', { tipo: 'income' }),
+    cat('reem', 'Reembolso', { tipo: 'income', paiId: 'roy' }),
+    cat('sal', 'Salário', { tipo: 'income' }),
+    cat('sc', 'Sem categoria', { tipo: 'income', sistema: true }),
+  ]
+
+  it('a subcategoria fica logo abaixo da principal dela, não no lugar alfabético do próprio nome', () => {
+    // em ordem alfabética solta, "Reembolso" cairia entre "Outras receitas" e "Rendimentos", parecendo filha da primeira
+    expect(opcoesDeCategoria(receitas).map((o) => o.rotulo))
+      .toEqual(['Outras receitas', 'Rendimentos', 'Royalty', '↳ Reembolso', 'Salário', 'Sem categoria'])
+  })
+
+  it('várias filhas em ordem alfabética sob a mesma principal; "Sem categoria" sempre por último', () => {
+    const lista = [...receitas, cat('abo', 'Abono', { tipo: 'income', paiId: 'roy' }), cat('aaa', 'Zeta', { tipo: 'income' })]
+    expect(opcoesDeCategoria(lista).map((o) => o.rotulo))
+      .toEqual(['Outras receitas', 'Rendimentos', 'Royalty', '↳ Abono', '↳ Reembolso', 'Salário', 'Zeta', 'Sem categoria'])
+  })
+
+  it('subcategoria cuja principal não está na lista (ex.: desativada) aparece com o nome da principal', () => {
+    const semRoyalty = receitas.filter((c) => c.id !== 'roy')
+    const rotulos = opcoesDeCategoria(semRoyalty, receitas).map((o) => o.rotulo)
+    expect(rotulos).toContain('Royalty › Reembolso')
+    expect(rotulos).not.toContain('↳ Reembolso')
+  })
+
+  it('nomesCompletos: subcategoria como "Principal › Nome"; as demais só o nome', () => {
+    const nomes = nomesCompletos(receitas)
+    expect(nomes.get('reem')).toBe('Royalty › Reembolso')
+    expect(nomes.get('roy')).toBe('Royalty')
   })
 })

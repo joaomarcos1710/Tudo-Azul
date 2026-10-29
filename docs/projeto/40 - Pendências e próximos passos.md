@@ -36,6 +36,7 @@ atualizado: 2026-10-28
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
 ## Menu e formulário de lançamento
+- [ ] **Subcategoria sob a principal + selo do banco** (PR de rascunho, pedido do dono em 29/10/2026). Conferir no celular: Reembolso embaixo de Outras receitas e o selo da Caixa em Contas, Conferir, Início e Lançamentos. Se quiser o **logo oficial** (arquivos licenciados seus) ou **escolher o banco** em vez de depender do nome, é PR à parte (coluna + migration, fluxo de produção).
 - [ ] Menu "Mais" com cartões de atalho e frase em cada tela (#75, mesclado; opção A do dono). Conferir no iPhone. Sem mudança de versão: entra na próxima edição (2026.5) junto com o próximo lote visível.
 
 - [ ] **Formulário de lançamento em visual de app** (PR de rascunho, pedido do dono): abas, valor grande, campos em linhas, "Registrar e lançar outro" e última conta/cartão lembrados (ideias 2, 3, 6 e 7 de [[50 - Ideias e comparações]]; conta principal na versão "lembrar a última usada", sem banco). Conferir no iPhone a linha da **data**: o iOS escreve a data por extenso e pode não caber.

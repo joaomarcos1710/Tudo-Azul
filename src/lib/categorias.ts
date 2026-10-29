@@ -91,3 +91,33 @@ export async function definirCategoriaEventual(id: string, eventual: boolean): P
   const { error } = await cliente().from('categories').update({ eventual }).eq('id', id)
   if (error) throw error
 }
+
+export interface OpcaoCategoria { id: string; rotulo: string }
+
+/**
+ * Categorias para um seletor, em ÁRVORE: cada principal (ordem alfabética, "Sem categoria" por último) seguida das suas
+ * subcategorias ("↳ Nome"). A ordem alfabética solta (a do banco) deixava a subcategoria no lugar do próprio nome,
+ * parecendo filha de outra. Subcategoria cuja principal não está na lista (ex.: principal desativada) aparece sozinha
+ * como "Principal › Nome". `todas` serve só para achar o nome da principal.
+ */
+export function opcoesDeCategoria(lista: Categoria[], todas: Categoria[] = lista): OpcaoCategoria[] {
+  const porId = new Map(todas.map((c) => [c.id, c]))
+  const naLista = new Set(lista.map((c) => c.id))
+  const porNome = (a: Categoria, b: Categoria) => a.nome.localeCompare(b.nome, 'pt-BR')
+  const rotuloRaiz = (c: Categoria) => (c.paiId ? `${porId.get(c.paiId)?.nome ?? '?'} › ${c.nome}` : c.nome)
+  const raizes = lista.filter((c) => !c.paiId || !naLista.has(c.paiId))
+    .sort((a, b) => Number(a.sistema) - Number(b.sistema) || rotuloRaiz(a).localeCompare(rotuloRaiz(b), 'pt-BR'))
+  return raizes.flatMap((r) => [
+    { id: r.id, rotulo: rotuloRaiz(r) },
+    ...lista.filter((c) => c.paiId === r.id).sort(porNome).map((f) => ({ id: f.id, rotulo: `↳ ${f.nome}` })),
+  ])
+}
+
+/** Nome para mostrar em listas: subcategoria como "Principal › Nome"; categoria principal só o nome. */
+export function nomesCompletos(categorias: Categoria[]): Map<string, string> {
+  const porId = new Map(categorias.map((c) => [c.id, c]))
+  return new Map(categorias.map((c) => {
+    const pai = c.paiId ? porId.get(c.paiId) : undefined
+    return [c.id, pai ? `${pai.nome} › ${c.nome}` : c.nome]
+  }))
+}

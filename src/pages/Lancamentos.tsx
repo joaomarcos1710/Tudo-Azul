@@ -5,11 +5,12 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
+import { IconeConta } from '../components/ui/IconeConta'
 import { Selecao } from '../components/ui/Selecao'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
-import { listarCategorias } from '../lib/categorias'
+import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import { listarCartoes, novaChave, registrarCompra } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
 import type { Categoria } from '../lib/categorias'
@@ -138,8 +139,9 @@ export default function Lancamentos() {
 
   useEffect(() => { void carregar() }, [carregar])
 
+  const contaPorId = useMemo(() => new Map(contas.map((c) => [c.id, c])), [contas])
   const nomeConta = useMemo(() => new Map(contas.map((c) => [c.id, c.nome])), [contas])
-  const nomeCategoria = useMemo(() => new Map(categorias.map((c) => [c.id, c.nome])), [categorias])
+  const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
   const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
 
   async function agir(acao: () => Promise<void>) {
@@ -227,7 +229,7 @@ export default function Lancamentos() {
           <Selecao rotulo="Filtrar por tipo" valor={filtros.tipo ?? ''} aoMudar={mudarTipoDoFiltro}
             opcoes={Object.entries(rotuloTipo)} todos="Todos os tipos" />
           <Selecao rotulo="Filtrar por categoria" valor={filtros.categoriaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, categoriaId: v || undefined })}
-            opcoes={categoriasDoFiltro.map((c) => [c.id, filtros.tipo ? c.nome : `${c.nome} (${c.tipo === 'income' ? 'receita' : 'despesa'})`])}
+            opcoes={opcoesDeCategoria(categoriasDoFiltro, categorias).map((o) => [o.id, filtros.tipo ? o.rotulo : `${o.rotulo} (${categorias.find((c) => c.id === o.id)?.tipo === 'income' ? 'receita' : 'despesa'})`])}
             todos={filtros.tipo === 'transfer' ? 'Transferência não tem categoria' : 'Todas as categorias'}
             desabilitado={filtros.tipo === 'transfer'} />
         </div>
@@ -355,7 +357,10 @@ export default function Lancamentos() {
                           {l.status === 'planned' && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado</span>}
                           {l.recorrente && <span className="ml-2 text-xs text-slate-500" title="Gerado por um recorrente">↻ recorrente</span>}
                         </p>
-                        <p className="text-sm text-slate-500">{subtitulo}</p>
+                        <p className="flex items-center gap-1.5 text-sm text-slate-500">
+                          {l.tipo !== 'transfer' && contaPorId.get(l.contaId) && <IconeConta nome={contaPorId.get(l.contaId)!.nome} tipo={contaPorId.get(l.contaId)!.tipo} tamanho="mini" />}
+                          <span className="min-w-0">{subtitulo}</span>
+                        </p>
                       </div>
                         <span className={`shrink-0 tabular-nums font-semibold ${v.cor}`}>{v.texto}</span>
                       </div>
@@ -652,7 +657,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             <Linha icone={<IconeCategorias />} rotulo="Categoria" htmlFor="lanc-categoria">
               <select id="lanc-categoria" value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={controleLinha}>
                 <option value="">Escolher</option>
-                {categoriasDoTipo.map((c) => <option key={c.id} value={c.id}>{c.paiId ? `↳ ${c.nome}` : c.nome}</option>)}
+                {opcoesDeCategoria(categoriasDoTipo, categorias).map((o) => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
               </select>{seta}
             </Linha>
           )}
