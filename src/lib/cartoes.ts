@@ -10,6 +10,9 @@ import { supabase } from './supabase'
 export interface Cartao {
   id: string
   nome: string
+  /** Chave do banco emissor (debts.issuer) e da bandeira (debts.brand); null = não escolhidos. */
+  emissor: string | null
+  bandeira: string | null
   /** null em cartão criado antes do ciclo existir: compras ficam bloqueadas até definir. */
   fechamento: number | null
   vencimento: number | null
@@ -90,7 +93,7 @@ export function ontemSP(agora: Date = new Date()): string {
 export async function listarCartoes(familiaId: string, dataRef: string = hojeSP()): Promise<Cartao[]> {
   const db = cliente()
   const [cartoes, saldos, limites] = await Promise.all([
-    db.from('debts').select('id, name, closing_day, due_day, active').eq('household_id', familiaId).eq('kind', 'card').order('name'),
+    db.from('debts').select('id, name, closing_day, due_day, active, issuer, brand').eq('household_id', familiaId).eq('kind', 'card').order('name'),
     db.rpc('debt_balances', { p_household: familiaId, p_as_of: dataRef }),
     // o limite é um extra: se a consulta falhar (ex.: banco ainda sem a migration 011), a tela segue sem ele
     db.rpc('card_limits', { p_household: familiaId, p_as_of: dataRef }),
@@ -110,6 +113,8 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
     return {
       id: c.id,
       nome: c.name,
+      emissor: c.issuer ?? null,
+      bandeira: c.brand ?? null,
       fechamento: c.closing_day,
       vencimento: c.due_day,
       ativo: c.active,
@@ -127,18 +132,25 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
  * Cria o cartão já com o ciclo. saldoAtual = faturas fechadas e ainda não pagas hoje;
  * compras da fatura aberta entram depois, como compras (assim cada uma cai no mês certo).
  */
-export async function criarCartao(d: { nome: string; fechamento: number; vencimento: number; saldoAtual: Cents }): Promise<string> {
+export async function criarCartao(d: { nome: string; fechamento: number; vencimento: number; saldoAtual: Cents; emissor?: string | null; bandeira?: string | null }): Promise<string> {
   const db = cliente()
   const { data: id, error } = await db.rpc('create_debt', {
     p_name: d.nome.trim(), p_kind: 'card', p_reference_date: ontemSP(), p_reference_balance: centsToDecimal(d.saldoAtual),
   })
   if (error) throw error
   await definirCiclo(id as string, d.fechamento, d.vencimento)
+  if (d.emissor || d.bandeira) await definirIdentidade(id as string, d.emissor ?? null, d.bandeira ?? null)
   return id as string
 }
 
 export async function definirCiclo(cartaoId: string, fechamento: number, vencimento: number): Promise<void> {
   const { error } = await cliente().rpc('set_card_cycle', { p_debt: cartaoId, p_closing_day: fechamento, p_due_day: vencimento })
+  if (error) throw error
+}
+
+/** Grava o banco emissor e a bandeira do cartão (null apaga). O banco recusa chave inválida ou bandeira desconhecida. */
+export async function definirIdentidade(cartaoId: string, emissor: string | null, bandeira: string | null): Promise<void> {
+  const { error } = await cliente().rpc('set_card_identity', { p_debt: cartaoId, p_issuer: emissor, p_brand: bandeira })
   if (error) throw error
 }
 
@@ -299,6 +311,8 @@ export async function anularMovimentoCartao(eventoId: string, motivo: string): P
 export interface ResumoCartao {
   id: string
   nome: string
+  emissor: string | null
+  bandeira: string | null
   /** Faturas já fechadas e ainda não pagas. */
   divida: Cents
   /** Vencimento da fatura fechada mais antiga ainda não paga; null sem fatura a pagar. */
@@ -324,7 +338,7 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
       }
     }
     return {
-      id: c.id, nome: c.nome, divida: c.divida, vencimento,
+      id: c.id, nome: c.nome, emissor: c.emissor, bandeira: c.bandeira, divida: c.divida, vencimento,
       vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel, credito: c.credito,
     }
   }))

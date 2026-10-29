@@ -19,6 +19,8 @@ export interface Conta {
   /** AAAA-MM-DD: o saldo inicial vale no início deste dia. */
   abertura: string
   ativa: boolean
+  /** Chave do banco escolhido (accounts.bank); null = não escolhido (o app tenta pelo nome). */
+  banco: string | null
   /** Saldo calculado no banco (account_balances); null se a conta abre depois da data de referência. */
   saldo: Cents | null
 }
@@ -28,6 +30,8 @@ export interface DadosConta {
   tipo: TipoConta
   saldoInicial: Cents
   abertura: string
+  /** Chave do banco (src/lib/bancos.ts) ou null. Carteira em dinheiro nunca tem banco. */
+  banco: string | null
 }
 
 function cliente() {
@@ -47,7 +51,7 @@ export function hojeSP(agora: Date = new Date()): string {
 export async function listarContas(familiaId: string, dataRef: string = hojeSP()): Promise<{ contas: Conta[]; total: Cents }> {
   const db = cliente()
   const [contas, saldos, totais] = await Promise.all([
-    db.from('accounts').select('id, name, type, initial_balance, opening_date, active').eq('household_id', familiaId).order('name'),
+    db.from('accounts').select('id, name, type, initial_balance, opening_date, active, bank').eq('household_id', familiaId).order('name'),
     db.rpc('account_balances', { p_household: familiaId, p_as_of: dataRef }),
     db.rpc('balance_totals', { p_household: familiaId, p_as_of: dataRef }),
   ])
@@ -65,6 +69,7 @@ export async function listarContas(familiaId: string, dataRef: string = hojeSP()
       saldoInicial: centsFromDb(c.initial_balance),
       abertura: c.opening_date,
       ativa: c.active,
+      banco: c.bank ?? null,
       saldo: saldoPorConta.get(c.id) ?? null,
     })),
     total: centsFromDb(linhaTotal?.total ?? 0),
@@ -78,6 +83,7 @@ function linha(d: DadosConta) {
     // string decimal montada dos centavos, nunca cents / 100 (MODELO-DE-DADOS.md §5)
     initial_balance: centsToDecimal(d.saldoInicial),
     opening_date: d.abertura,
+    bank: d.tipo === 'cash' ? null : d.banco,
   }
 }
 

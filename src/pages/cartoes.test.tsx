@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   criarCartao: vi.fn(),
   definirCiclo: vi.fn(),
   definirLimite: vi.fn(),
+  definirIdentidade: vi.fn(),
   registrarCompra: vi.fn(),
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
@@ -30,7 +31,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   ...(await o<typeof import('../lib/cartoes')>()),
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
-  definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
+  definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
   listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
 }))
@@ -43,7 +44,7 @@ import { ontemSP, situacaoFatura } from '../lib/cartoes'
 import type { Fatura } from '../lib/cartoes'
 
 const c = (n: number) => n as Cents
-const nubank = { id: 'k1', nome: 'Nubank', fechamento: 17, vencimento: 25, ativo: true, divida: c(13334), credito: c(0), compromissos: c(39666), limite: null, limiteComprometido: null, limiteDisponivel: null }
+const nubank = { id: 'k1', nome: 'Nubank', emissor: null, bandeira: null, fechamento: 17, vencimento: 25, ativo: true, divida: c(13334), credito: c(0), compromissos: c(39666), limite: null, limiteComprometido: null, limiteDisponivel: null }
 const fatura = (f: Partial<Fatura>): Fatura => ({
   mes: '2026-03', fechamento: '2026-03-17', vencimento: '2026-03-25', cobrado: c(0), aCobrar: c(0), total: c(0), pago: c(0), itens: 1, faturaId: null,
   saldoAnterior: c(0), adiantamentoEntrada: c(0), adiantamentoSaida: c(0), ...f,
@@ -61,7 +62,7 @@ beforeEach(() => {
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
   mock.previaExclusao.mockResolvedValue([])
-  for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
+  for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -132,7 +133,54 @@ describe('Cartões', () => {
     await u.clear(saldo)
     await u.type(saldo, '1.250,50')
     await u.click(screen.getByRole('button', { name: 'Cadastrar cartão' }))
-    expect(mock.criarCartao).toHaveBeenCalledWith({ nome: 'Nubank', fechamento: 17, vencimento: 25, saldoAtual: 125050 })
+    expect(mock.criarCartao).toHaveBeenCalledWith({ nome: 'Nubank', fechamento: 17, vencimento: 25, saldoAtual: 125050, emissor: null, bandeira: null })
+  })
+
+  it('cadastra cartão com emissor e bandeira (nome livre)', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Novo cartão' }))
+    await u.type(screen.getByLabelText('Nome'), 'Cartão principal')
+    await u.selectOptions(screen.getByLabelText('Banco emissor'), 'Nubank')
+    await u.selectOptions(screen.getByLabelText('Bandeira'), 'Mastercard')
+    await u.selectOptions(screen.getByLabelText('Dia do fechamento'), '17')
+    await u.selectOptions(screen.getByLabelText('Dia do vencimento'), '25')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar cartão' }))
+    expect(mock.criarCartao).toHaveBeenCalledWith({ nome: 'Cartão principal', fechamento: 17, vencimento: 25, saldoAtual: 0, emissor: 'nubank', bandeira: 'mastercard' })
+  })
+
+  it('escolhe banco e bandeira de um cartão existente e pode limpar', async () => {
+    const u = userEvent.setup()
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Escolher banco e bandeira' }))
+    await u.selectOptions(screen.getByLabelText('Banco emissor'), 'Itaú')
+    await u.selectOptions(screen.getByLabelText('Bandeira'), 'Visa')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.definirIdentidade).toHaveBeenCalledWith('k1', 'itau', 'visa')
+    cleanup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, emissor: 'itau', bandeira: 'visa' }])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Banco e bandeira' }))
+    await u.selectOptions(screen.getByLabelText('Banco emissor'), 'Automático (pelo nome do cartão)')
+    await u.selectOptions(screen.getByLabelText('Bandeira'), 'Não informar')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.definirIdentidade).toHaveBeenLastCalledWith('k1', null, null)
+  })
+
+  it('mostra o selo do emissor e a bandeira no cartão, mesmo com nome sem banco', async () => {
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, nome: 'Cartão principal', emissor: 'nubank', bandeira: 'mastercard' }])
+    const { container } = render(<Cartoes />)
+    await screen.findByRole('heading', { name: 'Cartão principal' })
+    expect(container.querySelector('[data-banco="nubank"]')).not.toBeNull()
+    expect(container.querySelector('img[data-bandeira="mastercard"]')).not.toBeNull()
+  })
+
+  it('cartão sem emissor nem bandeira: cai no nome e não mostra bandeira', async () => {
+    const { container } = render(<Cartoes />)
+    await screen.findByRole('heading', { name: 'Nubank' })
+    expect(container.querySelector('[data-banco="nubank"]')).not.toBeNull()
+    expect(container.querySelector('img[data-bandeira]')).toBeNull()
   })
 
   it('compra nova parcelada envia o total e o número de parcelas', async () => {

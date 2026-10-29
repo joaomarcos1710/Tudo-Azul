@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { IconeConta } from '../components/ui/IconeConta'
-import { BANCOS, LOGOS, bancoDaConta } from './bancos'
+import { BANCOS, BANCOS_POR_NOME, BANDEIRAS, LOGOS, LOGOS_BANDEIRA, bancoDaConta, bancoEscolhidoOuDoNome, bancoPorChave } from './bancos'
 
 describe('bancoDaConta', () => {
   it('reconhece a Caixa Econômica pelo nome da conta', () => {
@@ -77,5 +77,40 @@ describe('Logo no selo', () => {
     expect(semLogo).toBeTruthy()
     const { container } = render(<IconeConta nome={semLogo!.nome} tipo="checking" />)
     expect(container.querySelector(`[data-banco="${semLogo!.chave}"][data-sigla]`)).not.toBeNull()
+  })
+})
+
+describe('banco gravado', () => {
+  it('a escolha vale mais que o nome', () => {
+    expect(bancoEscolhidoOuDoNome('nubank', 'Conta Caixa', 'checking')?.chave).toBe('nubank')
+  })
+
+  it('sem escolha cai no nome; chave desconhecida também', () => {
+    expect(bancoEscolhidoOuDoNome(null, 'Conta Caixa', 'checking')?.chave).toBe('caixa')
+    expect(bancoEscolhidoOuDoNome('bancoquenaoexiste', 'Conta Caixa', 'checking')?.chave).toBe('caixa')
+    expect(bancoEscolhidoOuDoNome(null, 'Reserva', 'savings')).toBeNull()
+  })
+
+  it('carteira em dinheiro nunca tem banco, mesmo com chave', () => {
+    expect(bancoEscolhidoOuDoNome('caixa', 'Carteira', 'cash')).toBeNull()
+  })
+
+  it('bancoPorChave', () => {
+    expect(bancoPorChave('itau')?.nome).toBe('Itaú')
+    expect(bancoPorChave('')).toBeNull()
+    expect(bancoPorChave(undefined)).toBeNull()
+  })
+
+  it('a lista do seletor vem em ordem alfabética e sem repetir banco', () => {
+    const nomes = BANCOS_POR_NOME.map((b) => b.nome)
+    expect(nomes).toEqual([...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR')))
+    expect(nomes.length).toBe(BANCOS.length)
+  })
+})
+
+describe('bandeiras', () => {
+  it('as chaves são as aceitas pelo banco e cada uma tem arquivo', () => {
+    expect(BANDEIRAS.map((b) => b.chave).sort()).toEqual(['amex', 'diners', 'elo', 'hipercard', 'mastercard', 'visa'])
+    for (const b of BANDEIRAS) expect(LOGOS_BANDEIRA[b.chave]).toBeTruthy()
   })
 })

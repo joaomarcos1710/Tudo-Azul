@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { IconeCartoes } from '../components/layout/icons'
+import { BandeiraCartao, IconeEmissor } from '../components/ui/IconeConta'
+import { BANCOS_POR_NOME, BANDEIRAS } from '../lib/bancos'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
@@ -10,7 +11,7 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  criarCartao, definirCiclo, definirLimite, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
+  criarCartao, definirCiclo, definirIdentidade, definirLimite, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
   novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
@@ -29,6 +30,7 @@ type Painel =
   | { tipo: 'novo' }
   | { tipo: 'ciclo'; cartao: Cartao }
   | { tipo: 'limite'; cartao: Cartao }
+  | { tipo: 'identidade'; cartao: Cartao }
   | { tipo: 'compra'; cartao: Cartao }
   | { tipo: 'pagar'; cartao: Cartao }
 
@@ -95,6 +97,7 @@ export default function Cartoes() {
       {painel?.tipo === 'novo' && <FormCartao aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'ciclo' && <FormCiclo cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'limite' && <FormLimite cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
+      {painel?.tipo === 'identidade' && <FormIdentidade cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'compra' && (
         <FormCompra cartao={painel.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />
       )}
@@ -117,9 +120,9 @@ export default function Cartoes() {
           <li key={c.id}>
             <Card>
               <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-marinho text-white" aria-hidden="true"><IconeCartoes /></span>
+                <IconeEmissor nome={c.nome} emissor={c.emissor} />
                 <div className="min-w-0">
-                  <h2 className="text-lg font-semibold">{c.nome}</h2>
+                  <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold">{c.nome} <BandeiraCartao bandeira={c.bandeira} /></h2>
                   {c.fechamento !== null ? (
                     <p className="text-sm text-slate-500">Fecha dia {c.fechamento} · vence dia {c.vencimento}</p>
                   ) : (
@@ -173,6 +176,9 @@ export default function Cartoes() {
                 </Button>
                 <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'limite', cartao: c })} disabled={painel !== null}>
                   {c.limite === null ? 'Definir limite' : 'Alterar limite'}
+                </Button>
+                <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'identidade', cartao: c })} disabled={painel !== null}>
+                  {c.emissor === null && c.bandeira === null ? 'Escolher banco e bandeira' : 'Banco e bandeira'}
                 </Button>
               </div>
               {aberto === c.id && <Faturas cartaoId={c.id} versao={versao} categorias={categorias} contas={contas} aoAlterar={carregar} />}
@@ -424,6 +430,8 @@ function FormCartao({ aoSalvar, aoCancelar }: PropsBase) {
   const [fechamento, setFechamento] = useState('')
   const [vencimento, setVencimento] = useState('')
   const [saldoTexto, setSaldoTexto] = useState('0,00')
+  const [emissor, setEmissor] = useState('')
+  const [bandeira, setBandeira] = useState('')
   const [tentou, setTentou] = useState(false)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
   const saldo = parseBRL(saldoTexto)
@@ -433,7 +441,7 @@ function FormCartao({ aoSalvar, aoCancelar }: PropsBase) {
     e.preventDefault()
     setTentou(true)
     if (!nome.trim() || !fechamento || !vencimento || saldo === null || saldo < 0) return
-    void enviar(async () => { await criarCartao({ nome, fechamento: Number(fechamento), vencimento: Number(vencimento), saldoAtual: saldo }) })
+    void enviar(async () => { await criarCartao({ nome, fechamento: Number(fechamento), vencimento: Number(vencimento), saldoAtual: saldo, emissor: emissor || null, bandeira: bandeira || null }) })
   }
 
   return (
@@ -445,6 +453,7 @@ function FormCartao({ aoSalvar, aoCancelar }: PropsBase) {
           erro={tentou && !nome.trim() ? 'Informe o nome do cartão.' : undefined} />
         <Field rotulo="Faturas fechadas e não pagas hoje (R$)" inputMode="decimal" value={saldoTexto}
           onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
+        <SelecoesIdentidade emissor={emissor} bandeira={bandeira} aoMudarEmissor={setEmissor} aoMudarBandeira={setBandeira} />
         <Selecao rotulo="Dia do fechamento" valor={fechamento} aoMudar={setFechamento} opcoes={dias} todos="Escolha…" />
         <Selecao rotulo="Dia do vencimento" valor={vencimento} aoMudar={setVencimento} opcoes={dias} todos="Escolha…" />
         {tentou && (!fechamento || !vencimento) && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha o dia de fechamento e o de vencimento.</p>}
@@ -453,6 +462,41 @@ function FormCartao({ aoSalvar, aoCancelar }: PropsBase) {
           assim cada uma cai no mês certo.
         </p>
         <Botoes rotulo="Cadastrar cartão" enviando={enviando} aoCancelar={aoCancelar} />
+      </form>
+    </Card>
+  )
+}
+
+function SelecoesIdentidade({ emissor, bandeira, aoMudarEmissor, aoMudarBandeira }: {
+  emissor: string; bandeira: string; aoMudarEmissor: (v: string) => void; aoMudarBandeira: (v: string) => void
+}) {
+  return (
+    <>
+      <Selecao rotulo="Banco emissor" valor={emissor} aoMudar={aoMudarEmissor} todos="Automático (pelo nome do cartão)"
+        opcoes={BANCOS_POR_NOME.map((b) => [b.chave, b.nome])} />
+      <Selecao rotulo="Bandeira" valor={bandeira} aoMudar={aoMudarBandeira} todos="Não informar" opcoes={BANDEIRAS.map((b) => [b.chave, b.nome])} />
+    </>
+  )
+}
+
+function FormIdentidade({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao }) {
+  const [emissor, setEmissor] = useState(cartao.emissor ?? '')
+  const [bandeira, setBandeira] = useState(cartao.bandeira ?? '')
+  const { erro, enviando, enviar } = useEnvio(aoSalvar)
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    void enviar(() => definirIdentidade(cartao.id, emissor || null, bandeira || null))
+  }
+
+  return (
+    <Card className="mb-6">
+      <h2 className="mb-4 text-lg font-semibold">Banco e bandeira · {cartao.nome}</h2>
+      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <SelecoesIdentidade emissor={emissor} bandeira={bandeira} aoMudarEmissor={setEmissor} aoMudarBandeira={setBandeira} />
+        <p className="text-sm text-slate-600 md:col-span-2">Só muda o desenho do cartão na tela: faturas, parcelas e valores não são afetados.</p>
+        <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
       </form>
     </Card>
   )
