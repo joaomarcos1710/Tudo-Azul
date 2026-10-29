@@ -39,14 +39,14 @@ describe('bancoDaConta', () => {
 
 describe('IconeConta', () => {
   afterEach(cleanup)
-  it('mostra o selo do banco sem pôr a sigla no texto da página', () => {
-    const { container } = render(<p>Conta corrente Caixa Econômica <IconeConta nome="Conta corrente Caixa Econômica" tipo="checking" /></p>)
-    const selo = container.querySelector('[data-banco="caixa"]')
+  it('banco sem logo mostra a sigla sem pô-la no texto da página', () => {
+    const { container } = render(<p>Conta Next <IconeConta nome="Conta Next" tipo="checking" /></p>)
+    const selo = container.querySelector('[data-banco="next"]')
     expect(selo).not.toBeNull()
-    expect(selo?.getAttribute('data-sigla')).toBe('CX')
+    expect(selo?.getAttribute('data-sigla')).toBe('Nx')
     expect(selo?.getAttribute('aria-hidden')).toBe('true')
-    expect(screen.getByText(/Conta corrente Caixa Econômica/)).toBeTruthy()
-    expect(container.textContent).not.toContain('CX')
+    expect(screen.getByText(/Conta Next/)).toBeTruthy()
+    expect(container.textContent).not.toContain('Nx')
   })
 
   it('sem banco usa o ícone neutro', () => {
@@ -60,5 +60,22 @@ describe('LOGOS', () => {
   it('só tem chaves de bancos conhecidos (arquivo com nome errado não aparece em lugar nenhum)', () => {
     const chaves = new Set(BANCOS.map((b) => b.chave))
     for (const chave of Object.keys(LOGOS)) expect(chaves.has(chave)).toBe(true)
+  })
+})
+
+describe('Logo no selo', () => {
+  afterEach(cleanup)
+  it('a Caixa tem logo em arquivo e o selo vira imagem, sem sigla', () => {
+    expect(LOGOS.caixa).toBeTruthy()
+    const { container } = render(<IconeConta nome="Conta corrente Caixa Econômica" tipo="checking" />)
+    expect(container.querySelector('[data-logo] img')?.getAttribute('src')).toBe(LOGOS.caixa)
+    expect(container.querySelector('[data-sigla]')).toBeNull()
+  })
+
+  it('banco sem arquivo de logo continua com a sigla', () => {
+    const semLogo = BANCOS.find((b) => !LOGOS[b.chave])
+    expect(semLogo).toBeTruthy()
+    const { container } = render(<IconeConta nome={semLogo!.nome} tipo="checking" />)
+    expect(container.querySelector(`[data-banco="${semLogo!.chave}"][data-sigla]`)).not.toBeNull()
   })
 })
