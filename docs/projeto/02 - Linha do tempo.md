@@ -78,6 +78,8 @@ tags: [tudo-azul, historico]
 - **Teste RF13 corrigido**: a janela da fatura esperava 18 em vez de 17 (a compra no dia do fechamento vai para a fatura seguinte); só falhava quando uma ocorrência semanal caía no dia 17 (#81, merge `8d813d1`).
 - **Banco da conta, emissor e bandeira do cartão gravados** (migration 017): seletores em Contas e Cartões, logos de banco e ícones de bandeira nas telas; o front lê sem as colunas se a migration ainda não entrou (#80, merge `9a057b2`).
 - **Migration 017 aplicada em produção** em 29/10/2026, pela [execução 24 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40950980065) (simulação antes: execução 23), a partir do commit `9a057b2`; 22 migrations em sincronia.
+- **Excluir recorrente e versão 2026.5**: o botão "Encerrar" virou "Excluir" (também nos "Encerrados" antigos); a regra some, os planejados de hoje em diante vão para a lixeira e o histórico fica (migration 018); `package.json` na 2026.5 (#84, merge `80685b2`).
+- **Migration 018 aplicada em produção** em 29/10/2026, pela [execução 26 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40952813187) (simulação antes: execução 25), a partir do commit `80685b2`; 23 migrations em sincronia.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
