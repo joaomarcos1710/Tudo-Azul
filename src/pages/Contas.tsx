@@ -143,7 +143,8 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
     setErro('')
     setEnviando(true)
     try {
-      const dados = { nome, tipo, saldoInicial, abertura, banco: tipo === 'cash' || !banco ? null : banco }
+      // só envia o banco quando há o que gravar ou limpar (conta sem banco e sem escolha não toca na coluna)
+      const dados = { nome, tipo, saldoInicial, abertura, ...((tipo !== 'cash' && banco) || conta?.banco ? { banco: tipo === 'cash' || !banco ? null : banco } : {}) }
       if (conta) await editarConta(conta.id, dados)
       else await criarConta(familiaId, dados)
       await aoSalvar()

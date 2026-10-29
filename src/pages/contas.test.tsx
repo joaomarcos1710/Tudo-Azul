@@ -79,7 +79,7 @@ describe('Contas', () => {
     await u.clear(saldo)
     await u.type(saldo, '-1.250,50')
     await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
-    expect(mock.criarConta).toHaveBeenCalledWith('h1', { nome: 'Nubank', tipo: 'savings', saldoInicial: -125050, abertura: hojeSP(), banco: null })
+    expect(mock.criarConta).toHaveBeenCalledWith('h1', { nome: 'Nubank', tipo: 'savings', saldoInicial: -125050, abertura: hojeSP() })
     expect(mock.listarContas).toHaveBeenCalledTimes(2)
   })
 
@@ -102,7 +102,25 @@ describe('Contas', () => {
     await u.selectOptions(screen.getByLabelText('Tipo'), 'cash')
     expect((screen.getByLabelText('Banco') as HTMLSelectElement).disabled).toBe(true)
     await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
-    expect(mock.criarConta).toHaveBeenCalledWith('h1', expect.objectContaining({ tipo: 'cash', banco: null }))
+    expect(mock.criarConta).toHaveBeenCalledWith('h1', expect.objectContaining({ tipo: 'cash' }))
+    expect(mock.criarConta.mock.calls[0][1]).not.toHaveProperty('banco')
+  })
+
+  it('editar uma conta que tinha banco e escolher "Automático" apaga o banco; sem banco antes e depois, nem toca na coluna', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [{ ...corrente, banco: 'itau' }], total: c(125050) })
+    const u = userEvent.setup()
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Editar' }))
+    await u.selectOptions(screen.getByLabelText('Banco'), 'Automático (pelo nome da conta)')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarConta).toHaveBeenCalledWith('a1', expect.objectContaining({ banco: null }))
+    cleanup()
+    mock.editarConta.mockClear()
+    mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(125050) })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Editar' }))
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarConta.mock.calls[0][1]).not.toHaveProperty('banco')
   })
 
   it('o selo segue o banco escolhido, não o nome da conta', async () => {
@@ -145,7 +163,7 @@ describe('Contas', () => {
     await u.click(await screen.findByRole('button', { name: 'Editar' }))
     expect((screen.getByLabelText('Saldo inicial (R$)') as HTMLInputElement).value).toBe('1.000,00')
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(mock.editarConta).toHaveBeenCalledWith('a1', { nome: 'Itaú', tipo: 'checking', saldoInicial: 100000, abertura: '2026-12-01', banco: null })
+    expect(mock.editarConta).toHaveBeenCalledWith('a1', { nome: 'Itaú', tipo: 'checking', saldoInicial: 100000, abertura: '2026-12-01' })
   })
 
   it('desativar com planejado em aberto mostra a regra do banco', async () => {

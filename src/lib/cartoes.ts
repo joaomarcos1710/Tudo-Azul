@@ -1,6 +1,6 @@
 import { centsFromDb, centsToDecimal } from './format'
 import type { Cents } from './format'
-import { hojeSP } from './contas'
+import { COLUNA_INEXISTENTE, hojeSP } from './contas'
 import { supabase } from './supabase'
 
 /**
@@ -90,10 +90,19 @@ export function ontemSP(agora: Date = new Date()): string {
   return new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10)
 }
 
+interface LinhaCartao { id: string; name: string; closing_day: number | null; due_day: number | null; active: boolean; issuer?: string | null; brand?: string | null }
+
 export async function listarCartoes(familiaId: string, dataRef: string = hojeSP()): Promise<Cartao[]> {
   const db = cliente()
+  const lerCartoes = async (): Promise<{ data: LinhaCartao[]; error: { code?: string } | null }> => {
+    const r = await db.from('debts').select('id, name, closing_day, due_day, active, issuer, brand').eq('household_id', familiaId).eq('kind', 'card').order('name')
+    if (r.error?.code !== COLUNA_INEXISTENTE) return { data: (r.data ?? []) as LinhaCartao[], error: r.error }
+    // coluna inexistente = banco ainda sem a migration 017: segue sem emissor e bandeira em vez de quebrar a tela
+    const sem = await db.from('debts').select('id, name, closing_day, due_day, active').eq('household_id', familiaId).eq('kind', 'card').order('name')
+    return { data: (sem.data ?? []) as LinhaCartao[], error: sem.error }
+  }
   const [cartoes, saldos, limites] = await Promise.all([
-    db.from('debts').select('id, name, closing_day, due_day, active, issuer, brand').eq('household_id', familiaId).eq('kind', 'card').order('name'),
+    lerCartoes(),
     db.rpc('debt_balances', { p_household: familiaId, p_as_of: dataRef }),
     // o limite é um extra: se a consulta falhar (ex.: banco ainda sem a migration 011), a tela segue sem ele
     db.rpc('card_limits', { p_household: familiaId, p_as_of: dataRef }),
@@ -107,7 +116,7 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
     ((saldos.data ?? []) as { debt_id: string; debt: number | string; credit_receivable: number | string; planned_remaining: number | string }[])
       .map((s) => [s.debt_id, s]),
   )
-  return (cartoes.data ?? []).map((c) => {
+  return cartoes.data.map((c) => {
     const s = porId.get(c.id)
     const l = limitePorId.get(c.id)
     return {
