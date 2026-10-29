@@ -10,7 +10,7 @@ import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import { listarCartoes } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
-import { listarCategorias } from '../lib/categorias'
+import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
@@ -56,7 +56,7 @@ export default function Recorrentes() {
 
   const nomeConta = useMemo(() => new Map(contas.map((c) => [c.id, c.nome])), [contas])
   const nomeCartao = useMemo(() => new Map(cartoes.map((c) => [c.id, c.nome])), [cartoes])
-  const nomeCategoria = useMemo(() => new Map(categorias.map((c) => [c.id, c.nome])), [categorias])
+  const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
 
   async function encerrar(r: Recorrencia) {
     if (!window.confirm(`Encerrar "${r.descricao}"? Os próximos planejados vão para a lixeira; o que já foi pago fica.`)) return
@@ -300,7 +300,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         {precisaCategoria && (
           <>
             <Selecao rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} todos="Escolha…"
-              opcoes={categoriasDoTipo.map((c) => [c.id, c.paiId ? `↳ ${c.nome}` : c.nome])} />
+              opcoes={opcoesDeCategoria(categoriasDoTipo, categorias).map((o) => [o.id, o.rotulo])} />
             {erroDe('categoria') && <p role="alert" className="text-sm text-negativo">{erroDe('categoria')}</p>}
           </>
         )}

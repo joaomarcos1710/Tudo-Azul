@@ -6,13 +6,14 @@ import { Rosca } from '../components/graficos/Rosca'
 import { IconeCartoes, IconeSomar, IconeSubtrair, IconeTransferir } from '../components/layout/icons'
 import { Aviso } from '../components/ui/Aviso'
 import { Card, CardTitle } from '../components/ui/Card'
+import { IconeConta } from '../components/ui/IconeConta'
 import { useAuth } from '../lib/auth'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { resumoDosCartoes } from '../lib/cartoes'
 import type { ResumoCartao } from '../lib/cartoes'
 import { ultimasConferencias } from '../lib/conciliacao'
-import { listarCategorias } from '../lib/categorias'
+import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { hojeSP, listarContas } from '../lib/contas'
@@ -124,7 +125,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             patrimonio: null, mes: null, anterior: null, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, conferencias,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
-            nomeCategoria: new Map(cats.map((x) => [x.id, x.nome])),
+            nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
           }))
         : Promise.all([
@@ -428,7 +429,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <ul className="divide-y divide-slate-100">
               {dados.contas.map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center justify-between py-2 text-sm">
-                  <span>{c.nome}</span>
+                  <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} tamanho="pequeno" />{c.nome}</span>
                   <span className={`tabular-nums font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
                     {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
                   </span>
