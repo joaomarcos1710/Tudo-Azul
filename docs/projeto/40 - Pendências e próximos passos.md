@@ -36,6 +36,7 @@ atualizado: 2026-10-28
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
 ## Menu e formulário de lançamento
+- [ ] **Logos de banco** (PR de rascunho): o mecanismo está pronto; faltam os arquivos. Baixar o logo de cada banco na central de marca oficial e subir em `src/assets/bancos/` com o nome da chave (`caixa.svg`, `nubank.svg`...; ver o `LEIAME.md` da pasta).
 - [ ] **Subcategoria sob a principal + selo do banco** (PR de rascunho, pedido do dono em 29/10/2026). Conferir no celular: Reembolso embaixo de Outras receitas e o selo da Caixa em Contas, Conferir, Início e Lançamentos. Se quiser o **logo oficial** (arquivos licenciados seus) ou **escolher o banco** em vez de depender do nome, é PR à parte (coluna + migration, fluxo de produção).
 - [ ] Menu "Mais" com cartões de atalho e frase em cada tela (#75, mesclado; opção A do dono). Conferir no iPhone. Sem mudança de versão: entra na próxima edição (2026.5) junto com o próximo lote visível.
 

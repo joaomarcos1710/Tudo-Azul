@@ -64,3 +64,10 @@ export function bancoDaConta(nome: string, tipo: TipoConta): Banco | null {
   const palavras = palavrasDe(nome)
   return BANCOS.find((b) => b.palavras.some((expr) => cita(palavras, expr))) ?? null
 }
+
+/** Logos colocados em `src/assets/bancos/<chave>.(svg|png|webp)`; a chave é a de `BANCOS`. Banco sem arquivo usa a sigla. */
+const arquivos = import.meta.glob('../assets/bancos/*.{svg,png,webp}', { query: '?url', import: 'default', eager: true }) as Record<string, string>
+
+export const LOGOS: Record<string, string> = Object.fromEntries(
+  Object.entries(arquivos).map(([caminho, url]) => [caminho.replace(/^.*\//, '').replace(/\.[^.]+$/, ''), url]),
+)

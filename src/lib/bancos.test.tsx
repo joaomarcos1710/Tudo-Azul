@@ -2,7 +2,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { IconeConta } from '../components/ui/IconeConta'
-import { BANCOS, bancoDaConta } from './bancos'
+import { BANCOS, LOGOS, bancoDaConta } from './bancos'
 
 describe('bancoDaConta', () => {
   it('reconhece a Caixa Econômica pelo nome da conta', () => {
@@ -53,5 +53,12 @@ describe('IconeConta', () => {
     const { container } = render(<IconeConta nome="Reserva" tipo="savings" />)
     expect(container.querySelector('[data-banco=""]')).not.toBeNull()
     expect(container.querySelector('svg')).not.toBeNull()
+  })
+})
+
+describe('LOGOS', () => {
+  it('só tem chaves de bancos conhecidos (arquivo com nome errado não aparece em lugar nenhum)', () => {
+    const chaves = new Set(BANCOS.map((b) => b.chave))
+    for (const chave of Object.keys(LOGOS)) expect(chaves.has(chave)).toBe(true)
   })
 })
