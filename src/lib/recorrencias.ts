@@ -186,10 +186,14 @@ export async function editarRecorrencia(id: string, d: { descricao: string; valo
   if (error) throw error
 }
 
-/** Para de gerar; planejados futuros não pagos vão para a lixeira. */
-export async function encerrarRecorrencia(id: string): Promise<void> {
-  const { error } = await cliente().rpc('recurrence_end', { p_id: id })
+/**
+ * Exclui o recorrente (ativo ou já encerrado): a regra some, os planejados de hoje em diante vão para a lixeira e o que já foi
+ * pago ou lançado no cartão fica no histórico, sem o vínculo com a regra (migration 018). Devolve quantos planejados foram para a lixeira.
+ */
+export async function excluirRecorrencia(id: string): Promise<number> {
+  const { data, error } = await cliente().rpc('recurrence_delete', { p_id: id })
   if (error) throw error
+  return (data as number) ?? 0
 }
 
 export async function gerarOcorrencias(): Promise<number> {

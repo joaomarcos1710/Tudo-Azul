@@ -17,7 +17,7 @@ import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
 import {
-  criarRecorrencia, diaDaSemana, editarRecorrencia, encerrarRecorrencia, frequencias, listarRecorrencias, MAX_CADA,
+  criarRecorrencia, diaDaSemana, editarRecorrencia, excluirRecorrencia, frequencias, listarRecorrencias, MAX_CADA,
   proximasOcorrencias, rotuloFrequencia, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
 import type { Recorrencia, TipoRecorrencia, UnidadeFrequencia } from '../lib/recorrencias'
@@ -58,10 +58,10 @@ export default function Recorrentes() {
   const nomeCartao = useMemo(() => new Map(cartoes.map((c) => [c.id, c.nome])), [cartoes])
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
 
-  async function encerrar(r: Recorrencia) {
-    if (!window.confirm(`Encerrar "${r.descricao}"? Os próximos planejados vão para a lixeira; o que já foi pago fica.`)) return
+  async function excluir(r: Recorrencia) {
+    if (!window.confirm(`Excluir "${r.descricao}"? Os próximos planejados vão para a lixeira; o que já foi pago ou lançado no cartão continua no histórico.`)) return
     try {
-      await encerrarRecorrencia(r.id)
+      await excluirRecorrencia(r.id)
       await carregar()
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -133,7 +133,7 @@ export default function Recorrentes() {
                     {r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}{formatBRL(r.valor)}
                   </span>
                   <Button variante="fantasma" onClick={() => setEditando(r)} disabled={editando !== null}>Editar</Button>
-                  <Button variante="fantasma" onClick={() => encerrar(r)}>Encerrar</Button>
+                  <Button variante="discreto" onClick={() => excluir(r)}>Excluir</Button>
                 </div>
               </li>
             ))}
@@ -146,7 +146,10 @@ export default function Recorrentes() {
           <summary className="cursor-pointer text-sm font-semibold text-slate-600">Encerrados ({encerradas.length})</summary>
           <ul className="mt-2 flex flex-col gap-1 text-sm text-slate-500">
             {encerradas.map((r) => (
-              <li key={r.id}>{r.descricao} · {formatBRL(r.valor)} · até {r.fim ? formatDate(r.fim) : '—'}</li>
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
+                <span>{r.descricao} · {formatBRL(r.valor)} · até {r.fim ? formatDate(r.fim) : '—'}</span>
+                <Button variante="discreto" compacto onClick={() => excluir(r)}>Excluir</Button>
+              </li>
             ))}
           </ul>
         </details>
@@ -306,7 +309,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando
-            ? `${rotuloFrequencia(r!)}. A mudança vale para os planejados ainda não pagos de hoje em diante. O que já foi pago não muda, e o que você corrigiu à mão em um mês (valor, descrição ou categoria) fica como está. Para mudar a frequência ou o dia, encerre este recorrente e cadastre outro.`
+            ? `${rotuloFrequencia(r!)}. A mudança vale para os planejados ainda não pagos de hoje em diante. O que já foi pago não muda, e o que você corrigiu à mão em um mês (valor, descrição ou categoria) fica como está. Para mudar a frequência ou o dia, exclua este recorrente e cadastre outro.`
             : unidade === 'week'
               ? `Repete ${inicio ? toda(diaDaSemana(inicio)) : 'no mesmo dia da semana da primeira data'}, a cada ${7 * (cadaValido ? cada : 1)} dias.`
               : 'Dia 29, 30 ou 31 em mês mais curto cai no último dia do mês.'}

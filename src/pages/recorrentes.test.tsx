@@ -9,7 +9,7 @@ const mock = vi.hoisted(() => ({
   listarRecorrencias: vi.fn(),
   criarRecorrencia: vi.fn(),
   editarRecorrencia: vi.fn(),
-  encerrarRecorrencia: vi.fn(),
+  excluirRecorrencia: vi.fn(),
   listarContas: vi.fn(),
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/recorrencias', async (o) => ({
   ...(await o<typeof import('../lib/recorrencias')>()),
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
-  editarRecorrencia: mock.editarRecorrencia, encerrarRecorrencia: mock.encerrarRecorrencia,
+  editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/cartoes', async (o) => ({ ...(await o<typeof import('../lib/cartoes')>()), listarCartoes: mock.listarCartoes }))
@@ -52,7 +52,8 @@ beforeEach(() => {
     { id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true },
     { id: 'g2', nome: 'Salário', tipo: 'income', paiId: null, sistema: false, ativa: true },
   ])
-  for (const f of [mock.criarRecorrencia, mock.editarRecorrencia, mock.encerrarRecorrencia]) f.mockResolvedValue(undefined)
+  for (const f of [mock.criarRecorrencia, mock.editarRecorrencia]) f.mockResolvedValue(undefined)
+  mock.excluirRecorrencia.mockResolvedValue(0)
 })
 afterEach(() => {
   cleanup()
@@ -131,7 +132,7 @@ describe('Recorrentes', () => {
     expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'transfer', contaId: 'a1', destinoId: 'a2', categoriaId: null }))
   })
 
-  it('editar muda valor; encerrar pede confirmação', async () => {
+  it('editar muda valor', async () => {
     const u = userEvent.setup()
     mock.listarRecorrencias.mockResolvedValue([luz])
     vi.spyOn(window, 'confirm').mockReturnValue(true)
@@ -142,15 +143,54 @@ describe('Recorrentes', () => {
     expect(screen.getByText(/o que você corrigiu à mão em um mês \(valor, descrição ou categoria\) fica como está/)).toBeTruthy()
     // frequência não muda na edição: diz como mudar
     expect(screen.queryByLabelText('Frequência')).toBeNull()
-    expect(screen.getByText(/Todo dia 10\. .*Para mudar a frequência ou o dia, encerre este recorrente e cadastre outro\./)).toBeTruthy()
+    expect(screen.getByText(/Todo dia 10\. .*Para mudar a frequência ou o dia, exclua este recorrente e cadastre outro\./)).toBeTruthy()
     const valor = screen.getByLabelText('Valor estimado (R$)')
     await u.clear(valor)
     await u.type(valor, '200,00')
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(mock.editarRecorrencia).toHaveBeenCalledWith('r1', { descricao: 'Luz', valor: 20000, categoriaId: 'g1' })
-    await u.click(await screen.findByRole('button', { name: 'Encerrar' }))
-    expect(window.confirm).toHaveBeenCalled()
-    expect(mock.encerrarRecorrencia).toHaveBeenCalledWith('r1')
+  })
+
+  it('excluir pede confirmação e só então exclui; recusar a confirmação não faz nada', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Excluir' }))
+    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining('Excluir "Luz"?'))
+    expect(mock.excluirRecorrencia).not.toHaveBeenCalled()
+    confirmar.mockReturnValue(true)
+    await u.click(screen.getByRole('button', { name: 'Excluir' }))
+    expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r1')
+    expect(mock.listarRecorrencias).toHaveBeenCalledTimes(2) // recarrega a lista
+  })
+
+  it('não existe mais "Encerrar": o fim de um recorrente é excluí-lo', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    montar()
+    await screen.findByText('Luz')
+    expect(screen.queryByRole('button', { name: 'Encerrar' })).toBeNull()
+  })
+
+  it('recorrentes que já estavam em "Encerrados" podem ser excluídos de vez', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([{ ...luz, id: 'r2', descricao: 'Academia antiga', ativa: false, fim: '2026-09-30' }])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    montar()
+    await u.click(await screen.findByText('Encerrados (1)'))
+    await u.click(screen.getByRole('button', { name: 'Excluir' }))
+    expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r2')
+  })
+
+  it('erro ao excluir aparece na tela e a lista não some', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    mock.excluirRecorrencia.mockRejectedValue({ code: '42501', message: 'registro não encontrado' })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Excluir' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getByText('Luz')).toBeTruthy()
   })
 
   it('lista mostra a frequência, a próxima data e a data final', async () => {
