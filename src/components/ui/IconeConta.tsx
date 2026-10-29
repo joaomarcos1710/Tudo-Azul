@@ -1,4 +1,4 @@
-import { bancoDaConta } from '../../lib/bancos'
+import { bancoDaConta, LOGOS } from '../../lib/bancos'
 import type { TipoConta } from '../../lib/contas'
 import { IconeContas } from '../layout/icons'
 
@@ -22,6 +22,14 @@ export function IconeConta({ nome, tipo, tamanho = 'normal', className = '' }: {
   const base = `inline-flex shrink-0 items-center justify-center align-middle font-bold leading-none ${caixa[tamanho]} ${className}`
   if (!banco) {
     return <span aria-hidden="true" data-banco="" className={`${base} bg-slate-100 text-slate-600`}><IconeContas /></span>
+  }
+  const logo = LOGOS[banco.chave]
+  if (logo) {
+    return (
+      <span aria-hidden="true" data-banco={banco.chave} data-logo="" className={`${base} overflow-hidden bg-white ring-1 ring-slate-200`}>
+        <img src={logo} alt="" className="h-full w-full object-contain p-0.5" />
+      </span>
+    )
   }
   const longa = banco.sigla.length > 2
   return (
