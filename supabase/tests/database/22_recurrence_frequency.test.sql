@@ -163,12 +163,13 @@ grant execute on function pg_temp.pend(uuid, integer) to public;
 select is(array[pg_temp.pend(pg_temp.fx('anual'), 1), pg_temp.pend(pg_temp.fx('anual'), 2), pg_temp.pend(pg_temp.fx('anual'), 3),
                 pg_temp.pend(pg_temp.fx('anual'), 12), pg_temp.pend(pg_temp.fx('anual'), 13)],
   array[1, 0, 0, 0, 1]::bigint[], 'RF13 anual no cartão: projeta só no mês da fatura, de 12 em 12 meses');
--- semanal a partir de hoje: na fatura do mês +3 (fecha dia 17) entram as compras de 18 do mês +2 a 16 do mês +3
+-- semanal a partir de hoje: na fatura do mês +3 (fecha dia 17) entram as compras de 17 do mês +2 a 16 do mês +3
+-- (compra NO dia do fechamento vai para a fatura seguinte: 20 - Regras do dinheiro)
 insert into fixture select 'semanal', public.recurrence_create('card', 'Feira semanal', 33.33, null, pg_temp.hoje(), null, null,
                                                                pg_temp.fx('card'), pg_temp.fx('cexp'), null, 'week', 1);
 select is(pg_temp.pend(pg_temp.fx('semanal'), 3),
   (select count(*) from generate_series(pg_temp.hoje(), pg_temp.mes(4), interval '7 days') d
-    where d::date between pg_temp.mes(2) + 17 and pg_temp.mes(3) + 15),
+    where d::date between pg_temp.mes(2) + 16 and pg_temp.mes(3) + 15),
   'RF13 semanal no cartão: projeta cada semana que cai na fatura (não uma por mês)');
 
 -- RF14: isolamento — a outra família não vê as regras nem as datas
