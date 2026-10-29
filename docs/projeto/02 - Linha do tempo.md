@@ -70,6 +70,8 @@ tags: [tudo-azul, historico]
 - **Ícone e cor de categoria** (redesenho parte 3, PR 1): o app sugere pelo nome e a pessoa troca em Categorias; ícone em Lançamentos, faturas de Cartões e Início; paleta de 5 cores sem vermelho/verde/âmbar; sem migration (#72, merge `9160ee5`).
 - **Diário**: ideias de antecipar parcelas (#73, merge `ab5d9ef`).
 - **Menu "Mais" do celular**: 4 cartões de atalho e uma frase em cada tela, formato escolhido pelo dono (#75, merge `6f09dbb`).
+- **Diário**: ideias de outros apps (Livro de contas e Minhas Economias) e a decisão do valor do dia no Calendário (#74, merge `735a66d`).
+- **Formulário de lançamento em visual de app**: abas, valor grande, campos em linhas com seletor nativo, "Registrar e lançar outro" e última conta/cartão lembrados (#76, merge `a04364b`).
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
