@@ -13,7 +13,7 @@
 -- A edição normal do cartão continua podendo mudar só face; a exclusão da regra pode mudar só
 -- recurrence_id. Cada operação tem uma flag transacional própria e restrições explícitas.
 create or replace function private.debt_installments_immutable() returns trigger
-language plpgsql security invoker set search_path = '' as $
+language plpgsql security invoker set search_path = '' as $$
 begin
   if current_setting('app.card_edit', true) = 'on'
      and (new.id, new.household_id, new.debt_id, new.plan, new.seq, new.due_date, new.category_id,
@@ -38,7 +38,7 @@ begin
   end if;
 
   raise exception 'parcela é imutável: use o cancelamento' using errcode = '42501';
-end $;
+end $$;
 
 create function public.recurrence_delete(p_id uuid)
 returns void language plpgsql security definer set search_path = '' as $$
