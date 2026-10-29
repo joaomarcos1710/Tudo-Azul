@@ -19,6 +19,8 @@ export interface Conta {
   /** AAAA-MM-DD: o saldo inicial vale no início deste dia. */
   abertura: string
   ativa: boolean
+  /** Chave do banco escolhido (accounts.bank); null = não escolhido (o app tenta pelo nome). */
+  banco: string | null
   /** Saldo calculado no banco (account_balances); null se a conta abre depois da data de referência. */
   saldo: Cents | null
 }
@@ -28,6 +30,8 @@ export interface DadosConta {
   tipo: TipoConta
   saldoInicial: Cents
   abertura: string
+  /** Chave do banco (src/lib/bancos.ts) ou null. Carteira em dinheiro nunca tem banco. */
+  banco?: string | null
 }
 
 function cliente() {
@@ -40,6 +44,19 @@ export function hojeSP(agora: Date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(agora)
 }
 
+/** Código do PostgreSQL para coluna inexistente: o banco ainda sem a migration 017 (banco da conta). */
+export const COLUNA_INEXISTENTE = '42703'
+
+interface LinhaConta { id: string; name: string; type: TipoConta; initial_balance: number | string; opening_date: string; active: boolean; bank?: string | null }
+
+/** Lê as contas com o banco escolhido; se a coluna ainda não existe, lê sem ela (a tela segue como antes, só sem o banco gravado). */
+async function lerContas(db: NonNullable<typeof supabase>, familiaId: string): Promise<{ data: LinhaConta[]; error: { code?: string } | null }> {
+  const r = await db.from('accounts').select('id, name, type, initial_balance, opening_date, active, bank').eq('household_id', familiaId).order('name')
+  if (r.error?.code !== COLUNA_INEXISTENTE) return { data: (r.data ?? []) as LinhaConta[], error: r.error }
+  const sem = await db.from('accounts').select('id, name, type, initial_balance, opening_date, active').eq('household_id', familiaId).order('name')
+  return { data: (sem.data ?? []) as LinhaConta[], error: sem.error }
+}
+
 /**
  * Contas da família com o saldo de hoje. O saldo e o total vêm do banco
  * (account_balances e balance_totals): o front nunca soma dinheiro.
@@ -47,7 +64,7 @@ export function hojeSP(agora: Date = new Date()): string {
 export async function listarContas(familiaId: string, dataRef: string = hojeSP()): Promise<{ contas: Conta[]; total: Cents }> {
   const db = cliente()
   const [contas, saldos, totais] = await Promise.all([
-    db.from('accounts').select('id, name, type, initial_balance, opening_date, active').eq('household_id', familiaId).order('name'),
+    lerContas(db, familiaId),
     db.rpc('account_balances', { p_household: familiaId, p_as_of: dataRef }),
     db.rpc('balance_totals', { p_household: familiaId, p_as_of: dataRef }),
   ])
@@ -58,13 +75,14 @@ export async function listarContas(familiaId: string, dataRef: string = hojeSP()
   )
   const linhaTotal = ((totais.data ?? []) as { total: number | string }[])[0]
   return {
-    contas: (contas.data ?? []).map((c) => ({
+    contas: contas.data.map((c) => ({
       id: c.id,
       nome: c.name,
       tipo: c.type,
       saldoInicial: centsFromDb(c.initial_balance),
       abertura: c.opening_date,
       ativa: c.active,
+      banco: c.bank ?? null,
       saldo: saldoPorConta.get(c.id) ?? null,
     })),
     total: centsFromDb(linhaTotal?.total ?? 0),
@@ -78,6 +96,8 @@ function linha(d: DadosConta) {
     // string decimal montada dos centavos, nunca cents / 100 (MODELO-DE-DADOS.md §5)
     initial_balance: centsToDecimal(d.saldoInicial),
     opening_date: d.abertura,
+    // só entra no envio quando há o que gravar ou limpar: assim criar/editar conta segue funcionando no banco sem a coluna
+    ...(d.banco === undefined ? {} : { bank: d.tipo === 'cash' ? null : d.banco }),
   }
 }
 

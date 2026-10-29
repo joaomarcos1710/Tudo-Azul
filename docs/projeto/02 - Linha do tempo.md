@@ -75,6 +75,9 @@ tags: [tudo-azul, historico]
 - **Subcategoria sob a principal e selo do banco** nas contas: seletores com a filha logo abaixo da principal e "Principal › Filha" nas listas; selo reconhecido pelo nome da conta (#78, merge `55f5e74`).
 - **Fatura do cartão como extrato**: compras agrupadas por dia, nome inteiro, parcela em selo, botões compactos (#77, merge `5b554be`).
 - **Logos de 20 bancos** nas contas, com a sigla colorida onde não há arquivo (#79, merge `95c33ce`).
+- **Teste RF13 corrigido**: a janela da fatura esperava 18 em vez de 17 (a compra no dia do fechamento vai para a fatura seguinte); só falhava quando uma ocorrência semanal caía no dia 17 (#81, merge `8d813d1`).
+- **Banco da conta, emissor e bandeira do cartão gravados** (migration 017): seletores em Contas e Cartões, logos de banco e ícones de bandeira nas telas; o front lê sem as colunas se a migration ainda não entrou (#80, merge `9a057b2`).
+- **Migration 017 aplicada em produção** em 29/10/2026, pela [execução 24 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40950980065) (simulação antes: execução 23), a partir do commit `9a057b2`; 22 migrations em sincronia.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

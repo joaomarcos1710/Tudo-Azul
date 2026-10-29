@@ -6,6 +6,8 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
+import { Selecao } from '../components/ui/Selecao'
+import { BANCOS_POR_NOME } from '../lib/bancos'
 import { IconeConta } from '../components/ui/IconeConta'
 import { useFamilia } from '../lib/FamiliaContext'
 import { criarConta, definirAtiva, editarConta, hojeSP, listarContas, rotuloTipoConta } from '../lib/contas'
@@ -86,7 +88,7 @@ export default function Contas() {
               <li key={c.id}>
                 <Card className={`flex flex-wrap items-center justify-between gap-3 ${c.ativa ? '' : 'opacity-70'}`}>
                   <div className="flex min-w-0 items-center gap-3">
-                    <IconeConta nome={c.nome} tipo={c.tipo} />
+                    <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} />
                     <div className="min-w-0">
                       <p className="font-semibold">
                         {c.nome} {!c.ativa && <span className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">desativada</span>}
@@ -124,6 +126,7 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
   const [tipo, setTipo] = useState<TipoConta>(conta?.tipo ?? 'checking')
   const [saldoTexto, setSaldoTexto] = useState(conta ? formatBRLCampo(conta.saldoInicial) : '0,00')
   const [abertura, setAbertura] = useState(conta?.abertura ?? hojeSP())
+  const [banco, setBanco] = useState(conta?.banco ?? '')
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -140,7 +143,8 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
     setErro('')
     setEnviando(true)
     try {
-      const dados = { nome, tipo, saldoInicial, abertura }
+      // só envia o banco quando há o que gravar ou limpar (conta sem banco e sem escolha não toca na coluna)
+      const dados = { nome, tipo, saldoInicial, abertura, ...((tipo !== 'cash' && banco) || conta?.banco ? { banco: tipo === 'cash' || !banco ? null : banco } : {}) }
       if (conta) await editarConta(conta.id, dados)
       else await criarConta(familiaId, dados)
       await aoSalvar()
@@ -168,6 +172,8 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
             {Object.entries(rotuloTipoConta).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
           </select>
         </div>
+        <Selecao rotulo="Banco" valor={tipo === 'cash' ? '' : banco} aoMudar={setBanco} desabilitado={tipo === 'cash'}
+          todos={tipo === 'cash' ? 'Dinheiro não tem banco' : 'Automático (pelo nome da conta)'} opcoes={BANCOS_POR_NOME.map((b) => [b.chave, b.nome])} />
         <Field rotulo="Saldo inicial (R$)" inputMode="decimal" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
         <Field rotulo="Data do saldo inicial" type="date" value={abertura} onChange={(e) => setAbertura(e.target.value)} erro={erroData} />
         <p className="text-sm text-slate-600 md:col-span-2">

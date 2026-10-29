@@ -36,6 +36,7 @@ atualizado: 2026-10-28
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
 ## Menu e formulário de lançamento
+- [ ] **Banco gravado e bandeira do cartão** (#80, mesclado em 29/10; **migration 017 aplicada em produção em 29/10/2026**). Falta você: escolher o banco das contas (Contas → Editar) e o emissor/bandeira dos cartões (Cartões → "Escolher banco e bandeira") e conferir os logos no iPhone. Next, Original e Will seguem com a sigla (sem logo).
 - [ ] **Logos de banco** (#79, mesclado em 29/10): 20 logos importados de `rzmt/logos-bancos-br` (origem em `src/assets/bancos/ORIGEM.md`); Next, Original e Will continuam com a sigla. Conferir no celular. Banco novo: subir o arquivo com o nome da chave (`LEIAME.md` da pasta).
 - [ ] **Subcategoria sob a principal + selo do banco** (#78, mesclado em 29/10, pedido do dono em 29/10/2026). Conferir no celular: Reembolso logo abaixo da categoria-mãe dele (Salário) e o selo da Caixa em Contas, Conferir, Início e Lançamentos. Se quiser o **logo oficial** (arquivos licenciados seus) ou **escolher o banco** em vez de depender do nome, é PR à parte (coluna + migration, fluxo de produção).
 - [ ] Menu "Mais" com cartões de atalho e frase em cada tela (#75, mesclado; opção A do dono). Conferir no iPhone. Sem mudança de versão: entra na próxima edição (2026.5) junto com o próximo lote visível.
