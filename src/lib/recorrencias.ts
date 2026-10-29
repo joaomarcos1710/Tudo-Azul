@@ -186,9 +186,9 @@ export async function editarRecorrencia(id: string, d: { descricao: string; valo
   if (error) throw error
 }
 
-/** Para de gerar; planejados futuros não pagos vão para a lixeira. */
-export async function encerrarRecorrencia(id: string): Promise<void> {
-  const { error } = await cliente().rpc('recurrence_end', { p_id: id })
+/** Exclui a regra; o banco envia planejados futuros à lixeira e preserva lançamentos e parcelas já gerados. */
+export async function excluirRecorrencia(id: string): Promise<void> {
+  const { error } = await cliente().rpc('recurrence_delete', { p_id: id })
   if (error) throw error
 }
 

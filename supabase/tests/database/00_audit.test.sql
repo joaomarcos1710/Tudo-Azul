@@ -96,7 +96,7 @@ select functions_are('public', array[
   'accept_invitation','account_balances','account_movements','balance_totals','budget_projection','budget_usage','card_bill_due','card_installment_edit','card_invoice_reopen','card_items','card_limits','card_months',
   'card_purchase','card_purchase_delete','card_purchase_delete_preview','create_debt','create_debt_installments','create_debt_invoice','create_household','create_invitation','daily_expenses','debt_anticipate','debt_balances','debt_bill',
   'debt_loan_event','debt_pay','debt_refund','debt_return','debt_void','delete_household','expenses_by_category','income_regularity','leave_household',
-  'month_projection','net_worth','period_summary','reconcile_account','recurrence_create','recurrence_end','recurrence_materialize','recurrence_update',
+  'month_projection','net_worth','period_summary','reconcile_account','recurrence_create','recurrence_delete','recurrence_end','recurrence_materialize','recurrence_update',
   'reconciliation_undo','remove_member','reset_household','reset_preview','set_card_cycle','set_card_identity','set_card_limit'],
   'funções do schema public');
 select functions_are('private', array[
@@ -135,7 +135,7 @@ select is(
         'public.create_household','public.create_invitation','public.daily_expenses','public.debt_anticipate','public.debt_balances',
         'public.debt_bill','public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_return',
         'public.debt_void','public.delete_household','public.expenses_by_category','public.income_regularity','public.leave_household','public.month_projection','public.net_worth',
-        'public.period_summary','public.reconcile_account','public.reconciliation_undo','public.recurrence_create','public.recurrence_end',
+        'public.period_summary','public.reconcile_account','public.reconciliation_undo','public.recurrence_create','public.recurrence_delete','public.recurrence_end',
         'public.recurrence_materialize','public.recurrence_update','public.remove_member','public.reset_household','public.reset_preview','public.set_card_cycle','public.set_card_identity','public.set_card_limit']::text[],
   'lista de funções executáveis por authenticated é exatamente a esperada (funções de trigger: nenhuma)');
 
@@ -160,7 +160,7 @@ select is(
         'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_bill',
         'public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_return','public.debt_void',
         'public.delete_household','public.leave_household','public.reconcile_account','public.reconciliation_undo','public.recurrence_create',
-        'public.recurrence_end','public.recurrence_materialize','public.recurrence_update','public.remove_member',
+        'public.recurrence_delete','public.recurrence_end','public.recurrence_materialize','public.recurrence_update','public.remove_member',
         'public.reset_household','public.set_card_cycle','public.set_card_identity','public.set_card_limit']::text[],
   'SECURITY DEFINER apenas nas funções auditadas (seção 6.1 do plano)');
 

@@ -209,6 +209,39 @@ select is(pg_temp.sqlstate_of($$insert into public.recurrences (household_id, ki
 select is(pg_temp.sqlstate_of($$update public.transactions set recurrence_id = null where recurrence_id = pg_temp.fx('sal')$$),
           '42501', 'RC10 cliente não altera recurrence_id');
 
+-- RC12: finalizar exclui a regra, manda planejados futuros à lixeira e preserva o histórico.
+insert into fixture select 'apagar_conta', public.recurrence_create(
+  'expense', 'Excluir regra teste', 100.00, 1, pg_temp.mes(-1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
+select ok(public.recurrence_materialize() > 0, 'RC12 materializa lançamentos da regra a excluir');
+update public.transactions set status = 'paid'
+ where id = (select id from public.transactions where recurrence_id = pg_temp.fx('apagar_conta') order by date limit 1);
+select lives_ok($$select public.recurrence_delete(pg_temp.fx('apagar_conta'))$$, 'RC12 exclui definitivamente a regra');
+select is((select count(*) from public.recurrences where id = pg_temp.fx('apagar_conta')), 0::bigint,
+  'RC12 regra removida da tabela');
+select is((select count(*) from public.transactions where description = 'Excluir regra teste'), 4::bigint,
+  'RC12 todos os lançamentos gerados continuam existindo');
+select is((select count(*) from public.transactions where description = 'Excluir regra teste'
+            and status = 'paid' and deleted_at is null and recurrence_id is null), 1::bigint,
+  'RC12 lançamento pago preservado e desvinculado da regra');
+select is((select count(*) from public.transactions where description = 'Excluir regra teste'
+            and status = 'planned' and date > pg_temp.hoje() and deleted_at is not null and recurrence_id is null), 2::bigint,
+  'RC12 planejados futuros vão para a lixeira e ficam desvinculados');
+select is((select count(*) from public.transactions where description = 'Excluir regra teste'
+            and status = 'planned' and date <= pg_temp.hoje() and deleted_at is null and recurrence_id is null), 1::bigint,
+  'RC12 planejado histórico é preservado');
+
+-- RC12b: excluir uma assinatura não apaga compras/parcelas já materializadas no cartão.
+insert into fixture select 'apagar_cartao', public.recurrence_create(
+  'card', 'Assinatura preservada', 49.90, 1, pg_temp.mes(-1), null, null, pg_temp.fx('card'), pg_temp.fx('cexp'));
+select ok(public.recurrence_materialize() > 0, 'RC12b materializa compras da assinatura');
+select is((select count(*) from public.debt_installments where recurrence_id = pg_temp.fx('apagar_cartao')), 2::bigint,
+  'RC12b existem duas compras já materializadas');
+select lives_ok($$select public.recurrence_delete(pg_temp.fx('apagar_cartao'))$$, 'RC12b exclui a regra de assinatura');
+select is((select count(*) from public.debt_installments where description = 'Assinatura preservada'), 2::bigint,
+  'RC12b parcelas existentes continuam preservadas');
+select is((select count(*) from public.debt_installments where description = 'Assinatura preservada' and recurrence_id is null), 2::bigint,
+  'RC12b parcelas preservadas ficam desvinculadas da regra excluída');
+
 -- RC11: isolamento
 reset role;
 select pg_temp.login('00000000-0000-0000-0000-0000000011a2');
@@ -216,6 +249,7 @@ select public.create_household('Outra Casa');
 select is((select count(*) from public.recurrences), 0::bigint, 'RC11 outra família não vê as regras');
 select is(pg_temp.sqlstate_of($$select public.recurrence_update(pg_temp.fx('sal'), 'x', 1)$$), '42501', 'RC11 não edita regra alheia');
 select is(pg_temp.sqlstate_of($$select public.recurrence_end(pg_temp.fx('sal'))$$), '42501', 'RC11 não encerra regra alheia');
+select is(pg_temp.sqlstate_of($$select public.recurrence_delete(pg_temp.fx('sal'))$$), '42501', 'RC11 não exclui regra alheia');
 select is(public.recurrence_materialize(), 0, 'RC11 geração da outra família não toca nas regras alheias');
 
 select * from finish();

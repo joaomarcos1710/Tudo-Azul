@@ -9,7 +9,7 @@ const mock = vi.hoisted(() => ({
   listarRecorrencias: vi.fn(),
   criarRecorrencia: vi.fn(),
   editarRecorrencia: vi.fn(),
-  encerrarRecorrencia: vi.fn(),
+  excluirRecorrencia: vi.fn(),
   listarContas: vi.fn(),
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/recorrencias', async (o) => ({
   ...(await o<typeof import('../lib/recorrencias')>()),
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
-  editarRecorrencia: mock.editarRecorrencia, encerrarRecorrencia: mock.encerrarRecorrencia,
+  editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/cartoes', async (o) => ({ ...(await o<typeof import('../lib/cartoes')>()), listarCartoes: mock.listarCartoes }))
@@ -52,7 +52,7 @@ beforeEach(() => {
     { id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true },
     { id: 'g2', nome: 'Salário', tipo: 'income', paiId: null, sistema: false, ativa: true },
   ])
-  for (const f of [mock.criarRecorrencia, mock.editarRecorrencia, mock.encerrarRecorrencia]) f.mockResolvedValue(undefined)
+  for (const f of [mock.criarRecorrencia, mock.editarRecorrencia, mock.excluirRecorrencia]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -131,7 +131,7 @@ describe('Recorrentes', () => {
     expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'transfer', contaId: 'a1', destinoId: 'a2', categoriaId: null }))
   })
 
-  it('editar muda valor; encerrar pede confirmação', async () => {
+  it('editar muda valor; finalizar exclui a regra e preserva o histórico', async () => {
     const u = userEvent.setup()
     mock.listarRecorrencias.mockResolvedValue([luz])
     vi.spyOn(window, 'confirm').mockReturnValue(true)
@@ -142,15 +142,29 @@ describe('Recorrentes', () => {
     expect(screen.getByText(/o que você corrigiu à mão em um mês \(valor, descrição ou categoria\) fica como está/)).toBeTruthy()
     // frequência não muda na edição: diz como mudar
     expect(screen.queryByLabelText('Frequência')).toBeNull()
-    expect(screen.getByText(/Todo dia 10\. .*Para mudar a frequência ou o dia, encerre este recorrente e cadastre outro\./)).toBeTruthy()
+    expect(screen.getByText(/Todo dia 10\. .*Para mudar a frequência ou o dia, finalize este recorrente e cadastre outro\./)).toBeTruthy()
     const valor = screen.getByLabelText('Valor estimado (R$)')
     await u.clear(valor)
     await u.type(valor, '200,00')
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(mock.editarRecorrencia).toHaveBeenCalledWith('r1', { descricao: 'Luz', valor: 20000, categoriaId: 'g1' })
-    await u.click(await screen.findByRole('button', { name: 'Encerrar' }))
-    expect(window.confirm).toHaveBeenCalled()
-    expect(mock.encerrarRecorrencia).toHaveBeenCalledWith('r1')
+    mock.listarRecorrencias.mockResolvedValueOnce([])
+    await u.click(await screen.findByRole('button', { name: 'Finalizar' }))
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('Os planejados futuros não pagos vão para a lixeira'))
+    expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r1')
+    expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
+  })
+
+  it('permite excluir definitivamente um recorrente antigo já encerrado', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([{ ...luz, ativa: false, fim: '2026-09-30' }])
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    montar()
+    expect(await screen.findByText('Encerrados (1)')).toBeTruthy()
+    mock.listarRecorrencias.mockResolvedValueOnce([])
+    await u.click(screen.getByRole('button', { name: 'Excluir' }))
+    expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r1')
+    expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
   })
 
   it('lista mostra a frequência, a próxima data e a data final', async () => {
