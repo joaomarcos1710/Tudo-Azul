@@ -49,7 +49,7 @@ begin
   v := private.recurrence_lock(p_id);
 
   -- O futuro planejado deixa de ser compromisso recorrente e vai para a lixeira.
-  -- O que já foi pago, o que ficou no passado e o que foi corrigido manualmente permanece.
+  -- Lançamentos pagos e ocorrências históricas permanecem; todo planejado futuro não pago vai para a lixeira.
   update public.transactions
      set deleted_at = now()
    where recurrence_id = v.id
