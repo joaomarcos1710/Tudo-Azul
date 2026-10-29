@@ -17,7 +17,7 @@ vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
 vi.mock('../lib/automaticos', () => ({ atualizarAutomaticos: mock.atualizarAutomaticos }))
-vi.mock('../lib/categorias', () => ({ listarCategorias: mock.listarCategorias }))
+vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/lancamentos', async (o) => ({
   ...(await o<typeof import('../lib/lancamentos')>()),

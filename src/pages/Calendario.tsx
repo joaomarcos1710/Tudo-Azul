@@ -4,7 +4,7 @@ import { Aviso } from '../components/ui/Aviso'
 import { Card, CardTitle } from '../components/ui/Card'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
-import { listarCategorias } from '../lib/categorias'
+import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
@@ -66,7 +66,7 @@ export default function Calendario() {
       .then(([lancs, movs, contas, cats, res]) => {
         if (!vivo()) return
         const nomeConta = new Map((contas?.contas ?? []).map((c) => [c.id, c.nome]))
-        const nomeCategoria = new Map((cats ?? []).map((c) => [c.id, c.nome]))
+        const nomeCategoria = nomesCompletos(cats ?? [])
         const doMes: ItemDoDia[] = [
           ...lancs.map((l): ItemDoDia => ({
             id: `t-${l.id}`,

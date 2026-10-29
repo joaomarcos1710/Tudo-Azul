@@ -589,3 +589,40 @@ describe('Formulário de lançamento (novo visual)', () => {
     expect(screen.getByRole('button', { name: 'Registrar despesa' })).toBeTruthy() // continua aberto
   })
 })
+
+describe('Subcategoria na ordem e no nome', () => {
+  const cats = [
+    { id: 'out', nome: 'Outras receitas', tipo: 'income', paiId: null, sistema: false, ativa: true },
+    { id: 'ren', nome: 'Rendimentos', tipo: 'income', paiId: null, sistema: false, ativa: true },
+    { id: 'roy', nome: 'Royalty', tipo: 'income', paiId: null, sistema: false, ativa: true },
+    { id: 'reem', nome: 'Reembolso', tipo: 'income', paiId: 'roy', sistema: false, ativa: true },
+  ]
+
+  it('no formulário, a subcategoria vem logo abaixo da principal (e não entre "Outras receitas" e "Rendimentos")', async () => {
+    mock.listarCategorias.mockResolvedValue(cats)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const u = userEvent.setup()
+    await screen.findByText('Supermercado')
+    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    await u.click(within(screen.getByRole('radiogroup', { name: 'Tipo do lançamento' })).getByRole('radio', { name: 'Receita' }))
+    const opcoes = within(screen.getByLabelText('Categoria')).getAllByRole('option').map((o) => o.textContent)
+    expect(opcoes).toEqual(['Escolher', 'Outras receitas', 'Rendimentos', 'Royalty', '↳ Reembolso'])
+  })
+
+  it('na lista, o lançamento de uma subcategoria mostra "Principal › Sub"', async () => {
+    mock.listarCategorias.mockResolvedValue(cats)
+    mock.listarLancamentos.mockResolvedValue([
+      { id: 'r1', tipo: 'income', contaId: 'a1', destinoId: null, categoriaId: 'reem', descricao: 'Devolução', valor: c(16800), data: '2026-10-05', status: 'paid', notas: '' },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Royalty › Reembolso · Itaú')).toBeTruthy()
+  })
+
+  it('no filtro por categoria, a subcategoria também fica sob a principal', async () => {
+    mock.listarCategorias.mockResolvedValue(cats)
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    const opcoes = within(screen.getByLabelText('Filtrar por categoria')).getAllByRole('option').map((o) => o.textContent)
+    expect(opcoes).toEqual(['Todas as categorias', 'Outras receitas (receita)', 'Rendimentos (receita)', 'Royalty (receita)', '↳ Reembolso (receita)'])
+  })
+})
