@@ -92,7 +92,7 @@ select is((select count(*) from public.recurrences where id = pg_temp.fx('rk')),
 -- RD12 regra já encerrada também pode ser excluída (os "Encerrados" antigos)
 insert into fixture select 're', public.recurrence_create('expense', 'Academia', 90, 10, pg_temp.mes(-1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
 select public.recurrence_materialize();
-select lives_ok($select public.recurrence_end(pg_temp.fx('re'), pg_temp.hoje())$, 'RD12 finalizar exclui a regra diretamente');
+select lives_ok($q$select public.recurrence_end(pg_temp.fx('re'), pg_temp.hoje())$q$, 'RD12 finalizar exclui a regra diretamente');
 select is((select count(*) from public.recurrences where id = pg_temp.fx('re')), 0::bigint, 'RD12 a regra finalizada não fica arquivada');
 select is((select count(*) from public.transactions where description = 'Academia' and recurrence_id is not null), 0::bigint,
           'RD12 lançamentos históricos perdem o vínculo com a regra finalizada');
