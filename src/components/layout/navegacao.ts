@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
-  IconeAnalises, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral,
+  IconeAnalises, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas,
 } from './icons'
 
 export interface ItemNavegacao {
@@ -48,6 +48,12 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     itens: [
       { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos, descricao: 'Quanto gastar por categoria no mês.', fixoNoCelular: true },
       { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias, descricao: 'Como receitas e despesas são agrupadas.', atalho: true },
+    ],
+  },
+  {
+    titulo: 'Patrimônio',
+    itens: [
+      { caminho: '/dividas', rotulo: 'Dívidas e empréstimos', curto: 'Dívidas', Icone: IconeDividas, descricao: 'Saldo devedor, pagamentos e estratégias de quitação.' },
     ],
   },
   {
