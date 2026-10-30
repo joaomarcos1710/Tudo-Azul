@@ -19,10 +19,10 @@ begin execute p_sql; return null; exception when others then return sqlstate; en
 grant execute on function pg_temp.fx(text), pg_temp.mkuser(uuid,text), pg_temp.login(uuid), pg_temp.sqlstate_of(text) to public;
 
 select pg_temp.mkuser('00000000-0000-0000-0000-0000000000e1', 'investimentos@test.com');
+select pg_temp.mkuser('00000000-0000-0000-0000-0000000000e2', 'outra-familia@test.com');
 select pg_temp.login('00000000-0000-0000-0000-0000000000e1');
 insert into fixture select 'household', public.create_household('Casa Investimentos');
 
-select pg_temp.mkuser('00000000-0000-0000-0000-0000000000e2', 'outra-familia@test.com');
 select pg_temp.login('00000000-0000-0000-0000-0000000000e2');
 insert into fixture select 'other_household', public.create_household('Outra família');
 select public.investment_asset_create(pg_temp.fx('other_household'),'Ativo privado',null,'equity','BRL');
