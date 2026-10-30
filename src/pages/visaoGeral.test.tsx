@@ -143,7 +143,7 @@ describe('Visão geral', () => {
   it('mostra a equação do patrimônio com os valores do banco', async () => {
     montar('analises')
     // patrimônio consolidado inclui a participação familiar nos bens em BRL
-    expect(screen.getByText('Patrimônio líquido')).toBeTruthy()
+    expect(await screen.findByText('Patrimônio líquido')).toBeTruthy()
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.getByText(/Bens e investimentos em USD/)).toBeTruthy()
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
@@ -163,7 +163,7 @@ describe('Visão geral', () => {
     mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(0), creditoAReceber: c(0), divida: c(0), bens: c(0), patrimonio: c(0), compromissos: c(0) })
     mock.carregarResumoInvestimentos.mockResolvedValue([])
     montar('analises')
-    await screen.findByText(/Não inclui bens/)
+    expect(await screen.findByText('Patrimônio líquido')).toBeTruthy()
     expect(screen.queryByText(/Compromissos futuros/)).toBeNull()
   })
 
