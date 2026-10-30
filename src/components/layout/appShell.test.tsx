@@ -24,7 +24,7 @@ describe('menu em grupos', () => {
   it('toda tela do app está no menu (inclui Recorrentes, que antes não aparecia) e sem caminhos repetidos', () => {
     const caminhos = itensNavegacao.map((i) => i.caminho)
     expect(new Set(caminhos).size).toBe(caminhos.length)
-    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/categorias', '/orcamentos', '/relatorios', '/familia']) {
+    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/categorias', '/orcamentos', '/relatorios', '/familia']) {
       expect(caminhos).toContain(c)
     }
   })
@@ -33,7 +33,7 @@ describe('menu em grupos', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
     expect(within(lateral).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
-      .toEqual(['Visão geral', 'Movimentações', 'Planejamento', 'Conta'])
+      .toEqual(['Visão geral', 'Movimentações', 'Planejamento', 'Patrimônio', 'Conta'])
     const mov = within(lateral).getByRole('group', { name: 'Movimentações' })
     expect(within(mov).getAllByRole('link').map((a) => a.textContent))
       .toEqual(['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas e conferência'])
@@ -82,7 +82,7 @@ describe('menu em grupos', () => {
     expect(folha.querySelector('[id="desc-/cartoes"]')!.textContent).toBe('Fatura, parcelas e limite de cada cartão.')
     // as linhas que sobraram mantêm seus grupos; o grupo que ficou vazio some
     expect(within(folha).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
-      .toEqual(['Atalhos', 'Visão geral', 'Movimentações', 'Planejamento', 'Conta'])
+      .toEqual(['Atalhos', 'Visão geral', 'Movimentações', 'Planejamento', 'Patrimônio', 'Conta'])
   })
 
   it('o menu lateral (iPad e computador) não muda: só os nomes, sem frases', () => {
