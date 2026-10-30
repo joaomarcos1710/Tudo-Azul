@@ -104,7 +104,7 @@ select functions_are('public', array[
 select functions_are('private', array[
   'accounts_guard','accounts_period_guard','budgets_guard','card_day_in_month','card_due_date','card_first_closing','card_recurrence_pending',
   'card_reopen_invoice','card_void_events','categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
-  'debt_effect','debt_events_guard','debt_events_period_guard','expense_items','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debts_immutable',
+  'debt_effect','debt_events_guard','debt_events_period_guard','expense_items','fx_rates_immutable','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debts_immutable',
   'handle_new_user','is_member','is_owner','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrence_occurrences','recurrences_money_guard','seed_default_categories',
   'shares_household','today_sp','touch_updated_at','transactions_guard','transactions_period_guard'],
   'funções do schema private');
