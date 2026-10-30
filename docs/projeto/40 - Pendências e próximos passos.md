@@ -21,7 +21,8 @@ atualizado: 2026-10-28
 
 ## Próximos PRs sugeridos
 - [ ] **Recorrentes: horizonte de geração** (30/10/2026, o dono notou que só duram 2 meses): hoje `recurrence_materialize` gera até o fim do mês daqui a 2 meses. Proposta aguardando decisão: regra com data final gera até o fim (máx. 360 meses), sem data final 12 meses. Pode virar a tela de Empréstimos/Financiamentos no futuro.
-- [ ] **Arquivar/excluir cartão e conta** (migration 020): PR aberto, aguarda o "pode" para mesclar e aplicar.
+- [x] **Arquivar/excluir cartão e conta** (migrations 020 e 021, #88 e #89): feito e aplicado em 30/10/2026. Falta o dono conferir no app: o cartão de exemplo que não deixa excluir (ler a mensagem nova, que diz o que existe) e decidir se a exclusão deve valer quando só sobram registros anulados.
+- [ ] **Testes pgTAP que dependem da data de hoje** (A1 `12_card_correcoes` linhas 89-92 e demais `'2026-12-31'`; A2 `22_recurrence_frequency` RF3-RF9c): quebram a partir de 01-02/01/2027.
 1. ~~**Início × Análises**~~ — feito (#57).
 2. Front: atualizar faturas antes de abrir Relatórios e Orçamentos.
 3. Front: mostrar conta desativada com saldo na Visão geral.
@@ -38,7 +39,7 @@ atualizado: 2026-10-28
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
 
 ## Menu e formulário de lançamento
-- [ ] **Projeção errada depois de excluir recorrente (migration 019)** — bug achado pela revisão dos agentes (regressão da 018). Correção em PR de rascunho; ordem: CI verde → mesclar → workflow "Supabase — aplicar migrations" simular → ler o log → aplicar. Até aplicar, evitar excluir recorrente que já tem lançamento pago no mês corrente (a projeção do mês e dos orçamentos sobe de forma errada até a virada do mês).
+- [x] **Projeção errada depois de excluir recorrente** (#86, mesclado em 29/10; **migration 019 aplicada em produção em 29/10/2026**). Já pode excluir recorrente com lançamento pago no mês corrente.
 - [ ] **Excluir recorrente + versão 2026.5** (#84, mesclado em 29/10; **migration 018 aplicada em produção em 29/10/2026**). Falta você: excluir o recorrente já finalizado em Recorrentes → Encerrados, conferir que os lançamentos pagos dele continuam, e testar a 2026.5 no iPhone.
 - [ ] **Banco gravado e bandeira do cartão** (#80, mesclado em 29/10; **migration 017 aplicada em produção em 29/10/2026**). Falta você: escolher o banco das contas (Contas → Editar) e o emissor/bandeira dos cartões (Cartões → "Escolher banco e bandeira") e conferir os logos no iPhone. Next, Original e Will seguem com a sigla (sem logo).
 - [ ] **Logos de banco** (#79, mesclado em 29/10): 20 logos importados de `rzmt/logos-bancos-br` (origem em `src/assets/bancos/ORIGEM.md`); Next, Original e Will continuam com a sigla. Conferir no celular. Banco novo: subir o arquivo com o nome da chave (`LEIAME.md` da pasta).
