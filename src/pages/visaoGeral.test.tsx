@@ -6,6 +6,7 @@ import type { Cents } from '../lib/format'
 
 const mock = vi.hoisted(() => ({
   carregarPatrimonio: vi.fn(),
+  carregarResumoInvestimentos: vi.fn(),
   proximosPlanejados: vi.fn(),
   resumoDoMes: vi.fn(),
   listarContas: vi.fn(),
@@ -25,7 +26,8 @@ vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
 vi.mock('../lib/painel', () => ({
-  carregarPatrimonio: mock.carregarPatrimonio, proximosPlanejados: mock.proximosPlanejados,
+  carregarPatrimonio: mock.carregarPatrimonio, carregarResumoInvestimentos: mock.carregarResumoInvestimentos,
+  proximosPlanejados: mock.proximosPlanejados,
   despesasPorCategoria: mock.despesasPorCategoria, despesasPorDia: mock.despesasPorDia,
   regularidadeRenda: mock.regularidadeRenda,
   projecaoDoMes: mock.projecaoDoMes,
@@ -50,7 +52,8 @@ beforeEach(() => {
   window.localStorage.clear()
   cobrar.mockResolvedValue(0)
   gerar.mockResolvedValue(0)
-  mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), patrimonio: c(1087560), compromissos: c(482000) })
+  mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), investimentos: c(36000), patrimonio: c(1123560), compromissos: c(482000) })
+  mock.carregarResumoInvestimentos.mockResolvedValue([{ moeda: 'BRL', valorAtual: c(36000) }, { moeda: 'USD', valorAtual: c(20100) }])
   mock.resumoDoMes.mockResolvedValue({ receitas: c(1215000), despesas: c(866726), resultado: c(348274), receitasPrevistas: c(0), despesasPrevistas: c(38990) })
   mock.listarContas.mockResolvedValue({
     contas: [
@@ -140,9 +143,9 @@ describe('Visão geral', () => {
   it('mostra a equação do patrimônio com os valores do banco', async () => {
     montar('analises')
     // equação montada com os valores do banco: disponível + crédito a receber − dívida = patrimônio
-    expect(await screen.findByText(/disponível R\$ 50\.651,05 \+ crédito a receber R\$ 245,90 − dívida R\$ 40\.021,35/)).toBeTruthy()
-    expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
-    expect(screen.getByText(/Não inclui bens nem investimentos/)).toBeTruthy()
+    expect(await screen.findByText(/disponível R\\$ 50\\.651,05 \\+ crédito a receber R\\$ 245,90 \\+ investimentos em reais R\\$ 360,00 − dívida R\\$ 40\\.021,35/)).toBeTruthy()
+    expect(screen.getByText('R$ 11.235,60')).toBeTruthy()
+    expect(screen.getByText(/Bens e investimentos em USD/EUR ainda não entram no consolidado/)).toBeTruthy()
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
   })
   it('resumo do mês (Análises): receitas e despesas do banco', async () => {
@@ -157,7 +160,7 @@ describe('Visão geral', () => {
     expect(screen.queryByText('Antiga')).toBeNull()
   })
   it('sem compromissos, não mostra a faixa', async () => {
-    mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(0), creditoAReceber: c(0), divida: c(0), patrimonio: c(0), compromissos: c(0) })
+    mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(0), creditoAReceber: c(0), divida: c(0), investimentos: c(0), patrimonio: c(0), compromissos: c(0) })
     montar('analises')
     await screen.findByText(/Não inclui bens/)
     expect(screen.queryByText(/Compromissos futuros/)).toBeNull()
@@ -180,7 +183,7 @@ describe('Visão geral', () => {
     mock.despesasPorCategoria.mockRejectedValue(new Error('function does not exist'))
     mock.despesasPorDia.mockRejectedValue(new Error('function does not exist'))
     montar('analises')
-    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(await screen.findByText('R$ 11.235,60')).toBeTruthy()
     expect(screen.getAllByText(/Gráfico indisponível agora/)).toHaveLength(2)
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
@@ -210,7 +213,7 @@ describe('Visão geral', () => {
     mock.regularidadeRenda.mockReset()
     mock.regularidadeRenda.mockRejectedValue(new Error('function does not exist'))
     montar('analises')
-    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(await screen.findByText('R$ 11.235,60')).toBeTruthy()
     expect(screen.queryByText('Renda regular × despesas')).toBeNull()
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
@@ -235,7 +238,7 @@ describe('Visão geral', () => {
     mock.resumoDoPeriodo.mockReset()
     mock.resumoDoPeriodo.mockRejectedValue(new Error('x'))
     montar('analises')
-    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(await screen.findByText('R$ 11.235,60')).toBeTruthy()
     expect(screen.queryByText('Comparação com o ano passado')).toBeNull()
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
@@ -274,14 +277,14 @@ describe('Visão geral', () => {
       ritmoPorDia: c(0), ritmoRestante: c(0), projetado: c(0),
     })
     montar('analises')
-    await screen.findByText('R$ 10.875,60')
+    await screen.findByText('R$ 11.235,60')
     expect(screen.queryByText('Projeção do mês')).toBeNull()
   })
   it('se a projeção falhar (banco sem a migration 013), o resto do painel aparece', async () => {
     mock.projecaoDoMes.mockReset()
     mock.projecaoDoMes.mockRejectedValue(new Error('function does not exist'))
     montar('analises')
-    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(await screen.findByText('R$ 11.235,60')).toBeTruthy()
     expect(screen.queryByText('Projeção do mês')).toBeNull()
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
@@ -471,6 +474,9 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     expect(screen.getByText('Entradas do mês')).toBeTruthy()
     expect(screen.getByText('Despesas do mês')).toBeTruthy()
     expect(screen.getByText('Resultado do mês')).toBeTruthy()
+    expect(screen.getByText('Saldo de investimentos')).toBeTruthy()
+    expect(screen.getByText('R$ 360,00')).toBeTruthy()
+    expect(screen.getByText('Saldo em USD')).toBeTruthy()
     expect(screen.queryByText('Renda regular × despesas')).toBeNull()
     expect(screen.queryByText('Comparação com o ano passado')).toBeNull()
     expect(screen.queryByText('Projeção do mês')).toBeNull()
@@ -483,7 +489,7 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     ])
     montar('analises')
     await screen.findByRole('heading', { name: 'Análises' })
-    expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.getByText('R$ 11.235,60')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Ações rápidas' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Despesa' })).toBeNull()
     expect(screen.queryByText('Vencidos e precisam de atenção')).toBeNull()
@@ -519,7 +525,7 @@ describe('Análises: falha isolada derruba só o bloco dela', () => {
     expect(screen.getByText('−R$ 8.667,26')).toBeTruthy()
     expect(screen.queryByText(/vs set|vs out|vs nov/)).toBeNull()
     expect(screen.queryByText(/No mês passado inteiro/)).toBeNull()
-    expect(screen.getByText('R$ 10.875,60')).toBeTruthy() // patrimônio segue
+    expect(screen.getByText('R$ 11.235,60')).toBeTruthy() // patrimônio segue
     expect(screen.queryByRole('alert')).toBeNull()
   })
   it('patrimônio falhou: o resumo do mês segue e o patrimônio avisa que está indisponível', async () => {
@@ -534,7 +540,7 @@ describe('Análises: falha isolada derruba só o bloco dela', () => {
     mock.resumoDoMes.mockRejectedValue(new Error('rede'))
     montar('analises')
     expect(await screen.findByText('Resumo do mês indisponível agora. O restante da tela continua.')).toBeTruthy()
-    expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.getByText('R$ 11.235,60')).toBeTruthy()
     expect(screen.queryByText('Despesas do mês')).toBeNull()
     expect(screen.getByText('Gráfico indisponível agora.')).toBeTruthy()
     expect(screen.getByText('Renda regular × despesas')).toBeTruthy()
