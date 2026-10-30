@@ -502,12 +502,18 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   aoSalvarParcela?: (d: Parameters<typeof registrarPagamentoParcela>[0]) => Promise<void>
 }) {
   const consignado = parcela?.formaPagamento === 'payroll'
+  const normalizarCategoria = (nome: string) => nome.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase('pt-BR').trim()
+  const categoriaFinanciamento = categorias.find((c) => normalizarCategoria(c.nome) === 'financiamento')
+    ?? categorias.find((c) => normalizarCategoria(c.nome) === 'financiamyto')
+  const categoriaHabitacao = categorias.find((c) => normalizarCategoria(c.nome) === 'habitacao')
+  const categoriaMoradia = categorias.find((c) => normalizarCategoria(c.nome) === 'moradia')
+  const categoriaJurosPadrao = categoriaFinanciamento ?? categoriaHabitacao ?? categoriaMoradia
   const [data, setData] = useState(hojeSP())
   const [contaId, setContaId] = useState(parcela?.contaPagamentoId ?? contas[0]?.id ?? '')
   const [totalTexto, setTotalTexto] = useState(parcela ? formatBRLCampo(parcela.valor) : '')
   const [jurosTexto, setJurosTexto] = useState('0,00')
   const [tarifaTexto, setTarifaTexto] = useState('0,00')
-  const [categoriaId, setCategoriaId] = useState(categorias[0]?.id ?? '')
+  const [categoriaId, setCategoriaId] = useState(categoriaJurosPadrao?.id ?? '')
   const [extra, setExtra] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -562,7 +568,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
             <Field rotulo="Juros incluídos (R$)" inputMode="decimal" value={jurosTexto} onChange={(e) => setJurosTexto(e.target.value)} />
             <Field rotulo="Tarifas incluídas (R$)" inputMode="decimal" value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} />
             <Selecao rotulo="Categoria para juros/tarifas" valor={categoriaId} aoMudar={setCategoriaId} todos={precisaCategoria ? 'Selecione a categoria' : 'Não necessária'}
-              opcoes={categorias.map((c) => [c.id, c.nome])} desabilitado={!precisaCategoria} />
+              opcoes={categorias.map((c) => [c.id, normalizarCategoria(c.nome) === 'financiamyto' ? 'Financiamento' : c.nome])} desabilitado={!precisaCategoria} />
           </>
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
