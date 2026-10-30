@@ -10,8 +10,9 @@ do GitHub (ex.: `2027.130`).
   GitHub) e corrija com um commit se errar.
 - **Onde aparece**: o app mostra `AAAA.N` na barra lateral, na tela de Família e nas telas de entrada; no deploy da
   Vercel aparece também o commit curto (`2026.98 · 98e83d0`).
-- **Quando duas PRs abertas disputam o mesmo número ou o arquivo**: vale o número de cada PR; o conflito em
-  `package.json` se resolve ficando com o número da PR que está sendo mesclada.
+- **Merge fora de ordem:** a versão nunca diminui. Ao mesclar a PR #N, use o maior valor entre N e a versão já integrada
+  na `main`. Uma PR mais antiga que a versão atual mantém a versão atual; uma PR mais nova avança para seu próprio número.
+  Exemplo: se a PR #98 já entrou, a PR #97 mantém `2026.98.0`; a PR #99 usa `2026.99.0`.
 - **Migrations** têm numeração própria (001, 002…) e continuam sem ser editadas depois de aplicadas.
 
 ## Antes (até 2026.5): edições
