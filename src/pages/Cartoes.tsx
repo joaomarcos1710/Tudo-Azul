@@ -11,7 +11,7 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  arquivarCartao, criarCartao, definirCiclo, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, proximaFatura, reativarCartao, renomearCartao,
+  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, proximaFatura, reativarCartao, renomearCartao,
   novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
@@ -34,6 +34,7 @@ type Painel =
   | { tipo: 'compra'; cartao: Cartao }
   | { tipo: 'pagar'; cartao: Cartao }
   | { tipo: 'renomear'; cartao: Cartao }
+  | { tipo: 'contapag'; cartao: Cartao }
   | { tipo: 'arquivar'; cartao: Cartao }
   | { tipo: 'excluir'; cartao: Cartao }
 
@@ -104,6 +105,7 @@ export default function Cartoes() {
     }
   }
 
+  const nomeConta = new Map(contas.map((c) => [c.id, c.nome]))
   const ativos = cartoes?.filter((c) => c.ativo) ?? []
   const arquivados = cartoes?.filter((c) => !c.ativo) ?? []
 
@@ -116,9 +118,10 @@ export default function Cartoes() {
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {aviso && !erro && <div className="mb-4"><Aviso tipo="erro">{aviso}</Aviso></div>}
 
-      {painel?.tipo === 'novo' && <FormCartao aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
+      {painel?.tipo === 'novo' && <FormCartao contas={contas} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'ciclo' && <FormCiclo cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'limite' && <FormLimite cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
+      {painel?.tipo === 'contapag' && <FormContaPagamento cartao={painel.cartao} contas={contas} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'renomear' && <FormRenomear cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'identidade' && <FormIdentidade cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'compra' && (
@@ -158,7 +161,10 @@ export default function Cartoes() {
                 <div className="min-w-0">
                   <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold">{c.nome} <BandeiraCartao bandeira={c.bandeira} /></h2>
                   {c.fechamento !== null ? (
-                    <p className="text-sm text-slate-500">Fecha dia {c.fechamento} · vence dia {c.vencimento}</p>
+                    <p className="text-sm text-slate-500">
+                      Fecha dia {c.fechamento} · vence dia {c.vencimento}
+                      {c.contaPagamentoId && nomeConta.get(c.contaPagamentoId) && <> · paga com {nomeConta.get(c.contaPagamentoId)}</>}
+                    </p>
                   ) : (
                     <p className="text-sm text-planejado">Defina o dia de fechamento e de vencimento para lançar compras.</p>
                   )}
@@ -219,6 +225,9 @@ export default function Cartoes() {
                 </Button>
                 <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'identidade', cartao: c })} disabled={painel !== null}>
                   {c.emissor === null && c.bandeira === null ? 'Escolher banco e bandeira' : 'Banco e bandeira'}
+                </Button>
+                <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'contapag', cartao: c })} disabled={painel !== null}>
+                  {c.contaPagamentoId ? 'Conta de pagamento' : 'Escolher conta de pagamento'}
                 </Button>
                 <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'renomear', cartao: c })} disabled={painel !== null}>Renomear</Button>
                 <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'arquivar', cartao: c })} disabled={painel !== null}>Arquivar</Button>
@@ -519,13 +528,14 @@ function Botoes({ rotulo, enviando, aoCancelar }: { rotulo: string; enviando: bo
   )
 }
 
-function FormCartao({ aoSalvar, aoCancelar }: PropsBase) {
+function FormCartao({ contas, aoSalvar, aoCancelar }: PropsBase & { contas: Conta[] }) {
   const [nome, setNome] = useState('')
   const [fechamento, setFechamento] = useState('')
   const [vencimento, setVencimento] = useState('')
   const [saldoTexto, setSaldoTexto] = useState('0,00')
   const [emissor, setEmissor] = useState('')
   const [bandeira, setBandeira] = useState('')
+  const [contaPagamento, setContaPagamento] = useState('')
   const [tentou, setTentou] = useState(false)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
   const saldo = parseBRL(saldoTexto)
@@ -535,7 +545,7 @@ function FormCartao({ aoSalvar, aoCancelar }: PropsBase) {
     e.preventDefault()
     setTentou(true)
     if (!nome.trim() || !fechamento || !vencimento || saldo === null || saldo < 0) return
-    void enviar(async () => { await criarCartao({ nome, fechamento: Number(fechamento), vencimento: Number(vencimento), saldoAtual: saldo, emissor: emissor || null, bandeira: bandeira || null }) })
+    void enviar(async () => { await criarCartao({ nome, fechamento: Number(fechamento), vencimento: Number(vencimento), saldoAtual: saldo, emissor: emissor || null, bandeira: bandeira || null, contaPagamentoId: contaPagamento || null }) })
   }
 
   return (
@@ -550,6 +560,8 @@ function FormCartao({ aoSalvar, aoCancelar }: PropsBase) {
         <SelecoesIdentidade emissor={emissor} bandeira={bandeira} aoMudarEmissor={setEmissor} aoMudarBandeira={setBandeira} />
         <Selecao rotulo="Dia do fechamento" valor={fechamento} aoMudar={setFechamento} opcoes={dias} todos="Escolha…" />
         <Selecao rotulo="Dia do vencimento" valor={vencimento} aoMudar={setVencimento} opcoes={dias} todos="Escolha…" />
+        <Selecao rotulo="Conta que paga a fatura (opcional)" valor={contaPagamento} aoMudar={setContaPagamento} todos="Escolher depois"
+          opcoes={contas.filter((c) => c.ativa).map((c) => [c.id, c.nome])} />
         {tentou && (!fechamento || !vencimento) && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha o dia de fechamento e o de vencimento.</p>}
         <p className="text-sm text-slate-600 md:col-span-2">
           As compras da <strong>fatura aberta</strong> (e as parcelas que ainda vão vir) você lança depois, em <strong>Nova compra</strong>:
@@ -615,6 +627,33 @@ function FormCiclo({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Carta
         <Selecao rotulo="Dia do fechamento" valor={fechamento} aoMudar={setFechamento} opcoes={dias} todos="Escolha…" />
         <Selecao rotulo="Dia do vencimento" valor={vencimento} aoMudar={setVencimento} opcoes={dias} todos="Escolha…" />
         <p className="text-sm text-slate-600 md:col-span-2">Vale para as próximas compras. Parcelas já lançadas continuam nas faturas em que estão.</p>
+        <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
+      </form>
+    </Card>
+  )
+}
+
+function FormContaPagamento({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; contas: Conta[] }) {
+  const ativas = contas.filter((c) => c.ativa)
+  const [contaId, setContaId] = useState(cartao.contaPagamentoId ?? '')
+  const { erro, enviando, enviar } = useEnvio(aoSalvar)
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    void enviar(() => definirContaPagamento(cartao.id, contaId || null))
+  }
+
+  return (
+    <Card className="mb-6">
+      <h2 className="mb-4 text-lg font-semibold">Conta de pagamento · {cartao.nome}</h2>
+      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Selecao rotulo="Conta que paga a fatura" valor={contaId} aoMudar={setContaId} todos="Nenhuma (escolher a cada pagamento)"
+          opcoes={ativas.map((c) => [c.id, c.nome])} />
+        <p className="text-sm text-slate-600 md:col-span-2">
+          É a conta sugerida em "Pagar fatura" e a que o saldo projetado considera para descontar a fatura no vencimento.
+          Você ainda pode escolher outra conta na hora de pagar.
+        </p>
         <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
       </form>
     </Card>
@@ -750,7 +789,8 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
 
 function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; contas: Conta[] }) {
   const ativas = contas.filter((c) => c.ativa)
-  const [contaId, setContaId] = useState(ativas[0]?.id ?? '')
+  // a conta de pagamento do cartão, se existir e ainda estiver ativa; senão a primeira ativa
+  const [contaId, setContaId] = useState(ativas.find((c) => c.id === cartao.contaPagamentoId)?.id ?? ativas[0]?.id ?? '')
   // com fatura fechada, sugere a dívida; sem fatura, é pagamento adiantado e o valor fica por conta do dono
   const [valorTexto, setValorTexto] = useState(cartao.divida > 0 ? formatBRLCampo(cartao.divida) : '')
   const [data, setData] = useState(hojeSP())

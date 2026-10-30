@@ -13,6 +13,8 @@ export interface Cartao {
   /** Chave do banco emissor (debts.issuer) e da bandeira (debts.brand); null = não escolhidos. */
   emissor: string | null
   bandeira: string | null
+  /** Conta que paga a fatura (debts.pay_account_id, migration 024); null = não escolhida. Sugestão no pagamento e base do saldo projetado. */
+  contaPagamentoId: string | null
   /** null em cartão criado antes do ciclo existir: compras ficam bloqueadas até definir. */
   fechamento: number | null
   vencimento: number | null
@@ -90,16 +92,18 @@ export function ontemSP(agora: Date = new Date()): string {
   return new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10)
 }
 
-interface LinhaCartao { id: string; name: string; closing_day: number | null; due_day: number | null; active: boolean; issuer?: string | null; brand?: string | null }
+interface LinhaCartao { id: string; name: string; closing_day: number | null; due_day: number | null; active: boolean; issuer?: string | null; brand?: string | null; pay_account_id?: string | null }
 
 export async function listarCartoes(familiaId: string, dataRef: string = hojeSP()): Promise<Cartao[]> {
   const db = cliente()
   const lerCartoes = async (): Promise<{ data: LinhaCartao[]; error: { code?: string } | null }> => {
-    const r = await db.from('debts').select('id, name, closing_day, due_day, active, issuer, brand').eq('household_id', familiaId).eq('kind', 'card').order('name')
-    if (r.error?.code !== COLUNA_INEXISTENTE) return { data: (r.data ?? []) as LinhaCartao[], error: r.error }
-    // coluna inexistente = banco ainda sem a migration 017: segue sem emissor e bandeira em vez de quebrar a tela
+    // colunas novas ainda inexistentes (banco sem a migration 024, depois sem a 017): segue sem elas em vez de quebrar a tela
+    for (const colunas of ['id, name, closing_day, due_day, active, issuer, brand, pay_account_id', 'id, name, closing_day, due_day, active, issuer, brand']) {
+      const r = await db.from('debts').select(colunas).eq('household_id', familiaId).eq('kind', 'card').order('name')
+      if (r.error?.code !== COLUNA_INEXISTENTE) return { data: (r.data ?? []) as unknown as LinhaCartao[], error: r.error }
+    }
     const sem = await db.from('debts').select('id, name, closing_day, due_day, active').eq('household_id', familiaId).eq('kind', 'card').order('name')
-    return { data: (sem.data ?? []) as LinhaCartao[], error: sem.error }
+    return { data: (sem.data ?? []) as unknown as LinhaCartao[], error: sem.error }
   }
   const [cartoes, saldos, limites] = await Promise.all([
     lerCartoes(),
@@ -124,6 +128,7 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
       nome: c.name,
       emissor: c.issuer ?? null,
       bandeira: c.brand ?? null,
+      contaPagamentoId: c.pay_account_id ?? null,
       fechamento: c.closing_day,
       vencimento: c.due_day,
       ativo: c.active,
@@ -141,7 +146,7 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
  * Cria o cartão já com o ciclo. saldoAtual = faturas fechadas e ainda não pagas hoje;
  * compras da fatura aberta entram depois, como compras (assim cada uma cai no mês certo).
  */
-export async function criarCartao(d: { nome: string; fechamento: number; vencimento: number; saldoAtual: Cents; emissor?: string | null; bandeira?: string | null }): Promise<string> {
+export async function criarCartao(d: { nome: string; fechamento: number; vencimento: number; saldoAtual: Cents; emissor?: string | null; bandeira?: string | null; contaPagamentoId?: string | null }): Promise<string> {
   const db = cliente()
   const { data: id, error } = await db.rpc('create_debt', {
     p_name: d.nome.trim(), p_kind: 'card', p_reference_date: ontemSP(), p_reference_balance: centsToDecimal(d.saldoAtual),
@@ -149,6 +154,7 @@ export async function criarCartao(d: { nome: string; fechamento: number; vencime
   if (error) throw error
   await definirCiclo(id as string, d.fechamento, d.vencimento)
   if (d.emissor || d.bandeira) await definirIdentidade(id as string, d.emissor ?? null, d.bandeira ?? null)
+  if (d.contaPagamentoId) await definirContaPagamento(id as string, d.contaPagamentoId)
   return id as string
 }
 
@@ -160,6 +166,12 @@ export async function definirCiclo(cartaoId: string, fechamento: number, vencime
 /** Grava o banco emissor e a bandeira do cartão (null apaga). O banco recusa chave inválida ou bandeira desconhecida. */
 export async function definirIdentidade(cartaoId: string, emissor: string | null, bandeira: string | null): Promise<void> {
   const { error } = await cliente().rpc('set_card_identity', { p_debt: cartaoId, p_issuer: emissor, p_brand: bandeira })
+  if (error) throw error
+}
+
+/** Escolhe a conta que paga a fatura do cartão (null apaga). O banco recusa conta arquivada ou de outra família. */
+export async function definirContaPagamento(cartaoId: string, contaId: string | null): Promise<void> {
+  const { error } = await cliente().rpc('set_card_pay_account', { p_debt: cartaoId, p_account: contaId })
   if (error) throw error
 }
 

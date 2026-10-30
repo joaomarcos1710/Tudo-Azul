@@ -15,6 +15,7 @@ const mock = vi.hoisted(() => ({
   definirIdentidade: vi.fn(),
   arquivarCartao: vi.fn(),
   renomearCartao: vi.fn(),
+  definirContaPagamento: vi.fn(),
   reativarCartao: vi.fn(),
   excluirCartao: vi.fn(),
   registrarCompra: vi.fn(),
@@ -35,7 +36,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   ...(await o<typeof import('../lib/cartoes')>()),
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
-  definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
+  definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
   listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
 }))
@@ -66,7 +67,7 @@ beforeEach(() => {
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
   mock.previaExclusao.mockResolvedValue([])
-  for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
+  for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.definirContaPagamento, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -137,7 +138,7 @@ describe('Cartões', () => {
     await u.clear(saldo)
     await u.type(saldo, '1.250,50')
     await u.click(screen.getByRole('button', { name: 'Cadastrar cartão' }))
-    expect(mock.criarCartao).toHaveBeenCalledWith({ nome: 'Nubank', fechamento: 17, vencimento: 25, saldoAtual: 125050, emissor: null, bandeira: null })
+    expect(mock.criarCartao).toHaveBeenCalledWith({ nome: 'Nubank', fechamento: 17, vencimento: 25, saldoAtual: 125050, emissor: null, bandeira: null, contaPagamentoId: null })
   })
 
   it('cadastra cartão com emissor e bandeira (nome livre)', async () => {
@@ -151,7 +152,7 @@ describe('Cartões', () => {
     await u.selectOptions(screen.getByLabelText('Dia do fechamento'), '17')
     await u.selectOptions(screen.getByLabelText('Dia do vencimento'), '25')
     await u.click(screen.getByRole('button', { name: 'Cadastrar cartão' }))
-    expect(mock.criarCartao).toHaveBeenCalledWith({ nome: 'Cartão principal', fechamento: 17, vencimento: 25, saldoAtual: 0, emissor: 'nubank', bandeira: 'mastercard' })
+    expect(mock.criarCartao).toHaveBeenCalledWith({ nome: 'Cartão principal', fechamento: 17, vencimento: 25, saldoAtual: 0, emissor: 'nubank', bandeira: 'mastercard', contaPagamentoId: null })
   })
 
   it('escolhe banco e bandeira de um cartão existente e pode limpar', async () => {
@@ -553,6 +554,56 @@ describe('Renomear cartão', () => {
     await u.type(screen.getByLabelText('Nome do cartão'), ' 2')
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Já existe um registro com esse nome.')
+  })
+})
+
+describe('Conta de pagamento do cartão', () => {
+  it('no cadastro, a conta escolhida vai junto; sem escolher, vai null', async () => {
+    mock.listarCartoes.mockResolvedValue([])
+    render(<Cartoes />)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Cadastrar o primeiro cartão' }))
+    await u.type(screen.getByLabelText('Nome'), 'Caixa Infinite')
+    await u.selectOptions(screen.getByLabelText('Dia do fechamento'), '18')
+    await u.selectOptions(screen.getByLabelText('Dia do vencimento'), '28')
+    await u.selectOptions(screen.getByLabelText('Conta que paga a fatura (opcional)'), 'a1')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar cartão' }))
+    expect(mock.criarCartao).toHaveBeenCalledWith(expect.objectContaining({ nome: 'Caixa Infinite', contaPagamentoId: 'a1' }))
+  })
+
+  it('mostra "paga com" e permite trocar a conta; "Nenhuma" limpa', async () => {
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, contaPagamentoId: 'a1' }])
+    render(<Cartoes />)
+    const u = userEvent.setup()
+    expect(await screen.findByText(/paga com Itaú/)).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Conta de pagamento' }))
+    const seletor = screen.getByLabelText('Conta que paga a fatura') as HTMLSelectElement
+    expect(seletor.value).toBe('a1')
+    await u.selectOptions(seletor, '')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.definirContaPagamento).toHaveBeenCalledWith('k1', null)
+  })
+
+  it('"Pagar fatura" já vem com a conta de pagamento do cartão escolhida', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(500000) },
+      { id: 'a2', nome: 'Caixa', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(100000) },
+    ], total: c(600000) })
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, contaPagamentoId: 'a2' }])
+    render(<Cartoes />)
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    expect((screen.getByLabelText('Pagar com a conta') as HTMLSelectElement).value).toBe('a2')
+  })
+
+  it('conta de pagamento arquivada não é pré-selecionada', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(500000) },
+      { id: 'a2', nome: 'Antiga', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: false, saldo: c(0) },
+    ], total: c(500000) })
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, contaPagamentoId: 'a2' }])
+    render(<Cartoes />)
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    expect((screen.getByLabelText('Pagar com a conta') as HTMLSelectElement).value).toBe('a1')
   })
 })
 
