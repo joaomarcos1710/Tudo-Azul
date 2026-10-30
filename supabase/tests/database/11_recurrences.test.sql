@@ -198,8 +198,9 @@ select lives_ok($$select public.recurrence_end(pg_temp.fx('luz'))$$, 'RC9 encerr
 select is((select count(*) from public.transactions
             where recurrence_id = pg_temp.fx('luz') and deleted_at is null and date > pg_temp.hoje()), 0::bigint,
           'RC9 nenhum planejado futuro da luz');
-select is((select count(*) from public.transactions where recurrence_id = pg_temp.fx('luz') and status = 'paid'), 1::bigint,
-          'RC9 o mês pago continua');
+select is((select count(*) from public.transactions where recurrence_id is null and date = pg_temp.mes(-1) + 9
+            and description = 'Luz' and status = 'paid' and deleted_at is null), 1::bigint,
+          'RC9 o lançamento pago continua no histórico, sem vínculo com a regra excluída');
 select is(public.recurrence_materialize(), 0, 'RC9 regra encerrada não gera mais');
 
 -- RC10: cliente não grava nem altera regra nem forja o vínculo direto
