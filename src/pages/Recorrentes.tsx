@@ -70,7 +70,6 @@ export default function Recorrentes() {
 
   if (!familiaId) return null
   const ativas = recorrencias?.filter((r) => r.ativa) ?? []
-  const encerradas = recorrencias?.filter((r) => !r.ativa) ?? []
 
   const proxima = (r: Recorrencia) => proximasOcorrencias(r, hojeSP(), 1)[0] ?? null
 
@@ -141,19 +140,6 @@ export default function Recorrentes() {
         </Card>
       )}
 
-      {encerradas.length > 0 && (
-        <details className="mt-6">
-          <summary className="cursor-pointer text-sm font-semibold text-slate-600">Encerrados ({encerradas.length})</summary>
-          <ul className="mt-2 flex flex-col gap-1 text-sm text-slate-500">
-            {encerradas.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
-                <span>{r.descricao} · {formatBRL(r.valor)} · até {r.fim ? formatDate(r.fim) : '—'}</span>
-                <Button variante="discreto" compacto onClick={() => excluir(r)}>Excluir</Button>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
     </>
   )
 }
