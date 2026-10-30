@@ -235,7 +235,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
     patrimonio: p ? <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-      rodape={`Disponível ${formatBRL(p.disponivel)} · investimentos ${formatBRL(p.investimentos)} · dívida ${formatBRL(p.divida)}`} /> : (
+      rodape={`Disponível ${formatBRL(p.disponivel)} · bens ${formatBRL(p.bens)} · dívida ${formatBRL(p.divida)}`} /> : (
       <Card><CardTitle>Patrimônio líquido</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
     disponivel: p ? <Indicador rotulo="Saldo disponível" valor={p.disponivel} icone={<Cofre />} corIcone="bg-azul-claro text-azul"
@@ -322,8 +322,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </div>
         )}
         {p && <p className="mt-2 text-xs text-slate-500">
-          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens BRL {formatBRL(p.bens)} + investimentos BRL {formatBRL(p.investimentos)} − dívida {formatBRL(p.divida)}.
-          Considera contas, bens e investimentos em BRL e dívidas. Bens e investimentos em outras moedas ainda não entram no consolidado. Parcelas de cartão ainda não cobradas ficam fora do patrimônio atual.
+          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens BRL {formatBRL(p.bens)} − dívida {formatBRL(p.divida)}.
+          Considera contas, bens em BRL e dívidas. Investimentos aparecem em indicador separado enquanto aportes não movimentam contas, evitando dupla contagem. Bens em outras moedas ainda não entram no consolidado. Parcelas de cartão ainda não cobradas ficam fora do patrimônio atual.
         </p>}
         {dados.investimentos && <Card className="mt-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -455,8 +455,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {!p && <p className="mb-2 text-sm text-slate-500" role="status">Patrimônio indisponível agora.</p>}
       {p && (
         <p className="mb-2 text-xs text-slate-500">
-          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens em BRL {formatBRL(p.bens)} + investimentos em BRL {formatBRL(p.investimentos)} − dívida {formatBRL(p.divida)}.
-          Bens e investimentos em USD/EUR ainda não entram no consolidado.
+          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens em BRL {formatBRL(p.bens)} − dívida {formatBRL(p.divida)}.
+          Bens em USD/EUR ainda não entram no consolidado. Investimentos são exibidos separadamente até a integração com o caixa.
         </p>
       )}
       {p && p.compromissos > 0 && (
