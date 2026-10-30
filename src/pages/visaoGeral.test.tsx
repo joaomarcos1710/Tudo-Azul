@@ -335,6 +335,16 @@ describe('Visão geral', () => {
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
 
+  it('cartões: mostra a próxima fatura (valor e vencimento) mesmo sem fatura fechada a pagar', async () => {
+    mock.resumoDosCartoes.mockResolvedValue([
+      { id: 'k1', nome: 'Caixa', divida: c(0), vencimento: null, vencida: false, limiteDisponivel: null, credito: c(0),
+        proxima: { mes: '2026-11', vencimento: '2026-11-28', total: c(43897) } },
+    ])
+    montar('inicio')
+    expect(await screen.findByText(/próxima fatura R\$ 438,97 · vence 28\/11/)).toBeTruthy()
+    expect(screen.getByText(/nenhuma fatura fechada a pagar/)).toBeTruthy()
+  })
+
   it('cartões: total das faturas que vencem no mês, vindo do banco, no topo do bloco', async () => {
     mock.resumoDosCartoes.mockResolvedValue([
       { id: 'k1', nome: 'Nubank', divida: c(0), vencimento: null, vencida: false, limiteDisponivel: null, credito: c(0) },

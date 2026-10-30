@@ -46,3 +46,5 @@ PWA instalável · versão `AAAA.E` · ocultar valores · valores sempre vindos 
 **Horizonte dos recorrentes** (30/10/2026): em conta, os próximos 12 meses aparecem como Planejado; se a regra tem **data final** (campo "Até"), todas as parcelas até ela aparecem (máx. 360 meses; semanal, 24). Serve para empréstimo e financiamento enquanto não existe a tela própria.
 
 **Total das faturas do mês no Início** (30/10/2026): no bloco Cartões, no topo, "Faturas que vencem em <mês>": o total de todos os cartões (vindo do banco, `card_invoices_month`), com "já pago / falta" quando houve pagamento. O mês é o do **vencimento**, como no Organizze ("Venc. 28/11"); some se o mês não tem fatura ou se o banco ainda não tem a função. No celular, a linha do limite deixou de ficar deslocada à direita.
+
+**Próxima fatura** (30/10/2026): em Cartões (embaixo de "Fatura a pagar") e no Início (embaixo do cartão), "Próxima fatura (vence dd/mm): R$ X", a fatura aberta que fecha primeiro, com o total que o banco já calcula. Antes, com "Fatura a pagar R$ 0,00" (nada fechado) o valor que já estava acumulando na fatura aberta só aparecia somado em "Parcelas futuras".
