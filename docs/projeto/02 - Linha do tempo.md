@@ -87,6 +87,8 @@ tags: [tudo-azul, historico]
 - **Testes pgTAP sem dependência da data de hoje** (#90, merge `3869204`, 30/10/2026): 4 testes falhavam simulando 02/01/2027; novo `scripts/local-db/simular-data.sh`. Sem migration.
 - **Recorrentes: horizonte de 12 meses e até a data final** (migration 022, #91, merge `af6e1e1`, 30/10/2026): sem data final gera 12 meses; com data final, até ela (máx. 360; semanal 24). Migration 022 aplicada em produção em 30/10/2026 (execução 34).
 - **Total das faturas do mês no Início** (migration 023, #92, merge `56e17d7`, 30/10/2026): `card_invoices_month` soma no banco as faturas que vencem no mês. Migration 023 aplicada em produção em 30/10/2026 (execução 36).
+- **Próxima fatura no cartão e no Início** (#93, merge `6c45d99`, 30/10/2026): "Próxima fatura (vence dd/mm)" com a fatura aberta que fecha primeiro, mesmo com "Fatura a pagar" zerada. Sem migration.
+- **Conta de pagamento padrão do cartão** (migration 024, #94, merge `49efc53`, 30/10/2026): `debts.pay_account_id` e `set_card_pay_account`; "paga com", sugestão em "Pagar fatura" e base do saldo projetado. Migration 024 aplicada em produção em 30/10/2026 (execução 38).
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

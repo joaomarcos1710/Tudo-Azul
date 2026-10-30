@@ -12,10 +12,13 @@ const mock = vi.hoisted(() => ({
   listarContas: vi.fn(),
   listarCategorias: vi.fn(),
   atualizarAutomaticos: vi.fn(),
+  saldosProjetados: vi.fn(),
+  faturasQueVencem: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
+vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados, faturasQueVencem: mock.faturasQueVencem }))
 vi.mock('../lib/automaticos', () => ({ atualizarAutomaticos: mock.atualizarAutomaticos }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
@@ -37,6 +40,14 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-10-16T15:00:00Z')) // 12h de 16/10/2026 em São Paulo
   mock.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: true, faturasOk: true })
+  mock.faturasQueVencem.mockResolvedValue([])
+  mock.saldosProjetados.mockResolvedValue({
+    contas: [
+      { id: 'a1', nome: 'Itaú', ativa: true, efetuado: c(100000), planejado: c(-5000), faturas: c(20000), saldo: c(75000) },
+      { id: 'a2', nome: 'Poupança', ativa: true, efetuado: c(50000), planejado: c(0), faturas: c(0), saldo: c(50000) },
+    ],
+    total: { efetuado: c(150000), planejado: c(-5000), faturas: c(30000), faturasSemConta: c(10000), saldo: c(115000) },
+  })
   mock.listarLancamentos.mockResolvedValue([
     lanc('l1', '2026-10-05', 'income', 800000, 'paid', 'Salário'),
     lanc('l2', '2026-10-05', 'expense', 18740, 'paid', 'Conta de luz'),
@@ -89,7 +100,8 @@ describe('Calendário', () => {
     montar()
     await u.click(await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' }))
     expect(screen.getByText('05/10/2026')).toBeTruthy()
-    const lista = screen.getByRole('list')
+    // a lista do dia (a outra lista da tela é a dos saldos por conta)
+    const lista = screen.getByText('05/10/2026').closest('div')!.parentElement!.querySelector('ul')!
     expect(within(lista).getAllByRole('listitem')).toHaveLength(2)
     expect(within(lista).getByText('Salário')).toBeTruthy()
     expect(within(lista).getByText('+R$ 8.000,00')).toBeTruthy()
@@ -97,7 +109,7 @@ describe('Calendário', () => {
     expect(within(lista).getByText('−R$ 187,40')).toBeTruthy()
     expect(within(lista).getAllByText('Moradia · Itaú')).toHaveLength(2)
     await u.click(screen.getByRole('button', { name: '25 de outubro de 2026: 1 lançamento, 1 planejado' }))
-    const lista25 = screen.getByRole('list')
+    const lista25 = screen.getByText('25/10/2026').closest('div')!.parentElement!.querySelector('ul')!
     expect(within(lista25).getByText('Internet')).toBeTruthy()
     expect(within(lista25).getByText('Planejado')).toBeTruthy()
     expect(within(lista25).queryByText('Pago')).toBeNull()
@@ -185,5 +197,66 @@ describe('Calendário', () => {
     await new Promise((r) => setTimeout(r, 0))
     expect(screen.getByRole('button', { name: '3 de novembro de 2026: 1 lançamento' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /de outubro de 2026/ })).toBeNull()
+  })
+})
+
+describe('Calendário: faturas e saldo projetado', () => {
+  it('a fatura aparece no dia do vencimento como planejada, com a conta que paga', async () => {
+    mock.faturasQueVencem.mockResolvedValue([
+      { cartaoId: 'k1', cartao: 'Cartão Caixa', vencimento: '2026-10-28', total: c(43897), pago: c(0), falta: c(43897), contaPagamentoId: 'a1' },
+    ])
+    montar()
+    const grade = await screen.findByRole('group', { name: 'Dias de Outubro de 2026' })
+    await userEvent.setup().click(within(grade).getByRole('button', { name: /^28 de outubro de 2026/ }))
+    const item = screen.getByText('Fatura Cartão Caixa').closest('li')!
+    expect(item.textContent).toContain('paga com Itaú')
+    expect(item.textContent).toContain('R$ 438,97')
+    expect(item.textContent).toContain('Planejado')
+    expect(mock.faturasQueVencem).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31')
+  })
+
+  it('fatura sem conta de pagamento avisa; fatura já quitada não aparece de novo', async () => {
+    mock.faturasQueVencem.mockResolvedValue([
+      { cartaoId: 'k1', cartao: 'Cartão Caixa', vencimento: '2026-10-28', total: c(1000), pago: c(0), falta: c(1000), contaPagamentoId: null },
+      { cartaoId: 'k2', cartao: 'Inter', vencimento: '2026-10-28', total: c(5000), pago: c(5000), falta: c(0), contaPagamentoId: 'a1' },
+    ])
+    montar()
+    const grade = await screen.findByRole('group', { name: 'Dias de Outubro de 2026' })
+    await userEvent.setup().click(within(grade).getByRole('button', { name: /^28 de outubro de 2026/ }))
+    expect(screen.getByText('Fatura Cartão Caixa').closest('li')!.textContent).toContain('conta de pagamento não escolhida')
+    expect(screen.queryByText('Fatura Inter')).toBeNull()
+  })
+
+  it('mostra o saldo total e por conta, com a escolha entre só efetuados e efetuados + planejados', async () => {
+    montar()
+    const total = await screen.findByTestId('saldo-total')
+    expect(total.textContent).toBe('R$ 1.150,00')
+    expect(screen.getByTestId('saldo-detalhe').textContent).toContain('faturas de cartão −R$ 300,00')
+    expect(screen.getByTestId('saldo-sem-conta').textContent).toContain('R$ 100,00 de fatura de cartão sem conta de pagamento')
+    expect(mock.saldosProjetados).toHaveBeenCalledWith('h1', '2026-10-16', true)
+    expect(screen.getByText('Saldo hoje')).toBeTruthy()
+    const u = userEvent.setup()
+    await u.click(screen.getByRole('button', { name: 'Só efetuados' }))
+    expect(mock.saldosProjetados).toHaveBeenLastCalledWith('h1', '2026-10-16', false)
+    expect(screen.queryByTestId('saldo-detalhe')).toBeNull()
+    expect(screen.queryByTestId('saldo-sem-conta')).toBeNull()
+  })
+
+  it('em outro mês o saldo vai até o fim dele', async () => {
+    montar()
+    await screen.findByTestId('saldo-total')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Próximo mês' }))
+    expect(await screen.findByRole('heading', { name: 'Novembro de 2026' })).toBeTruthy()
+    expect(mock.saldosProjetados).toHaveBeenLastCalledWith('h1', '2026-11-30', true)
+    expect(await screen.findByText('Saldo até 30/11/2026')).toBeTruthy()
+  })
+
+  it('sem as funções do banco (migration 025 ainda não aplicada) o calendário segue sem o saldo e sem as faturas', async () => {
+    mock.saldosProjetados.mockRejectedValue({ code: '42883', message: 'function does not exist' })
+    mock.faturasQueVencem.mockRejectedValue({ code: '42883', message: 'function does not exist' })
+    montar()
+    expect(await screen.findByRole('heading', { name: 'Outubro de 2026' })).toBeTruthy()
+    expect(await screen.findByText('Receitas pagas')).toBeTruthy()
+    expect(screen.queryByTestId('saldo-total')).toBeNull()
   })
 })
