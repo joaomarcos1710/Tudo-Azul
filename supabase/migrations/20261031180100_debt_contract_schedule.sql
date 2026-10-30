@@ -484,7 +484,7 @@ $$;
 
 -- Anular um pagamento agendado restaura a parcela e o prazo, sem perder o histórico dos eventos.
 create function private.debt_schedule_restore_void()
-returns trigger language plpgsql security definer set search_path = '' as $
+returns trigger language plpgsql security definer set search_path = '' as $$
 declare
   v_due date;
 begin
