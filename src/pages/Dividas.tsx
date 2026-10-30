@@ -16,9 +16,12 @@ import { asCents, formatBRL, formatBRLCampo, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  criarDivida, definirTermosDivida, listarDividas, registrarPagamentoDivida, simularQuitacao,
+  criarDivida, definirTermosDivida, definirContratoDivida, listarDividas, listarParcelasDivida,
+  registrarPagamentoDivida, registrarPagamentoParcela, simularQuitacao,
 } from '../lib/dividas'
-import type { Divida, ResultadoQuitacao, TipoDivida } from '../lib/dividas'
+import type {
+  DadosContratoDivida, Divida, ParcelaDivida, ResultadoQuitacao, TipoDivida,
+} from '../lib/dividas'
 
 function taxaBps(texto: string): number | null {
   const valor = texto.trim().replace(',', '.')
@@ -36,17 +39,23 @@ export default function Dividas() {
   const [nova, setNova] = useState(false)
   const [pagando, setPagando] = useState<Divida | null>(null)
   const [termos, setTermos] = useState<Divida | null>(null)
+  const [contrato, setContrato] = useState<Divida | null>(null)
+  const [parcelaSelecionada, setParcelaSelecionada] = useState<ParcelaDivida | null>(null)
+  const [parcelas, setParcelas] = useState<ParcelaDivida[]>([])
   const [orcamentoTexto, setOrcamentoTexto] = useState('')
 
   const carregar = useCallback(async () => {
     if (!familia?.id) return
     try {
-      const [lista, contasAtuais, cats] = await Promise.all([
-        listarDividas(familia.id, hojeSP()),
+      const hoje = hojeSP()
+      const [lista, contasAtuais, cats, agenda] = await Promise.all([
+        listarDividas(familia.id, hoje),
         listarContas(familia.id),
         listarCategorias(familia.id),
+        listarParcelasDivida(familia.id, hoje, '2100-01-01'),
       ])
       setDividas(lista)
+      setParcelas(agenda.slice(0, 12))
       setContas(contasAtuais.contas.filter((c) => c.ativa))
       setCategorias(cats.filter((c) => c.tipo === 'expense' && c.ativa))
       setErro('')
@@ -78,6 +87,22 @@ export default function Dividas() {
     try {
       await definirTermosDivida(id, taxa, minimo)
       setTermos(null)
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+
+  async function salvarContrato(id: string, dados: DadosContratoDivida) {
+    try {
+      await definirContratoDivida(id, dados)
+      setContrato(null)
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+
+  async function salvarPagamentoAgendado(d: Parameters<typeof registrarPagamentoParcela>[0]) {
+    try {
+      await registrarPagamentoParcela(d)
+      setParcelaSelecionada(null)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
@@ -117,6 +142,22 @@ export default function Dividas() {
 
       {termos && (
         <FormTermos divida={termos} aoSalvar={salvarTermos} aoCancelar={() => setTermos(null)} />
+      )}
+
+      {contrato && (
+        <FormContrato divida={contrato} contas={contas} aoSalvar={salvarContrato} aoCancelar={() => setContrato(null)} />
+      )}
+
+      {parcelaSelecionada && dividas && (
+        <FormPagamento
+          divida={dividas.find((d) => d.id === parcelaSelecionada.dividaId)!}
+          contas={contas}
+          categorias={categorias}
+          parcela={parcelaSelecionada}
+          aoSalvar={salvarPagamento}
+          aoSalvarParcela={salvarPagamentoAgendado}
+          aoCancelar={() => setParcelaSelecionada(null)}
+        />
       )}
 
       {dividas === null && !erro && <p role="status" className="text-sm text-slate-600">Carregando dívidas…</p>}
@@ -160,16 +201,70 @@ export default function Dividas() {
                         <p className="text-xs text-slate-500">Pagamento mínimo</p>
                         <p className="font-semibold tabular-nums">{formatBRL(d.pagamentoMinimo)}</p>
                       </div>
+                      {d.parcelasRestantes !== null && (
+                        <div>
+                          <p className="text-xs text-slate-500">Parcelas restantes</p>
+                          <p className="font-semibold">{d.parcelasRestantes} de {d.parcelasOriginais}</p>
+                        </div>
+                      )}
+                      {d.valorParcela !== null && (
+                        <div>
+                          <p className="text-xs text-slate-500">Prestação contratual</p>
+                          <p className="font-semibold tabular-nums">{formatBRL(d.valorParcela)}</p>
+                        </div>
+                      )}
+                      {d.diaPagamento !== null && (
+                        <div>
+                          <p className="text-xs text-slate-500">Vencimento</p>
+                          <p className="font-semibold">Dia {d.diaPagamento}</p>
+                        </div>
+                      )}
+                      {d.credor && (
+                        <div>
+                          <p className="text-xs text-slate-500">Credor</p>
+                          <p className="font-semibold">{d.credor}</p>
+                        </div>
+                      )}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button compacto onClick={() => setPagando(d)}>Registrar pagamento</Button>
                       <Button compacto variante="secundario" onClick={() => setTermos(d)}>Parâmetros da dívida</Button>
+                      <Button compacto variante="secundario" onClick={() => setContrato(d)}>Contrato e parcelas</Button>
                     </div>
                   </Card>
                 </li>
               ))}
             </ul>
           </section>
+
+          {parcelas.length > 0 && (
+            <section className="mb-8" aria-labelledby="titulo-agenda-dividas">
+              <h2 id="titulo-agenda-dividas" className="mb-3 text-lg font-semibold">Próximas parcelas</h2>
+              <Card>
+                <ul className="divide-y divide-slate-100">
+                  {parcelas.map((p) => (
+                    <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">{p.nomeDivida} · parcela {p.numero}</p>
+                        <p className="text-xs text-slate-500">
+                          Vencimento {p.vencimento.split('-').reverse().join('/')} · {
+                            p.formaPagamento === 'account_debit' ? 'Débito em conta' :
+                            p.formaPagamento === 'boleto' ? 'Boleto' :
+                            p.formaPagamento === 'payroll' ? 'Consignado' : 'Manual'
+                          }
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <strong className="tabular-nums">{formatBRL(p.valor)}</strong>
+                        <Button compacto onClick={() => setParcelaSelecionada(p)}>Baixar parcela</Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-slate-500">Parcelas futuras são compromissos planejados. Elas não reduzem o saldo da conta nem o saldo devedor até a confirmação do pagamento.</p>
+              </Card>
+            </section>
+          )}
 
           <section aria-labelledby="titulo-simulador">
             <div className="mb-3">
@@ -247,6 +342,95 @@ function FormNovaDivida({ aoSalvar, aoCancelar }: {
   )
 }
 
+
+function primeiroVencimento(dia: number): string {
+  const [ano, mes] = hojeSP().split('-').map(Number)
+  const proximo = new Date(Date.UTC(ano, mes, 1))
+  const y = proximo.getUTCFullYear()
+  const m = proximo.getUTCMonth() + 1
+  const ultimo = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return `${y}-${String(m).padStart(2, '0')}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`
+}
+
+function FormContrato({ divida, contas, aoSalvar, aoCancelar }: {
+  divida: Divida
+  contas: Conta[]
+  aoSalvar: (id: string, dados: DadosContratoDivida) => Promise<void>
+  aoCancelar: () => void
+}) {
+  const diaInicial = divida.diaPagamento ?? 10
+  const [credor, setCredor] = useState(divida.credor ?? '')
+  const [numero, setNumero] = useState(divida.numeroContrato ?? '')
+  const [originais, setOriginais] = useState(String(divida.parcelasOriginais ?? 60))
+  const [restantes, setRestantes] = useState(String(divida.parcelasRestantes ?? 60))
+  const [valor, setValor] = useState(divida.valorParcela === null ? '' : formatBRLCampo(divida.valorParcela))
+  const [dia, setDia] = useState(String(diaInicial))
+  const [forma, setForma] = useState<NonNullable<Divida['formaPagamento']>>(divida.formaPagamento ?? 'account_debit')
+  const [conta, setConta] = useState(divida.contaPagamentoId ?? contas[0]?.id ?? '')
+  const [primeiro, setPrimeiro] = useState(divida.primeiraDataVencimento ?? primeiroVencimento(diaInicial))
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    const nOriginais = Number(originais)
+    const nRestantes = Number(restantes)
+    const valorCents = parseBRL(valor)
+    const nDia = Number(dia)
+    if (!Number.isInteger(nOriginais) || nOriginais < 1 || nOriginais > 1200 ||
+        !Number.isInteger(nRestantes) || nRestantes < 0 || nRestantes > nOriginais ||
+        valorCents === null || valorCents <= 0 || !Number.isInteger(nDia) || nDia < 1 || nDia > 31 ||
+        !primeiro || (forma === 'account_debit' && !conta)) {
+      setErro('Confira o prazo, o valor da prestação, o dia de vencimento e a conta de débito.')
+      return
+    }
+    setErro('')
+    setEnviando(true)
+    try {
+      await aoSalvar(divida.id, {
+        credor, numeroContrato: numero, parcelasOriginais: nOriginais, parcelasRestantes: nRestantes,
+        valorParcela: valorCents, diaPagamento: nDia, formaPagamento: forma,
+        contaPagamentoId: forma === 'account_debit' ? conta : null,
+        primeiraDataVencimento: primeiro,
+      })
+    } finally { setEnviando(false) }
+  }
+
+  return (
+    <Card className="mb-5">
+      <h2 className="mb-3 text-lg font-semibold">Contrato e parcelas: {divida.nome}</h2>
+      <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Field rotulo="Credor / instituição" value={credor} onChange={(e) => setCredor(e.target.value)} maxLength={100} placeholder="Ex.: Banco" />
+        <Field rotulo="Número do contrato (opcional)" value={numero} onChange={(e) => setNumero(e.target.value)} maxLength={80} />
+        <Field rotulo="Prazo original (parcelas)" type="number" value={originais} onChange={(e) => setOriginais(e.target.value)} min={1} max={1200} />
+        <Field rotulo="Parcelas restantes" type="number" value={restantes} onChange={(e) => setRestantes(e.target.value)} min={0} max={1200} />
+        <Field rotulo="Valor da prestação (R$)" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 1.250,00" />
+        <Field rotulo="Dia de vencimento" type="number" value={dia} onChange={(e) => {
+          setDia(e.target.value)
+          const n = Number(e.target.value)
+          if (Number.isInteger(n) && n >= 1 && n <= 31) setPrimeiro(primeiroVencimento(n))
+        }} min={1} max={31} />
+        <Field rotulo="Data do próximo vencimento" type="date" value={primeiro} onChange={(e) => setPrimeiro(e.target.value)} />
+        <Selecao rotulo="Forma de pagamento" valor={forma} aoMudar={(v) => setForma(v as NonNullable<Divida['formaPagamento']>)} opcoes={[
+          ['account_debit', 'Débito automático em conta'], ['boleto', 'Boleto'], ['payroll', 'Consignado / desconto em folha'], ['manual', 'Pagamento manual'],
+        ]} />
+        {forma === 'account_debit' && (
+          <Selecao rotulo="Conta do débito automático" valor={conta} aoMudar={setConta} todos="Selecione a conta"
+            opcoes={contas.map((c) => [c.id, c.nome])} />
+        )}
+        {forma === 'payroll' && (
+          <p className="text-sm text-slate-600 md:col-span-2">O consignado será exibido como compromisso. Ao confirmar a parcela, o saldo da dívida será atualizado sem criar uma segunda saída bancária.</p>
+        )}
+        <div className="flex gap-2 md:col-span-2">
+          <Button type="submit" carregando={enviando}>Salvar contrato e gerar parcelas</Button>
+          <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
+        </div>
+      </form>
+    </Card>
+  )
+}
+
 function FormTermos({ divida, aoSalvar, aoCancelar }: {
   divida: Divida
   aoSalvar: (id: string, taxa: number, minimo: Cents) => Promise<void>
@@ -286,16 +470,19 @@ function FormTermos({ divida, aoSalvar, aoCancelar }: {
   )
 }
 
-function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar }: {
+function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parcela, aoSalvarParcela }: {
   divida: Divida
   contas: Conta[]
   categorias: Categoria[]
   aoSalvar: (d: Parameters<typeof registrarPagamentoDivida>[0]) => Promise<void>
   aoCancelar: () => void
+  parcela?: ParcelaDivida
+  aoSalvarParcela?: (d: Parameters<typeof registrarPagamentoParcela>[0]) => Promise<void>
 }) {
+  const consignado = parcela?.formaPagamento === 'payroll'
   const [data, setData] = useState(hojeSP())
-  const [contaId, setContaId] = useState(contas[0]?.id ?? '')
-  const [totalTexto, setTotalTexto] = useState('')
+  const [contaId, setContaId] = useState(parcela?.contaPagamentoId ?? contas[0]?.id ?? '')
+  const [totalTexto, setTotalTexto] = useState(parcela ? formatBRLCampo(parcela.valor) : '')
   const [jurosTexto, setJurosTexto] = useState('0,00')
   const [tarifaTexto, setTarifaTexto] = useState('0,00')
   const [categoriaId, setCategoriaId] = useState(categorias[0]?.id ?? '')
@@ -303,52 +490,71 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar }: {
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
   const total = parseBRL(totalTexto)
-  const juros = parseBRL(jurosTexto)
-  const tarifa = parseBRL(tarifaTexto)
+  const juros = consignado ? asCents(0)! : parseBRL(jurosTexto)
+  const tarifa = consignado ? asCents(0)! : parseBRL(tarifaTexto)
   const principal = total !== null && juros !== null && tarifa !== null ? asCents(total - juros - tarifa) : null
-  const precisaCategoria = (juros ?? 0) > 0 || (tarifa ?? 0) > 0
+  const precisaCategoria = !consignado && ((juros ?? 0) > 0 || (tarifa ?? 0) > 0)
 
   async function enviar(e: FormEvent) {
     e.preventDefault()
-    if (!data || !contaId || total === null || total <= 0 || juros === null || juros < 0 ||
+    if (!data || (!consignado && !contaId) || total === null || total <= 0 || juros === null || juros < 0 ||
         tarifa === null || tarifa < 0 || principal === null || principal < 0 ||
         (precisaCategoria && !categoriaId)) {
-      setErro('Confira a conta, a data e os valores. Juros e tarifas não podem superar o pagamento total.')
+      setErro('Confira a conta, a data e os valores. Juros e tarifas não podem superar o pagamento.')
       return
     }
     setErro('')
     setEnviando(true)
     try {
-      await aoSalvar({
-        dividaId: divida.id, data, contaId, principal, juros, tarifa,
-        categoriaId: precisaCategoria ? categoriaId : null, extra,
-      })
+      if (parcela && aoSalvarParcela) {
+        await aoSalvarParcela({
+          parcelaId: parcela.id, data, contaId: consignado ? null : contaId,
+          principal, juros, tarifa, categoriaId: precisaCategoria ? categoriaId : null, extra,
+        })
+      } else {
+        await aoSalvar({
+          dividaId: divida.id, data, contaId, principal, juros, tarifa,
+          categoriaId: precisaCategoria ? categoriaId : null, extra,
+        })
+      }
     } finally { setEnviando(false) }
   }
 
   return (
     <Card className="mb-5">
-      <h2 className="mb-3 text-lg font-semibold">Registrar pagamento: {divida.nome}</h2>
-      {contas.length === 0 && <Aviso tipo="erro">Cadastre ou reative uma conta antes de registrar o pagamento.</Aviso>}
+      <h2 className="mb-3 text-lg font-semibold">{parcela ? 'Baixar parcela' : 'Registrar pagamento'}: {divida.nome}</h2>
+      {consignado ? (
+        <Aviso tipo="info">Consignado: informe apenas o valor que efetivamente amortizou o saldo devedor. A baixa não cria uma segunda saída na conta, pois o salário pode já estar registrado líquido.</Aviso>
+      ) : contas.length === 0 && <Aviso tipo="erro">Cadastre ou reative uma conta antes de registrar o pagamento.</Aviso>}
       <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Data do pagamento" type="date" value={data} onChange={(e) => setData(e.target.value)} />
-        <Selecao rotulo="Conta de saída" valor={contaId} aoMudar={setContaId} todos="Selecione a conta"
-          opcoes={contas.map((c) => [c.id, c.nome])} />
-        <Field rotulo="Valor total pago (R$)" inputMode="decimal" placeholder="Ex.: 1.250,00" value={totalTexto} onChange={(e) => setTotalTexto(e.target.value)} />
-        <Field rotulo="Juros incluídos (R$)" inputMode="decimal" value={jurosTexto} onChange={(e) => setJurosTexto(e.target.value)} />
-        <Field rotulo="Tarifas incluídas (R$)" inputMode="decimal" value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} />
-        <Selecao rotulo="Categoria para juros/tarifas" valor={categoriaId} aoMudar={setCategoriaId} todos={precisaCategoria ? 'Selecione a categoria' : 'Não necessária'}
-          opcoes={categorias.map((c) => [c.id, c.nome])} desabilitado={!precisaCategoria} />
+        {!consignado && (
+          <Selecao rotulo="Conta de saída" valor={contaId} aoMudar={setContaId} todos="Selecione a conta"
+            opcoes={contas.map((c) => [c.id, c.nome])} />
+        )}
+        <Field rotulo={consignado ? 'Valor amortizado no saldo (R$)' : 'Valor total pago (R$)'} inputMode="decimal"
+          placeholder="Ex.: 1.250,00" value={totalTexto} onChange={(e) => setTotalTexto(e.target.value)} />
+        {!consignado && (
+          <>
+            <Field rotulo="Juros incluídos (R$)" inputMode="decimal" value={jurosTexto} onChange={(e) => setJurosTexto(e.target.value)} />
+            <Field rotulo="Tarifas incluídas (R$)" inputMode="decimal" value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} />
+            <Selecao rotulo="Categoria para juros/tarifas" valor={categoriaId} aoMudar={setCategoriaId} todos={precisaCategoria ? 'Selecione a categoria' : 'Não necessária'}
+              opcoes={categorias.map((c) => [c.id, c.nome])} desabilitado={!precisaCategoria} />
+          </>
+        )}
         <p className="text-sm text-slate-600 md:col-span-2">
-          Principal a amortizar: <strong>{principal === null || principal < 0 ? '—' : formatBRL(principal)}</strong>. O pagamento reduz o saldo devedor pelo principal; juros e tarifas são custos separados.
+          Principal a amortizar: <strong>{principal === null || principal < 0 ? '—' : formatBRL(principal)}</strong>.
+          {!consignado && ' Juros e tarifas são custos separados.'}
         </p>
-        <label className="flex items-center gap-2 text-sm md:col-span-2">
-          <input type="checkbox" checked={extra} onChange={(e) => setExtra(e.target.checked)} />
-          Amortização extraordinária de principal
-        </label>
+        {!consignado && (
+          <label className="flex items-center gap-2 text-sm md:col-span-2">
+            <input type="checkbox" checked={extra} onChange={(e) => setExtra(e.target.checked)} />
+            Amortização extraordinária de principal
+          </label>
+        )}
         <div className="flex gap-2 md:col-span-2">
-          <Button type="submit" carregando={enviando} disabled={contas.length === 0}>Registrar pagamento</Button>
+          <Button type="submit" carregando={enviando} disabled={!consignado && contas.length === 0}>Confirmar baixa</Button>
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
