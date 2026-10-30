@@ -9,8 +9,9 @@ import { Selecao } from '../components/ui/Selecao'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { useFamilia } from '../lib/FamiliaContext'
 import { hojeSP } from '../lib/contas'
-import { parseBRL } from '../lib/format'
+import { formatBRL, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
+import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
 import {
   criarAtivoInvestimento, listarAtivosInvestimento, listarCarteiraInvestimentos,
@@ -28,13 +29,15 @@ const classes: [ClasseAtivo, string][] = [
 const moedas: [MoedaInvestimento, string][] = [['BRL', 'Real (BRL)'], ['USD', 'Dólar (USD)'], ['EUR', 'Euro (EUR)']]
 
 function moeda(valor: Cents, codigo: MoedaInvestimento): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: codigo }).format(valor / 100)
+  if (codigo === 'BRL') return formatBRL(valor)
+  return valoresOcultos() ? '••••' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: codigo }).format(valor / 100)
 }
 function quantidade(valor: string): string {
   const n = Number(valor)
   return Number.isFinite(n) ? new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 8 }).format(n) : valor
 }
 function preco(valor: string, codigo: MoedaInvestimento): string {
+  if (valoresOcultos()) return '••••'
   const n = Number(valor)
   return Number.isFinite(n)
     ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: codigo, maximumFractionDigits: 8 }).format(n)
