@@ -11,7 +11,7 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  arquivarCartao, criarCartao, definirCiclo, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, reativarCartao,
+  arquivarCartao, criarCartao, definirCiclo, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, reativarCartao, renomearCartao,
   novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
@@ -33,6 +33,7 @@ type Painel =
   | { tipo: 'identidade'; cartao: Cartao }
   | { tipo: 'compra'; cartao: Cartao }
   | { tipo: 'pagar'; cartao: Cartao }
+  | { tipo: 'renomear'; cartao: Cartao }
   | { tipo: 'arquivar'; cartao: Cartao }
   | { tipo: 'excluir'; cartao: Cartao }
 
@@ -111,6 +112,7 @@ export default function Cartoes() {
       {painel?.tipo === 'novo' && <FormCartao aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'ciclo' && <FormCiclo cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'limite' && <FormLimite cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
+      {painel?.tipo === 'renomear' && <FormRenomear cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'identidade' && <FormIdentidade cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'compra' && (
         <FormCompra cartao={painel.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />
@@ -205,6 +207,7 @@ export default function Cartoes() {
                 <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'identidade', cartao: c })} disabled={painel !== null}>
                   {c.emissor === null && c.bandeira === null ? 'Escolher banco e bandeira' : 'Banco e bandeira'}
                 </Button>
+                <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'renomear', cartao: c })} disabled={painel !== null}>Renomear</Button>
                 <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'arquivar', cartao: c })} disabled={painel !== null}>Arquivar</Button>
                 <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'excluir', cartao: c })} disabled={painel !== null}>Excluir</Button>
               </div>
@@ -599,6 +602,34 @@ function FormCiclo({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Carta
         <Selecao rotulo="Dia do fechamento" valor={fechamento} aoMudar={setFechamento} opcoes={dias} todos="Escolha…" />
         <Selecao rotulo="Dia do vencimento" valor={vencimento} aoMudar={setVencimento} opcoes={dias} todos="Escolha…" />
         <p className="text-sm text-slate-600 md:col-span-2">Vale para as próximas compras. Parcelas já lançadas continuam nas faturas em que estão.</p>
+        <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
+      </form>
+    </Card>
+  )
+}
+
+function FormRenomear({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao }) {
+  const [nome, setNome] = useState(cartao.nome)
+  const [tentou, setTentou] = useState(false)
+  const { erro, enviando, enviar } = useEnvio(aoSalvar)
+  const aparado = nome.trim()
+  const invalido = aparado === '' || aparado.length > 60
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    setTentou(true)
+    if (invalido) return
+    void enviar(() => renomearCartao(cartao.id, aparado))
+  }
+
+  return (
+    <Card className="mb-6">
+      <h2 className="mb-4 text-lg font-semibold">Renomear · {cartao.nome}</h2>
+      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Field rotulo="Nome do cartão" value={nome} maxLength={60} onChange={(e) => setNome(e.target.value)}
+          erro={tentou && invalido ? 'Use de 1 a 60 caracteres.' : undefined} />
+        <p className="text-sm text-slate-600 md:col-span-2">Só o nome muda: fatura, parcelas, limite e histórico continuam como estão.</p>
         <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
       </form>
     </Card>
