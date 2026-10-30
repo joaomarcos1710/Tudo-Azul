@@ -1,4 +1,4 @@
--- Tudo Azul — migration 037: contrato e agenda de parcelas de empréstimos/financiamentos
+-- Tudo Azul — migration 031: contrato e agenda de parcelas de empréstimos/financiamentos
 -- A agenda é previsão; somente a RPC de baixa cria eventos no motor oficial debts/debt_events.
 
 alter table public.debts
