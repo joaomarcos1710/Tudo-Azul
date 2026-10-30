@@ -36,3 +36,5 @@ continuam abaixo como histórico.
 | Versão | O que entrou |
 |---|---|
 | 2026.100 | Arquitetura patrimonial: investimentos híbridos, módulo de dívidas sobre o motor existente, bens, multimoeda e consolidação patrimonial. Documento `docs/ARQUITETURA-PATRIMONIO.md`; nenhuma funcionalidade financeira ou migration foi aplicada nesta PR. |
+
+| 2026.101 | Fundação multimoeda fase 1: catálogo BRL/USD/EUR, moeda de consolidação da família e consulta auditável de câmbio direto/inverso. Contas e lançamentos estrangeiros continuam bloqueados até a próxima fase substituir as agregações financeiras. |

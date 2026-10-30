@@ -55,3 +55,6 @@ tags: [tudo-azul, decisoes]
 | Dívidas terão módulo funcional novo, mas o motor `debts`/`debt_events` existente continua como fonte única do saldo | Evitar duplicidade com cartões, pagamentos, amortizações e histórico append-only. |
 | Imóveis, veículos e outros bens entram no patrimônio, com avaliações datadas e titularidade/participação | O consolidado deve considerar apenas a fração econômica pertencente à família. |
 | Patrimônio será multimoeda, preservando valor original e cotação aplicada; moeda inicial de consolidação BRL e cobertura inicial BRL/USD/EUR | Impedir soma de moedas diferentes e permitir investimentos e bens no exterior sem reescrever lançamentos históricos. |
+
+
+| A fundação multimoeda deve preceder qualquer conta estrangeira; a fase 1 adiciona catálogo, moeda de consolidação e consulta cambial, mas não habilita moedas estrangeiras nas contas | As RPCs atuais de saldo, projeção, orçamento e relatórios ainda agregam valores em um total único. Só liberar moedas estrangeiras depois de substituí-las por agregações segregadas e conversão explícita no banco. |

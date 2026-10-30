@@ -123,3 +123,8 @@ docs/                  este plano
 ## Evolução patrimonial (decisão de 31/10/2026)
 
 A nova direção de produto está especificada em [`ARQUITETURA-PATRIMONIO.md`](ARQUITETURA-PATRIMONIO.md): investimentos híbridos, módulo de gestão de dívidas sobre o motor `debts`/`debt_events` existente, bens e consolidação multimoeda. A sequência começa pela auditoria/fundação cambial, depois investimentos manuais, bens, experiência de dívidas, consolidação e cotações automáticas. Cada fase terá PR e migration próprias. A proposta anterior de multimoeda ainda precisa ser corrigida e validada antes de virar SQL. As migrations 025 e 026 seguem no fluxo de produção separado.
+
+
+## Fundação multimoeda, fase 1
+
+A migration 027 adiciona o catálogo BRL/USD/EUR, a moeda de consolidação da família e o histórico/consulta de câmbio. Ela não habilita contas ou lançamentos em moeda estrangeira, pois as RPCs atuais ainda retornam totais únicos. Ver MULTIMOEDA-FASE-1.md.
