@@ -133,3 +133,8 @@ A migration 027 adiciona o catálogo BRL/USD/EUR, a moeda de consolidação da f
 ## Segurança da moeda de consolidação
 
 A migration 028 mantém households.report_currency bloqueada para o cliente enquanto as RPCs e a interface ainda apresentam valores em BRL. A alteração será liberada junto da implementação completa de conversão e relatórios multimoeda.
+
+
+## Módulo de dívidas e empréstimos
+
+A PR #103 entrega uma primeira experiência funcional para empréstimos e financiamentos, reaproveitando `debts`/`debt_events`. Permite cadastrar saldo devedor de referência, registrar taxa mensal e pagamento mínimo, registrar pagamentos com principal/juros/tarifas na mesma transação e comparar Snowball/Avalanche sem alterar o saldo real. Cartões continuam na tela própria. Esta entrega permanece em BRL até a integração multimoeda dos relatórios e saldos.
