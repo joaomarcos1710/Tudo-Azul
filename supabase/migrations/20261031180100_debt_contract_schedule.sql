@@ -109,6 +109,38 @@ language sql stable security invoker set search_path = '' as $$
   order by d.name
 $$;
 
+create or replace function private.debt_events_guard()
+returns trigger language plpgsql set search_path = '' as $
+begin
+  if tg_op = 'INSERT' then
+    if new.amount is not null then
+      if new.amount <> round(new.amount,2) then
+        raise exception 'valor com mais de 2 casas decimais: %',new.amount using errcode = '22003';
+      end if;
+      new.amount := round(new.amount,2);
+    end if;
+    if new.account_id is not null and exists (
+      select 1 from public.accounts a
+      where a.household_id=new.household_id and a.id=new.account_id and not a.active
+    ) then
+      raise exception 'conta desativada' using errcode = '23514';
+    end if;
+    return new;
+  end if;
+  if old.voided_at is not null then
+    raise exception 'evento já anulado não pode ser alterado' using errcode = '55000';
+  end if;
+  if (new.id,new.household_id,new.debt_id,new.date,new.kind,new.amount,new.account_id,new.installment_id,
+      new.invoice_id,new.category_id,new.op_id,new.note,new.created_by,new.created_at,new.schedule_id)
+     is distinct from
+     (old.id,old.household_id,old.debt_id,old.date,old.kind,old.amount,old.account_id,old.installment_id,
+      old.invoice_id,old.category_id,old.op_id,old.note,old.created_by,old.created_at,old.schedule_id) then
+    raise exception 'evento é imutável: use a anulação' using errcode = '42501';
+  end if;
+  return new;
+end
+$;
+
 create or replace function private.debt_chk(p_debt uuid)
 returns void language plpgsql security definer set search_path = '' as $$
 declare
@@ -307,8 +339,46 @@ begin
     if v_d.payment_method = 'account_debit' and p_account <> v_d.payment_account_id then
       raise exception 'a conta deve ser a mesma definida no débito automático' using errcode = '22023';
     end if;
-    v_op := public.debt_record_payment(v_d.id,p_date,p_account,p_principal,p_interest,p_fee,p_category,p_extra);
-    update public.debt_events set schedule_id = v_s.id where op_id = v_op;
+    if p_date is null or p_account is null or p_principal < 0 or p_interest < 0 or p_fee < 0
+       or p_principal <> round(p_principal,2) or p_interest <> round(p_interest,2)
+       or p_fee <> round(p_fee,2) or p_principal + p_interest + p_fee <= 0 then
+      raise exception 'valores do pagamento inválidos' using errcode = '22023';
+    end if;
+    if (p_interest > 0 or p_fee > 0) and p_category is null then
+      raise exception 'juros e tarifas exigem uma categoria de despesa' using errcode = '22023';
+    end if;
+    if not exists (
+      select 1 from public.accounts a
+      where a.household_id=v_d.household_id and a.id=p_account and a.active and a.opening_date<=p_date
+    ) then
+      raise exception 'conta de pagamento inexistente, arquivada ou ainda não aberta' using errcode = '23514';
+    end if;
+    if p_category is not null and not exists (
+      select 1 from public.categories c
+      where c.household_id=v_d.household_id and c.id=p_category and c.type='expense' and c.active
+    ) then
+      raise exception 'categoria de despesa inválida ou inativa' using errcode = '23514';
+    end if;
+    v_op := gen_random_uuid();
+    if p_principal > 0 then
+      insert into public.debt_events
+        (household_id,debt_id,date,kind,amount,account_id,op_id,note,schedule_id)
+      values (v_d.household_id,v_d.id,p_date,
+        case when coalesce(p_extra,false) then 'extra_principal' else 'payment' end,
+        p_principal,p_account,v_op,'pagamento da parcela agendada',v_s.id);
+    end if;
+    if p_interest > 0 then
+      insert into public.debt_events
+        (household_id,debt_id,date,kind,amount,account_id,category_id,op_id,note,schedule_id)
+      values (v_d.household_id,v_d.id,p_date,'interest',p_interest,p_account,p_category,v_op,
+        'juros da parcela agendada',v_s.id);
+    end if;
+    if p_fee > 0 then
+      insert into public.debt_events
+        (household_id,debt_id,date,kind,amount,account_id,category_id,op_id,note,schedule_id)
+      values (v_d.household_id,v_d.id,p_date,'fee',p_fee,p_account,p_category,v_op,
+        'tarifa da parcela agendada',v_s.id);
+    end if;
   end if;
 
   update public.debt_payment_schedule
@@ -321,7 +391,7 @@ begin
   perform private.debt_chk(v_d.id);
   return v_op;
 end
-$$;
+$;
 
 revoke execute on function public.debt_contract_set(uuid,text,text,integer,integer,numeric,integer,text,uuid,date),
   public.debt_schedule_record_payment(uuid,date,uuid,numeric,numeric,numeric,uuid,boolean)
