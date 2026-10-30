@@ -37,6 +37,21 @@ select lives_ok(format('select public.investment_asset_delete(%L::uuid)',pg_temp
 select is((select count(*) from public.investment_assets where id=pg_temp.fx37('empty_asset')),0::bigint,
   'ativo excluído deixa de aparecer na lista');
 
+insert into fixture select 'bem_excluir', public.family_asset_create(
+  pg_temp.fx37('household'),'Bem de teste para excluir','other',null,'BRL','Família',100,current_date - 10,1000,current_date - 9,'Cadastro inicial');
+select lives_ok(format('select public.family_asset_delete(%L::uuid)',pg_temp.fx37('bem_excluir')),
+  'bem com apenas avaliação inicial pode ser excluído se cadastrado errado');
+select is((select count(*) from public.family_assets where id=pg_temp.fx37('bem_excluir')),0::bigint,
+  'bem excluído deixa de compor o inventário');
+
+insert into fixture select 'bem_brl', public.family_asset_create(
+  pg_temp.fx37('household'),'Imóvel familiar','real_estate',null,'BRL','Família',100,current_date - 10,5000,current_date - 9,'Avaliação inicial');
+insert into fixture select 'bem_historico', public.family_asset_create(
+  pg_temp.fx37('household'),'Veículo com histórico','vehicle',null,'BRL','Família',100,current_date - 10,20000,current_date - 9,'Avaliação inicial');
+select public.family_asset_valuation_record(pg_temp.fx37('bem_historico'),current_date - 1,21000,'Nova avaliação',null);
+select is(pg_temp.sqlstate37(format('select public.family_asset_delete(%L::uuid)',pg_temp.fx37('bem_historico'))),'55000',
+  'bem com histórico adicional não pode ser excluído');
+
 insert into fixture select 'brl_asset',
   public.investment_asset_create(pg_temp.fx37('household'),'Fundo BRL',null,'fund','BRL');
 insert into fixture select 'usd_asset',
@@ -66,9 +81,12 @@ select is((select market_value from public.investment_history(
 select is((select investments_brl from public.net_worth_with_investments(
   pg_temp.fx37('household'),current_date
 )),120::numeric,'patrimônio líquido incorpora somente investimentos em BRL');
+select is((select family_assets_brl from public.net_worth_with_investments(
+  pg_temp.fx37('household'),current_date
+)),5000::numeric,'patrimônio incorpora o valor da participação familiar em bens BRL');
 select is((select net_worth from public.net_worth_with_investments(
   pg_temp.fx37('household'),current_date
-)),1120::numeric,'patrimônio = saldo disponível + investimento BRL, sem misturar USD');
+)),6120::numeric,'patrimônio = saldo disponível + bens BRL + investimentos BRL, sem misturar USD');
 
 select * from finish();
 rollback;
