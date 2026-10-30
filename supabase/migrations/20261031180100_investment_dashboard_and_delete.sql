@@ -157,7 +157,7 @@ language sql stable security invoker set search_path = '' as $$
                order by x.valuation_date desc, x.created_at desc limit 1
             ) v on true
            where a.household_id = p_household and a.currency_code = 'BRL'
-             and (a.acquired_on is null or a.acquired_on <= p_as_of)
+             and coalesce(a.acquired_on, a.created_at::date) <= p_as_of
              and (a.status = 'active' or (a.status in ('sold','disposed') and a.ended_on > p_as_of))
         ), 0) as family_assets_brl,
         coalesce((select sum(x.planned_remaining) from public.debt_balances(p_household, p_as_of) x), 0) as pc
