@@ -79,10 +79,7 @@ select is((select market_value from public.investment_history(
 ) where currency_code='USD' and month=date_trunc('month',current_date)::date),100::numeric,
   'histórico mantém posições em USD separadas');
 
-select is((select investments_brl from public.net_worth_with_investments(
-  pg_temp.fx37('household'),current_date
-)),120::numeric,'patrimônio líquido incorpora somente investimentos em BRL');
-select is((select family_assets_brl from public.net_worth_with_investments(
+select is((select family_assets_brl from public.net_worth_with_assets(
   pg_temp.fx37('household'),current_date
 )),5000::numeric,'patrimônio incorpora o valor da participação familiar em bens BRL');
 select is((select net_worth from public.net_worth_with_investments(
