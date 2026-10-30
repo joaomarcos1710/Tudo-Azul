@@ -38,6 +38,7 @@ describe('menu em grupos', () => {
     expect(within(mov).getAllByRole('link').map((a) => a.textContent))
       .toEqual(['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas e conferência'])
     expect(within(lateral).getByRole('link', { name: 'Recorrentes' }).getAttribute('href')).toBe('/recorrentes')
+    expect(within(lateral).getByRole('link', { name: 'Investimentos' }).getAttribute('href')).toBe('/investimentos')
   })
 
   it('celular: 4 atalhos fixos + "Mais"; o resto só aparece dentro do Mais', async () => {
