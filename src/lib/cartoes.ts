@@ -147,14 +147,17 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
  * compras da fatura aberta entram depois, como compras (assim cada uma cai no mês certo).
  */
 export async function criarCartao(d: { nome: string; fechamento: number; vencimento: number; saldoAtual: Cents; emissor?: string | null; bandeira?: string | null; contaPagamentoId?: string | null }): Promise<string> {
-  const db = cliente()
-  const { data: id, error } = await db.rpc('create_debt', {
-    p_name: d.nome.trim(), p_kind: 'card', p_reference_date: ontemSP(), p_reference_balance: centsToDecimal(d.saldoAtual),
+  const { data: id, error } = await cliente().rpc('create_card', {
+    p_name: d.nome.trim(),
+    p_reference_date: ontemSP(),
+    p_reference_balance: centsToDecimal(d.saldoAtual),
+    p_closing_day: d.fechamento,
+    p_due_day: d.vencimento,
+    p_issuer: d.emissor ?? null,
+    p_brand: d.bandeira ?? null,
+    p_pay_account: d.contaPagamentoId ?? null,
   })
   if (error) throw error
-  await definirCiclo(id as string, d.fechamento, d.vencimento)
-  if (d.emissor || d.bandeira) await definirIdentidade(id as string, d.emissor ?? null, d.bandeira ?? null)
-  if (d.contaPagamentoId) await definirContaPagamento(id as string, d.contaPagamentoId)
   return id as string
 }
 
