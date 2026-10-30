@@ -117,7 +117,7 @@ create or replace function public.account_balances_projected(
   p_household uuid, p_as_of date, p_include_planned boolean default true
 )
 returns table(account_id uuid,name text,type text,active boolean,realized numeric,planned numeric,invoices numeric,balance numeric)
-language sql stable set search_path = '' as $
+language sql stable set search_path = '' as $$
   select b.account_id,b.name,b.type,b.active,b.balance,
     case when p_include_planned then coalesce(pl.delta,0) - coalesce(ds.rem,0) else 0 end,
     case when p_include_planned then coalesce(inv.rem,0) else 0 end,
@@ -154,13 +154,13 @@ language sql stable set search_path = '' as $
   ) inv on true
   where (select private.is_member(p_household))
   order by b.name
-$;
+$$;
 
 create or replace function public.balance_totals_projected(
   p_household uuid, p_as_of date, p_include_planned boolean default true
 )
 returns table(realized numeric,planned numeric,invoices numeric,unassigned_invoices numeric,total numeric)
-language sql stable set search_path = '' as $
+language sql stable set search_path = '' as $$
   with c as (
     select coalesce(sum(b.realized),0) as realized,coalesce(sum(b.planned),0) as planned
     from public.account_balances_projected(p_household,p_as_of,p_include_planned) b
@@ -183,10 +183,10 @@ language sql stable set search_path = '' as $
     c.realized+c.planned-case when p_include_planned then f.todas+s.sem_conta else 0 end
   from c cross join f cross join s
   where (select private.is_member(p_household))
-$;
+$$;
 
 create or replace function private.debt_events_guard()
-returns trigger language plpgsql set search_path = '' as $
+returns trigger language plpgsql set search_path = '' as $$
 begin
   if tg_op = 'INSERT' then
     if new.amount is not null then
@@ -215,7 +215,7 @@ begin
   end if;
   return new;
 end
-$;
+$$;
 
 create or replace function private.debt_chk(p_debt uuid)
 returns void language plpgsql security definer set search_path = '' as $$
@@ -478,7 +478,7 @@ begin
   perform private.debt_chk(v_d.id);
   return v_op;
 end
-$;
+$$;
 
 revoke execute on function public.debt_contract_set(uuid,text,text,integer,integer,numeric,integer,text,uuid,date),
   public.debt_schedule_record_payment(uuid,date,uuid,numeric,numeric,numeric,uuid,boolean)
