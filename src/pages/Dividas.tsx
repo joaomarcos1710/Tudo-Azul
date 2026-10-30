@@ -227,7 +227,7 @@ export default function Dividas() {
                       )}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Button compacto onClick={() => setPagando(d)}>Registrar pagamento</Button>
+                      {(d.parcelasRestantes === null || d.parcelasRestantes === 0) && <Button compacto onClick={() => setPagando(d)}>Registrar pagamento</Button>}
                       <Button compacto variante="secundario" onClick={() => setTermos(d)}>Parâmetros da dívida</Button>
                       <Button compacto variante="secundario" onClick={() => setContrato(d)}>Contrato e parcelas</Button>
                     </div>
