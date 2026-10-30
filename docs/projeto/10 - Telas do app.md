@@ -44,3 +44,5 @@ PWA instalável · versão `AAAA.E` · ocultar valores · valores sempre vindos 
 **Renomear cartão** (30/10/2026): em Cartões, o botão "Renomear" corrige o nome (só o nome; fatura, parcelas, limite e histórico não mudam). Ao recusar a exclusão de cartão ou conta, a mensagem passa a contar o que existe (ex.: "Tem histórico (3 parcelas): só é possível arquivar.").
 
 **Horizonte dos recorrentes** (30/10/2026): em conta, os próximos 12 meses aparecem como Planejado; se a regra tem **data final** (campo "Até"), todas as parcelas até ela aparecem (máx. 360 meses; semanal, 24). Serve para empréstimo e financiamento enquanto não existe a tela própria.
+
+**Total das faturas do mês no Início** (30/10/2026): no bloco Cartões, no topo, "Faturas que vencem em <mês>": o total de todos os cartões (vindo do banco, `card_invoices_month`), com "já pago / falta" quando houve pagamento. O mês é o do **vencimento**, como no Organizze ("Venc. 28/11"); some se o mês não tem fatura ou se o banco ainda não tem a função. No celular, a linha do limite deixou de ficar deslocada à direita.

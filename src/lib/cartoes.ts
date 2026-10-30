@@ -340,6 +340,26 @@ export async function anularMovimentoCartao(eventoId: string, motivo: string): P
  * Limitação conhecida: a dívida inclui o "saldo de referência" informado ao criar o cartão (fatura anterior ao app), que não
  * tem fatura própria; nesse caso o vencimento mostrado é o da fatura fechada mais antiga que existe, ou nenhum.
  */
+/** Faturas de todos os cartões que vencem em um mês (migration 023). A soma vem do banco; a tela não soma. */
+export interface TotalFaturasMes {
+  faturas: number
+  total: Cents
+  pago: Cents
+  falta: Cents
+}
+
+/** `mes` = AAAA-MM. Null enquanto o banco não tem a função (migration 023 ainda não aplicada). */
+export async function totalFaturasDoMes(familiaId: string, mes: string): Promise<TotalFaturasMes | null> {
+  const { data, error } = await cliente().rpc('card_invoices_month', { p_household: familiaId, p_month: `${mes}-01` })
+  if (error) throw error
+  const r = ((data ?? []) as Record<string, string | number>[])[0]
+  if (!r) return null
+  return {
+    faturas: Number(r.invoices), total: centsFromDb(r.total as string | number), pago: centsFromDb(r.paid as string | number),
+    falta: centsFromDb(r.remaining as string | number),
+  }
+}
+
 export interface ResumoCartao {
   id: string
   nome: string
