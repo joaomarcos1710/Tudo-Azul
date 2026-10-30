@@ -143,7 +143,7 @@ describe('Visão geral', () => {
   it('mostra a equação do patrimônio com os valores do banco', async () => {
     montar('analises')
     // equação montada com os valores do banco: disponível + crédito a receber − dívida = patrimônio
-    expect(await screen.findByText(/disponível R\\$ 50\\.651,05 \\+ crédito a receber R\\$ 245,90 \\+ investimentos em reais R\\$ 360,00 − dívida R\\$ 40\\.021,35/)).toBeTruthy()
+    expect(await screen.findByText(/disponível R\\$ 50\\.651,05 \\+ crédito a receber R\\$ 245,90 \\+ investimentos em BRL R\\$ 360,00 − dívida R\\$ 40\\.021,35/)).toBeTruthy()
     expect(screen.getByText('R$ 11.235,60')).toBeTruthy()
     expect(screen.getByText(/Bens e investimentos em USD/EUR ainda não entram no consolidado/)).toBeTruthy()
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
@@ -161,6 +161,7 @@ describe('Visão geral', () => {
   })
   it('sem compromissos, não mostra a faixa', async () => {
     mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(0), creditoAReceber: c(0), divida: c(0), investimentos: c(0), patrimonio: c(0), compromissos: c(0) })
+    mock.carregarResumoInvestimentos.mockResolvedValue([])
     montar('analises')
     await screen.findByText(/Não inclui bens/)
     expect(screen.queryByText(/Compromissos futuros/)).toBeNull()
