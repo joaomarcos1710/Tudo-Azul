@@ -43,6 +43,27 @@ select h.id, 'Financiamento', 'expense'
       and lower(btrim(c.name)) = 'financiamento'
  );
 
+create function public.family_asset_delete(p_asset uuid) returns void
+language plpgsql security definer set search_path = '' as $
+declare v_asset public.family_assets%rowtype; v_count integer;
+begin
+  if auth.uid() is null then raise exception 'não autenticado' using errcode = '42501'; end if;
+  select * into v_asset from public.family_assets where id = p_asset for update;
+  if not found or not private.is_member(v_asset.household_id) then
+    raise exception 'bem não encontrado' using errcode = '42501';
+  end if;
+  if v_asset.status <> 'active' then
+    raise exception 'bem vendido ou baixado não pode ser excluído; o histórico deve ser preservado.' using errcode = '55000';
+  end if;
+  select count(*) into v_count from public.family_asset_valuations
+   where household_id = v_asset.household_id and asset_id = v_asset.id;
+  if v_count > 1 then
+    raise exception 'Este bem possui histórico de avaliações. Encerre o bem para preservar o histórico.' using errcode = '55000';
+  end if;
+  delete from public.family_asset_valuations where household_id = v_asset.household_id and asset_id = v_asset.id;
+  delete from public.family_assets where household_id = v_asset.household_id and id = v_asset.id;
+end $;
+
 create function public.investment_asset_delete(p_asset uuid) returns void
 language plpgsql security definer set search_path = '' as $$
 declare v_asset public.investment_assets%rowtype;
@@ -108,12 +129,13 @@ returns table(
   debt numeric,
   credit_receivable numeric,
   investments_brl numeric,
+  family_assets_brl numeric,
   net_worth numeric,
   planned_commitments numeric
 )
 language sql stable security invoker set search_path = '' as $$
-  select s.available, s.debt, s.cr, s.investments_brl,
-         s.available + s.cr + s.investments_brl - s.debt,
+  select s.available, s.debt, s.cr, s.investments_brl, s.family_assets_brl,
+         s.available + s.cr + s.investments_brl + s.family_assets_brl - s.debt,
          s.pc
     from (
       select
@@ -125,16 +147,29 @@ language sql stable security invoker set search_path = '' as $$
             from public.investment_totals(p_household, p_as_of) t
            where t.currency_code = 'BRL'
         ), 0) as investments_brl,
+        coalesce((
+          select sum(v.total_value * a.household_share / 100)
+            from public.family_assets a
+            join lateral (
+              select x.total_value from public.family_asset_valuations x
+               where x.household_id = a.household_id and x.asset_id = a.id
+                 and x.valuation_date <= p_as_of
+               order by x.valuation_date desc, x.created_at desc limit 1
+            ) v on true
+           where a.household_id = p_household and a.currency_code = 'BRL'
+             and (a.acquired_on is null or a.acquired_on <= p_as_of)
+             and (a.status = 'active' or (a.status in ('sold','disposed') and a.ended_on > p_as_of))
+        ), 0) as family_assets_brl,
         coalesce((select sum(x.planned_remaining) from public.debt_balances(p_household, p_as_of) x), 0) as pc
     ) s
    where (select private.is_member(p_household))
 $$;
 
-revoke execute on function public.investment_asset_delete(uuid),
+revoke execute on function public.family_asset_delete(uuid), public.investment_asset_delete(uuid),
   public.investment_history(uuid,date,date),
   public.net_worth_with_investments(uuid,date)
   from public, anon;
-grant execute on function public.investment_asset_delete(uuid),
+grant execute on function public.family_asset_delete(uuid), public.investment_asset_delete(uuid),
   public.investment_history(uuid,date,date),
   public.net_worth_with_investments(uuid,date)
   to authenticated;
