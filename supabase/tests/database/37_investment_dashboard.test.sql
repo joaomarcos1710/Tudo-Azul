@@ -82,9 +82,9 @@ select is((select market_value from public.investment_history(
 select is((select family_assets_brl from public.net_worth_with_assets(
   pg_temp.fx37('household'),current_date
 )),5000::numeric,'patrimônio incorpora o valor da participação familiar em bens BRL');
-select is((select net_worth from public.net_worth_with_investments(
+select is((select net_worth from public.net_worth_with_assets(
   pg_temp.fx37('household'),current_date
-)),6120::numeric,'patrimônio = saldo disponível + bens BRL + investimentos BRL, sem misturar USD');
+)),6000::numeric,'patrimônio = saldo disponível + bens BRL, sem somar investimentos que ainda não movimentam o caixa');
 
 select * from finish();
 rollback;
