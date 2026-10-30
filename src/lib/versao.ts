@@ -1,4 +1,4 @@
-/** Versão do app no formato ano.edição (ex.: "2026.3"); a regra está em docs/VERSOES.md. */
+/** Versão do app no formato ano.número-da-PR (ex.: "2026.98"); a regra está em docs/VERSOES.md. */
 export const VERSAO = __APP_VERSAO__.split('.').slice(0, 2).join('.')
 
 /** Commit curto do build (vazio fora da Vercel). */

@@ -1,17 +1,26 @@
 # Versões do Tudo Azul
 
-Formato: **`AAAA.E`** — ano e edição (ex.: `2026.1`, `2026.2`, `2026.3`, `2026.4`, `2026.5`).
+Formato: **`AAAA.N`** — o **ano** em que estamos e o **número da PR** (do GitHub) que trouxe a mudança.
+Exemplo: a PR #98, aberta em 2026, vira `2026.98`. Quando o ano mudar, o ano muda e o número da PR continua a sequência
+do GitHub (ex.: `2027.130`).
 
-- **Edição (`E`)**: sobe 1 a cada lote de entregas que chega à produção e que o dono vai usar de verdade
-  (várias PRs juntas contam como uma edição). Recomeça em 1 a cada ano.
-- **Onde fica**: `package.json` → `"version": "AAAA.E.0"` (o 3º número fica sempre `0`, só existe porque o npm exige
-  três). O app mostra `AAAA.E` na barra lateral, na tela de Família e nas telas de entrada; no deploy da Vercel
-  aparece também o commit curto (`2026.1 · 98e83d0`).
-- **Quando subir**: na mesma PR que fecha a edição (ou numa PR só com `package.json` + este arquivo), nunca no meio
-  de uma PR de funcionalidade.
+- **A cada PR** (de funcionalidade, correção, teste ou diário), na própria PR: `package.json` e `package-lock.json` →
+  `"version": "AAAA.N.0"`, com `N` = número da PR. O 3º número fica sempre `0` (só existe porque o npm exige três).
+  Como o número da PR só existe depois que ela é aberta, confira o número antes de abrir (o próximo da lista do
+  GitHub) e corrija com um commit se errar.
+- **Onde aparece**: o app mostra `AAAA.N` na barra lateral, na tela de Família e nas telas de entrada; no deploy da
+  Vercel aparece também o commit curto (`2026.98 · 98e83d0`).
+- **Quando duas PRs abertas disputam o mesmo número ou o arquivo**: vale o número de cada PR; o conflito em
+  `package.json` se resolve ficando com o número da PR que está sendo mesclada.
 - **Migrations** têm numeração própria (001, 002…) e continuam sem ser editadas depois de aplicadas.
 
-## Histórico
+## Antes (até 2026.5): edições
+
+Até a PR #93 o formato era `AAAA.E` (ano e edição, 1 a cada lote de entregas ao dono: `2026.1` a `2026.5`). Em 30/10/2026
+o dono trocou a regra para o número da PR (decisão registrada em `docs/projeto/30 - Decisões.md`). As edições antigas
+continuam abaixo como histórico.
+
+## Histórico das edições (2026.1 a 2026.5)
 
 | Edição | O que entrou |
 |---|---|

@@ -9,7 +9,7 @@ A documentação viva está em `docs/projeto/` (comece por `00 - Início.md`). *
 - `21 - Banco de dados.md` — quando houver migration (número, arquivo, o que faz).
 - `10 - Telas do app.md` — quando uma tela mudar.
 - `30 - Decisões.md` — quando algo for decidido (com o motivo).
-- `03 - Edições e versões.md` e `package.json` — quando a edição subir (`AAAA.E`, ver `docs/VERSOES.md`).
+- `package.json` e `package-lock.json` — **a cada PR**: versão `AAAA.N.0` (ano atual e `N` = número da PR; ex.: PR #98 em 2026 = `2026.98.0`; ver `docs/VERSOES.md` e `03 - Edições e versões.md`).
 Sem segredos, senhas, chaves nem dados reais nas notas.
 
 ## Regras que não podem quebrar (detalhes em `docs/projeto/20 - Regras do dinheiro.md`)
