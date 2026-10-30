@@ -37,7 +37,6 @@ export async function carregarPatrimonio(familiaId: string, dataRef: string): Pr
     data = legado.data
   } else if (error) {
     throw error
-  } else {
   }
   const r = ((data ?? []) as Record<string, number | string>[])[0] ?? {}
   return {
