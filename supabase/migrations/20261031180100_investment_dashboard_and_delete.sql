@@ -131,30 +131,24 @@ language sql stable security invoker set search_path = '' as $$
    order by m.mes, c.currency_code
 $$;
 
-create function public.net_worth_with_investments(p_household uuid, p_as_of date)
+create function public.net_worth_with_assets(p_household uuid, p_as_of date)
 returns table(
   available numeric,
   debt numeric,
   credit_receivable numeric,
-  investments_brl numeric,
   family_assets_brl numeric,
   net_worth numeric,
   planned_commitments numeric
 )
 language sql stable security invoker set search_path = '' as $$
-  select s.available, s.debt, s.cr, s.investments_brl, s.family_assets_brl,
-         s.available + s.cr + s.investments_brl + s.family_assets_brl - s.debt,
+  select s.available, s.debt, s.cr, s.family_assets_brl,
+         s.available + s.cr + s.family_assets_brl - s.debt,
          s.pc
     from (
       select
         coalesce((select sum(b.balance) from public.account_balances(p_household, p_as_of) b), 0) as available,
         coalesce((select sum(x.debt) from public.debt_balances(p_household, p_as_of) x), 0) as debt,
         coalesce((select sum(x.credit_receivable) from public.debt_balances(p_household, p_as_of) x), 0) as cr,
-        coalesce((
-          select sum(t.market_value)
-            from public.investment_totals(p_household, p_as_of) t
-           where t.currency_code = 'BRL'
-        ), 0) as investments_brl,
         coalesce((
           select sum(v.total_value * a.household_share / 100)
             from public.family_assets a
@@ -175,7 +169,7 @@ $$;
 
 revoke execute on function public.family_asset_delete(uuid), public.investment_asset_delete(uuid),
   public.investment_history(uuid,date,date),
-  public.net_worth_with_investments(uuid,date)
+  public.net_worth_with_assets(uuid,date)
   from public, anon;
 grant execute on function public.family_asset_delete(uuid), public.investment_asset_delete(uuid),
   public.investment_history(uuid,date,date),
