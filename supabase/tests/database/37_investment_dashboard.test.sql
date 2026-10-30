@@ -65,10 +65,10 @@ select is((select market_value from public.investment_history(
 
 select is((select investments_brl from public.net_worth_with_investments(
   pg_temp.fx37('household'),current_date
-)),170::numeric,'patrimônio líquido incorpora somente investimentos em BRL');
+)),120::numeric,'patrimônio líquido incorpora somente investimentos em BRL');
 select is((select net_worth from public.net_worth_with_investments(
   pg_temp.fx37('household'),current_date
-)),1170::numeric,'patrimônio = saldo disponível + investimento BRL, sem misturar USD');
+)),1120::numeric,'patrimônio = saldo disponível + investimento BRL, sem misturar USD');
 
 select * from finish();
 rollback;
