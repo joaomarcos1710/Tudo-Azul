@@ -174,7 +174,7 @@ describe('Recorrentes', () => {
   it('não exibe regras inativas/encerradas como arquivo', async () => {
     mock.listarRecorrencias.mockResolvedValue([{ ...luz, id: 'r2', descricao: 'Academia antiga', ativa: false, fim: '2026-09-30' }])
     montar()
-    expect(await screen.findByText('Novo recorrente')).toBeTruthy()
+    expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
     expect(screen.queryByText('Academia antiga')).toBeNull()
     expect(screen.queryByText(/Encerrados/)).toBeNull()
   })
