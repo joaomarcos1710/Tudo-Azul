@@ -447,7 +447,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </>}
           {p && (
             <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-              rodape={`Disponível ${formatBRL(p.disponivel)} · investimentos ${formatBRL(p.investimentos)} · dívida ${formatBRL(p.divida)}`} />
+              rodape={`Disponível ${formatBRL(p.disponivel)} · bens ${formatBRL(p.bens)} · dívida ${formatBRL(p.divida)}`} />
           )}
         </section>
       ) : null}
