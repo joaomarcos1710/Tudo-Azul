@@ -159,41 +159,52 @@ end $$;
 
 -- Posição por ativo: custo médio ponderado das compras, já incluindo taxas de compra.
 -- Vendas reduzem unidades pelo mesmo custo médio. Sem cotação manual, o custo é o valor de referência.
-create function public.investment_portfolio(p_household uuid, p_as_of date)
+create or replace function public.investment_portfolio(p_household uuid, p_as_of date)
 returns table (
   asset_id uuid, name text, ticker text, asset_class text, currency_code text,
   quantity numeric, average_cost numeric, cost_basis numeric, unit_price numeric,
   market_value numeric, unrealized_result numeric, valuation_date date, valuation_source text
 )
 language sql stable security invoker set search_path = '' as $$
-  with base as (
-    select a.id, a.name, a.ticker, a.asset_class, a.currency_code,
-      coalesce(sum(case when o.kind='buy' then o.quantity else -o.quantity end),0) as quantity,
-      coalesce(sum(case when o.kind='buy' then o.quantity else 0 end),0) as bought_quantity,
-      coalesce(sum(case when o.kind='buy' then o.quantity*o.unit_price + o.fees else 0 end),0) as bought_cost
-    from public.investment_assets a
-    left join public.investment_operations o
-      on o.asset_id=a.id and o.household_id=a.household_id and o.operation_date <= p_as_of
-    where a.household_id=p_household and a.active
-    group by a.id,a.name,a.ticker,a.asset_class,a.currency_code
+  with recursive operations as (
+    select o.asset_id, o.kind, o.quantity, o.unit_price, o.fees, o.operation_date, o.created_at, o.id,
+      row_number() over (partition by o.asset_id order by o.operation_date, o.created_at, o.id) as rn
+    from public.investment_operations o
+    join public.investment_assets a on a.id=o.asset_id and a.household_id=o.household_id
+    where o.household_id=p_household and o.operation_date <= p_as_of and a.active
+  ), ledger as (
+    select o.asset_id, o.rn,
+      o.quantity as quantity,
+      o.quantity*o.unit_price + o.fees as cost_basis
+    from operations o where o.rn=1 and o.kind='buy'
+    union all
+    select o.asset_id, o.rn,
+      case when o.kind='buy' then l.quantity+o.quantity else l.quantity-o.quantity end,
+      case when o.kind='buy' then l.cost_basis + o.quantity*o.unit_price + o.fees
+           else l.cost_basis - (l.cost_basis/nullif(l.quantity,0))*o.quantity end
+    from ledger l
+    join operations o on o.asset_id=l.asset_id and o.rn=l.rn+1
   ), positions as (
-    select b.*, case when b.bought_quantity > 0 then b.bought_cost/b.bought_quantity else 0 end as avg_cost
-    from base b where b.quantity > 0
+    select distinct on (l.asset_id) l.asset_id,l.quantity,l.cost_basis,
+      case when l.quantity>0 then l.cost_basis/l.quantity else 0 end as avg_cost
+    from ledger l order by l.asset_id,l.rn desc
   )
-  select p.id,p.name,p.ticker,p.asset_class,p.currency_code,p.quantity,
-    round(p.avg_cost,10),round(p.avg_cost*p.quantity,2),
+  select a.id,a.name,a.ticker,a.asset_class,a.currency_code,p.quantity,
+    round(p.avg_cost,10),round(p.cost_basis,2),
     coalesce(v.unit_price,p.avg_cost),
     round(p.quantity*coalesce(v.unit_price,p.avg_cost),2),
-    round(p.quantity*coalesce(v.unit_price,p.avg_cost)-p.avg_cost*p.quantity,2),
+    round(p.quantity*coalesce(v.unit_price,p.avg_cost)-p.cost_basis,2),
     v.valuation_date,v.source
   from positions p
+  join public.investment_assets a on a.id=p.asset_id and a.household_id=p_household
   left join lateral (
     select x.unit_price,x.valuation_date,x.source
     from public.investment_valuations x
-    where x.asset_id=p.id and x.household_id=p_household and x.valuation_date <= p_as_of
+    where x.asset_id=p.asset_id and x.household_id=p_household and x.valuation_date<=p_as_of
     order by x.valuation_date desc,x.created_at desc limit 1
   ) v on true
-  order by p.currency_code,p.name
+  where p.quantity>0 and a.active
+  order by a.currency_code,a.name
 $$;
 
 create function public.investment_totals(p_household uuid, p_as_of date)
