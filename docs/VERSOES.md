@@ -46,4 +46,4 @@ continuam abaixo como histórico.
 | 2026.104 | Carteira manual de investimentos: ativos BRL/USD/EUR, livro de compras/vendas, custo médio, avaliações manuais e totais segregados por moeda. Sem integração de caixa ou cotação automática nesta fase. |
 | 2026.107 | Recorrentes: remove a área de arquivo "Encerrados" e elimina regras já encerradas do banco, preservando lançamentos pagos, compras de cartão e compromissos históricos. |
 
-| 2026.109 | Carteira de investimentos integrada ao patrimônio em BRL e ao dashboard; exclusão segura de ativos sem histórico; gráfico de evolução mensal por moeda; categoria padrão Financiamento. |
+| 2026.109 | Bens em BRL e investimentos em BRL integrados ao patrimônio; exclusão segura de cadastros sem histórico; saldo de investimentos no dashboard e gráfico mensal por moeda; categoria padrão Financiamento. |
