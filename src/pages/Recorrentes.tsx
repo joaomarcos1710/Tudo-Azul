@@ -103,7 +103,7 @@ export default function Recorrentes() {
 
       {recorrencias === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
-      {recorrencias?.length === 0 && editando === null && (
+      {recorrencias !== null && ativas.length === 0 && editando === null && (
         <EmptyState
           titulo="Nenhum recorrente ainda"
           descricao="Cadastre aluguel, luz, salário, PLR, condomínio e assinaturas (Netflix, Spotify) uma vez só: o app lança nas datas certas."
