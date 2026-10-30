@@ -72,7 +72,7 @@ export default function Investimentos() {
   }, [familia?.id])
 
   useEffect(() => { void carregar() }, [carregar])
-  const familiaId = familia?.id
+  const familiaId = familia?.id ?? ''
   if (!familiaId) return null
 
   async function salvarAtivo(d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento }) {
