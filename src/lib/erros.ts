@@ -7,6 +7,7 @@ const comTextoProprio = new Set([
   '22023', // parâmetro inválido (RPCs)
   '55000', // estado não permite a operação
   '23514', // regra de integridade (triggers)
+  '23503', // tem histórico ligado (excluir cartão/conta: só arquivar); texto de FK do Postgres é filtrado abaixo
   '22003', // valor fora do formato (ex.: mais de 2 casas decimais)
 ])
 

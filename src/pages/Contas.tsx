@@ -10,7 +10,7 @@ import { Selecao } from '../components/ui/Selecao'
 import { BANCOS_POR_NOME } from '../lib/bancos'
 import { IconeConta } from '../components/ui/IconeConta'
 import { useFamilia } from '../lib/FamiliaContext'
-import { criarConta, definirAtiva, editarConta, hojeSP, listarContas, rotuloTipoConta } from '../lib/contas'
+import { criarConta, definirAtiva, editarConta, excluirConta, hojeSP, listarContas, rotuloTipoConta } from '../lib/contas'
 import type { Conta, TipoConta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
@@ -25,6 +25,7 @@ export default function Contas() {
   const [erro, setErro] = useState('')
   // null = formulário fechado; 'nova' = criando; Conta = editando
   const [editando, setEditando] = useState<Conta | 'nova' | null>(null)
+  const [excluindo, setExcluindo] = useState<Conta | null>(null)
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
@@ -48,6 +49,20 @@ export default function Contas() {
       setErro(mensagemErroBanco(err))
     }
   }
+
+  async function confirmarExclusao(c: Conta) {
+    try {
+      await excluirConta(c.id)
+      setExcluindo(null)
+      await carregar()
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+      setExcluindo(null)
+    }
+  }
+
+  const ativas = contas?.filter((c) => c.ativa) ?? []
+  const arquivadas = contas?.filter((c) => !c.ativa) ?? []
 
   if (!familia) return null
   return (
@@ -81,17 +96,29 @@ export default function Contas() {
           <Card className="mb-4">
             <p className="text-sm font-semibold text-slate-500">Saldo total hoje</p>
             <p className="tabular-nums text-3xl font-bold">{total !== null ? formatBRL(total) : '—'}</p>
-            <p className="mt-1 text-xs text-slate-500">Inclui contas desativadas: o dinheiro continua lá.</p>
+            <p className="mt-1 text-xs text-slate-500">Inclui contas arquivadas: o dinheiro continua lá.</p>
           </Card>
+          {excluindo && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label="Excluir conta">
+              <p className="text-sm">
+                Excluir a conta <strong>{excluindo.nome}</strong> de vez. Só é possível se ela nunca teve lançamento, transferência,
+                recorrente nem conferência; se tiver, o app avisa e você pode <strong>arquivar</strong> em vez de excluir. Não dá para desfazer.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button variante="perigo" onClick={() => void confirmarExclusao(excluindo)}>Excluir conta</Button>
+                <Button variante="secundario" onClick={() => setExcluindo(null)}>Cancelar</Button>
+              </div>
+            </div>
+          )}
           <ul className="flex flex-col gap-3">
-            {contas.map((c) => (
+            {ativas.map((c) => (
               <li key={c.id}>
                 <Card className={`flex flex-wrap items-center justify-between gap-3 ${c.ativa ? '' : 'opacity-70'}`}>
                   <div className="flex min-w-0 items-center gap-3">
                     <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} />
                     <div className="min-w-0">
                       <p className="font-semibold">
-                        {c.nome} {!c.ativa && <span className="ml-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">desativada</span>}
+                        {c.nome}
                       </p>
                       <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
                     </div>
@@ -102,12 +129,41 @@ export default function Contas() {
                     </span>
                     <Link to={`/contas/${c.id}/conferir`} className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-azul hover:bg-azul-claro">Conferir</Link>
                     <Button variante="fantasma" onClick={() => setEditando(c)}>Editar</Button>
-                    <Button variante="fantasma" onClick={() => alternarAtiva(c)}>{c.ativa ? 'Desativar' : 'Reativar'}</Button>
+                    <Button variante="fantasma" onClick={() => alternarAtiva(c)}>Arquivar</Button>
+                    <Button variante="fantasma" onClick={() => setExcluindo(c)}>Excluir</Button>
                   </div>
                 </Card>
               </li>
             ))}
           </ul>
+
+          {arquivadas.length > 0 && (
+            <section className="mt-8" aria-labelledby="titulo-contas-arquivadas">
+              <h2 id="titulo-contas-arquivadas" className="mb-1 text-lg font-semibold">Arquivadas</h2>
+              <p className="mb-3 text-sm text-slate-600">Não aparecem nas escolhas de lançamento. O saldo e o histórico continuam valendo.</p>
+              <ul className="flex flex-col gap-2">
+                {arquivadas.map((c) => (
+                  <li key={c.id}>
+                    <Card className="flex flex-wrap items-center justify-between gap-3 opacity-80">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} />
+                        <div className="min-w-0">
+                          <p className="font-semibold">{c.nome}</p>
+                          <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
+                          {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
+                        </span>
+                        <Button variante="secundario" onClick={() => alternarAtiva(c)}>Reativar</Button>
+                      </div>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
         </>
       )}
     </>
