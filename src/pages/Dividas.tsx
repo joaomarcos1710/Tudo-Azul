@@ -53,7 +53,7 @@ export default function Dividas() {
         listarDividas(familia.id, hoje),
         listarContas(familia.id),
         listarCategorias(familia.id),
-        listarParcelasDivida(familia.id, '2000-01-01', '2100-01-01'),
+        listarParcelasDivida(familia.id, hoje, '2100-01-01'),
       ])
       setDividas(lista)
       setParcelas(agenda.slice(0, 12))
@@ -219,7 +219,9 @@ export default function Dividas() {
                       {d.diaPagamento !== null && (
                         <div>
                           <p className="text-xs text-slate-500">Vencimento</p>
-                          <p className="font-semibold">Dia {d.diaPagamento}</p>
+                          <p className="font-semibold">
+                            Dia {d.diaPagamento}{d.primeiraDataVencimento ? ` · próximo em ${d.primeiraDataVencimento.split('-').reverse().join('/')}` : ''}
+                          </p>
                         </div>
                       )}
                       {d.credor && (
