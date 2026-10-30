@@ -8,8 +8,6 @@ export interface Patrimonio {
   creditoAReceber: Cents
   divida: Cents
   patrimonio: Cents
-  /** Investimentos em BRL, integrados ao patrimônio líquido. */
-  investimentos: Cents
   /** Bens familiares avaliados em BRL e ponderados pela participação da família. */
   bens: Cents
   /** Parcelas de cartão ainda não cobradas: aparecem à parte e não entram no patrimônio. */
@@ -31,8 +29,7 @@ function cliente() {
 }
 
 export async function carregarPatrimonio(familiaId: string, dataRef: string): Promise<Patrimonio> {
-  let { data, error } = await cliente().rpc('net_worth_with_investments', { p_household: familiaId, p_as_of: dataRef })
-  let investimentos = 0
+  let { data, error } = await cliente().rpc('net_worth_with_assets', { p_household: familiaId, p_as_of: dataRef })
   if (error && (error.code === 'PGRST202' || error.code === '42883')) {
     // Compatibilidade durante o intervalo entre o deploy do front e a aplicação da migration.
     const legado = await cliente().rpc('net_worth', { p_household: familiaId, p_as_of: dataRef })
@@ -41,8 +38,6 @@ export async function carregarPatrimonio(familiaId: string, dataRef: string): Pr
   } else if (error) {
     throw error
   } else {
-    const r = ((data ?? []) as Record<string, number | string>[])[0]
-    investimentos = centsFromDb(r?.investments_brl ?? 0)
   }
   const r = ((data ?? []) as Record<string, number | string>[])[0] ?? {}
   return {
@@ -50,7 +45,6 @@ export async function carregarPatrimonio(familiaId: string, dataRef: string): Pr
     creditoAReceber: centsFromDb(r.credit_receivable ?? 0),
     divida: centsFromDb(r.debt ?? 0),
     patrimonio: centsFromDb(r.net_worth ?? 0),
-    investimentos: investimentos as Cents,
     bens: centsFromDb(r.family_assets_brl ?? 0),
     compromissos: centsFromDb(r.planned_commitments ?? 0),
   }
