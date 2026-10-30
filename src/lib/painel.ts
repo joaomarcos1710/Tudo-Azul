@@ -29,15 +29,26 @@ function cliente() {
 }
 
 export async function carregarPatrimonio(familiaId: string, dataRef: string): Promise<Patrimonio> {
-  const { data, error } = await cliente().rpc('net_worth_with_investments', { p_household: familiaId, p_as_of: dataRef })
-  if (error) throw error
+  let { data, error } = await cliente().rpc('net_worth_with_investments', { p_household: familiaId, p_as_of: dataRef })
+  let investimentos = 0
+  if (error && (error.code === 'PGRST202' || error.code === '42883')) {
+    // Compatibilidade durante o intervalo entre o deploy do front e a aplicação da migration.
+    const legado = await cliente().rpc('net_worth', { p_household: familiaId, p_as_of: dataRef })
+    if (legado.error) throw legado.error
+    data = legado.data
+  } else if (error) {
+    throw error
+  } else {
+    const r = ((data ?? []) as Record<string, number | string>[])[0]
+    investimentos = centsFromDb(r?.investments_brl ?? 0)
+  }
   const r = ((data ?? []) as Record<string, number | string>[])[0] ?? {}
   return {
     disponivel: centsFromDb(r.available ?? 0),
     creditoAReceber: centsFromDb(r.credit_receivable ?? 0),
     divida: centsFromDb(r.debt ?? 0),
     patrimonio: centsFromDb(r.net_worth ?? 0),
-    investimentos: centsFromDb(r.investments_brl ?? 0),
+    investimentos: investimentos as Cents,
     compromissos: centsFromDb(r.planned_commitments ?? 0),
   }
 }
