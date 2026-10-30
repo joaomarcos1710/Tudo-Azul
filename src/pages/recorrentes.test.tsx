@@ -73,7 +73,6 @@ describe('Recorrentes', () => {
     expect(await screen.findByText('Luz')).toBeTruthy()
     expect(screen.getByText('Todo dia 10 · Itaú · Moradia')).toBeTruthy()
     expect(screen.getByText('−R$ 180,00')).toBeTruthy()
-    expect(screen.getByText('Encerrados (1)')).toBeTruthy()
   })
 
   it('cadastra despesa mensal em conta', async () => {
@@ -172,14 +171,12 @@ describe('Recorrentes', () => {
     expect(screen.queryByRole('button', { name: 'Encerrar' })).toBeNull()
   })
 
-  it('recorrentes que já estavam em "Encerrados" podem ser excluídos de vez', async () => {
-    const u = userEvent.setup()
+  it('não exibe regras inativas/encerradas como arquivo', async () => {
     mock.listarRecorrencias.mockResolvedValue([{ ...luz, id: 'r2', descricao: 'Academia antiga', ativa: false, fim: '2026-09-30' }])
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     montar()
-    await u.click(await screen.findByText('Encerrados (1)'))
-    await u.click(screen.getByRole('button', { name: 'Excluir' }))
-    expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r2')
+    expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
+    expect(screen.queryByText('Academia antiga')).toBeNull()
+    expect(screen.queryByText(/Encerrados/)).toBeNull()
   })
 
   it('erro ao excluir aparece na tela e a lista não some', async () => {
