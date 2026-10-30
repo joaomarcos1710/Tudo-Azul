@@ -26,7 +26,7 @@ export interface SaldoTotal {
   efetuado: Cents
   planejado: Cents
   faturas: Cents
-  /** Parte das faturas de cartões sem conta de pagamento escolhida: só entra no total, nunca numa conta. */
+  /** Faturas e parcelas sem conta definida: entram no total, nunca em uma conta específica. */
   faturasSemConta: Cents
   saldo: Cents
 }
