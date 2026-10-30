@@ -56,11 +56,11 @@ select is(pg_temp.sqlstate_of($$select public.recurrence_create('card', 'Netflix
 select is(pg_temp.sqlstate_of($$select public.recurrence_create('expense', 'Luz', 10.001, 10, pg_temp.mes(0), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'))$$),
           '22003', 'RC1 mais de 2 casas: recusado');
 
--- RC2: despesa mensal em conta desde 2 meses atrás, dia 10: gera de mês −2 até mês +2 (5 planejados)
+-- RC2: despesa mensal em conta desde 2 meses atrás, dia 10, sem data final: gera de mês −2 até mês +12 (15 planejados; migration 022)
 insert into fixture select 'luz', public.recurrence_create('expense', 'Luz', 180.00, 10, pg_temp.mes(-2), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
-select is(public.recurrence_materialize(), 5, 'RC2 primeira geração: 5 lançamentos (mês −2 a +2)');
+select is(public.recurrence_materialize(), 15, 'RC2 primeira geração: 15 lançamentos (mês −2 a +12)');
 select is(pg_temp.datas(pg_temp.fx('luz')),
-          array[pg_temp.mes(-2) + 9, pg_temp.mes(-1) + 9, pg_temp.mes(0) + 9, pg_temp.mes(1) + 9, pg_temp.mes(2) + 9],
+          array(select pg_temp.mes(k) + 9 from generate_series(-2, 12) k order by k),
           'RC2 todo dia 10');
 select is((select array_agg(distinct status || '|' || amount || '|' || type) from public.transactions where recurrence_id = pg_temp.fx('luz')),
           array['planned|180.00|expense'], 'RC2 planejados de despesa, valor da regra');
@@ -88,7 +88,7 @@ select is((select description from public.transactions where recurrence_id = pg_
           'Conta de luz', 'RC6 descrição atualizada');
 
 -- RC6b (migration 015): o reajuste não desfaz o que foi corrigido à mão, campo a campo.
--- Regras a partir do mês que vem (dia 10): os dois planejados (+1 e +2) são sempre futuros, qualquer que seja hoje.
+-- Regras a partir do mês que vem (dia 10): os planejados (+1 a +12) são sempre futuros, qualquer que seja hoje.
 insert into fixture select 'cexp2', id from public.categories
  where household_id = pg_temp.fx('h') and type = 'expense' and system_key is null and id <> pg_temp.fx('cexp') order by name limit 1;
 insert into fixture select 'e_luz',  public.recurrence_create('expense', 'Luz', 180.00, 10, pg_temp.mes(1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
@@ -96,7 +96,7 @@ insert into fixture select 'e_agua', public.recurrence_create('expense', 'Água'
 insert into fixture select 'e_gas',  public.recurrence_create('expense', 'Gás', 60.00, 10, pg_temp.mes(1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
 insert into fixture select 'e_guar', public.recurrence_create('transfer', 'Reserva', 500.00, 10, pg_temp.mes(1), pg_temp.fx('bank'), pg_temp.fx('poup'));
 insert into fixture select 'e_net',  public.recurrence_create('expense', 'Internet', 100.00, 10, pg_temp.mes(1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
-select is(public.recurrence_materialize(), 10, 'RC6b 5 regras x 2 meses futuros');
+select is(public.recurrence_materialize(), 60, 'RC6b 5 regras x 12 meses futuros');
 -- valor|descrição|categoria do planejado do mês n de uma regra
 create function pg_temp.occ(p_rec uuid, p_n integer) returns text language sql as $f$
   select amount || '|' || description || '|' || coalesce(category_id::text, 'null') from public.transactions
@@ -149,7 +149,7 @@ select is(pg_temp.occ(pg_temp.fx('e_gas'), 2), '65.00|Gás encanado|' || pg_temp
 -- Regra todo dia 1 desde o mês passado: o dia 1 do mês passado é sempre passado (qualquer que seja hoje);
 -- o do mês que vem vai para a lixeira; o de daqui a 2 meses é o controle (sem edição, deve seguir a regra).
 insert into fixture select 'e_alug', public.recurrence_create('expense', 'Aluguel', 1000.00, 1, pg_temp.mes(-1), pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'));
-select is(public.recurrence_materialize(), 4, 'RC6b aluguel: mês −1 a +2');
+select is(public.recurrence_materialize(), 14, 'RC6b aluguel: mês −1 a +12');
 create function pg_temp.alug(p_n integer) returns text language sql as $f$
   select amount || '|' || description || '|' || category_id || '|' || status || '|' || (deleted_at is not null)
     from public.transactions where recurrence_id = pg_temp.fx('e_alug') and date = pg_temp.mes(p_n) $f$;
@@ -171,9 +171,9 @@ select public.recurrence_end(pg_temp.fx(k)) from unnest(array['e_luz','e_agua','
 -- RC7: dia 31 vira o último dia do mês; transferência e receita também geram
 insert into fixture select 'poupar', public.recurrence_create('transfer', 'Guardar', 500.00, 31, pg_temp.mes(0), pg_temp.fx('bank'), pg_temp.fx('poup'));
 insert into fixture select 'sal', public.recurrence_create('income', 'Salário', 8000.00, 5, pg_temp.mes(0), pg_temp.fx('bank'), null, null, pg_temp.fx('cinc'));
-select is(public.recurrence_materialize(), 6, 'RC7 transferência e salário: 3 meses cada');
+select is(public.recurrence_materialize(), 26, 'RC7 transferência e salário: 13 meses cada (mês 0 a +12)');
 select is(pg_temp.datas(pg_temp.fx('poupar')),
-          array[(pg_temp.mes(1) - 1), (pg_temp.mes(2) - 1), (pg_temp.mes(3) - 1)],
+          array(select pg_temp.mes(k) - 1 from generate_series(1, 13) k order by k),
           'RC7 dia 31 = último dia de cada mês');
 
 -- RC8: assinatura no cartão — só até hoje, compra à vista que entra na fatura pelo fechamento
