@@ -41,7 +41,7 @@ function db() {
   return supabase
 }
 
-function textoDecimal(valor: string, casas: number): string {
+export function normalizarDecimalInvestimento(valor: string, casas: number): string {
   const t = valor.trim().replace(',', '.')
   const partes = t.split('.')
   const digitos = (parte: string) => parte.length > 0 && [...parte].every((c) => c >= '0' && c <= '9')
@@ -109,7 +109,7 @@ export async function registrarOperacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
     p_asset: d.ativoId, p_date: d.data, p_kind: d.tipo,
-    p_quantity: textoDecimal(d.quantidade, 12), p_unit_price: textoDecimal(d.precoUnitario, 10),
+    p_quantity: normalizarDecimalInvestimento(d.quantidade, 12), p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10),
     p_fees: centsToDecimal(d.tarifas), p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
@@ -120,7 +120,7 @@ export async function registrarAvaliacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_valuation_record', {
     p_asset: d.ativoId, p_date: d.data,
-    p_unit_price: textoDecimal(d.precoUnitario, 10), p_source: d.fonte.trim(),
+    p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10), p_source: d.fonte.trim(),
   })
   if (error) throw error
 }
@@ -187,7 +187,7 @@ export async function registrarOperacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
     p_asset: d.ativoId, p_date: d.data, p_kind: d.tipo,
-    p_quantity: textoDecimal(d.quantidade, 12), p_unit_price: textoDecimal(d.precoUnitario, 10),
+    p_quantity: normalizarDecimalInvestimento(d.quantidade, 12), p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10),
     p_fees: centsToDecimal(d.tarifas), p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
@@ -198,7 +198,7 @@ export async function registrarAvaliacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_valuation_record', {
     p_asset: d.ativoId, p_date: d.data,
-    p_unit_price: textoDecimal(d.precoUnitario, 10), p_source: d.fonte.trim(),
+    p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10), p_source: d.fonte.trim(),
   })
   if (error) throw error
 }
@@ -265,7 +265,7 @@ export async function registrarOperacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
     p_asset: d.ativoId, p_date: d.data, p_kind: d.tipo,
-    p_quantity: textoDecimal(d.quantidade, 12), p_unit_price: textoDecimal(d.precoUnitario, 10),
+    p_quantity: normalizarDecimalInvestimento(d.quantidade, 12), p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10),
     p_fees: centsToDecimal(d.tarifas), p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
@@ -276,7 +276,7 @@ export async function registrarAvaliacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_valuation_record', {
     p_asset: d.ativoId, p_date: d.data,
-    p_unit_price: textoDecimal(d.precoUnitario, 10), p_source: d.fonte.trim(),
+    p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10), p_source: d.fonte.trim(),
   })
   if (error) throw error
 }
@@ -343,7 +343,7 @@ export async function registrarOperacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
     p_asset: d.ativoId, p_date: d.data, p_kind: d.tipo,
-    p_quantity: textoDecimal(d.quantidade, 12), p_unit_price: textoDecimal(d.precoUnitario, 10),
+    p_quantity: normalizarDecimalInvestimento(d.quantidade, 12), p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10),
     p_fees: centsToDecimal(d.tarifas), p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
@@ -354,7 +354,7 @@ export async function registrarAvaliacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_valuation_record', {
     p_asset: d.ativoId, p_date: d.data,
-    p_unit_price: textoDecimal(d.precoUnitario, 10), p_source: d.fonte.trim(),
+    p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10), p_source: d.fonte.trim(),
   })
   if (error) throw error
 }
@@ -421,7 +421,7 @@ export async function registrarOperacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
     p_asset: d.ativoId, p_date: d.data, p_kind: d.tipo,
-    p_quantity: textoDecimal(d.quantidade, 12), p_unit_price: textoDecimal(d.precoUnitario, 10),
+    p_quantity: normalizarDecimalInvestimento(d.quantidade, 12), p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10),
     p_fees: centsToDecimal(d.tarifas), p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
@@ -432,7 +432,7 @@ export async function registrarAvaliacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_valuation_record', {
     p_asset: d.ativoId, p_date: d.data,
-    p_unit_price: textoDecimal(d.precoUnitario, 10), p_source: d.fonte.trim(),
+    p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10), p_source: d.fonte.trim(),
   })
   if (error) throw error
 }
@@ -499,7 +499,7 @@ export async function registrarOperacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
     p_asset: d.ativoId, p_date: d.data, p_kind: d.tipo,
-    p_quantity: textoDecimal(d.quantidade, 12), p_unit_price: textoDecimal(d.precoUnitario, 10),
+    p_quantity: normalizarDecimalInvestimento(d.quantidade, 12), p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10),
     p_fees: centsToDecimal(d.tarifas), p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
@@ -510,7 +510,7 @@ export async function registrarAvaliacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_valuation_record', {
     p_asset: d.ativoId, p_date: d.data,
-    p_unit_price: textoDecimal(d.precoUnitario, 10), p_source: d.fonte.trim(),
+    p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10), p_source: d.fonte.trim(),
   })
   if (error) throw error
 }
@@ -577,7 +577,7 @@ export async function registrarOperacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
     p_asset: d.ativoId, p_date: d.data, p_kind: d.tipo,
-    p_quantity: textoDecimal(d.quantidade, 12), p_unit_price: textoDecimal(d.precoUnitario, 10),
+    p_quantity: normalizarDecimalInvestimento(d.quantidade, 12), p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10),
     p_fees: centsToDecimal(d.tarifas), p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
@@ -588,7 +588,7 @@ export async function registrarAvaliacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_valuation_record', {
     p_asset: d.ativoId, p_date: d.data,
-    p_unit_price: textoDecimal(d.precoUnitario, 10), p_source: d.fonte.trim(),
+    p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10), p_source: d.fonte.trim(),
   })
   if (error) throw error
 }
@@ -655,7 +655,7 @@ export async function registrarOperacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
     p_asset: d.ativoId, p_date: d.data, p_kind: d.tipo,
-    p_quantity: textoDecimal(d.quantidade, 12), p_unit_price: textoDecimal(d.precoUnitario, 10),
+    p_quantity: normalizarDecimalInvestimento(d.quantidade, 12), p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10),
     p_fees: centsToDecimal(d.tarifas), p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
@@ -666,7 +666,7 @@ export async function registrarAvaliacaoInvestimento(d: {
 }): Promise<void> {
   const { error } = await db().rpc('investment_valuation_record', {
     p_asset: d.ativoId, p_date: d.data,
-    p_unit_price: textoDecimal(d.precoUnitario, 10), p_source: d.fonte.trim(),
+    p_unit_price: normalizarDecimalInvestimento(d.precoUnitario, 10), p_source: d.fonte.trim(),
   })
   if (error) throw error
 }
