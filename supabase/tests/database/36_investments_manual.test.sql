@@ -96,8 +96,8 @@ select is((select market_value from public.investment_totals(pg_temp.fx('househo
             where currency_code='USD'), 201.00::numeric,
   'posição em dólar preserva o valor original');
 select is((select market_value from public.investment_totals(pg_temp.fx('household'),current_date)
-            where currency_code='BRL'), 160.00::numeric,
-  'posição em reais permanece independente da posição em dólar');
+            where currency_code='BRL'), 360.00::numeric,
+  'posição em reais soma os ativos em BRL sem misturar a posição em dólar');
 
 select is((select balance from public.account_balances(pg_temp.fx('household'),current_date)
             where account_id=pg_temp.fx('account')), 5000.00::numeric,
