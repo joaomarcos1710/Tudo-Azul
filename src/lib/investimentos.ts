@@ -13,6 +13,8 @@ export interface AtivoInvestimento {
   classe: ClasseAtivo
   moeda: MoedaInvestimento
   ativo: boolean
+  quantidadeOperacoes: number
+  quantidadeAvaliacoes: number
 }
 
 export interface PosicaoInvestimento {
@@ -63,13 +65,27 @@ export function normalizarDecimalInvestimento(valor: string, casas: number): str
 }
 
 export async function listarAtivosInvestimento(familiaId: string): Promise<AtivoInvestimento[]> {
-  const { data, error } = await db().from('investment_assets')
-    .select('id,name,ticker,asset_class,currency_code,active')
-    .eq('household_id', familiaId).order('name')
-  if (error) throw error
-  return (data ?? []).map((r) => ({
+  const [ativos, operacoes, avaliacoes] = await Promise.all([
+    db().from('investment_assets').select('id,name,ticker,asset_class,currency_code,active')
+      .eq('household_id', familiaId).order('name'),
+    db().from('investment_operations').select('asset_id').eq('household_id', familiaId),
+    db().from('investment_valuations').select('asset_id').eq('household_id', familiaId),
+  ])
+  if (ativos.error) throw ativos.error
+  if (operacoes.error) throw operacoes.error
+  if (avaliacoes.error) throw avaliacoes.error
+  const contar = (rows: { asset_id: string }[] | null) => {
+    const mapa = new Map<string, number>()
+    for (const row of rows ?? []) mapa.set(row.asset_id, (mapa.get(row.asset_id) ?? 0) + 1)
+    return mapa
+  }
+  const qtdOperacoes = contar(operacoes.data)
+  const qtdAvaliacoes = contar(avaliacoes.data)
+  return (ativos.data ?? []).map((r) => ({
     id: r.id, nome: r.name, ticker: r.ticker, classe: r.asset_class as ClasseAtivo,
     moeda: r.currency_code as MoedaInvestimento, ativo: r.active,
+    quantidadeOperacoes: qtdOperacoes.get(r.id) ?? 0,
+    quantidadeAvaliacoes: qtdAvaliacoes.get(r.id) ?? 0,
   }))
 }
 
