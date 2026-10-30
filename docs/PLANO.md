@@ -128,3 +128,8 @@ A nova direção de produto está especificada em [`ARQUITETURA-PATRIMONIO.md`](
 ## Fundação multimoeda, fase 1
 
 A migration 027 adiciona o catálogo BRL/USD/EUR, a moeda de consolidação da família e o histórico/consulta de câmbio. Ela não habilita contas ou lançamentos em moeda estrangeira, pois as RPCs atuais ainda retornam totais únicos. Ver MULTIMOEDA-FASE-1.md.
+
+
+## Segurança da moeda de consolidação
+
+A migration 028 mantém households.report_currency bloqueada para o cliente enquanto as RPCs e a interface ainda apresentam valores em BRL. A alteração será liberada junto da implementação completa de conversão e relatórios multimoeda.

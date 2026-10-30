@@ -22,3 +22,8 @@ Esta entrega cria a base de referência de moedas e câmbio, mas **não habilita
 ## Próxima fase técnica
 
 Antes de habilitar contas estrangeiras, uma migration posterior deve adicionar moeda original a contas e operações, proteger transferências para que só ocorram entre contas da mesma moeda, e substituir as agregações atuais por retornos separados por moeda. A conversão consolidada será calculada no PostgreSQL, com aviso explícito para taxa ausente ou desatualizada. A interface só será liberada quando esse contrato estiver implementado e testado de ponta a ponta.
+
+
+## Segurança adicional
+
+A coluna households.report_currency permanece somente como preparação e fica bloqueada para alteração pelo cliente nesta fase. O app ainda exibe totais em BRL; liberar a troca antes de implementar a conversão dos relatórios poderia rotular valores incorretamente. A alteração será habilitada junto da consolidação multimoeda no banco e na interface.
