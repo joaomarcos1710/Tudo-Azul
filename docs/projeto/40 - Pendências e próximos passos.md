@@ -20,7 +20,8 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
-- [x] **Recorrentes: horizonte de geração** (migration 022): feito. Sem data final, 12 meses; com data final, até ela (máx. 360). Falta aplicar em produção e o dono conferir no app.
+- [ ] **Cartões, ideias da pesquisa pública (30/10/2026)**: (1) "Fatura atual (venc.)" separada de "A pagar" no Início e em Cartões; (2) limite opcional no cadastro e o campo de saldo explicado; (3) conta de pagamento padrão do cartão (migration); (4) documentar e testar a regra do dia do fechamento e dos dias 29 a 31. O total das faturas do mês no Início (migration 023) já está em PR. Mobills e Organizze pedem limite e conta de pagamento no cadastro.
+- [x] **Recorrentes: horizonte de geração** (migration 022): feito. Sem data final, 12 meses; com data final, até ela (máx. 360). Aplicada em 30/10/2026; falta o dono conferir no app.
 - [ ] **Tela de Empréstimos e Financiamentos** (decisão do dono em 30/10/2026: "vamos criar depois"): saldo devedor, parcelas pagas e quanto falta quitar. O banco já tem `debts`/`debt_installments`/`debt_pay`/`debt_balances`.
 - [x] **Arquivar/excluir cartão e conta** (migrations 020 e 021, #88 e #89): feito e aplicado em 30/10/2026. Falta o dono conferir no app: o cartão de exemplo que não deixa excluir (ler a mensagem nova, que diz o que existe) e decidir se a exclusão deve valer quando só sobram registros anulados.
 - [x] **Testes pgTAP que dependem da data de hoje** (A1 `12_card_correcoes`, A2 `22_recurrence_frequency`): corrigidos (como se fosse 02/01/2027 falhavam 4 testes). Para achar outros do mesmo tipo: `su postgres -c "scripts/local-db/simular-data.sh AAAA-MM-DD"` roda a suíte com outra data de hoje.

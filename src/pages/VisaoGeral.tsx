@@ -10,8 +10,8 @@ import { BandeiraCartao, IconeConta, IconeEmissor } from '../components/ui/Icone
 import { useAuth } from '../lib/auth'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
-import { resumoDosCartoes } from '../lib/cartoes'
-import type { ResumoCartao } from '../lib/cartoes'
+import { resumoDosCartoes, totalFaturasDoMes } from '../lib/cartoes'
+import type { ResumoCartao, TotalFaturasMes } from '../lib/cartoes'
 import { ultimasConferencias } from '../lib/conciliacao'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
@@ -51,6 +51,8 @@ interface Dados {
   /** null = não carregou agora; o resto da tela segue. */
   vencidos: Vencidos | null
   cartoes: ResumoCartao[] | null
+  /** Faturas de todos os cartões que vencem neste mês (soma do banco); null = não carregou (ex.: banco ainda sem a migration 023) */
+  faturasDoMes: TotalFaturasMes | null
   /** data da última conferência de cada conta (conta ausente = nunca conferida); null = não carregou */
   conferencias: Map<string, string> | null
   ultimos: Lancamento[]
@@ -121,9 +123,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             // essenciais do Início: se falharem, a tela inteira avisa o erro
             listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje), listarLancamentos(familiaId, mes), listarCategorias(familiaId),
             opcional(vencidosPlanejados(familiaId, hoje, 5)), opcional(resumoDosCartoes(familiaId, hoje)), opcional(ultimasConferencias(familiaId)),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, conferencias]): Dados => ({
+            opcional(totalFaturasDoMes(familiaId, mes)),
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, conferencias, faturasDoMes]): Dados => ({
             patrimonio: null, mes: null, anterior: null, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, conferencias,
+            contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, faturasDoMes, conferencias,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -146,7 +149,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(projecaoDoMes(familiaId, mes, hoje)),
           ]).then(([patrimonio, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao]): Dados => ({
             patrimonio, mes: resumo, anterior, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], proximos: [], vencidos: null, cartoes: null, conferencias: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, conferencias: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then(setDados)
       .catch((err) => setErro(mensagemErroBanco(err)))
@@ -219,13 +222,23 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <CardTitle>Cartões</CardTitle>
             <Link to="/cartoes" className="mb-3 text-sm font-semibold text-azul hover:underline">Ver cartões</Link>
           </div>
+          {dados.faturasDoMes && dados.faturasDoMes.faturas > 0 && (
+            <div className="mb-3 rounded-lg bg-fundo p-3" data-testid="faturas-do-mes">
+              <p className="text-sm text-slate-500">Faturas que vencem em {formatMonth(mes).replace(/ de \d{4}$/, '')}</p>
+              <p className="tabular-nums text-2xl font-bold tracking-tight">{formatBRL(dados.faturasDoMes.total)}</p>
+              <p className="text-xs text-slate-500">
+                {dados.faturasDoMes.faturas === 1 ? '1 fatura' : `${dados.faturasDoMes.faturas} faturas`}
+                {dados.faturasDoMes.pago > 0 && <> · já pago {formatBRL(dados.faturasDoMes.pago)} · falta {formatBRL(dados.faturasDoMes.falta)}</>}
+              </p>
+            </div>
+          )}
           <ul className="divide-y divide-slate-100">
             {dados.cartoes.map((c) => (
               <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 py-2 text-sm">
                 <span className="flex min-w-0 items-center gap-2 font-medium">
                   <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />{c.nome}<BandeiraCartao bandeira={c.bandeira} />
                 </span>
-                <span className="text-right">
+                <span className="text-left sm:text-right">
                   {c.divida > 0 ? (
                     <>
                       <strong className={`tabular-nums ${c.vencida ? 'text-negativo' : ''}`}>{formatBRL(c.divida)}</strong>

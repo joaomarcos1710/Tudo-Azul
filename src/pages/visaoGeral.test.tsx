@@ -15,6 +15,7 @@ const mock = vi.hoisted(() => ({
   projecaoDoMes: vi.fn(),
   vencidosPlanejados: vi.fn(),
   resumoDosCartoes: vi.fn(),
+  totalFaturasDoMes: vi.fn(),
   ultimasConferencias: vi.fn(),
   resumoDoPeriodo: vi.fn(),
   listarLancamentos: vi.fn(),
@@ -36,7 +37,7 @@ vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/c
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos }))
 const cobrar = vi.hoisted(() => vi.fn())
 const gerar = vi.hoisted(() => vi.fn())
-vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar, resumoDosCartoes: mock.resumoDosCartoes }))
+vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar, resumoDosCartoes: mock.resumoDosCartoes, totalFaturasDoMes: mock.totalFaturasDoMes }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: gerar }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
@@ -73,6 +74,7 @@ beforeEach(() => {
   mock.listarCategorias.mockResolvedValue([{ id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false }])
   mock.vencidosPlanejados.mockResolvedValue({ itens: [], total: 0 })
   mock.resumoDosCartoes.mockResolvedValue([])
+  mock.totalFaturasDoMes.mockResolvedValue(null)
   mock.ultimasConferencias.mockResolvedValue(new Map())
   mock.projecaoDoMes.mockResolvedValue({
     diasNoMes: 31, diasDecorridos: 10, diasRestantes: 21, gasto: c(1300000), previsto: c(25000), variavelAteAgora: c(30000),
@@ -331,6 +333,45 @@ describe('Visão geral', () => {
     montar()
     expect(await screen.findByText('Próximos planejados')).toBeTruthy() // o Início segue de pé com a consulta de vencidos falhando
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
+  })
+
+  it('cartões: total das faturas que vencem no mês, vindo do banco, no topo do bloco', async () => {
+    mock.resumoDosCartoes.mockResolvedValue([
+      { id: 'k1', nome: 'Nubank', divida: c(0), vencimento: null, vencida: false, limiteDisponivel: null, credito: c(0) },
+    ])
+    mock.totalFaturasDoMes.mockResolvedValue({ faturas: 3, total: c(1284664), pago: c(0), falta: c(1284664) })
+    montar('inicio')
+    const bloco = await screen.findByTestId('faturas-do-mes')
+    expect(bloco.textContent).toContain('R$ 12.846,64')
+    expect(bloco.textContent).toContain('3 faturas')
+    expect(bloco.textContent).not.toContain('já pago')
+  })
+
+  it('cartões: com pagamento no mês mostra quanto já foi pago e quanto falta', async () => {
+    mock.resumoDosCartoes.mockResolvedValue([
+      { id: 'k1', nome: 'Nubank', divida: c(0), vencimento: null, vencida: false, limiteDisponivel: null, credito: c(0) },
+    ])
+    mock.totalFaturasDoMes.mockResolvedValue({ faturas: 1, total: c(10000), pago: c(4000), falta: c(6000) })
+    montar('inicio')
+    const bloco = await screen.findByTestId('faturas-do-mes')
+    expect(bloco.textContent).toContain('1 fatura')
+    expect(bloco.textContent).toContain('já pago R$ 40,00')
+    expect(bloco.textContent).toContain('falta R$ 60,00')
+  })
+
+  it('cartões: mês sem fatura ou banco sem a função não mostram o total e o resto do bloco segue', async () => {
+    mock.resumoDosCartoes.mockResolvedValue([
+      { id: 'k1', nome: 'Nubank', divida: c(0), vencimento: null, vencida: false, limiteDisponivel: null, credito: c(0) },
+    ])
+    mock.totalFaturasDoMes.mockResolvedValue({ faturas: 0, total: c(0), pago: c(0), falta: c(0) })
+    const { unmount } = montar('inicio')
+    expect(await screen.findByText(/nenhuma fatura fechada a pagar/)).toBeTruthy()
+    expect(screen.queryByTestId('faturas-do-mes')).toBeNull()
+    unmount()
+    mock.totalFaturasDoMes.mockRejectedValue({ code: '42883', message: 'function does not exist' })
+    montar('inicio')
+    expect(await screen.findByText(/nenhuma fatura fechada a pagar/)).toBeTruthy()
+    expect(screen.queryByTestId('faturas-do-mes')).toBeNull()
   })
 
   it('cartões: fatura a pagar com vencimento, fatura vencida em vermelho e limite disponível', async () => {
