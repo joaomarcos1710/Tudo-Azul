@@ -43,8 +43,11 @@ function db() {
 
 function textoDecimal(valor: string, casas: number): string {
   const t = valor.trim().replace(',', '.')
-  const re = new RegExp('^\\d{1,12}(?:\\.\\d{1,' + casas + '})?
-  if (!re.test(t) || Number(t) <= 0 || !Number.isFinite(Number(t))) {
+  const partes = t.split('.')
+  const digitos = (parte: string) => parte.length > 0 && [...parte].every((c) => c >= '0' && c <= '9')
+  if (partes.length > 2 || !digitos(partes[0]) ||
+      (partes.length === 2 && (!digitos(partes[1]) || partes[1].length > casas)) ||
+      partes[0].length > 12 || Number(t) <= 0 || !Number.isFinite(Number(t))) {
     throw new Error('Informe um número positivo com até ' + casas + ' casas decimais.')
   }
   return t
