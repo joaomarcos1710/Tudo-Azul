@@ -481,6 +481,39 @@ begin
 end
 $$;
 
+
+-- Anular um pagamento agendado restaura a parcela e o prazo, sem perder o histórico dos eventos.
+create function private.debt_schedule_restore_void()
+returns trigger language plpgsql security definer set search_path = '' as $
+declare
+  v_due date;
+begin
+  if tg_op <> 'UPDATE' or old.voided_at is not null or new.voided_at is null
+     or new.schedule_id is null or new.op_id is null then
+    return new;
+  end if;
+
+  update public.debt_payment_schedule s
+     set status='planned',payment_op_id=null,payment_date=null,updated_at=now()
+   where s.id=new.schedule_id and s.household_id=new.household_id and s.debt_id=new.debt_id
+     and s.status='paid' and s.payment_op_id=new.op_id
+  returning s.due_date into v_due;
+
+  if found then
+    update public.debts d
+       set remaining_installments=least(d.original_installments,d.remaining_installments+1),
+           first_due_date=least(d.first_due_date,v_due)
+     where d.id=new.debt_id and d.household_id=new.household_id;
+  end if;
+  return new;
+end
+$;
+
+revoke execute on function private.debt_schedule_restore_void() from public,anon,authenticated;
+create trigger debt_schedule_restore_after_void
+  after update on public.debt_events
+  for each row execute function private.debt_schedule_restore_void();
+
 revoke execute on function public.debt_contract_set(uuid,text,text,integer,integer,numeric,integer,text,uuid,date),
   public.debt_schedule_record_payment(uuid,date,uuid,numeric,numeric,numeric,uuid,boolean)
   from public, anon;
