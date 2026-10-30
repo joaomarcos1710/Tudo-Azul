@@ -86,7 +86,7 @@ export default function Recorrentes() {
         acoes={editando === null && <Button onClick={() => setEditando('nova')}>Novo recorrente</Button>}
         descricao={<>
           Contas, salários e assinaturas que se repetem: toda semana, a cada 14 dias, todo mês, a cada 2, 3 ou 6 meses ou todo ano.
-          Em conta, os próximos 2 meses aparecem como <strong>Planejado</strong> em{' '}
+          Em conta, os próximos 12 meses aparecem como <strong>Planejado</strong> (ou, se você informar a data final, todas as parcelas até ela) em{' '}
           <Link to="/lancamentos" className="font-semibold text-azul hover:underline">Lançamentos</Link>: quando a conta chegar,
           corrija o valor e marque como pago. No cartão, a compra entra no dia, na fatura certa.
         </>} />

@@ -84,6 +84,7 @@ tags: [tudo-azul, historico]
 - **Migration 019 aplicada em produção** em 29/10/2026, pela [execução 28 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40957180996) (simulação antes: execução 27), a partir do commit `c82ee04`; 24 migrations em sincronia.
 - **Arquivar e excluir cartão e conta** (migration 020, #88, merge `85d634e`, 30/10/2026): cartão e conta ganham Arquivar (reversível, seção "Arquivados") e Excluir (só o que nunca teve movimento). Migration 020 aplicada em produção em 30/10/2026.
 - **Renomear cartão e mensagem de exclusão que conta o que existe** (migration 021, #89, merge `4936a78`, 30/10/2026): `debt_rename` e botão "Renomear"; a recusa de exclusão diz quantas parcelas, movimentos ou faturas existem. Migration 021 aplicada em produção em 30/10/2026.
+- **Testes pgTAP sem dependência da data de hoje** (#90, merge `3869204`, 30/10/2026): 4 testes falhavam simulando 02/01/2027; novo `scripts/local-db/simular-data.sh`. Sem migration.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

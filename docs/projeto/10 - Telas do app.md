@@ -42,3 +42,5 @@ PWA instalável · versão `AAAA.E` · ocultar valores · valores sempre vindos 
 **Arquivar e excluir** (30/10/2026): em **Cartões**, cada cartão ativo ganha "Arquivar" e "Excluir" (com confirmação); os arquivados ficam na seção **Arquivados**, com "Reativar". Em **Contas**, "Desativar" virou **"Arquivar"**, há "Excluir" e a seção **Arquivadas**. Arquivar exige cartão sem saldo, sem parcelas a vencer e sem assinatura ativa; excluir só vale para o que nunca teve movimento. A mesma regra vale para investimentos quando existirem.
 
 **Renomear cartão** (30/10/2026): em Cartões, o botão "Renomear" corrige o nome (só o nome; fatura, parcelas, limite e histórico não mudam). Ao recusar a exclusão de cartão ou conta, a mensagem passa a contar o que existe (ex.: "Tem histórico (3 parcelas): só é possível arquivar.").
+
+**Horizonte dos recorrentes** (30/10/2026): em conta, os próximos 12 meses aparecem como Planejado; se a regra tem **data final** (campo "Até"), todas as parcelas até ela aparecem (máx. 360 meses; semanal, 24). Serve para empréstimo e financiamento enquanto não existe a tela própria.

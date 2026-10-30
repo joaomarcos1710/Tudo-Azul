@@ -4,7 +4,8 @@ import { supabase } from './supabase'
 
 /**
  * Lançamentos recorrentes (migrations 006 e 016). O banco gera as ocorrências (recurrence_materialize):
- * em conta, planejados até o fim do mês daqui a 2 meses; no cartão, a compra no dia da ocorrência.
+ * em conta, planejados até o fim do mês daqui a 12 meses (migration 022), ou até a data final da regra, no máximo 360 meses
+ * (24 na semanal); no cartão, a compra no dia da ocorrência.
  * Frequência = unidade (mês ou semana) + "a cada N". Frequência, dia e início não mudam depois de criados.
  */
 export type TipoRecorrencia = 'expense' | 'income' | 'transfer' | 'card'

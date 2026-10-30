@@ -140,7 +140,7 @@ select is(pg_temp.sqlstate_of($$insert into public.recurrences (household_id, ki
   '23514', 'RF11 constraint: mensal sem dia é recusada no banco');
 select pg_temp.login('00000000-0000-0000-0000-0000000022a1');
 
--- RF12: geração em conta — semanal a partir de hoje, até o horizonte (fim do mês +2), idempotente
+-- RF12: geração em conta — semanal a partir de hoje, até o horizonte sem data final (fim do mês +12), idempotente
 reset role;
 update public.recurrences set active = false where household_id = pg_temp.fx('h');  -- isola a geração
 select pg_temp.login('00000000-0000-0000-0000-0000000022a1');
@@ -148,8 +148,8 @@ insert into fixture select 'sal', public.recurrence_create('income', 'Diária', 
                                                            null, null, pg_temp.fx('cinc'), null, 'week', 1);
 select ok(public.recurrence_materialize() > 0, 'RF12 gera as ocorrências semanais');
 select is((select string_agg(date::text, ' ' order by date) from public.transactions where recurrence_id = pg_temp.fx('sal')),
-  (select string_agg(d::date::text, ' ' order by d) from generate_series(pg_temp.hoje(), (pg_temp.mes(3) - 1), interval '7 days') d),
-  'RF12 uma por semana, de hoje até o fim do mês +2, todas planejadas');
+  (select string_agg(d::date::text, ' ' order by d) from generate_series(pg_temp.hoje(), (pg_temp.mes(13) - 1), interval '7 days') d),
+  'RF12 uma por semana, de hoje até o fim do mês +12, todas planejadas');
 select is((select count(*) from public.transactions where recurrence_id = pg_temp.fx('sal') and status <> 'planned'), 0::bigint,
   'RF12 todas como Planejado');
 select is(public.recurrence_materialize(), 0, 'RF12 segunda geração não cria nada');

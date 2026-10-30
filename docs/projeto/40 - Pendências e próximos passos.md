@@ -20,7 +20,8 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
-- [ ] **Recorrentes: horizonte de geração** (30/10/2026, o dono notou que só duram 2 meses): hoje `recurrence_materialize` gera até o fim do mês daqui a 2 meses. Proposta aguardando decisão: regra com data final gera até o fim (máx. 360 meses), sem data final 12 meses. Pode virar a tela de Empréstimos/Financiamentos no futuro.
+- [x] **Recorrentes: horizonte de geração** (migration 022): feito. Sem data final, 12 meses; com data final, até ela (máx. 360). Falta aplicar em produção e o dono conferir no app.
+- [ ] **Tela de Empréstimos e Financiamentos** (decisão do dono em 30/10/2026: "vamos criar depois"): saldo devedor, parcelas pagas e quanto falta quitar. O banco já tem `debts`/`debt_installments`/`debt_pay`/`debt_balances`.
 - [x] **Arquivar/excluir cartão e conta** (migrations 020 e 021, #88 e #89): feito e aplicado em 30/10/2026. Falta o dono conferir no app: o cartão de exemplo que não deixa excluir (ler a mensagem nova, que diz o que existe) e decidir se a exclusão deve valer quando só sobram registros anulados.
 - [x] **Testes pgTAP que dependem da data de hoje** (A1 `12_card_correcoes`, A2 `22_recurrence_frequency`): corrigidos (como se fosse 02/01/2027 falhavam 4 testes). Para achar outros do mesmo tipo: `su postgres -c "scripts/local-db/simular-data.sh AAAA-MM-DD"` roda a suíte com outra data de hoje.
 1. ~~**Início × Análises**~~ — feito (#57).
