@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'node:fs'
 
-// Versão = ano.edição (docs/VERSOES.md); o commit vem da Vercel (VERCEL_GIT_COMMIT_SHA) quando existe.
+// Versão = ano.número-da-PR (docs/VERSOES.md); o commit vem da Vercel (VERCEL_GIT_COMMIT_SHA) quando existe.
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
 
 // https://vitejs.dev/config/
