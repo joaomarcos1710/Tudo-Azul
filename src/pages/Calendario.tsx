@@ -9,6 +9,8 @@ import { hojeSP, listarContas } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
+import { saldosProjetados, faturasQueVencem } from '../lib/saldoProjetado'
+import type { SaldoProjetado } from '../lib/saldoProjetado'
 import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, somarMeses } from '../lib/lancamentos'
 import type { ResumoMes } from '../lib/lancamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
@@ -62,8 +64,10 @@ export default function Calendario() {
         listarContas(familiaId, hoje).catch(() => null),
         listarCategorias(familiaId).catch(() => null),
         resumoDoMes(familiaId, mes).catch(() => null),
+        // faturas por vencimento: extra; se a consulta falhar (ex.: banco ainda sem a migration 025) o calendário segue sem elas
+        faturasQueVencem(familiaId, ...limitesDoMes(mes)).catch(() => []),
       ]))
-      .then(([lancs, movs, contas, cats, res]) => {
+      .then(([lancs, movs, contas, cats, res, faturas]) => {
         if (!vivo()) return
         const nomeConta = new Map((contas?.contas ?? []).map((c) => [c.id, c.nome]))
         const nomeCategoria = nomesCompletos(cats ?? [])
@@ -88,6 +92,18 @@ export default function Calendario() {
             valor: Math.abs(m.valor) as Cents,
             sentido: m.valor >= 0 ? 'entrada' : 'saida',
             planejado: false,
+          })),
+          // a fatura que vence no dia aparece como planejada, pelo que ainda falta pagar (paga por inteiro, o pagamento já aparece acima)
+          ...faturas.filter((f) => f.falta > 0).map((f): ItemDoDia => ({
+            id: `f-${f.cartaoId}-${f.vencimento}`,
+            data: f.vencimento,
+            descricao: `Fatura ${f.cartao}`,
+            detalhe: f.contaPagamentoId && nomeConta.get(f.contaPagamentoId)
+              ? `vence neste dia · paga com ${nomeConta.get(f.contaPagamentoId)}`
+              : 'vence neste dia · conta de pagamento não escolhida',
+            valor: f.falta,
+            sentido: 'saida',
+            planejado: true,
           })),
         ]
         setItens(doMes)
@@ -140,6 +156,8 @@ export default function Calendario() {
           <Card className="!p-3"><p className="text-xs text-slate-500">Resultado</p><p className={`tabular-nums font-semibold ${resumo.resultado < 0 ? 'text-negativo' : 'text-marinho'}`}>{formatBRL(resumo.resultado)}</p></Card>
         </section>
       )}
+
+      <SaldoAteADataEscolhida familiaId={familiaId} ate={dia ?? fimDoMes} hoje={hoje} />
 
       {itens === null && !erro ? (
         <p className="text-sm text-slate-600" role="status">Carregando…</p>
@@ -222,5 +240,78 @@ export default function Calendario() {
         </>
       )}
     </>
+  )
+}
+
+/**
+ * Saldo total e por conta até o dia escolhido (ou o fim do mês), em qualquer mês: só efetuados ou efetuados + planejados.
+ * Os números vêm do banco; a fatura do cartão desconta da conta que o paga no dia do vencimento.
+ */
+function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; ate: string; hoje: string }) {
+  const [incluir, setIncluir] = useState(true)
+  const [saldo, setSaldo] = useState<SaldoProjetado | null>(null)
+  const [indisponivel, setIndisponivel] = useState(false)
+
+  useEffect(() => {
+    let vivo = true
+    setSaldo(null)
+    setIndisponivel(false)
+    saldosProjetados(familiaId, ate, incluir)
+      .then((r) => { if (vivo) setSaldo(r) })
+      .catch(() => { if (vivo) setIndisponivel(true) })
+    return () => { vivo = false }
+  }, [familiaId, ate, incluir])
+
+  if (indisponivel) return null
+  const mostrar = saldo?.contas.filter((c) => c.ativa || c.saldo !== 0) ?? []
+  const quando = ate === hoje ? 'hoje' : `até ${formatDate(ate)}`
+
+  return (
+    <Card className="mb-4" aria-label="Saldo até a data escolhida">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <CardTitle>Saldo {quando}</CardTitle>
+        <div className="mb-3 flex gap-1" role="group" aria-label="O que entra no saldo">
+          <button type="button" aria-pressed={!incluir} onClick={() => setIncluir(false)}
+            className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${!incluir ? 'bg-azul text-white' : 'bg-fundo text-slate-600'}`}>Só efetuados</button>
+          <button type="button" aria-pressed={incluir} onClick={() => setIncluir(true)}
+            className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${incluir ? 'bg-azul text-white' : 'bg-fundo text-slate-600'}`}>Efetuados + planejados</button>
+        </div>
+      </div>
+      {saldo === null ? (
+        <p className="text-sm text-slate-500" role="status">Calculando…</p>
+      ) : saldo.total && (
+        <>
+          <p className={`tabular-nums text-3xl font-bold tracking-tight ${saldo.total.saldo < 0 ? 'text-negativo' : 'text-marinho'}`} data-testid="saldo-total">
+            {formatBRL(saldo.total.saldo)}
+          </p>
+          {incluir && (
+            <p className="mt-1 text-xs text-slate-500" data-testid="saldo-detalhe">
+              Efetuado {formatBRL(saldo.total.efetuado)} · planejado {saldo.total.planejado < 0 ? '−' : '+'}{formatBRL(Math.abs(saldo.total.planejado) as Cents)} · faturas de cartão −{formatBRL(saldo.total.faturas)}
+            </p>
+          )}
+          {incluir && saldo.total.faturasSemConta > 0 && (
+            <p className="mt-2 text-xs text-planejado" data-testid="saldo-sem-conta">
+              {formatBRL(saldo.total.faturasSemConta)} de fatura de cartão sem conta de pagamento entram só no total. Escolha a conta em{' '}
+              <Link to="/cartoes" className="font-semibold underline">Cartões</Link> para descontar da conta certa.
+            </p>
+          )}
+          <ul className="mt-3 divide-y divide-slate-100">
+            {mostrar.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{c.nome}</span>
+                  {incluir && (c.planejado !== 0 || c.faturas > 0) && (
+                    <span className="block truncate text-xs text-slate-500">
+                      efetuado {formatBRL(c.efetuado)}{c.planejado !== 0 ? ` · planejado ${c.planejado < 0 ? '−' : '+'}${formatBRL(Math.abs(c.planejado) as Cents)}` : ''}{c.faturas > 0 ? ` · faturas −${formatBRL(c.faturas)}` : ''}
+                    </span>
+                  )}
+                </span>
+                <span className={`shrink-0 tabular-nums font-semibold ${c.saldo < 0 ? 'text-negativo' : ''}`}>{formatBRL(c.saldo)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
   )
 }
