@@ -507,7 +507,7 @@ begin
   end if;
   return new;
 end
-$;
+$$;
 
 revoke execute on function private.debt_schedule_restore_void() from public,anon,authenticated;
 create trigger debt_schedule_restore_after_void
