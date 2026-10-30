@@ -12,7 +12,7 @@ import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { listarCategorias } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
-import { asCents, formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
+import { asCents, formatBRL, formatBRLCampo, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { mensagemErroBanco } from '../lib/erros'
 import {
