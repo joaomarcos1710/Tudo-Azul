@@ -109,6 +109,82 @@ language sql stable security invoker set search_path = '' as $$
   order by d.name
 $$;
 
+
+-- A agenda participa da projeção de caixa sem virar lançamento efetivo:
+-- débito em conta reduz a conta correspondente; boleto/manual sem conta reduzem apenas o total;
+-- consignado não reduz caixa porque o salário pode já estar registrado líquido.
+create or replace function public.account_balances_projected(
+  p_household uuid, p_as_of date, p_include_planned boolean default true
+)
+returns table(account_id uuid,name text,type text,active boolean,realized numeric,planned numeric,invoices numeric,balance numeric)
+language sql stable set search_path = '' as $
+  select b.account_id,b.name,b.type,b.active,b.balance,
+    case when p_include_planned then coalesce(pl.delta,0) - coalesce(ds.rem,0) else 0 end,
+    case when p_include_planned then coalesce(inv.rem,0) else 0 end,
+    b.balance
+      + case when p_include_planned then coalesce(pl.delta,0) - coalesce(ds.rem,0) else 0 end
+      - case when p_include_planned then coalesce(inv.rem,0) else 0 end
+  from public.account_balances(p_household,p_as_of) b
+  join public.accounts a on a.id=b.account_id
+  left join lateral (
+    select sum(case
+      when t.type='income' and t.account_id=a.id then t.amount
+      when t.type='expense' and t.account_id=a.id then -t.amount
+      when t.type='transfer' and t.account_id=a.id then -t.amount
+      when t.type='transfer' and t.destination_account_id=a.id then t.amount
+    end) as delta
+    from public.transactions t
+    where t.household_id=a.household_id and t.deleted_at is null and t.status='planned'
+      and t.date>=a.opening_date and t.date<=p_as_of
+      and (t.account_id=a.id or t.destination_account_id=a.id)
+  ) pl on true
+  left join lateral (
+    select sum(s.amount) as rem
+    from public.debt_payment_schedule s
+    join public.debts d on d.household_id=s.household_id and d.id=s.debt_id
+    where s.household_id=a.household_id and s.status='planned' and s.due_date<=p_as_of
+      and d.payment_method='account_debit' and d.payment_account_id=a.id
+  ) ds on true
+  left join lateral (
+    select sum(greatest(m.total-m.paid,0)) as rem
+    from public.debts d
+    cross join lateral public.card_months(d.id) m
+    where d.household_id=a.household_id and d.kind='card' and d.pay_account_id=a.id
+      and m.due_date<=p_as_of
+  ) inv on true
+  where (select private.is_member(p_household))
+  order by b.name
+$;
+
+create or replace function public.balance_totals_projected(
+  p_household uuid, p_as_of date, p_include_planned boolean default true
+)
+returns table(realized numeric,planned numeric,invoices numeric,unassigned_invoices numeric,total numeric)
+language sql stable set search_path = '' as $
+  with c as (
+    select coalesce(sum(b.realized),0) as realized,coalesce(sum(b.planned),0) as planned
+    from public.account_balances_projected(p_household,p_as_of,p_include_planned) b
+  ), f as (
+    select coalesce(sum(greatest(m.total-m.paid,0)),0) as todas,
+      coalesce(sum(greatest(m.total-m.paid,0)) filter (where d.pay_account_id is null),0) as sem_conta
+    from public.debts d
+    cross join lateral public.card_months(d.id) m
+    where d.household_id=p_household and d.kind='card' and m.due_date<=p_as_of
+  ), s as (
+    select coalesce(sum(sch.amount),0) as sem_conta
+    from public.debt_payment_schedule sch
+    join public.debts d on d.household_id=sch.household_id and d.id=sch.debt_id
+    where sch.household_id=p_household and sch.status='planned' and sch.due_date<=p_as_of
+      and d.payment_method in ('boleto','manual')
+  )
+  select c.realized,c.planned,
+    case when p_include_planned then f.todas+s.sem_conta else 0 end,
+    case when p_include_planned then f.sem_conta+s.sem_conta else 0 end,
+    c.realized+c.planned-case when p_include_planned then f.todas+s.sem_conta else 0 end
+  from c cross join f cross join s
+  where (select private.is_member(p_household))
+$;
+
 create or replace function private.debt_events_guard()
 returns trigger language plpgsql set search_path = '' as $
 begin
@@ -252,7 +328,7 @@ begin
   from public.debt_payment_schedule s
   where s.debt_id = v_d.id and s.status = 'paid';
   v_first_number := p_original_installments - p_remaining_installments + 1;
-  if p_remaining_installments > 0 and v_first_number <= v_paid_max then
+  if p_original_installments < v_paid_max or (p_remaining_installments > 0 and v_first_number <= v_paid_max) then
     raise exception 'prazo restante incompatível com as parcelas já pagas' using errcode = '23514';
   end if;
 
@@ -323,7 +399,7 @@ begin
   end if;
 
   if v_d.payment_method = 'payroll' then
-    if p_account is not null or p_interest <> 0 or p_fee <> 0 or p_principal <= 0 then
+    if p_account is not null or p_interest <> 0 or p_fee <> 0 or p_principal <= 0 or coalesce(p_extra,false) then
       raise exception 'no consignado, informe apenas o valor amortizado no saldo devedor' using errcode = '22023';
     end if;
     v_op := gen_random_uuid();
