@@ -11,11 +11,11 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  arquivarCartao, criarCartao, definirCiclo, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, reativarCartao, renomearCartao,
+  arquivarCartao, criarCartao, definirCiclo, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, proximaFatura, reativarCartao, renomearCartao,
   novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
-import type { Cartao, Fatura, ItemFatura, ItemPrevia, MovimentoCartao } from '../lib/cartoes'
+import type { Cartao, Fatura, ItemFatura, ItemPrevia, MovimentoCartao, ProximaFatura } from '../lib/cartoes'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
@@ -52,6 +52,8 @@ export default function Cartoes() {
   const [cartoes, setCartoes] = useState<Cartao[] | null>(null)
   const [contas, setContas] = useState<Conta[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  // próxima fatura (aberta) de cada cartão; falha ao ler as faturas de um cartão não derruba a tela
+  const [proximas, setProximas] = useState<Map<string, ProximaFatura | null>>(new Map())
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [painel, setPainel] = useState<Painel | null>(null)
@@ -72,6 +74,11 @@ export default function Cartoes() {
       )
       const [c, cs, cats] = await Promise.all([listarCartoes(familiaId), listarContas(familiaId), listarCategorias(familiaId)])
       setCartoes(c)
+      const hoje = hojeSP()
+      const lidas = await Promise.all(c.filter((x) => x.ativo).map(async (x): Promise<[string, ProximaFatura | null]> => {
+        try { return [x.id, proximaFatura(await listarFaturas(x.id), hoje)] } catch { return [x.id, null] }
+      }))
+      setProximas(new Map(lidas))
       setContas(cs.contas)
       setCategorias(cats)
       setErro('')
@@ -163,6 +170,12 @@ export default function Cartoes() {
                 <dl>
                   <dt className="text-sm text-slate-500">Fatura a pagar</dt>
                   <dd className={`tabular-nums text-3xl font-bold tracking-tight ${c.divida > 0 ? 'text-negativo' : 'text-marinho'}`}>{formatBRL(c.divida)}</dd>
+                  {proximas.get(c.id) && (
+                    <dd className="mt-1 text-sm text-slate-600" data-testid={`proxima-${c.id}`}>
+                      Próxima fatura{proximas.get(c.id)!.vencimento ? ` (vence ${formatDate(proximas.get(c.id)!.vencimento!).slice(0, 5)})` : ''}:{' '}
+                      <strong className="tabular-nums text-marinho">{formatBRL(proximas.get(c.id)!.total)}</strong>
+                    </dd>
+                  )}
                 </dl>
                 <Button variante={c.divida > 0 ? 'primario' : 'secundario'} onClick={() => setPainel({ tipo: 'pagar', cartao: c })}
                   disabled={c.fechamento === null || painel !== null}

@@ -86,6 +86,7 @@ tags: [tudo-azul, historico]
 - **Renomear cartão e mensagem de exclusão que conta o que existe** (migration 021, #89, merge `4936a78`, 30/10/2026): `debt_rename` e botão "Renomear"; a recusa de exclusão diz quantas parcelas, movimentos ou faturas existem. Migration 021 aplicada em produção em 30/10/2026.
 - **Testes pgTAP sem dependência da data de hoje** (#90, merge `3869204`, 30/10/2026): 4 testes falhavam simulando 02/01/2027; novo `scripts/local-db/simular-data.sh`. Sem migration.
 - **Recorrentes: horizonte de 12 meses e até a data final** (migration 022, #91, merge `af6e1e1`, 30/10/2026): sem data final gera 12 meses; com data final, até ela (máx. 360; semanal 24). Migration 022 aplicada em produção em 30/10/2026 (execução 34).
+- **Total das faturas do mês no Início** (migration 023, #92, merge `56e17d7`, 30/10/2026): `card_invoices_month` soma no banco as faturas que vencem no mês. Migration 023 aplicada em produção em 30/10/2026 (execução 36).
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
