@@ -51,8 +51,8 @@ select pg_temp.login('00000000-0000-0000-0000-0000000000b1');
 insert into fixture select 'h', public.create_household('Casa FX');
 select is((select report_currency from public.households where id = (select v from fixture where k='h')),
   'BRL', 'moeda de consolidação padrão é BRL');
-select is(pg_temp.sqlstate_of(format($update public.households set report_currency = 'EUR' where id = %L$,
-  (select v from fixture where k='h'))), '42501', 'moeda de consolidação permanece bloqueada até os relatórios multimoeda');
+select is(pg_temp.sqlstate_of(format('update public.households set report_currency = %L where id = %L',
+  'EUR', (select v from fixture where k='h'))), '42501', 'moeda de consolidação permanece bloqueada até os relatórios multimoeda');
 select is((select report_currency from public.households where id = (select v from fixture where k='h')),
   'BRL', 'moeda de consolidação continua BRL até a integração completa');
 
