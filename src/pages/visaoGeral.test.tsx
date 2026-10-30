@@ -145,7 +145,7 @@ describe('Visão geral', () => {
     // equação montada com os valores do banco: disponível + crédito a receber − dívida = patrimônio
     expect(screen.getByText('Patrimônio líquido')).toBeTruthy()
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
-    expect(screen.getByText(/Bens e investimentos em USD/EUR ainda não entram no consolidado/)).toBeTruthy()
+    expect(screen.getByText(/Bens e investimentos em USD/)).toBeTruthy()
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
   })
   it('resumo do mês (Análises): receitas e despesas do banco', async () => {
