@@ -8,6 +8,8 @@ export interface Patrimonio {
   creditoAReceber: Cents
   divida: Cents
   patrimonio: Cents
+  /** Investimentos em BRL, integrados ao patrimônio líquido. */
+  investimentos: Cents
   /** Parcelas de cartão ainda não cobradas: aparecem à parte e não entram no patrimônio. */
   compromissos: Cents
 }
@@ -27,7 +29,7 @@ function cliente() {
 }
 
 export async function carregarPatrimonio(familiaId: string, dataRef: string): Promise<Patrimonio> {
-  const { data, error } = await cliente().rpc('net_worth', { p_household: familiaId, p_as_of: dataRef })
+  const { data, error } = await cliente().rpc('net_worth_with_investments', { p_household: familiaId, p_as_of: dataRef })
   if (error) throw error
   const r = ((data ?? []) as Record<string, number | string>[])[0] ?? {}
   return {
@@ -35,6 +37,7 @@ export async function carregarPatrimonio(familiaId: string, dataRef: string): Pr
     creditoAReceber: centsFromDb(r.credit_receivable ?? 0),
     divida: centsFromDb(r.debt ?? 0),
     patrimonio: centsFromDb(r.net_worth ?? 0),
+    investimentos: centsFromDb(r.investments_brl ?? 0),
     compromissos: centsFromDb(r.planned_commitments ?? 0),
   }
 }
@@ -155,4 +158,22 @@ export async function vencidosPlanejados(familiaId: string, hoje: string, limite
     itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null })),
     total: count ?? (data ?? []).length,
   }
+}
+
+
+export interface ResumoInvestimento {
+  moeda: 'BRL' | 'USD' | 'EUR'
+  valorAtual: Cents
+}
+
+/** Saldo investido por moeda, sem conversão implícita entre BRL, USD e EUR. */
+export async function carregarResumoInvestimentos(familiaId: string, dataRef: string): Promise<ResumoInvestimento[]> {
+  const { data, error } = await cliente().rpc('investment_totals', {
+    p_household: familiaId, p_as_of: dataRef,
+  })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number>[]).map((r) => ({
+    moeda: r.currency_code as ResumoInvestimento['moeda'],
+    valorAtual: centsFromDb(r.market_value ?? 0),
+  }))
 }
