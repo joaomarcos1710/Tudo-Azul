@@ -45,7 +45,7 @@ vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/conta
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
 import Cartoes from './Cartoes'
-import { ontemSP, situacaoFatura } from '../lib/cartoes'
+import { ontemSP, proximaFatura, situacaoFatura } from '../lib/cartoes'
 import type { Fatura } from '../lib/cartoes'
 
 const c = (n: number) => n as Cents
@@ -306,7 +306,8 @@ describe('Cartões', () => {
     ])
     render(<Cartoes />)
     await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
-    expect(await screen.findByText('R$ 180,00')).toBeTruthy()
+    // o total da fatura aberta aparece na "Próxima fatura" do cartão e na lista de faturas
+    expect((await screen.findAllByText('R$ 180,00')).length).toBe(2)
     expect(await screen.findByText('2/3')).toBeTruthy()
     expect(screen.getByText('Aberta')).toBeTruthy()
     expect(mock.listarItens).toHaveBeenCalledWith('k1', '2099-04')
@@ -603,5 +604,39 @@ describe('Conta de pagamento do cartão', () => {
     render(<Cartoes />)
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Pagar fatura' }))
     expect((screen.getByLabelText('Pagar com a conta') as HTMLSelectElement).value).toBe('a1')
+  })
+})
+
+describe('Próxima fatura', () => {
+  it('escolhe a aberta que fecha primeiro e ignora fechada e paga', () => {
+    const hoje = '2026-10-30'
+    const fs = [
+      fatura({ mes: '2026-09', fechamento: '2026-09-18', vencimento: '2026-09-28', cobrado: c(5000), pago: c(5000), total: c(5000) }), // paga
+      fatura({ mes: '2026-10', fechamento: '2026-10-18', vencimento: '2026-10-28', cobrado: c(7000), pago: c(0), total: c(7000) }), // fechada
+      fatura({ mes: '2027-01', fechamento: '2027-01-18', vencimento: '2027-01-28', aCobrar: c(300), total: c(300) }),
+      fatura({ mes: '2026-11', fechamento: '2026-11-18', vencimento: '2026-11-28', aCobrar: c(43897), total: c(43897) }),
+    ]
+    expect(proximaFatura(fs, hoje)).toEqual({ mes: '2026-11', vencimento: '2026-11-28', total: c(43897) })
+    expect(proximaFatura(fs.slice(0, 2), hoje)).toBeNull()
+    expect(proximaFatura([], hoje)).toBeNull()
+  })
+
+  it('mostra o valor da próxima fatura mesmo com "Fatura a pagar" zerada', async () => {
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-12', fechamento: '2099-12-18', vencimento: '2099-12-28', aCobrar: c(43897), total: c(43897) })])
+    render(<Cartoes />)
+    const linha = await screen.findByTestId('proxima-k1')
+    expect(linha.textContent).toContain('Próxima fatura (vence 28/12)')
+    expect(linha.textContent).toContain('R$ 438,97')
+  })
+
+  it('sem fatura aberta, ou se a leitura das faturas falhar, não mostra a linha e o cartão segue', async () => {
+    render(<Cartoes />)
+    await screen.findByRole('button', { name: 'Pagar fatura' })
+    expect(screen.queryByTestId('proxima-k1')).toBeNull()
+    cleanup()
+    mock.listarFaturas.mockRejectedValue(new Error('falhou'))
+    render(<Cartoes />)
+    await screen.findByRole('button', { name: 'Pagar fatura' })
+    expect(screen.queryByTestId('proxima-k1')).toBeNull()
   })
 })

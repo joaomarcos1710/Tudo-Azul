@@ -310,6 +310,20 @@ export function situacaoFatura(f: Fatura, hoje: string): 'aberta' | 'fechada' | 
   return f.cobrado <= 0 || f.pago >= f.cobrado ? 'paga' : 'fechada'
 }
 
+/** A fatura que vem aí: ainda não fechou, então não é "a pagar", mas já tem valor (compras e parcelas que caem nela). */
+export interface ProximaFatura {
+  mes: string
+  vencimento: string | null
+  total: Cents
+}
+
+/** A fatura aberta que fecha primeiro. O valor é o `total` que o banco já calculou (card_months); aqui só se escolhe a linha. */
+export function proximaFatura(faturas: Fatura[], hoje: string): ProximaFatura | null {
+  const abertas = faturas.filter((f) => situacaoFatura(f, hoje) === 'aberta').sort((x, y) => (x.fechamento < y.fechamento ? -1 : 1))
+  const f = abertas[0]
+  return f ? { mes: f.mes, vencimento: f.vencimento, total: f.total } : null
+}
+
 /** Pagamentos e devoluções que mexem no saldo do cartão (os que podem ser anulados pela tela). */
 export interface MovimentoCartao {
   id: string
@@ -385,6 +399,8 @@ export interface ResumoCartao {
   limiteDisponivel: Cents | null
   /** Crédito no cartão (pagamento adiantado ou estorno maior que a dívida). */
   credito: Cents
+  /** A fatura aberta que fecha primeiro (a "próxima"); null sem fatura aberta ou se não carregou. */
+  proxima: ProximaFatura | null
 }
 
 export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP()): Promise<ResumoCartao[]> {
@@ -392,18 +408,21 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
   const cartoes = (await listarCartoes(familiaId, hoje)).filter((c) => c.ativo || c.divida > 0)
   return Promise.all(cartoes.map(async (c) => {
     let vencimento: string | null = null
-    if (c.divida > 0) {
-      // falha ao ler as faturas de UM cartão não derruba o bloco: ele aparece com a dívida e sem data
+    let proxima: ProximaFatura | null = null
+    // falha ao ler as faturas de UM cartão não derruba o bloco: ele aparece com a dívida e sem data
+    if (c.ativo || c.divida > 0) {
       try {
         const faturas = await listarFaturas(c.id)
-        vencimento = faturas.find((f) => situacaoFatura(f, hoje) === 'fechada')?.vencimento ?? null
+        if (c.divida > 0) vencimento = faturas.find((f) => situacaoFatura(f, hoje) === 'fechada')?.vencimento ?? null
+        proxima = proximaFatura(faturas, hoje)
       } catch {
         vencimento = null
+        proxima = null
       }
     }
     return {
       id: c.id, nome: c.nome, emissor: c.emissor, bandeira: c.bandeira, divida: c.divida, vencimento,
-      vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel, credito: c.credito,
+      vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel, credito: c.credito, proxima,
     }
   }))
 }

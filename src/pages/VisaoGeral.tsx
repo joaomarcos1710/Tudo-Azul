@@ -251,6 +251,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                       nenhuma fatura fechada a pagar{c.credito > 0 ? ` · crédito de ${formatBRL(c.credito)}` : ''}
                     </span>
                   )}
+                  {c.proxima && (
+                    <span className="block text-xs text-slate-500">
+                      próxima fatura {formatBRL(c.proxima.total)}{c.proxima.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}
+                    </span>
+                  )}
                   {c.limiteDisponivel !== null && (
                     <span className="block text-xs text-slate-500">limite disponível {formatBRL(c.limiteDisponivel)}</span>
                   )}
