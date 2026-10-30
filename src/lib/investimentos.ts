@@ -38,6 +38,13 @@ export interface TotalInvestimento {
   resultado: Cents
 }
 
+export interface HistoricoInvestimento {
+  mes: string
+  moeda: MoedaInvestimento
+  valorAtual: Cents
+  custoTotal: Cents
+}
+
 function db() {
   if (!supabase) throw new Error('Supabase não configurado')
   return supabase
@@ -153,4 +160,27 @@ export async function registrarAvaliacaoInvestimento(d: {
     p_source: d.fonte.trim(),
   })
   if (error) throw error
+}
+
+
+/** Exclui somente ativos sem operações ou avaliações, preservando o livro histórico. */
+export async function excluirAtivoInvestimento(ativoId: string): Promise<void> {
+  const { error } = await db().rpc('investment_asset_delete', { p_asset: ativoId })
+  if (error) throw error
+}
+
+/** Histórico mensal da carteira, calculado no banco e separado por moeda. */
+export async function listarHistoricoInvestimentos(
+  familiaId: string, deData: string, ateData: string,
+): Promise<HistoricoInvestimento[]> {
+  const { data, error } = await db().rpc('investment_history', {
+    p_household: familiaId, p_from: deData, p_to: ateData,
+  })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    mes: String(r.month),
+    moeda: r.currency_code as MoedaInvestimento,
+    valorAtual: centsFromDb(r.market_value as string | number),
+    custoTotal: centsFromDb(r.cost_basis as string | number),
+  }))
 }
