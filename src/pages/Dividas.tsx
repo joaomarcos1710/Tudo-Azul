@@ -225,6 +225,28 @@ export default function Dividas() {
                           <p className="font-semibold">{d.credor}</p>
                         </div>
                       )}
+                      {d.numeroContrato && (
+                        <div>
+                          <p className="text-xs text-slate-500">Contrato</p>
+                          <p className="font-semibold">{d.numeroContrato}</p>
+                        </div>
+                      )}
+                      {d.formaPagamento && (
+                        <div>
+                          <p className="text-xs text-slate-500">Forma de pagamento</p>
+                          <p className="font-semibold">
+                            {d.formaPagamento === 'account_debit' ? 'Débito automático' :
+                              d.formaPagamento === 'boleto' ? 'Boleto' :
+                                d.formaPagamento === 'payroll' ? 'Consignado' : 'Manual'}
+                          </p>
+                        </div>
+                      )}
+                      {d.formaPagamento === 'account_debit' && (
+                        <div>
+                          <p className="text-xs text-slate-500">Conta de pagamento</p>
+                          <p className="font-semibold">{contas.find((c) => c.id === d.contaPagamentoId)?.nome ?? 'Conta não encontrada'}</p>
+                        </div>
+                      )}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {(d.parcelasRestantes === null || d.parcelasRestantes === 0) && <Button compacto onClick={() => setPagando(d)}>Registrar pagamento</Button>}
