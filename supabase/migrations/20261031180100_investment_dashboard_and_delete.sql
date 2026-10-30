@@ -52,7 +52,7 @@ select h.id, 'Financiamento', 'expense'
  );
 
 create function public.family_asset_delete(p_asset uuid) returns void
-language plpgsql security definer set search_path = '' as $
+language plpgsql security definer set search_path = '' as $$
 declare v_asset public.family_assets%rowtype; v_count integer;
 begin
   if auth.uid() is null then raise exception 'não autenticado' using errcode = '42501'; end if;
@@ -70,7 +70,7 @@ begin
   end if;
   delete from public.family_asset_valuations where household_id = v_asset.household_id and asset_id = v_asset.id;
   delete from public.family_assets where household_id = v_asset.household_id and id = v_asset.id;
-end $;
+end $$;
 
 create function public.investment_asset_delete(p_asset uuid) returns void
 language plpgsql security definer set search_path = '' as $$
