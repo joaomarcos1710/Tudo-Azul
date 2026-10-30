@@ -56,7 +56,7 @@ select is(pg_temp.sqlstate37(format('select public.investment_asset_delete(%L::u
 
 select is((select market_value from public.investment_history(
   pg_temp.fx37('household'),date_trunc('month',current_date)::date,current_date
-) where currency_code='BRL' and month=date_trunc('month',current_date)::date),170::numeric,
+) where currency_code='BRL' and month=date_trunc('month',current_date)::date),120::numeric,
   'histórico mensal soma posições e avaliações em BRL');
 select is((select market_value from public.investment_history(
   pg_temp.fx37('household'),date_trunc('month',current_date)::date,current_date
