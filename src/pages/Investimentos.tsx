@@ -179,7 +179,7 @@ export default function Investimentos() {
 
       {historico.some((p) => p.valorAtual > 0) && <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
         <h2 id="titulo-evolucao-investimentos" className="mb-1 text-lg font-semibold">Evolução dos investimentos</h2>
-        <p className="mb-3 text-sm text-slate-500">Valor estimado no fechamento de cada mês, por moeda, nos últimos 12 meses.</p>
+        <p className="mb-3 text-sm text-slate-500">Valor estimado no fechamento de cada mês, por moeda, nos últimos 12 meses. Registre avaliações periódicas para acompanhar a valorização real.</p>
         <div className="grid gap-3 lg:grid-cols-2">
           {([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[]).map((codigo) => (
             <GraficoHistorico key={codigo} moedaCodigo={codigo} pontos={historico.filter((p) => p.moeda === codigo)} />
