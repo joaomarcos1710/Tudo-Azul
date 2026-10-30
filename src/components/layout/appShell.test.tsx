@@ -24,7 +24,7 @@ describe('menu em grupos', () => {
   it('toda tela do app está no menu (inclui Recorrentes, que antes não aparecia) e sem caminhos repetidos', () => {
     const caminhos = itensNavegacao.map((i) => i.caminho)
     expect(new Set(caminhos).size).toBe(caminhos.length)
-    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/categorias', '/orcamentos', '/relatorios', '/familia']) {
+    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/relatorios', '/familia']) {
       expect(caminhos).toContain(c)
     }
   })
@@ -38,6 +38,7 @@ describe('menu em grupos', () => {
     expect(within(mov).getAllByRole('link').map((a) => a.textContent))
       .toEqual(['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas e conferência'])
     expect(within(lateral).getByRole('link', { name: 'Recorrentes' }).getAttribute('href')).toBe('/recorrentes')
+    expect(within(lateral).getByRole('link', { name: 'Investimentos' }).getAttribute('href')).toBe('/investimentos')
   })
 
   it('celular: 4 atalhos fixos + "Mais"; o resto só aparece dentro do Mais', async () => {

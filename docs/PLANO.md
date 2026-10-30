@@ -138,3 +138,10 @@ A migration 028 mantém households.report_currency bloqueada para o cliente enqu
 ## Módulo de dívidas e empréstimos
 
 A PR #103 entrega uma primeira experiência funcional para empréstimos e financiamentos, reaproveitando `debts`/`debt_events`. Permite cadastrar saldo devedor de referência, registrar taxa mensal e pagamento mínimo, registrar pagamentos com principal/juros/tarifas na mesma transação e comparar Snowball/Avalanche sem alterar o saldo real. Cartões continuam na tela própria. Esta entrega permanece em BRL até a integração multimoeda dos relatórios e saldos.
+
+
+## Carteira manual de investimentos (PR #104)
+
+A migration 030 adiciona ativos, operações e avaliações imutáveis, com isolamento por família e RPCs de leitura SECURITY INVOKER. Compras e vendas formam a posição e o custo médio ponderado; tarifas de compra integram o custo de aquisição. Avaliações manuais registram preço unitário, data e fonte. A carteira e seus totais são calculados no PostgreSQL e permanecem segregados em BRL, USD e EUR, sem conversão implícita.
+
+Nesta primeira entrega, operações patrimoniais não movimentam contas bancárias nem geram receitas/despesas. Essa integração fica para uma etapa específica, que criará transferências vinculadas sem dupla contagem. Cotações automáticas, dividendos/rendimentos, proventos, eventos corporativos e apuração de resultado realizado também permanecem fora desta fase.
