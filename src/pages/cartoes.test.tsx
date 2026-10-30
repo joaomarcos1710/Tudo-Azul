@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   definirLimite: vi.fn(),
   definirIdentidade: vi.fn(),
   arquivarCartao: vi.fn(),
+  renomearCartao: vi.fn(),
   reativarCartao: vi.fn(),
   excluirCartao: vi.fn(),
   registrarCompra: vi.fn(),
@@ -34,7 +35,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   ...(await o<typeof import('../lib/cartoes')>()),
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
-  definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
+  definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
   listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
 }))
@@ -65,7 +66,7 @@ beforeEach(() => {
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
   mock.previaExclusao.mockResolvedValue([])
-  for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
+  for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -517,5 +518,39 @@ describe('Arquivar e excluir cartão', () => {
     render(<Cartoes />)
     await screen.findByRole('button', { name: 'Arquivar' })
     expect(screen.queryByRole('heading', { name: 'Arquivados' })).toBeNull()
+  })
+})
+
+describe('Renomear cartão', () => {
+  it('abre com o nome atual e grava o nome aparado', async () => {
+    render(<Cartoes />)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Renomear' }))
+    const campo = screen.getByLabelText('Nome do cartão') as HTMLInputElement
+    expect(campo.value).toBe('Nubank')
+    await u.clear(campo)
+    await u.type(campo, '  Nubank Roxinho  ')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.renomearCartao).toHaveBeenCalledWith('k1', 'Nubank Roxinho')
+  })
+
+  it('nome vazio não chama o banco', async () => {
+    render(<Cartoes />)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Renomear' }))
+    await u.clear(screen.getByLabelText('Nome do cartão'))
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(await screen.findByText('Use de 1 a 60 caracteres.')).toBeTruthy()
+    expect(mock.renomearCartao).not.toHaveBeenCalled()
+  })
+
+  it('nome repetido mostra a mensagem do banco', async () => {
+    mock.renomearCartao.mockRejectedValue({ code: '23505', message: 'duplicate key value violates unique constraint "debts_name_uq"' })
+    render(<Cartoes />)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Renomear' }))
+    await u.type(screen.getByLabelText('Nome do cartão'), ' 2')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Já existe um registro com esse nome.')
   })
 })
