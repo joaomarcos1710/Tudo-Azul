@@ -2,7 +2,7 @@ import { centsFromDb } from './format'
 import type { Cents } from './format'
 import { supabase } from './supabase'
 
-/** Patrimônio do modelo B (net_worth): disponível + crédito a receber − dívida. */
+/** Patrimônio líquido: disponível + crédito a receber + participação familiar em bens BRL − dívidas. */
 export interface Patrimonio {
   disponivel: Cents
   creditoAReceber: Cents
