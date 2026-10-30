@@ -1,0 +1,74 @@
+-- 37_investment_dashboard: exclusão segura, histórico mensal, patrimônio BRL e categoria Financiamento.
+begin;
+create extension if not exists pgtap with schema extensions;
+select * from no_plan();
+
+create temp table fixture (k text primary key, v uuid);
+grant all on fixture to public;
+create function pg_temp.fx37(p_k text) returns uuid language sql as $f$ select v from fixture where k=p_k $f$;
+create function pg_temp.mkuser37(p_id uuid, p_email text) returns void language sql as $f$
+  insert into auth.users (id, email, raw_user_meta_data) values (p_id, p_email, '{}'::jsonb)
+$f$;
+create function pg_temp.login37(p_uid uuid) returns void language plpgsql as $f$
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+  perform set_config('role', 'authenticated', true);
+end $f$;
+create function pg_temp.sqlstate37(p_sql text) returns text language plpgsql as $f$
+begin execute p_sql; return null; exception when others then return sqlstate; end $f$;
+grant execute on function pg_temp.fx37(text), pg_temp.mkuser37(uuid,text), pg_temp.login37(uuid), pg_temp.sqlstate37(text) to public;
+
+select pg_temp.mkuser37('00000000-0000-0000-0000-0000000000f1','investimento-dashboard@test.com');
+select pg_temp.login37('00000000-0000-0000-0000-0000000000f1');
+insert into fixture select 'household', public.create_household('Carteira dashboard');
+
+select ok(exists(
+  select 1 from public.categories
+   where household_id=pg_temp.fx37('household') and type='expense' and name='Financiamento'
+), 'nova família recebe a categoria Financiamento com a grafia correta');
+
+insert into public.accounts(household_id,name,type,initial_balance,opening_date)
+values(pg_temp.fx37('household'),'Conta teste','checking',1000.00,current_date - 10);
+
+insert into fixture select 'empty_asset',
+  public.investment_asset_create(pg_temp.fx37('household'),'Ativo cadastrado errado',null,'equity','BRL');
+select lives_ok(format('select public.investment_asset_delete(%L::uuid)',pg_temp.fx37('empty_asset')),
+  'ativo sem operações ou avaliações pode ser excluído');
+select is((select count(*) from public.investment_assets where id=pg_temp.fx37('empty_asset')),0::bigint,
+  'ativo excluído deixa de aparecer na lista');
+
+insert into fixture select 'brl_asset',
+  public.investment_asset_create(pg_temp.fx37('household'),'Fundo BRL',null,'fund','BRL');
+insert into fixture select 'usd_asset',
+  public.investment_asset_create(pg_temp.fx37('household'),'ETF USD',null,'etf','USD');
+insert into fixture select 'valuation_asset',
+  public.investment_asset_create(pg_temp.fx37('household'),'Ativo avaliado',null,'equity','BRL');
+
+select public.investment_operation_record(pg_temp.fx37('brl_asset'),current_date - 5,'buy',10,10,0,'compra BRL');
+select public.investment_valuation_record(pg_temp.fx37('brl_asset'),current_date - 1,12,'Corretora');
+select public.investment_operation_record(pg_temp.fx37('usd_asset'),current_date - 5,'buy',2,50,0,'compra USD');
+select public.investment_valuation_record(pg_temp.fx37('valuation_asset'),current_date - 1,5,'Avaliação manual');
+
+select is(pg_temp.sqlstate37(format('select public.investment_asset_delete(%L::uuid)',pg_temp.fx37('brl_asset'))),'55000',
+  'ativo com operações não pode ser excluído');
+select is(pg_temp.sqlstate37(format('select public.investment_asset_delete(%L::uuid)',pg_temp.fx37('valuation_asset'))),'55000',
+  'ativo com avaliações não pode ser excluído');
+
+select is((select market_value from public.investment_history(
+  pg_temp.fx37('household'),date_trunc('month',current_date)::date,current_date
+) where currency_code='BRL' and month=date_trunc('month',current_date)::date),170::numeric,
+  'histórico mensal soma posições e avaliações em BRL');
+select is((select market_value from public.investment_history(
+  pg_temp.fx37('household'),date_trunc('month',current_date)::date,current_date
+) where currency_code='USD' and month=date_trunc('month',current_date)::date),100::numeric,
+  'histórico mantém posições em USD separadas');
+
+select is((select investments_brl from public.net_worth_with_investments(
+  pg_temp.fx37('household'),current_date
+)),170::numeric,'patrimônio líquido incorpora somente investimentos em BRL');
+select is((select net_worth from public.net_worth_with_investments(
+  pg_temp.fx37('household'),current_date
+)),1170::numeric,'patrimônio = saldo disponível + investimento BRL, sem misturar USD');
+
+select * from finish();
+rollback;
