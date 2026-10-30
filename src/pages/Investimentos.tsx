@@ -14,12 +14,12 @@ import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  criarAtivoInvestimento, listarAtivosInvestimento, listarCarteiraInvestimentos,
-  registrarAvaliacaoInvestimento, registrarOperacaoInvestimento,
+  criarAtivoInvestimento, excluirAtivoInvestimento, listarAtivosInvestimento, listarCarteiraInvestimentos,
+  listarHistoricoInvestimentos, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento,
 } from '../lib/investimentos'
 import type {
   AtivoInvestimento, ClasseAtivo, MoedaInvestimento, PosicaoInvestimento,
-  TipoOperacaoInvestimento, TotalInvestimento,
+  HistoricoInvestimento, TipoOperacaoInvestimento, TotalInvestimento,
 } from '../lib/investimentos'
 
 const classes: [ClasseAtivo, string][] = [
@@ -50,6 +50,8 @@ export default function Investimentos() {
   const [ativos, setAtivos] = useState<AtivoInvestimento[]>([])
   const [posicoes, setPosicoes] = useState<PosicaoInvestimento[]>([])
   const [totais, setTotais] = useState<TotalInvestimento[]>([])
+  const [historico, setHistorico] = useState<HistoricoInvestimento[]>([])
+  const [excluindoId, setExcluindoId] = useState<string | null>(null)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [novoAtivo, setNovoAtivo] = useState(false)
@@ -60,13 +62,16 @@ export default function Investimentos() {
     if (!familia?.id) return
     setCarregando(true)
     try {
-      const [lista, carteira] = await Promise.all([
+      const hoje = hojeSP()
+      const [lista, carteira, serie] = await Promise.all([
         listarAtivosInvestimento(familia.id),
-        listarCarteiraInvestimentos(familia.id, hojeSP()),
+        listarCarteiraInvestimentos(familia.id, hoje),
+        listarHistoricoInvestimentos(familia.id, inicioHistorico(hoje), hoje),
       ])
       setAtivos(lista)
       setPosicoes(carteira.posicoes)
       setTotais(carteira.totais)
+      setHistorico(serie)
       setErro('')
     } catch (e) {
       setErro(mensagemErroBanco(e))
@@ -104,6 +109,16 @@ export default function Investimentos() {
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
 
+  async function excluirAtivo(id: string, nome: string) {
+    if (!window.confirm(`Excluir o ativo “${nome}”? Só é possível excluir ativos sem operações ou avaliações.`)) return
+    setExcluindoId(id)
+    try {
+      await excluirAtivoInvestimento(id)
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+    finally { setExcluindoId(null) }
+  }
+
   const ativosAtivos = ativos.filter((a) => a.ativo)
   return (
     <>
@@ -119,7 +134,7 @@ export default function Investimentos() {
       />
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       <Aviso tipo="info">
-        Nesta primeira etapa, o livro de investimentos registra compras, vendas e avaliações manuais em BRL, USD ou EUR. Os valores ficam separados por moeda. As operações ainda não movimentam as contas bancárias nem entram como receita ou despesa; a integração de caixa será feita numa etapa própria para evitar dupla contagem. Não há cotação automática nesta versão.
+        Cadastre o ativo e depois registre uma compra para que ele passe a compor o saldo investido. Ativos sem operações ou avaliações podem ser excluídos. O livro registra compras, vendas e avaliações manuais em BRL, USD ou EUR, sempre separados por moeda. As operações não movimentam as contas bancárias nem entram como receita ou despesa nesta etapa. Não há cotação automática.
       </Aviso>
 
       {novoAtivo && <FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
@@ -162,6 +177,16 @@ export default function Investimentos() {
         )}
       </section>
 
+      {historico.some((p) => p.valorAtual > 0) && <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
+        <h2 id="titulo-evolucao-investimentos" className="mb-1 text-lg font-semibold">Evolução dos investimentos</h2>
+        <p className="mb-3 text-sm text-slate-500">Valor estimado no fechamento de cada mês, por moeda, nos últimos 12 meses.</p>
+        <div className="grid gap-3 lg:grid-cols-2">
+          {([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[]).map((codigo) => (
+            <GraficoHistorico key={codigo} moedaCodigo={codigo} pontos={historico.filter((p) => p.moeda === codigo)} />
+          ))}
+        </div>
+      </section>}
+
       <section className="mt-8" aria-labelledby="titulo-posicoes">
         <h2 id="titulo-posicoes" className="mb-3 text-lg font-semibold">Ativos e posições</h2>
         {posicoes.length > 0 ? (
@@ -180,7 +205,11 @@ export default function Investimentos() {
             {ativos.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
                 <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda}</p></div>
-                <span className="text-xs text-slate-500">{a.ativo ? 'Ativo' : 'Arquivado'}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500">{a.ativo ? 'Ativo' : 'Arquivado'}</span>
+                  <Button compacto variante="secundario" type="button" carregando={excluindoId === a.id}
+                    onClick={() => void excluirAtivo(a.id, a.nome)}>Excluir</Button>
+                </div>
               </li>
             ))}
           </ul>
@@ -188,6 +217,41 @@ export default function Investimentos() {
       </section>
     </>
   )
+}
+
+function inicioHistorico(hoje: string): string {
+  const ano = Number(hoje.slice(0, 4))
+  const mes = Number(hoje.slice(5, 7)) - 1
+  const inicio = new Date(Date.UTC(ano, mes - 11, 1))
+  return `${inicio.getUTCFullYear()}-${String(inicio.getUTCMonth() + 1).padStart(2, '0')}-01`
+}
+
+function GraficoHistorico({ moedaCodigo, pontos }: { moedaCodigo: MoedaInvestimento; pontos: HistoricoInvestimento[] }) {
+  const largura = 640, altura = 210, esquerda = 58, direita = 14, topo = 14, base = 32
+  const valores = pontos.map((p) => p.valorAtual)
+  const maximo = Math.max(1, ...valores)
+  const x = (i: number) => esquerda + (pontos.length <= 1 ? 0 : i / (pontos.length - 1) * (largura - esquerda - direita))
+  const y = (v: number) => topo + (1 - v / maximo) * (altura - topo - base)
+  const caminho = pontos.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.valorAtual).toFixed(1)}`).join(' ')
+  const rotulo = (valor: number) => moeda(valor as Cents, moedaCodigo)
+  return <Card>
+    <h3 className="mb-2 font-semibold">Evolução em {moedaCodigo}</h3>
+    <svg viewBox={`0 0 ${largura} ${altura}`} className="h-auto w-full" role="img"
+      aria-label={`Gráfico de evolução do investimento em ${moedaCodigo}`}>
+      {[0, 0.5, 1].map((f) => <g key={f}>
+        <line x1={esquerda} x2={largura - direita} y1={y(maximo * f)} y2={y(maximo * f)} stroke="#e2e8f0" />
+        <text x={esquerda - 7} y={y(maximo * f) + 4} textAnchor="end" fontSize="10" fill="#64748b">{rotulo(maximo * f)}</text>
+      </g>)}
+      {caminho && <path d={caminho} fill="none" stroke="#1476d4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+      {pontos.map((p, i) => <g key={p.mes}>
+        <circle cx={x(i)} cy={y(p.valorAtual)} r="3.5" fill="#1476d4" />
+        {(i === 0 || i === pontos.length - 1 || i % 3 === 0) && <text x={x(i)} y={altura - 8} textAnchor="middle" fontSize="10" fill="#64748b">
+          {new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(new Date(`${p.mes}T12:00:00Z`))}
+        </text>}
+      </g>)}
+    </svg>
+    <p className="mt-1 text-xs text-slate-500">Último valor: <strong>{rotulo(pontos[pontos.length - 1]?.valorAtual ?? 0)}</strong></p>
+  </Card>
 }
 
 function Posicao({ p }: { p: PosicaoInvestimento }) {
