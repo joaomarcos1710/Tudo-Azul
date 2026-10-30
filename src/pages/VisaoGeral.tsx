@@ -322,8 +322,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </div>
         )}
         {p && <p className="mt-2 text-xs text-slate-500">
-          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + investimentos BRL {formatBRL(p.investimentos)} − dívida {formatBRL(p.divida)}.
-          Considera contas, investimentos em reais e dívidas. Bens e investimentos em outras moedas ainda não entram no consolidado. Parcelas de cartão ainda não cobradas ficam fora do patrimônio atual.
+          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens BRL {formatBRL(p.bens)} + investimentos BRL {formatBRL(p.investimentos)} − dívida {formatBRL(p.divida)}.
+          Considera contas, bens e investimentos em BRL e dívidas. Bens e investimentos em outras moedas ainda não entram no consolidado. Parcelas de cartão ainda não cobradas ficam fora do patrimônio atual.
         </p>}
         {dados.investimentos && <Card className="mt-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -455,7 +455,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {!p && <p className="mb-2 text-sm text-slate-500" role="status">Patrimônio indisponível agora.</p>}
       {p && (
         <p className="mb-2 text-xs text-slate-500">
-          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + investimentos em BRL {formatBRL(p.investimentos)} − dívida {formatBRL(p.divida)}.
+          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens em BRL {formatBRL(p.bens)} + investimentos em BRL {formatBRL(p.investimentos)} − dívida {formatBRL(p.divida)}.
           Bens e investimentos em USD/EUR ainda não entram no consolidado.
         </p>
       )}
