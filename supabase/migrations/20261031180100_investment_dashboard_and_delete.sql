@@ -1,6 +1,6 @@
 -- Tudo Azul — migration 031: integração patrimonial e histórico da carteira de investimentos.
 -- Ativos sem eventos podem ser excluídos; operações e avaliações permanecem imutáveis.
--- BRL entra no patrimônio consolidado. USD/EUR seguem segregados até existir conversão validada.
+-- Bens em BRL entram no patrimônio. Investimentos ficam em indicador separado até integrar os aportes ao caixa; USD/EUR seguem segregados.
 
 create or replace function private.seed_default_categories(p_household uuid) returns void
 language plpgsql security definer set search_path = '' as $$
