@@ -38,6 +38,7 @@ export default function Dividas() {
   const [erro, setErro] = useState('')
   const [nova, setNova] = useState(false)
   const [pagando, setPagando] = useState<Divida | null>(null)
+  const [amortizacaoExtra, setAmortizacaoExtra] = useState(false)
   const [termos, setTermos] = useState<Divida | null>(null)
   const [contrato, setContrato] = useState<Divida | null>(null)
   const [parcelaSelecionada, setParcelaSelecionada] = useState<ParcelaDivida | null>(null)
@@ -79,6 +80,7 @@ export default function Dividas() {
     try {
       await registrarPagamentoDivida(d)
       setPagando(null)
+      setAmortizacaoExtra(false)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
@@ -136,7 +138,8 @@ export default function Dividas() {
           contas={contas}
           categorias={categorias}
           aoSalvar={salvarPagamento}
-          aoCancelar={() => setPagando(null)}
+          extraObrigatorio={amortizacaoExtra}
+          aoCancelar={() => { setPagando(null); setAmortizacaoExtra(false) }}
         />
       )}
 
@@ -249,7 +252,9 @@ export default function Dividas() {
                       )}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {(d.parcelasRestantes === null || d.parcelasRestantes === 0) && <Button compacto onClick={() => setPagando(d)}>Registrar pagamento</Button>}
+                      {d.parcelasRestantes === null || d.parcelasRestantes === 0
+                        ? <Button compacto onClick={() => { setAmortizacaoExtra(false); setPagando(d) }}>Registrar pagamento</Button>
+                        : <Button compacto variante="secundario" onClick={() => { setAmortizacaoExtra(true); setPagando(d) }}>Amortização extra</Button>}
                       <Button compacto variante="secundario" onClick={() => setTermos(d)}>Parâmetros da dívida</Button>
                       <Button compacto variante="secundario" onClick={() => setContrato(d)}>Contrato e parcelas</Button>
                     </div>
@@ -492,7 +497,7 @@ function FormTermos({ divida, aoSalvar, aoCancelar }: {
   )
 }
 
-function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parcela, aoSalvarParcela }: {
+function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parcela, aoSalvarParcela, extraObrigatorio = false }: {
   divida: Divida
   contas: Conta[]
   categorias: Categoria[]
@@ -500,6 +505,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   aoCancelar: () => void
   parcela?: ParcelaDivida
   aoSalvarParcela?: (d: Parameters<typeof registrarPagamentoParcela>[0]) => Promise<void>
+  extraObrigatorio?: boolean
 }) {
   const consignado = parcela?.formaPagamento === 'payroll'
   const normalizarCategoria = (nome: string) => nome.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLocaleLowerCase('pt-BR').trim()
@@ -514,7 +520,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   const [jurosTexto, setJurosTexto] = useState('0,00')
   const [tarifaTexto, setTarifaTexto] = useState('0,00')
   const [categoriaId, setCategoriaId] = useState(categoriaJurosPadrao?.id ?? '')
-  const [extra, setExtra] = useState(false)
+  const [extra, setExtra] = useState(extraObrigatorio)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
   const total = parseBRL(totalTexto)
@@ -575,11 +581,15 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
           Principal a amortizar: <strong>{principal === null || principal < 0 ? '—' : formatBRL(principal)}</strong>.
           {!consignado && ' Juros e tarifas são custos separados.'}
         </p>
-        {!consignado && (
-          <label className="flex items-center gap-2 text-sm md:col-span-2">
-            <input type="checkbox" checked={extra} onChange={(e) => setExtra(e.target.checked)} />
-            Amortização extraordinária de principal
-          </label>
+        {!consignado && !parcela && (
+          extraObrigatorio ? (
+            <p className="text-sm text-slate-600 md:col-span-2">Este lançamento será registrado como amortização extraordinária, sem dar baixa em uma parcela do cronograma.</p>
+          ) : (
+            <label className="flex items-center gap-2 text-sm md:col-span-2">
+              <input type="checkbox" checked={extra} onChange={(e) => setExtra(e.target.checked)} />
+              Amortização extraordinária de principal
+            </label>
+          )
         )}
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando} disabled={!consignado && contas.length === 0}>Confirmar baixa</Button>
