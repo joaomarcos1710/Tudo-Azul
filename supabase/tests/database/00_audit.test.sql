@@ -164,7 +164,7 @@ select is(
         'public.create_card','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
         'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_archive','public.debt_bill','public.debt_delete',
         'public.debt_loan_event','public.debt_pay','public.debt_record_payment','public.debt_refund','public.debt_rename','public.debt_return','public.debt_set_terms','public.debt_unarchive','public.debt_void',
-        'public.investment_asset_create','public.investment_operation_record','public.investment_valuation_record','public.delete_household','public.leave_household','public.reconcile_account','public.reconciliation_undo','public.recurrence_create','public.recurrence_delete',
+        'public.delete_household','public.investment_asset_create','public.investment_operation_record','public.investment_valuation_record','public.leave_household','public.reconcile_account','public.reconciliation_undo','public.recurrence_create','public.recurrence_delete',
         'public.recurrence_end','public.recurrence_materialize','public.recurrence_update','public.remove_member',
         'public.reset_household','public.set_card_cycle','public.set_card_identity','public.set_card_limit','public.set_card_pay_account']::text[],
   'SECURITY DEFINER apenas nas funções auditadas (seção 6.1 do plano)');
