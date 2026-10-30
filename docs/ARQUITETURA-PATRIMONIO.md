@@ -168,3 +168,10 @@ Cada fase terá PR própria, migrations aditivas, testes unitários, pgTAP e int
 ## Primeira entrega do módulo de dívidas (PR #103)
 
 A primeira tela de dívidas reutiliza o motor existente, sem tabela paralela de saldo. Os parâmetros contratuais iniciais são taxa mensal em pontos-base e pagamento mínimo em BRL. A RPC `debt_record_payment` grava principal, juros e tarifa atomicamente, com `op_id` comum para anulação auditada. O simulador Snowball/Avalanche usa esses parâmetros e o saldo efetivo lido do banco; suas projeções não criam eventos nem alteram contratos. A interface desta etapa opera em BRL, enquanto a habilitação de moedas estrangeiras aguarda a substituição das agregações financeiras.
+
+
+## Carteira manual de investimentos (PR #104)
+
+A primeira fase de investimentos usa `investment_assets`, `investment_operations` e `investment_valuations`. O livro é append-only para o cliente: ativos e operações são criados por RPC SECURITY DEFINER com validação explícita de associação à família; leituras usam RPCs SECURITY INVOKER e RLS. A posição usa quantidade líquida e custo médio ponderado das compras, incluindo tarifas de aquisição. Vendas não podem exceder a posição disponível na data da operação. Avaliações manuais guardam preço unitário, data e fonte, sem sobrescrever observações anteriores.
+
+O valor de mercado usa a última avaliação até a data de referência; na ausência dela, usa o custo médio como referência e a interface deixa isso explícito. Totais são calculados no PostgreSQL e agrupados por moeda. BRL, USD e EUR não são somados entre si. Esta fase não lança saídas/entradas nas contas e não gera receitas/despesas; a integração de caixa e a cotação automática serão entregas posteriores, para evitar dupla contagem e conversão sem taxa validada.
