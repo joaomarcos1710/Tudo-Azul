@@ -22,7 +22,6 @@ export default function Bens(){
  const carregar=useCallback(async()=>{if(!familia?.id)return;setCarregando(true);try{setBens(await listarBens(familia.id));setErro('')}catch(e){setErro(mensagemErroBanco(e))}finally{setCarregando(false)}},[familia?.id])
  useEffect(()=>{void carregar()},[carregar]);if(!familia)return null
   const familiaId=familia.id
-  const familiaId=familia.id
  async function salvar(d:{nome:string;tipo:TipoBem;descricao:string;moeda:MoedaBem;titularidade:string;participacao:number;adquirido:string;valor:Cents;data:string;fonte:string}){try{await criarBem({familia:familiaId,...d});setNovo(false);await carregar()}catch(e){setErro(mensagemErroBanco(e))}}
  async function avaliar(bem:Bem){const valor=prompt('Novo valor total do bem');if(!valor)return;const cents=parseBRL(valor);if(cents===null||cents<=0){setErro('Informe um valor válido.');return}try{await avaliarBem(bem.id,hojeSP(),cents,'Informado manualmente');setAlvo(null);await carregar()}catch(e){setErro(mensagemErroBanco(e))}}
  async function finalizar(bem:Bem,status:'sold'|'disposed'){if(!confirm(status==='sold'?'Registrar venda deste bem?':'Registrar baixa deste bem?'))return;try{await encerrarBem(bem.id,status,hojeSP());setAlvo(null);await carregar()}catch(e){setErro(mensagemErroBanco(e))}}
