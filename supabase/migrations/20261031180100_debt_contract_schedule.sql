@@ -91,7 +91,7 @@ $$;
 
 create or replace function public.debt_balances(p_household uuid, p_as_of date)
 returns table(debt_id uuid, name text, kind text, balance numeric, debt numeric, credit_receivable numeric, planned_remaining numeric)
-language sql stable security invoker set search_path = '' as $$
+language sql stable security definer set search_path = '' as $
   select d.id, d.name, d.kind, b.bal, greatest(b.bal, 0), greatest(-b.bal, 0), coalesce(p.rem, 0)
   from public.debts d
   cross join lateral (select private.debt_balance(d.id, p_as_of) as bal) b
@@ -105,6 +105,7 @@ language sql stable security invoker set search_path = '' as $$
     where i.household_id = d.household_id and i.debt_id = d.id
   ) p on true
   where d.household_id = p_household and d.reference_date <= p_as_of
+    and (select auth.uid()) is not null
     and (select private.is_member(p_household))
   order by d.name
 $$;
@@ -277,8 +278,8 @@ $$;
 
 revoke execute on function private.debt_effect(text,numeric), private.debt_balance(uuid,date), private.debt_chk(uuid)
   from public, anon, authenticated;
-grant execute on function private.debt_effect(text,numeric), private.debt_balance(uuid,date), private.debt_chk(uuid)
-  to authenticated;
+revoke execute on function public.debt_balances(uuid,date) from public, anon;
+grant execute on function public.debt_balances(uuid,date) to authenticated;
 
 create function public.debt_contract_set(
   p_debt uuid,
