@@ -60,7 +60,7 @@ export default function Dividas() {
   async function salvarNova(d: { nome: string; tipo: TipoDivida; dataReferencia: string; saldoReferencia: Cents }) {
     if (!familia?.id) return
     try {
-      await criarDivida(familia.id, d)
+      await criarDivida(d)
       setNova(false)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
