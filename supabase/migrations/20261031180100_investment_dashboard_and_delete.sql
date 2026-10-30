@@ -32,7 +32,15 @@ revoke execute on function private.seed_default_categories(uuid) from public, an
 update public.categories
    set name = 'Financiamento'
  where type = 'expense'
-   and lower(btrim(name)) in ('financiamenyo', 'financiamyto', 'financiameto', 'financiamentoo');
+   and lower(btrim(name)) in ('financiamenyo', 'financiamyto', 'financiameto', 'financiamentoo')
+   and not exists (
+     select 1 from public.categories correta
+      where correta.household_id = categories.household_id
+        and correta.type = categories.type
+        and coalesce(correta.parent_id, '00000000-0000-0000-0000-000000000000'::uuid)
+            = coalesce(categories.parent_id, '00000000-0000-0000-0000-000000000000'::uuid)
+        and lower(btrim(correta.name)) = 'financiamento'
+   );
 
 insert into public.categories (household_id, name, type)
 select h.id, 'Financiamento', 'expense'
