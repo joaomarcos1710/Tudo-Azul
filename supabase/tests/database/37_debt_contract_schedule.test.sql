@@ -66,6 +66,16 @@ select is((select balance from public.account_balances_projected(pg_temp.fx('hou
 select is((select count(*) from public.debt_events where schedule_id=(select id from public.debt_payment_schedule where debt_id=pg_temp.fx('debit_debt') and installment_number=1) and voided_at is null),
   2::bigint,'eventos financeiros ficam vinculados à parcela');
 
+select public.debt_void((select id from public.debt_events where debt_id=pg_temp.fx('debit_debt')
+  and schedule_id=(select id from public.debt_payment_schedule where debt_id=pg_temp.fx('debit_debt') and installment_number=1)
+  and voided_at is null limit 1),'anulação de baixa agendada');
+select is((select status from public.debt_payment_schedule where debt_id=pg_temp.fx('debit_debt') and installment_number=1),
+  'planned','anulação restaura a parcela planejada');
+select is((select remaining_installments from public.debts where id=pg_temp.fx('debit_debt')),
+  12,'anulação restaura o prazo restante');
+select is((select balance from public.account_balances(pg_temp.fx('household'),current_date) where account_id=pg_temp.fx('account')),
+  5000.00::numeric,'anulação da parcela restaura o caixa');
+
 insert into fixture select 'payroll_debt',public.create_debt('Consignado','loan',current_date - 10,1000);
 select public.debt_contract_set(
   pg_temp.fx('payroll_debt'),'Banco folha',null,10,10,150,15,'payroll',null,
@@ -78,7 +88,7 @@ select public.debt_schedule_record_payment(
 select is((select debt from public.debt_balances(pg_temp.fx('household'),current_date) where debt_id=pg_temp.fx('payroll_debt')),
   850.00::numeric,'baixa consignada reduz o passivo');
 select is((select balance from public.account_balances(pg_temp.fx('household'),current_date) where account_id=pg_temp.fx('account')),
-  4900.00::numeric,'consignado não cria saída duplicada na conta');
+  5000.00::numeric,'consignado não cria saída duplicada na conta');
 select is((select count(*) from public.debt_events where debt_id=pg_temp.fx('payroll_debt') and kind='payroll_payment' and account_id is null),
   1::bigint,'consignado usa evento sem conta bancária');
 select is(pg_temp.sqlstate_of(format(
