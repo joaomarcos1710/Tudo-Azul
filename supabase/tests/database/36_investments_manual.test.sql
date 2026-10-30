@@ -22,6 +22,12 @@ select pg_temp.mkuser('00000000-0000-0000-0000-0000000000e1', 'investimentos@tes
 select pg_temp.login('00000000-0000-0000-0000-0000000000e1');
 insert into fixture select 'household', public.create_household('Casa Investimentos');
 
+select pg_temp.mkuser('00000000-0000-0000-0000-0000000000e2', 'outra-familia@test.com');
+select pg_temp.login('00000000-0000-0000-0000-0000000000e2');
+insert into fixture select 'other_household', public.create_household('Outra família');
+select public.investment_asset_create(pg_temp.fx('other_household'),'Ativo privado',null,'equity','BRL');
+select pg_temp.login('00000000-0000-0000-0000-0000000000e1');
+
 insert into public.accounts(household_id,name,type,initial_balance,opening_date)
 values(pg_temp.fx('household'),'Conta principal','checking',5000.00,current_date - 30)
 returning id;
@@ -32,6 +38,9 @@ insert into fixture select 'brl_asset',
   public.investment_asset_create(pg_temp.fx('household'),'Fundo teste','FNDTEST','fund','BRL');
 insert into fixture select 'usd_asset',
   public.investment_asset_create(pg_temp.fx('household'),'ETF global','ETFTEST','etf','USD');
+
+select is((select count(*) from public.investment_assets), 2::bigint,
+  'RLS não permite visualizar ativos cadastrados por outra família');
 
 select is(pg_temp.sqlstate_of(format(
   'select public.investment_asset_create(%L::uuid,%L,%L,%L,%L)',
