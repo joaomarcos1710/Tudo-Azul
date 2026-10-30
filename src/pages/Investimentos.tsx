@@ -29,8 +29,9 @@ const classes: [ClasseAtivo, string][] = [
 const moedas: [MoedaInvestimento, string][] = [['BRL', 'Real (BRL)'], ['USD', 'Dólar (USD)'], ['EUR', 'Euro (EUR)']]
 
 function moeda(valor: Cents, codigo: MoedaInvestimento): string {
+  if (valoresOcultos()) return '••••'
   if (codigo === 'BRL') return formatBRL(valor)
-  return valoresOcultos() ? '••••' : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: codigo }).format(valor / 100)
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: codigo }).format(valor / 100)
 }
 function quantidade(valor: string): string {
   const n = Number(valor)
