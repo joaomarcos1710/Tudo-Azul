@@ -10,6 +10,8 @@ export interface Patrimonio {
   patrimonio: Cents
   /** Investimentos em BRL, integrados ao patrimônio líquido. */
   investimentos: Cents
+  /** Bens familiares avaliados em BRL e ponderados pela participação da família. */
+  bens: Cents
   /** Parcelas de cartão ainda não cobradas: aparecem à parte e não entram no patrimônio. */
   compromissos: Cents
 }
@@ -49,6 +51,7 @@ export async function carregarPatrimonio(familiaId: string, dataRef: string): Pr
     divida: centsFromDb(r.debt ?? 0),
     patrimonio: centsFromDb(r.net_worth ?? 0),
     investimentos: investimentos as Cents,
+    bens: centsFromDb(r.family_assets_brl ?? 0),
     compromissos: centsFromDb(r.planned_commitments ?? 0),
   }
 }
