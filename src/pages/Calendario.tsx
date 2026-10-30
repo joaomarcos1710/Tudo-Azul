@@ -301,12 +301,12 @@ function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; a
           </p>
           {incluir && (
             <p className="mt-1 text-xs text-slate-500" data-testid="saldo-detalhe">
-              Efetuado {formatBRL(saldo.total.efetuado)} · planejado {saldo.total.planejado < 0 ? '−' : '+'}{formatBRL(Math.abs(saldo.total.planejado) as Cents)} · faturas de cartão −{formatBRL(saldo.total.faturas)}
+              Efetuado {formatBRL(saldo.total.efetuado)} · planejado {saldo.total.planejado < 0 ? '−' : '+'}{formatBRL(Math.abs(saldo.total.planejado) as Cents)} · faturas e parcelas sem conta −{formatBRL(saldo.total.faturas)}
             </p>
           )}
           {incluir && saldo.total.faturasSemConta > 0 && (
             <p className="mt-2 text-xs text-planejado" data-testid="saldo-sem-conta">
-              {formatBRL(saldo.total.faturasSemConta)} de fatura de cartão sem conta de pagamento entram só no total. Escolha a conta em{' '}
+              {formatBRL(saldo.total.faturasSemConta)} de fatura de cartão sem conta de pagamento entram só no total. Informe a conta ao cadastrar o contrato ou ao registrar o pagamento. Para cartões, escolha a conta em{' '}
               <Link to="/cartoes" className="font-semibold underline">Cartões</Link> para descontar da conta certa.
             </p>
           )}
