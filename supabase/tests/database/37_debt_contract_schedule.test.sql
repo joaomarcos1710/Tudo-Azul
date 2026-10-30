@@ -98,7 +98,7 @@ select is(pg_temp.sqlstate_of(format(
 
 select is(pg_temp.sqlstate_of(format(
   'select public.debt_schedule_record_payment(%L::uuid,current_date,null,10,0,0,null,false)',
-  (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('debit_debt') and installment_number=1))),
+  (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') order by installment_number limit 1))),
   '55000','parcela paga não pode ser baixada novamente');
 
 select * from finish();
