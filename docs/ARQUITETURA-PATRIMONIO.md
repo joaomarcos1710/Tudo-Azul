@@ -163,3 +163,8 @@ Cada fase terá PR própria, migrations aditivas, testes unitários, pgTAP e int
 8. Cotação ausente ou antiga é sinalizada; nunca substituída silenciosamente por zero ou por uma cotação inventada.
 9. A soma consolidada é calculada no banco e traz a composição auditável.
 10. O saldo disponível continua separado do patrimônio líquido.
+
+
+## Primeira entrega do módulo de dívidas (PR #103)
+
+A primeira tela de dívidas reutiliza o motor existente, sem tabela paralela de saldo. Os parâmetros contratuais iniciais são taxa mensal em pontos-base e pagamento mínimo em BRL. A RPC `debt_record_payment` grava principal, juros e tarifa atomicamente, com `op_id` comum para anulação auditada. O simulador Snowball/Avalanche usa esses parâmetros e o saldo efetivo lido do banco; suas projeções não criam eventos nem alteram contratos. A interface desta etapa opera em BRL, enquanto a habilitação de moedas estrangeiras aguarda a substituição das agregações financeiras.

@@ -40,3 +40,5 @@ continuam abaixo como histórico.
 | 2026.101 | Fundação multimoeda fase 1: catálogo BRL/USD/EUR, moeda de consolidação da família e consulta auditável de câmbio direto/inverso. Contas e lançamentos estrangeiros continuam bloqueados até a próxima fase substituir as agregações financeiras. |
 
 | 2026.102 | Segurança da fase 1 multimoeda: bloqueia a alteração da moeda de consolidação até que saldos, relatórios e interface convertam os valores corretamente. |
+
+| 2026.103 | Módulo de dívidas e empréstimos sobre o motor debts/debt_events: parâmetros contratuais, pagamentos atômicos com principal/juros/tarifas e simulador Snowball/Avalanche. |
