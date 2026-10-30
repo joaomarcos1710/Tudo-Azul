@@ -158,8 +158,9 @@ select lives_ok($$update public.transactions set deleted_at = now()
   'RF12 exclui a última ocorrência');
 select is(public.recurrence_materialize(), 0, 'RF12 a excluída não volta');
 select lives_ok($$select public.recurrence_end(pg_temp.fx('sal'), pg_temp.hoje() + 7)$$, 'RF12 encerra em hoje+7');
-select is((select count(*) from public.transactions where recurrence_id = pg_temp.fx('sal') and deleted_at is null), 2::bigint,
-  'RF12 encerrar deixa só as de hoje e hoje+7');
+select is((select count(*) from public.transactions where recurrence_id is null and description = 'Diária'
+            and status = 'planned' and deleted_at is null and date <= pg_temp.hoje() + 7), 2::bigint,
+  'RF12 regra excluída preserva no histórico só as ocorrências até hoje+7, sem vínculo');
 
 -- RF13: projeção das assinaturas de cartão usa a mesma série (fechamento dia 17)
 -- anual dia 5 a partir do mês que vem: só entra na fatura daquele mês (e 12 meses depois), não todo mês
