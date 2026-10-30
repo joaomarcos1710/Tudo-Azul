@@ -3,10 +3,10 @@ tags: [tudo-azul, versao]
 ---
 # Edições e versões
 
-Formato: **`AAAA.N`** — o **ano** e o **número da PR** que trouxe a mudança (hoje: **2026.98**).
+Formato: **`AAAA.N`** — o **ano** e o **número da PR** que trouxe a mudança (hoje: **2026.99**).
 
-- **Desde 30/10/2026** a versão acompanha o número da PR do GitHub (decisão do dono). A cada PR, o `package.json` (e o `package-lock.json`) ganha `AAAA.N.0` com `N` = número daquela PR (o 3º número é sempre `0`; o npm exige três). Quando o ano mudar, vira `2027.xx` e o número da PR segue a sequência do GitHub.
-- O app mostra a versão na barra lateral, na tela Família e nas telas de entrada. No deploy aparece também o **commit** (ex.: `2026.98 · …`), útil para saber qual build está rodando.
+- **Desde 30/10/2026** a versão acompanha o maior número de PR já integrado. Em cada PR, use `AAAA.N.0` com `N` = maior valor entre o número da PR atual e a versão que já está na `main` (o 3º número é sempre `0`; o npm exige três). Assim, mesclar PRs fora de ordem nunca reduz a versão. Quando o ano mudar, o ano muda e a sequência de PRs continua.
+- O app mostra a versão na barra lateral, na tela Família e nas telas de entrada. No deploy aparece também o **commit** (ex.: `2026.99 · …`), útil para saber qual build está rodando.
 - Regra completa no repositório: `docs/VERSOES.md`.
 
 ## Histórico das edições antigas (até 2026.5)

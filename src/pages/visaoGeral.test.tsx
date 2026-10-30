@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../lib/format'
 
@@ -32,7 +32,7 @@ vi.mock('../lib/painel', () => ({
   vencidosPlanejados: mock.vencidosPlanejados,
 }))
 vi.mock('../lib/conciliacao', () => ({ ultimasConferencias: mock.ultimasConferencias }))
-vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
+vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1', user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos }))
 const cobrar = vi.hoisted(() => vi.fn())
@@ -47,6 +47,7 @@ const c = (n: number) => n as Cents
 const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(<MemoryRouter><VisaoGeral secao={secao} /></MemoryRouter>)
 
 beforeEach(() => {
+  window.localStorage.clear()
   cobrar.mockResolvedValue(0)
   gerar.mockResolvedValue(0)
   mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), patrimonio: c(1087560), compromissos: c(482000) })
@@ -423,14 +424,56 @@ describe('Visão geral', () => {
   })
 })
 
+describe('Personalização dos widgets do Início', () => {
+  it('restaura a preferência salva do usuário e permite remover e adicionar indicadores', async () => {
+    window.localStorage.setItem('tudo-azul:dashboard-widgets:u1', JSON.stringify(['disponivel', 'resultado']))
+    montar()
+    expect(await screen.findByText('Próximos planejados')).toBeTruthy()
+    const painel = screen.getByRole('region', { name: 'Resumo financeiro personalizável' })
+    expect(within(painel).getByText('Saldo disponível')).toBeTruthy()
+    expect(within(painel).getByText('Resultado do mês')).toBeTruthy()
+    expect(within(painel).queryByText('Entradas do mês')).toBeNull()
+    fireEvent.click(within(painel).getByRole('button', { name: 'Personalizar painel' }))
+    fireEvent.click(within(painel).getAllByRole('button', { name: 'Adicionar' })[1])
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem('tudo-azul:dashboard-widgets:u1') || '[]')).toContain('receitas'))
+    expect(within(painel).getAllByText('Entradas do mês').length).toBeGreaterThan(0)
+    fireEvent.click(within(painel).getAllByRole('button', { name: 'Remover' })[0])
+  })
+
+  it('ignora IDs desconhecidos e repetidos na preferência salva', async () => {
+    window.localStorage.setItem('tudo-azul:dashboard-widgets:u1', JSON.stringify(['disponivel', 'desconhecido', 'disponivel']))
+    montar()
+    const painel = await screen.findByRole('region', { name: 'Resumo financeiro personalizável' })
+    expect(within(painel).getAllByText('Saldo disponível')).toHaveLength(1)
+    expect(within(painel).queryByText('Patrimônio líquido')).toBeNull()
+  })
+
+  it('permite reordenar e restaurar a ordem padrão', async () => {
+    montar()
+    const painel = await screen.findByRole('region', { name: 'Resumo financeiro personalizável' })
+    fireEvent.click(within(painel).getByRole('button', { name: 'Personalizar painel' }))
+    fireEvent.click(within(painel).getByRole('button', { name: 'Mover Patrimônio líquido para baixo' }))
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem('tudo-azul:dashboard-widgets:u1') || '[]').slice(0, 2))
+      .toEqual(['disponivel', 'patrimonio']))
+    fireEvent.click(within(painel).getByRole('button', { name: 'Restaurar padrão' }))
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem('tudo-azul:dashboard-widgets:u1') || '[]'))
+      .toEqual(['patrimonio', 'disponivel', 'receitas', 'despesas', 'resultado']))
+  })
+})
+
 describe('Início × Análises: cada seção mostra só os seus blocos', () => {
-  it('Início não mostra os números de análise (patrimônio, comparação, renda regular)', async () => {
+  it('Início mostra os widgets financeiros, sem os blocos detalhados de Análises', async () => {
     montar()
     await screen.findByText('Próximos planejados')
+    expect(screen.getByRole('heading', { name: 'Visão geral financeira' })).toBeTruthy()
+    expect(screen.getByText('Patrimônio líquido')).toBeTruthy()
+    expect(screen.getByText('Saldo disponível')).toBeTruthy()
+    expect(screen.getByText('Entradas do mês')).toBeTruthy()
+    expect(screen.getByText('Despesas do mês')).toBeTruthy()
+    expect(screen.getByText('Resultado do mês')).toBeTruthy()
     expect(screen.queryByText('Renda regular × despesas')).toBeNull()
     expect(screen.queryByText('Comparação com o ano passado')).toBeNull()
     expect(screen.queryByText('Projeção do mês')).toBeNull()
-    expect(screen.queryByText('R$ 10.875,60')).toBeNull()
   })
   it('Análises não mostra as ações do dia a dia (ações rápidas, vencidos, cartões, próximos, contas)', async () => {
     // com dados de vencidos e cartões, para a ausência não ser só "lista vazia"
@@ -454,14 +497,15 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     expect(screen.getByRole('region', { name: 'Ações rápidas' })).toBeTruthy()
     expect(screen.getByText('Nubank')).toBeTruthy()
   })
-  it('Início não consulta patrimônio nem resumos do mês: uma falha neles não derruba o Início', async () => {
+  it('falha nos indicadores financeiros não derruba as demais seções do Início', async () => {
     mock.carregarPatrimonio.mockRejectedValue(new Error('rede'))
     mock.resumoDoMes.mockRejectedValue(new Error('rede'))
     montar()
     expect(await screen.findByText('Próximos planejados')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(mock.carregarPatrimonio).not.toHaveBeenCalled()
-    expect(mock.resumoDoMes).not.toHaveBeenCalled()
+    expect(mock.carregarPatrimonio).toHaveBeenCalled()
+    expect(mock.resumoDoMes).toHaveBeenCalled()
+    expect(screen.getAllByText('Indicador indisponível agora.').length).toBeGreaterThan(0)
   })
 })
 
