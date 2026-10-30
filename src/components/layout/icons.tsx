@@ -26,3 +26,5 @@ export const IconeCalendario = () => <Icone><rect x="3" y="4.5" width="18" heigh
 export const IconeSomar = () => <Icone><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></Icone>
 export const IconeSubtrair = () => <Icone><circle cx="12" cy="12" r="9" /><path d="M8 12h8" /></Icone>
 export const IconeTransferir = () => <Icone><path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5" /></Icone>
+
+export const IconeDividas = () => <Icone><path d="M4 5.5h16M4 12h16M4 18.5h10" /><circle cx="18" cy="18" r="3" /></Icone>
