@@ -23,7 +23,6 @@ alter table public.debts
     (original_installments is not null and remaining_installments is not null
       and remaining_installments <= original_installments and installment_amount is not null
       and payment_day is not null and payment_method is not null and first_due_date is not null
-      and extract(day from first_due_date)::integer = payment_day
       and ((payment_method = 'account_debit') = (payment_account_id is not null)))
   ),
   add constraint debts_contract_loan_only check (
@@ -203,7 +202,7 @@ begin
      or p_installment_amount <> round(p_installment_amount,2) or p_installment_amount >= 1e12
      or p_payment_day is null or p_payment_day not between 1 and 31
      or p_payment_method is null or p_payment_method not in ('account_debit','boleto','payroll','manual')
-     or p_first_due_date is null or extract(day from p_first_due_date)::integer <> p_payment_day then
+     or p_first_due_date is null then
     raise exception 'dados do contrato ou cronograma inválidos' using errcode = '22023';
   end if;
   if (p_payment_method = 'account_debit') <> (p_payment_account is not null) then
