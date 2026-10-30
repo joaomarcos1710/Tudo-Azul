@@ -391,6 +391,12 @@ begin
   if v_s.status <> 'planned' then
     raise exception 'esta parcela já foi baixada ou cancelada' using errcode = '55000';
   end if;
+  if v_s.installment_number <> (
+    select min(s.installment_number) from public.debt_payment_schedule s
+    where s.debt_id=v_d.id and s.status='planned'
+  ) then
+    raise exception 'baixe as parcelas na ordem do contrato' using errcode = '23514';
+  end if;
   if p_date is null or p_principal is null or p_interest is null or p_fee is null
      or p_principal < 0 or p_interest < 0 or p_fee < 0
      or p_principal <> round(p_principal,2) or p_interest <> round(p_interest,2) or p_fee <> round(p_fee,2)
@@ -461,8 +467,13 @@ begin
     set status = 'paid', payment_op_id = v_op, payment_date = p_date, updated_at = now()
   where id = v_s.id and status = 'planned';
 
-  update public.debts set remaining_installments = greatest(remaining_installments - 1,0)
-  where id = v_d.id and household_id = v_d.household_id;
+  update public.debts d set
+    remaining_installments = greatest(d.remaining_installments - 1,0),
+    first_due_date = coalesce((
+      select min(s.due_date) from public.debt_payment_schedule s
+      where s.debt_id=d.id and s.status='planned'
+    ),d.first_due_date)
+  where d.id = v_d.id and d.household_id = v_d.household_id;
 
   perform private.debt_chk(v_d.id);
   return v_op;
