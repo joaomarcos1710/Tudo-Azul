@@ -173,5 +173,5 @@ revoke execute on function public.family_asset_delete(uuid), public.investment_a
   from public, anon;
 grant execute on function public.family_asset_delete(uuid), public.investment_asset_delete(uuid),
   public.investment_history(uuid,date,date),
-  public.net_worth_with_investments(uuid,date)
+  public.net_worth_with_assets(uuid,date)
   to authenticated;
