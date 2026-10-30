@@ -108,7 +108,7 @@ begin
     raise exception 'ativo não encontrado' using errcode = '42501';
   end if;
   if not v_asset.active then raise exception 'ativo arquivado' using errcode = '55000'; end if;
-  if p_date is null or p_date > current_date or p_date < date '2000-01-01'
+  if p_date is null or p_date > private.today_sp() or p_date < date '2000-01-01'
      or p_kind not in ('buy','sell') or p_quantity is null or p_quantity <= 0
      or p_quantity <> round(p_quantity,12)
      or p_unit_price is null or p_unit_price <= 0 or p_unit_price <> round(p_unit_price,10)
@@ -144,7 +144,7 @@ begin
   if not found or not private.is_member(v_asset.household_id) then
     raise exception 'ativo não encontrado' using errcode = '42501';
   end if;
-  if p_date is null or p_date > current_date or p_date < date '2000-01-01'
+  if p_date is null or p_date > private.today_sp() or p_date < date '2000-01-01'
      or p_unit_price is null or p_unit_price <= 0 or p_unit_price <> round(p_unit_price,10)
      or abs(p_unit_price) >= 1e12
      or p_source is null or char_length(btrim(p_source)) not between 1 and 80 then
