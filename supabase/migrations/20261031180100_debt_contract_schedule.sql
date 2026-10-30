@@ -383,12 +383,13 @@ declare
   v_d public.debts%rowtype;
   v_op uuid;
 begin
-  select * into v_s from public.debt_payment_schedule where id = p_schedule_id for update;
+  select * into v_s from public.debt_payment_schedule where id = p_schedule_id;
   if not found then raise exception 'parcela não encontrada' using errcode = '42501'; end if;
+  -- Ordem global de locks: dívida primeiro, parcela depois (mesma ordem de debt_contract_set).
   v_d := private.debt_lock(v_s.debt_id);
-  if v_s.household_id <> v_d.household_id then
-    raise exception 'parcela não encontrada' using errcode = '42501';
-  end if;
+  select * into v_s from public.debt_payment_schedule
+  where id = p_schedule_id and household_id = v_d.household_id for update;
+  if not found then raise exception 'parcela não encontrada' using errcode = '42501'; end if;
   if v_s.status <> 'planned' then
     raise exception 'esta parcela já foi baixada ou cancelada' using errcode = '55000';
   end if;
