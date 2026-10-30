@@ -13,6 +13,9 @@ const mock = vi.hoisted(() => ({
   definirCiclo: vi.fn(),
   definirLimite: vi.fn(),
   definirIdentidade: vi.fn(),
+  arquivarCartao: vi.fn(),
+  reativarCartao: vi.fn(),
+  excluirCartao: vi.fn(),
   registrarCompra: vi.fn(),
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
@@ -31,7 +34,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   ...(await o<typeof import('../lib/cartoes')>()),
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
-  definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
+  definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
   listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
 }))
@@ -62,7 +65,7 @@ beforeEach(() => {
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
   mock.previaExclusao.mockResolvedValue([])
-  for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
+  for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -469,5 +472,50 @@ describe('Limite do cartão', () => {
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(await screen.findByText(/Valor inválido/)).toBeTruthy()
     expect(mock.definirLimite).not.toHaveBeenCalled()
+  })
+})
+
+describe('Arquivar e excluir cartão', () => {
+  it('arquivar pede confirmação e só então chama o banco', async () => {
+    render(<Cartoes />)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Arquivar' }))
+    expect(mock.arquivarCartao).not.toHaveBeenCalled()
+    await u.click(within(screen.getByRole('group', { name: 'Arquivar cartão' })).getByRole('button', { name: 'Arquivar cartão' }))
+    expect(mock.arquivarCartao).toHaveBeenCalledWith('k1')
+  })
+
+  it('excluir cartão chama o banco depois da confirmação', async () => {
+    render(<Cartoes />)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Excluir' }))
+    await u.click(within(screen.getByRole('group', { name: 'Excluir cartão' })).getByRole('button', { name: 'Excluir cartão' }))
+    expect(mock.excluirCartao).toHaveBeenCalledWith('k1')
+  })
+
+  it('com histórico o banco recusa e a regra aparece na tela', async () => {
+    mock.excluirCartao.mockRejectedValue({ code: '23503', message: 'tem histórico: só é possível arquivar' })
+    render(<Cartoes />)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Excluir' }))
+    await u.click(within(screen.getByRole('group', { name: 'Excluir cartão' })).getByRole('button', { name: 'Excluir cartão' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Tem histórico: só é possível arquivar.')
+  })
+
+  it('arquivado sai da lista principal, aparece em Arquivados e reativa', async () => {
+    mock.listarCartoes.mockResolvedValue([nubank, { ...nubank, id: 'k2', nome: 'Cartão antigo', ativo: false }])
+    render(<Cartoes />)
+    const secao = (await screen.findByRole('heading', { name: 'Arquivados' })).closest('section')!
+    expect(within(secao).getByText(/Cartão antigo/)).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Arquivar' })).toHaveLength(1) // só o cartão ativo tem Arquivar
+    expect(screen.queryAllByText(/Fatura a pagar/)).toHaveLength(1)
+    await userEvent.setup().click(within(secao).getByRole('button', { name: 'Reativar' }))
+    expect(mock.reativarCartao).toHaveBeenCalledWith('k2')
+  })
+
+  it('sem cartão arquivado não mostra a seção', async () => {
+    render(<Cartoes />)
+    await screen.findByRole('button', { name: 'Arquivar' })
+    expect(screen.queryByRole('heading', { name: 'Arquivados' })).toBeNull()
   })
 })

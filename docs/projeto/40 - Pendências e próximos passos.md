@@ -20,6 +20,8 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+- [ ] **Recorrentes: horizonte de geração** (30/10/2026, o dono notou que só duram 2 meses): hoje `recurrence_materialize` gera até o fim do mês daqui a 2 meses. Proposta aguardando decisão: regra com data final gera até o fim (máx. 360 meses), sem data final 12 meses. Pode virar a tela de Empréstimos/Financiamentos no futuro.
+- [ ] **Arquivar/excluir cartão e conta** (migration 020): PR aberto, aguarda o "pode" para mesclar e aplicar.
 1. ~~**Início × Análises**~~ — feito (#57).
 2. Front: atualizar faturas antes de abrir Relatórios e Orçamentos.
 3. Front: mostrar conta desativada com saldo na Visão geral.
