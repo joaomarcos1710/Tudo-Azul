@@ -23,8 +23,8 @@ import { currentMonth, formatBRL, formatDate, formatMonth, primeiraMaiuscula } f
 import type { Cents } from '../lib/format'
 import { limitesDoMes, listarLancamentos, mesmoDiaAnoPassado, resumoDoMes, resumoDoPeriodo, somarMeses } from '../lib/lancamentos'
 import type { Lancamento, ResumoMes } from '../lib/lancamentos'
-import { carregarPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
-import type { DespesaCategoria, DespesaDia, Patrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, Vencidos } from '../lib/painel'
+import { carregarPatrimonio, carregarResumoInvestimentos, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
+import type { DespesaCategoria, DespesaDia, Patrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 /**
@@ -35,6 +35,7 @@ import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 interface Dados {
   /** null = não carregou (ou não é desta tela) */
   patrimonio: Patrimonio | null
+  investimentos: ResumoInvestimento[] | null
   mes: ResumoMes | null
   anterior: ResumoMes | null
   contas: Conta[]
@@ -191,9 +192,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(vencidosPlanejados(familiaId, hoje, 5)), opcional(resumoDosCartoes(familiaId, hoje)), opcional(ultimasConferencias(familiaId)),
             opcional(totalFaturasDoMes(familiaId, mes)),
             // O resumo do Início reutiliza as mesmas fontes financeiras já usadas em Análises.
-            opcional(carregarPatrimonio(familiaId, hoje)), opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, conferencias, faturasDoMes, patrimonio, resumo, anterior]): Dados => ({
-            patrimonio, mes: resumo, anterior, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
+            opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
+            opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, conferencias, faturasDoMes, patrimonio, investimentos, resumo, anterior]): Dados => ({
+            patrimonio, investimentos, mes: resumo, anterior, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, faturasDoMes, conferencias,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
@@ -201,7 +203,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           }))
         : Promise.all([
             // Análises: cada consulta é opcional; um bloco que falha some, o resto segue
-            opcional(carregarPatrimonio(familiaId, hoje)), opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
+            opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
+            opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
             opcional(despesasPorCategoria(familiaId, de, ate, 4)), opcional(despesasPorDia(familiaId, de, ate)),
             opcional(Promise.all([
               regularidadeRenda(familiaId, de, ate),
@@ -215,8 +218,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               resumoDoPeriodo(familiaId, `${Number(hoje.slice(0, 4)) - 1}-01-01`, mesmoDiaAnoPassado(hoje)),
             ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior }))),
             opcional(projecaoDoMes(familiaId, mes, hoje)),
-          ]).then(([patrimonio, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao]): Dados => ({
-            patrimonio, mes: resumo, anterior, categorias, dias, regularidade, anoPassado, projecao,
+          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao]): Dados => ({
+            patrimonio, investimentos, mes: resumo, anterior, categorias, dias, regularidade, anoPassado, projecao,
             contas: [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, conferencias: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then(setDados)
@@ -232,7 +235,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
     patrimonio: p ? <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-      rodape={`Disponível ${formatBRL(p.disponivel)} · dívida ${formatBRL(p.divida)}`} /> : (
+      rodape={`Disponível ${formatBRL(p.disponivel)} · investimentos ${formatBRL(p.investimentos)} · dívida ${formatBRL(p.divida)}`} /> : (
       <Card><CardTitle>Patrimônio líquido</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
     disponivel: p ? <Indicador rotulo="Saldo disponível" valor={p.disponivel} icone={<Cofre />} corIcone="bg-azul-claro text-azul"
@@ -319,9 +322,26 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </div>
         )}
         {p && <p className="mt-2 text-xs text-slate-500">
-          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} − dívida {formatBRL(p.divida)}.
-          Considera contas e dívidas; não inclui bens nem investimentos. Parcelas de cartão ainda não cobradas ficam fora do patrimônio atual.
+          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + investimentos BRL {formatBRL(p.investimentos)} − dívida {formatBRL(p.divida)}.
+          Considera contas, investimentos em reais e dívidas. Bens e investimentos em outras moedas ainda não entram no consolidado. Parcelas de cartão ainda não cobradas ficam fora do patrimônio atual.
         </p>}
+        {dados.investimentos && <Card className="mt-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <CardTitle>Saldo de investimentos</CardTitle>
+            <Link to="/investimentos" className="text-sm font-semibold text-azul hover:underline">Ver carteira</Link>
+          </div>
+          {dados.investimentos.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhuma posição investida. Cadastre um ativo e registre uma compra para acompanhar o saldo.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-3">
+              {dados.investimentos.map((x) => <div key={x.moeda}>
+                <p className="text-xs text-slate-500">Saldo em {x.moeda}</p>
+                <p className="text-lg font-bold tabular-nums">{x.moeda === 'BRL' ? formatBRL(x.valorAtual) : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: x.moeda }).format(x.valorAtual / 100)}</p>
+              </div>)}
+            </div>
+          )}
+          <p className="mt-2 text-xs text-slate-500">Moedas estrangeiras são exibidas separadamente, sem conversão cambial automática.</p>
+        </Card>}
         {!m && <p className="mt-2 text-xs text-slate-500" role="status">Resumo do mês indisponível agora; os demais widgets continuam disponíveis.</p>}
       </section>}
 
@@ -427,7 +447,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </>}
           {p && (
             <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-              rodape={`Disponível ${formatBRL(p.disponivel)} · dívida ${formatBRL(p.divida)}`} />
+              rodape={`Disponível ${formatBRL(p.disponivel)} · investimentos ${formatBRL(p.investimentos)} · dívida ${formatBRL(p.divida)}`} />
           )}
         </section>
       ) : null}
@@ -435,8 +455,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {!p && <p className="mb-2 text-sm text-slate-500" role="status">Patrimônio indisponível agora.</p>}
       {p && (
         <p className="mb-2 text-xs text-slate-500">
-          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} − dívida {formatBRL(p.divida)}.
-          Contas e dívidas. Não inclui bens nem investimentos.
+          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + investimentos em BRL {formatBRL(p.investimentos)} − dívida {formatBRL(p.divida)}.
+          Bens e investimentos em USD/EUR ainda não entram no consolidado.
         </p>
       )}
       {p && p.compromissos > 0 && (
