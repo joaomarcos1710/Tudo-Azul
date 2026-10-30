@@ -42,3 +42,5 @@ continuam abaixo como histórico.
 | 2026.102 | Segurança da fase 1 multimoeda: bloqueia a alteração da moeda de consolidação até que saldos, relatórios e interface convertam os valores corretamente. |
 
 | 2026.103 | Módulo de dívidas e empréstimos sobre o motor debts/debt_events: parâmetros contratuais, pagamentos atômicos com principal/juros/tarifas e simulador Snowball/Avalanche. |
+
+| 2026.104 | Carteira manual de investimentos: ativos BRL/USD/EUR, livro de compras/vendas, custo médio, avaliações manuais e totais segregados por moeda. Sem integração de caixa ou cotação automática nesta fase. |
