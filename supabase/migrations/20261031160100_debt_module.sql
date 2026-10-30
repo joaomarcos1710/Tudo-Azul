@@ -15,7 +15,7 @@ declare v_d public.debts%rowtype;
 begin
   v_d := private.debt_lock(p_debt);
   if p_monthly_rate_bps is null or p_monthly_rate_bps not between 0 and 10000 then
-    raise exception 'taxa mensal deve estar entre 0% e 100%' using errcode = '22023';
+    raise exception 'taxa mensal deve estar entre 0%% e 100%%' using errcode = '22023';
   end if;
   if p_minimum_payment is null or p_minimum_payment < 0 then
     raise exception 'pagamento mínimo inválido' using errcode = '22023';
