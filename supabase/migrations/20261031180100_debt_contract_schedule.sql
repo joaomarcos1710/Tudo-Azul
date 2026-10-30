@@ -202,7 +202,7 @@ begin
      or p_installment_amount is null or p_installment_amount <= 0
      or p_installment_amount <> round(p_installment_amount,2) or p_installment_amount >= 1e12
      or p_payment_day is null or p_payment_day not between 1 and 31
-     or p_payment_method not in ('account_debit','boleto','payroll','manual')
+     or p_payment_method is null or p_payment_method not in ('account_debit','boleto','payroll','manual')
      or p_first_due_date is null or extract(day from p_first_due_date)::integer <> p_payment_day then
     raise exception 'dados do contrato ou cronograma inválidos' using errcode = '22023';
   end if;
