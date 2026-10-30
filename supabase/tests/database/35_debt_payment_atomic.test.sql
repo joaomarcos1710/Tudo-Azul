@@ -61,6 +61,10 @@ select is(pg_temp.sqlstate_of(format(
   'select public.debt_record_payment(%L::uuid,current_date,%L::uuid,0,10,0,null,false)',
   pg_temp.fx('debt'), pg_temp.fx('account'))), '22023',
   'juros sem categoria de despesa são recusados');
+select is(pg_temp.sqlstate_of(format(
+  'select public.debt_record_payment(%L::uuid,current_date,%L::uuid,null,10,0,%L::uuid,false)',
+  pg_temp.fx('debt'), pg_temp.fx('account'), pg_temp.fx('category'))), '22023',
+  'principal nulo é recusado em vez de ser interpretado como zero');
 
 select is(pg_temp.sqlstate_of(format(
   'select public.debt_record_payment(%L::uuid,current_date,%L::uuid,500,20,0,%L::uuid,false)',
