@@ -57,9 +57,9 @@ select is((select report_currency from public.households where id = (select v fr
 
 select ok(has_table_privilege(current_user, 'public.currencies', 'SELECT'), 'authenticated lê catálogo de moedas');
 select ok(has_table_privilege(current_user, 'public.fx_rates', 'SELECT'), 'authenticated lê cotações');
-select ok(not has_any_column_privilege(current_user, 'public.fx_rates', 'INSERT'), 'authenticated não insere cotações diretamente');
-select ok(not has_any_column_privilege(current_user, 'public.fx_rates', 'UPDATE'), 'authenticated não altera cotações diretamente');
-select ok(not has_any_column_privilege(current_user, 'public.fx_rates', 'DELETE'), 'authenticated não apaga cotações diretamente');
+select ok(not has_table_privilege(current_user, 'public.fx_rates', 'INSERT') and not has_any_column_privilege(current_user, 'public.fx_rates', 'INSERT'), 'authenticated não insere cotações diretamente');
+select ok(not has_table_privilege(current_user, 'public.fx_rates', 'UPDATE') and not has_any_column_privilege(current_user, 'public.fx_rates', 'UPDATE'), 'authenticated não altera cotações diretamente');
+select ok(not has_table_privilege(current_user, 'public.fx_rates', 'DELETE'), 'authenticated não apaga cotações diretamente');
 select is(pg_temp.sqlstate_of(format($$update public.fx_rates set rate = 99 where base='USD' and quote='BRL' and rate_date=current_date - 1$$)),
   '42501', 'authenticated não consegue alterar cotação');
 
