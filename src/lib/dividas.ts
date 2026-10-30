@@ -72,7 +72,7 @@ export async function listarDividas(familiaId: string, dataRef: string): Promise
     })
 }
 
-export async function criarDivida(familiaId: string, d: DadosDivida): Promise<string> {
+export async function criarDivida(d: DadosDivida): Promise<string> {
   const { data, error } = await cliente().rpc('create_debt', {
     p_name: d.nome.trim(),
     p_kind: d.tipo,
