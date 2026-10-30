@@ -44,7 +44,7 @@ begin
 end $f$;
 -- Saldo da conta "Banco" e id da fatura (por rótulo) do cartão do cenário.
 create function pg_temp.banco(p_tag text) returns numeric language sql as $f$
-  select balance from public.account_balances(pg_temp.fx(p_tag || 'h'), '2026-12-31') where name = 'Banco' $f$;
+  select balance from public.account_balances(pg_temp.fx(p_tag || 'h'), '2099-12-31') where name = 'Banco' $f$;
 create function pg_temp.fat(p_tag text, p_label text) returns uuid language sql as $f$
   select id from public.debt_invoices where debt_id = pg_temp.fx(p_tag || 'card') and label = p_label $f$;
 grant execute on function pg_temp.fx(text), pg_temp.sqlstate_of(text), pg_temp.parcelas(uuid), pg_temp.uid(integer),
@@ -86,9 +86,9 @@ select is(pg_temp.sqlstate_of($$select public.card_purchase_delete(pg_temp.fx('a
 select lives_ok($$select public.card_purchase_delete(pg_temp.fx('acard'), pg_temp.fx('ap1')::text, 'lançada errada')$$,
                 'A4 compra excluída');
 select is(pg_temp.banco('a'), 5000.00, 'A4 o pagamento foi desfeito: o dinheiro voltou para a conta (5000)');
-select is((select debt from public.debt_balances(pg_temp.fx('ah'), '2026-12-31') where name = 'Cartão'),
+select is((select debt from public.debt_balances(pg_temp.fx('ah'), '2099-12-31') where name = 'Cartão'),
           0::numeric, 'A4 dívida do cartão zerada');
-select is((select planned_remaining from public.debt_balances(pg_temp.fx('ah'), '2026-12-31') where name = 'Cartão'),
+select is((select planned_remaining from public.debt_balances(pg_temp.fx('ah'), '2099-12-31') where name = 'Cartão'),
           0::numeric, 'A4 nenhum compromisso futuro sobra');
 select is((select count(*) from public.debt_events where debt_id = pg_temp.fx('acard') and voided_at is not null),
           2::bigint, 'A4 trilha: cobrança e pagamento anulados (nada apagado)');
@@ -120,7 +120,7 @@ select public.card_purchase_delete(pg_temp.fx('fcard'), pg_temp.fx('fp1')::text,
 select is(pg_temp.banco('f'), 5000.00, 'A6 o pagamento da fatura inteira foi desfeito: os 150 voltaram');
 select is((select array[charged, pending, total, paid] from public.card_months(pg_temp.fx('fcard')) where label = '2026-03'),
           array[50, 0, 50, 0]::numeric[], 'A6 fatura de março: só o Mercado (50), sem pagamento');
-select is((select debt from public.debt_balances(pg_temp.fx('fh'), '2026-12-31') where name = 'Cartão'),
+select is((select debt from public.debt_balances(pg_temp.fx('fh'), '2099-12-31') where name = 'Cartão'),
           50.00, 'A6 dívida do cartão = 50 (Mercado)');
 select is((select expense_paid from public.period_summary(pg_temp.fx('fh'), '2026-03-01', '2026-03-31')),
           50.00, 'A6 despesa de março = 50');
@@ -137,7 +137,7 @@ select lives_ok($$select public.card_purchase_delete(pg_temp.fx('gcard'), pg_tem
                 'A7 compra com estorno excluída');
 select is((select expense_paid from public.period_summary(pg_temp.fx('gh'), '2026-03-01', '2026-03-31')),
           0::numeric, 'A7 despesa de março zerada');
-select is((select debt from public.debt_balances(pg_temp.fx('gh'), '2026-12-31') where name = 'Cartão'),
+select is((select debt from public.debt_balances(pg_temp.fx('gh'), '2099-12-31') where name = 'Cartão'),
           0::numeric, 'A7 dívida zerada (cobrança e estorno anulados)');
 
 -- A8: outra família não exclui nem vê a prévia
@@ -253,7 +253,7 @@ select is((select array[total, paid, previous_open, advance_in, advance_out] fro
           array[100, 80, 0, 20, 0]::numeric[], 'C3 março: o pagamento avulso de 20 abate a fatura mais antiga (pago 80)');
 select is((select array[total, paid, previous_open, advance_in, advance_out] from public.card_months(pg_temp.fx('ccard')) where label = '2026-04'),
           array[80, 80, 20, 0, 20]::numeric[], 'C3 abril: saldo anterior 20 (março), adiantamento 20');
-select is((select debt from public.debt_balances(pg_temp.fx('ch'), '2026-12-31') where name = 'Cartão'),
+select is((select debt from public.debt_balances(pg_temp.fx('ch'), '2099-12-31') where name = 'Cartão'),
           0::numeric, 'C3 dívida total do cartão = saldos anteriores 20 − adiantamento 20 = 0');
 
 -- C4: amortização extra ligada à fatura também conta como paga
@@ -277,7 +277,7 @@ select is((select array[total, paid, previous_open, advance_in, advance_out] fro
           array[0, 0, 0, 0, 100]::numeric[], 'C5 março: total 0 após o estorno; os 100 pagos sobram como adiantamento');
 select is((select array[total, paid, previous_open, advance_in, advance_out] from public.card_months(pg_temp.fx('icard')) where label = '2026-04'),
           array[80, 80, 0, 100, 20]::numeric[], 'C5 abril: o adiantamento paga os 80; sobram 20');
-select is((select array[debt, credit_receivable] from public.net_worth(pg_temp.fx('ih'), '2026-12-31')),
+select is((select array[debt, credit_receivable] from public.net_worth(pg_temp.fx('ih'), '2099-12-31')),
           array[0, 20]::numeric[], 'C5 saldo real: crédito a receber de 20 (bate com o adiantamento)');
 
 -- =====================================================================================

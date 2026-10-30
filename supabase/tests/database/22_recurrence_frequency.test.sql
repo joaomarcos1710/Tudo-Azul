@@ -51,6 +51,15 @@ grant execute on function pg_temp.regra(integer, date, text, integer, date) to p
 -- RF1: regras mensais geram EXATAMENTE as datas da fórmula antiga (migration 006: mês a mês desde o mês de
 -- start_date, dia limitado ao último do mês, >= start_date). 31 dias × 3 inícios × 5 anos.
 reset role;
+-- O banco corta a série das frequências novas na data de cadastro (created_at). As regras de calendário abaixo usam datas
+-- fixas de 2027 em diante e não podem depender do dia em que o teste roda: nascem "cadastradas" em 2026-01-01.
+-- (Criada com o papel de dono, fora do login do cliente, que não tem UPDATE em created_at.)
+create function pg_temp.antigar(p_id uuid) returns uuid language sql security definer as $f$
+  update public.recurrences set created_at = timestamptz '2026-01-01 12:00:00-03' where id = p_id returning id $f$;
+grant execute on function pg_temp.antigar(uuid) to public;
+create function pg_temp.regra_fixa(p_day integer, p_start date, p_unit text, p_every integer, p_end date default null)
+returns uuid language sql as $f$ select pg_temp.antigar(pg_temp.regra(p_day, p_start, p_unit, p_every, p_end)) $f$;
+grant execute on function pg_temp.regra_fixa(integer, date, text, integer, date) to public;
 create temp table rf1 (dia int, inicio date, id uuid);
 grant all on rf1 to public;
 select pg_temp.login('00000000-0000-0000-0000-0000000022a1');
@@ -68,33 +77,33 @@ select is(
 select pg_temp.login('00000000-0000-0000-0000-0000000022a1');
 
 -- RF2–RF9: calendário
-insert into fixture select 'm31', pg_temp.regra(31, '2027-01-01', 'month', 1);
+insert into fixture select 'm31', pg_temp.regra_fixa(31, '2027-01-01', 'month', 1);
 select is(pg_temp.serie(pg_temp.fx('m31'), '2027-01-01', '2027-05-31'),
   '2027-01-31 2027-02-28 2027-03-31 2027-04-30 2027-05-31', 'RF2 mensal dia 31: último dia nos meses curtos, sem escorregar');
-insert into fixture select 'a29', pg_temp.regra(29, '2028-02-01', 'month', 12);
+insert into fixture select 'a29', pg_temp.regra_fixa(29, '2028-02-01', 'month', 12);
 select is(pg_temp.serie(pg_temp.fx('a29'), '2028-01-01', '2032-12-31'),
   '2028-02-29 2029-02-28 2030-02-28 2031-02-28 2032-02-29', 'RF3 anual dia 29 em fevereiro: 28/02 no ano comum, 29/02 no bissexto');
-insert into fixture select 't31', pg_temp.regra(31, '2027-01-01', 'month', 3);
+insert into fixture select 't31', pg_temp.regra_fixa(31, '2027-01-01', 'month', 3);
 select is(pg_temp.serie(pg_temp.fx('t31'), '2027-01-01', '2027-12-31'),
   '2027-01-31 2027-04-30 2027-07-31 2027-10-31', 'RF4 trimestral dia 31');
-insert into fixture select 's10', pg_temp.regra(10, '2027-03-15', 'month', 6);
+insert into fixture select 's10', pg_temp.regra_fixa(10, '2027-03-15', 'month', 6);
 select is(pg_temp.serie(pg_temp.fx('s10'), '2027-01-01', '2028-12-31'),
   '2027-09-10 2028-03-10 2028-09-10', 'RF5 semestral: dia 10 de março já passou do início (15/03), começa em setembro');
-insert into fixture select 'b30', pg_temp.regra(30, '2027-12-01', 'month', 2);
+insert into fixture select 'b30', pg_temp.regra_fixa(30, '2027-12-01', 'month', 2);
 select is(pg_temp.serie(pg_temp.fx('b30'), '2027-12-01', '2028-06-30'),
   '2027-12-30 2028-02-29 2028-04-30 2028-06-30', 'RF6 bimestral dia 30: fevereiro bissexto vira 29');
-insert into fixture select 'w1', pg_temp.regra(null, '2027-01-01', 'week', 1);
+insert into fixture select 'w1', pg_temp.regra_fixa(null, '2027-01-01', 'week', 1);
 select is(pg_temp.serie(pg_temp.fx('w1'), '2027-01-01', '2027-01-31'),
   '2027-01-01 2027-01-08 2027-01-15 2027-01-22 2027-01-29', 'RF7 semanal: toda sexta a partir de 01/01/2027');
-insert into fixture select 'w2', pg_temp.regra(null, '2027-01-01', 'week', 2);
+insert into fixture select 'w2', pg_temp.regra_fixa(null, '2027-01-01', 'week', 2);
 select is(pg_temp.serie(pg_temp.fx('w2'), '2027-01-01', '2027-02-28'),
   '2027-01-01 2027-01-15 2027-01-29 2027-02-12 2027-02-26', 'RF8 quinzenal = a cada 14 dias (não duas vezes por mês)');
-insert into fixture select 'w2f', pg_temp.regra(null, '2027-01-01', 'week', 2, '2027-01-20');
+insert into fixture select 'w2f', pg_temp.regra_fixa(null, '2027-01-01', 'week', 2, '2027-01-20');
 select is(pg_temp.serie(pg_temp.fx('w2f'), '2027-01-01', '2027-12-31'),
   '2027-01-01 2027-01-15', 'RF9 data final é a última ocorrência possível');
 select is(pg_temp.serie(pg_temp.fx('w1'), '2027-01-10', '2027-01-20'),
   '2027-01-15', 'RF9b janela no meio da série semanal');
-insert into fixture select 'p5', pg_temp.regra(15, '2027-01-01', 'month', 5);
+insert into fixture select 'p5', pg_temp.regra_fixa(15, '2027-01-01', 'month', 5);
 select is(pg_temp.serie(pg_temp.fx('p5'), '2027-01-01', '2028-01-31'),
   '2027-01-15 2027-06-15 2027-11-15', 'RF9c personalizada: a cada 5 meses');
 select is((select day from public.recurrences where id = pg_temp.fx('w1')), null::smallint, 'RF9d semanal grava dia nulo');
