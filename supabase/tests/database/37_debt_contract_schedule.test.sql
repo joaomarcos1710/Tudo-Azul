@@ -32,14 +32,13 @@ where household_id=pg_temp.fx('household') and name='Impostos e taxas' and type=
 insert into fixture select 'debit_debt',public.create_debt('Financiamento débito','financing',current_date - 10,1000);
 select public.debt_contract_set(
   pg_temp.fx('debit_debt'),'Banco teste','CTR-001',12,12,100,31,'account_debit',
-  pg_temp.fx('account'),make_date(extract(year from (date_trunc('month',current_date) + interval '1 month'))::int,
-    extract(month from (date_trunc('month',current_date) + interval '1 month'))::int,31)
+  pg_temp.fx('account'),date '2027-01-31'
 );
 
 select is((select count(*) from public.debt_payment_schedule where debt_id=pg_temp.fx('debit_debt')),12::bigint,
   'cria uma linha de agenda para cada parcela restante');
 select is((select due_date from public.debt_payment_schedule where debt_id=pg_temp.fx('debit_debt') and installment_number=2),
-  (date_trunc('month',current_date) + interval '2 months - 1 day')::date,
+  date '2027-02-28',
   'ajusta o vencimento do dia 31 para o último dia de fevereiro ou mês curto');
 select is((select payment_account_id from public.debts where id=pg_temp.fx('debit_debt')),
   pg_temp.fx('account'),'guarda a conta escolhida para débito automático');
