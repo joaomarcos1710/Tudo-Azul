@@ -118,3 +118,8 @@ src/
 supabase/migrations/   (etapa 3)
 docs/                  este plano
 ```
+
+
+## Evolução patrimonial (decisão de 31/10/2026)
+
+A nova direção de produto está especificada em [`ARQUITETURA-PATRIMONIO.md`](ARQUITETURA-PATRIMONIO.md): investimentos híbridos, módulo de gestão de dívidas sobre o motor `debts`/`debt_events` existente, bens e consolidação multimoeda. A sequência começa pela auditoria/fundação cambial, depois investimentos manuais, bens, experiência de dívidas, consolidação e cotações automáticas. Cada fase terá PR e migration próprias. A proposta anterior de multimoeda ainda precisa ser corrigida e validada antes de virar SQL. As migrations 025 e 026 seguem no fluxo de produção separado.
