@@ -35,10 +35,10 @@ grant execute on function public.recurrence_end(uuid, date) to authenticated;
 
 -- Limpeza única do arquivo legado. Os vínculos são desfeitos por ON DELETE SET NULL,
 -- preservando os lançamentos efetivos e as parcelas que já pertencem ao histórico.
-do $
+do $cleanup$
 begin
   perform set_config('app.card_edit', 'on', true);
   delete from public.recurrences where active = false;
   perform set_config('app.card_edit', 'off', true);
 end
-$;
+$cleanup$;
