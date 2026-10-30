@@ -159,7 +159,7 @@ export async function listarParcelasDivida(
     .select('id, debt_id, installment_number, due_date, amount, status')
     .eq('household_id', familiaId)
     .gte('due_date', de).lte('due_date', ate)
-    .order('due_date').order('installment_number')
+    .order('due_date').order('installment_number').limit(60)
   if (somentePlanejadas) consulta = consulta.eq('status', 'planned')
   const { data, error } = await consulta
   if (error) throw error
