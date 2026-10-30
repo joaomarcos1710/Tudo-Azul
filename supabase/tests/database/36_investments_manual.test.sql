@@ -38,8 +38,10 @@ insert into fixture select 'brl_asset',
   public.investment_asset_create(pg_temp.fx('household'),'Fundo teste','FNDTEST','fund','BRL');
 insert into fixture select 'usd_asset',
   public.investment_asset_create(pg_temp.fx('household'),'ETF global','ETFTEST','etf','USD');
+insert into fixture select 'chronological_asset',
+  public.investment_asset_create(pg_temp.fx('household'),'Ativo com recompra','REBUY','equity','BRL');
 
-select is((select count(*) from public.investment_assets), 2::bigint,
+select is((select count(*) from public.investment_assets), 3::bigint,
   'RLS não permite visualizar ativos cadastrados por outra família');
 
 select is(pg_temp.sqlstate_of(format(
@@ -51,6 +53,16 @@ select public.investment_operation_record(pg_temp.fx('brl_asset'),current_date -
 select public.investment_operation_record(pg_temp.fx('brl_asset'),current_date - 5,'buy',5,20,2,'segunda compra');
 select public.investment_operation_record(pg_temp.fx('brl_asset'),current_date - 2,'sell',5,15,0.50,'venda parcial');
 select public.investment_valuation_record(pg_temp.fx('brl_asset'),current_date - 1,16,'Extrato da corretora');
+
+select public.investment_operation_record(pg_temp.fx('chronological_asset'),current_date - 9,'buy',10,10,0,'compra inicial');
+select public.investment_operation_record(pg_temp.fx('chronological_asset'),current_date - 6,'sell',5,15,0,'venda intermediária');
+select public.investment_operation_record(pg_temp.fx('chronological_asset'),current_date - 3,'buy',5,30,0,'recompra posterior');
+select is((select cost_basis from public.investment_portfolio(pg_temp.fx('household'),current_date)
+            where asset_id=pg_temp.fx('chronological_asset')), 200::numeric,
+  'custo médio respeita a ordem cronológica e não reprecifica vendas anteriores');
+select is((select average_cost from public.investment_portfolio(pg_temp.fx('household'),current_date)
+            where asset_id=pg_temp.fx('chronological_asset')), 20::numeric,
+  'custo médio é recalculado após a recompra');
 
 select is((select quantity from public.investment_portfolio(pg_temp.fx('household'),current_date)
             where asset_id=pg_temp.fx('brl_asset')), 10::numeric,
