@@ -51,6 +51,7 @@ insert into fixture select 'bem_historico', public.family_asset_create(
 select public.family_asset_valuation_record(pg_temp.fx37('bem_historico'),current_date - 1,21000,'Nova avaliação',null);
 select is(pg_temp.sqlstate37(format('select public.family_asset_delete(%L::uuid)',pg_temp.fx37('bem_historico'))),'55000',
   'bem com histórico adicional não pode ser excluído');
+select public.family_asset_end(pg_temp.fx37('bem_historico'),'disposed',current_date - 1);
 
 insert into fixture select 'brl_asset',
   public.investment_asset_create(pg_temp.fx37('household'),'Fundo BRL',null,'fund','BRL');
