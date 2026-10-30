@@ -66,7 +66,7 @@ export default function Investimentos() {
       const [lista, carteira, serie] = await Promise.all([
         listarAtivosInvestimento(familia.id),
         listarCarteiraInvestimentos(familia.id, hoje),
-        listarHistoricoInvestimentos(familia.id, inicioHistorico(hoje), hoje),
+        listarHistoricoInvestimentos(familia.id, inicioHistorico(hoje), hoje).catch(() => []),
       ])
       setAtivos(lista)
       setPosicoes(carteira.posicoes)
