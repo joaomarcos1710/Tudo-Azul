@@ -30,3 +30,9 @@ continuam abaixo como histórico.
 | 2026.3 | Redesenho visual pelo design system "Tudo Azul": painéis sem padding dobrado, títulos de mês com maiúscula certa, lista de Lançamentos compacta (valor na linha da descrição, Excluir discreto, totais em linhas no celular), ações rápidas do Início com ícone, contorno de campos com contraste; Calendário do mês (#62). |
 | 2026.4 | Recorrências com frequência (semanal, quinzenal, mensal, bimestral, trimestral, semestral, anual e personalizada; migration 016, #65/#66); redesenho parte 2: cabeçalho padrão em todas as telas (título, descrição curta e ações à direita) e Cartões com a fatura a pagar em destaque e a ação principal que muda com ela. |
 | 2026.5 | Menu "Mais" com atalhos e uma frase em cada tela; formulário de lançamento em visual de app (abas, valor grande, "Registrar e lançar outro", última conta lembrada); fatura do cartão como extrato (compras por dia, nome inteiro); ícone e cor de categoria; subcategoria logo abaixo da principal; banco da conta, emissor e bandeira do cartão gravados, com logos (migration 017); excluir recorrente em vez de encerrar (migration 018). |
+
+## Versão atual
+
+| Versão | O que entrou |
+|---|---|
+| 2026.100 | Arquitetura patrimonial: investimentos híbridos, módulo de dívidas sobre o motor existente, bens, multimoeda e consolidação patrimonial. Documento `docs/ARQUITETURA-PATRIMONIO.md`; nenhuma funcionalidade financeira ou migration foi aplicada nesta PR. |
