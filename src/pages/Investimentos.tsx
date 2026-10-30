@@ -177,15 +177,19 @@ export default function Investimentos() {
         )}
       </section>
 
-      {historico.some((p) => p.valorAtual > 0) && <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
+      <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
         <h2 id="titulo-evolucao-investimentos" className="mb-1 text-lg font-semibold">Evolução dos investimentos</h2>
         <p className="mb-3 text-sm text-slate-500">Valor estimado no fechamento de cada mês, por moeda, nos últimos 12 meses. Registre avaliações periódicas para acompanhar a valorização real.</p>
-        <div className="grid gap-3 lg:grid-cols-2">
-          {([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[]).map((codigo) => (
-            <GraficoHistorico key={codigo} moedaCodigo={codigo} pontos={historico.filter((p) => p.moeda === codigo)} />
-          ))}
-        </div>
-      </section>}
+        {historico.some((p) => p.valorAtual > 0) ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[]).map((codigo) => (
+              <GraficoHistorico key={codigo} moedaCodigo={codigo} pontos={historico.filter((p) => p.moeda === codigo)} />
+            ))}
+          </div>
+        ) : <p className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+          O gráfico aparecerá depois da primeira compra registrada. Para acompanhar a valorização, registre avaliações periódicas do ativo.
+        </p>}
+      </section>
 
       <section className="mt-8" aria-labelledby="titulo-posicoes">
         <h2 id="titulo-posicoes" className="mb-3 text-lg font-semibold">Ativos e posições</h2>
