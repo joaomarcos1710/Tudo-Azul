@@ -11,6 +11,7 @@ import Conferir from './pages/Conferir'
 import Cartoes from './pages/Cartoes'
 import Dividas from './pages/Dividas'
 import Investimentos from './pages/Investimentos'
+import Bens from './pages/Bens'
 import Categorias from './pages/Categorias'
 import Orcamentos from './pages/Orcamentos'
 import Relatorios from './pages/Relatorios'
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="cartoes" element={<Cartoes />} />
           <Route path="dividas" element={<Dividas />} />
           <Route path="investimentos" element={<Investimentos />} />
+          <Route path="bens" element={<Bens />} />
           <Route path="categorias" element={<Categorias />} />
           <Route path="orcamentos" element={<Orcamentos />} />
           <Route path="relatorios" element={<Relatorios />} />
