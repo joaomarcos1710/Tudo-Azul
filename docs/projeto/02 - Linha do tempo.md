@@ -81,6 +81,8 @@ tags: [tudo-azul, historico]
 - **Excluir recorrente e versão 2026.5**: o botão "Encerrar" virou "Excluir" (também nos "Encerrados" antigos); a regra some, os planejados de hoje em diante vão para a lixeira e o histórico fica (migration 018); `package.json` na 2026.5 (#84, merge `80685b2`).
 - **Migration 018 aplicada em produção** em 29/10/2026, pela [execução 26 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40952813187) (simulação antes: execução 25), a partir do commit `80685b2`; 23 migrations em sincronia.
 - **Projeção não infla mais depois de excluir um recorrente** (migration 019): achado pelo agente revisor de dinheiro como regressão da 018; a projeção do mês e a dos orçamentos passam a tratar o que a regra gerou por `occurrence_date` (#86, merge `c82ee04`).
+- **Arquivar e excluir cartão e conta** (migration 020, #88, merge `85d634e`, 30/10/2026): cartão e conta ganham Arquivar (reversível, seção "Arquivados") e Excluir (só o que nunca teve movimento). Migration 020 aplicada em produção em 30/10/2026.
+- **Renomear cartão e mensagem de exclusão que conta o que existe** (migration 021, #89, merge `4936a78`, 30/10/2026): `debt_rename` e botão "Renomear"; a recusa de exclusão diz quantas parcelas, movimentos ou faturas existem. Migration 021 aplicada em produção em 30/10/2026.
 - **Migration 019 aplicada em produção** em 29/10/2026, pela [execução 28 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40957180996) (simulação antes: execução 27), a partir do commit `c82ee04`; 24 migrations em sincronia.
 
 ## Ainda abertos

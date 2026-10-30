@@ -21,7 +21,8 @@ atualizado: 2026-10-28
 
 ## Próximos PRs sugeridos
 - [ ] **Recorrentes: horizonte de geração** (30/10/2026, o dono notou que só duram 2 meses): hoje `recurrence_materialize` gera até o fim do mês daqui a 2 meses. Proposta aguardando decisão: regra com data final gera até o fim (máx. 360 meses), sem data final 12 meses. Pode virar a tela de Empréstimos/Financiamentos no futuro.
-- [ ] **Arquivar/excluir cartão e conta** (migration 020): PR aberto, aguarda o "pode" para mesclar e aplicar.
+- [x] **Arquivar/excluir cartão e conta** (migrations 020 e 021, #88 e #89): feito e aplicado em 30/10/2026. Falta o dono conferir no app: o cartão de exemplo que não deixa excluir (ler a mensagem nova, que diz o que existe) e decidir se a exclusão deve valer quando só sobram registros anulados.
+- [ ] **Testes pgTAP que dependem da data de hoje** (A1 `12_card_correcoes` linhas 89-92 e demais `'2026-12-31'`; A2 `22_recurrence_frequency` RF3-RF9c): quebram a partir de 01-02/01/2027.
 1. ~~**Início × Análises**~~ — feito (#57).
 2. Front: atualizar faturas antes de abrir Relatórios e Orçamentos.
 3. Front: mostrar conta desativada com saldo na Visão geral.
