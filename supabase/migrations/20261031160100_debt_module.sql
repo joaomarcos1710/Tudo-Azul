@@ -49,8 +49,8 @@ declare
 begin
   v_d := private.debt_lock(p_debt);
 
-  if p_date is null or p_account is null
-     or coalesce(p_principal, 0) < 0 or coalesce(p_interest, 0) < 0 or coalesce(p_fee, 0) < 0
+  if p_date is null or p_account is null or p_principal is null or p_interest is null or p_fee is null
+     or p_principal < 0 or p_interest < 0 or p_fee < 0
      or coalesce(p_principal, 0) + coalesce(p_interest, 0) + coalesce(p_fee, 0) <= 0 then
     raise exception 'valores e data do pagamento inválidos' using errcode = '22023';
   end if;
