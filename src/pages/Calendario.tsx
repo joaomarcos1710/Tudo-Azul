@@ -12,6 +12,7 @@ import type { Cents } from '../lib/format'
 import { saldosProjetados, faturasQueVencem } from '../lib/saldoProjetado'
 import type { SaldoProjetado } from '../lib/saldoProjetado'
 import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, somarMeses } from '../lib/lancamentos'
+import { listarParcelasDivida } from '../lib/dividas'
 import type { ResumoMes } from '../lib/lancamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
@@ -66,8 +67,9 @@ export default function Calendario() {
         resumoDoMes(familiaId, mes).catch(() => null),
         // faturas por vencimento: extra; se a consulta falhar (ex.: banco ainda sem a migration 025) o calendário segue sem elas
         faturasQueVencem(familiaId, ...limitesDoMes(mes)).catch(() => []),
+        listarParcelasDivida(familiaId, ...limitesDoMes(mes)).catch(() => []),
       ]))
-      .then(([lancs, movs, contas, cats, res, faturas]) => {
+      .then(([lancs, movs, contas, cats, res, faturas, parcelasDivida]) => {
         if (!vivo()) return
         const nomeConta = new Map((contas?.contas ?? []).map((c) => [c.id, c.nome]))
         const nomeCategoria = nomesCompletos(cats ?? [])
@@ -92,6 +94,19 @@ export default function Calendario() {
             valor: Math.abs(m.valor) as Cents,
             sentido: m.valor >= 0 ? 'entrada' : 'saida',
             planejado: false,
+          })),
+          ...parcelasDivida.map((p): ItemDoDia => ({
+            id: `dp-${p.id}`,
+            data: p.vencimento,
+            descricao: `Parcela ${p.numero} · ${p.nomeDivida}`,
+            detalhe: p.formaPagamento === 'account_debit'
+              ? `débito automático · ${nomeConta.get(p.contaPagamentoId ?? '') ?? 'conta definida'}`
+              : p.formaPagamento === 'boleto' ? 'boleto'
+                : p.formaPagamento === 'payroll' ? 'consignado · desconto em folha'
+                  : 'pagamento manual',
+            valor: p.valor,
+            sentido: 'saida',
+            planejado: true,
           })),
           // a fatura que vence no dia aparece como planejada, pelo que ainda falta pagar (paga por inteiro, o pagamento já aparece acima)
           ...faturas.filter((f) => f.falta > 0).map((f): ItemDoDia => ({
