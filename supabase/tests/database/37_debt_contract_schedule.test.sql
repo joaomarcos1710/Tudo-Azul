@@ -55,6 +55,14 @@ select is((select status from public.debt_payment_schedule where debt_id=pg_temp
   'paid','parcela passa para paga');
 select is((select remaining_installments from public.debts where id=pg_temp.fx('debit_debt')),
   11,'prazo restante diminui após a baixa');
+select is((select first_due_date from public.debts where id=pg_temp.fx('debit_debt')),
+  date '2027-02-28','próximo vencimento avança para a próxima parcela ajustada ao mês curto');
+select is((select planned from public.account_balances_projected(pg_temp.fx('household'),date '2027-12-31',true)
+  where account_id=pg_temp.fx('account')),-1100.00::numeric,
+  'parcelas futuras com débito automático entram na projeção da conta');
+select is((select balance from public.account_balances_projected(pg_temp.fx('household'),date '2027-12-31',true)
+  where account_id=pg_temp.fx('account')),3800.00::numeric,
+  'saldo projetado considera apenas parcelas ainda planejadas');
 select is((select count(*) from public.debt_events where schedule_id=(select id from public.debt_payment_schedule where debt_id=pg_temp.fx('debit_debt') and installment_number=1) and voided_at is null),
   2::bigint,'eventos financeiros ficam vinculados à parcela');
 
