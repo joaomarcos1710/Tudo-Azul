@@ -142,7 +142,7 @@ describe('Visão geral', () => {
   })
   it('mostra a equação do patrimônio com os valores do banco', async () => {
     montar('analises')
-    // equação montada com os valores do banco: disponível + crédito a receber − dívida = patrimônio
+    // patrimônio consolidado inclui a participação familiar nos bens em BRL
     expect(screen.getByText('Patrimônio líquido')).toBeTruthy()
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.getByText(/Bens e investimentos em USD/)).toBeTruthy()
