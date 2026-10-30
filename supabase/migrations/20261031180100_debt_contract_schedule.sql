@@ -91,7 +91,7 @@ $$;
 
 create or replace function public.debt_balances(p_household uuid, p_as_of date)
 returns table(debt_id uuid, name text, kind text, balance numeric, debt numeric, credit_receivable numeric, planned_remaining numeric)
-language sql stable security definer set search_path = '' as $
+language sql stable security definer set search_path = '' as $$
   select d.id, d.name, d.kind, b.bal, greatest(b.bal, 0), greatest(-b.bal, 0), coalesce(p.rem, 0)
   from public.debts d
   cross join lateral (select private.debt_balance(d.id, p_as_of) as bal) b
