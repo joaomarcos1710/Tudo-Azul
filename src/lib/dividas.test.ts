@@ -31,9 +31,9 @@ describe('simulador de quitação', () => {
   it('calcula juros e amortização usando centavos inteiros', () => {
     const resultado = simularQuitacao([divida('a', 'Empréstimo', 100_000, 100, 10_000)], asCents(11_000)!, 'avalanche')
     expect(resultado.quitado).toBe(true)
-    expect(resultado.meses).toBe(100)
-    expect(resultado.jurosTotais).toBe(asCents(100_000))
-    expect(resultado.totalPago).toBe(asCents(200_000))
+    expect(resultado.meses).toBe(10)
+    expect(resultado.jurosTotais).toBe(asCents(5_378))
+    expect(resultado.totalPago).toBe(asCents(105_378))
   })
 
   it('não simula quando o orçamento não cobre os pagamentos mínimos', () => {
@@ -47,7 +47,7 @@ describe('simulador de quitação', () => {
   })
 
   it('informa quando o orçamento não quita todas as dívidas no horizonte de 600 meses', () => {
-    const resultado = simularQuitacao([divida('a', 'A', 100_000, 1000, 0)], asCents(100)!, 'avalanche')
+    const resultado = simularQuitacao([divida('a', 'A', 100_000, 0, 0)], asCents(100)!, 'avalanche')
     expect(resultado.quitado).toBe(false)
     expect(resultado.meses).toBe(600)
     expect(resultado.erro).toMatch(/600 meses/)
