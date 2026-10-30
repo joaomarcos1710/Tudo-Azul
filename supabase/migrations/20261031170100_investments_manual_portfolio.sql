@@ -120,7 +120,8 @@ begin
   if p_kind = 'sell' then
     select coalesce(sum(case when o.kind='buy' then o.quantity else -o.quantity end),0)
       into v_held from public.investment_operations o
-     where o.asset_id = v_asset.id and o.household_id = v_asset.household_id;
+     where o.asset_id = v_asset.id and o.household_id = v_asset.household_id
+       and o.operation_date <= p_date;
     if p_quantity > v_held then
       raise exception 'quantidade vendida supera a posição disponível' using errcode = '23514';
     end if;
