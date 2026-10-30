@@ -111,7 +111,13 @@ export async function editarConta(id: string, d: DadosConta): Promise<void> {
   if (error) throw error
 }
 
-/** Conta com histórico é desativada, nunca apagada: continua nos saldos e no histórico. */
+/** Exclui de vez a conta que nunca teve movimento. Com qualquer histórico o banco recusa (23503): só arquivar. */
+export async function excluirConta(id: string): Promise<void> {
+  const { error } = await cliente().rpc('account_delete', { p_id: id })
+  if (error) throw error
+}
+
+/** Conta com histórico é arquivada, nunca apagada: continua nos saldos e no histórico. */
 export async function definirAtiva(id: string, ativa: boolean): Promise<void> {
   const { error } = await cliente().from('accounts').update({ active: ativa }).eq('id', id)
   if (error) throw error

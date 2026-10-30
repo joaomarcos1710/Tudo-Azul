@@ -11,7 +11,7 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  criarCartao, definirCiclo, definirIdentidade, definirLimite, editarParcela, excluirCompra, listarCartoes, listarFaturas, listarItens,
+  arquivarCartao, criarCartao, definirCiclo, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, reativarCartao, renomearCartao,
   novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
@@ -33,6 +33,9 @@ type Painel =
   | { tipo: 'identidade'; cartao: Cartao }
   | { tipo: 'compra'; cartao: Cartao }
   | { tipo: 'pagar'; cartao: Cartao }
+  | { tipo: 'renomear'; cartao: Cartao }
+  | { tipo: 'arquivar'; cartao: Cartao }
+  | { tipo: 'excluir'; cartao: Cartao }
 
 const dias: [string, string][] = Array.from({ length: 31 }, (_, i) => [String(i + 1), `Dia ${i + 1}`])
 
@@ -85,6 +88,18 @@ export default function Cartoes() {
     await carregar()
   }
 
+  async function reativar(c: Cartao) {
+    try {
+      await reativarCartao(c.id)
+      await carregar()
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    }
+  }
+
+  const ativos = cartoes?.filter((c) => c.ativo) ?? []
+  const arquivados = cartoes?.filter((c) => !c.ativo) ?? []
+
   if (!familia) return null
   return (
     <>
@@ -97,6 +112,7 @@ export default function Cartoes() {
       {painel?.tipo === 'novo' && <FormCartao aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'ciclo' && <FormCiclo cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'limite' && <FormLimite cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
+      {painel?.tipo === 'renomear' && <FormRenomear cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'identidade' && <FormIdentidade cartao={painel.cartao} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />}
       {painel?.tipo === 'compra' && (
         <FormCompra cartao={painel.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />
@@ -104,8 +120,19 @@ export default function Cartoes() {
       {painel?.tipo === 'pagar' && (
         <FormPagar cartao={painel.cartao} contas={contas} aoSalvar={aoSalvar} aoCancelar={() => setPainel(null)} />
       )}
+      {(painel?.tipo === 'arquivar' || painel?.tipo === 'excluir') && (
+        <PainelRemoverCartao tipo={painel.tipo} cartao={painel.cartao} aoConcluir={aoSalvar} aoFechar={() => setPainel(null)} />
+      )}
 
       {cartoes === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
+
+      {cartoes !== null && cartoes.length > 0 && ativos.length === 0 && painel === null && (
+        <EmptyState
+          titulo="Nenhum cartão ativo"
+          descricao="Todos os seus cartões estão arquivados. Reative um abaixo ou cadastre um novo."
+          acao={<Button onClick={() => setPainel({ tipo: 'novo' })}>Novo cartão</Button>}
+        />
+      )}
 
       {cartoes?.length === 0 && painel === null && (
         <EmptyState
@@ -116,7 +143,7 @@ export default function Cartoes() {
       )}
 
       <ul className="flex flex-col gap-4">
-        {cartoes?.map((c) => (
+        {ativos.map((c) => (
           <li key={c.id}>
             <Card>
               <div className="flex items-start gap-3">
@@ -180,6 +207,9 @@ export default function Cartoes() {
                 <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'identidade', cartao: c })} disabled={painel !== null}>
                   {c.emissor === null && c.bandeira === null ? 'Escolher banco e bandeira' : 'Banco e bandeira'}
                 </Button>
+                <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'renomear', cartao: c })} disabled={painel !== null}>Renomear</Button>
+                <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'arquivar', cartao: c })} disabled={painel !== null}>Arquivar</Button>
+                <Button variante="fantasma" compacto onClick={() => setPainel({ tipo: 'excluir', cartao: c })} disabled={painel !== null}>Excluir</Button>
               </div>
               {aberto === c.id && <Faturas cartaoId={c.id} versao={versao} categorias={categorias} contas={contas} aoAlterar={carregar} />}
               {aberto === c.id && <MovimentosCartao cartaoId={c.id} versao={versao} aoAlterar={carregar} />}
@@ -187,7 +217,58 @@ export default function Cartoes() {
           </li>
         ))}
       </ul>
+
+      {arquivados.length > 0 && (
+        <section className="mt-8" aria-labelledby="titulo-arquivados">
+          <h2 id="titulo-arquivados" className="mb-1 text-lg font-semibold">Arquivados</h2>
+          <p className="mb-3 text-sm text-slate-600">Não aparecem nas escolhas de compra. O histórico e as faturas antigas continuam valendo.</p>
+          <ul className="flex flex-col gap-2">
+            {arquivados.map((c) => (
+              <li key={c.id}>
+                <Card className="flex flex-wrap items-center justify-between gap-3 opacity-80">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <IconeEmissor nome={c.nome} emissor={c.emissor} />
+                    <p className="font-semibold">{c.nome} <BandeiraCartao bandeira={c.bandeira} className="ml-1 inline-block align-middle" /></p>
+                  </div>
+                  <Button variante="secundario" compacto disabled={painel !== null} onClick={() => void reativar(c)}>Reativar</Button>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </>
+  )
+}
+
+/** Confirmação de arquivar ou excluir o cartão; o banco é quem decide se pode (saldo, parcelas, recorrente, histórico). */
+function PainelRemoverCartao({ tipo, cartao, aoConcluir, aoFechar }: {
+  tipo: 'arquivar' | 'excluir'; cartao: Cartao; aoConcluir: () => Promise<void>; aoFechar: () => void
+}) {
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+  const excluir = tipo === 'excluir'
+  return (
+    <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label={excluir ? 'Excluir cartão' : 'Arquivar cartão'}>
+      {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {excluir ? (
+        <p className="text-sm">
+          Excluir o cartão <strong>{cartao.nome}</strong> de vez. Só é possível se ele nunca teve compra, fatura nem assinatura;
+          se tiver, o app avisa e você pode <strong>arquivar</strong> em vez de excluir. Não dá para desfazer.
+        </p>
+      ) : (
+        <p className="text-sm">
+          Arquivar o cartão <strong>{cartao.nome}</strong>: ele sai da lista e das escolhas de compra, e o histórico fica guardado.
+          Só é possível sem fatura em aberto, sem parcelas a vencer e sem assinatura ativa. Você pode reativar depois.
+        </p>
+      )}
+      <div className="mt-3 flex gap-2">
+        <Button variante="perigo" carregando={enviando}
+          onClick={() => void enviar(() => (excluir ? excluirCartao(cartao.id) : arquivarCartao(cartao.id)))}>
+          {excluir ? 'Excluir cartão' : 'Arquivar cartão'}
+        </Button>
+        <Button variante="secundario" onClick={aoFechar}>Cancelar</Button>
+      </div>
+    </div>
   )
 }
 
@@ -521,6 +602,34 @@ function FormCiclo({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Carta
         <Selecao rotulo="Dia do fechamento" valor={fechamento} aoMudar={setFechamento} opcoes={dias} todos="Escolha…" />
         <Selecao rotulo="Dia do vencimento" valor={vencimento} aoMudar={setVencimento} opcoes={dias} todos="Escolha…" />
         <p className="text-sm text-slate-600 md:col-span-2">Vale para as próximas compras. Parcelas já lançadas continuam nas faturas em que estão.</p>
+        <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
+      </form>
+    </Card>
+  )
+}
+
+function FormRenomear({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao }) {
+  const [nome, setNome] = useState(cartao.nome)
+  const [tentou, setTentou] = useState(false)
+  const { erro, enviando, enviar } = useEnvio(aoSalvar)
+  const aparado = nome.trim()
+  const invalido = aparado === '' || aparado.length > 60
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    setTentou(true)
+    if (invalido) return
+    void enviar(() => renomearCartao(cartao.id, aparado))
+  }
+
+  return (
+    <Card className="mb-6">
+      <h2 className="mb-4 text-lg font-semibold">Renomear · {cartao.nome}</h2>
+      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Field rotulo="Nome do cartão" value={nome} maxLength={60} onChange={(e) => setNome(e.target.value)}
+          erro={tentou && invalido ? 'Use de 1 a 60 caracteres.' : undefined} />
+        <p className="text-sm text-slate-600 md:col-span-2">Só o nome muda: fatura, parcelas, limite e histórico continuam como estão.</p>
         <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
       </form>
     </Card>

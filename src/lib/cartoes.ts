@@ -169,6 +169,29 @@ export async function definirLimite(cartaoId: string, limite: Cents | null): Pro
   if (error) throw error
 }
 
+/** Corrige o nome do cartão. Nome repetido na família: o banco recusa (23505). Não mexe em dívida, parcelas nem histórico. */
+export async function renomearCartao(cartaoId: string, nome: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_rename', { p_id: cartaoId, p_name: nome })
+  if (error) throw error
+}
+
+/** Arquiva o cartão: some das escolhas, o histórico fica. O banco recusa com saldo, parcelas a vencer ou recorrente ativo. */
+export async function arquivarCartao(cartaoId: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_archive', { p_id: cartaoId })
+  if (error) throw error
+}
+
+export async function reativarCartao(cartaoId: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_unarchive', { p_id: cartaoId })
+  if (error) throw error
+}
+
+/** Exclui de vez o cartão que nunca teve movimento. Com qualquer histórico o banco recusa (23503): só arquivar. */
+export async function excluirCartao(cartaoId: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_delete', { p_id: cartaoId })
+  if (error) throw error
+}
+
 /** Chave de repetição: o mesmo envio (clique duplo, rede ruim) nunca grava duas vezes. */
 export function novaChave(): string {
   return crypto.randomUUID()

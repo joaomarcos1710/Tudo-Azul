@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
   criarConta: vi.fn(),
   editarConta: vi.fn(),
   definirAtiva: vi.fn(),
+  excluirConta: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -20,6 +21,7 @@ vi.mock('../lib/contas', async (original) => ({
   criarConta: mock.criarConta,
   editarConta: mock.editarConta,
   definirAtiva: mock.definirAtiva,
+  excluirConta: mock.excluirConta,
 }))
 
 import Contas from './Contas'
@@ -33,6 +35,7 @@ beforeEach(() => {
   mock.criarConta.mockResolvedValue(undefined)
   mock.editarConta.mockResolvedValue(undefined)
   mock.definirAtiva.mockResolvedValue(undefined)
+  mock.excluirConta.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -60,7 +63,8 @@ describe('Contas', () => {
     expect(await screen.findByText('R$ 1.200,50')).toBeTruthy() // total do banco, não somado na tela
     expect(screen.getByText('R$ 1.250,50')).toBeTruthy()
     expect(screen.getByText('-R$ 50,00')).toBeTruthy()
-    expect(screen.getByText('desativada')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Arquivadas' })).toBeTruthy()
+    expect(screen.getByText('Carteira').closest('li')).not.toBeNull()
   })
 
   it('conta que abre no futuro mostra a data em vez de saldo', async () => {
@@ -166,14 +170,44 @@ describe('Contas', () => {
     expect(mock.editarConta).toHaveBeenCalledWith('a1', { nome: 'Itaú', tipo: 'checking', saldoInicial: 100000, abertura: '2026-12-01' })
   })
 
-  it('desativar com planejado em aberto mostra a regra do banco', async () => {
+  it('arquivar com planejado em aberto mostra a regra do banco', async () => {
     mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(125050) })
     mock.definirAtiva.mockRejectedValue({ code: '23514', message: 'conta com lançamento planejado em aberto não pode ser desativada' })
     render(<MemoryRouter><Contas /></MemoryRouter>)
     const item = (await screen.findByText('Itaú')).closest('li')!
-    await userEvent.setup().click(within(item).getByRole('button', { name: 'Desativar' }))
+    await userEvent.setup().click(within(item).getByRole('button', { name: 'Arquivar' }))
     expect(mock.definirAtiva).toHaveBeenCalledWith('a1', false)
     expect((await screen.findByRole('alert')).textContent).toBe('Conta com lançamento planejado em aberto não pode ser desativada.')
+  })
+
+  it('conta arquivada fica na seção Arquivadas e reativa', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [corrente, { ...corrente, id: 'a2', nome: 'Antiga', ativa: false }], total: c(0) })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const secao = (await screen.findByRole('heading', { name: 'Arquivadas' })).closest('section')!
+    expect(within(secao).getByText('Antiga')).toBeTruthy()
+    expect(within(secao).queryByText('Itaú')).toBeNull()
+    await userEvent.setup().click(within(secao).getByRole('button', { name: 'Reativar' }))
+    expect(mock.definirAtiva).toHaveBeenCalledWith('a2', true)
+  })
+
+  it('excluir conta pede confirmação e só então chama o banco', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(0) })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const u = userEvent.setup()
+    await u.click(within((await screen.findByText('Itaú')).closest('li')!).getByRole('button', { name: 'Excluir' }))
+    expect(mock.excluirConta).not.toHaveBeenCalled()
+    await u.click(within(screen.getByRole('group', { name: 'Excluir conta' })).getByRole('button', { name: 'Excluir conta' }))
+    expect(mock.excluirConta).toHaveBeenCalledWith('a1')
+  })
+
+  it('excluir conta com histórico mostra a regra do banco', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(0) })
+    mock.excluirConta.mockRejectedValue({ code: '23503', message: 'tem histórico: só é possível arquivar' })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const u = userEvent.setup()
+    await u.click(within((await screen.findByText('Itaú')).closest('li')!).getByRole('button', { name: 'Excluir' }))
+    await u.click(within(screen.getByRole('group', { name: 'Excluir conta' })).getByRole('button', { name: 'Excluir conta' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Tem histórico: só é possível arquivar.')
   })
 
   it('nome repetido vira mensagem clara', async () => {

@@ -93,9 +93,9 @@ select ok(has_column_privilege('authenticated','public.invitations','email','SEL
 
 -- Funções: exatamente as esperadas
 select functions_are('public', array[
-  'accept_invitation','account_balances','account_movements','balance_totals','budget_projection','budget_usage','card_bill_due','card_installment_edit','card_invoice_reopen','card_items','card_limits','card_months',
+  'accept_invitation','account_balances','account_delete','account_movements','balance_totals','budget_projection','budget_usage','card_bill_due','card_installment_edit','card_invoice_reopen','card_items','card_limits','card_months',
   'card_purchase','card_purchase_delete','card_purchase_delete_preview','create_debt','create_debt_installments','create_debt_invoice','create_household','create_invitation','daily_expenses','debt_anticipate','debt_balances','debt_bill',
-  'debt_loan_event','debt_pay','debt_refund','debt_return','debt_void','delete_household','expenses_by_category','income_regularity','leave_household',
+  'debt_archive','debt_delete','debt_loan_event','debt_pay','debt_refund','debt_rename','debt_return','debt_unarchive','debt_void','delete_household','expenses_by_category','income_regularity','leave_household',
   'month_projection','net_worth','period_summary','reconcile_account','recurrence_create','recurrence_delete','recurrence_end','recurrence_materialize','recurrence_update',
   'reconciliation_undo','remove_member','reset_household','reset_preview','set_card_cycle','set_card_identity','set_card_limit'],
   'funções do schema public');
@@ -130,10 +130,10 @@ select is(
            and has_function_privilege('authenticated', p.oid, 'EXECUTE')
          order by 1),
   array['private.card_recurrence_pending','private.expense_items','private.is_member','private.is_owner','private.reconciled_until','private.recurrence_occurrences','private.shares_household',
-        'public.accept_invitation','public.account_balances','public.account_movements','public.balance_totals',
+        'public.accept_invitation','public.account_balances','public.account_delete','public.account_movements','public.balance_totals',
         'public.budget_projection','public.budget_usage','public.card_bill_due','public.card_installment_edit','public.card_invoice_reopen','public.card_items','public.card_limits','public.card_months','public.card_purchase','public.card_purchase_delete','public.card_purchase_delete_preview','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
-        'public.create_household','public.create_invitation','public.daily_expenses','public.debt_anticipate','public.debt_balances',
-        'public.debt_bill','public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_return',
+        'public.create_household','public.create_invitation','public.daily_expenses','public.debt_anticipate','public.debt_archive','public.debt_balances',
+        'public.debt_bill','public.debt_delete','public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_rename','public.debt_return','public.debt_unarchive',
         'public.debt_void','public.delete_household','public.expenses_by_category','public.income_regularity','public.leave_household','public.month_projection','public.net_worth',
         'public.period_summary','public.reconcile_account','public.reconciliation_undo','public.recurrence_create','public.recurrence_delete','public.recurrence_end',
         'public.recurrence_materialize','public.recurrence_update','public.remove_member','public.reset_household','public.reset_preview','public.set_card_cycle','public.set_card_identity','public.set_card_limit']::text[],
@@ -154,11 +154,11 @@ select is(
   array['private.card_reopen_invoice','private.card_void_events','private.current_household','private.debt_balance','private.debt_chk','private.debt_chk_trg',
         'private.debt_lock','private.handle_new_user','private.is_member','private.is_owner',
         'private.members_owner_guard','private.reconciled_until','private.recurrence_lock','private.seed_default_categories','private.shares_household',
-        'public.accept_invitation','public.card_bill_due','public.card_installment_edit','public.card_invoice_reopen',
+        'public.accept_invitation','public.account_delete','public.card_bill_due','public.card_installment_edit','public.card_invoice_reopen',
         'public.card_purchase','public.card_purchase_delete',
         'public.create_debt','public.create_debt_installments','public.create_debt_invoice',
-        'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_bill',
-        'public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_return','public.debt_void',
+        'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_archive','public.debt_bill','public.debt_delete',
+        'public.debt_loan_event','public.debt_pay','public.debt_refund','public.debt_rename','public.debt_return','public.debt_unarchive','public.debt_void',
         'public.delete_household','public.leave_household','public.reconcile_account','public.reconciliation_undo','public.recurrence_create','public.recurrence_delete',
         'public.recurrence_end','public.recurrence_materialize','public.recurrence_update','public.remove_member',
         'public.reset_household','public.set_card_cycle','public.set_card_identity','public.set_card_limit']::text[],
