@@ -100,14 +100,18 @@ insert into public.transactions (household_id, account_id, category_id, type, am
   values (pg_temp.fx('h'), pg_temp.fx('lixeira'), pg_temp.fx('cexp'), 'expense', 10, pg_temp.mes(-1), 'paid');
 update public.transactions set deleted_at = now() where account_id = pg_temp.fx('lixeira');
 insert into fixture select 'regra', public.recurrence_create('expense', 'Luz', 10, 5, pg_temp.mes(3), pg_temp.fx('comreg'), null, null, pg_temp.fx('cexp'));
-select public.reconcile_account(pg_temp.fx('conferida'), pg_temp.mes(-6), 100);
+-- Fixture de registro anterior à descontinuação: a conta continua protegida contra cascade.
+reset role;
+insert into public.account_reconciliations (household_id, account_id, as_of, statement_balance, transactions, created_by)
+values (pg_temp.fx('h'), pg_temp.fx('conferida'), pg_temp.mes(-6), 100.00, 0, null);
+select pg_temp.login('00000000-0000-0000-0000-0000000027a1');
 
 select is(pg_temp.sqlstate_of($$select public.account_delete(pg_temp.fx('comlanc'))$$), '23503', 'AC2 lançamento impede excluir');
 select is(pg_temp.sqlstate_of($$select public.account_delete(pg_temp.fx('destino'))$$), '23503', 'AC3 destino de transferência impede excluir');
 select is(pg_temp.sqlstate_of($$select public.account_delete(pg_temp.fx('lixeira'))$$), '23503', 'AC4 lançamento na lixeira também impede');
 select is(pg_temp.sqlstate_of($$select public.account_delete(pg_temp.fx('comreg'))$$), '23503', 'AC5 recorrente ligado impede excluir');
-select is(pg_temp.sqlstate_of($$select public.account_delete(pg_temp.fx('conferida'))$$), '23503', 'AC6 conferência impede excluir (e não some em cascata)');
-select is((select count(*) from public.account_reconciliations where account_id = pg_temp.fx('conferida')), 1::bigint, 'AC6.1 a conferência continua lá');
+select is(pg_temp.sqlstate_of($$select public.account_delete(pg_temp.fx('conferida'))$$), '23503', 'AC6 histórico legado impede excluir a conta (sem cascade)');
+select is((select count(*) from public.account_reconciliations where account_id = pg_temp.fx('conferida')), 1::bigint, 'AC6.1 o registro histórico continua lá');
 
 -- ---- outra família e anon ----
 select pg_temp.login('00000000-0000-0000-0000-0000000027a2');

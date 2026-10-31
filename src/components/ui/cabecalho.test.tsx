@@ -12,13 +12,13 @@ describe('CabecalhoPagina', () => {
   it('mostra título, descrição, link de volta e ações', () => {
     render(
       <MemoryRouter>
-        <CabecalhoPagina titulo="Conferir" descricao="Compare com o extrato." voltar={{ para: '/contas', rotulo: 'Contas' }}
+        <CabecalhoPagina titulo="Editar lançamento" descricao="Revise os dados do lançamento." voltar={{ para: '/lancamentos', rotulo: 'Lançamentos' }}
           acoes={<button>Salvar</button>} />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { level: 1, name: 'Conferir' })).toBeTruthy()
-    expect(screen.getByText('Compare com o extrato.')).toBeTruthy()
-    expect(screen.getByRole('link', { name: '← Contas' }).getAttribute('href')).toBe('/contas')
+    expect(screen.getByRole('heading', { level: 1, name: 'Editar lançamento' })).toBeTruthy()
+    expect(screen.getByText('Revise os dados do lançamento.')).toBeTruthy()
+    expect(screen.getByRole('link', { name: '← Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeTruthy()
   })
 

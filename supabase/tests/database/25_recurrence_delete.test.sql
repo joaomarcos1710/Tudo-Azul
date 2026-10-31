@@ -42,14 +42,12 @@ insert into fixture select 'rc', public.recurrence_create('expense', 'Luz', 10, 
 insert into fixture select 'rk', public.recurrence_create('card', 'Streaming', 20, 5, pg_temp.mes(-2), null, null, pg_temp.fx('card'), pg_temp.fx('cexp'));
 select public.recurrence_materialize();
 
--- uma ocorrência antiga paga (a mais antiga), e a conta conciliada até a data dela: pago em período conciliado não pode mudar
+-- uma ocorrência antiga paga (a mais antiga); excluir a regra deve preservar esse lançamento pago
 update public.transactions set status = 'paid'
  where id = (select id from public.transactions where recurrence_id = pg_temp.fx('rc') order by date limit 1);
 create temp table datas (k text primary key, d date);
 grant all on datas to public;
 insert into datas select 'paga', date from public.transactions where recurrence_id = pg_temp.fx('rc') and status = 'paid';
-select public.reconcile_account(pg_temp.fx('bank'), (select d from datas where k = 'paga'),
-  (select balance from public.account_balances(pg_temp.fx('h'), (select d from datas where k = 'paga')) where account_id = pg_temp.fx('bank')));
 
 -- retrato antes de excluir
 insert into antes values
@@ -61,7 +59,7 @@ insert into antes values
 
 select ok((select n from antes where k = 'futuros') >= 1, 'RD0 há planejados de hoje em diante para testar');
 select ok((select n from antes where k = 'parcelas') >= 1, 'RD0 a assinatura do cartão já gerou compras');
-select is((select n from antes where k = 'pagos'), 1::numeric, 'RD0 uma ocorrência paga em período conciliado');
+select is((select n from antes where k = 'pagos'), 1::numeric, 'RD0 uma ocorrência paga');
 
 -- RD1 a regra de conta: devolve quantos foram para a lixeira e some
 select is((select public.recurrence_delete(pg_temp.fx('rc')))::numeric, (select n from antes where k = 'futuros'),
@@ -74,7 +72,7 @@ reset role;
 select is((select count(*) from public.transactions where description = 'Luz' and status = 'planned' and deleted_at is not null and date >= pg_temp.hoje())::numeric,
           (select n from antes where k = 'futuros'), 'RD4 os planejados de hoje em diante estão na lixeira (restauráveis)');
 select is((select count(*) from public.transactions where description = 'Luz' and status = 'paid' and deleted_at is null)::numeric, 1::numeric,
-          'RD5 o lançamento pago continua intacto, mesmo em período conciliado');
+          'RD5 o lançamento pago continua intacto');
 select is((select count(*) from public.transactions where description = 'Luz' and status = 'planned' and deleted_at is null and date < pg_temp.hoje())::numeric,
           (select n from antes where k = 'vencidos'), 'RD6 os planejados vencidos e não pagos continuam para a pessoa decidir');
 select is((select count(*) from public.transactions where description = 'Luz' and recurrence_id is not null), 0::bigint,

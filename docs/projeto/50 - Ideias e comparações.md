@@ -15,7 +15,7 @@ Só estrutura de funções; sem copiar marca, texto, tela ou código.
 | Metas/objetivos | — | sim | não (junto com investimentos) |
 | Exportar CSV | — | — | **sim** |
 | Conexão bancária (Open Finance) | sim (planos pagos) | sim | **fora de escopo** |
-| Renda regular × eventual, conferência de saldo | — | — | **sim** (diferencial) |
+| Renda regular × eventual, conferência de saldo | — | — | Renda regular × eventual: **sim**; conferência manual: descontinuada na PR #110 |
 
 Preços vistos: Organizze Manual R$ 39/mês (Conectado R$ 49; Plus R$ 79); Mobills Premium R$ 99,90/ano (página com cache de 2022).
 
@@ -34,7 +34,7 @@ Só ideias de uso; sem copiar marca, texto, tela ou código. Ficam guardadas: **
 | 5 | **Tema escuro** | Não existe; as cores já estão centralizadas | Médio |
 | 6 | **Relatório anual** (saldo e despesa por categoria no ano) | Temos Análises mês a mês e exportação; falta a visão do ano | Médio |
 
-**Já temos (e mais completo):** calendário com lista do dia (#62), despesas fixas (recorrências com frequência), apagar tudo ("zerar"), família, conferência com extrato, cartão parcelado, números vindos do banco.
+**Já temos (e mais completo):** calendário com lista do dia (#62), despesas fixas (recorrências com frequência), apagar tudo ("zerar"), família, cartão parcelado e números vindos do banco. Checkpoints de conferências antigas são apenas dados históricos; não há fluxo ativo.
 
 **Não copiar:**
 - Anúncios e consentimento com centenas de "parceiros": erro de privacidade para um app de finanças da família.
@@ -133,4 +133,3 @@ Lista de 8 tipos (dinheiro, corrente, poupança, cartão, investimento, emprést
 **Não fazer agora (e por quê):**
 - **Multimoeda** (campo `BRL/USD/EUR`): dinheiro em centavos de uma moeda só e todos os relatórios somam no banco; misturar exige câmbio por data e regra de arredondamento. Já está no roteiro de dez–jan, com o alerta de não cadastrar ativo estrangeiro como BRL.
 - **Tipo "Investimento" como conta**: o saldo entraria como dinheiro disponível, sem cotação nem rentabilidade. Fica para o módulo de investimentos (fev–abr/2027).
-

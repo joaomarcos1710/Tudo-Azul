@@ -7,7 +7,6 @@ import Lancamentos from './pages/Lancamentos'
 import Calendario from './pages/Calendario'
 import Recorrentes from './pages/Recorrentes'
 import Contas from './pages/Contas'
-import Conferir from './pages/Conferir'
 import Cartoes from './pages/Cartoes'
 import Dividas from './pages/Dividas'
 import Investimentos from './pages/Investimentos'
@@ -41,7 +40,6 @@ export default function App() {
           <Route path="calendario" element={<Calendario />} />
           <Route path="recorrentes" element={<Recorrentes />} />
           <Route path="contas" element={<Contas />} />
-          <Route path="contas/:contaId/conferir" element={<Conferir />} />
           <Route path="cartoes" element={<Cartoes />} />
           <Route path="dividas" element={<Dividas />} />
           <Route path="investimentos" element={<Investimentos />} />

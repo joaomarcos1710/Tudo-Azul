@@ -40,7 +40,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
       { caminho: '/calendario', rotulo: 'Calendário', curto: 'Calend.', Icone: IconeCalendario, descricao: 'O que entra e sai a cada dia do mês.', atalho: true },
       { caminho: '/recorrentes', rotulo: 'Recorrentes', curto: 'Recorr.', Icone: IconeRecorrentes, descricao: 'Contas e receitas que se repetem.', atalho: true },
       { caminho: '/cartoes', rotulo: 'Cartões', curto: 'Cartões', Icone: IconeCartoes, descricao: 'Fatura, parcelas e limite de cada cartão.', fixoNoCelular: true },
-      { caminho: '/contas', rotulo: 'Contas e conferência', curto: 'Contas', Icone: IconeContas, descricao: 'Saldo de cada conta e conferência com o extrato.', atalho: true },
+      { caminho: '/contas', rotulo: 'Contas', curto: 'Contas', Icone: IconeContas, descricao: 'Saldo e cadastros das contas da família.', atalho: true },
     ],
   },
   {
@@ -68,7 +68,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
 export const itensNavegacao: ItemNavegacao[] = gruposNavegacao.flatMap((g) => g.itens)
 export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) => i.fixoNoCelular)
 
-/** Item ativo para um caminho (`/contas/abc/conferir` conta como "Contas"). */
+/** Item ativo: caminhos mais profundos continuam destacados no item-pai. */
 export function itemAtivo(pathname: string): ItemNavegacao | undefined {
   return itensNavegacao.find((i) => (i.caminho === '/' ? pathname === '/' : pathname === i.caminho || pathname.startsWith(`${i.caminho}/`)))
 }

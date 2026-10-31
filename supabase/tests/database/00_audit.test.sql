@@ -80,6 +80,12 @@ select ok(not has_column_privilege('authenticated','public.transactions','create
 select ok(not has_column_privilege('authenticated','public.transactions','created_by','INSERT'),   'transactions.created_by não informável (vem de auth.uid())');
 select ok(not has_column_privilege('authenticated','public.transactions','id','UPDATE'),            'transactions.id imutável');
 select ok(not has_column_privilege('authenticated','public.transactions','deleted_at','INSERT'),   'lançamento não nasce na lixeira');
+select ok(not has_column_privilege('authenticated','public.transactions','reconciliation_id','INSERT'), 'marca histórica de conferência não pode ser informada pelo cliente');
+select ok(not has_column_privilege('authenticated','public.transactions','reconciliation_id','UPDATE'), 'marca histórica de conferência não pode ser alterada pelo cliente');
+select ok(has_table_privilege('authenticated','public.account_reconciliations','SELECT'), 'cliente pode ler checkpoints históricos (RLS restringe à família)');
+select ok(not has_table_privilege('authenticated','public.account_reconciliations','INSERT'), 'cliente não cria checkpoints históricos');
+select ok(not has_table_privilege('authenticated','public.account_reconciliations','UPDATE'), 'cliente não altera checkpoints históricos');
+select ok(not has_table_privilege('authenticated','public.account_reconciliations','DELETE'), 'cliente não apaga checkpoints históricos');
 select ok(not has_column_privilege('authenticated','public.accounts','household_id','UPDATE'),     'accounts.household_id imutável');
 select ok(not has_column_privilege('authenticated','public.categories','system_key','INSERT'),     'categories.system_key não informável');
 select ok(not has_column_privilege('authenticated','public.categories','system_key','UPDATE'),     'categories.system_key imutável');
@@ -101,15 +107,15 @@ select functions_are('public', array[
   'accept_invitation','account_balances','account_balances_projected','account_delete','account_movements','balance_totals','balance_totals_projected','budget_projection','budget_usage','card_bill_due','card_installment_edit','card_invoices_due','card_invoices_month','card_invoice_reopen','card_items','card_limits','card_months',
   'card_purchase','card_purchase_delete','card_purchase_delete_preview','create_card','create_debt','create_debt_installments','create_debt_invoice','create_household','create_invitation','daily_expenses','debt_anticipate','debt_balances','debt_bill',
   'debt_archive','debt_delete','debt_loan_event','debt_pay','debt_record_payment','debt_refund','debt_rename','debt_return','debt_set_terms','debt_unarchive','debt_void','delete_household','expenses_by_category','fx_rate_at','income_regularity','investment_asset_create','investment_operation_record','investment_portfolio','investment_totals','investment_valuation_record','leave_household',
-  'month_projection','net_worth','period_summary','reconcile_account','recurrence_create','recurrence_delete','recurrence_end','recurrence_materialize','recurrence_update',
-  'reconciliation_undo','remove_member','reset_household','reset_preview','set_card_cycle','set_card_identity','set_card_limit','set_card_pay_account'],
+  'month_projection','net_worth','period_summary','recurrence_create','recurrence_delete','recurrence_end','recurrence_materialize','recurrence_update',
+  'remove_member','reset_household','reset_preview','set_card_cycle','set_card_identity','set_card_limit','set_card_pay_account'],
   'funções do schema public');
 select functions_are('private', array[
-  'accounts_guard','accounts_period_guard','budgets_guard','card_day_in_month','card_due_date','card_first_closing','card_recurrence_pending',
+  'accounts_guard','budgets_guard','card_day_in_month','card_due_date','card_first_closing','card_recurrence_pending',
   'card_reopen_invoice','card_void_events','categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
-  'debt_effect','debt_events_guard','debt_events_period_guard','expense_items','fx_rates_immutable','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debts_immutable',
-  'handle_new_user','is_member','is_owner','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrence_occurrences','recurrences_money_guard','seed_default_categories',
-  'shares_household','today_sp','touch_updated_at','transactions_guard','transactions_period_guard'],
+  'debt_effect','debt_events_guard','expense_items','fx_rates_immutable','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debts_immutable',
+  'handle_new_user','is_member','is_owner','members_limit_guard','members_owner_guard','recurrence_lock','recurrence_occurrences','recurrences_money_guard','seed_default_categories',
+  'shares_household','today_sp','touch_updated_at','transactions_guard'],
   'funções do schema private');
 
 -- Nenhuma função com EXECUTE para PUBLIC (ACL nula = padrão do PostgreSQL = PUBLIC)
@@ -134,13 +140,13 @@ select is(
            and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
            and has_function_privilege('authenticated', p.oid, 'EXECUTE')
          order by 1),
-  array['private.card_recurrence_pending','private.expense_items','private.is_member','private.is_owner','private.reconciled_until','private.recurrence_occurrences','private.shares_household',
+  array['private.card_recurrence_pending','private.expense_items','private.is_member','private.is_owner','private.recurrence_occurrences','private.shares_household',
         'public.accept_invitation','public.account_balances','public.account_balances_projected','public.account_delete','public.account_movements','public.balance_totals','public.balance_totals_projected',
         'public.budget_projection','public.budget_usage','public.card_bill_due','public.card_installment_edit','public.card_invoice_reopen','public.card_invoices_due','public.card_invoices_month','public.card_items','public.card_limits','public.card_months','public.card_purchase','public.card_purchase_delete','public.card_purchase_delete_preview','public.create_card','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
         'public.create_household','public.create_invitation','public.daily_expenses','public.debt_anticipate','public.debt_archive','public.debt_balances',
         'public.debt_bill','public.debt_delete','public.debt_loan_event','public.debt_pay','public.debt_record_payment','public.debt_refund','public.debt_rename','public.debt_return','public.debt_set_terms','public.debt_unarchive',
         'public.debt_void','public.delete_household','public.expenses_by_category','public.fx_rate_at','public.income_regularity','public.investment_asset_create','public.investment_operation_record','public.investment_portfolio','public.investment_totals','public.investment_valuation_record','public.leave_household','public.month_projection','public.net_worth',
-        'public.period_summary','public.reconcile_account','public.reconciliation_undo','public.recurrence_create','public.recurrence_delete','public.recurrence_end',
+        'public.period_summary','public.recurrence_create','public.recurrence_delete','public.recurrence_end',
         'public.recurrence_materialize','public.recurrence_update','public.remove_member','public.reset_household','public.reset_preview','public.set_card_cycle','public.set_card_identity','public.set_card_limit','public.set_card_pay_account']::text[],
   'lista de funções executáveis por authenticated é exatamente a esperada (funções de trigger: nenhuma)');
 
@@ -158,13 +164,13 @@ select is(
          order by 1),
   array['private.card_reopen_invoice','private.card_void_events','private.current_household','private.debt_balance','private.debt_chk','private.debt_chk_trg',
         'private.debt_lock','private.handle_new_user','private.is_member','private.is_owner',
-        'private.members_owner_guard','private.reconciled_until','private.recurrence_lock','private.seed_default_categories','private.shares_household',
+        'private.members_owner_guard','private.recurrence_lock','private.seed_default_categories','private.shares_household',
         'public.accept_invitation','public.account_delete','public.card_bill_due','public.card_installment_edit','public.card_invoice_reopen',
         'public.card_purchase','public.card_purchase_delete',
         'public.create_card','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
         'public.create_household','public.create_invitation','public.debt_anticipate','public.debt_archive','public.debt_bill','public.debt_delete',
         'public.debt_loan_event','public.debt_pay','public.debt_record_payment','public.debt_refund','public.debt_rename','public.debt_return','public.debt_set_terms','public.debt_unarchive','public.debt_void',
-        'public.delete_household','public.investment_asset_create','public.investment_operation_record','public.investment_valuation_record','public.leave_household','public.reconcile_account','public.reconciliation_undo','public.recurrence_create','public.recurrence_delete',
+        'public.delete_household','public.investment_asset_create','public.investment_operation_record','public.investment_valuation_record','public.leave_household','public.recurrence_create','public.recurrence_delete',
         'public.recurrence_end','public.recurrence_materialize','public.recurrence_update','public.remove_member',
         'public.reset_household','public.set_card_cycle','public.set_card_identity','public.set_card_limit','public.set_card_pay_account']::text[],
   'SECURITY DEFINER apenas nas funções auditadas (seção 6.1 do plano)');

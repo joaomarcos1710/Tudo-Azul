@@ -5,7 +5,7 @@ interface Props {
   titulo: ReactNode
   /** Uma linha dizendo para que a tela serve (design system: texto-secundário). */
   descricao?: ReactNode
-  /** Link de volta acima do título (ex.: Conferir → Contas). */
+  /** Link de volta acima do título, quando a tela foi aberta a partir de outra. */
   voltar?: { para: string; rotulo: string }
   /** Ações da tela: à direita do título no computador, embaixo dele no celular. */
   acoes?: ReactNode

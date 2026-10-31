@@ -1,5 +1,5 @@
 -- 16_reset: migration 009. "Zerar tudo": só o dono, só com a frase conferida no banco, apaga os dados
--- financeiros da própria família (inclusive períodos conciliados, cartão, dívida e lixeira), mantém família,
+-- financeiros da própria família (inclusive histórico legado, cartão, dívida e lixeira), mantém família,
 -- membros e categorias, registra a operação e nunca toca a família de outro usuário.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -52,14 +52,17 @@ reset role;
 select pg_temp.login('00000000-0000-0000-0000-0000000016a1');
 with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
            values (pg_temp.fx('h1'), 'Itaú', 'checking', 1000.00, '2026-10-01') returning id)
-  insert into fixture select 'itau', id from i;
+insert into fixture select 'itau', id from i;
 with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
            values (pg_temp.fx('h1'), 'Poupança', 'savings', 0, '2026-10-01') returning id)
   insert into fixture select 'poup', id from i;
 insert into fixture select 'cexp', id from public.categories where household_id = pg_temp.fx('h1') and name = 'Compras pessoais';
 insert into fixture select 'cinc', id from public.categories where household_id = pg_temp.fx('h1') and type = 'income' and system_key is null limit 1;
--- conciliação do Itaú até 05/10 (trava o período; o zerar tem que passar por cima)
-select public.reconcile_account(pg_temp.fx('itau'), '2026-10-05', 1000.00);
+-- checkpoint de histórico já existente: o reset explícito deve removê-lo junto dos dados financeiros.
+reset role;
+insert into public.account_reconciliations (household_id, account_id, as_of, statement_balance, transactions, created_by)
+values (pg_temp.fx('h1'), pg_temp.fx('itau'), '2026-10-05', 1000.00, 0, null);
+select pg_temp.login('00000000-0000-0000-0000-0000000016a1');
 insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status)
 values (pg_temp.fx('h1'), pg_temp.fx('itau'), pg_temp.fx('cexp'), 'expense', 'Mercado', 250.40, '2026-10-10', 'paid'),
        (pg_temp.fx('h1'), pg_temp.fx('itau'), pg_temp.fx('cinc'), 'income', 'Salário', 5000.00, '2026-10-11', 'paid'),
@@ -143,14 +146,14 @@ select is((select counts ->> 'transactions' from public.household_resets where h
           (select v from fixture_txt where k = 'tx_antes'), 'Z24 o registro guarda quantos lançamentos sumiram (os mesmos da prévia)');
 select is((select counts ->> 'reconciliations' from public.household_resets where household_id = pg_temp.fx('h1')), '1', 'Z25 registro: 1 conciliação');
 
--- Z26: recomeça do zero, sem trava de período
+-- Z26: recomeça do zero, sem o histórico financeiro que foi removido pelo reset explícito
 with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
            values (pg_temp.fx('h1'), 'Itaú novo', 'checking', 321.00, '2026-10-01') returning id)
   insert into fixture select 'novo', id from i;
 insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status)
 values (pg_temp.fx('h1'), pg_temp.fx('novo'), pg_temp.fx('cexp'), 'expense', 'Recomeço', 21.00, '2026-10-02', 'paid');
 select is((select balance from public.account_balances(pg_temp.fx('h1'), '2026-10-31') where account_id = pg_temp.fx('novo')), 300.00::numeric,
-          'Z26 depois de zerar dá para cadastrar de novo, com data antiga (a trava de período sumiu junto)');
+          'Z26 depois de zerar dá para cadastrar de novo com data anterior');
 
 -- Z27: zerar de novo é inofensivo (e a frase aceita maiúsculas e espaços)
 select is((public.reset_household(pg_temp.fx('h1'), '  ZERAR TUDO  ') ->> 'transactions')::int, 1, 'Z27 segundo zerar: apaga só o que há (1) e aceita ZERAR TUDO');

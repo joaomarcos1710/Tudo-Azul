@@ -11,8 +11,8 @@ tags: [tudo-azul, decisoes]
 | Merge só com "pode" e trava de commit | Controle do dono; evita merge de código diferente do testado |
 | Tailwind 4 em PR separado, com revisão visual | Mudança grande de estilo; não misturar com correção |
 | Compra no cartão conta na **data de fechamento**; pagar fatura não é despesa | Evita dupla contagem; bate com a fatura |
-| Conta nunca é apagada, só desativada | Preservar histórico e conferência |
-| Versão `AAAA.E` | Saber qual edição está rodando; recomeça a cada ano |
+| Conta com histórico não é apagada; arquivar é reversível e excluir só é permitido sem movimentos ou registros históricos | Preservar o rastro financeiro |
+| Versão `AAAA.PR` | Identificar a PR que trouxe a mudança; ano muda, sequência global do GitHub continua |
 | Limite de membros por família (1–10, padrão 2) | Base para planos pagos: 1, 3 e 5–10 já cabem |
 | Ocultar valores é só máscara na tela; campos usam função própria | Não correr risco de gravar valor errado |
 | Sem Open Finance / IA / app nativo / IR | Foco nos 3 critérios do corte |
@@ -58,3 +58,4 @@ tags: [tudo-azul, decisoes]
 
 
 | A fundação multimoeda deve preceder qualquer conta estrangeira; a fase 1 adiciona catálogo, moeda de consolidação e consulta cambial, mas não habilita moedas estrangeiras nas contas | As RPCs atuais de saldo, projeção, orçamento e relatórios ainda agregam valores em um total único. Só liberar moedas estrangeiras depois de substituí-las por agregações segregadas e conversão explícita no banco. |
+| A conferência manual com extrato e as travas de período estão descontinuadas (PR #110); preservar `account_reconciliations`, `transactions.reconciliation_id`, RLS e `account_movements` somente para histórico/exportação | O usuário registra os movimentos como fonte do controle financeiro e não quer uma etapa extra que bloqueie correções. Apagar o histórico quebraria a exportação e a rastreabilidade; novas conferências não devem ser gravadas. |

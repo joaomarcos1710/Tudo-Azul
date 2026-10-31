@@ -5,7 +5,7 @@ Esta entrega cria a base de referência de moedas e câmbio, mas **não habilita
 ## O que entra nesta fase
 
 - Catálogo inicial BRL, USD e EUR, com casas decimais (minor_unit).
-- households.report_currency, padrão BRL, alterável pelo owner.
+- households.report_currency, padrão BRL, bloqueada para alteração até a fase 2 implementar a conversão em todas as consultas e telas.
 - fx_rates, com taxa em direção explícita: unidades de quote por 1 unidade de base.
 - Histórico de cotação imutável e auditável, com data efetiva e fonte.
 - RPC fx_rate_at(base, quote, date): tenta par direto e inverso, aceita somente cotação com até sete dias de idade e devolve a data usada.

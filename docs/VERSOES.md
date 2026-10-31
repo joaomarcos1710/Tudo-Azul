@@ -1,14 +1,14 @@
 # Versões do Tudo Azul
 
-Formato: **`AAAA.N`** — o **ano** em que estamos e o **número da PR** (do GitHub) que trouxe a mudança.
+Formato: **`AAAA.PR`** — o **ano** em que estamos e o **número da PR** (do GitHub) que trouxe a mudança.
 Exemplo: a PR #98, aberta em 2026, vira `2026.98`. Quando o ano mudar, o ano muda e o número da PR continua a sequência
 do GitHub (ex.: `2027.130`).
 
 - **A cada PR** (de funcionalidade, correção, teste ou diário), na própria PR: `package.json` e `package-lock.json` →
-  `"version": "AAAA.N.0"`, com `N` = número da PR. O 3º número fica sempre `0` (só existe porque o npm exige três).
+  `"version": "AAAA.PR.0"`, com `PR` = número da PR. O 3º número fica sempre `0` (só existe porque o npm exige três).
   Como o número da PR só existe depois que ela é aberta, confira o número antes de abrir (o próximo da lista do
   GitHub) e corrija com um commit se errar.
-- **Onde aparece**: o app mostra `AAAA.N` na barra lateral, na tela de Família e nas telas de entrada; no deploy da
+- **Onde aparece**: o app mostra `AAAA.PR` na barra lateral, na tela de Família e nas telas de entrada; no deploy da
   Vercel aparece também o commit curto (`2026.98 · 98e83d0`).
 - **Merge fora de ordem:** a versão nunca diminui. Ao mesclar a PR #N, use o maior valor entre N e a versão já integrada
   na `main`. Uma PR mais antiga que a versão atual mantém a versão atual; uma PR mais nova avança para seu próprio número.
@@ -45,3 +45,4 @@ continuam abaixo como histórico.
 
 | 2026.104 | Carteira manual de investimentos: ativos BRL/USD/EUR, livro de compras/vendas, custo médio, avaliações manuais e totais segregados por moeda. Sem integração de caixa ou cotação automática nesta fase. |
 | 2026.107 | Recorrentes: remove a área de arquivo "Encerrados" e elimina regras já encerradas do banco, preservando lançamentos pagos, compras de cartão e compromissos históricos. |
+| 2026.110 | Descontinua a conferência manual e suas travas de período. Preserva checkpoints e marcas históricas, RLS e a consulta somente-leitura usada pela exportação completa. |

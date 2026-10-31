@@ -8,7 +8,7 @@ tags: [tudo-azul, glossario]
 - **RPC** — função do banco chamada pelo app (ex.: `period_summary`).
 - **pgTAP** — testes escritos no próprio banco.
 - **Migration** — arquivo numerado que altera o banco.
-- **Conciliação / conferência** — comparar o saldo do app com o extrato do banco e travar o período.
+- **Conferência legada** — checkpoints e marcas criados antes da descontinuação. Não há tela, gravação nova ou trava; o histórico permanece somente para leitura e exportação.
 - **Saldo de referência** — dívida que o cartão já tinha quando foi cadastrado.
 - **Fechamento / vencimento** — dia em que a fatura fecha / dia de pagar.
 - **Idempotência** — repetir o mesmo pedido (clique duplo) não duplica o registro.

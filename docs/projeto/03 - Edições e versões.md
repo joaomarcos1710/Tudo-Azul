@@ -3,9 +3,9 @@ tags: [tudo-azul, versao]
 ---
 # Edições e versões
 
-Formato: **`AAAA.N`** — o **ano** e o **número da PR** que trouxe a mudança (hoje: **2026.99**).
+Formato: **`AAAA.PR`** — o **ano** e o **número da PR** que trouxe a mudança (versão preparada nesta branch: **2026.110**).
 
-- **Desde 30/10/2026** a versão acompanha o maior número de PR já integrado. Em cada PR, use `AAAA.N.0` com `N` = maior valor entre o número da PR atual e a versão que já está na `main` (o 3º número é sempre `0`; o npm exige três). Assim, mesclar PRs fora de ordem nunca reduz a versão. Quando o ano mudar, o ano muda e a sequência de PRs continua.
+- **Desde 30/10/2026** a versão acompanha o maior número de PR já integrado. Em cada PR, use `AAAA.PR.0` com `PR` = maior valor entre o número da PR atual e a versão que já está na `main` (o 3º número é sempre `0`; o npm exige três). Assim, mesclar PRs fora de ordem nunca reduz a versão. Quando o ano mudar, o ano muda e a sequência de PRs continua.
 - O app mostra a versão na barra lateral, na tela Família e nas telas de entrada. No deploy aparece também o **commit** (ex.: `2026.99 · …`), útil para saber qual build está rodando.
 - Regra completa no repositório: `docs/VERSOES.md`.
 

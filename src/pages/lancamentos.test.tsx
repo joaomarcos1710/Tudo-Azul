@@ -218,7 +218,7 @@ describe('Lançamentos', () => {
     expect(mock.marcarComoPago).toHaveBeenCalledWith('p1', { data: '2026-10-12', valor: 14320 })
   })
 
-  it('marcar pago: valor inválido não chama o banco; erro do banco (período conciliado) aparece e a confirmação continua aberta', async () => {
+  it('marcar pago: valor inválido não chama o banco; erro do banco aparece e a confirmação continua aberta', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await u.click(await screen.findByRole('button', { name: 'Marcar pago' }))
@@ -230,7 +230,7 @@ describe('Lançamentos', () => {
     expect(await screen.findByText(/Informe um valor maior que zero/)).toBeTruthy()
     await u.clear(valor)
     await u.type(valor, '10,00')
-    mock.marcarComoPago.mockRejectedValue(Object.assign(new Error('a conta já foi conciliada até 2026-10-05'), { code: '55000' }))
+    mock.marcarComoPago.mockRejectedValue(Object.assign(new Error('a operação não está disponível'), { code: '55000' }))
     await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Confirmar pagamento' })).toBeTruthy() // continua aberta para corrigir a data

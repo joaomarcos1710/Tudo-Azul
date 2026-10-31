@@ -336,7 +336,7 @@ export async function editarLancamento(id: string, d: DadosLancamento): Promise<
 /**
  * Marca o planejado como pago com o que REALMENTE saiu ou entrou na conta. A data e o valor do planejado são só
  * estimativa (conta de luz paga dia 12 por 143,20, e não dia 10 por 150,00): sem trocar os dois, o saldo do dia
- * deixa de bater com o extrato. O banco confere período conciliado, abertura da conta e centavos.
+ * deixa de refletir o movimento real. O banco valida a abertura da conta e a precisão dos centavos.
  */
 export async function marcarComoPago(id: string, real: { data: string; valor: Cents }): Promise<void> {
   const { error } = await cliente()

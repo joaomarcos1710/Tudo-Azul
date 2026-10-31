@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { mensagemErroBanco } from './erros'
 
 describe('mensagemErroBanco', () => {
-  it('mostra o texto do banco em português e converte datas para DD/MM/AAAA (período conciliado)', () => {
-    const erro = { code: '55000', message: 'a conta já foi conciliada até 2026-10-05 : lançamento nesse período não pode ser alterado' }
-    expect(mensagemErroBanco(erro)).toBe('A conta já foi conciliada até 05/10/2026 : lançamento nesse período não pode ser alterado.')
+  it('mostra uma mensagem de estado inválido em português e converte datas para DD/MM/AAAA', () => {
+    const erro = { code: '55000', message: 'a operação não está disponível desde 2026-10-05' }
+    expect(mensagemErroBanco(erro)).toBe('A operação não está disponível desde 05/10/2026.')
   })
   it('não inventa data onde não há', () => {
     expect(mensagemErroBanco({ code: '22023', message: 'valor 1234-5 inválido' })).toBe('Valor 1234-5 inválido.')

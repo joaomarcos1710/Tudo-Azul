@@ -1,5 +1,7 @@
 # Tudo Azul — Plano técnico
 
+> **Status em 31/10/2026:** este plano preserva o escopo e o cronograma originais de 13/10. O produto evoluiu desde então: dívidas e investimentos manuais já têm fundação, a fase 1 multimoeda não habilita contas estrangeiras e a conferência manual está sendo descontinuada na PR #110. Para estado atual e próximos passos, consulte [`docs/projeto/40 - Pendências e próximos passos.md`](projeto/40%20-%20Pend%C3%AAncias%20e%20pr%C3%B3ximos%20passos.md). Open Finance continua fora de escopo.
+
 ## Escopo (revisado em 13/10/2026: "barco todo")
 **Núcleo:** autenticação, espaço familiar compartilhado, dashboard, contas, categorias, lançamentos, orçamentos, relatórios, exportação CSV, RLS.
 **Módulos (entram no produto, depois do núcleo estável):** cartões de crédito e parcelamentos, dívidas e empréstimos, investimentos, visão de patrimônio líquido.

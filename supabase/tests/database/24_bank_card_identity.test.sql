@@ -49,10 +49,9 @@ with a as (insert into public.accounts (household_id, name, type, initial_balanc
 select is(pg_temp.sqlstate_of(format('update public.accounts set bank = %L where id = %L', 'caixa', pg_temp.fx('cash'))), '23514',
           'BC7 carteira em dinheiro não tem banco');
 
--- conta já conciliada continua aceitando banco (só saldo inicial e abertura travam)
-select public.reconcile_account(pg_temp.fx('c'), '2026-10-15', 100.00);
+-- Metadados da conta podem mudar independentemente do histórico financeiro.
 update public.accounts set bank = 'itau' where id = pg_temp.fx('c');
-select is((select bank from public.accounts where id = pg_temp.fx('c')), 'itau', 'BC8 conta conciliada ainda aceita trocar o banco');
+select is((select bank from public.accounts where id = pg_temp.fx('c')), 'itau', 'BC8 conta aceita trocar o banco');
 
 -- cartão
 insert into fixture select 'k', public.create_debt('Cartão principal', 'card', '2026-10-01', 0);

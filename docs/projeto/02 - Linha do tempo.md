@@ -20,7 +20,7 @@ tags: [tudo-azul, historico]
 ## Fase 2 · 23–24/10 — cartão completo, recorrentes, conferência
 - Excluir compra, reabrir fatura, editar parcela (#29 banco, #30 front).
 - **Recorrentes**: contas mensais e assinaturas no cartão (#28, migration 006).
-- **Conciliação** com o extrato (#33, migration 007) — trava o período conferido.
+- **Conciliação** com o extrato (#33, migration 007) — implementada com trava de período; descontinuada pela PR #110, com histórico preservado.
 - **Logo** (#32) · **PWA**, app instalável no celular (#34).
 - **Exportação completa** em 5 arquivos para conferir saldos fora do app (#36).
 - **Visão geral v2**: gráficos por categoria e acumulado, KPIs com comparação (#35, migration 008).
@@ -43,7 +43,7 @@ tags: [tudo-azul, historico]
 - **Migration 015 aplicada em produção** em 26/10/2026, comprovada pela [execução 20 do workflow](https://github.com/joaomarcos1710/Tudo-Azul/actions/runs/40397169580), a partir do commit de merge `5ad36f1`; registro no diário (#60).
 - **Abrir no Início**, não na Família + **versão 2026.1** (#52) · **filtros de Lançamentos** (#53).
 - Dependências: **Vite 8, Vitest 5, plugin React 6** (#47) · política de dependências e exceção do Tailwind 3 (#49).
-- **Painel**: ações rápidas, vencidos, resumo dos cartões e conferência de saldo (#48).
+- **Painel**: ações rápidas, vencidos, resumo dos cartões e aviso de conferência de saldo (#48; aviso retirado na PR #110).
 - **Robustez do front**: respostas velhas, envio duplicado, pagar fatura e PWA (#50).
 - **Menu em grupos**, "Mais" no celular e **ocultar valores** (#54).
 - **Diário do projeto** (`docs/projeto/`) e regra de mantê-lo atualizado (`CLAUDE.md`) — PR #55.
@@ -90,5 +90,9 @@ tags: [tudo-azul, historico]
 - **Próxima fatura no cartão e no Início** (#93, merge `6c45d99`, 30/10/2026): "Próxima fatura (vence dd/mm)" com a fatura aberta que fecha primeiro, mesmo com "Fatura a pagar" zerada. Sem migration.
 - **Conta de pagamento padrão do cartão** (migration 024, #94, merge `49efc53`, 30/10/2026): `debts.pay_account_id` e `set_card_pay_account`; "paga com", sugestão em "Pagar fatura" e base do saldo projetado. Migration 024 aplicada em produção em 30/10/2026 (execução 38).
 
+## Fase 7 · 31/10 — patrimônio e simplificação do fluxo
+- Migrations 027–030: fundação cambial sem contas estrangeiras, moeda de consolidação bloqueada até conversão completa, módulo de dívidas e carteira manual segregada por moeda.
+- PR #110: remove a tela, ações, RPCs mutadoras e travas da conferência; checkpoints e marcas antigos permanecem somente para leitura/exportação.
+
 ## Ainda abertos
-Só este registro do diário em 28/10/2026.
+Ver PRs e próximas entregas em [[40 - Pendências e próximos passos]].

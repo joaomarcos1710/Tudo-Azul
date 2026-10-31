@@ -24,7 +24,6 @@ const fake = vi.hoisted(() => {
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
 import { resumoDosCartoes } from './cartoes'
-import { ultimasConferencias } from './conciliacao'
 import { vencidosPlanejados } from './painel'
 
 beforeEach(() => {
@@ -58,26 +57,6 @@ describe('vencidosPlanejados', () => {
   it('erro do banco sobe', async () => {
     fake.e.tabelas.transactions = { data: [], error: { message: 'rede' } }
     await expect(vencidosPlanejados('h1', '2026-10-25')).rejects.toMatchObject({ message: 'rede' })
-  })
-})
-
-describe('ultimasConferencias', () => {
-  it('uma consulta por conta, só a mais recente de cada uma; conta nunca conferida fica de fora', async () => {
-    fake.e.tabelas.accounts = { data: [{ id: 'a1' }, { id: 'a2' }, { id: 'a3' }] }
-    fake.e.tabelas.account_reconciliations = {
-      data: (eq) => ({ a1: [{ as_of: '2026-10-20' }], a2: [{ as_of: '2026-09-30' }] } as Record<string, unknown[]>)[eq.account_id as string] ?? [],
-    }
-    const m = await ultimasConferencias('h1')
-    expect([...m.entries()]).toEqual([['a1', '2026-10-20'], ['a2', '2026-09-30']])
-    expect(m.has('a3')).toBe(false)
-    const limites = fake.e.filtros.filter((x) => x.tabela === 'account_reconciliations' && x.op === 'limit')
-    expect(limites).toHaveLength(3)
-    expect(limites.every((x) => x.args[0] === 1)).toBe(true) // sem teto global: conta antiga não vira "nunca conferida"
-  })
-
-  it('erro do banco sobe', async () => {
-    fake.e.tabelas.accounts = { data: [], error: { message: 'rede' } }
-    await expect(ultimasConferencias('h1')).rejects.toMatchObject({ message: 'rede' })
   })
 })
 

@@ -16,7 +16,6 @@ const mock = vi.hoisted(() => ({
   vencidosPlanejados: vi.fn(),
   resumoDosCartoes: vi.fn(),
   totalFaturasDoMes: vi.fn(),
-  ultimasConferencias: vi.fn(),
   resumoDoPeriodo: vi.fn(),
   listarLancamentos: vi.fn(),
   listarCategorias: vi.fn(),
@@ -31,7 +30,6 @@ vi.mock('../lib/painel', () => ({
   projecaoDoMes: mock.projecaoDoMes,
   vencidosPlanejados: mock.vencidosPlanejados,
 }))
-vi.mock('../lib/conciliacao', () => ({ ultimasConferencias: mock.ultimasConferencias }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1', user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos }))
@@ -76,7 +74,6 @@ beforeEach(() => {
   mock.vencidosPlanejados.mockResolvedValue({ itens: [], total: 0 })
   mock.resumoDosCartoes.mockResolvedValue([])
   mock.totalFaturasDoMes.mockResolvedValue(null)
-  mock.ultimasConferencias.mockResolvedValue(new Map())
   mock.projecaoDoMes.mockResolvedValue({
     diasNoMes: 31, diasDecorridos: 10, diasRestantes: 21, gasto: c(1300000), previsto: c(25000), variavelAteAgora: c(30000),
     ritmoPorDia: c(3000), ritmoRestante: c(63000), projetado: c(1388000),
@@ -401,26 +398,12 @@ describe('Visão geral', () => {
     expect(screen.getByRole('link', { name: 'Ver cartões' })).toBeTruthy()
   })
 
-  it('conferência: conta nunca conferida e conta conferida há mais de 30 dias pedem atenção; recente fica neutra', async () => {
-    const hojeSP_ = new Date().toISOString().slice(0, 10)
-    const dia = (n: number) => new Date(Date.parse(hojeSP_ + 'T12:00:00Z') - n * 86_400_000).toISOString().slice(0, 10)
-    mock.listarContas.mockResolvedValue({
-      contas: [
-        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1000) },
-        { id: 'a3', nome: 'Nubank conta', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(2000) },
-        { id: 'a4', nome: 'Carteira', tipo: 'cash', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(300) },
-      ],
-      total: c(3300),
-    })
-    mock.ultimasConferencias.mockResolvedValue(new Map([['a3', dia(45)], ['a4', dia(2)]]))
+  it('Início mostra saldo da conta sem alerta nem ação de conferência', async () => {
     montar()
-    expect(await screen.findByText('Nunca conferida com o extrato')).toBeTruthy()
-    expect(screen.getByText(/\(há 45 dias\)/)).toBeTruthy()
-    const recente = screen.getByText(`Conferida em ${dia(2).split('-').reverse().join('/')}`)
-    expect(recente.className).toMatch(/text-slate-500/)
-    const hrefs = screen.getAllByRole('link', { name: /^Conferir / }).map((l) => l.getAttribute('href'))
-    expect(screen.getByRole('link', { name: 'Conferir Itaú' })).toBeTruthy()
-    expect(hrefs).toEqual(['/contas/a1/conferir', '/contas/a3/conferir', '/contas/a4/conferir'])
+    expect(await screen.findByText('Itaú')).toBeTruthy()
+    expect(screen.getByText('R$ 12.820,30')).toBeTruthy()
+    expect(screen.queryByText(/Nunca conferida|Conferida em/)).toBeNull()
+    expect(screen.queryByRole('link', { name: /Conferir/ })).toBeNull()
   })
 })
 
