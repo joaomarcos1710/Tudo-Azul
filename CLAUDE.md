@@ -16,7 +16,7 @@ Sem segredos, senhas, chaves nem dados reais nas notas.
 - Dinheiro em **centavos inteiros** no front; o front **não soma** dinheiro de relatório (vem do banco).
 - **Nunca edite migration já aplicada**: mudança = migration nova (e atualize `supabase/tests/database/00_audit.test.sql` quando criar função).
 - Produção do banco **só** pelo workflow "Supabase — aplicar migrations (produção)": simular → ler o log → aplicar (confirmação `APLICAR`), e só com o "pode" do dono.
-- A conferência manual com extrato está descontinuada: não reintroduzir tela, ações, RPCs de escrita ou travas. `account_reconciliations` e `transactions.reconciliation_id` permanecem somente para histórico/exportação.
+- A conferência manual com extrato está descontinuada: não reintroduzir tela, ações, RPCs de escrita ou travas. Checkpoints em `account_reconciliations` ficam retidos no banco, mas sem tela/arquivo próprio; `transactions.reconciliation_id` e `account_movements` preservam a marca histórica na exportação completa.
 - **Merge só com o "pode" do dono**, com a trava do commit exato; PR nasce rascunho e confirma o CI verde e a ausência de conflito antes.
 - Todo conserto vem com teste que **falha sem a correção**.
 - Nunca colar nem aceitar senha, chave secreta ou `service_role`; nada de dado real em teste.

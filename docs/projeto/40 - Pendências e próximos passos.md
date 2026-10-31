@@ -6,7 +6,7 @@ atualizado: 2026-10-31
 
 ## Estado atual
 
-- A conferência manual com extrato foi descontinuada nesta PR #110. A tela, os botões, os RPCs de gravação/desfazer e as travas de período saem; registros existentes continuam somente para leitura/exportação.
+- A conferência manual com extrato foi descontinuada nesta PR #110. A tela, os botões, os RPCs de gravação/desfazer e as travas de período saem. Checkpoints existentes ficam preservados no banco; não há tela/arquivo próprio para consultar data e saldo do checkpoint, embora a marca histórica dos movimentos continue na exportação completa.
 - O schema numerado da `main` chega à migration 030. A migration 031 está apenas nesta branch/PR; **não foi aplicada ao Supabase hospedado**.
 - A fundação multimoeda está na fase 1. Contas em moedas estrangeiras continuam bloqueadas até a fase 2 substituir saldos, relatórios, projeções e conversões. Open Finance está fora de escopo.
 - Esta PR não faz merge, deploy ou alteração em produção.
@@ -18,6 +18,7 @@ atualizado: 2026-10-31
 3. **PRs patrimoniais abertas:** revisar CI, migrations e testes antes de mergear #105, #106 e #109. Há timestamps e escopos de migration sobrepostos entre elas; resolver essa ordem primeiro. A migration 031 desta PR deve ser aplicada somente depois dessa reconciliação da sequência, via workflow autorizado.
 4. **Teste de uso:** conferir no iPhone o Calendário (saldo por data, opção de incluir planejados, fatura no vencimento), além das telas de Lançamentos, Cartões, Relatórios e investimentos quando os PRs correspondentes estiverem aprovados.
 5. **Dependências de desenvolvimento:** reavaliar o `npm audit` na base atual e tratar vulnerabilidades remanescentes em PR separada.
+6. **Acesso ao legado:** decidir separadamente se os checkpoints antigos precisam de uma exportação somente-leitura com data e saldo informado; não reativar o fluxo de conferência.
 
 ## Roadmap
 

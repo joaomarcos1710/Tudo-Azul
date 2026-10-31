@@ -45,7 +45,7 @@ A série numerada chega à **030 na `main`** e a PR #110 prepara a 031. O dono i
 
 ## Detalhes da 031
 - Remove `transactions_period_guard`, `debt_events_period_guard` e `accounts_period_guard`, além de `private.reconciled_until` e os RPCs `reconcile_account`/`reconciliation_undo`.
-- Preserva `account_reconciliations`, `transactions.reconciliation_id`, RLS e `account_movements`; a exportação continua capaz de ler marcas históricas. Nenhum lançamento, checkpoint ou saldo é alterado.
+- Preserva `account_reconciliations`, `transactions.reconciliation_id`, RLS e `account_movements`; a exportação continua capaz de ler marcas históricas dos movimentos. Nenhum lançamento, checkpoint ou saldo é alterado. As linhas de checkpoint (data/saldo informado) ficam no banco, sem tela ou arquivo próprio no app.
 - `00_audit` exige a ausência dos RPCs/triggers e mantém `account_movements`; `13_reconciliation` cobre leitura, preservação, ausência de bloqueio, escrita negada e isolamento por família.
 - **Ordem:** não aplicar a 031 enquanto migrations de PRs patrimoniais abertas (#105, #106 e #109) não tiverem sido ordenadas/resolvidas; só pelo workflow autorizado e após aprovação explícita.
 
