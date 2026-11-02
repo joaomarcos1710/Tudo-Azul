@@ -9,6 +9,9 @@ const mock = vi.hoisted(() => ({
   listarAlocacaoInvestimentos: vi.fn(),
   criarAtivoInvestimento: vi.fn(),
   definirSubclasseAtivo: vi.fn(),
+  listarProventosPorAtivo: vi.fn(),
+  registrarProventoInvestimento: vi.fn(),
+  listarContas: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -20,7 +23,10 @@ vi.mock('../lib/investimentos', async (o) => ({
   listarAlocacaoInvestimentos: mock.listarAlocacaoInvestimentos,
   criarAtivoInvestimento: mock.criarAtivoInvestimento,
   definirSubclasseAtivo: mock.definirSubclasseAtivo,
+  listarProventosPorAtivo: mock.listarProventosPorAtivo,
+  registrarProventoInvestimento: mock.registrarProventoInvestimento,
 }))
+vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
 import Investimentos from './Investimentos'
 import type { Cents } from '../lib/format'
@@ -51,6 +57,9 @@ beforeEach(() => {
     { moeda: 'BRL', nivel: 'subclass', macro: 'other', subclasse: null, valor: c(5000), percentual: 6.7 },
     { moeda: 'BRL', nivel: 'subclass', macro: 'variable', subclasse: 'Ações', valor: c(10000), percentual: 13.3 },
   ])
+  mock.listarProventosPorAtivo.mockResolvedValue([])
+  mock.registrarProventoInvestimento.mockResolvedValue(undefined)
+  mock.listarContas.mockResolvedValue({ contas: [{ id: 'c1', nome: 'Corretora', ativa: true }, { id: 'c2', nome: 'Antiga', ativa: false }], total: c(0) })
   mock.criarAtivoInvestimento.mockResolvedValue('novo-id')
   mock.definirSubclasseAtivo.mockResolvedValue(undefined)
 })
@@ -144,5 +153,85 @@ describe('Investimentos × macroclasse e subclasse', () => {
     expect(screen.getAllByText(/Tesouro Selic/).length).toBeGreaterThan(0)
     expect(screen.queryByText('Alocação da carteira')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  describe('proventos', () => {
+    it('mostra os proventos por ativo com os valores do banco, e o planejado à parte', async () => {
+      mock.listarProventosPorAtivo.mockResolvedValue([
+        { assetId: 'a2', nome: 'Ação Y', moeda: 'BRL', recebido: c(8500), previsto: c(0), ultimoRecebimento: '2026-10-20' },
+        { assetId: 'a1', nome: 'FII Z', moeda: 'BRL', recebido: c(12050), previsto: c(3000), ultimoRecebimento: null },
+      ])
+      render(<Investimentos />)
+      const secao = (await screen.findByRole('heading', { name: 'Proventos recebidos' })).closest('section') as HTMLElement
+      expect(secao.textContent).toMatch(/85,00/)
+      expect(secao.textContent).toMatch(/120,50/)
+      expect(secao.textContent).toMatch(/Planejado: R\$\s*30,00/)
+      expect(secao.textContent).toMatch(/Nada planejado/)
+    })
+
+    it('registrar provento: manda o valor líquido em centavos, a conta e a situação escolhidas', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar provento' }))
+      await u.selectOptions(screen.getByLabelText('Ativo'), 'a2')
+      await u.selectOptions(screen.getByLabelText('Tipo'), 'jcp')
+      await u.type(screen.getByLabelText('Valor líquido recebido (R$)'), '120,50')
+      await u.click(screen.getAllByRole('button', { name: 'Registrar provento' })[1])
+      expect(mock.registrarProventoInvestimento).toHaveBeenCalledWith(expect.objectContaining({
+        ativoId: 'a2', tipo: 'jcp', valor: 12050, contaId: 'c1', status: 'paid',
+      }))
+    })
+
+    it('só oferece contas ativas e só ativos em reais', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([
+        ativo('a1', 'Tesouro Selic', 'fixed_income'), ativo('a9', 'ETF Global', 'etf', { moeda: 'USD' }),
+      ])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar provento' }))
+      const ativosOpcoes = within(screen.getByLabelText('Ativo')).getAllByRole('option').map((o) => o.textContent)
+      expect(ativosOpcoes).toEqual(['Tesouro Selic'])
+      const contasOpcoes = within(screen.getByLabelText('Conta que recebe')).getAllByRole('option').map((o) => o.textContent)
+      expect(contasOpcoes).toEqual(['Corretora'])
+    })
+
+    it('sem ativo em reais, o botão fica desabilitado', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a9', 'ETF Global', 'etf', { moeda: 'USD' })])
+      render(<Investimentos />)
+      const botao = await screen.findByRole('button', { name: 'Registrar provento' })
+      expect((botao as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('valor vazio ou pago com data futura não chama o banco', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar provento' }))
+      await u.click(screen.getAllByRole('button', { name: 'Registrar provento' })[1])
+      expect(screen.getByText(/Confira ativo, conta, data e o valor líquido/)).toBeTruthy()
+      await u.type(screen.getByLabelText('Valor líquido recebido (R$)'), '10')
+      await u.clear(screen.getByLabelText('Data'))
+      await u.type(screen.getByLabelText('Data'), '2099-01-01')
+      await u.click(screen.getAllByRole('button', { name: 'Registrar provento' })[1])
+      expect(screen.getByText(/não pode ter data futura/)).toBeTruthy()
+      expect(mock.registrarProventoInvestimento).not.toHaveBeenCalled()
+    })
+
+    it('banco sem a migration 035: a carteira aparece normalmente, só sem a seção de proventos', async () => {
+      mock.listarProventosPorAtivo.mockRejectedValue(new Error('function public.investment_income_by_asset does not exist'))
+      render(<Investimentos />)
+      expect(await screen.findByText('Resumo da carteira')).toBeTruthy()
+      expect(screen.queryByText('Proventos recebidos')).toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('erro do banco ao registrar (ex.: conta conciliada) aparece e a tela segue', async () => {
+      mock.registrarProventoInvestimento.mockRejectedValue(new Error('a conta já foi conciliada'))
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar provento' }))
+      await u.type(screen.getByLabelText('Valor líquido recebido (R$)'), '10')
+      await u.click(screen.getAllByRole('button', { name: 'Registrar provento' })[1])
+      expect(await screen.findByRole('alert')).toBeTruthy()
+    })
   })
 })

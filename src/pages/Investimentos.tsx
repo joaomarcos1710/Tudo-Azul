@@ -8,18 +8,22 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { useFamilia } from '../lib/FamiliaContext'
-import { hojeSP } from '../lib/contas'
+import { hojeSP, listarContas } from '../lib/contas'
+import type { Conta } from '../lib/contas'
+import { currentMonth } from '../lib/format'
+import { limitesDoMes, somarMeses } from '../lib/lancamentos'
 import { formatBRL, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  MACROS, SUGESTOES_SUBCLASSE, criarAtivoInvestimento, definirSubclasseAtivo, listarAlocacaoInvestimentos, listarAtivosInvestimento,
-  listarCarteiraInvestimentos, macroDaClasse, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento,
+  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, criarAtivoInvestimento, definirSubclasseAtivo, listarAlocacaoInvestimentos, listarAtivosInvestimento,
+  listarCarteiraInvestimentos, listarProventosPorAtivo, macroDaClasse, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento,
+  registrarProventoInvestimento,
 } from '../lib/investimentos'
 import type {
-  AtivoInvestimento, ClasseAtivo, LinhaAlocacao, MoedaInvestimento, PosicaoInvestimento,
-  TipoOperacaoInvestimento, TotalInvestimento,
+  AtivoInvestimento, ClasseAtivo, LinhaAlocacao, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
+  TipoOperacaoInvestimento, TipoProvento, TotalInvestimento,
 } from '../lib/investimentos'
 
 const classes: [ClasseAtivo, string][] = [
@@ -55,6 +59,9 @@ export default function Investimentos() {
   const [filtroMacro, setFiltroMacro] = useState('')
   const [filtroSub, setFiltroSub] = useState('')
   const [editandoSub, setEditandoSub] = useState<string | null>(null)
+  const [proventos, setProventos] = useState<ProventoAtivo[]>([])
+  const [contas, setContas] = useState<Conta[]>([])
+  const [novoProvento, setNovoProvento] = useState(false)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [novoAtivo, setNovoAtivo] = useState(false)
@@ -74,6 +81,12 @@ export default function Investimentos() {
       setTotais(carteira.totais)
       setErro('')
       try { setAlocacao(await listarAlocacaoInvestimentos(familia.id, hojeSP())) } catch { setAlocacao([]) }
+      // proventos: 12 meses para trás e 6 para frente (os planejados). Sem a migration 035, a seção só some.
+      try {
+        const mes = currentMonth()
+        setProventos(await listarProventosPorAtivo(familia.id, limitesDoMes(somarMeses(mes, -11))[0], limitesDoMes(somarMeses(mes, 6))[1]))
+      } catch { setProventos([]) }
+      try { setContas((await listarContas(familia.id)).contas) } catch { setContas([]) }
     } catch (e) {
       setErro(mensagemErroBanco(e))
     } finally {
@@ -98,6 +111,15 @@ export default function Investimentos() {
       }
       await carregar() // recarregar limpa o erro; por isso o aviso da subclasse entra depois
       if (avisoSub) setErro(avisoSub)
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+  async function salvarProvento(d: {
+    ativoId: string; tipo: TipoProvento; data: string; valor: Cents; contaId: string; status: 'paid' | 'planned'; observacao: string
+  }) {
+    try {
+      await registrarProventoInvestimento(d)
+      setNovoProvento(false)
+      await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
   async function salvarSubclasse(ativoId: string, subclasse: string) {
@@ -126,6 +148,9 @@ export default function Investimentos() {
   }
 
   const ativosAtivos = ativos.filter((a) => a.ativo)
+  // provento vira receita numa conta, e as contas ainda são só em reais: só ativos em BRL
+  const ativosEmReais = ativosAtivos.filter((a) => a.moeda === 'BRL')
+  const contasAtivas = contas.filter((c) => c.ativa)
   const porId = new Map(ativos.map((a) => [a.id, a]))
   const subclassesExistentes = [...new Set(ativos.map((a) => a.subclasse).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const posicoesFiltradas = posicoes.filter((p) =>
@@ -138,6 +163,7 @@ export default function Investimentos() {
         acoes={
           <div className="flex flex-wrap gap-2">
             <Button variante="secundario" onClick={() => setNovoAtivo(true)}>Novo ativo</Button>
+            <Button variante="secundario" onClick={() => setNovoProvento(true)} disabled={ativosEmReais.length === 0}>Registrar provento</Button>
             <Button onClick={() => setNovaOperacao(true)} disabled={ativosAtivos.length === 0}>Registrar operação</Button>
           </div>
         }
@@ -150,6 +176,9 @@ export default function Investimentos() {
       {novoAtivo && <FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
         <FormOperacao ativos={ativosAtivos} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
+      )}
+      {novoProvento && (
+        <FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} />
       )}
       {novaAvaliacao && (
         <FormAvaliacao ativos={ativosAtivos} aoSalvar={salvarAvaliacao} aoCancelar={() => setNovaAvaliacao(false)} />
@@ -188,6 +217,7 @@ export default function Investimentos() {
       </section>
 
       {alocacao.length > 0 && <SecaoAlocacao linhas={alocacao} />}
+      {proventos.length > 0 && <SecaoProventos linhas={proventos} />}
 
       <section className="mt-8" aria-labelledby="titulo-posicoes">
         <h2 id="titulo-posicoes" className="mb-3 text-lg font-semibold">Ativos e posições</h2>
@@ -270,6 +300,77 @@ function SecaoAlocacao({ linhas }: { linhas: LinhaAlocacao[] }) {
       </div>
     </section>
   )
+}
+
+/** Proventos por ativo (12 meses para trás, 6 para frente). Os valores vêm do banco, somados dos próprios lançamentos. */
+function SecaoProventos({ linhas }: { linhas: ProventoAtivo[] }) {
+  return (
+    <section className="mt-8" aria-labelledby="titulo-proventos">
+      <h2 id="titulo-proventos" className="mb-1 text-lg font-semibold">Proventos recebidos</h2>
+      <p className="mb-3 text-sm text-slate-500">
+        Últimos 12 meses, mais o que está planejado nos próximos 6. Cada provento é uma receita na conta e também aparece em Lançamentos e no Calendário.
+      </p>
+      <ul className="flex flex-col gap-2">
+        {linhas.map((l) => (
+          <li key={l.assetId}>
+            <Card>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="font-semibold">{l.nome}</p>
+                <p className="tabular-nums"><span className="text-sm text-slate-500">Recebido </span><strong>{moeda(l.recebido, l.moeda)}</strong></p>
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                {l.previsto > 0 ? `Planejado: ${moeda(l.previsto, l.moeda)}` : 'Nada planejado'}
+                {l.ultimoRecebimento ? ` · último em ${new Date(l.ultimoRecebimento + 'T12:00:00').toLocaleDateString('pt-BR')}` : ''}
+              </p>
+            </Card>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function FormProvento({ ativos, contas, aoSalvar, aoCancelar }: {
+  ativos: AtivoInvestimento[]
+  contas: Conta[]
+  aoSalvar: (d: { ativoId: string; tipo: TipoProvento; data: string; valor: Cents; contaId: string; status: 'paid' | 'planned'; observacao: string }) => Promise<void>
+  aoCancelar: () => void
+}) {
+  const [ativoId, setAtivoId] = useState(ativos[0]?.id ?? '')
+  const [tipo, setTipo] = useState<TipoProvento>('dividend')
+  const [data, setData] = useState(hojeSP())
+  const [valorTexto, setValorTexto] = useState('')
+  const [contaId, setContaId] = useState(contas[0]?.id ?? '')
+  const [status, setStatus] = useState<'paid' | 'planned'>('paid')
+  const [observacao, setObservacao] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [erro, setErro] = useState('')
+  const valor = parseBRL(valorTexto)
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    if (!ativoId || !contaId || !data || valor === null || valor <= 0) { setErro('Confira ativo, conta, data e o valor líquido recebido.'); return }
+    if (status === 'paid' && data > hojeSP()) { setErro('Provento pago não pode ter data futura: marque como planejado.'); return }
+    setErro(''); setEnviando(true)
+    try { await aoSalvar({ ativoId, tipo, data, valor, contaId, status, observacao }) }
+    finally { setEnviando(false) }
+  }
+  return <Card className="mb-5"><h2 className="mb-3 text-lg font-semibold">Registrar provento</h2>
+    <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <Selecao rotulo="Ativo" valor={ativoId} aoMudar={setAtivoId} opcoes={ativos.map((a) => [a.id, a.nome])} />
+      <Selecao rotulo="Tipo" valor={tipo} aoMudar={(v) => setTipo(v as TipoProvento)} opcoes={TIPOS_PROVENTO.map((t) => [t.chave, t.rotulo])} />
+      <Field rotulo="Data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+      <Field rotulo="Valor líquido recebido (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} placeholder="Ex.: 120,50" />
+      <Selecao rotulo="Conta que recebe" valor={contaId} aoMudar={setContaId} opcoes={contas.map((c) => [c.id, c.nome])} />
+      <Selecao rotulo="Situação" valor={status} aoMudar={(v) => setStatus(v as 'paid' | 'planned')} opcoes={[['paid', 'Já recebido'], ['planned', 'Planejado']]} />
+      <Field rotulo="Observação (opcional)" value={observacao} onChange={(e) => setObservacao(e.target.value)} maxLength={500} />
+      <p className="text-sm text-slate-600 md:col-span-2">
+        Informe o valor <strong>líquido</strong>, o que caiu na conta (no JCP, já sem o imposto retido). O provento entra como receita na categoria Rendimentos e muda o saldo da conta.
+        Só ativos em reais por enquanto.
+      </p>
+      <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Registrar provento</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
+    </form>
+  </Card>
 }
 
 function EditorSubclasse({ ativo, aoSalvar, aoCancelar }: { ativo: AtivoInvestimento; aoSalvar: (v: string) => Promise<void>; aoCancelar: () => void }) {
