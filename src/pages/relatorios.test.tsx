@@ -16,6 +16,9 @@ vi.mock('../lib/csv', async (o) => ({
   baixarArquivo: mock.baixarArquivo, exportacaoCompleta: mock.exportacaoCompleta, lancamentosParaExportar: mock.lancamentosParaExportar,
 }))
 
+// o bloco Entradas x Saídas tem teste próprio (components/entradasSaidas.test.tsx); aqui só importa a exportação
+vi.mock('../components/EntradasSaidas', () => ({ EntradasSaidas: () => null }))
+
 import Relatorios from './Relatorios'
 
 afterEach(() => {

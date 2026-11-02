@@ -50,3 +50,4 @@ continuam abaixo como histórico.
 | 2026.113 | Workflow de migrations de produção: CLI do Supabase fixada na linha 2.x e alvo explícito `--linked` (a CLI `latest` passou a recusar `migration list --password` e derrubava o workflow antes de simular). |
 | 2026.114 | Categorias na regra 50-30-20: cada categoria de despesa pode ser classificada em Necessidades, Desejos ou Investir e poupar (migration 032); Categorias mostra o cartão do mês com a parte da renda em cada grupo. Nada é classificado sem a pessoa escolher. |
 | 2026.115 | Diário: registra a aplicação das migrations 031 e 032 em produção (02/11/2026). Sem mudança de código. |
+| 2026.116 | Relatório Entradas x Saídas em Relatórios: por dia, semana ou mês, com acumulado, filtro por conta e por quem lançou e a chave "Considerar não pagos" (migration 033, `cash_flow_report`). Valores e totais vêm do banco. |

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { EntradasSaidas } from '../components/EntradasSaidas'
 import { ExportacaoCompleta } from '../components/ExportacaoCompleta'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
@@ -37,9 +38,10 @@ export default function Relatorios() {
 
   return (
     <>
-      <CabecalhoPagina titulo="Relatórios e exportação" descricao="Leve os dados para a planilha ou guarde uma cópia completa." />
+      <CabecalhoPagina titulo="Relatórios e exportação" descricao="Veja entradas e saídas por período e leve os dados para a planilha ou guarde uma cópia completa." />
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {ok && <div className="mb-4"><Aviso tipo="sucesso">{ok}</Aviso></div>}
+      <EntradasSaidas />
       <Card className="mb-4">
         <CardTitle>Lançamentos do mês (CSV)</CardTitle>
         <p className="mb-4 text-sm text-slate-600">
