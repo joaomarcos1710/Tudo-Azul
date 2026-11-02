@@ -14,11 +14,11 @@ import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  criarAtivoInvestimento, listarAtivosInvestimento, listarCarteiraInvestimentos,
-  registrarAvaliacaoInvestimento, registrarOperacaoInvestimento,
+  MACROS, SUGESTOES_SUBCLASSE, criarAtivoInvestimento, definirSubclasseAtivo, listarAlocacaoInvestimentos, listarAtivosInvestimento,
+  listarCarteiraInvestimentos, macroDaClasse, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento,
 } from '../lib/investimentos'
 import type {
-  AtivoInvestimento, ClasseAtivo, MoedaInvestimento, PosicaoInvestimento,
+  AtivoInvestimento, ClasseAtivo, LinhaAlocacao, MoedaInvestimento, PosicaoInvestimento,
   TipoOperacaoInvestimento, TotalInvestimento,
 } from '../lib/investimentos'
 
@@ -50,6 +50,11 @@ export default function Investimentos() {
   const [ativos, setAtivos] = useState<AtivoInvestimento[]>([])
   const [posicoes, setPosicoes] = useState<PosicaoInvestimento[]>([])
   const [totais, setTotais] = useState<TotalInvestimento[]>([])
+  // vazio também quando o banco ainda não tem a migration 034: a seção de alocação só some, o resto da tela segue
+  const [alocacao, setAlocacao] = useState<LinhaAlocacao[]>([])
+  const [filtroMacro, setFiltroMacro] = useState('')
+  const [filtroSub, setFiltroSub] = useState('')
+  const [editandoSub, setEditandoSub] = useState<string | null>(null)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [novoAtivo, setNovoAtivo] = useState(false)
@@ -68,6 +73,7 @@ export default function Investimentos() {
       setPosicoes(carteira.posicoes)
       setTotais(carteira.totais)
       setErro('')
+      try { setAlocacao(await listarAlocacaoInvestimentos(familia.id, hojeSP())) } catch { setAlocacao([]) }
     } catch (e) {
       setErro(mensagemErroBanco(e))
     } finally {
@@ -79,10 +85,25 @@ export default function Investimentos() {
   const familiaId = familia?.id ?? ''
   if (!familiaId) return null
 
-  async function salvarAtivo(d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento }) {
+  async function salvarAtivo(d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string }) {
     try {
-      await criarAtivoInvestimento({ familiaId, ...d })
+      const { subclasse, ...ativo } = d
+      const id = await criarAtivoInvestimento({ familiaId, ...ativo })
       setNovoAtivo(false)
+      let avisoSub = ''
+      if (subclasse.trim()) {
+        try { await definirSubclasseAtivo(id, subclasse) } catch (e) {
+          avisoSub = `Ativo cadastrado, mas a subclasse não foi salva: ${mensagemErroBanco(e)}`
+        }
+      }
+      await carregar() // recarregar limpa o erro; por isso o aviso da subclasse entra depois
+      if (avisoSub) setErro(avisoSub)
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+  async function salvarSubclasse(ativoId: string, subclasse: string) {
+    try {
+      await definirSubclasseAtivo(ativoId, subclasse)
+      setEditandoSub(null)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
@@ -105,6 +126,10 @@ export default function Investimentos() {
   }
 
   const ativosAtivos = ativos.filter((a) => a.ativo)
+  const porId = new Map(ativos.map((a) => [a.id, a]))
+  const subclassesExistentes = [...new Set(ativos.map((a) => a.subclasse).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const posicoesFiltradas = posicoes.filter((p) =>
+    (!filtroMacro || macroDaClasse(p.classe) === filtroMacro) && (!filtroSub || porId.get(p.assetId)?.subclasse === filtroSub))
   return (
     <>
       <CabecalhoPagina
@@ -162,13 +187,24 @@ export default function Investimentos() {
         )}
       </section>
 
+      {alocacao.length > 0 && <SecaoAlocacao linhas={alocacao} />}
+
       <section className="mt-8" aria-labelledby="titulo-posicoes">
         <h2 id="titulo-posicoes" className="mb-3 text-lg font-semibold">Ativos e posições</h2>
-        {posicoes.length > 0 ? (
+        {posicoes.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-3">
+            <Selecao rotulo="Macroclasse" valor={filtroMacro} aoMudar={setFiltroMacro} todos="Todas" opcoes={MACROS.map((m) => [m.chave, m.rotulo])} />
+            <Selecao rotulo="Subclasse" valor={filtroSub} aoMudar={setFiltroSub} todos="Todas" opcoes={subclassesExistentes.map((x) => [x, x])} />
+          </div>
+        )}
+        {posicoes.length > 0 && posicoesFiltradas.length === 0 && (
+          <p className="text-sm text-slate-600">Nenhuma posição com esse filtro.</p>
+        )}
+        {posicoesFiltradas.length > 0 ? (
           <ul className="flex flex-col gap-3">
-            {posicoes.map((p) => <li key={p.assetId}><Card><Posicao p={p} /></Card></li>)}
+            {posicoesFiltradas.map((p) => <li key={p.assetId}><Card><Posicao p={p} /></Card></li>)}
           </ul>
-        ) : !carregando && ativos.length > 0 ? (
+        ) : !carregando && ativos.length > 0 && posicoes.length === 0 ? (
           <EmptyState titulo="Ativos cadastrados, sem posição" descricao="Registre uma compra para que a posição apareça aqui." acao={<Button onClick={() => setNovaOperacao(true)}>Registrar compra</Button>} />
         ) : null}
       </section>
@@ -179,14 +215,74 @@ export default function Investimentos() {
           <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200">
             {ativos.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
-                <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda}</p></div>
-                <span className="text-xs text-slate-500">{a.ativo ? 'Ativo' : 'Arquivado'}</span>
+                <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda} · {a.subclasse ?? 'sem subclasse'}</p></div>
+                <span className="flex items-center gap-2">
+                  <Button compacto variante="fantasma" onClick={() => setEditandoSub(editandoSub === a.id ? null : a.id)}>Subclasse de {a.nome}</Button>
+                  <span className="text-xs text-slate-500">{a.ativo ? 'Ativo' : 'Arquivado'}</span>
+                </span>
+                {editandoSub === a.id && <EditorSubclasse ativo={a} aoSalvar={(v) => salvarSubclasse(a.id, v)} aoCancelar={() => setEditandoSub(null)} />}
               </li>
             ))}
           </ul>
         )}
       </section>
     </>
+  )
+}
+
+/** Alocação por moeda: macroclasse e subclasse. Valores e percentuais vêm do banco (investment_allocation). */
+function SecaoAlocacao({ linhas }: { linhas: LinhaAlocacao[] }) {
+  const moedasPresentes = [...new Set(linhas.map((l) => l.moeda))]
+  return (
+    <section className="mt-8" aria-labelledby="titulo-alocacao">
+      <h2 id="titulo-alocacao" className="mb-1 text-lg font-semibold">Alocação da carteira</h2>
+      <p className="mb-3 text-sm text-slate-500">
+        Percentuais sobre o total de cada moeda, calculados no banco. Fundos e “outros” ficam à parte porque podem ser de renda fixa ou variável.
+      </p>
+      <div className="grid gap-3 lg:grid-cols-2">
+        {moedasPresentes.map((m) => {
+          const deste = linhas.filter((l) => l.moeda === m)
+          const macros = deste.filter((l) => l.nivel === 'macro')
+          return (
+            <Card key={m}>
+              <h3 className="mb-2 font-semibold">Em {m}</h3>
+              <ul className="flex flex-col gap-2">
+                {macros.map((mac) => (
+                  <li key={mac.macro}>
+                    <div className="flex flex-wrap justify-between gap-2 text-sm">
+                      <strong>{MACROS.find((x) => x.chave === mac.macro)?.rotulo ?? mac.macro}</strong>
+                      <span className="tabular-nums">{moeda(mac.valor, m)} · {mac.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>
+                    </div>
+                    <ul className="mt-1 border-l-2 border-slate-100 pl-3">
+                      {deste.filter((l) => l.nivel === 'subclass' && l.macro === mac.macro).map((sub) => (
+                        <li key={sub.subclasse ?? '∅'} className="flex flex-wrap justify-between gap-2 text-sm text-slate-600">
+                          <span>{sub.subclasse ?? 'Sem subclasse'}</span>
+                          <span className="tabular-nums">{moeda(sub.valor, m)} · {sub.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function EditorSubclasse({ ativo, aoSalvar, aoCancelar }: { ativo: AtivoInvestimento; aoSalvar: (v: string) => Promise<void>; aoCancelar: () => void }) {
+  const [valor, setValor] = useState(ativo.subclasse ?? '')
+  const [enviando, setEnviando] = useState(false)
+  const lista = `sugestoes-subclasse-${ativo.id}`
+  return (
+    <form className="flex w-full flex-wrap items-end gap-2" onSubmit={(e) => { e.preventDefault(); setEnviando(true); void aoSalvar(valor).finally(() => setEnviando(false)) }}>
+      <Field rotulo={`Subclasse de ${ativo.nome} (vazio limpa)`} value={valor} onChange={(e) => setValor(e.target.value)} maxLength={40} list={lista} />
+      <datalist id={lista}>{SUGESTOES_SUBCLASSE[ativo.classe].map((x) => <option key={x} value={x} />)}</datalist>
+      <Button type="submit" carregando={enviando}>Salvar subclasse</Button>
+      <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
+    </form>
   )
 }
 
@@ -213,9 +309,10 @@ function Posicao({ p }: { p: PosicaoInvestimento }) {
 }
 
 function FormAtivo({ aoSalvar, aoCancelar }: {
-  aoSalvar: (d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento }) => Promise<void>
+  aoSalvar: (d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string }) => Promise<void>
   aoCancelar: () => void
 }) {
+  const [subclasse, setSubclasse] = useState('')
   const [nome, setNome] = useState('')
   const [ticker, setTicker] = useState('')
   const [classe, setClasse] = useState<ClasseAtivo>('fixed_income')
@@ -226,7 +323,7 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
     e.preventDefault()
     if (!nome.trim()) { setErro('Informe o nome do ativo.'); return }
     setEnviando(true); setErro('')
-    try { await aoSalvar({ nome, ticker, classe, moeda: moedaAtivo }) }
+    try { await aoSalvar({ nome, ticker, classe, moeda: moedaAtivo, subclasse }) }
     finally { setEnviando(false) }
   }
   return <Card className="mb-5"><h2 className="mb-3 text-lg font-semibold">Cadastrar ativo</h2>
@@ -236,6 +333,8 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
       <Field rotulo="Ticker ou código (opcional)" value={ticker} onChange={(e) => setTicker(e.target.value)} maxLength={20} placeholder="Ex.: PETR4, IVVB11, BTC" />
       <Selecao rotulo="Classe" valor={classe} aoMudar={(v) => setClasse(v as ClasseAtivo)} opcoes={classes} />
       <Selecao rotulo="Moeda do ativo" valor={moedaAtivo} aoMudar={(v) => setMoedaAtivo(v as MoedaInvestimento)} opcoes={moedas} />
+      <Field rotulo="Subclasse (opcional)" value={subclasse} onChange={(e) => setSubclasse(e.target.value)} maxLength={40} list="sugestoes-subclasse-novo" placeholder="Ex.: Tesouro Direto, CDB, FIIs" />
+      <datalist id="sugestoes-subclasse-novo">{SUGESTOES_SUBCLASSE[classe].map((x) => <option key={x} value={x} />)}</datalist>
       <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Salvar ativo</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
     </form>
   </Card>

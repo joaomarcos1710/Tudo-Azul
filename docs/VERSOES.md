@@ -52,3 +52,4 @@ continuam abaixo como histórico.
 | 2026.115 | Diário: registra a aplicação das migrations 031 e 032 em produção (02/11/2026). Sem mudança de código. |
 | 2026.116 | Relatório Entradas x Saídas em Relatórios: por dia, semana ou mês, com acumulado, filtro por conta e por quem lançou e a chave "Considerar não pagos" (migration 033, `cash_flow_report`). Valores e totais vêm do banco. |
 | 2026.117 | Diário: registra a aplicação da migration 033 (Entradas x Saídas) em produção (02/11/2026). Sem mudança de código. |
+| 2026.118 | Investimentos: subclasse do ativo (texto livre, ex.: Tesouro Direto, CDB, FIIs) e seção Alocação da carteira por macroclasse e subclasse, por moeda, com filtros nas posições (migration 034). A macroclasse é derivada da classe do ativo. |

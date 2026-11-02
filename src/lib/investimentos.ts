@@ -13,6 +13,50 @@ export interface AtivoInvestimento {
   classe: ClasseAtivo
   moeda: MoedaInvestimento
   ativo: boolean
+  /** Subclasse escolhida pela pessoa (Tesouro Direto, CDB, FIIs…); null = sem subclasse (ou banco sem a migration 034). */
+  subclasse: string | null
+}
+
+/** Macroclasse, derivada da classe do ativo (a mesma regra da função investment_allocation, migration 034). */
+export type MacroClasse = 'fixed_income' | 'variable' | 'other'
+
+export const MACROS: { chave: MacroClasse; rotulo: string }[] = [
+  { chave: 'fixed_income', rotulo: 'Renda fixa' },
+  { chave: 'variable', rotulo: 'Renda variável' },
+  { chave: 'other', rotulo: 'Fundos e outros' },
+]
+
+/**
+ * Só para filtrar e rotular na tela: o dinheiro por macroclasse vem do banco (investment_allocation), nunca daqui.
+ * Fundo e "outros" ficam à parte porque podem ser de renda fixa ou variável e o app não adivinha.
+ */
+export function macroDaClasse(classe: ClasseAtivo): MacroClasse {
+  if (classe === 'fixed_income') return 'fixed_income'
+  if (classe === 'fund' || classe === 'other') return 'other'
+  return 'variable'
+}
+
+/** Sugestões de subclasse por classe (só sugestão: o campo é livre). */
+export const SUGESTOES_SUBCLASSE: Record<ClasseAtivo, string[]> = {
+  fixed_income: ['Tesouro Direto', 'CDB', 'LCI/LCA', 'Debêntures', 'Poupança'],
+  equity: ['Ações', 'Exterior'],
+  fund: ['Multimercado', 'Renda fixa', 'Ações'],
+  reit: ['FIIs', 'REITs'],
+  etf: ['ETFs', 'Exterior'],
+  crypto: ['Cripto'],
+  other: [],
+}
+
+/** Uma linha da alocação (investment_allocation). Valor e percentual vêm do banco; moedas nunca se somam. */
+export interface LinhaAlocacao {
+  moeda: MoedaInvestimento
+  nivel: 'macro' | 'subclass'
+  macro: MacroClasse
+  /** null = ativos sem subclasse. Só faz sentido no nível 'subclass'. */
+  subclasse: string | null
+  valor: Cents
+  /** % do total DA MOEDA, calculado no banco (1 casa). */
+  percentual: number
 }
 
 export interface PosicaoInvestimento {
@@ -56,14 +100,36 @@ export function normalizarDecimalInvestimento(valor: string, casas: number): str
 }
 
 export async function listarAtivosInvestimento(familiaId: string): Promise<AtivoInvestimento[]> {
-  const { data, error } = await db().from('investment_assets')
-    .select('id,name,ticker,asset_class,currency_code,active')
-    .eq('household_id', familiaId).order('name')
+  // com subclasse (migration 034); se o banco ainda não tem a coluna, lê sem ela
+  const ler = (colunas: string) => db().from('investment_assets').select(colunas).eq('household_id', familiaId).order('name')
+  let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass')
+  if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active'))
   if (error) throw error
-  return (data ?? []).map((r) => ({
-    id: r.id, nome: r.name, ticker: r.ticker, classe: r.asset_class as ClasseAtivo,
-    moeda: r.currency_code as MoedaInvestimento, ativo: r.active,
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
+    id: r.id as string, nome: r.name as string, ticker: r.ticker as string | null, classe: r.asset_class as ClasseAtivo,
+    moeda: r.currency_code as MoedaInvestimento, ativo: r.active as boolean,
+    subclasse: (r.subclass as string | null | undefined) ?? null,
   }))
+}
+
+/** Alocação da carteira por macroclasse e subclasse, por moeda (investment_allocation). */
+export async function listarAlocacaoInvestimentos(familiaId: string, dataRef: string): Promise<LinhaAlocacao[]> {
+  const { data, error } = await db().rpc('investment_allocation', { p_household: familiaId, p_as_of: dataRef })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    moeda: r.currency_code as MoedaInvestimento,
+    nivel: r.level as 'macro' | 'subclass',
+    macro: r.macro as MacroClasse,
+    subclasse: (r.subclass as string | null) ?? null,
+    valor: centsFromDb(r.market_value as string | number),
+    percentual: Number(r.share ?? 0),
+  }))
+}
+
+/** Define a subclasse do ativo; texto vazio limpa. O banco aceita até 40 caracteres. */
+export async function definirSubclasseAtivo(ativoId: string, subclasse: string): Promise<void> {
+  const { error } = await db().rpc('investment_asset_set_subclass', { p_asset: ativoId, p_subclass: subclasse.trim() || null })
+  if (error) throw error
 }
 
 export async function listarCarteiraInvestimentos(familiaId: string, dataRef: string): Promise<{
