@@ -105,7 +105,7 @@ tags: [tudo-azul, historico]
 - **Migrations 031 e 032 aplicadas em produção** (02/11/2026, execução 41542393688 do workflow, #115 registra no diário): simulação antes, `APLICAR` com o "pode" do dono; as duas foram juntas porque o `db push` não aplica uma só.
 - **Relatório Entradas x Saídas** (migration 033, #116, 02/11/2026): `cash_flow_report` + bloco no topo de Relatórios (merge `66febf7`; migration aplicada em 02/11/2026, execução 41544131647). Segunda etapa da implementação do protótipo do AI Studio.
 - **Macroclasse e subclasse de investimento** (migration 034, #118, 02/11/2026): `investment_assets.subclass`, `investment_asset_set_subclass`, `investment_allocation` + seção de alocação e filtros em Investimentos (merge `f1f36cc`; migration aplicada em 02/11/2026, execução 41545867679). Terceira etapa da implementação do protótipo do AI Studio.
-- **Proventos de investimento** (migration 035, #120, 02/11/2026): `investment_distributions`, `investment_distribution_record` e `investment_income_by_asset` + formulário e seção em Investimentos. Quarta etapa da implementação do protótipo do AI Studio.
+- **Proventos de investimento** (migration 035, #120, 02/11/2026): `investment_distributions`, `investment_distribution_record` e `investment_income_by_asset` + formulário e seção em Investimentos (merge `d93b152`; migration aplicada em 02/11/2026, execução 41547324721). Quarta etapa da implementação do protótipo do AI Studio.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
