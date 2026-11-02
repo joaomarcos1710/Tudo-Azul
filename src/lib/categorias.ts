@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import type { GrupoOrcamento } from './regra503020'
 
 export type TipoCategoria = 'income' | 'expense'
 
@@ -16,6 +17,8 @@ export interface Categoria {
   icone?: string | null
   /** Cor escolhida (#RRGGBB); null/ausente = sugestão do app. */
   cor?: string | null
+  /** Grupo da regra 50-30-20 (só despesa); null/ausente = sem grupo. Subcategoria sem grupo próprio herda o da principal. */
+  grupo?: GrupoOrcamento | null
 }
 
 /** Categoria raiz com suas subcategorias (só 1 nível, regra do banco). */
@@ -35,7 +38,9 @@ function cliente() {
 export async function listarCategorias(familiaId: string, opcoes: { comEventual?: boolean } = {}): Promise<Categoria[]> {
   const base = 'id, name, type, parent_id, system_key, active, color, icon'
   const ler = (colunas: string) => cliente().from('categories').select(colunas).eq('household_id', familiaId).order('name')
-  let { data, error } = opcoes.comEventual ? await ler(`${base}, eventual`) : await ler(base)
+  // escada tolerante a migration ausente: com grupo (032) → só com eventual (012) → básico
+  let { data, error } = opcoes.comEventual ? await ler(`${base}, eventual, budget_group`) : await ler(base)
+  if (error && opcoes.comEventual) ({ data, error } = await ler(`${base}, eventual`))
   if (error && opcoes.comEventual) ({ data, error } = await ler(base))
   if (error) throw error
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((c) => ({
@@ -48,6 +53,7 @@ export async function listarCategorias(familiaId: string, opcoes: { comEventual?
     eventual: c.eventual === true,
     icone: (c.icon as string | null) ?? null,
     cor: (c.color as string | null) ?? null,
+    grupo: (c.budget_group as GrupoOrcamento | null | undefined) ?? null,
   }))
 }
 
@@ -89,6 +95,12 @@ export async function definirCategoriaAtiva(id: string, ativa: boolean): Promise
 /** Marca ou desmarca a categoria de receita como eventual. Subcategoria herda a marca da categoria mãe. */
 export async function definirCategoriaEventual(id: string, eventual: boolean): Promise<void> {
   const { error } = await cliente().from('categories').update({ eventual }).eq('id', id)
+  if (error) throw error
+}
+
+/** Classifica a categoria de despesa na regra 50-30-20 (null = sem grupo). O banco recusa receita e "Sem categoria". */
+export async function definirCategoriaGrupo(id: string, grupo: GrupoOrcamento | null): Promise<void> {
+  const { error } = await cliente().from('categories').update({ budget_group: grupo }).eq('id', id)
   if (error) throw error
 }
 
