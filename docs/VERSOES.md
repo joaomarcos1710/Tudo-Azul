@@ -46,3 +46,4 @@ continuam abaixo como histórico.
 | 2026.104 | Carteira manual de investimentos: ativos BRL/USD/EUR, livro de compras/vendas, custo médio, avaliações manuais e totais segregados por moeda. Sem integração de caixa ou cotação automática nesta fase. |
 | 2026.107 | Recorrentes: remove a área de arquivo "Encerrados" e elimina regras já encerradas do banco, preservando lançamentos pagos, compras de cartão e compromissos históricos. |
 | 2026.111 | Governança de agentes: adiciona `AGENTS.md` com regras comuns de segurança, integridade financeira, Supabase, migrations, testes, Git, documentação e colaboração entre agentes. |
+| 2026.112 | Desbloqueio de produção: a migration `recurrence_end_delete` é renomeada (20261030230100 → 20261031175000, ainda não aplicada) para não travar o `db push`; diário atualizado com as migrations 026–031 e as PRs #96–#111. |

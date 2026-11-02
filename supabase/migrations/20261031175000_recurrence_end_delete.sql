@@ -1,4 +1,4 @@
--- Tudo Azul — migration 023: recorrentes encerrados são excluídos, não arquivados
+-- Tudo Azul — migration 031: recorrentes encerrados são excluídos, não arquivados
 --
 -- Regras já encerradas deixam de ocupar a lista/arquivo. ON DELETE SET NULL preserva os
 -- lançamentos pagos e as parcelas de cartão no histórico, sem manter vínculo com a regra.
