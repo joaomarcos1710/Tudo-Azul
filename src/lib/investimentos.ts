@@ -59,6 +59,26 @@ export interface LinhaAlocacao {
   percentual: number
 }
 
+export type TipoProvento = 'dividend' | 'jcp' | 'income'
+
+export const TIPOS_PROVENTO: { chave: TipoProvento; rotulo: string }[] = [
+  { chave: 'dividend', rotulo: 'Dividendos' },
+  { chave: 'jcp', rotulo: 'JCP' },
+  { chave: 'income', rotulo: 'Rendimentos' },
+]
+
+/** Proventos de um ativo no período (investment_income_by_asset). Valores calculados no banco, a partir dos lançamentos. */
+export interface ProventoAtivo {
+  assetId: string
+  nome: string
+  moeda: MoedaInvestimento
+  /** Soma dos proventos pagos no período. */
+  recebido: Cents
+  /** Soma dos proventos planejados no período. */
+  previsto: Cents
+  ultimoRecebimento: string | null
+}
+
 export interface PosicaoInvestimento {
   assetId: string
   nome: string
@@ -219,4 +239,37 @@ export async function registrarAvaliacaoInvestimento(d: {
     p_source: d.fonte.trim(),
   })
   if (error) throw error
+}
+
+/**
+ * Registra um provento como RECEITA na conta, ligada ao ativo (investment_distribution_record). O valor é o LÍQUIDO,
+ * o que caiu na conta. Só ativos em BRL nesta fase (as contas ainda são só em reais): o banco recusa os demais.
+ */
+export async function registrarProventoInvestimento(d: {
+  ativoId: string
+  tipo: TipoProvento
+  data: string
+  valor: Cents
+  contaId: string
+  status: 'paid' | 'planned'
+  observacao: string
+}): Promise<void> {
+  const { error } = await db().rpc('investment_distribution_record', {
+    p_asset: d.ativoId, p_kind: d.tipo, p_date: d.data, p_amount: centsToDecimal(d.valor),
+    p_account: d.contaId, p_status: d.status, p_notes: d.observacao.trim() || null,
+  })
+  if (error) throw error
+}
+
+export async function listarProventosPorAtivo(familiaId: string, de: string, ate: string): Promise<ProventoAtivo[]> {
+  const { data, error } = await db().rpc('investment_income_by_asset', { p_household: familiaId, p_from: de, p_to: ate })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    assetId: r.asset_id as string,
+    nome: r.name as string,
+    moeda: r.currency_code as MoedaInvestimento,
+    recebido: centsFromDb(r.received as string | number),
+    previsto: centsFromDb(r.planned as string | number),
+    ultimoRecebimento: (r.last_received as string | null) ?? null,
+  }))
 }

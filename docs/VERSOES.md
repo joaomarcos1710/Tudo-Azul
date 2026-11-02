@@ -54,3 +54,4 @@ continuam abaixo como histórico.
 | 2026.117 | Diário: registra a aplicação da migration 033 (Entradas x Saídas) em produção (02/11/2026). Sem mudança de código. |
 | 2026.118 | Investimentos: subclasse do ativo (texto livre, ex.: Tesouro Direto, CDB, FIIs) e seção Alocação da carteira por macroclasse e subclasse, por moeda, com filtros nas posições (migration 034). A macroclasse é derivada da classe do ativo. |
 | 2026.119 | Diário: registra a aplicação da migration 034 (subclasse e alocação de investimentos) em produção (02/11/2026). Sem mudança de código. |
+| 2026.120 | Proventos de investimento (dividendo, JCP, rendimento): o provento entra como receita na conta, pelo valor líquido, ligado ao ativo; Investimentos mostra o recebido e o planejado por ativo (migration 035). Só ativos em reais. |
