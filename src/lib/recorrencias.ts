@@ -179,7 +179,11 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
   await gerarOcorrencias().catch(() => undefined)
 }
 
-/** Novo valor/descrição/categoria: vale para os planejados não pagos de hoje em diante, campo a campo, sem desfazer o que foi corrigido à mão (migration 015). */
+/**
+ * Novo valor/descrição/categoria. Valor e descrição valem para os planejados não pagos de hoje em diante; a categoria vale para
+ * todas as ocorrências (pagas, passadas e parcelas de cartão também). Campo a campo, sem desfazer o que foi corrigido à mão
+ * (migrations 015 e 036).
+ */
 export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null }): Promise<void> {
   const { error } = await cliente().rpc('recurrence_update', {
     p_id: id, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor), p_category: d.categoriaId,

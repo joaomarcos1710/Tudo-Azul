@@ -158,10 +158,11 @@ update public.transactions set deleted_at = now() where recurrence_id = pg_temp.
 select ok(pg_temp.mes(-1) < pg_temp.hoje(), 'RC6b o planejado do mês −1 está no passado');
 select lives_ok($$select public.recurrence_update(pg_temp.fx('e_alug'), 'Aluguel novo', 1100.00, pg_temp.fx('cexp2'))$$,
                 'RC6b reajusta o aluguel (valor, descrição e categoria)');
-select is(pg_temp.alug(-1), '1000.00|Aluguel|' || pg_temp.fx('cexp') || '|planned|false',
-          'RC6b planejado com data passada não muda (valor, descrição e categoria)');
-select is(pg_temp.alug(1), '1000.00|Aluguel|' || pg_temp.fx('cexp') || '|planned|true',
-          'RC6b planejado na lixeira não muda e continua na lixeira');
+-- migration 036: a CATEGORIA agora acompanha também o passado e a lixeira; valor, descrição e status continuam como estavam
+select is(pg_temp.alug(-1), '1000.00|Aluguel|' || pg_temp.fx('cexp2') || '|planned|false',
+          'RC6b planejado com data passada: valor e descrição não mudam, a categoria acompanha (036)');
+select is(pg_temp.alug(1), '1000.00|Aluguel|' || pg_temp.fx('cexp2') || '|planned|true',
+          'RC6b planejado na lixeira: valor e descrição não mudam, a categoria acompanha (036) e continua na lixeira');
 select is(pg_temp.alug(2), '1100.00|Aluguel novo|' || pg_temp.fx('cexp2') || '|planned|false',
           'RC6b controle: planejado futuro sem edição segue a regra');
 
