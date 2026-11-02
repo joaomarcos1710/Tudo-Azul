@@ -49,3 +49,4 @@ continuam abaixo como histórico.
 | 2026.112 | Desbloqueio de produção: a migration `recurrence_end_delete` é renomeada (20261030230100 → 20261031175000, ainda não aplicada) para não travar o `db push`; diário atualizado com as migrations 026–031 e as PRs #96–#111. |
 | 2026.113 | Workflow de migrations de produção: CLI do Supabase fixada na linha 2.x e alvo explícito `--linked` (a CLI `latest` passou a recusar `migration list --password` e derrubava o workflow antes de simular). |
 | 2026.114 | Categorias na regra 50-30-20: cada categoria de despesa pode ser classificada em Necessidades, Desejos ou Investir e poupar (migration 032); Categorias mostra o cartão do mês com a parte da renda em cada grupo. Nada é classificado sem a pessoa escolher. |
+| 2026.115 | Diário: registra a aplicação das migrations 031 e 032 em produção (02/11/2026). Sem mudança de código. |

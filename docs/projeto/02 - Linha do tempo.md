@@ -97,11 +97,12 @@ tags: [tudo-azul, historico]
 - **Fundação multimoeda** (migration 027, #101, merge `ac2a8a8`) e **bloqueio da moeda de consolidação** (migration 028, #102, merge `b7bcb68`), 30/10/2026.
 - **Gestão de empréstimos e simulador de quitação** (migration 029, #103, merge `1f5ce25`, 30/10/2026).
 - **Carteira manual de investimentos** (migration 030, #104, merge `00cd977`, 30/10/2026).
-- **Recorrentes: excluir regras finalizadas em vez de arquivar** (migration 031, #107, merge `d2f0f27`, 30/10/2026; testes alinhados no #108, merge `02e0591`). A migration 031 ainda **não está aplicada** (ver `21 - Banco de dados.md`).
+- **Recorrentes: excluir regras finalizadas em vez de arquivar** (migration 031, #107, merge `d2f0f27`, 30/10/2026; testes alinhados no #108, merge `02e0591`). A migration 031 foi aplicada em 02/11/2026 (ver `21 - Banco de dados.md`).
 - **Governança de agentes** (`AGENTS.md`, #111, merge `42593ae`, 31/10/2026).
 - **Desbloqueio de produção** (#112, merge `7db6887`, 02/11/2026): a migration `recurrence_end_delete` foi renomeada (20261030230100 → 20261031175000, migration 031, ainda não aplicada) por travar o `supabase db push`; diário atualizado com as migrations 025–031 e as PRs #96–#111.
 - **Workflow de produção com CLI 2.x** (#113, merge `999ca10`, 02/11/2026): a simulação passou a funcionar; só a 031 aparece como pendente.
-- **Categorias na regra 50-30-20** (migration 032, #114, 02/11/2026): `categories.budget_group` + `budget_rule_report`; seletor de grupo e cartão do mês em Categorias. Primeira etapa da implementação do protótipo do AI Studio.
+- **Categorias na regra 50-30-20** (migration 032, #114, merge `f095f36`, 02/11/2026): `categories.budget_group` + `budget_rule_report`; seletor de grupo e cartão do mês em Categorias. Primeira etapa da implementação do protótipo do AI Studio.
+- **Migrations 031 e 032 aplicadas em produção** (02/11/2026, execução 41542393688 do workflow, #115 registra no diário): simulação antes, `APLICAR` com o "pode" do dono; as duas foram juntas porque o `db push` não aplica uma só.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
