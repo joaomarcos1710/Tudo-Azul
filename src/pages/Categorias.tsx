@@ -5,9 +5,13 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Field } from '../components/ui/Field'
 import { useFamilia } from '../lib/FamiliaContext'
-import { agrupar, criarCategoria, definirCategoriaAtiva, definirCategoriaEventual, editarCategoria, listarCategorias } from '../lib/categorias'
+import { agrupar, criarCategoria, definirCategoriaAtiva, definirCategoriaEventual, definirCategoriaGrupo, editarCategoria, listarCategorias } from '../lib/categorias'
 import type { Categoria, TipoCategoria } from '../lib/categorias'
 import { mensagemErroBanco } from '../lib/erros'
+import { asCents, currentMonth, formatBRL, formatMonth, primeiraMaiuscula } from '../lib/format'
+import { limitesDoMes } from '../lib/lancamentos'
+import { GRUPOS, relatorioRegra, rotuloGrupo, sugerirGrupo } from '../lib/regra503020'
+import type { GrupoOrcamento, LinhaRegra } from '../lib/regra503020'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { CORES, ICONES, IconeCategoria, sugerirVisual, visualDaCategoria } from '../lib/visualCategoria'
 import type { ChaveIcone } from '../lib/visualCategoria'
@@ -25,6 +29,9 @@ export default function Categorias() {
   const [erro, setErro] = useState('')
   // null = fechado; 'nova' = criando; Categoria = editando
   const [editando, setEditando] = useState<Categoria | 'nova' | null>(null)
+  // null = ainda não carregou ou o banco ainda não tem a migration 032 (o cartão simplesmente não aparece)
+  const [regra, setRegra] = useState<LinhaRegra[] | null>(null)
+  const mes = currentMonth()
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
@@ -37,6 +44,27 @@ export default function Categorias() {
   }, [familiaId])
 
   useEffect(() => { void carregar() }, [carregar])
+
+  const carregarRegra = useCallback(async () => {
+    if (!familiaId) return
+    try {
+      const [de, ate] = limitesDoMes(mes)
+      setRegra(await relatorioRegra(familiaId, de, ate))
+    } catch {
+      setRegra(null)
+    }
+  }, [familiaId, mes])
+
+  useEffect(() => { void carregarRegra() }, [carregarRegra])
+
+  async function mudarGrupo(c: Categoria, grupo: GrupoOrcamento | null) {
+    try {
+      await definirCategoriaGrupo(c.id, grupo)
+      await Promise.all([carregar(), carregarRegra()])
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    }
+  }
 
   async function alternarAtiva(c: Categoria) {
     try {
@@ -101,18 +129,27 @@ export default function Categorias() {
         </p>
       )}
 
+      {tipo === 'expense' && categorias && (
+        <p className="mb-4 text-sm text-slate-600">
+          Classifique cada despesa em <strong>Necessidades</strong>, <strong>Desejos</strong> ou <strong>Investir e poupar</strong> para ver a
+          regra 50-30-20. O app só sugere pelo nome; nada é classificado sem você escolher. Os totais do mês não mudam.
+        </p>
+      )}
+
+      {tipo === 'expense' && regra && <CartaoRegra linhas={regra} mes={mes} />}
+
       {categorias === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
       <ul className="flex flex-col gap-3">
         {grupos.map((g) => (
           <li key={g.id}>
             <Card semPadding>
-              <Linha categoria={g} porId={porId} aoEditar={() => setEditando(g)} aoAlternar={() => alternarAtiva(g)} aoEventual={() => alternarEventual(g)} herdaEventual={false} />
+              <Linha categoria={g} porId={porId} aoEditar={() => setEditando(g)} aoAlternar={() => alternarAtiva(g)} aoEventual={() => alternarEventual(g)} herdaEventual={false} aoGrupo={(gr) => mudarGrupo(g, gr)} grupoHerdado={null} />
               {g.filhas.length > 0 && (
                 <ul className="border-t border-slate-100">
                   {g.filhas.map((f) => (
                     <li key={f.id} className="pl-6">
-                      <Linha categoria={f} porId={porId} aoEditar={() => setEditando(f)} aoAlternar={() => alternarAtiva(f)} aoEventual={() => alternarEventual(f)} herdaEventual={g.eventual} />
+                      <Linha categoria={f} porId={porId} aoEditar={() => setEditando(f)} aoAlternar={() => alternarAtiva(f)} aoEventual={() => alternarEventual(f)} herdaEventual={g.eventual} aoGrupo={(gr) => mudarGrupo(f, gr)} grupoHerdado={g.grupo ?? null} />
                     </li>
                   ))}
                 </ul>
@@ -125,9 +162,11 @@ export default function Categorias() {
   )
 }
 
-function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, herdaEventual }: {
+function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, herdaEventual, aoGrupo, grupoHerdado }: {
   categoria: Categoria; porId: Map<string, Categoria>; aoEditar: () => void; aoAlternar: () => void; aoEventual: () => void; herdaEventual: boolean
+  aoGrupo: (g: GrupoOrcamento | null) => void; grupoHerdado: GrupoOrcamento | null
 }) {
+  const sugestao = c.tipo === 'expense' && !c.sistema && !c.grupo && !grupoHerdado ? sugerirGrupo(c.nome) : null
   return (
     <div className={`flex flex-wrap items-center justify-between gap-2 px-5 py-3 ${c.ativa ? '' : 'opacity-70'}`}>
       <span className={`flex min-w-0 items-center gap-3 ${c.paiId ? 'text-sm' : 'font-semibold'}`}>
@@ -136,11 +175,23 @@ function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, herdaEve
         {c.nome}
         {!c.ativa && <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">desativada</span>}
         {c.sistema && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">padrão</span>}
+        {c.grupo && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(c.grupo)}</span>}
+        {!c.grupo && grupoHerdado && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(grupoHerdado)} (da principal)</span>}
         {(c.eventual || herdaEventual) && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">eventual{herdaEventual && !c.eventual ? ' (da principal)' : ''}</span>}
         </span>
       </span>
       {!c.sistema && (
-        <span className="flex gap-1">
+        <span className="flex flex-wrap items-center gap-1">
+          {c.tipo === 'expense' && (
+            <>
+              <select aria-label={`Grupo de ${c.nome}`} value={c.grupo ?? ''} onChange={(e) => aoGrupo((e.target.value || null) as GrupoOrcamento | null)}
+                className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm">
+                <option value="">{grupoHerdado ? 'Igual à principal' : 'Sem grupo'}</option>
+                {GRUPOS.map((g) => <option key={g.chave} value={g.chave}>{g.rotulo}</option>)}
+              </select>
+              {sugestao && <Button variante="fantasma" onClick={() => aoGrupo(sugestao)}>Sugestão: {rotuloGrupo(sugestao)}</Button>}
+            </>
+          )}
           {c.tipo === 'income' && (!herdaEventual || c.eventual) && (
             <Button variante="fantasma" onClick={aoEventual}>{c.eventual ? 'Marcar como regular' : 'Marcar como eventual'}</Button>
           )}
@@ -149,6 +200,42 @@ function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, herdaEve
         </span>
       )}
     </div>
+  )
+}
+
+/** Despesa do mês por grupo. Valores e percentuais vêm do banco (budget_rule_report); aqui só se apresenta. */
+function CartaoRegra({ linhas, mes }: { linhas: LinhaRegra[]; mes: string }) {
+  const total = linhas.reduce((n, l) => n + l.valor, 0)
+  if (total === 0) return null
+  return (
+    <Card className="mb-4">
+      <h2 className="mb-1 text-lg font-semibold">Regra 50-30-20 em {primeiraMaiuscula(formatMonth(mes))}</h2>
+      <p className="mb-3 text-sm text-slate-600">Quanto da sua renda paga no mês foi para cada grupo (meta: 50% / 30% / 20%).</p>
+      <ul className="flex flex-col gap-2">
+        {GRUPOS.map((g) => {
+          const l = linhas.find((x) => x.grupo === g.chave)
+          return (
+            <li key={g.chave} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+              <span><strong>{g.rotulo}</strong> <span className="text-slate-600">· meta {g.meta}%</span></span>
+              <span>
+                {formatBRL(l?.valor ?? asCents(0)!)}
+                {' · '}
+                {l?.percentualRenda === null || l === undefined ? 'sem renda no mês' : `${l.percentualRenda.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% da renda`}
+              </span>
+            </li>
+          )
+        })}
+        {(() => {
+          const sem = linhas.find((x) => x.grupo === 'none')
+          return sem && sem.valor > 0 ? (
+            <li className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-slate-600">
+              <span>Sem grupo</span>
+              <span>{formatBRL(sem.valor)} · classifique abaixo para entrar na conta</span>
+            </li>
+          ) : null
+        })()}
+      </ul>
+    </Card>
   )
 }
 

@@ -20,7 +20,7 @@ Menu em **grupos** (barra lateral no iPad/computador; no celular, 4 atalhos + "M
 
 ## Planejamento
 - **Orçamentos** — limite por categoria, uso, ritmo; copiar do mês anterior.
-- **Categorias** — despesas e receitas, subcategorias (1 nível), desativar, marcar receita como **eventual**.
+- **Categorias** — despesas e receitas, subcategorias (1 nível), desativar, marcar receita como **eventual**; em despesa, escolher o **grupo da regra 50-30-20** (Necessidades, Desejos, Investir e poupar — o app só sugere pelo nome) e ver o cartão "Regra 50-30-20" do mês com a parte da renda em cada grupo.
 
 ## Conta
 - **Família** — criar família, convidar por link (token guardado só como hash), aceitar convite, membros, **Zerar tudo** (só o dono).

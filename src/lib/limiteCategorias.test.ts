@@ -39,10 +39,30 @@ describe('listarCategorias e a migration 012', () => {
   })
 
   it('pedindo "eventual" e o banco ainda sem a coluna: lê sem ela, tudo regular', async () => {
-    fake.estado.respostas = [{ data: null, error: { message: 'column categories.eventual does not exist' } }, { data: [linha], error: null }]
+    fake.estado.respostas = [
+      { data: null, error: { message: 'column categories.budget_group does not exist' } },
+      { data: null, error: { message: 'column categories.eventual does not exist' } },
+      { data: [linha], error: null },
+    ]
+    const r = await listarCategorias('h1', { comEventual: true })
+    expect(fake.estado.colunas).toHaveLength(3)
+    expect(r.map((c) => c.eventual)).toEqual([false])
+    expect(r.map((c) => c.grupo)).toEqual([null])
+  })
+
+  it('banco com a 012 mas sem a 032: lê a marca "eventual" e o grupo fica vazio (nunca inventado)', async () => {
+    fake.estado.respostas = [
+      { data: null, error: { message: 'column categories.budget_group does not exist' } },
+      { data: [{ ...linha, eventual: true }], error: null },
+    ]
     const r = await listarCategorias('h1', { comEventual: true })
     expect(fake.estado.colunas).toHaveLength(2)
-    expect(r.map((c) => c.eventual)).toEqual([false])
+    expect([r[0].eventual, r[0].grupo]).toEqual([true, null])
+  })
+
+  it('com a 032, traz o grupo da regra 50-30-20', async () => {
+    fake.estado.respostas = [{ data: [{ ...linha, type: 'expense', eventual: false, budget_group: 'lifestyle' }], error: null }]
+    expect((await listarCategorias('h1', { comEventual: true }))[0].grupo).toBe('lifestyle')
   })
 
   it('com a coluna, traz a marca', async () => {
@@ -51,7 +71,7 @@ describe('listarCategorias e a migration 012', () => {
   })
 
   it('erro que não é da coluna (sem o retry resolver) continua sendo erro', async () => {
-    fake.estado.respostas = [{ data: null, error: { message: 'x' } }, { data: null, error: { message: 'rede' } }]
+    fake.estado.respostas = [{ data: null, error: { message: 'x' } }, { data: null, error: { message: 'y' } }, { data: null, error: { message: 'rede' } }]
     await expect(listarCategorias('h1', { comEventual: true })).rejects.toMatchObject({ message: 'rede' })
   })
 })
