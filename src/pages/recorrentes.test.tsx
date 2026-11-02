@@ -138,8 +138,8 @@ describe('Recorrentes', () => {
     montar()
     await u.click(await screen.findByRole('button', { name: 'Editar' }))
     expect(screen.queryByLabelText('Dia do mês')).toBeNull() // dia e conta não mudam na edição
-    // avisa que a correção feita à mão em um mês não é desfeita pelo reajuste
-    expect(screen.getByText(/o que você corrigiu à mão em um mês \(valor, descrição ou categoria\) fica como está/)).toBeTruthy()
+    // avisa o alcance de cada campo e que a correção feita à mão em um mês não é desfeita pelo reajuste
+    expect(screen.getByText(/Valor e descrição valem para os planejados ainda não pagos de hoje em diante\. A categoria vale para todos os meses, inclusive os já pagos e os passados\. Em qualquer caso, o que você corrigiu à mão em um mês fica como está\./)).toBeTruthy()
     // frequência não muda na edição: diz como mudar
     expect(screen.queryByLabelText('Frequência')).toBeNull()
     expect(screen.getByText(/Todo dia 10\. .*Para mudar a frequência ou o dia, exclua este recorrente e cadastre outro\./)).toBeTruthy()
