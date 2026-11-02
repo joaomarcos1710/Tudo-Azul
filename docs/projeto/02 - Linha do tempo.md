@@ -89,6 +89,16 @@ tags: [tudo-azul, historico]
 - **Total das faturas do mês no Início** (migration 023, #92, merge `56e17d7`, 30/10/2026): `card_invoices_month` soma no banco as faturas que vencem no mês. Migration 023 aplicada em produção em 30/10/2026 (execução 36).
 - **Próxima fatura no cartão e no Início** (#93, merge `6c45d99`, 30/10/2026): "Próxima fatura (vence dd/mm)" com a fatura aberta que fecha primeiro, mesmo com "Fatura a pagar" zerada. Sem migration.
 - **Conta de pagamento padrão do cartão** (migration 024, #94, merge `49efc53`, 30/10/2026): `debts.pay_account_id` e `set_card_pay_account`; "paga com", sugestão em "Pagar fatura" e base do saldo projetado. Migration 024 aplicada em produção em 30/10/2026 (execução 38).
+- **Fatura no Calendário e saldo projetado em qualquer data** (migration 025, #96, merge `8c1693e`, 30/10/2026): `card_invoices_due`, `account_balances_projected`, `balance_totals_projected`; bloco "Saldo até a data" com "só efetuados / efetuados + planejados". Migration 025 aplicada em produção em 30/10/2026 (execução 40).
+- **Versão = ano + número da PR** (#98, merge `476239c`, 30/10/2026): regra em `docs/VERSOES.md` e `CLAUDE.md`.
+- **Cadastro de cartão atômico** (migration 026, #97, merge `0344594`, 30/10/2026): `create_card` numa única transação.
+- **Painel financeiro personalizável** (#99, merge `f985546`, 30/10/2026).
+- **Arquitetura de investimentos, dívidas e patrimônio** (#100, merge `8055263`, 30/10/2026): documento `docs/ARQUITETURA-PATRIMONIO.md`.
+- **Fundação multimoeda** (migration 027, #101, merge `ac2a8a8`) e **bloqueio da moeda de consolidação** (migration 028, #102, merge `b7bcb68`), 30/10/2026.
+- **Gestão de empréstimos e simulador de quitação** (migration 029, #103, merge `1f5ce25`, 30/10/2026).
+- **Carteira manual de investimentos** (migration 030, #104, merge `00cd977`, 30/10/2026).
+- **Recorrentes: excluir regras finalizadas em vez de arquivar** (migration 031, #107, merge `d2f0f27`, 30/10/2026; testes alinhados no #108, merge `02e0591`). A migration 031 ainda **não está aplicada** (ver `21 - Banco de dados.md`).
+- **Governança de agentes** (`AGENTS.md`, #111, merge `42593ae`, 31/10/2026).
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
