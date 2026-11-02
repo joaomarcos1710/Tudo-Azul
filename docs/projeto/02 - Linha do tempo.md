@@ -103,7 +103,7 @@ tags: [tudo-azul, historico]
 - **Workflow de produção com CLI 2.x** (#113, merge `999ca10`, 02/11/2026): a simulação passou a funcionar; só a 031 aparece como pendente.
 - **Categorias na regra 50-30-20** (migration 032, #114, merge `f095f36`, 02/11/2026): `categories.budget_group` + `budget_rule_report`; seletor de grupo e cartão do mês em Categorias. Primeira etapa da implementação do protótipo do AI Studio.
 - **Migrations 031 e 032 aplicadas em produção** (02/11/2026, execução 41542393688 do workflow, #115 registra no diário): simulação antes, `APLICAR` com o "pode" do dono; as duas foram juntas porque o `db push` não aplica uma só.
-- **Relatório Entradas x Saídas** (migration 033, #116, 02/11/2026): `cash_flow_report` + bloco no topo de Relatórios. Segunda etapa da implementação do protótipo do AI Studio.
+- **Relatório Entradas x Saídas** (migration 033, #116, 02/11/2026): `cash_flow_report` + bloco no topo de Relatórios (merge `66febf7`; migration aplicada em 02/11/2026, execução 41544131647). Segunda etapa da implementação do protótipo do AI Studio.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
