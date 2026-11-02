@@ -58,3 +58,4 @@ tags: [tudo-azul, decisoes]
 
 
 | A fundação multimoeda deve preceder qualquer conta estrangeira; a fase 1 adiciona catálogo, moeda de consolidação e consulta cambial, mas não habilita moedas estrangeiras nas contas | As RPCs atuais de saldo, projeção, orçamento e relatórios ainda agregam valores em um total único. Só liberar moedas estrangeiras depois de substituí-las por agregações segregadas e conversão explícita no banco. |
+| O workflow de produção instala a CLI do Supabase na linha **2.x** (`setup-cli@v3`) e diz o alvo explicitamente (`--linked`); registra a versão no log | Em 02/11/2026 a simulação falhou antes de simular: com `version: latest`, a CLI nova passou a tratar o banco local como padrão e recusou `migration list --password`. A CLI já avisava disso em execuções anteriores. Fixar a linha e explicitar o alvo evita que uma versão nova derrube a entrega ao banco sem aviso. |
