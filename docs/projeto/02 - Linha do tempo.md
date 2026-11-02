@@ -99,6 +99,7 @@ tags: [tudo-azul, historico]
 - **Carteira manual de investimentos** (migration 030, #104, merge `00cd977`, 30/10/2026).
 - **Recorrentes: excluir regras finalizadas em vez de arquivar** (migration 031, #107, merge `d2f0f27`, 30/10/2026; testes alinhados no #108, merge `02e0591`). A migration 031 ainda **não está aplicada** (ver `21 - Banco de dados.md`).
 - **Governança de agentes** (`AGENTS.md`, #111, merge `42593ae`, 31/10/2026).
+- **Desbloqueio de produção** (#112, merge `7db6887`, 02/11/2026): a migration `recurrence_end_delete` foi renomeada (20261030230100 → 20261031175000, migration 031, ainda não aplicada) por travar o `supabase db push`; diário atualizado com as migrations 025–031 e as PRs #96–#111.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

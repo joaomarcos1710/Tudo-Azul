@@ -55,24 +55,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # A CLI fica na linha 2.x (e não em "latest"): em 02/11/2026 a versão nova passou a tratar o banco LOCAL como padrão e
+      # recusou `migration list --password` ("--password only applies to a linked project"), derrubando o workflow antes de
+      # simular. O alvo também é dito explicitamente (--linked), para não depender do padrão de nenhuma versão.
       - name: Instalar Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v3
         with:
-          version: latest
+          version: 2.x
+
+      - name: Versão da CLI (para o registro)
+        run: supabase --version
 
       - name: Ligar ao projeto
         run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Situação antes (local x remoto)
-        run: supabase migration list --password "$SUPABASE_DB_PASSWORD"
+        run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
 
       - name: Simular (nada é alterado)
-        run: supabase db push --dry-run --password "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --linked --dry-run --password "$SUPABASE_DB_PASSWORD"
 
       - name: Aplicar
         if: inputs.modo == 'aplicar'
-        run: supabase db push --yes --password "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --linked --yes --password "$SUPABASE_DB_PASSWORD"
 
       - name: Situação depois
         if: inputs.modo == 'aplicar'
-        run: supabase migration list --password "$SUPABASE_DB_PASSWORD"
+        run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
