@@ -8,6 +8,8 @@ export interface Patrimonio {
   creditoAReceber: Cents
   divida: Cents
   patrimonio: Cents
+  /** Bens familiares avaliados em BRL e ponderados pela participação da família. */
+  bens: Cents
   /** Parcelas de cartão ainda não cobradas: aparecem à parte e não entram no patrimônio. */
   compromissos: Cents
 }
@@ -192,4 +194,22 @@ export async function vencidosPlanejados(familiaId: string, hoje: string, limite
     itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null, contaId: t.account_id ?? null, destinoId: t.destination_account_id ?? null })),
     total: count ?? (data ?? []).length,
   }
+}
+
+
+export interface ResumoInvestimento {
+  moeda: 'BRL' | 'USD' | 'EUR'
+  valorAtual: Cents
+}
+
+/** Saldo investido por moeda, sem conversão implícita entre BRL, USD e EUR. */
+export async function carregarResumoInvestimentos(familiaId: string, dataRef: string): Promise<ResumoInvestimento[]> {
+  const { data, error } = await cliente().rpc('investment_totals', {
+    p_household: familiaId, p_as_of: dataRef,
+  })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number>[]).map((r) => ({
+    moeda: r.currency_code as ResumoInvestimento['moeda'],
+    valorAtual: centsFromDb(r.market_value ?? 0),
+  }))
 }
