@@ -104,13 +104,18 @@ afterEach(() => {
 })
 
 describe('Visão geral', () => {
-  it('o Início saúda pelo primeiro nome; Análises mostra o título próprio', async () => {
+  it('o Início saúda pelo nome (até dois nomes) com receita e despesa do mês do banco; Análises mostra o título próprio', async () => {
     montar()
-    expect(await screen.findByText(/, João!/)).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'João Marcos!' })).toBeTruthy()
+    expect(screen.getByText(/^(Bom dia|Boa tarde|Boa noite),$/)).toBeTruthy()
+    const cabecalho = screen.getByRole('heading', { name: 'João Marcos!' }).closest('header')!
+    expect(within(cabecalho).getByText('Receita mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
+    expect(within(cabecalho).getByText('Despesa mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
+    expect(within(cabecalho).getByRole('link', { name: 'Ver análises do mês' }).getAttribute('href')).toBe('/analises')
     cleanup()
     montar('analises')
     expect(await screen.findByRole('heading', { name: 'Análises' })).toBeTruthy()
-    expect(screen.queryByText(/, João!/)).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'João Marcos!' })).toBeNull()
   })
   it('gráfico de categorias com valores e % do banco (Análises)', async () => {
     montar('analises')
@@ -355,8 +360,10 @@ describe('Visão geral', () => {
 
   it('ações rápidas: despesa, receita, transferência e compra no cartão abrem o lançamento já no tipo certo', async () => {
     montar()
-    await screen.findByText(/, João!/)
-    const alvo = (nome: string) => (screen.getByRole('link', { name: nome }) as HTMLAnchorElement).getAttribute('href')
+    const acoes = await screen.findByRole('navigation', { name: 'Ações rápidas' })
+    expect(acoes.closest('header')).toBeTruthy() // no cabeçalho, ao lado da saudação (estilo Organizze), sem repetir abaixo
+    expect(screen.getAllByRole('link', { name: 'Despesa' })).toHaveLength(1)
+    const alvo = (nome: string) => (within(acoes).getByRole('link', { name: nome }) as HTMLAnchorElement).getAttribute('href')
     expect(alvo('Despesa')).toBe('/lancamentos?novo=despesa')
     expect(alvo('Receita')).toBe('/lancamentos?novo=receita')
     expect(alvo('Transferência')).toBe('/lancamentos?novo=transferencia')
@@ -537,7 +544,7 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     montar('analises')
     await screen.findByRole('heading', { name: 'Análises' })
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
-    expect(screen.queryByRole('region', { name: 'Ações rápidas' })).toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'Ações rápidas' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Despesa' })).toBeNull()
     expect(screen.queryByText('Vencidos e precisam de atenção')).toBeNull()
     expect(screen.queryByText('Nubank')).toBeNull()
@@ -547,7 +554,7 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     cleanup()
     montar()
     expect(await screen.findByText('Vencidos e precisam de atenção')).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Ações rápidas' })).toBeTruthy()
+    expect(screen.getByRole('navigation', { name: 'Ações rápidas' })).toBeTruthy()
     expect(screen.getByText('Nubank')).toBeTruthy()
   })
   it('falha nos indicadores financeiros não derruba as demais seções do Início', async () => {
