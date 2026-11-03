@@ -121,6 +121,7 @@ tags: [tudo-azul, historico]
 - **Parcelas do contrato em Lançamentos** (#136, 03/11/2026): relato do dono, "criei as parcelas da dívida do imóvel, mas não entrou no extrato, apesar de ter entrado no calendário". Parcelas planejadas aparecem no mês com "Baixar parcela"; fora dos totais até a baixa. A agenda de Dívidas passa a incluir as vencidas. Merge `8fbc056`.
 - **Parcela de dívida como despesa do mês** (migration 046, #137, 03/11/2026): relato do dono, "no Relatórios e exportação não aparece a parcela". Decisão: despesa do mês, com o principal na categoria escolhida em cada dívida. Relatórios, orçamento, 50-30-20 e exportação passam a contar a parcela; Lançamentos marca o pagamento do empréstimo como "já em despesas". Merge `f75f180`; **migration 046 aplicada em 03/11/2026** (execução 41740081652).
 - **Início: card de patrimônio em linhas** (#138, 03/11/2026): pedido do dono; Disponível, Bens e Dívida um por linha, e o card Saldo disponível sem a dívida repetida.
+- **Início: cabeçalho com atalhos** (#139, 03/11/2026): ideia do dono a partir do Organizze; saudação, receita e despesa do mês e ações rápidas no topo.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
