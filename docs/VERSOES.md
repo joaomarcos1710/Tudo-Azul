@@ -1,14 +1,14 @@
 # Versões do Tudo Azul
 
-Formato: **`AAAA.N`** — o **ano** em que estamos e o **número da PR** (do GitHub) que trouxe a mudança.
+Formato: **`AAAA.PR`** — o **ano** em que estamos e o **número da PR** (do GitHub) que trouxe a mudança.
 Exemplo: a PR #98, aberta em 2026, vira `2026.98`. Quando o ano mudar, o ano muda e o número da PR continua a sequência
 do GitHub (ex.: `2027.130`).
 
 - **A cada PR** (de funcionalidade, correção, teste ou diário), na própria PR: `package.json` e `package-lock.json` →
-  `"version": "AAAA.N.0"`, com `N` = número da PR. O 3º número fica sempre `0` (só existe porque o npm exige três).
+  `"version": "AAAA.PR.0"`, com `PR` = número da PR. O 3º número fica sempre `0` (só existe porque o npm exige três).
   Como o número da PR só existe depois que ela é aberta, confira o número antes de abrir (o próximo da lista do
   GitHub) e corrija com um commit se errar.
-- **Onde aparece**: o app mostra `AAAA.N` na barra lateral, na tela de Família e nas telas de entrada; no deploy da
+- **Onde aparece**: o app mostra `AAAA.PR` na barra lateral, na tela de Família e nas telas de entrada; no deploy da
   Vercel aparece também o commit curto (`2026.98 · 98e83d0`).
 - **Merge fora de ordem:** a versão nunca diminui. Ao mesclar a PR #N, use o maior valor entre N e a versão já integrada
   na `main`. Uma PR mais antiga que a versão atual mantém a versão atual; uma PR mais nova avança para seu próprio número.
@@ -59,3 +59,4 @@ continuam abaixo como histórico.
 | 2026.122 | Recorrentes: trocar a categoria do recorrente passa a valer para todas as ocorrências (pagas, passadas, na lixeira e parcelas de assinatura de cartão), preservando o que foi mudado à mão (migration 036). |
 | 2026.123 | Diário: registra a aplicação da migration 036 (categoria do recorrente em todas as ocorrências) em produção (02/11/2026). Sem mudança de código. |
 | 2026.124 | Ajustes de interface da lista do dono: transferências do Início com "De → Para" e logo dos bancos; Extrato só com a categoria; valor do planejado sem cortar no celular; totais de Investimentos alinhados; simulador de quitação (Snowball/Avalanche) removido de Dívidas; Dívidas ganha "Renomear" (o erro de grafia era um nome digitado, não do app). Também corrige testes que erravam o dia entre 21h e 24h em São Paulo (dois do Início e os pgTAP 34, 35 e 36, que usavam `current_date` em UTC). Sem migration. |
+| 2026.125 | Reconciliação de patrimônio e investimentos, cadastro/exclusão segura de bens e ativos, contratos e agenda de parcelas de dívidas, projeção e calendário integrados. |
