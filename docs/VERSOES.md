@@ -57,3 +57,4 @@ continuam abaixo como histórico.
 | 2026.120 | Proventos de investimento (dividendo, JCP, rendimento): o provento entra como receita na conta, pelo valor líquido, ligado ao ativo; Investimentos mostra o recebido e o planejado por ativo (migration 035). Só ativos em reais. |
 | 2026.121 | Diário: registra a aplicação da migration 035 (proventos de investimento) em produção (02/11/2026). Sem mudança de código. |
 | 2026.122 | Recorrentes: trocar a categoria do recorrente passa a valer para todas as ocorrências (pagas, passadas, na lixeira e parcelas de assinatura de cartão), preservando o que foi mudado à mão (migration 036). |
+| 2026.123 | Diário: registra a aplicação da migration 036 (categoria do recorrente em todas as ocorrências) em produção (02/11/2026). Sem mudança de código. |
