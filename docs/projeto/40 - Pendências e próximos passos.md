@@ -97,4 +97,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Hospedar a fonte Inter no próprio app (hoje vem do Google Fonts; 4 pesos).
 - [ ] Skeletons no lugar de "Carregando…" nas telas principais.
 - [ ] Conferir o relatório de desempenho do Supabase (índices) e a região do banco em relação ao Rio.
-- [ ] Medir num celular com rede lenta (Lighthouse) depois do #133.
+- [ ] Medir num celular com rede lenta (Lighthouse) depois do #133; com o Sentry ligado, a velocidade real aparece em Performance.
+
+## Monitoramento (03/11/2026)
+- [ ] **Dono:** criar o projeto no Sentry (React) e colar o DSN em `VITE_SENTRY_DSN` no Vercel (Production); depois, um novo deploy liga o monitoramento. Sem isso, nada é enviado.
