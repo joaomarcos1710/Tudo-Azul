@@ -89,7 +89,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] **041 aplicada** em 03/11/2026 (execução 41619293355): consignado com juros liberado.
 - [x] **043 aplicada** em 03/11/2026 (execução 41663655015). **A 042 (#128) precisa ser renomeada para depois da 044** antes de ir para produção.
 - [x] **Aportes no caixa:** decidido (03/11/2026): investimento de liquidez é conta do tipo Investimento (#131); aplicação e resgate são transferências. Pendente do dono: trocar as aplicações lançadas como despesa por transferências e arquivar o CDB da tela de Investimentos.
-- **FII entrando como renda fixa:** o formulário de novo ativo abre com a classe "Renda fixa" pré-selecionada (`Investimentos.tsx`); exigir a escolha da classe.
+- [x] **FII entrando como renda fixa:** a classe passou a ser obrigatória no cadastro de ativo (#134).
 - Gráfico de distribuição do patrimônio; arquivar/excluir dívida em Dívidas; PR 5 (importar extrato) e PR 6 (metas e fluxo mensal) do plano do protótipo.
 
 ## Desempenho (03/11/2026)

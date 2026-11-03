@@ -651,13 +651,15 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
   const [subclasse, setSubclasse] = useState('')
   const [nome, setNome] = useState('')
   const [ticker, setTicker] = useState('')
-  const [classe, setClasse] = useState<ClasseAtivo>('fixed_income')
+  // sem classe pré-escolhida: começar em "Renda fixa" fez um FII ser gravado como renda fixa (o dono não trocou o campo)
+  const [classe, setClasse] = useState<ClasseAtivo | ''>('')
   const [moedaAtivo, setMoedaAtivo] = useState<MoedaInvestimento>('BRL')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
   async function enviar(e: FormEvent) {
     e.preventDefault()
     if (!nome.trim()) { setErro('Informe o nome do ativo.'); return }
+    if (!classe) { setErro('Escolha a classe do ativo (ex.: FIIs / REITs para fundo imobiliário, Renda fixa para CDB e Tesouro).'); return }
     setEnviando(true); setErro('')
     try { await aoSalvar({ nome, ticker, classe, moeda: moedaAtivo, subclasse }) }
     finally { setEnviando(false) }
@@ -667,10 +669,10 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
       {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
       <Field rotulo="Nome do ativo" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={100} placeholder="Ex.: Tesouro Selic 2029" />
       <Field rotulo="Ticker ou código (opcional)" value={ticker} onChange={(e) => setTicker(e.target.value)} maxLength={20} placeholder="Ex.: PETR4, IVVB11, BTC" />
-      <Selecao rotulo="Classe" valor={classe} aoMudar={(v) => setClasse(v as ClasseAtivo)} opcoes={classes} />
+      <Selecao rotulo="Classe" valor={classe} aoMudar={(v) => setClasse(v as ClasseAtivo | '')} opcoes={classes} todos="Escolha a classe" />
       <Selecao rotulo="Moeda do ativo" valor={moedaAtivo} aoMudar={(v) => setMoedaAtivo(v as MoedaInvestimento)} opcoes={moedas} />
       <Field rotulo="Subclasse (opcional)" value={subclasse} onChange={(e) => setSubclasse(e.target.value)} maxLength={40} list="sugestoes-subclasse-novo" placeholder="Ex.: Tesouro Direto, CDB, FIIs" />
-      <datalist id="sugestoes-subclasse-novo">{SUGESTOES_SUBCLASSE[classe].map((x) => <option key={x} value={x} />)}</datalist>
+      <datalist id="sugestoes-subclasse-novo">{(classe ? SUGESTOES_SUBCLASSE[classe] : []).map((x) => <option key={x} value={x} />)}</datalist>
       <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Salvar ativo</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
     </form>
   </Card>
