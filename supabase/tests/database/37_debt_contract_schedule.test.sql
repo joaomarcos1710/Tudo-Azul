@@ -46,6 +46,12 @@ select is((select due_date from public.debt_payment_schedule where debt_id=pg_te
 select is((select payment_account_id from public.debts where id=pg_temp.fx('debit_debt')),
   pg_temp.fx('account'),'guarda a conta escolhida para débito automático');
 
+select is(pg_temp.sqlstate_of(format(
+  'select public.debt_schedule_record_payment(%L::uuid,pg_temp.hoje(),%L::uuid,79,20,0,%L::uuid,false)',
+  (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('debit_debt') and installment_number=1),
+  pg_temp.fx('account'),pg_temp.fx('category'))),
+  '22023','não baixa a parcela quando principal, juros e tarifa não somam o valor contratado');
+
 select public.debt_schedule_record_payment(
   (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('debit_debt') and installment_number=1),
   pg_temp.hoje(),pg_temp.fx('account'),80,20,0,pg_temp.fx('category'),false
