@@ -17,12 +17,12 @@ import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, criarAtivoInvestimento, definirSubclasseAtivo, listarAlocacaoInvestimentos, listarAtivosInvestimento,
-  listarCarteiraInvestimentos, listarProventosPorAtivo, macroDaClasse, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento,
+  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, criarAtivoInvestimento, definirSubclasseAtivo, excluirAtivoInvestimento, listarAlocacaoInvestimentos, listarAtivosInvestimento,
+  listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento,
   registrarProventoInvestimento,
 } from '../lib/investimentos'
 import type {
-  AtivoInvestimento, ClasseAtivo, LinhaAlocacao, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
+  AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
   TipoOperacaoInvestimento, TipoProvento, TotalInvestimento,
 } from '../lib/investimentos'
 
@@ -54,6 +54,8 @@ export default function Investimentos() {
   const [ativos, setAtivos] = useState<AtivoInvestimento[]>([])
   const [posicoes, setPosicoes] = useState<PosicaoInvestimento[]>([])
   const [totais, setTotais] = useState<TotalInvestimento[]>([])
+  const [historico, setHistorico] = useState<HistoricoInvestimento[]>([])
+  const [excluindoId, setExcluindoId] = useState<string | null>(null)
   // vazio também quando o banco ainda não tem a migration 034: a seção de alocação só some, o resto da tela segue
   const [alocacao, setAlocacao] = useState<LinhaAlocacao[]>([])
   const [filtroMacro, setFiltroMacro] = useState('')
@@ -72,13 +74,16 @@ export default function Investimentos() {
     if (!familia?.id) return
     setCarregando(true)
     try {
-      const [lista, carteira] = await Promise.all([
+      const hoje = hojeSP()
+      const [lista, carteira, serie] = await Promise.all([
         listarAtivosInvestimento(familia.id),
-        listarCarteiraInvestimentos(familia.id, hojeSP()),
+        listarCarteiraInvestimentos(familia.id, hoje),
+        listarHistoricoInvestimentos(familia.id, inicioHistorico(hoje), hoje).catch(() => []),
       ])
       setAtivos(lista)
       setPosicoes(carteira.posicoes)
       setTotais(carteira.totais)
+      setHistorico(serie)
       setErro('')
       try { setAlocacao(await listarAlocacaoInvestimentos(familia.id, hojeSP())) } catch { setAlocacao([]) }
       // proventos: 12 meses para trás e 6 para frente (os planejados). Sem a migration 035, a seção só some.
@@ -145,6 +150,16 @@ export default function Investimentos() {
       setNovaAvaliacao(false)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+
+  async function excluirAtivo(id: string, nome: string) {
+    if (!window.confirm(`Excluir o ativo “${nome}”? Só é possível excluir ativos sem operações ou avaliações.`)) return
+    setExcluindoId(id)
+    try {
+      await excluirAtivoInvestimento(id)
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+    finally { setExcluindoId(null) }
   }
 
   const ativosAtivos = ativos.filter((a) => a.ativo)
@@ -215,6 +230,20 @@ export default function Investimentos() {
         )}
       </section>
 
+      <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
+        <h2 id="titulo-evolucao-investimentos" className="mb-1 text-lg font-semibold">Evolução dos investimentos</h2>
+        <p className="mb-3 text-sm text-slate-500">Valor estimado no fechamento de cada mês, por moeda, nos últimos 12 meses. Registre avaliações periódicas para acompanhar a valorização real.</p>
+        {historico.some((p) => p.valorAtual > 0) ? (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[]).map((codigo) => (
+              <GraficoHistorico key={codigo} moedaCodigo={codigo} pontos={historico.filter((p) => p.moeda === codigo)} />
+            ))}
+          </div>
+        ) : <p className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+          O gráfico aparecerá depois da primeira compra registrada. Para acompanhar a valorização, registre avaliações periódicas do ativo.
+        </p>}
+      </section>
+
       {alocacao.length > 0 && <SecaoAlocacao linhas={alocacao} />}
       {proventos.length > 0 && <SecaoProventos linhas={proventos} />}
 
@@ -247,6 +276,10 @@ export default function Investimentos() {
                 <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda} · {a.subclasse ?? 'sem subclasse'}</p></div>
                 <span className="flex items-center gap-2">
                   <Button compacto variante="fantasma" onClick={() => setEditandoSub(editandoSub === a.id ? null : a.id)}>Subclasse de {a.nome}</Button>
+                  {a.quantidadeOperacoes === 0 && a.quantidadeAvaliacoes === 0 ? (
+                    <Button compacto variante="secundario" type="button" carregando={excluindoId === a.id}
+                      onClick={() => void excluirAtivo(a.id, a.nome)}>Excluir</Button>
+                  ) : <span className="text-xs text-slate-500">Histórico protegido</span>}
                   <span className="text-xs text-slate-500">{a.ativo ? 'Ativo' : 'Arquivado'}</span>
                 </span>
                 {editandoSub === a.id && <EditorSubclasse ativo={a} aoSalvar={(v) => salvarSubclasse(a.id, v)} aoCancelar={() => setEditandoSub(null)} />}
@@ -384,6 +417,41 @@ function EditorSubclasse({ ativo, aoSalvar, aoCancelar }: { ativo: AtivoInvestim
       <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
     </form>
   )
+}
+
+function inicioHistorico(hoje: string): string {
+  const ano = Number(hoje.slice(0, 4))
+  const mes = Number(hoje.slice(5, 7)) - 1
+  const inicio = new Date(Date.UTC(ano, mes - 11, 1))
+  return `${inicio.getUTCFullYear()}-${String(inicio.getUTCMonth() + 1).padStart(2, '0')}-01`
+}
+
+function GraficoHistorico({ moedaCodigo, pontos }: { moedaCodigo: MoedaInvestimento; pontos: HistoricoInvestimento[] }) {
+  const largura = 640, altura = 210, esquerda = 58, direita = 14, topo = 14, base = 32
+  const valores = pontos.map((p) => p.valorAtual)
+  const maximo = Math.max(1, ...valores)
+  const x = (i: number) => esquerda + (pontos.length <= 1 ? 0 : i / (pontos.length - 1) * (largura - esquerda - direita))
+  const y = (v: number) => topo + (1 - v / maximo) * (altura - topo - base)
+  const caminho = pontos.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.valorAtual).toFixed(1)}`).join(' ')
+  const rotulo = (valor: number) => moeda(valor as Cents, moedaCodigo)
+  return <Card>
+    <h3 className="mb-2 font-semibold">Evolução em {moedaCodigo}</h3>
+    <svg viewBox={`0 0 ${largura} ${altura}`} className="h-auto w-full" role="img"
+      aria-label={`Gráfico de evolução do investimento em ${moedaCodigo}`}>
+      {[0, 0.5, 1].map((f) => <g key={f}>
+        <line x1={esquerda} x2={largura - direita} y1={y(maximo * f)} y2={y(maximo * f)} stroke="#e2e8f0" />
+        <text x={esquerda - 7} y={y(maximo * f) + 4} textAnchor="end" fontSize="10" fill="#64748b">{rotulo(maximo * f)}</text>
+      </g>)}
+      {caminho && <path d={caminho} fill="none" stroke="#1476d4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+      {pontos.map((p, i) => <g key={p.mes}>
+        <circle cx={x(i)} cy={y(p.valorAtual)} r="3.5" fill="#1476d4" />
+        {(i === 0 || i === pontos.length - 1 || i % 3 === 0) && <text x={x(i)} y={altura - 8} textAnchor="middle" fontSize="10" fill="#64748b">
+          {new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(new Date(`${p.mes}T12:00:00Z`))}
+        </text>}
+      </g>)}
+    </svg>
+    <p className="mt-1 text-xs text-slate-500">Último valor: <strong>{rotulo(pontos[pontos.length - 1]?.valorAtual ?? 0)}</strong></p>
+  </Card>
 }
 
 function Posicao({ p }: { p: PosicaoInvestimento }) {
