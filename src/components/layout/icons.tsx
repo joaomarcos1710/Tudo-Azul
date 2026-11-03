@@ -30,3 +30,5 @@ export const IconeTransferir = () => <Icone><path d="M4 8h14l-3.5-3.5M20 16H6l3.
 export const IconeDividas = () => <Icone><path d="M4 5.5h16M4 12h16M4 18.5h10" /><circle cx="18" cy="18" r="3" /></Icone>
 
 export const IconeInvestimentos = () => <Icone><path d="M3 19h18M5 16l4-5 3 3 6-8" /><path d="M15 6h3v3" /></Icone>
+
+export const IconeBens = () => <Icone><path d="M3 10.5 12 3l9 7.5V21H3Z" /><path d="M9 21v-7h6v7M3 10.5h18" /></Icone>
