@@ -15,6 +15,8 @@ export interface AtivoInvestimento {
   ativo: boolean
   /** Subclasse escolhida pela pessoa (Tesouro Direto, CDB, FIIs…); null = sem subclasse (ou banco sem a migration 034). */
   subclasse: string | null
+  quantidadeOperacoes: number
+  quantidadeAvaliacoes: number
 }
 
 /** Macroclasse, derivada da classe do ativo (a mesma regra da função investment_allocation, migration 034). */
@@ -102,6 +104,13 @@ export interface TotalInvestimento {
   resultado: Cents
 }
 
+export interface HistoricoInvestimento {
+  mes: string
+  moeda: MoedaInvestimento
+  valorAtual: Cents
+  custoTotal: Cents
+}
+
 function db() {
   if (!supabase) throw new Error('Supabase não configurado')
   return supabase
@@ -120,15 +129,30 @@ export function normalizarDecimalInvestimento(valor: string, casas: number): str
 }
 
 export async function listarAtivosInvestimento(familiaId: string): Promise<AtivoInvestimento[]> {
-  // com subclasse (migration 034); se o banco ainda não tem a coluna, lê sem ela
+  // Preserva a subclasse da migration 034 e conta os registros históricos para proteger a exclusão.
   const ler = (colunas: string) => db().from('investment_assets').select(colunas).eq('household_id', familiaId).order('name')
   let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass')
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active'))
   if (error) throw error
+  const [operacoes, avaliacoes] = await Promise.all([
+    db().from('investment_operations').select('asset_id').eq('household_id', familiaId),
+    db().from('investment_valuations').select('asset_id').eq('household_id', familiaId),
+  ])
+  if (operacoes.error) throw operacoes.error
+  if (avaliacoes.error) throw avaliacoes.error
+  const contar = (rows: { asset_id: string }[] | null) => {
+    const mapa = new Map<string, number>()
+    for (const row of rows ?? []) mapa.set(row.asset_id, (mapa.get(row.asset_id) ?? 0) + 1)
+    return mapa
+  }
+  const qtdOperacoes = contar(operacoes.data)
+  const qtdAvaliacoes = contar(avaliacoes.data)
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
     id: r.id as string, nome: r.name as string, ticker: r.ticker as string | null, classe: r.asset_class as ClasseAtivo,
     moeda: r.currency_code as MoedaInvestimento, ativo: r.active as boolean,
     subclasse: (r.subclass as string | null | undefined) ?? null,
+    quantidadeOperacoes: qtdOperacoes.get(r.id as string) ?? 0,
+    quantidadeAvaliacoes: qtdAvaliacoes.get(r.id as string) ?? 0,
   }))
 }
 
@@ -271,5 +295,27 @@ export async function listarProventosPorAtivo(familiaId: string, de: string, ate
     recebido: centsFromDb(r.received as string | number),
     previsto: centsFromDb(r.planned as string | number),
     ultimoRecebimento: (r.last_received as string | null) ?? null,
+  }))
+}
+
+/** Exclui somente ativos sem operações ou avaliações, preservando o livro histórico. */
+export async function excluirAtivoInvestimento(ativoId: string): Promise<void> {
+  const { error } = await db().rpc('investment_asset_delete', { p_asset: ativoId })
+  if (error) throw error
+}
+
+/** Histórico mensal da carteira, calculado no banco e separado por moeda. */
+export async function listarHistoricoInvestimentos(
+  familiaId: string, deData: string, ateData: string,
+): Promise<HistoricoInvestimento[]> {
+  const { data, error } = await db().rpc('investment_history', {
+    p_household: familiaId, p_from: deData, p_to: ateData,
+  })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    mes: String(r.month),
+    moeda: r.currency_code as MoedaInvestimento,
+    valorAtual: centsFromDb(r.market_value as string | number),
+    custoTotal: centsFromDb(r.cost_basis as string | number),
   }))
 }
