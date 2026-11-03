@@ -54,12 +54,20 @@ export default function Dividas() {
         listarDividas(familia.id, hoje),
         listarContas(familia.id),
         listarCategorias(familia.id),
-        listarParcelasDivida(familia.id, hoje, '2100-01-01').catch(() => []),
+        // desde sempre: parcela vencida e ainda não baixada aparece primeiro (antes ficava escondida por começar em hoje)
+        listarParcelasDivida(familia.id, '2000-01-01', '2100-01-01').catch(() => []),
         listarDividas(familia.id, hoje, 'arquivadas').catch(() => []),
       ])
       setDividas(lista)
       setArquivadas(listaArquivadas)
       setParcelas(agenda.slice(0, 12))
+      // vindo de Lançamentos ("Baixar parcela"): abre a baixa daquela parcela e limpa o endereço
+      const baixar = new URLSearchParams(window.location.search).get('baixar')
+      if (baixar) {
+        const alvo = agenda.find((p) => p.id === baixar)
+        if (alvo) setParcelaSelecionada(alvo)
+        window.history.replaceState(null, '', window.location.pathname)
+      }
       setContas(contasAtuais.contas.filter((c) => c.ativa))
       setCategorias(cats.filter((c) => c.tipo === 'expense' && c.ativa))
       setErro('')
@@ -259,7 +267,7 @@ export default function Dividas() {
                     <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                       <div className="min-w-0">
                         <p className="font-medium">{p.nomeDivida} · parcela {p.numero}</p>
-                        <p className="text-xs text-slate-500">Vencimento {p.vencimento.split('-').reverse().join('/')} · {p.formaPagamento === 'account_debit' ? 'Débito em conta' : p.formaPagamento === 'boleto' ? 'Boleto' : p.formaPagamento === 'payroll' ? 'Consignado' : 'Manual'}</p>
+                        <p className="text-xs text-slate-500">{p.vencimento < hojeSP() && <span className="mr-1 font-semibold text-negativo">Vencida ·</span>}Vencimento {p.vencimento.split('-').reverse().join('/')} · {p.formaPagamento === 'account_debit' ? 'Débito em conta' : p.formaPagamento === 'boleto' ? 'Boleto' : p.formaPagamento === 'payroll' ? 'Consignado' : 'Manual'}</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <strong className="tabular-nums">{formatBRL(p.valor)}</strong>
