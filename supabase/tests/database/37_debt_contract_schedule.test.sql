@@ -103,7 +103,7 @@ select is((select count(*) from public.debt_events where debt_id=pg_temp.fx('pay
   1::bigint,'consignado usa evento sem conta bancária');
 select is(pg_temp.sqlstate_of(format(
   'select public.debt_schedule_record_payment(%L::uuid,pg_temp.hoje(),null,149,1,0,null,false)',
-  (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') order by installment_number limit 1))),
+  (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') and status='planned' order by installment_number limit 1))),
   '22023','consignado não aceita juros/tarifas que duplicariam a despesa do salário líquido');
 
 select is(pg_temp.sqlstate_of(format(
