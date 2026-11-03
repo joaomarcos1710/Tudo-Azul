@@ -87,7 +87,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Em aberto (03/11/2026)
 - [x] **041 aplicada** em 03/11/2026 (execução 41619293355): consignado com juros liberado.
-- **Aplicar a 043** (anular operação de investimento, #129) depois do merge, com simulação, log e o "pode" do dono. Atenção à ordem com a 042 (#128).
-- **Aportes no caixa:** aplicação e resgate de investimento ainda não geram lançamento na conta (só o provento gera). Decidir com o dono: vincular a lançamento existente (ele lança a aplicação como despesa) ou criar o lançamento pela operação, sem dupla contagem.
+- [x] **043 aplicada** em 03/11/2026 (execução 41663655015). **A 042 (#128) precisa ser renomeada para depois da 044** antes de ir para produção.
+- [x] **Aportes no caixa:** decidido (03/11/2026): investimento de liquidez é conta do tipo Investimento (#131); aplicação e resgate são transferências. Pendente do dono: trocar as aplicações lançadas como despesa por transferências e arquivar o CDB da tela de Investimentos.
 - **FII entrando como renda fixa:** o formulário de novo ativo abre com a classe "Renda fixa" pré-selecionada (`Investimentos.tsx`); exigir a escolha da classe.
 - Gráfico de distribuição do patrimônio; arquivar/excluir dívida em Dívidas; PR 5 (importar extrato) e PR 6 (metas e fluxo mensal) do plano do protótipo.

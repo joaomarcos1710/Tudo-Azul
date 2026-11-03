@@ -11,17 +11,26 @@ import { BANCOS_POR_NOME } from '../lib/bancos'
 import { IconeConta } from '../components/ui/IconeConta'
 import { useFamilia } from '../lib/FamiliaContext'
 import { criarConta, definirAtiva, editarConta, excluirConta, hojeSP, listarContas, rotuloTipoConta } from '../lib/contas'
-import type { Conta, TipoConta } from '../lib/contas'
+import type { Conta, TipoConta, TotalPorTipo } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+
+const TITULO_GRUPO: Record<TipoConta, string> = {
+  checking: 'Contas correntes',
+  savings: 'Poupanças',
+  investment: 'Investimentos',
+  cash: 'Dinheiro',
+  other: 'Outras',
+}
 
 export default function Contas() {
   const { familia } = useFamilia()
   const familiaId = familia?.id
   const [contas, setContas] = useState<Conta[] | null>(null)
   const [total, setTotal] = useState<Cents | null>(null)
+  const [porTipo, setPorTipo] = useState<TotalPorTipo[]>([])
   const [erro, setErro] = useState('')
   // null = formulário fechado; 'nova' = criando; Conta = editando
   const [editando, setEditando] = useState<Conta | 'nova' | null>(null)
@@ -33,6 +42,7 @@ export default function Contas() {
       const r = await listarContas(familiaId)
       setContas(r.contas)
       setTotal(r.total)
+      setPorTipo(r.porTipo ?? [])
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -63,6 +73,10 @@ export default function Contas() {
 
   const ativas = contas?.filter((c) => c.ativa) ?? []
   const arquivadas = contas?.filter((c) => !c.ativa) ?? []
+  // agrupadas por tipo, na ordem corrente, poupança, investimento, dinheiro, outra; o subtotal vem do banco
+  const grupos = (Object.keys(rotuloTipoConta) as TipoConta[])
+    .map((tipo) => ({ tipo, contas: ativas.filter((c) => c.tipo === tipo), subtotal: porTipo.find((t) => t.tipo === tipo)?.totalAtivas ?? null }))
+    .filter((g) => g.contas.length > 0)
 
   if (!familia) return null
   return (
@@ -110,32 +124,40 @@ export default function Contas() {
               </div>
             </div>
           )}
-          <ul className="flex flex-col gap-3">
-            {ativas.map((c) => (
-              <li key={c.id}>
-                <Card className={`flex flex-wrap items-center justify-between gap-3 ${c.ativa ? '' : 'opacity-70'}`}>
-                  <div className="flex min-w-0 items-center gap-3">
-                    <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} />
-                    <div className="min-w-0">
-                      <p className="font-semibold">
-                        {c.nome}
-                      </p>
-                      <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
-                      {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
-                    </span>
-                    <Link to={`/contas/${c.id}/conferir`} className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-azul hover:bg-azul-claro">Conferir</Link>
-                    <Button variante="fantasma" onClick={() => setEditando(c)}>Editar</Button>
-                    <Button variante="fantasma" onClick={() => alternarAtiva(c)}>Arquivar</Button>
-                    <Button variante="fantasma" onClick={() => setExcluindo(c)}>Excluir</Button>
-                  </div>
-                </Card>
-              </li>
-            ))}
-          </ul>
+          {grupos.map((g) => (
+            <section key={g.tipo} className="mb-6" aria-labelledby={`titulo-contas-${g.tipo}`}>
+              <div className="mb-2 flex items-baseline justify-between gap-3">
+                <h2 id={`titulo-contas-${g.tipo}`} className="text-lg font-semibold">{TITULO_GRUPO[g.tipo]}</h2>
+                {g.subtotal !== null && <span className="tabular-nums text-sm font-semibold text-slate-600">{formatBRL(g.subtotal)}</span>}
+              </div>
+              <ul className="flex flex-col gap-3">
+                {g.contas.map((c) => (
+                  <li key={c.id}>
+                    <Card className={`flex flex-wrap items-center justify-between gap-3 ${c.ativa ? '' : 'opacity-70'}`}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} />
+                        <div className="min-w-0">
+                          <p className="font-semibold">
+                            {c.nome}
+                          </p>
+                          <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
+                          {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
+                        </span>
+                        <Link to={`/contas/${c.id}/conferir`} className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-azul hover:bg-azul-claro">Conferir</Link>
+                        <Button variante="fantasma" onClick={() => setEditando(c)}>Editar</Button>
+                        <Button variante="fantasma" onClick={() => alternarAtiva(c)}>Arquivar</Button>
+                        <Button variante="fantasma" onClick={() => setExcluindo(c)}>Excluir</Button>
+                      </div>
+                    </Card>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
 
           {arquivadas.length > 0 && (
             <section className="mt-8" aria-labelledby="titulo-contas-arquivadas">
