@@ -142,6 +142,52 @@ async function todas(consulta: () => Pagina): Promise<Registro[]> {
   }
 }
 
+function schemaAindaNaoAplicado(erro: unknown): boolean {
+  const codigo = erro && typeof erro === 'object' && 'code' in erro
+    ? String((erro as { code?: unknown }).code ?? '')
+    : ''
+  return ['PGRST204', 'PGRST205', '42703', '42P01'].includes(codigo)
+}
+
+async function buscarDividasExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Registro[]> {
+  let { data, error } = await db.from('debts')
+    .select('id, name, kind, reference_date, reference_balance, active, creditor, contract_number, payment_method, payment_account_id')
+    .eq('household_id', familiaId).order('name')
+  if (error && schemaAindaNaoAplicado(error)) {
+    const legado = await db.from('debts')
+      .select('id, name, kind, reference_date, reference_balance, active')
+      .eq('household_id', familiaId).order('name')
+    data = legado.data
+    error = legado.error
+  }
+  if (error) throw error
+  return (data ?? []) as Registro[]
+}
+
+async function buscarEventosExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Registro[]> {
+  try {
+    return await todas(() => db.from('debt_events')
+      .select('id, debt_id, date, kind, amount, account_id, installment_id, invoice_id, category_id, note, schedule_id, op_id')
+      .eq('household_id', familiaId).is('voided_at', null).order('date').order('id'))
+  } catch (erro) {
+    if (!schemaAindaNaoAplicado(erro)) throw erro
+    return todas(() => db.from('debt_events')
+      .select('id, debt_id, date, kind, amount, account_id, installment_id, invoice_id, category_id, note, op_id')
+      .eq('household_id', familiaId).is('voided_at', null).order('date').order('id'))
+  }
+}
+
+async function buscarAgendaDividasExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Registro[]> {
+  try {
+    return await todas(() => db.from('debt_payment_schedule')
+      .select('id, debt_id, installment_number, due_date, amount, status, payment_op_id, payment_date')
+      .eq('household_id', familiaId).order('due_date').order('id'))
+  } catch (erro) {
+    if (!schemaAindaNaoAplicado(erro)) throw erro
+    return []
+  }
+}
+
 const rotuloOrigem: Record<string, string> = { opening: 'Saldo inicial', transaction: 'Lançamento', debt: 'Cartão/dívida' }
 const rotuloDivida: Record<string, string> = { card: 'Cartão', loan: 'Empréstimo', financing: 'Financiamento' }
 const rotuloEvento: Record<string, string> = {
@@ -168,17 +214,16 @@ const talvez = (v: unknown): Celula => (v === null || v === undefined ? '' : cen
 export async function exportacaoCompleta(familiaId: string, hoje: string): Promise<ArquivoExportado[]> {
   if (!supabase) throw new Error('Supabase não configurado')
   const db = supabase
-  const [contas, categorias, dividas, faturas, saldos, saldosDividas] = await Promise.all([
+  const [contas, categorias, listaDividas, faturas, saldos, saldosDividas] = await Promise.all([
     db.from('accounts').select('id, name, type, initial_balance, opening_date, active').eq('household_id', familiaId).order('name'),
     db.from('categories').select('id, name').eq('household_id', familiaId),
-    db.from('debts').select('id, name, kind, reference_date, reference_balance, active, creditor, contract_number, payment_method, payment_account_id').eq('household_id', familiaId).order('name'),
+    buscarDividasExportacao(db, familiaId),
     db.from('debt_invoices').select('id, label').eq('household_id', familiaId),
     db.rpc('account_balances', { p_household: familiaId, p_as_of: hoje }),
     db.rpc('debt_balances', { p_household: familiaId, p_as_of: hoje }),
   ])
-  for (const r of [contas, categorias, dividas, faturas, saldos, saldosDividas]) if (r.error) throw r.error
+  for (const r of [contas, categorias, faturas, saldos, saldosDividas]) if (r.error) throw r.error
   const listaContas = (contas.data ?? []) as Registro[]
-  const listaDividas = (dividas.data ?? []) as Registro[]
   const nomeConta = new Map(listaContas.map((c) => [c.id, texto(c.name)]))
   const nomeDivida = new Map(listaDividas.map((d) => [d.id, texto(d.name)]))
   const nomeCategoria = new Map(((categorias.data ?? []) as Registro[]).map((c) => [c.id, texto(c.name)]))
@@ -191,12 +236,8 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     todas(() => db.from('debt_installments')
       .select('id, debt_id, plan, seq, description, purchase_date, due_date, face, category_id')
       .eq('household_id', familiaId).order('due_date').order('id')),
-    todas(() => db.from('debt_events')
-      .select('id, debt_id, date, kind, amount, account_id, installment_id, invoice_id, category_id, note, schedule_id, op_id')
-      .eq('household_id', familiaId).is('voided_at', null).order('date').order('id')),
-    todas(() => db.from('debt_payment_schedule')
-      .select('id, debt_id, installment_number, due_date, amount, status, payment_op_id, payment_date')
-      .eq('household_id', familiaId).order('due_date').order('id')),
+    buscarEventosExportacao(db, familiaId),
+    buscarAgendaDividasExportacao(db, familiaId),
     ...listaContas.map((c) => todas(() => db.rpc('account_movements', { p_account: c.id, p_to: hoje })
       .order('date').order('source').order('id'))),
   ])
