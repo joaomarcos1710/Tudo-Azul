@@ -150,18 +150,18 @@ function schemaAindaNaoAplicado(erro: unknown): boolean {
 }
 
 async function buscarDividasExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Registro[]> {
-  let { data, error } = await db.from('debts')
+  const atual = await db.from('debts')
     .select('id, name, kind, reference_date, reference_balance, active, creditor, contract_number, payment_method, payment_account_id')
     .eq('household_id', familiaId).order('name')
-  if (error && schemaAindaNaoAplicado(error)) {
+  if (atual.error) {
+    if (!schemaAindaNaoAplicado(atual.error)) throw atual.error
     const legado = await db.from('debts')
       .select('id, name, kind, reference_date, reference_balance, active')
       .eq('household_id', familiaId).order('name')
-    data = legado.data
-    error = legado.error
+    if (legado.error) throw legado.error
+    return (legado.data ?? []) as Registro[]
   }
-  if (error) throw error
-  return (data ?? []) as Registro[]
+  return (atual.data ?? []) as Registro[]
 }
 
 async function buscarEventosExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Registro[]> {
