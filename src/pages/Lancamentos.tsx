@@ -5,7 +5,6 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
-import { IconeConta } from '../components/ui/IconeConta'
 import { Selecao } from '../components/ui/Selecao'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
@@ -139,7 +138,6 @@ export default function Lancamentos() {
 
   useEffect(() => { void carregar() }, [carregar])
 
-  const contaPorId = useMemo(() => new Map(contas.map((c) => [c.id, c])), [contas])
   const nomeConta = useMemo(() => new Map(contas.map((c) => [c.id, c.nome])), [contas])
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
   const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
@@ -199,11 +197,15 @@ export default function Lancamentos() {
           <Card semPadding className={totalCard}><p className={totalRotulo}>Despesas pagas</p><p className={`${totalValor} text-negativo`}>−{formatBRL(resumo.despesas)}</p></Card>
           <Card semPadding className={totalCard}>
             <p className={totalRotulo}>Resultado do mês</p>
-            <div className="text-right sm:text-left">
+            <div className="min-w-0 text-right sm:text-left">
               <p className={`${totalValor} ${resumo.resultado < 0 ? 'text-negativo' : ''}`}>{formatBRL(resumo.resultado)}</p>
               {(resumo.receitasPrevistas > 0 || resumo.despesasPrevistas > 0) && (
-                <p className="mt-1 text-xs text-planejado">
-                  Planejado: <span className="whitespace-nowrap">+{formatBRL(resumo.receitasPrevistas)}</span> / <span className="whitespace-nowrap">−{formatBRL(resumo.despesasPrevistas)}</span>
+                // cada valor é indivisível (nowrap) e a linha quebra entre eles: no celular o valor nunca fica cortado
+                <p className="mt-1 flex flex-wrap justify-end gap-x-1.5 text-xs text-planejado sm:justify-start">
+                  <span>Planejado:</span>
+                  <span className="whitespace-nowrap">+{formatBRL(resumo.receitasPrevistas)}</span>
+                  <span aria-hidden="true">/</span>
+                  <span className="whitespace-nowrap">−{formatBRL(resumo.despesasPrevistas)}</span>
                 </p>
               )}
             </div>
@@ -344,9 +346,10 @@ export default function Lancamentos() {
                   }
                   const l = item.l
                   const v = valorComSinal(l)
+                  // só a categoria; a transferência não tem categoria, então mostra de qual conta para qual
                   const subtitulo = l.tipo === 'transfer'
                     ? `${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`
-                    : `${nomeCategoria.get(l.categoriaId ?? '') ?? 'Sem categoria'} · ${nomeConta.get(l.contaId) ?? '?'}`
+                    : nomeCategoria.get(l.categoriaId ?? '') ?? 'Sem categoria'
                   return (
                     <li key={l.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
                       <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
@@ -357,10 +360,7 @@ export default function Lancamentos() {
                           {l.status === 'planned' && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado</span>}
                           {l.recorrente && <span className="ml-2 text-xs text-slate-500" title="Gerado por um recorrente">↻ recorrente</span>}
                         </p>
-                        <p className="flex items-start gap-1.5 text-sm text-slate-500">
-                          {l.tipo !== 'transfer' && contaPorId.get(l.contaId) && <IconeConta nome={contaPorId.get(l.contaId)!.nome} tipo={contaPorId.get(l.contaId)!.tipo} banco={contaPorId.get(l.contaId)!.banco} tamanho="mini" className="mt-1" />}
-                          <span className="min-w-0">{subtitulo}</span>
-                        </p>
+                        <p className="text-sm text-slate-500">{subtitulo}</p>
                       </div>
                         <span className={`shrink-0 tabular-nums font-semibold ${v.cor}`}>{v.texto}</span>
                       </div>

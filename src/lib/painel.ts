@@ -19,6 +19,10 @@ export interface ProximoPlanejado {
   valor: Cents
   data: string
   categoriaId: string | null
+  /** Conta de origem; usada para mostrar De → Para nas transferências. */
+  contaId: string | null
+  /** Conta de destino (só em transferência). */
+  destinoId: string | null
 }
 
 function cliente() {
@@ -43,7 +47,7 @@ export async function carregarPatrimonio(familiaId: string, dataRef: string): Pr
 export async function proximosPlanejados(familiaId: string, deData: string, limite = 5): Promise<ProximoPlanejado[]> {
   const { data, error } = await cliente()
     .from('transactions')
-    .select('id, type, description, amount, date, category_id')
+    .select('id, type, description, amount, date, category_id, account_id, destination_account_id')
     .eq('household_id', familiaId)
     .eq('status', 'planned')
     .is('deleted_at', null)
@@ -51,7 +55,7 @@ export async function proximosPlanejados(familiaId: string, deData: string, limi
     .order('date')
     .limit(limite)
   if (error) throw error
-  return (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null }))
+  return (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null, contaId: t.account_id ?? null, destinoId: t.destination_account_id ?? null }))
 }
 
 /** Fatia do gráfico de categorias; categoriaId nulo = "Outros" (somado no banco). */
@@ -147,12 +151,12 @@ export interface Vencidos {
 }
 
 export async function vencidosPlanejados(familiaId: string, hoje: string, limite = 5): Promise<Vencidos> {
-  const base = () => cliente().from('transactions').select('id, type, description, amount, date, category_id', { count: 'exact' })
+  const base = () => cliente().from('transactions').select('id, type, description, amount, date, category_id, account_id, destination_account_id', { count: 'exact' })
     .eq('household_id', familiaId).eq('status', 'planned').is('deleted_at', null).lt('date', hoje)
   const { data, error, count } = await base().order('date').order('id').limit(limite)
   if (error) throw error
   return {
-    itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null })),
+    itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null, contaId: t.account_id ?? null, destinoId: t.destination_account_id ?? null })),
     total: count ?? (data ?? []).length,
   }
 }

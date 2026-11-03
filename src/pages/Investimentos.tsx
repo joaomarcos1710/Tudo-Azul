@@ -202,14 +202,13 @@ export default function Investimentos() {
               <Card key={t.moeda}>
                 <p className="text-sm font-medium text-slate-500">Patrimônio em {t.moeda}</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums">{moeda(t.valorAtual, t.moeda)}</p>
-                <div className="mt-3 flex justify-between gap-2 text-sm">
-                  <span className="text-slate-500">Custo de aquisição</span>
-                  <strong className="tabular-nums">{moeda(t.custoTotal, t.moeda)}</strong>
-                </div>
-                <div className="mt-1 flex justify-between gap-2 text-sm">
-                  <span className="text-slate-500">Resultado não realizado</span>
-                  <strong className="tabular-nums">{moeda(t.resultado, t.moeda)}</strong>
-                </div>
+                {/* uma grade só para os dois pares: os rótulos ficam na mesma coluna e os valores terminam na mesma borda direita */}
+                <dl className="mt-3 grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">
+                  <dt className="text-slate-500">Custo de aquisição</dt>
+                  <dd className="m-0 text-right font-bold tabular-nums">{moeda(t.custoTotal, t.moeda)}</dd>
+                  <dt className="text-slate-500">Resultado não realizado</dt>
+                  <dd className="m-0 text-right font-bold tabular-nums">{moeda(t.resultado, t.moeda)}</dd>
+                </dl>
               </Card>
             ))}
           </div>

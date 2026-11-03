@@ -16,9 +16,9 @@ import { asCents, formatBRL, formatBRLCampo, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  criarDivida, definirTermosDivida, listarDividas, registrarPagamentoDivida, simularQuitacao,
+  criarDivida, definirTermosDivida, listarDividas, registrarPagamentoDivida, renomearDivida,
 } from '../lib/dividas'
-import type { Divida, ResultadoQuitacao, TipoDivida } from '../lib/dividas'
+import type { Divida, TipoDivida } from '../lib/dividas'
 
 function taxaBps(texto: string): number | null {
   const valor = texto.trim().replace(',', '.')
@@ -36,7 +36,7 @@ export default function Dividas() {
   const [nova, setNova] = useState(false)
   const [pagando, setPagando] = useState<Divida | null>(null)
   const [termos, setTermos] = useState<Divida | null>(null)
-  const [orcamentoTexto, setOrcamentoTexto] = useState('')
+  const [renomeando, setRenomeando] = useState<Divida | null>(null)
 
   const carregar = useCallback(async () => {
     if (!familia?.id) return
@@ -74,6 +74,14 @@ export default function Dividas() {
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
 
+  async function salvarNome(id: string, nome: string) {
+    try {
+      await renomearDivida(id, nome)
+      setRenomeando(null)
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+
   async function salvarTermos(id: string, taxa: number, minimo: Cents) {
     try {
       await definirTermosDivida(id, taxa, minimo)
@@ -84,21 +92,17 @@ export default function Dividas() {
 
   if (!familia) return null
 
-  const orcamento = parseBRL(orcamentoTexto)
-  const simulacaoSnowball = dividas && orcamento !== null ? simularQuitacao(dividas, orcamento, 'snowball') : null
-  const simulacaoAvalanche = dividas && orcamento !== null ? simularQuitacao(dividas, orcamento, 'avalanche') : null
-
   return (
     <>
       <CabecalhoPagina
         titulo="Dívidas e empréstimos"
-        descricao="Acompanhe o saldo devedor real, registre pagamentos e compare estratégias de quitação."
+        descricao="Acompanhe o saldo devedor real e registre os pagamentos de empréstimos e financiamentos."
         acoes={!nova && <Button onClick={() => setNova(true)}>Nova dívida</Button>}
       />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       <Aviso tipo="info">
-        Nesta etapa, dívidas e pagamentos são registrados em reais. O saldo oficial continua vindo do motor financeiro existente. A simulação é uma estimativa e não altera contratos nem lançamentos.
+        Nesta etapa, dívidas e pagamentos são registrados em reais. O saldo oficial continua vindo do motor financeiro existente.
       </Aviso>
 
       {nova && (
@@ -117,6 +121,10 @@ export default function Dividas() {
 
       {termos && (
         <FormTermos divida={termos} aoSalvar={salvarTermos} aoCancelar={() => setTermos(null)} />
+      )}
+
+      {renomeando && (
+        <FormRenomear divida={renomeando} aoSalvar={salvarNome} aoCancelar={() => setRenomeando(null)} />
       )}
 
       {dividas === null && !erro && <p role="status" className="text-sm text-slate-600">Carregando dívidas…</p>}
@@ -164,39 +172,12 @@ export default function Dividas() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button compacto onClick={() => setPagando(d)}>Registrar pagamento</Button>
                       <Button compacto variante="secundario" onClick={() => setTermos(d)}>Parâmetros da dívida</Button>
+                      <Button compacto variante="fantasma" onClick={() => setRenomeando(d)} aria-label={`Renomear ${d.nome}`}>Renomear</Button>
                     </div>
                   </Card>
                 </li>
               ))}
             </ul>
-          </section>
-
-          <section aria-labelledby="titulo-simulador">
-            <div className="mb-3">
-              <h2 id="titulo-simulador" className="text-lg font-semibold">Simulador de quitação</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Informe quanto a família consegue destinar por mês. O simulador paga os mínimos de todas as dívidas e direciona o excedente conforme Snowball ou Avalanche.
-              </p>
-            </div>
-            <Card>
-              <div className="mb-4 max-w-sm">
-                <Field
-                  rotulo="Orçamento mensal total (R$)"
-                  inputMode="decimal"
-                  placeholder="Ex.: 2.500,00"
-                  value={orcamentoTexto}
-                  onChange={(e) => setOrcamentoTexto(e.target.value)}
-                  erro={orcamentoTexto && orcamento === null ? 'Informe um valor válido.' : undefined}
-                />
-              </div>
-              <p className="mb-4 text-xs text-slate-500">
-                Configure a taxa mensal e o pagamento mínimo de cada dívida em “Parâmetros da dívida”. Se os dados estiverem zerados ou desatualizados, a estimativa pode ficar otimista.
-              </p>
-              <div className="grid gap-3 md:grid-cols-2">
-                <ResultadoSimulacao resultado={simulacaoSnowball} titulo="Snowball" explicacao="Prioriza o menor saldo primeiro." />
-                <ResultadoSimulacao resultado={simulacaoAvalanche} titulo="Avalanche" explicacao="Prioriza a maior taxa mensal primeiro." />
-              </div>
-            </Card>
           </section>
         </>
       )}
@@ -356,30 +337,31 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar }: {
   )
 }
 
-function ResultadoSimulacao({ resultado, titulo, explicacao }: {
-  resultado: ResultadoQuitacao | null
-  titulo: string
-  explicacao: string
+function FormRenomear({ divida, aoSalvar, aoCancelar }: {
+  divida: Divida
+  aoSalvar: (id: string, nome: string) => Promise<void>
+  aoCancelar: () => void
 }) {
+  const [nome, setNome] = useState(divida.nome)
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    if (!nome.trim()) { setErro('Informe o nome.'); return }
+    setErro(''); setEnviando(true)
+    try { await aoSalvar(divida.id, nome) } finally { setEnviando(false) }
+  }
   return (
-    <div className="rounded-xl border border-slate-200 p-4">
-      <h3 className="font-semibold">{titulo}</h3>
-      <p className="mb-3 text-xs text-slate-500">{explicacao}</p>
-      {!resultado && <p className="text-sm text-slate-500">Informe o orçamento mensal para calcular.</p>}
-      {resultado && (
-        <>
-          {resultado.erro && <p className="mb-2 text-sm text-amber-700">{resultado.erro}</p>}
-          {resultado.meses > 0 && <p className="text-2xl font-bold">{resultado.quitado ? `${resultado.meses} meses` : `Mais de ${resultado.meses} meses`}</p>}
-          {resultado.jurosTotais !== null && <p className="mt-2 text-sm">Juros estimados: <strong>{formatBRL(resultado.jurosTotais)}</strong></p>}
-          {resultado.totalPago !== null && <p className="text-sm">Total pago: <strong>{formatBRL(resultado.totalPago)}</strong></p>}
-          {resultado.quitado && resultado.ordemQuitacao.length > 0 && (
-            <p className="mt-2 text-xs text-slate-600">Ordem de quitação: {resultado.ordemQuitacao.join(' → ')}</p>
-          )}
-          {resultado.prioridadeInicial.length > 0 && (
-            <p className="mt-2 text-xs text-slate-500">Prioridade inicial: {resultado.prioridadeInicial.join(' → ')}</p>
-          )}
-        </>
-      )}
-    </div>
+    <Card className="mb-5">
+      <h2 className="mb-3 text-lg font-semibold">Renomear {divida.nome}</h2>
+      <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Field rotulo="Nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={60} />
+        <div className="flex items-end gap-2">
+          <Button type="submit" carregando={enviando}>Salvar nome</Button>
+          <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
+        </div>
+      </form>
+    </Card>
   )
 }

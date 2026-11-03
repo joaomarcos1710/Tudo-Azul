@@ -18,33 +18,35 @@ begin
 end $f$;
 create function pg_temp.sqlstate_of(p_sql text) returns text language plpgsql as $f$
 begin execute p_sql; return null; exception when others then return sqlstate; end $f$;
-grant execute on function pg_temp.mkuser(uuid,text), pg_temp.login(uuid), pg_temp.sqlstate_of(text) to public;
+-- "hoje" em São Paulo, a mesma data que as RPCs usam (current_date é UTC e erra o dia entre 21h e 24h em SP)
+create function pg_temp.hoje() returns date language sql as $f$ select (now() at time zone 'America/Sao_Paulo')::date $f$;
+grant execute on function pg_temp.hoje(), pg_temp.mkuser(uuid,text), pg_temp.login(uuid), pg_temp.sqlstate_of(text) to public;
 
 insert into public.fx_rates (base, quote, rate, rate_date, source) values
-  ('USD', 'BRL', 5.25, current_date - 1, 'teste'),
-  ('EUR', 'USD', 1.10, current_date - 1, 'teste'),
-  ('BRL', 'EUR', 0.18, current_date - 10, 'teste');
+  ('USD', 'BRL', 5.25, pg_temp.hoje() - 1, 'teste'),
+  ('EUR', 'USD', 1.10, pg_temp.hoje() - 1, 'teste'),
+  ('BRL', 'EUR', 0.18, pg_temp.hoje() - 10, 'teste');
 
 select is((select count(*) from public.currencies), 3::bigint, 'catálogo inicial contém BRL, USD e EUR');
 select is((select minor_unit from public.currencies where code = 'BRL'), 2::smallint, 'BRL usa duas casas decimais');
 select is((select minor_unit from public.currencies where code = 'USD'), 2::smallint, 'USD usa duas casas decimais');
 select is((select minor_unit from public.currencies where code = 'EUR'), 2::smallint, 'EUR usa duas casas decimais');
-select is(pg_temp.sqlstate_of($$insert into public.fx_rates (base,quote,rate,rate_date,source) values ('USD','USD',1,current_date,'teste')$$),
+select is(pg_temp.sqlstate_of($$insert into public.fx_rates (base,quote,rate,rate_date,source) values ('USD','USD',1,pg_temp.hoje(),'teste')$$),
   '23514', 'par identidade não pode ser armazenado como cotação');
-select is(pg_temp.sqlstate_of($$insert into public.fx_rates (base,quote,rate,rate_date,source) values ('USD','BRL',0,current_date,'teste')$$),
+select is(pg_temp.sqlstate_of($$insert into public.fx_rates (base,quote,rate,rate_date,source) values ('USD','BRL',0,pg_temp.hoje(),'teste')$$),
   '23514', 'taxa zero é recusada');
-select is(pg_temp.sqlstate_of($$insert into public.fx_rates (base,quote,rate,rate_date,source) values ('USD','BRL',1,current_date - 1,'outro')$$),
+select is(pg_temp.sqlstate_of($$insert into public.fx_rates (base,quote,rate,rate_date,source) values ('USD','BRL',1,pg_temp.hoje() - 1,'outro')$$),
   '23505', 'não aceita duas taxas para o mesmo par e data');
 
-select is((select rate from public.fx_rate_at('USD','BRL',current_date)), 5.25::numeric, 'consulta retorna taxa direta');
-select is((select rate_date from public.fx_rate_at('USD','BRL',current_date)), current_date - 1, 'consulta informa data efetiva da taxa');
-select is((select derived from public.fx_rate_at('USD','BRL',current_date)), false, 'taxa direta não é marcada como derivada');
-select is((select rate from public.fx_rate_at('BRL','USD',current_date)), (1::numeric / 5.25::numeric), 'consulta calcula taxa inversa em numeric');
-select is((select derived from public.fx_rate_at('BRL','USD',current_date)), true, 'taxa inversa é marcada como derivada');
-select is((select rate from public.fx_rate_at('EUR','EUR',current_date)), 1::numeric, 'mesma moeda retorna taxa 1 sem cotação');
-select is((select legs from public.fx_rate_at('EUR','EUR',current_date)), 0::smallint, 'conversão identidade não usa perna externa');
-select is((select count(*) from public.fx_rate_at('BRL','EUR',current_date)), 0::bigint, 'cotação com mais de sete dias não é usada');
-select is((select count(*) from public.fx_rate_at('XXX','BRL',current_date)), 0::bigint, 'moeda desconhecida não retorna taxa');
+select is((select rate from public.fx_rate_at('USD','BRL',pg_temp.hoje())), 5.25::numeric, 'consulta retorna taxa direta');
+select is((select rate_date from public.fx_rate_at('USD','BRL',pg_temp.hoje())), pg_temp.hoje() - 1, 'consulta informa data efetiva da taxa');
+select is((select derived from public.fx_rate_at('USD','BRL',pg_temp.hoje())), false, 'taxa direta não é marcada como derivada');
+select is((select rate from public.fx_rate_at('BRL','USD',pg_temp.hoje())), (1::numeric / 5.25::numeric), 'consulta calcula taxa inversa em numeric');
+select is((select derived from public.fx_rate_at('BRL','USD',pg_temp.hoje())), true, 'taxa inversa é marcada como derivada');
+select is((select rate from public.fx_rate_at('EUR','EUR',pg_temp.hoje())), 1::numeric, 'mesma moeda retorna taxa 1 sem cotação');
+select is((select legs from public.fx_rate_at('EUR','EUR',pg_temp.hoje())), 0::smallint, 'conversão identidade não usa perna externa');
+select is((select count(*) from public.fx_rate_at('BRL','EUR',pg_temp.hoje())), 0::bigint, 'cotação com mais de sete dias não é usada');
+select is((select count(*) from public.fx_rate_at('XXX','BRL',pg_temp.hoje())), 0::bigint, 'moeda desconhecida não retorna taxa');
 
 select pg_temp.mkuser('00000000-0000-0000-0000-0000000000b1', 'fx-owner@test.com');
 select pg_temp.login('00000000-0000-0000-0000-0000000000b1');
@@ -61,7 +63,7 @@ select ok(has_table_privilege(current_user, 'public.fx_rates', 'SELECT'), 'authe
 select ok(not has_table_privilege(current_user, 'public.fx_rates', 'INSERT') and not has_any_column_privilege(current_user, 'public.fx_rates', 'INSERT'), 'authenticated não insere cotações diretamente');
 select ok(not has_table_privilege(current_user, 'public.fx_rates', 'UPDATE') and not has_any_column_privilege(current_user, 'public.fx_rates', 'UPDATE'), 'authenticated não altera cotações diretamente');
 select ok(not has_table_privilege(current_user, 'public.fx_rates', 'DELETE'), 'authenticated não apaga cotações diretamente');
-select is(pg_temp.sqlstate_of(format($$update public.fx_rates set rate = 99 where base='USD' and quote='BRL' and rate_date=current_date - 1$$)),
+select is(pg_temp.sqlstate_of(format($$update public.fx_rates set rate = 99 where base='USD' and quote='BRL' and rate_date=pg_temp.hoje() - 1$$)),
   '42501', 'authenticated não consegue alterar cotação');
 
 select * from finish();

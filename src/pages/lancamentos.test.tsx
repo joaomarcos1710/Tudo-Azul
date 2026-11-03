@@ -109,9 +109,23 @@ describe('Lançamentos', () => {
     expect(screen.getAllByText('+R$ 8.000,00').length).toBe(2) // item planejado da lista e "Planejado:" do resultado
     expect(screen.getByText('⇄ R$ 100,00')).toBeTruthy()
     expect(screen.getByText('Itaú → Nubank')).toBeTruthy()
-    expect(screen.getByText('Mercado · Itaú')).toBeTruthy()
+    // a linha mostra só a categoria: sem o nome da conta/banco depois dela
+    expect(screen.getByText('Mercado')).toBeTruthy()
+    expect(screen.queryByText('Mercado · Itaú')).toBeNull()
     expect(screen.getByText('Planejado')).toBeTruthy()
     expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
+  })
+
+  it('o planejado do resultado: cada valor é indivisível e a linha pode quebrar entre eles, para não cortar no celular', async () => {
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findAllByText('+R$ 8.000,00')
+    const rotulo = screen.getByText('Planejado:')
+    const linha = rotulo.parentElement!
+    expect(linha.className).toMatch(/flex-wrap/)
+    const valores = [...linha.querySelectorAll('span.whitespace-nowrap')].map((e) => e.textContent)
+    expect(valores).toHaveLength(2)
+    expect(valores[0]).toBe('+R$ 8.000,00')
+    expect(valores[1]).toMatch(/^−R\$ /)
   })
 
   it('cada linha tem o ícone da categoria (transferência: setas); o valor continua na cor de receita/despesa', async () => {
@@ -615,7 +629,8 @@ describe('Subcategoria na ordem e no nome', () => {
       { id: 'r1', tipo: 'income', contaId: 'a1', destinoId: null, categoriaId: 'reem', descricao: 'Devolução', valor: c(16800), data: '2026-10-05', status: 'paid', notas: '' },
     ])
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    expect(await screen.findByText('Royalty › Reembolso · Itaú')).toBeTruthy()
+    expect(await screen.findByText('Royalty › Reembolso')).toBeTruthy()
+    expect(screen.queryByText('Royalty › Reembolso · Itaú')).toBeNull()
   })
 
   it('no filtro por categoria, a subcategoria também fica sob a principal', async () => {
