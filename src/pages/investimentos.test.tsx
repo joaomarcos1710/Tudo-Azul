@@ -362,5 +362,35 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(screen.getByText('Informe o nome do ativo.')).toBeTruthy()
       expect(mock.editarAtivoInvestimento).not.toHaveBeenCalled()
     })
+
+    it('editar abre o formulário dentro do próprio ativo (não lá em cima da página)', async () => {
+      comZerado()
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(within(await linhaDe('Ação zerada')).getByRole('button', { name: 'Editar Ação zerada' }))
+      expect(within(await linhaDe('Ação zerada')).getByLabelText('Nome do ativo')).toBeTruthy()
+    })
+
+    it('trocar o ativo em edição mostra os dados do novo ativo (nunca grava o nome de outro)', async () => {
+      comZerado()
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(within(await linhaDe('Ação zerada')).getByRole('button', { name: 'Editar Ação zerada' }))
+      await u.click(within(await linhaDe('Nunca usado')).getByRole('button', { name: 'Editar Nunca usado' }))
+      expect((screen.getByLabelText('Nome do ativo') as HTMLInputElement).value).toBe('Nunca usado')
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      expect(mock.editarAtivoInvestimento).toHaveBeenCalledWith({ ativoId: 'a6', nome: 'Nunca usado', ticker: '', classe: 'other' })
+    })
+
+    it('erro do banco ao salvar a edição aparece dentro do formulário e o formulário continua aberto', async () => {
+      comZerado()
+      mock.editarAtivoInvestimento.mockRejectedValue(Object.assign(new Error('duplicate key'), { code: '23505' }))
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(within(await linhaDe('Ação zerada')).getByRole('button', { name: 'Editar Ação zerada' }))
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      expect(within(await linhaDe('Ação zerada')).getByText('Já existe um registro com esse nome.')).toBeTruthy()
+      expect(screen.getByLabelText('Nome do ativo')).toBeTruthy()
+    })
   })
 })

@@ -134,12 +134,11 @@ export default function Investimentos() {
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
+  // o erro sobe para o formulário (que fica aberto e o mostra perto dos campos, não no topo da página)
   async function salvarEdicaoAtivo(d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo }) {
-    try {
-      await editarAtivoInvestimento(d)
-      setEditandoAtivo(null)
-      await carregar()
-    } catch (e) { setErro(mensagemErroBanco(e)) }
+    await editarAtivoInvestimento(d)
+    setEditandoAtivo(null)
+    await carregar()
   }
   async function salvarSubclasse(ativoId: string, subclasse: string) {
     try {
@@ -205,9 +204,6 @@ export default function Investimentos() {
       {novoAtivo && <FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
         <FormOperacao ativos={ativosAtivos} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
-      )}
-      {editandoAtivo && (
-        <FormEditarAtivo ativo={editandoAtivo} aoSalvar={salvarEdicaoAtivo} aoCancelar={() => setEditandoAtivo(null)} />
       )}
       {novoProvento && (
         <FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} />
@@ -311,6 +307,11 @@ export default function Investimentos() {
                         onClick={() => void excluirAtivo(a.id, a.nome)}>Excluir</Button>
                     ) : <span className="text-xs text-slate-500">Histórico protegido</span>}
                   </span>
+                  {editandoAtivo?.id === a.id && (
+                    <div className="w-full">
+                      <FormEditarAtivo ativo={a} aoSalvar={salvarEdicaoAtivo} aoCancelar={() => setEditandoAtivo(null)} />
+                    </div>
+                  )}
                   {editandoSub === a.id && <EditorSubclasse ativo={a} aoSalvar={(v) => salvarSubclasse(a.id, v)} aoCancelar={() => setEditandoSub(null)} />}
                 </li>
               )
@@ -449,7 +450,9 @@ function FormEditarAtivo({ ativo, aoSalvar, aoCancelar }: {
     e.preventDefault()
     if (!nome.trim()) { setErro('Informe o nome do ativo.'); return }
     setErro(''); setEnviando(true)
-    try { await aoSalvar({ ativoId: ativo.id, nome, ticker, classe }) } finally { setEnviando(false) }
+    try { await aoSalvar({ ativoId: ativo.id, nome, ticker, classe }) }
+    catch (err) { setErro(mensagemErroBanco(err)) }
+    finally { setEnviando(false) }
   }
   return (
     <Card className="mb-5">
