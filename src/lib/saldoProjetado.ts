@@ -3,9 +3,9 @@ import type { Cents } from './format'
 import { supabase } from './supabase'
 
 /**
- * Saldo em qualquer data e faturas de cartão por vencimento (migration 025). Toda soma é do banco:
- * a tela só mostra os números. No saldo "efetuados + planejados" a fatura do cartão desconta da conta que o paga
- * (a conta de pagamento do cartão, migration 024) no dia do vencimento; cartão sem conta escolhida desconta só do total.
+ * Saldo em qualquer data. Toda soma é do banco: a tela só mostra os números.
+ * Parcelas com débito automático reduzem a conta contratual; boleto/manual sem conta reduzem só o total;
+ * consignado aparece como compromisso, sem duplicar a saída de um salário já registrado líquido.
  */
 function cliente() {
   if (!supabase) throw new Error('Supabase não configurado')
@@ -26,7 +26,7 @@ export interface SaldoTotal {
   efetuado: Cents
   planejado: Cents
   faturas: Cents
-  /** Parte das faturas de cartões sem conta de pagamento escolhida: só entra no total, nunca numa conta. */
+  /** Faturas e parcelas sem conta definida: entram no total, nunca em uma conta específica. */
   faturasSemConta: Cents
   saldo: Cents
 }
