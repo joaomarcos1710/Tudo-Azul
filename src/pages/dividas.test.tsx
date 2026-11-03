@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const mock = vi.hoisted(() => ({
@@ -10,11 +10,14 @@ const mock = vi.hoisted(() => ({
   renomearDivida: vi.fn(),
   listarParcelasDivida: vi.fn(),
   registrarPagamentoParcela: vi.fn(),
+  arquivarDivida: vi.fn(),
+  reativarDivida: vi.fn(),
+  excluirDivida: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -23,11 +26,20 @@ import type { Cents } from '../lib/format'
 
 const c = (n: number) => n as Cents
 
+const ativas = () => [
+  { id: 'd1', nome: 'Financiamento do imóvel', tipo: 'financing', saldo: c(25000000), compromissos: c(0), ativa: true, taxaMensalBps: 90, pagamentoMinimo: c(250000) },
+  { id: 'd2', nome: 'Empréstimo pessoal', tipo: 'loan', saldo: c(500000), compromissos: c(0), ativa: true, taxaMensalBps: 200, pagamentoMinimo: c(50000) },
+]
+const quitada = { id: 'd9', nome: 'Consignado antigo', tipo: 'loan', saldo: c(0), compromissos: c(0), ativa: false, taxaMensalBps: 0, pagamentoMinimo: c(0) }
+// a tela lê duas listas: ativas (padrão) e arquivadas
+const porSituacao = (lista: unknown[], arquivadas: unknown[] = []) =>
+  (_f: string, _d: string, situacao = 'ativas') => Promise.resolve(situacao === 'arquivadas' ? arquivadas : lista)
+
 beforeEach(() => {
-  mock.listarDividas.mockResolvedValue([
-    { id: 'd1', nome: 'Financiamento do imóvel', tipo: 'financing', saldo: c(25000000), compromissos: c(0), ativa: true, taxaMensalBps: 90, pagamentoMinimo: c(250000) },
-    { id: 'd2', nome: 'Empréstimo pessoal', tipo: 'loan', saldo: c(500000), compromissos: c(0), ativa: true, taxaMensalBps: 200, pagamentoMinimo: c(50000) },
-  ])
+  mock.listarDividas.mockImplementation(porSituacao(ativas()))
+  mock.arquivarDivida.mockResolvedValue(undefined)
+  mock.reativarDivida.mockResolvedValue(undefined)
+  mock.excluirDivida.mockResolvedValue(undefined)
   mock.listarContas.mockResolvedValue({ contas: [], total: c(0) })
   mock.listarCategorias.mockResolvedValue([])
   mock.renomearDivida.mockResolvedValue(undefined)
@@ -58,9 +70,9 @@ describe('Dívidas', () => {
   })
 
   it('renomear: corrige o nome de um financiamento cadastrado com erro de digitação', async () => {
-    mock.listarDividas.mockResolvedValue([
+    mock.listarDividas.mockImplementation(porSituacao([
       { id: 'd1', nome: 'Financiamenyo', tipo: 'financing', saldo: c(25000000), compromissos: c(0), ativa: true, taxaMensalBps: 90, pagamentoMinimo: c(250000) },
-    ])
+    ]))
     const u = userEvent.setup()
     render(<Dividas />)
     await u.click(await screen.findByRole('button', { name: 'Renomear Financiamenyo' }))
@@ -105,5 +117,47 @@ describe('Dívidas', () => {
     expect(mock.registrarPagamentoParcela).toHaveBeenCalledWith(expect.objectContaining({
       parcelaId: 'p1', contaId: null, principal: c(50000), juros: c(6000), tarifa: c(0),
     }))
+  })
+  it('arquivar: confirma dentro do card da própria dívida e recarrega a lista', async () => {
+    render(<Dividas />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Arquivar Empréstimo pessoal' }))
+    const painel = screen.getByRole('group', { name: 'Arquivar Empréstimo pessoal' })
+    expect(painel.closest('li')).toBe(screen.getByRole('button', { name: 'Arquivar Empréstimo pessoal' }).closest('li'))
+    const antes = mock.listarDividas.mock.calls.length
+    await userEvent.click(within(painel).getByRole('button', { name: 'Arquivar dívida' }))
+    expect(mock.arquivarDivida).toHaveBeenCalledWith('d2')
+    await vi.waitFor(() => expect(mock.listarDividas.mock.calls.length).toBeGreaterThan(antes))
+  })
+
+  it('arquivar com saldo: a recusa do banco aparece no próprio card, não no topo da página', async () => {
+    mock.arquivarDivida.mockRejectedValue({ code: '23514', message: 'tem saldo ou parcelas a vencer: quite ou cancele antes de arquivar' })
+    render(<Dividas />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Arquivar Financiamento do imóvel' }))
+    const painel = screen.getByRole('group', { name: 'Arquivar Financiamento do imóvel' })
+    await userEvent.click(within(painel).getByRole('button', { name: 'Arquivar dívida' }))
+    expect(await within(painel).findByText(/quite ou cancele antes de arquivar/)).toBeTruthy()
+  })
+
+  it('excluir chama o banco com a dívida certa', async () => {
+    render(<Dividas />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Excluir Financiamento do imóvel' }))
+    await userEvent.click(within(screen.getByRole('group', { name: 'Excluir Financiamento do imóvel' })).getByRole('button', { name: 'Excluir dívida' }))
+    expect(mock.excluirDivida).toHaveBeenCalledWith('d1')
+  })
+
+  it('arquivadas aparecem em seção própria, com Reativar', async () => {
+    mock.listarDividas.mockImplementation(porSituacao(ativas(), [quitada]))
+    render(<Dividas />)
+    const secao = (await screen.findByRole('heading', { name: 'Arquivadas' })).closest('section')!
+    expect(within(secao).getByText('Consignado antigo')).toBeTruthy()
+    expect(within(secao).queryByText('Empréstimo pessoal')).toBeNull()
+    await userEvent.click(within(secao).getByRole('button', { name: 'Reativar Consignado antigo' }))
+    expect(mock.reativarDivida).toHaveBeenCalledWith('d9')
+  })
+
+  it('só com dívidas arquivadas: a seção aparece mesmo sem nenhuma ativa', async () => {
+    mock.listarDividas.mockImplementation(porSituacao([], [quitada]))
+    render(<Dividas />)
+    expect(await screen.findByRole('heading', { name: 'Arquivadas' })).toBeTruthy()
   })
 })

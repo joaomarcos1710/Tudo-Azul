@@ -17,7 +17,7 @@ import type { Cents } from '../lib/format'
 import { mensagemErroBanco } from '../lib/erros'
 import {
   criarDivida, definirTermosDivida, definirContratoDivida, listarDividas, listarParcelasDivida,
-  registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
+  arquivarDivida, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
 } from '../lib/dividas'
 import type { DadosContratoDivida, Divida, ParcelaDivida, TipoDivida } from '../lib/dividas'
 
@@ -42,18 +42,23 @@ export default function Dividas() {
   const [parcelaSelecionada, setParcelaSelecionada] = useState<ParcelaDivida | null>(null)
   const [parcelas, setParcelas] = useState<ParcelaDivida[]>([])
   const [renomeando, setRenomeando] = useState<Divida | null>(null)
+  const [arquivadas, setArquivadas] = useState<Divida[]>([])
+  // confirmação de arquivar/excluir, aberta dentro do card da própria dívida
+  const [confirmando, setConfirmando] = useState<{ tipo: 'arquivar' | 'excluir'; divida: Divida } | null>(null)
 
   const carregar = useCallback(async () => {
     if (!familia?.id) return
     try {
       const hoje = hojeSP()
-      const [lista, contasAtuais, cats, agenda] = await Promise.all([
+      const [lista, contasAtuais, cats, agenda, listaArquivadas] = await Promise.all([
         listarDividas(familia.id, hoje),
         listarContas(familia.id),
         listarCategorias(familia.id),
         listarParcelasDivida(familia.id, hoje, '2100-01-01').catch(() => []),
+        listarDividas(familia.id, hoje, 'arquivadas').catch(() => []),
       ])
       setDividas(lista)
+      setArquivadas(listaArquivadas)
       setParcelas(agenda.slice(0, 12))
       setContas(contasAtuais.contas.filter((c) => c.ativa))
       setCategorias(cats.filter((c) => c.tipo === 'expense' && c.ativa))
@@ -79,6 +84,13 @@ export default function Dividas() {
       await registrarPagamentoDivida(d)
       setPagando(null)
       setAmortizacaoExtra(false)
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+
+  async function reativar(d: Divida) {
+    try {
+      await reativarDivida(d.id)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
@@ -226,7 +238,13 @@ export default function Dividas() {
                       <Button compacto variante="secundario" onClick={() => setTermos(d)}>Parâmetros da dívida</Button>
                       <Button compacto variante="secundario" onClick={() => setContrato(d)}>Contrato e parcelas</Button>
                       <Button compacto variante="fantasma" onClick={() => setRenomeando(d)} aria-label={`Renomear ${d.nome}`}>Renomear</Button>
+                      <Button compacto variante="fantasma" disabled={confirmando !== null} onClick={() => setConfirmando({ tipo: 'arquivar', divida: d })} aria-label={`Arquivar ${d.nome}`}>Arquivar</Button>
+                      <Button compacto variante="fantasma" disabled={confirmando !== null} onClick={() => setConfirmando({ tipo: 'excluir', divida: d })} aria-label={`Excluir ${d.nome}`}>Excluir</Button>
                     </div>
+                    {confirmando?.divida.id === d.id && (
+                      <ConfirmarArquivarExcluir tipo={confirmando.tipo} divida={d} aoFechar={() => setConfirmando(null)}
+                        aoConcluir={async () => { setConfirmando(null); await carregar() }} />
+                    )}
                   </Card>
                 </li>
               ))}
@@ -258,6 +276,34 @@ export default function Dividas() {
             </section>
           )}
         </>
+      )}
+      {arquivadas.length > 0 && (
+        <section className="mb-8" aria-labelledby="titulo-dividas-arquivadas">
+          <h2 id="titulo-dividas-arquivadas" className="mb-1 text-lg font-semibold">Arquivadas</h2>
+          <p className="mb-3 text-sm text-slate-600">Quitadas e guardadas: não aparecem na lista nem nas escolhas. O histórico de pagamentos continua valendo.</p>
+          <ul className="flex flex-col gap-2">
+            {arquivadas.map((d) => (
+              <li key={d.id}>
+                <Card className="opacity-80">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{d.nome}</p>
+                      <p className="text-sm text-slate-500">{d.tipo === 'loan' ? 'Empréstimo' : 'Financiamento'} · arquivada</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button compacto variante="secundario" onClick={() => void reativar(d)} aria-label={`Reativar ${d.nome}`}>Reativar</Button>
+                      <Button compacto variante="fantasma" disabled={confirmando !== null} onClick={() => setConfirmando({ tipo: 'excluir', divida: d })} aria-label={`Excluir ${d.nome}`}>Excluir</Button>
+                    </div>
+                  </div>
+                  {confirmando?.divida.id === d.id && (
+                    <ConfirmarArquivarExcluir tipo={confirmando.tipo} divida={d} aoFechar={() => setConfirmando(null)}
+                      aoConcluir={async () => { setConfirmando(null); await carregar() }} />
+                  )}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </>
   )
@@ -562,5 +608,44 @@ function FormRenomear({ divida, aoSalvar, aoCancelar }: {
         </div>
       </form>
     </Card>
+  )
+}
+
+/** Confirmação de arquivar ou excluir a dívida, dentro do próprio card; o banco decide se pode (saldo, parcelas, histórico). */
+function ConfirmarArquivarExcluir({ tipo, divida, aoFechar, aoConcluir }: {
+  tipo: 'arquivar' | 'excluir'; divida: Divida; aoFechar: () => void; aoConcluir: () => Promise<void>
+}) {
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const excluir = tipo === 'excluir'
+  async function confirmar() {
+    setErro(''); setEnviando(true)
+    try {
+      if (excluir) await excluirDivida(divida.id)
+      else await arquivarDivida(divida.id)
+      await aoConcluir()
+    } catch (e) {
+      setErro(mensagemErroBanco(e))
+    } finally { setEnviando(false) }
+  }
+  return (
+    <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label={excluir ? `Excluir ${divida.nome}` : `Arquivar ${divida.nome}`}>
+      {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {excluir ? (
+        <p className="text-sm">
+          Excluir <strong>{divida.nome}</strong> de vez. Só é possível se ela <strong>nunca teve pagamento</strong>; o contrato e as
+          parcelas planejadas saem junto. Com pagamento registrado, o app avisa e você pode <strong>arquivar</strong>. Não dá para desfazer.
+        </p>
+      ) : (
+        <p className="text-sm">
+          Arquivar <strong>{divida.nome}</strong>: ela sai da lista e das escolhas, e o histórico de pagamentos fica guardado.
+          Só é possível com o <strong>saldo devedor zerado</strong>. As parcelas planejadas que sobraram do contrato são canceladas. Você pode reativar depois.
+        </p>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button variante="perigo" carregando={enviando} onClick={() => void confirmar()}>{excluir ? 'Excluir dívida' : 'Arquivar dívida'}</Button>
+        <Button variante="secundario" onClick={aoFechar}>Cancelar</Button>
+      </div>
+    </div>
   )
 }

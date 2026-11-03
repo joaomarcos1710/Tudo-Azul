@@ -115,6 +115,7 @@ tags: [tudo-azul, historico]
 - **Conta do tipo Investimento e Contas por tipo** (migration 044, #131, 03/11/2026): decisão do dono de dividir as contas em corrente, poupança e investimento e tratar o CDB/caixinha como conta (aplicação = transferência). Tela de Contas agrupada por tipo, com subtotal do banco. Merge `1a0f285`; **migration 044 aplicada em 03/11/2026** (execução 41667500601).
 - **Início sem conferência no card Contas** (#132, 03/11/2026): pedido do dono; a conferência com o extrato fica só na tela de Contas. Merge `777d9fa`.
 - **Desempenho: cache do navegador e JS por tela** (#133, 03/11/2026): `vercel.json` passa a mandar `immutable` (1 ano) para `/assets` e a não devolver o index.html para arquivo inexistente; cada tela vira um arquivo próprio (`React.lazy`), com recarga única quando o arquivo antigo sumiu depois de um deploy. Arquivo principal de 532 kB para 263 kB. Merge `21753f6`.
+- **Arquivar e excluir dívida** (migration 045, #128, 03/11/2026): Dívidas ganha Arquivar e Excluir em cada empréstimo/financiamento (confirmação dentro do próprio card) e a seção Arquivadas com Reativar. Arquivar a dívida quitada cancela as parcelas planejadas que sobraram do contrato.
 - **Classe obrigatória no cadastro de ativo** (#134, 03/11/2026): sem "Renda fixa" pré-escolhida; o dono tinha cadastrado um FII sem trocar o campo e ele entrou como renda fixa.
 
 ## Ainda abertos
