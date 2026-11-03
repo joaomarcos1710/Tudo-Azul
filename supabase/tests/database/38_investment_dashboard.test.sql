@@ -73,6 +73,16 @@ select is(pg_temp.sqlstate37(format('select public.investment_asset_delete(%L::u
 select is(pg_temp.sqlstate37(format('select public.investment_asset_delete(%L::uuid)',pg_temp.fx37('valuation_asset'))),'55000',
   'ativo com avaliações não pode ser excluído');
 
+insert into fixture select 'distribution_asset',
+  public.investment_asset_create(pg_temp.fx37('household'),'Ativo com provento',null,'equity','BRL');
+select public.investment_distribution_record(
+  pg_temp.fx37('distribution_asset'),'dividend',pg_temp.hoje(),1, 
+  (select id from public.accounts where household_id=pg_temp.fx37('household') and name='Conta teste'),
+  'paid','provento de teste'
+);
+select is(pg_temp.sqlstate37(format('select public.investment_asset_delete(%L::uuid)',pg_temp.fx37('distribution_asset'))),'55000',
+  'ativo com proventos não pode ser excluído');
+
 select is((select market_value from public.investment_history(
   pg_temp.fx37('household'),date_trunc('month',pg_temp.hoje())::date,pg_temp.hoje()
 ) where currency_code='BRL' and month=date_trunc('month',pg_temp.hoje())::date),120::numeric,
