@@ -101,10 +101,36 @@ select is((select balance from public.account_balances(pg_temp.fx('household'),p
   5000.00::numeric,'consignado não cria saída duplicada na conta');
 select is((select count(*) from public.debt_events where debt_id=pg_temp.fx('payroll_debt') and kind='payroll_payment' and account_id is null),
   1::bigint,'consignado usa evento sem conta bancária');
+-- migration 041: a parcela do consignado traz juros embutidos; só o principal abate o saldo devedor
 select is(pg_temp.sqlstate_of(format(
-  'select public.debt_schedule_record_payment(%L::uuid,pg_temp.hoje(),null,149,1,0,null,false)',
+  'select public.debt_schedule_record_payment(%L::uuid,pg_temp.hoje(),null,0,150,0,null,false)',
   (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') and status='planned' order by installment_number limit 1))),
-  '22023','consignado não aceita juros/tarifas que duplicariam a despesa do salário líquido');
+  '22023','consignado exige principal maior que zero');
+select is(pg_temp.sqlstate_of(format(
+  'select public.debt_schedule_record_payment(%L::uuid,pg_temp.hoje(),null,140,9,0,null,false)',
+  (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') and status='planned' order by installment_number limit 1))),
+  '22023','consignado: principal + juros + tarifa precisa fechar a parcela (150)');
+select is(pg_temp.sqlstate_of(format(
+  'select public.debt_schedule_record_payment(%L::uuid,pg_temp.hoje(),%L::uuid,140,10,0,null,false)',
+  (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') and status='planned' order by installment_number limit 1),
+  pg_temp.fx('account'))),
+  '22023','consignado não tem conta de saída');
+select lives_ok(format(
+  'select public.debt_schedule_record_payment(%L::uuid,pg_temp.hoje(),null,140,10,0,null,false)',
+  (select id from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') and status='planned' order by installment_number limit 1)),
+  'consignado aceita parcela de 150 = 140 de principal + 10 de juros');
+select is((select debt from public.debt_balances(pg_temp.fx('household'),pg_temp.hoje()) where debt_id=pg_temp.fx('payroll_debt')),
+  710.00::numeric,'só o principal (140) abate o saldo devedor; os juros não');
+select is((select payroll_interest || '|' || payroll_fee from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') and installment_number=2),
+  '10|0','juros e tarifa ficam registrados na parcela');
+select is((select balance from public.account_balances(pg_temp.fx('household'),pg_temp.hoje()) where account_id=pg_temp.fx('account')),
+  5000.00::numeric,'juros do consignado não mexem no caixa (o salário já está líquido)');
+select is((select count(*) from public.debt_events where debt_id=pg_temp.fx('payroll_debt') and kind in ('interest','fee')),
+  0::bigint,'juros do consignado não viram evento de dívida');
+select public.debt_void((select e.id from public.debt_events e where e.debt_id=pg_temp.fx('payroll_debt') and e.kind='payroll_payment'
+  and e.voided_at is null and e.schedule_id=(select id from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') and installment_number=2)),'anulação do consignado');
+select is((select status || '|' || coalesce(payroll_interest::text,'-') from public.debt_payment_schedule where debt_id=pg_temp.fx('payroll_debt') and installment_number=2),
+  'planned|-','anular a baixa devolve a parcela e apaga os juros guardados');
 
 select is(pg_temp.sqlstate_of(format(
   'select public.debt_schedule_record_payment(%L::uuid,pg_temp.hoje(),null,10,0,0,null,false)',
