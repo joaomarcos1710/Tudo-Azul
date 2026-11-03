@@ -92,8 +92,11 @@ begin
   ) or exists (
     select 1 from public.investment_valuations
      where household_id = v_asset.household_id and asset_id = v_asset.id
+  ) or exists (
+    select 1 from public.investment_distributions
+     where household_id = v_asset.household_id and asset_id = v_asset.id
   ) then
-    raise exception 'Este ativo possui operações ou avaliações. O histórico financeiro não pode ser excluído.'
+    raise exception 'Este ativo possui operações, avaliações ou proventos. O histórico financeiro não pode ser excluído.'
       using errcode = '55000';
   end if;
   delete from public.investment_assets where id = v_asset.id and household_id = v_asset.household_id;
