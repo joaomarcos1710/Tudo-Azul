@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { definirValoresOcultos, useValoresOcultos } from '../../lib/privacidade'
 import { supabase } from '../../lib/supabase'
@@ -182,7 +182,9 @@ export function AppShell() {
           </div>
         </header>
         <main className="mx-auto w-full max-w-6xl flex-1 p-4 pb-28 md:p-8 md:pb-8">
-          <Outlet />
+          <Suspense fallback={<p role="status" className="text-sm text-slate-500">Carregando…</p>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

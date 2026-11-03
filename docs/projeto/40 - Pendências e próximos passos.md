@@ -91,3 +91,10 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] **Aportes no caixa:** decidido (03/11/2026): investimento de liquidez é conta do tipo Investimento (#131); aplicação e resgate são transferências. Pendente do dono: trocar as aplicações lançadas como despesa por transferências e arquivar o CDB da tela de Investimentos.
 - **FII entrando como renda fixa:** o formulário de novo ativo abre com a classe "Renda fixa" pré-selecionada (`Investimentos.tsx`); exigir a escolha da classe.
 - Gráfico de distribuição do patrimônio; arquivar/excluir dívida em Dívidas; PR 5 (importar extrato) e PR 6 (metas e fluxo mensal) do plano do protótipo.
+
+## Desempenho (03/11/2026)
+- [x] Cache do navegador para `/assets` e JS dividido por tela (#133).
+- [ ] Hospedar a fonte Inter no próprio app (hoje vem do Google Fonts; 4 pesos).
+- [ ] Skeletons no lugar de "Carregando…" nas telas principais.
+- [ ] Conferir o relatório de desempenho do Supabase (índices) e a região do banco em relação ao Rio.
+- [ ] Medir num celular com rede lenta (Lighthouse) depois do #133.
