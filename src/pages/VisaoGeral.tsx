@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LinhaAcumulada } from '../components/graficos/LinhaAcumulada'
 import { Rosca } from '../components/graficos/Rosca'
-import { IconeCartoes, IconeSomar, IconeSubtrair, IconeTransferir } from '../components/layout/icons'
 import { Aviso } from '../components/ui/Aviso'
 import { Card, CardTitle } from '../components/ui/Card'
 import { BandeiraCartao, IconeConta, IconeEmissor } from '../components/ui/IconeConta'
@@ -25,6 +24,7 @@ import type { Lancamento, ResumoMes } from '../lib/lancamentos'
 import { carregarPatrimonio, carregarResumoInvestimentos, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
 import type { DespesaCategoria, DespesaDia, Patrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
 
 /**
  * Cada tela carrega só o que mostra. Início: contas, lançamentos e planejados são essenciais (se falharem, a tela
@@ -75,16 +75,6 @@ function diasEntre(de: string, ate: string): number {
   return Math.round((t(ate) - t(de)) / 86_400_000)
 }
 
-// ações rápidas: painéis-botão do mesmo tamanho, com ícone; o ícone e a palavra dizem o tipo (a cor só reforça)
-// celular: ícone em cima e rótulo embaixo ("Transferência" não cabe ao lado do ícone em 320px); a partir de sm, lado a lado
-// 4 colunas só em xl: com o menu lateral, 4 colunas no iPad deixariam ~75px para o rótulo
-const atalho = 'flex flex-col items-start gap-2 rounded-card bg-white p-3 text-sm font-semibold text-marinho shadow-card transition-colors hover:bg-azul-claro sm:min-h-14 sm:flex-row sm:items-center sm:gap-3 sm:py-0'
-const atalhoIcone = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg'
-
-function saudacao(agora = new Date()): string {
-  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hourCycle: 'h23' }).format(agora))
-  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite'
-}
 
 /**
  * Variação percentual em relação ao mês anterior (apresentação: razão entre dois totais que já vêm
@@ -129,7 +119,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const [recorrentesFalhou, setRecorrentesFalhou] = useState(false)
   const hoje = hojeSP()
   const mes = currentMonth()
-  const nome = ((sessao?.user?.user_metadata?.name as string | undefined) ?? '').trim().split(/\s+/)[0]
+  // até dois nomes ("João Marcos"), como no cabeçalho do Organizze
+  const nome = ((sessao?.user?.user_metadata?.name as string | undefined) ?? '').trim().split(/\s+/).slice(0, 2).join(' ')
 
   const usuarioId = sessao?.user?.id ?? null
   const [preferenciasWidgets, setPreferenciasWidgets] = useState<{ usuarioId: string | null; ids: WidgetDashboardId[] }>({
@@ -246,11 +237,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const comparadoAteHoje = `${mesAnteriorCurto} até dia ${Number(mesmoDiaMesAnterior(hoje).slice(8))}`
   const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
     patrimonio: p ? <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-      rodape={`Disponível ${formatBRL(p.disponivel)} · bens ${formatBRL(p.bens)} · dívida ${formatBRL(p.divida)}`} /> : (
+      detalhes={[['Disponível', p.disponivel], ['Bens', p.bens], ['Dívida', p.divida]]} /> : (
       <Card><CardTitle>Patrimônio líquido</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
-    disponivel: p ? <Indicador rotulo="Saldo disponível" valor={p.disponivel} icone={<Cofre />} corIcone="bg-azul-claro text-azul"
-      rodape={`Dívida atual ${formatBRL(p.divida)}`} /> : (
+    // a dívida já aparece no card de patrimônio: aqui só o saldo das contas
+    disponivel: p ? <Indicador rotulo="Saldo disponível" valor={p.disponivel} icone={<Cofre />} corIcone="bg-azul-claro text-azul" /> : (
       <Card><CardTitle>Saldo disponível</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
     receitas: m ? <Indicador rotulo="Entradas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-green-50 text-positivo"
@@ -268,8 +259,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   }
   return (
     <>
-      <CabecalhoPagina titulo={noInicio ? `${saudacao()}${nome ? `, ${nome}` : ''}!` : 'Análises'}
-        descricao={noInicio ? 'O que pede atenção agora na família.' : `Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />
+      {noInicio
+        ? <CabecalhoInicio nome={nome} receitas={dados?.mes?.receitas ?? null} despesas={dados?.mes?.despesas ?? null} />
+        : <CabecalhoPagina titulo="Análises" descricao={`Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />}
       {cobrancaFalhou && (
         <div className="mb-4">
           <Aviso tipo="erro">Não foi possível fechar as faturas dos cartões agora. Os valores de cartão podem estar defasados.</Aviso>
@@ -356,12 +348,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         {!m && <p className="mt-2 text-xs text-slate-500" role="status">Resumo do mês indisponível agora; os demais widgets continuam disponíveis.</p>}
       </section>}
 
-      {noInicio && <section aria-label="Ações rápidas" className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-4">
-        <Link to="/lancamentos?novo=despesa" className={atalho}><span className={`${atalhoIcone} bg-red-50 text-negativo`}><IconeSubtrair /></span>Despesa</Link>
-        <Link to="/lancamentos?novo=receita" className={atalho}><span className={`${atalhoIcone} bg-green-50 text-positivo`}><IconeSomar /></span>Receita</Link>
-        <Link to="/lancamentos?novo=transferencia" className={atalho}><span className={`${atalhoIcone} bg-azul-claro text-azul`}><IconeTransferir /></span>Transferência</Link>
-        <Link to="/lancamentos?novo=cartao" className={atalho}><span className={`${atalhoIcone} bg-azul-claro text-azul`}><IconeCartoes /></span>Compra no cartão</Link>
-      </section>}
 
       {noInicio && (dados.vencidos === null || dados.cartoes === null) && (
         // card que falhou não pode simplesmente sumir: sem aviso, "Vencidos" ausente parece "nada vencido"
@@ -469,7 +455,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </>}
           {p && (
             <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-              rodape={`Disponível ${formatBRL(p.disponivel)} · bens ${formatBRL(p.bens)} · dívida ${formatBRL(p.divida)}`} />
+              detalhes={[['Disponível', p.disponivel], ['Bens', p.bens], ['Dívida', p.divida]]} />
           )}
         </section>
       ) : null}
@@ -716,9 +702,11 @@ function BlocoRegularidade({ titulo, r }: { titulo: string; r: RegularidadeRenda
   )
 }
 
-function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, comparado, destaque = false, negativoVermelho = false, rodape }: {
+function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, comparado, destaque = false, negativoVermelho = false, rodape, detalhes }: {
   rotulo: string; valor: Cents; sinal?: '+' | '−'; icone: ReactNode; corIcone: string; var?: number | null; subirEhBom?: boolean
   comparado?: string; destaque?: boolean; negativoVermelho?: boolean; rodape?: string
+  /** Composição do valor, uma linha por item (valores do banco; a tela não soma). */
+  detalhes?: [string, Cents][]
 }) {
   const texto = sinal ? `${sinal}${formatBRL(valor)}` : formatBRL(valor)
   const bom = v === null || v === undefined ? null : (v >= 0) === Boolean(subirEhBom)
@@ -733,6 +721,16 @@ function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, 
         </p>
       )}
       {rodape && <p className={`mt-1 text-xs ${destaque ? 'text-blue-100' : 'text-slate-500'}`}>{rodape}</p>}
+      {detalhes && (
+        <dl className={`mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 border-t pt-3 text-sm ${destaque ? 'border-white/15 text-blue-100' : 'border-slate-100 text-slate-500'}`}>
+          {detalhes.map(([r, c]) => (
+            <div key={r} className="contents">
+              <dt>{r}</dt>
+              <dd className={`text-right tabular-nums font-semibold ${destaque ? 'text-white' : 'text-marinho'}`}>{formatBRL(c)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
     </Card>
   )
 }
