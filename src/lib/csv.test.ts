@@ -115,9 +115,9 @@ describe('exportacaoCompleta', () => {
       'Nubank;Fone;2/2;02/10/2026;17/11/2026;Eletrônicos;150,00;A cobrar',
     ])
     expect(ARQ(arqs, 'eventos').slice(1)).toEqual([
-      'Nubank;17/10/2026;Cobrança de parcela;150,00;150,00;Sim;;;Fone 1/2;;',
-      'Nubank;25/10/2026;Pagamento;150,00;-150,00;Sim;Itaú;2026-10;;;',
-      'Nubank;02/11/2026;Juros;9,90;0,00;Não;Itaú;;;Mercado;mora',
+      'Nubank;17/10/2026;Cobrança de parcela;150,00;150,00;Sim;;;Fone 1/2;;;',
+      'Nubank;25/10/2026;Pagamento;150,00;-150,00;Sim;Itaú;2026-10;;;;',
+      'Nubank;02/11/2026;Juros;9,90;0,00;Não;Itaú;;;;Mercado;mora',
     ])
     expect(ARQ(arqs, 'agenda')).toEqual([
       '\uFEFFDívida;Credor;Contrato;Parcela;Vencimento;Valor;Situação;Data do pagamento;Forma de pagamento;Conta de pagamento;Operação',
