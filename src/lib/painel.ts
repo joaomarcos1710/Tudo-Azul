@@ -2,12 +2,14 @@ import { centsFromDb } from './format'
 import type { Cents } from './format'
 import { supabase } from './supabase'
 
-/** Patrimônio do modelo B (net_worth): disponível + crédito a receber − dívida. */
+/** Patrimônio líquido: disponível + crédito a receber + participação familiar em bens BRL − dívidas. */
 export interface Patrimonio {
   disponivel: Cents
   creditoAReceber: Cents
   divida: Cents
   patrimonio: Cents
+  /** Bens familiares avaliados em BRL e ponderados pela participação da família. */
+  bens: Cents
   /** Parcelas de cartão ainda não cobradas: aparecem à parte e não entram no patrimônio. */
   compromissos: Cents
 }
@@ -31,14 +33,22 @@ function cliente() {
 }
 
 export async function carregarPatrimonio(familiaId: string, dataRef: string): Promise<Patrimonio> {
-  const { data, error } = await cliente().rpc('net_worth', { p_household: familiaId, p_as_of: dataRef })
-  if (error) throw error
+  let { data, error } = await cliente().rpc('net_worth_with_assets', { p_household: familiaId, p_as_of: dataRef })
+  if (error && (error.code === 'PGRST202' || error.code === '42883')) {
+    // Compatibilidade durante o intervalo entre o deploy do front e a aplicação da migration.
+    const legado = await cliente().rpc('net_worth', { p_household: familiaId, p_as_of: dataRef })
+    if (legado.error) throw legado.error
+    data = legado.data
+  } else if (error) {
+    throw error
+  }
   const r = ((data ?? []) as Record<string, number | string>[])[0] ?? {}
   return {
     disponivel: centsFromDb(r.available ?? 0),
     creditoAReceber: centsFromDb(r.credit_receivable ?? 0),
     divida: centsFromDb(r.debt ?? 0),
     patrimonio: centsFromDb(r.net_worth ?? 0),
+    bens: centsFromDb(r.family_assets_brl ?? 0),
     compromissos: centsFromDb(r.planned_commitments ?? 0),
   }
 }
@@ -159,4 +169,22 @@ export async function vencidosPlanejados(familiaId: string, hoje: string, limite
     itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null, contaId: t.account_id ?? null, destinoId: t.destination_account_id ?? null })),
     total: count ?? (data ?? []).length,
   }
+}
+
+
+export interface ResumoInvestimento {
+  moeda: 'BRL' | 'USD' | 'EUR'
+  valorAtual: Cents
+}
+
+/** Saldo investido por moeda, sem conversão implícita entre BRL, USD e EUR. */
+export async function carregarResumoInvestimentos(familiaId: string, dataRef: string): Promise<ResumoInvestimento[]> {
+  const { data, error } = await cliente().rpc('investment_totals', {
+    p_household: familiaId, p_as_of: dataRef,
+  })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number>[]).map((r) => ({
+    moeda: r.currency_code as ResumoInvestimento['moeda'],
+    valorAtual: centsFromDb(r.market_value ?? 0),
+  }))
 }
