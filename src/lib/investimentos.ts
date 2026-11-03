@@ -17,6 +17,7 @@ export interface AtivoInvestimento {
   subclasse: string | null
   quantidadeOperacoes: number
   quantidadeAvaliacoes: number
+  quantidadeProventos: number
 }
 
 /** Macroclasse, derivada da classe do ativo (a mesma regra da função investment_allocation, migration 034). */
@@ -134,12 +135,14 @@ export async function listarAtivosInvestimento(familiaId: string): Promise<Ativo
   let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass')
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active'))
   if (error) throw error
-  const [operacoes, avaliacoes] = await Promise.all([
+  const [operacoes, avaliacoes, proventos] = await Promise.all([
     db().from('investment_operations').select('asset_id').eq('household_id', familiaId),
     db().from('investment_valuations').select('asset_id').eq('household_id', familiaId),
+    db().from('investment_distributions').select('asset_id').eq('household_id', familiaId),
   ])
   if (operacoes.error) throw operacoes.error
   if (avaliacoes.error) throw avaliacoes.error
+  if (proventos.error) throw proventos.error
   const contar = (rows: { asset_id: string }[] | null) => {
     const mapa = new Map<string, number>()
     for (const row of rows ?? []) mapa.set(row.asset_id, (mapa.get(row.asset_id) ?? 0) + 1)
@@ -147,12 +150,14 @@ export async function listarAtivosInvestimento(familiaId: string): Promise<Ativo
   }
   const qtdOperacoes = contar(operacoes.data)
   const qtdAvaliacoes = contar(avaliacoes.data)
+  const qtdProventos = contar(proventos.data)
   return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({
     id: r.id as string, nome: r.name as string, ticker: r.ticker as string | null, classe: r.asset_class as ClasseAtivo,
     moeda: r.currency_code as MoedaInvestimento, ativo: r.active as boolean,
     subclasse: (r.subclass as string | null | undefined) ?? null,
     quantidadeOperacoes: qtdOperacoes.get(r.id as string) ?? 0,
     quantidadeAvaliacoes: qtdAvaliacoes.get(r.id as string) ?? 0,
+    quantidadeProventos: qtdProventos.get(r.id as string) ?? 0,
   }))
 }
 
