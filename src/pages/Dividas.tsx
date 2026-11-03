@@ -17,7 +17,7 @@ import type { Cents } from '../lib/format'
 import { mensagemErroBanco } from '../lib/erros'
 import {
   criarDivida, definirTermosDivida, definirContratoDivida, listarDividas, listarParcelasDivida,
-  arquivarDivida, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
+  arquivarDivida, definirCategoriaPrincipal, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
 } from '../lib/dividas'
 import type { DadosContratoDivida, Divida, ParcelaDivida, TipoDivida } from '../lib/dividas'
 
@@ -253,6 +253,7 @@ export default function Dividas() {
                       <ConfirmarArquivarExcluir tipo={confirmando.tipo} divida={d} aoFechar={() => setConfirmando(null)}
                         aoConcluir={async () => { setConfirmando(null); await carregar() }} />
                     )}
+                    <CategoriaDaParcela divida={d} categorias={categorias} aoMudar={carregar} />
                   </Card>
                 </li>
               ))}
@@ -654,6 +655,32 @@ function ConfirmarArquivarExcluir({ tipo, divida, aoFechar, aoConcluir }: {
         <Button variante="perigo" carregando={enviando} onClick={() => void confirmar()}>{excluir ? 'Excluir dívida' : 'Arquivar dívida'}</Button>
         <Button variante="secundario" onClick={aoFechar}>Cancelar</Button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Categoria do principal da parcela: a parcela paga é despesa do mês (migration 046). O principal vai nesta categoria
+ * (vem da aba Categorias); juros e tarifa continuam nas deles. Sem escolha, entra em "Sem categoria".
+ */
+function CategoriaDaParcela({ divida, categorias, aoMudar }: { divida: Divida; categorias: Categoria[]; aoMudar: () => Promise<void> }) {
+  const [erro, setErro] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  async function mudar(valor: string) {
+    setErro(''); setSalvando(true)
+    try {
+      await definirCategoriaPrincipal(divida.id, valor || null)
+      await aoMudar()
+    } catch (e) {
+      setErro(mensagemErroBanco(e))
+    } finally { setSalvando(false) }
+  }
+  return (
+    <div className="mt-3 border-t border-slate-100 pt-3">
+      <Selecao rotulo={`Categoria da parcela de ${divida.nome}`} valor={divida.categoriaPrincipalId ?? ''} aoMudar={(v) => void mudar(v)}
+        todos="Sem categoria" desabilitado={salvando} opcoes={categorias.map((c) => [c.id, c.nome])} />
+      <p className="mt-1 text-xs text-slate-500">A parcela paga conta como despesa do mês nesta categoria (juros e tarifa ficam nas deles).</p>
+      {erro && <div className="mt-2"><Aviso tipo="erro">{erro}</Aviso></div>}
     </div>
   )
 }

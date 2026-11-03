@@ -99,6 +99,68 @@ export async function lancamentosParaExportar(familiaId: string, periodo?: { de:
     }
     if (!data || data.length < pagina) break
   }
+  linhas.push(...await parcelasDeDividaParaExportar(familiaId, nomeConta, nomeCategoria, periodo))
+  // ordem por data; no mesmo dia, a ordem de leitura (lançamentos antes das parcelas)
+  return linhas.map((l, i) => [l, i] as const).sort((a, b) => (a[0].data < b[0].data ? -1 : a[0].data > b[0].data ? 1 : a[1] - b[1])).map(([l]) => l)
+}
+
+type DividaExport = { id: string; name: string; kind: string; principal_category_id?: string | null; payment_method?: string | null; payment_account_id?: string | null; active?: boolean }
+const rotuloParcela: Record<string, string> = { payment: 'principal', extra_principal: 'amortização extra', interest: 'juros', fee: 'tarifa' }
+
+/**
+ * Parcelas de empréstimo/financiamento (migration 046: a parcela é despesa do mês em que é paga).
+ * Pagas: principal, amortização, juros e tarifa que saíram de uma conta. Planejadas: agenda do contrato ainda não
+ * baixada (consignado fica de fora: o salário já entra líquido). O principal vai na categoria escolhida na dívida.
+ */
+async function parcelasDeDividaParaExportar(
+  familiaId: string, nomeConta: Map<string, string>, nomeCategoria: Map<string, string>, periodo?: { de: string; ate: string },
+): Promise<LinhaExportada[]> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const db = supabase
+  let dividas = await db.from('debts').select('id, name, kind, principal_category_id, payment_method, payment_account_id, active').eq('household_id', familiaId)
+  if (dividas.error) dividas = await db.from('debts').select('id, name, kind').eq('household_id', familiaId) as typeof dividas
+  if (dividas.error) throw dividas.error
+  const emprestimos = new Map(((dividas.data ?? []) as DividaExport[]).filter((d) => d.kind === 'loan' || d.kind === 'financing').map((d) => [d.id, d]))
+  if (emprestimos.size === 0) return []
+  const categoriaPrincipal = (d: DividaExport) => (d.principal_category_id ? nomeCategoria.get(d.principal_category_id) ?? 'Sem categoria' : 'Sem categoria')
+
+  const linhas: LinhaExportada[] = []
+  const pagina = 1000
+  for (let inicio = 0; ; inicio += pagina) {
+    let q = db.from('debt_events').select('id, debt_id, date, kind, amount, account_id, category_id, voided_at')
+      .eq('household_id', familiaId).is('voided_at', null)
+    if (periodo) q = q.gte('date', periodo.de).lte('date', periodo.ate)
+    const { data, error } = await q.order('date').order('created_at').order('id').range(inicio, inicio + pagina - 1)
+    if (error) throw error
+    for (const e of (data ?? []) as { debt_id: string; date: string; kind: string; amount: number | string; account_id: string | null; category_id: string | null; voided_at: string | null }[]) {
+      const d = emprestimos.get(e.debt_id)
+      if (!d || e.voided_at || !e.account_id || !(e.kind in rotuloParcela)) continue
+      const principal = e.kind === 'payment' || e.kind === 'extra_principal'
+      linhas.push({
+        data: e.date, tipo: 'expense', descricao: `Parcela de ${d.name} (${rotuloParcela[e.kind]})`,
+        categoria: principal ? categoriaPrincipal(d) : e.category_id ? nomeCategoria.get(e.category_id) ?? '' : '',
+        conta: nomeConta.get(e.account_id) ?? '', contaDestino: '', valor: centsFromDb(e.amount), situacao: 'paid', notas: 'Parcela de dívida',
+      })
+    }
+    if (!data || data.length < pagina) break
+  }
+
+  let agenda = db.from('debt_payment_schedule').select('id, debt_id, installment_number, due_date, amount, status')
+    .eq('household_id', familiaId).eq('status', 'planned')
+  if (periodo) agenda = agenda.gte('due_date', periodo.de).lte('due_date', periodo.ate)
+  const planejadas = await agenda.order('due_date').order('installment_number')
+  // agenda ainda não aplicada no banco (migration 038): segue sem as planejadas
+  if (!planejadas.error) {
+    for (const r of (planejadas.data ?? []) as { debt_id: string; installment_number: number; due_date: string; amount: number | string; status: string }[]) {
+      const d = emprestimos.get(r.debt_id)
+      if (!d || r.status !== 'planned' || d.active === false || d.payment_method === 'payroll') continue
+      linhas.push({
+        data: r.due_date, tipo: 'expense', descricao: `Parcela ${r.installment_number} de ${d.name}`, categoria: categoriaPrincipal(d),
+        conta: d.payment_account_id ? nomeConta.get(d.payment_account_id) ?? '' : '', contaDestino: '', valor: centsFromDb(r.amount),
+        situacao: 'planned', notas: 'Parcela de dívida (contrato)',
+      })
+    }
+  }
   return linhas
 }
 

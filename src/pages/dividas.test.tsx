@@ -13,11 +13,12 @@ const mock = vi.hoisted(() => ({
   arquivarDivida: vi.fn(),
   reativarDivida: vi.fn(),
   excluirDivida: vi.fn(),
+  definirCategoriaPrincipal: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -40,6 +41,7 @@ beforeEach(() => {
   mock.arquivarDivida.mockResolvedValue(undefined)
   mock.reativarDivida.mockResolvedValue(undefined)
   mock.excluirDivida.mockResolvedValue(undefined)
+  mock.definirCategoriaPrincipal.mockResolvedValue(undefined)
   mock.listarContas.mockResolvedValue({ contas: [], total: c(0) })
   mock.listarCategorias.mockResolvedValue([])
   mock.renomearDivida.mockResolvedValue(undefined)
@@ -170,5 +172,23 @@ describe('Dívidas', () => {
     expect(screen.getByText('Vencida ·')).toBeTruthy()
     expect(window.location.search).toBe('')
     expect(mock.listarParcelasDivida.mock.calls[0][1]).toBe('2000-01-01')
+  })
+  it('categoria da parcela: escolhida da aba Categorias, gravada na dívida; vazio volta para "Sem categoria"', async () => {
+    mock.listarCategorias.mockResolvedValue([
+      { id: 'fin', nome: 'Financiamento', tipo: 'expense', ativa: true, paiId: null, sistema: false },
+      { id: 'sal', nome: 'Salário', tipo: 'income', ativa: true, paiId: null, sistema: false },
+    ])
+    const lista = ativas().map((d) => (d.id === 'd1' ? { ...d, categoriaPrincipalId: 'fin' } : d))
+    mock.listarDividas.mockImplementation(porSituacao(lista))
+    render(<Dividas />)
+    const campo = await screen.findByLabelText('Categoria da parcela de Empréstimo pessoal') as HTMLSelectElement
+    expect(campo.value).toBe('')
+    expect(within(campo).queryByRole('option', { name: 'Salário' })).toBeNull() // só despesa
+    await userEvent.selectOptions(campo, 'fin')
+    expect(mock.definirCategoriaPrincipal).toHaveBeenCalledWith('d2', 'fin')
+    const doImovel = screen.getByLabelText('Categoria da parcela de Financiamento do imóvel') as HTMLSelectElement
+    expect(doImovel.value).toBe('fin')
+    await userEvent.selectOptions(doImovel, '')
+    expect(mock.definirCategoriaPrincipal).toHaveBeenCalledWith('d1', null)
   })
 })

@@ -92,8 +92,9 @@ export async function listarLancamentos(familiaId: string, mes: string, f: Filtr
 /**
  * Movimento de cartão ou dívida que mexe numa conta (pagamento de fatura, juros, tarifa, empréstimo recebido...).
  * Só leitura no extrato: o saldo da conta e os totais do mês vêm do banco.
- * Pagamento, amortização, crédito e devolução NÃO são receita nem despesa (a compra já contou no mês da fatura);
- * juros e tarifa SÃO despesa (já estão em "Despesas pagas", na categoria do evento).
+ * Pagamento de cartão, crédito e devolução NÃO são receita nem despesa (a compra já contou no mês da fatura);
+ * juros e tarifa SÃO despesa (já estão em "Despesas pagas", na categoria do evento); e, desde a migration 046,
+ * o principal pago de empréstimo/financiamento também é despesa do mês, na categoria escolhida na dívida.
  */
 export interface MovimentoDivida {
   id: string
@@ -114,23 +115,23 @@ const rotuloEventoConta: Record<string, string> = {
 
 /**
  * Movimentos de cartão/dívida do mês que mexem em conta.
- * Receita e transferência não os incluem; com filtro de despesa ou de categoria, só juros e tarifa (que são despesa
- * e têm categoria); sem filtro, todos.
+ * Receita e transferência não os incluem; com filtro de despesa ou de categoria, só o que é despesa: juros, tarifa e
+ * principal de empréstimo/financiamento (este na categoria da dívida); sem filtro, todos.
  */
 export async function listarMovimentosDeDivida(familiaId: string, mes: string, f: Filtros = {}): Promise<MovimentoDivida[]> {
   if (f.tipo === 'income' || f.tipo === 'transfer') return []
   const [de, ate] = limitesDoMes(mes)
   const soDespesa = Boolean(f.categoriaId) || f.tipo === 'expense'
-  const tipos = soDespesa ? ['interest', 'fee'] : [...eventosDeConta]
+  const tipos = soDespesa ? ['interest', 'fee', 'payment', 'extra_principal'] : [...eventosDeConta]
   const db = cliente()
-  const eventos: { id: string; debt_id: string; date: string; kind: string; amount: number | string; account_id: string }[] = []
+  const eventos: { id: string; debt_id: string; date: string; kind: string; amount: number | string; account_id: string; category_id?: string | null }[] = []
   const pagina = 1000
   for (let inicio = 0; ; inicio += pagina) {
-    let q = db.from('debt_events').select('id, debt_id, date, kind, amount, account_id')
+    let q = db.from('debt_events').select('id, debt_id, date, kind, amount, account_id, category_id')
       .eq('household_id', familiaId).is('voided_at', null).in('kind', tipos).not('account_id', 'is', null)
       .gte('date', de).lte('date', ate)
     if (f.contaId) q = q.eq('account_id', f.contaId)
-    if (f.categoriaId) q = q.eq('category_id', f.categoriaId)
+    // categoria: o principal não tem categoria no evento (vem da dívida); o filtro é aplicado abaixo, já com a dívida
     // ordem total (data, criação, id): a paginação não repete nem perde linha
     const { data, error } = await q.order('date', { ascending: false }).order('created_at', { ascending: false }).order('id')
       .range(inicio, inicio + pagina - 1)
@@ -138,10 +139,20 @@ export async function listarMovimentosDeDivida(familiaId: string, mes: string, f
     eventos.push(...((data ?? []) as typeof eventos))
     if (!data || data.length < pagina) break
   }
-  const dividas = await db.from('debts').select('id, name, kind').eq('household_id', familiaId)
+  // principal_category_id é da migration 046: sem ela no banco, segue sem a categoria do principal
+  let dividas = await db.from('debts').select('id, name, kind, principal_category_id').eq('household_id', familiaId)
+  if (dividas.error) dividas = await db.from('debts').select('id, name, kind').eq('household_id', familiaId) as typeof dividas
   if (dividas.error) throw dividas.error
-  const porId = new Map((dividas.data ?? []).map((d) => [d.id, d]))
-  return eventos.map((e) => {
+  const porId = new Map(((dividas.data ?? []) as { id: string; name: string; kind: string; principal_category_id?: string | null }[]).map((d) => [d.id, d]))
+  const ehEmprestimo = (kind?: string) => kind === 'loan' || kind === 'financing'
+  const principal = (kind: string) => kind === 'payment' || kind === 'extra_principal'
+  return eventos.filter((e) => {
+    if (!soDespesa) return true
+    const d = porId.get(e.debt_id)
+    // pagamento de cartão não é despesa: com filtro de despesa/categoria, só principal de empréstimo/financiamento
+    if (principal(e.kind)) return ehEmprestimo(d?.kind) && (!f.categoriaId || (d?.principal_category_id ?? null) === f.categoriaId)
+    return !f.categoriaId || e.category_id === f.categoriaId
+  }).map((e) => {
     const d = porId.get(e.debt_id)
     const nome = d?.name ?? 'cartão/dívida'
     const entra = e.kind === 'disbursement' || e.kind === 'refund_cash'
@@ -152,7 +163,7 @@ export async function listarMovimentosDeDivida(familiaId: string, mes: string, f
       contaId: e.account_id,
       descricao: e.kind === 'payment' && d?.kind === 'card' ? `Pagamento da fatura · ${nome}` : `${rotuloEventoConta[e.kind]} ${nome}`,
       valor: (entra ? cents : -cents) as Cents,
-      jaEmDespesas: e.kind === 'interest' || e.kind === 'fee',
+      jaEmDespesas: e.kind === 'interest' || e.kind === 'fee' || (principal(e.kind) && ehEmprestimo(d?.kind)),
     }
   })
 }

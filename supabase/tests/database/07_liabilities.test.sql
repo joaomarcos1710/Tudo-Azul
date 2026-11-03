@@ -132,16 +132,19 @@ select public.debt_loan_event(pg_temp.fx('fin'), '2026-11-20', 'interest', pg_te
 
 -- valores finais calculados à mão: disponível 5.884,50; dívida 5.500; patrimônio 384,50
 select is(pg_temp.nw('2027-03-05'), array[5884.50, 5500.00, 0, 384.50, 0]::numeric[], 'L11 final: disponível 5.884,50; dívida 5.500; patrimônio 384,50');
--- conservação: patrimônio(t) = patrimônio(abertura) + receitas − despesas (fluxo líquido, estorno abate despesa)
+-- conservação: patrimônio(t) = patrimônio(abertura) + receitas − despesas + principal amortizado de empréstimo/financiamento.
+-- Desde a migration 046 o principal pago é despesa do mês (decisão do dono: a parcela é gasto do orçamento), mas não
+-- muda o patrimônio (sai da conta e reduz a dívida no mesmo valor). Aqui: 2.000 + 2.000 + 3.000 (empréstimo) + 500 (financiamento).
 select is(
   (select net_worth from public.net_worth(pg_temp.fx('h'), '2027-03-05')),
   (select net_worth from public.net_worth(pg_temp.fx('h'), '2026-11-01'))
-    + (select income_paid - expense_paid from public.period_summary(pg_temp.fx('h'), '2026-11-02', '2027-03-05')),
-  'L12 conservação do patrimônio: Δ patrimônio = receitas − despesas (fluxo líquido)');
+    + (select income_paid - expense_paid from public.period_summary(pg_temp.fx('h'), '2026-11-02', '2027-03-05'))
+    + 7500.00,
+  'L12 conservação do patrimônio: Δ patrimônio = receitas − despesas + principal amortizado');
 select is((select income_paid from public.period_summary(pg_temp.fx('h'), '2026-11-01', '2027-03-05')), 3000.00::numeric,
   'L13 estorno NÃO vira receita: receita do período = só o salário');
-select is((select expense_paid from public.period_summary(pg_temp.fx('h'), '2026-11-01', '2027-03-05')), 515.50::numeric,
-  'L13 despesa líquida 515,50 = 200 mercado + 347 cobranças + 5,50 tarifa/juros + 310 juros de dívida − 347 estornos');
+select is((select expense_paid from public.period_summary(pg_temp.fx('h'), '2026-11-01', '2027-03-05')), 8015.50::numeric,
+  'L13 despesa líquida 8.015,50 = 200 mercado + 347 cobranças + 5,50 tarifa/juros + 310 juros de dívida − 347 estornos + 7.500 de principal de empréstimo/financiamento (migration 046)');
 select is((select spent from public.budget_usage(pg_temp.fx('h'), '2026-11-01')), 100.00::numeric, 'L14 orçamento de novembro: cobrança de 100 em Compras pessoais');
 select is((select spent from public.budget_usage(pg_temp.fx('h'), '2026-12-01')), -100.00::numeric, 'L14 orçamento de dezembro: 247 de cobranças − 347 de estornos = −100 (estorno abate a categoria)');
 select is((select total from public.balance_totals(pg_temp.fx('h'), '2027-03-05')), 5884.50::numeric, 'L15 balance_totals = só dinheiro disponível (dívida fora)');

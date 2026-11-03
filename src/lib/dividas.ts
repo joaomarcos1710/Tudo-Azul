@@ -48,6 +48,8 @@ export interface Divida {
   formaPagamento: FormaPagamentoDivida | null
   contaPagamentoId: string | null
   primeiraDataVencimento: string | null
+  /** Categoria de despesa do principal pago (migration 046); nula = "Sem categoria". */
+  categoriaPrincipalId?: string | null
 }
 
 export interface DadosDivida {
@@ -62,18 +64,30 @@ function cliente() {
   return supabase
 }
 
-/** Dívidas e financiamentos usam o motor debts/debt_events já existente. Cartões continuam na tela Cartões. */
-/** Dívidas ativas (padrão) ou arquivadas. Arquivada some das escolhas e da lista principal; o histórico fica. */
+/**
+ * Dívidas e financiamentos usam o motor debts/debt_events já existente. Cartões continuam na tela Cartões.
+ * Ativas (padrão) ou arquivadas: arquivada some das escolhas e da lista principal; o histórico fica.
+ */
 export async function listarDividas(familiaId: string, dataRef: string, situacao: 'ativas' | 'arquivadas' = 'ativas'): Promise<Divida[]> {
   const db = cliente()
+  const colunasContrato = 'id, name, kind, active, monthly_rate_bps, minimum_payment, creditor, contract_number, original_installments, remaining_installments, installment_amount, payment_day, payment_method, payment_account_id, first_due_date'
+  // Compatibilidade entre o deploy do front e a aplicação das migrations: tenta com a categoria do principal (046),
+  // depois só com o contrato (038), depois o mínimo.
   let cadastros = await db.from('debts')
-    .select('id, name, kind, active, monthly_rate_bps, minimum_payment, creditor, contract_number, original_installments, remaining_installments, installment_amount, payment_day, payment_method, payment_account_id, first_due_date')
+    .select(`${colunasContrato}, principal_category_id`)
     .eq('household_id', familiaId)
     .eq('active', situacao === 'ativas')
     .in('kind', ['loan', 'financing'])
     .order('name')
   if (cadastros.error && ['42703', 'PGRST204'].includes(cadastros.error.code)) {
-    // Compatibilidade entre o deploy do front e a aplicação da migration 038.
+    cadastros = await db.from('debts')
+      .select(colunasContrato)
+      .eq('household_id', familiaId)
+      .eq('active', situacao === 'ativas')
+      .in('kind', ['loan', 'financing'])
+      .order('name') as typeof cadastros
+  }
+  if (cadastros.error && ['42703', 'PGRST204'].includes(cadastros.error.code)) {
     cadastros = await db.from('debts')
       .select('id, name, kind, active, monthly_rate_bps, minimum_payment')
       .eq('household_id', familiaId)
@@ -107,6 +121,7 @@ export async function listarDividas(familiaId: string, dataRef: string, situacao
         formaPagamento: (d.payment_method as FormaPagamentoDivida | null) ?? null,
         contaPagamentoId: (d.payment_account_id as string | null) ?? null,
         primeiraDataVencimento: (d.first_due_date as string | null) ?? null,
+        categoriaPrincipalId: (d.principal_category_id as string | null | undefined) ?? null,
       }]
     })
 }
@@ -254,5 +269,14 @@ export async function reativarDivida(dividaId: string): Promise<void> {
 /** Exclui de vez a dívida que nunca teve pagamento (debt_delete). Com histórico, o banco recusa (23503): só arquivar. */
 export async function excluirDivida(dividaId: string): Promise<void> {
   const { error } = await cliente().rpc('debt_delete', { p_id: dividaId })
+  if (error) throw error
+}
+
+/**
+ * Categoria de despesa do principal da parcela (debt_set_principal_category, migration 046). A parcela paga é despesa
+ * do mês: o principal vai nesta categoria (nula = "Sem categoria"); juros e tarifa seguem nas deles.
+ */
+export async function definirCategoriaPrincipal(dividaId: string, categoriaId: string | null): Promise<void> {
+  const { error } = await cliente().rpc('debt_set_principal_category', { p_debt: dividaId, p_category: categoriaId })
   if (error) throw error
 }
