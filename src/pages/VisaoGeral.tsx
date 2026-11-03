@@ -224,11 +224,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
     patrimonio: p ? <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-      rodape={`Disponível ${formatBRL(p.disponivel)} · bens ${formatBRL(p.bens)} · dívida ${formatBRL(p.divida)}`} /> : (
+      detalhes={[['Disponível', p.disponivel], ['Bens', p.bens], ['Dívida', p.divida]]} /> : (
       <Card><CardTitle>Patrimônio líquido</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
-    disponivel: p ? <Indicador rotulo="Saldo disponível" valor={p.disponivel} icone={<Cofre />} corIcone="bg-azul-claro text-azul"
-      rodape={`Dívida atual ${formatBRL(p.divida)}`} /> : (
+    // a dívida já aparece no card de patrimônio: aqui só o saldo das contas
+    disponivel: p ? <Indicador rotulo="Saldo disponível" valor={p.disponivel} icone={<Cofre />} corIcone="bg-azul-claro text-azul" /> : (
       <Card><CardTitle>Saldo disponível</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
     receitas: m ? <Indicador rotulo="Entradas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-green-50 text-positivo"
@@ -432,7 +432,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </>}
           {p && (
             <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-              rodape={`Disponível ${formatBRL(p.disponivel)} · bens ${formatBRL(p.bens)} · dívida ${formatBRL(p.divida)}`} />
+              detalhes={[['Disponível', p.disponivel], ['Bens', p.bens], ['Dívida', p.divida]]} />
           )}
         </section>
       ) : null}
@@ -679,9 +679,11 @@ function BlocoRegularidade({ titulo, r }: { titulo: string; r: RegularidadeRenda
   )
 }
 
-function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, comparado, destaque = false, negativoVermelho = false, rodape }: {
+function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, comparado, destaque = false, negativoVermelho = false, rodape, detalhes }: {
   rotulo: string; valor: Cents; sinal?: '+' | '−'; icone: ReactNode; corIcone: string; var?: number | null; subirEhBom?: boolean
   comparado?: string; destaque?: boolean; negativoVermelho?: boolean; rodape?: string
+  /** Composição do valor, uma linha por item (valores do banco; a tela não soma). */
+  detalhes?: [string, Cents][]
 }) {
   const texto = sinal ? `${sinal}${formatBRL(valor)}` : formatBRL(valor)
   const bom = v === null || v === undefined ? null : (v >= 0) === Boolean(subirEhBom)
@@ -696,6 +698,16 @@ function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, 
         </p>
       )}
       {rodape && <p className={`mt-1 text-xs ${destaque ? 'text-blue-100' : 'text-slate-500'}`}>{rodape}</p>}
+      {detalhes && (
+        <dl className={`mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 border-t pt-3 text-sm ${destaque ? 'border-white/15 text-blue-100' : 'border-slate-100 text-slate-500'}`}>
+          {detalhes.map(([r, c]) => (
+            <div key={r} className="contents">
+              <dt>{r}</dt>
+              <dd className={`text-right tabular-nums font-semibold ${destaque ? 'text-white' : 'text-marinho'}`}>{formatBRL(c)}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
     </Card>
   )
 }

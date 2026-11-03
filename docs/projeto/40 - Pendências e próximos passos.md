@@ -101,5 +101,5 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Monitoramento (03/11/2026)
 - [ ] **Dono:** criar o projeto no Sentry (React) e colar o DSN em `VITE_SENTRY_DSN` no Vercel (Production); depois, um novo deploy liga o monitoramento. Sem isso, nada é enviado.
-- **Aplicar a 046** (parcela de dívida como despesa do mês, #137) depois do merge, com simulação, log e o "pode" do dono. Depois: escolher a categoria da parcela em cada dívida (Dívidas).
+- [x] **046 aplicada** em 03/11/2026 (execução 41740081652). **Dono:** escolher a categoria da parcela em cada dívida (Dívidas).
 - **Atenção a lançamento duplicado:** quem já lançou a parcela à mão como despesa (além da baixa em Dívidas) vai ver a parcela contada duas vezes; excluir o lançamento manual.
