@@ -464,4 +464,14 @@ describe('Investimentos × macroclasse e subclasse', () => {
       })
     })
   })
+  it('"Registrar compra" lá embaixo leva a tela até o formulário, que abre no topo', async () => {
+    // posições vazias: "Ativos e posições" mostra o atalho "Registrar compra"
+    mock.listarCarteiraInvestimentos.mockResolvedValue({ posicoes: [], totais: [] })
+    const rolar = vi.fn()
+    Element.prototype.scrollIntoView = rolar
+    render(<Investimentos />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Registrar compra' }))
+    expect(screen.getByRole('heading', { name: 'Registrar compra ou venda' })).toBeTruthy()
+    expect(rolar).toHaveBeenCalled()
+  })
 })

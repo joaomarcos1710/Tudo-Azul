@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -202,15 +202,15 @@ export default function Investimentos() {
         Nesta primeira etapa, o livro de investimentos registra compras, vendas e avaliações manuais em BRL, USD ou EUR. Os valores ficam separados por moeda. As operações ainda não movimentam as contas bancárias nem entram como receita ou despesa; a integração de caixa será feita numa etapa própria para evitar dupla contagem. Não há cotação automática nesta versão.
       </Aviso>
 
-      {novoAtivo && <FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
+      {novoAtivo && <RolarAoAbrir><FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} /></RolarAoAbrir>}
       {novaOperacao && (
-        <FormOperacao ativos={ativosAtivos} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
+        <RolarAoAbrir><FormOperacao ativos={ativosAtivos} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} /></RolarAoAbrir>
       )}
       {novoProvento && (
-        <FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} />
+        <RolarAoAbrir><FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} /></RolarAoAbrir>
       )}
       {novaAvaliacao && (
-        <FormAvaliacao ativos={ativosAtivos} aoSalvar={salvarAvaliacao} aoCancelar={() => setNovaAvaliacao(false)} />
+        <RolarAoAbrir><FormAvaliacao ativos={ativosAtivos} aoSalvar={salvarAvaliacao} aoCancelar={() => setNovaAvaliacao(false)} /></RolarAoAbrir>
       )}
 
       <section className="mt-6" aria-labelledby="titulo-totais-investimentos">
@@ -674,6 +674,14 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
       <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Salvar ativo</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
     </form>
   </Card>
+}
+
+/** Os formulários de cadastro abrem no topo da página; quem tocou num botão lá embaixo (ex.: "Registrar compra"
+ * em "Ativos e posições", no celular) não via nada acontecer. Ao abrir, a tela rola até o formulário. */
+function RolarAoAbrir({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => { ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }) }, [])
+  return <div ref={ref} className="scroll-mt-4">{children}</div>
 }
 
 function FormOperacao({ ativos, aoSalvar, aoCancelar }: {
