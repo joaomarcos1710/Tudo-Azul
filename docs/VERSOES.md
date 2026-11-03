@@ -62,3 +62,4 @@ continuam abaixo como histórico.
 | 2026.125 | Reconciliação de patrimônio e investimentos, cadastro/exclusão segura de bens e ativos, contratos e agenda de parcelas de dívidas, projeção e calendário integrados. |
 | 2026.126 | Investimentos: editar, arquivar, reativar e excluir ativo cadastrado; o ativo zerado passa a mostrar "Sem posição" e pode ser arquivado (migration 037). Excluir só sem operação, avaliação nem provento. |
 | 2026.127 | Consignado aceita juros e tarifa na parcela (só o principal abate o saldo) e o histórico de investimentos passa a contar ativo arquivado (migration 041). Diário: 037 a 040 aplicadas em produção. |
+| 2026.129 | Investimentos: botão "Extrato" em cada ativo (compras, vendas, avaliações e proventos) e "Excluir" operação errada, que anula com motivo e deixa de contar na posição, custo, histórico e alocação (migration 043). Corrige o "Editar" do ativo, que abria longe do botão e podia gravar os dados de um ativo no outro. |

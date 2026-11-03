@@ -86,5 +86,8 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Testes que dependiam de `current_date` em UTC (pgTAP 34, 35, 36) e de `new Date()` UTC (Início): trocados pela data de São Paulo no #124. Ainda vale uma varredura nos demais testes por qualquer dependência de relógio.
 
 ## Em aberto (03/11/2026)
-- **Aplicar a 041** em produção (consignado com juros; histórico com ativo arquivado), com simulação, log e o "pode" do dono. Até lá, não cadastrar consignado.
+- [x] **041 aplicada** em 03/11/2026 (execução 41619293355): consignado com juros liberado.
+- **Aplicar a 043** (anular operação de investimento, #129) depois do merge, com simulação, log e o "pode" do dono. Atenção à ordem com a 042 (#128).
+- **Aportes no caixa:** aplicação e resgate de investimento ainda não geram lançamento na conta (só o provento gera). Decidir com o dono: vincular a lançamento existente (ele lança a aplicação como despesa) ou criar o lançamento pela operação, sem dupla contagem.
+- **FII entrando como renda fixa:** o formulário de novo ativo abre com a classe "Renda fixa" pré-selecionada (`Investimentos.tsx`); exigir a escolha da classe.
 - Gráfico de distribuição do patrimônio; arquivar/excluir dívida em Dívidas; PR 5 (importar extrato) e PR 6 (metas e fluxo mensal) do plano do protótipo.
