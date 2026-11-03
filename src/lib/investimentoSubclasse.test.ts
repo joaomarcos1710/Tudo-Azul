@@ -50,13 +50,15 @@ describe('listarAtivosInvestimento e a migration 034', () => {
     fake.estado.respostas = [{ data: [{ ...linha, subclass: 'Tesouro Direto' }], error: null }]
     const r = await listarAtivosInvestimento('h1')
     expect(fake.estado.colunas[0]).toContain('subclass')
+    expect(fake.estado.colunas).toHaveLength(4)
+    expect(r[0].quantidadeProventos).toBe(0)
     expect(r[0].subclasse).toBe('Tesouro Direto')
   })
 
   it('banco sem a coluna: lê sem ela e a subclasse fica vazia (nunca inventada)', async () => {
     fake.estado.respostas = [{ data: null, error: { message: 'column investment_assets.subclass does not exist' } }, { data: [linha], error: null }]
     const r = await listarAtivosInvestimento('h1')
-    expect(fake.estado.colunas).toHaveLength(2)
+    expect(fake.estado.colunas).toHaveLength(5)
     expect(fake.estado.colunas[1]).not.toContain('subclass')
     expect(r[0].subclasse).toBeNull()
   })

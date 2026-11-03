@@ -94,11 +94,11 @@ beforeEach(() => {
 })
 
 describe('exportacaoCompleta', () => {
-  it('gera os 5 arquivos com saldos e dívidas vindos do banco, sem somar no front', async () => {
+  it('gera os 6 arquivos com saldos e dívidas vindos do banco, sem somar no front', async () => {
     const arqs = await exportacaoCompleta('h1', '2026-10-31')
     expect(arqs.map((a) => a.nome)).toEqual([
       'tudo-azul-2026-10-31-1-lancamentos.csv', 'tudo-azul-2026-10-31-2-movimentos-por-conta.csv', 'tudo-azul-2026-10-31-3-cadastros.csv',
-      'tudo-azul-2026-10-31-4-parcelas-cartao.csv', 'tudo-azul-2026-10-31-5-eventos-cartao-e-dividas.csv',
+      'tudo-azul-2026-10-31-4-parcelas-cartao.csv', 'tudo-azul-2026-10-31-5-eventos-cartao-e-dividas.csv', 'tudo-azul-2026-10-31-6-agenda-parcelas-dividas.csv',
     ])
     expect(ARQ(arqs, 'movimentos').slice(1)).toEqual([
       'Itaú;01/10/2026;Saldo inicial;Saldo inicial;1000,00;Não',
@@ -115,9 +115,12 @@ describe('exportacaoCompleta', () => {
       'Nubank;Fone;2/2;02/10/2026;17/11/2026;Eletrônicos;150,00;A cobrar',
     ])
     expect(ARQ(arqs, 'eventos').slice(1)).toEqual([
-      'Nubank;17/10/2026;Cobrança de parcela;150,00;150,00;Sim;;;Fone 1/2;;',
-      'Nubank;25/10/2026;Pagamento;150,00;-150,00;Sim;Itaú;2026-10;;;',
-      'Nubank;02/11/2026;Juros;9,90;0,00;Não;Itaú;;;Mercado;mora',
+      'Nubank;17/10/2026;Cobrança de parcela;150,00;150,00;Sim;;;Fone 1/2;;;',
+      'Nubank;25/10/2026;Pagamento;150,00;-150,00;Sim;Itaú;2026-10;;;;',
+      'Nubank;02/11/2026;Juros;9,90;0,00;Não;Itaú;;;;Mercado;mora',
+    ])
+    expect(ARQ(arqs, 'agenda')).toEqual([
+      '\uFEFFDívida;Credor;Contrato;Parcela;Vencimento;Valor;Situação;Data do pagamento;Forma de pagamento;Conta de pagamento;Operação',
     ])
     // compra no cartão não vira lançamento de conta; lançamentos continua só com transactions
     expect(ARQ(arqs, 'lancamentos').slice(1)).toEqual(['05/10/2026;Despesa;Mercado;Mercado;Itaú;;-250,40;Pago;'])
@@ -139,7 +142,7 @@ describe('efeitoNaDivida', () => {
   it('segue a regra de public.debt_balances para todos os tipos de evento do banco', () => {
     // migration 003: disbursement/charge/refund_cash somam; payment/extra_principal/credit subtraem; o resto não mexe
     expect(efeitoNaDivida).toEqual({
-      disbursement: 1, charge: 1, refund_cash: 1, payment: -1, extra_principal: -1, credit: -1, interest: 0, fee: 0, cancel: 0,
+      disbursement: 1, charge: 1, refund_cash: 1, payment: -1, extra_principal: -1, credit: -1, payroll_payment: -1, interest: 0, fee: 0, cancel: 0,
     })
   })
 })

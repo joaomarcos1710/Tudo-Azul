@@ -6,6 +6,7 @@ import type { Cents } from '../lib/format'
 
 const mock = vi.hoisted(() => ({
   carregarPatrimonio: vi.fn(),
+  carregarResumoInvestimentos: vi.fn(),
   proximosPlanejados: vi.fn(),
   resumoDoMes: vi.fn(),
   listarContas: vi.fn(),
@@ -25,7 +26,8 @@ vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
 vi.mock('../lib/painel', () => ({
-  carregarPatrimonio: mock.carregarPatrimonio, proximosPlanejados: mock.proximosPlanejados,
+  carregarPatrimonio: mock.carregarPatrimonio, carregarResumoInvestimentos: mock.carregarResumoInvestimentos,
+  proximosPlanejados: mock.proximosPlanejados,
   despesasPorCategoria: mock.despesasPorCategoria, despesasPorDia: mock.despesasPorDia,
   regularidadeRenda: mock.regularidadeRenda,
   projecaoDoMes: mock.projecaoDoMes,
@@ -51,7 +53,8 @@ beforeEach(() => {
   window.localStorage.clear()
   cobrar.mockResolvedValue(0)
   gerar.mockResolvedValue(0)
-  mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), patrimonio: c(1087560), compromissos: c(482000) })
+  mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), bens: c(0), patrimonio: c(1087560), compromissos: c(482000) })
+  mock.carregarResumoInvestimentos.mockResolvedValue([{ moeda: 'BRL', valorAtual: c(36000) }, { moeda: 'USD', valorAtual: c(20100) }])
   mock.resumoDoMes.mockResolvedValue({ receitas: c(1215000), despesas: c(866726), resultado: c(348274), receitasPrevistas: c(0), despesasPrevistas: c(38990) })
   mock.listarContas.mockResolvedValue({
     contas: [
@@ -193,11 +196,13 @@ describe('Visão geral', () => {
   })
   it('mostra a equação do patrimônio com os valores do banco', async () => {
     montar('analises')
-    // equação montada com os valores do banco: disponível + crédito a receber − dívida = patrimônio
-    expect(await screen.findByText(/disponível R\$ 50\.651,05 \+ crédito a receber R\$ 245,90 − dívida R\$ 40\.021,35/)).toBeTruthy()
+    // patrimônio consolidado inclui a participação familiar nos bens em BRL
+    expect(await screen.findByText('Patrimônio líquido')).toBeTruthy()
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
-    expect(screen.getByText(/Não inclui bens nem investimentos/)).toBeTruthy()
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
+    cleanup()
+    montar()
+    expect(await screen.findByText(/Saldo em USD/)).toBeTruthy() // investimentos aparecem no Início, em moeda segregada
   })
   it('resumo do mês (Análises): receitas e despesas do banco', async () => {
     montar('analises')
@@ -211,9 +216,10 @@ describe('Visão geral', () => {
     expect(screen.queryByText('Antiga')).toBeNull()
   })
   it('sem compromissos, não mostra a faixa', async () => {
-    mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(0), creditoAReceber: c(0), divida: c(0), patrimonio: c(0), compromissos: c(0) })
+    mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(0), creditoAReceber: c(0), divida: c(0), bens: c(0), patrimonio: c(0), compromissos: c(0) })
+    mock.carregarResumoInvestimentos.mockResolvedValue([])
     montar('analises')
-    await screen.findByText(/Não inclui bens/)
+    expect(await screen.findByText('Patrimônio líquido')).toBeTruthy()
     expect(screen.queryByText(/Compromissos futuros/)).toBeNull()
   })
 
@@ -525,6 +531,9 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     expect(screen.getByText('Entradas do mês')).toBeTruthy()
     expect(screen.getByText('Despesas do mês')).toBeTruthy()
     expect(screen.getByText('Resultado do mês')).toBeTruthy()
+    expect(screen.getByText('Saldo de investimentos')).toBeTruthy()
+    expect(screen.getByText('R$ 360,00')).toBeTruthy()
+    expect(screen.getByText('Saldo em USD')).toBeTruthy()
     expect(screen.queryByText('Renda regular × despesas')).toBeNull()
     expect(screen.queryByText('Comparação com o ano passado')).toBeNull()
     expect(screen.queryByText('Projeção do mês')).toBeNull()

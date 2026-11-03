@@ -142,12 +142,58 @@ async function todas(consulta: () => Pagina): Promise<Registro[]> {
   }
 }
 
+function schemaAindaNaoAplicado(erro: unknown): boolean {
+  const codigo = erro && typeof erro === 'object' && 'code' in erro
+    ? String((erro as { code?: unknown }).code ?? '')
+    : ''
+  return ['PGRST204', 'PGRST205', '42703', '42P01'].includes(codigo)
+}
+
+async function buscarDividasExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Registro[]> {
+  const atual = await db.from('debts')
+    .select('id, name, kind, reference_date, reference_balance, active, creditor, contract_number, payment_method, payment_account_id')
+    .eq('household_id', familiaId).order('name')
+  if (atual.error) {
+    if (!schemaAindaNaoAplicado(atual.error)) throw atual.error
+    const legado = await db.from('debts')
+      .select('id, name, kind, reference_date, reference_balance, active')
+      .eq('household_id', familiaId).order('name')
+    if (legado.error) throw legado.error
+    return (legado.data ?? []) as Registro[]
+  }
+  return (atual.data ?? []) as Registro[]
+}
+
+async function buscarEventosExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Registro[]> {
+  try {
+    return await todas(() => db.from('debt_events')
+      .select('id, debt_id, date, kind, amount, account_id, installment_id, invoice_id, category_id, note, schedule_id, op_id')
+      .eq('household_id', familiaId).is('voided_at', null).order('date').order('id'))
+  } catch (erro) {
+    if (!schemaAindaNaoAplicado(erro)) throw erro
+    return todas(() => db.from('debt_events')
+      .select('id, debt_id, date, kind, amount, account_id, installment_id, invoice_id, category_id, note, op_id')
+      .eq('household_id', familiaId).is('voided_at', null).order('date').order('id'))
+  }
+}
+
+async function buscarAgendaDividasExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Registro[]> {
+  try {
+    return await todas(() => db.from('debt_payment_schedule')
+      .select('id, debt_id, installment_number, due_date, amount, status, payment_op_id, payment_date')
+      .eq('household_id', familiaId).order('due_date').order('id'))
+  } catch (erro) {
+    if (!schemaAindaNaoAplicado(erro)) throw erro
+    return []
+  }
+}
+
 const rotuloOrigem: Record<string, string> = { opening: 'Saldo inicial', transaction: 'Lançamento', debt: 'Cartão/dívida' }
 const rotuloDivida: Record<string, string> = { card: 'Cartão', loan: 'Empréstimo', financing: 'Financiamento' }
 const rotuloEvento: Record<string, string> = {
   charge: 'Cobrança de parcela', credit: 'Estorno', cancel: 'Cancelamento de parcela', payment: 'Pagamento',
   extra_principal: 'Amortização extra', interest: 'Juros', fee: 'Tarifa', disbursement: 'Liberação de crédito',
-  refund_cash: 'Devolução em dinheiro',
+  refund_cash: 'Devolução em dinheiro', payroll_payment: 'Consignado (amortização)',
 }
 
 /**
@@ -156,7 +202,7 @@ const rotuloEvento: Record<string, string> = {
  * Com isso, valor de referência + soma da coluna "Efeito na dívida" (até a data) = dívida do arquivo de cadastros.
  */
 export const efeitoNaDivida: Record<string, 1 | -1 | 0> = {
-  disbursement: 1, charge: 1, refund_cash: 1, payment: -1, extra_principal: -1, credit: -1, interest: 0, fee: 0, cancel: 0,
+  disbursement: 1, charge: 1, refund_cash: 1, payment: -1, extra_principal: -1, credit: -1, payroll_payment: -1, interest: 0, fee: 0, cancel: 0,
 }
 
 const texto = (v: unknown) => (v === null || v === undefined ? '' : String(v))
@@ -168,17 +214,16 @@ const talvez = (v: unknown): Celula => (v === null || v === undefined ? '' : cen
 export async function exportacaoCompleta(familiaId: string, hoje: string): Promise<ArquivoExportado[]> {
   if (!supabase) throw new Error('Supabase não configurado')
   const db = supabase
-  const [contas, categorias, dividas, faturas, saldos, saldosDividas] = await Promise.all([
+  const [contas, categorias, listaDividas, faturas, saldos, saldosDividas] = await Promise.all([
     db.from('accounts').select('id, name, type, initial_balance, opening_date, active').eq('household_id', familiaId).order('name'),
     db.from('categories').select('id, name').eq('household_id', familiaId),
-    db.from('debts').select('id, name, kind, reference_date, reference_balance, active').eq('household_id', familiaId).order('name'),
+    buscarDividasExportacao(db, familiaId),
     db.from('debt_invoices').select('id, label').eq('household_id', familiaId),
     db.rpc('account_balances', { p_household: familiaId, p_as_of: hoje }),
     db.rpc('debt_balances', { p_household: familiaId, p_as_of: hoje }),
   ])
-  for (const r of [contas, categorias, dividas, faturas, saldos, saldosDividas]) if (r.error) throw r.error
+  for (const r of [contas, categorias, faturas, saldos, saldosDividas]) if (r.error) throw r.error
   const listaContas = (contas.data ?? []) as Registro[]
-  const listaDividas = (dividas.data ?? []) as Registro[]
   const nomeConta = new Map(listaContas.map((c) => [c.id, texto(c.name)]))
   const nomeDivida = new Map(listaDividas.map((d) => [d.id, texto(d.name)]))
   const nomeCategoria = new Map(((categorias.data ?? []) as Registro[]).map((c) => [c.id, texto(c.name)]))
@@ -186,14 +231,13 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
   const saldoConta = new Map(((saldos.data ?? []) as Registro[]).map((s) => [s.account_id, s.balance]))
   const saldoDivida = new Map(((saldosDividas.data ?? []) as Registro[]).map((s) => [s.debt_id, s]))
 
-  const [lancamentos, parcelas, eventos, ...movimentosPorConta] = await Promise.all([
+  const [lancamentos, parcelas, eventos, agendaDividas, ...movimentosPorConta] = await Promise.all([
     lancamentosParaExportar(familiaId),
     todas(() => db.from('debt_installments')
       .select('id, debt_id, plan, seq, description, purchase_date, due_date, face, category_id')
       .eq('household_id', familiaId).order('due_date').order('id')),
-    todas(() => db.from('debt_events')
-      .select('id, debt_id, date, kind, amount, account_id, installment_id, invoice_id, category_id, note')
-      .eq('household_id', familiaId).is('voided_at', null).order('date').order('id')),
+    buscarEventosExportacao(db, familiaId),
+    buscarAgendaDividasExportacao(db, familiaId),
     ...listaContas.map((c) => todas(() => db.rpc('account_movements', { p_account: c.id, p_to: hoje })
       .order('date').order('source').order('id'))),
   ])
@@ -202,6 +246,8 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
   const totalDoPlano = new Map<string, number>()
   for (const p of parcelas) totalDoPlano.set(`${p.debt_id}|${p.plan}`, (totalDoPlano.get(`${p.debt_id}|${p.plan}`) ?? 0) + 1)
   const parcelaPorId = new Map(parcelas.map((p) => [p.id, p]))
+  const dividaPorId = new Map(listaDividas.map((d) => [d.id, d]))
+  const agendaPorId = new Map(agendaDividas.map((p) => [p.id, p]))
   // situação da parcela pelos eventos que existem (rótulo, sem conta de dinheiro; os valores estão no arquivo 5)
   const comCobranca = new Set(eventos.filter((e) => e.kind === 'charge').map((e) => e.installment_id))
   const comCancelamento = new Set(eventos.filter((e) => e.kind === 'cancel').map((e) => e.installment_id))
@@ -238,8 +284,24 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     situacaoParcela(p.id),
   ])
 
+  const linhasAgendaDividas: Celula[][] = agendaDividas.map((p) => {
+    const d = dividaPorId.get(p.debt_id)
+    const forma = texto(d?.payment_method)
+    const formaRotulo = forma === 'account_debit' ? 'Débito automático'
+      : forma === 'boleto' ? 'Boleto' : forma === 'payroll' ? 'Consignado' : forma === 'manual' ? 'Manual' : forma
+    return [
+      nomeDivida.get(p.debt_id) ?? '', texto(d?.creditor), texto(d?.contract_number),
+      texto(p.installment_number), dataBR(texto(p.due_date)), centavos(p.amount),
+      p.status === 'paid' ? 'Paga' : p.status === 'cancelled' ? 'Cancelada' : 'Planejada',
+      dataBR(texto(p.payment_date)), formaRotulo,
+      d?.payment_account_id ? nomeConta.get(d.payment_account_id) ?? '' : '',
+      texto(p.payment_op_id),
+    ]
+  })
+
   const linhasEventos: Celula[][] = eventos.map((e) => {
     const parcela = e.installment_id ? parcelaPorId.get(e.installment_id) : undefined
+    const parcelaContrato = e.schedule_id ? agendaPorId.get(e.schedule_id) : undefined
     const efeito = efeitoNaDivida[texto(e.kind)] ?? 0
     const valor = centsFromDb(e.amount as number | string)
     return [
@@ -247,6 +309,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
       { centavos: (efeito === 0 ? 0 : efeito * valor) as Cents }, texto(e.date) <= hoje ? 'Sim' : 'Não',
       e.account_id ? nomeConta.get(e.account_id) ?? '' : '', e.invoice_id ? rotuloFatura.get(e.invoice_id) ?? '' : '',
       parcela ? `${texto(parcela.description) || texto(parcela.plan)} ${texto(parcela.seq)}/${totalDoPlano.get(`${parcela.debt_id}|${parcela.plan}`)}` : '',
+      parcelaContrato ? `Parcela ${texto(parcelaContrato.installment_number)}` : '',
       e.category_id ? nomeCategoria.get(e.category_id) ?? '' : '', texto(e.note),
     ]
   })
@@ -269,7 +332,12 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     {
       nome: `tudo-azul-${hoje}-5-eventos-cartao-e-dividas.csv`, linhas: linhasEventos.length,
       conteudo: montarCsv(['Cartão/dívida', 'Data', 'Evento', 'Valor', 'Efeito na dívida', `Até ${dataBR(hoje)}`, 'Conta', 'Fatura',
-        'Parcela', 'Categoria', 'Observação'], linhasEventos),
+        'Parcela do cartão', 'Parcela do contrato', 'Categoria', 'Observação'], linhasEventos),
+    },
+    {
+      nome: `tudo-azul-${hoje}-6-agenda-parcelas-dividas.csv`, linhas: linhasAgendaDividas.length,
+      conteudo: montarCsv(['Dívida', 'Credor', 'Contrato', 'Parcela', 'Vencimento', 'Valor', 'Situação',
+        'Data do pagamento', 'Forma de pagamento', 'Conta de pagamento', 'Operação'], linhasAgendaDividas),
     },
   ]
 }
