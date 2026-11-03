@@ -2,14 +2,12 @@ import { centsFromDb } from './format'
 import type { Cents } from './format'
 import { supabase } from './supabase'
 
-/** Patrimônio líquido: disponível + crédito a receber + participação familiar em bens BRL − dívidas. */
+/** Patrimônio do modelo B (net_worth): disponível + crédito a receber − dívida. */
 export interface Patrimonio {
   disponivel: Cents
   creditoAReceber: Cents
   divida: Cents
   patrimonio: Cents
-  /** Bens familiares avaliados em BRL e ponderados pela participação da família. */
-  bens: Cents
   /** Parcelas de cartão ainda não cobradas: aparecem à parte e não entram no patrimônio. */
   compromissos: Cents
 }
@@ -33,39 +31,64 @@ function cliente() {
 }
 
 export async function carregarPatrimonio(familiaId: string, dataRef: string): Promise<Patrimonio> {
-  let { data, error } = await cliente().rpc('net_worth_with_assets', { p_household: familiaId, p_as_of: dataRef })
-  if (error && (error.code === 'PGRST202' || error.code === '42883')) {
-    // Compatibilidade durante o intervalo entre o deploy do front e a aplicação da migration.
-    const legado = await cliente().rpc('net_worth', { p_household: familiaId, p_as_of: dataRef })
-    if (legado.error) throw legado.error
-    data = legado.data
-  } else if (error) {
-    throw error
-  }
+  const { data, error } = await cliente().rpc('net_worth', { p_household: familiaId, p_as_of: dataRef })
+  if (error) throw error
   const r = ((data ?? []) as Record<string, number | string>[])[0] ?? {}
   return {
     disponivel: centsFromDb(r.available ?? 0),
     creditoAReceber: centsFromDb(r.credit_receivable ?? 0),
     divida: centsFromDb(r.debt ?? 0),
     patrimonio: centsFromDb(r.net_worth ?? 0),
-    bens: centsFromDb(r.family_assets_brl ?? 0),
     compromissos: centsFromDb(r.planned_commitments ?? 0),
   }
 }
 
-/** Próximos lançamentos planejados (contas a pagar e a receber) a partir de hoje. */
+/** Próximos lançamentos e parcelas planejadas a partir de hoje. */
 export async function proximosPlanejados(familiaId: string, deData: string, limite = 5): Promise<ProximoPlanejado[]> {
-  const { data, error } = await cliente()
-    .from('transactions')
-    .select('id, type, description, amount, date, category_id, account_id, destination_account_id')
-    .eq('household_id', familiaId)
-    .eq('status', 'planned')
-    .is('deleted_at', null)
-    .gte('date', deData)
-    .order('date')
-    .limit(limite)
-  if (error) throw error
-  return (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null, contaId: t.account_id ?? null, destinoId: t.destination_account_id ?? null }))
+  const db = cliente()
+  const [lancamentos, agenda] = await Promise.all([
+    db.from('transactions')
+      .select('id, type, description, amount, date, category_id, account_id, destination_account_id')
+      .eq('household_id', familiaId)
+      .eq('status', 'planned')
+      .is('deleted_at', null)
+      .gte('date', deData)
+      .order('date')
+      .limit(limite),
+    db.from('debt_payment_schedule')
+      .select('id, debt_id, installment_number, due_date, amount')
+      .eq('household_id', familiaId)
+      .eq('status', 'planned')
+      .gte('due_date', deData)
+      .order('due_date')
+      .limit(limite),
+  ])
+  if (lancamentos.error) throw lancamentos.error
+  // Compatibilidade durante deploy gradual do front e da migration 038.
+  const agendaDisponivel = agenda.error
+    ? (['PGRST205', '42P01'].includes(agenda.error.code) ? [] : (() => { throw agenda.error })())
+    : agenda.data ?? []
+  const ids = [...new Set(agendaDisponivel.map((p) => p.debt_id as string))]
+  const dividas = ids.length
+    ? await db.from('debts').select('id,name,payment_method,payment_account_id').eq('household_id', familiaId).in('id', ids)
+    : { data: [], error: null }
+  if (dividas.error) throw dividas.error
+  const porDivida = new Map((dividas.data ?? []).map((d) => [d.id, d]))
+  const previstos: ProximoPlanejado[] = (lancamentos.data ?? []).map((t) => ({
+    id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date,
+    categoriaId: t.category_id ?? null, contaId: t.account_id ?? null, destinoId: t.destination_account_id ?? null,
+  }))
+  for (const p of agendaDisponivel) {
+    const d = porDivida.get(p.debt_id)
+    if (!d) continue
+    previstos.push({
+      id: `debt-${p.id}`, tipo: 'expense',
+      descricao: `Parcela ${p.installment_number} · ${d.name}`,
+      valor: centsFromDb(p.amount), data: p.due_date, categoriaId: null,
+      contaId: d.payment_method === 'account_debit' ? d.payment_account_id : null, destinoId: null,
+    })
+  }
+  return previstos.sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id)).slice(0, limite)
 }
 
 /** Fatia do gráfico de categorias; categoriaId nulo = "Outros" (somado no banco). */
@@ -169,22 +192,4 @@ export async function vencidosPlanejados(familiaId: string, hoje: string, limite
     itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null, contaId: t.account_id ?? null, destinoId: t.destination_account_id ?? null })),
     total: count ?? (data ?? []).length,
   }
-}
-
-
-export interface ResumoInvestimento {
-  moeda: 'BRL' | 'USD' | 'EUR'
-  valorAtual: Cents
-}
-
-/** Saldo investido por moeda, sem conversão implícita entre BRL, USD e EUR. */
-export async function carregarResumoInvestimentos(familiaId: string, dataRef: string): Promise<ResumoInvestimento[]> {
-  const { data, error } = await cliente().rpc('investment_totals', {
-    p_household: familiaId, p_as_of: dataRef,
-  })
-  if (error) throw error
-  return ((data ?? []) as Record<string, string | number>[]).map((r) => ({
-    moeda: r.currency_code as ResumoInvestimento['moeda'],
-    valorAtual: centsFromDb(r.market_value ?? 0),
-  }))
 }
