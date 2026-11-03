@@ -12,7 +12,6 @@ import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { resumoDosCartoes, totalFaturasDoMes } from '../lib/cartoes'
 import type { ResumoCartao, TotalFaturasMes } from '../lib/cartoes'
-import { ultimasConferencias } from '../lib/conciliacao'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
@@ -55,7 +54,6 @@ interface Dados {
   /** Faturas de todos os cartões que vencem neste mês (soma do banco); null = não carregou (ex.: banco ainda sem a migration 023) */
   faturasDoMes: TotalFaturasMes | null
   /** data da última conferência de cada conta (conta ausente = nunca conferida); null = não carregou */
-  conferencias: Map<string, string> | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
   categoriaPorId: Map<string, Categoria>
@@ -189,14 +187,14 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         ? Promise.all([
             // essenciais do Início: se falharem, a tela inteira avisa o erro
             listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje), listarLancamentos(familiaId, mes), listarCategorias(familiaId),
-            opcional(vencidosPlanejados(familiaId, hoje, 5)), opcional(resumoDosCartoes(familiaId, hoje)), opcional(ultimasConferencias(familiaId)),
+            opcional(vencidosPlanejados(familiaId, hoje, 5)), opcional(resumoDosCartoes(familiaId, hoje)),
             opcional(totalFaturasDoMes(familiaId, mes)),
             // O resumo do Início reutiliza as mesmas fontes financeiras já usadas em Análises.
             opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
             opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, conferencias, faturasDoMes, patrimonio, investimentos, resumo, anterior]): Dados => ({
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, faturasDoMes, conferencias,
+            contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, faturasDoMes,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -220,7 +218,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(projecaoDoMes(familiaId, mes, hoje)),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, conferencias: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then(setDados)
       .catch((err) => setErro(mensagemErroBanco(err)))
@@ -628,9 +626,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                   <span className={`tabular-nums font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
                     {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
                   </span>
-                  {c.saldo !== null && dados.conferencias && (
-                    <ConferenciaDaConta contaId={c.id} nome={c.nome} ultima={dados.conferencias.get(c.id) ?? null} hoje={hoje} />
-                  )}
                 </li>
               ))}
             </ul>
@@ -638,20 +633,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </Card>
       </div>}
     </>
-  )
-}
-
-/** Última conferência da conta com o extrato: nunca, ou há quantos dias (mais de 30 dias pede atenção). */
-function ConferenciaDaConta({ contaId, nome, ultima, hoje }: { contaId: string; nome: string; ultima: string | null; hoje: string }) {
-  const atraso = ultima === null ? null : diasEntre(ultima, hoje)
-  const atencao = atraso === null || atraso > 30
-  return (
-    <span className="mt-0.5 flex w-full items-center justify-between text-xs">
-      <span className={atencao ? 'text-planejado' : 'text-slate-500'}>
-        {ultima === null ? 'Nunca conferida com o extrato' : `Conferida em ${formatDate(ultima)}${atraso !== null && atraso > 30 ? ` (há ${atraso} dias)` : ''}`}
-      </span>
-      <Link to={`/contas/${contaId}/conferir`} aria-label={`Conferir ${nome}`} className="font-semibold text-azul hover:underline">Conferir</Link>
-    </span>
   )
 }
 

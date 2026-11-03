@@ -111,6 +111,7 @@ tags: [tudo-azul, historico]
 - **Gerir ativos de investimento** (migration 040, #126, 03/11/2026, merge `80e185b`): `investment_asset_update`, `_archive` e `_unarchive` + Editar, Arquivar e Reativar em Ativos cadastrados. A exclusão (`investment_asset_delete`) é da migration 039, da #125. **037, 038, 039 e 040 aplicadas em produção em 03/11/2026** (execuções 41617320956 e 41617985117).
 - **Consignado com juros e histórico com ativo arquivado** (migration 041, #127, 03/11/2026): consertos de defeitos achados na revisão da #125. Consignado aceita principal + juros + tarifa = parcela (só o principal abate o saldo); `investment_history` conta o ativo arquivado nos meses em que tinha posição. Merge `7078d95`; **migration 041 aplicada em 03/11/2026** (execução 41619293355).
 - **Extrato do ativo e exclusão de operação errada** (migration 043, #129, 03/11/2026): botão "Extrato" em cada ativo e "Excluir" operação, que anula com motivo (não apaga). Corrige o "Editar" do ativo, que abria no topo da página e podia gravar os dados de um ativo no outro. Pedido do dono: não havia onde ver nem desfazer uma compra errada.
+- **Início sem conferência no card Contas** (#132, 03/11/2026): pedido do dono; a conferência com o extrato fica só na tela de Contas.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

@@ -68,3 +68,6 @@ tags: [tudo-azul, decisoes]
 | Extrato mostra só a categoria na linha (sem banco/conta); transferência mostra de qual conta para qual | Pedido do dono (03/11/2026). Custo: o extrato não mostra a conta de cada lançamento; o filtro por conta continua |
 | Dívidas (empréstimo/financiamento) ganham Renomear reaproveitando `debt_rename` | O erro de grafia relatado ("Financiamenyo") era um nome digitado pelo dono, e a tela não permitia corrigir. Sem migration. Arquivar e excluir ficam para depois, com as regras de saldo e histórico já usadas nos cartões |
 | Ativo de investimento: excluir só sem histórico, arquivar o resto (e só sem posição aberta); a moeda do ativo não muda; o ativo zerado fica visível como "Sem posição" e pode ser arquivado | Mesma regra de cartões e contas (migration 020), confirmada pelo dono em 03/11/2026. A moeda não muda porque operações, avaliações e proventos já estão nela. O ativo zerado sumia das posições mas seguia nos cadastrados sem explicação |
+
+## 03/11/2026 — Conferência fora do Início
+O dono pediu para tirar "Conferir" e "Nunca conferida com o extrato" do card Contas do Início: não vê necessidade no dia a dia. A conferência com o extrato continua na tela de Contas (botão Conferir em cada conta), para quando ele quiser bater o saldo.
