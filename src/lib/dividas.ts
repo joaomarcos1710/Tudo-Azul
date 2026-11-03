@@ -63,12 +63,13 @@ function cliente() {
 }
 
 /** Dívidas e financiamentos usam o motor debts/debt_events já existente. Cartões continuam na tela Cartões. */
-export async function listarDividas(familiaId: string, dataRef: string): Promise<Divida[]> {
+/** Dívidas ativas (padrão) ou arquivadas. Arquivada some das escolhas e da lista principal; o histórico fica. */
+export async function listarDividas(familiaId: string, dataRef: string, situacao: 'ativas' | 'arquivadas' = 'ativas'): Promise<Divida[]> {
   const db = cliente()
   let cadastros = await db.from('debts')
     .select('id, name, kind, active, monthly_rate_bps, minimum_payment, creditor, contract_number, original_installments, remaining_installments, installment_amount, payment_day, payment_method, payment_account_id, first_due_date')
     .eq('household_id', familiaId)
-    .eq('active', true)
+    .eq('active', situacao === 'ativas')
     .in('kind', ['loan', 'financing'])
     .order('name')
   if (cadastros.error && ['42703', 'PGRST204'].includes(cadastros.error.code)) {
@@ -76,7 +77,7 @@ export async function listarDividas(familiaId: string, dataRef: string): Promise
     cadastros = await db.from('debts')
       .select('id, name, kind, active, monthly_rate_bps, minimum_payment')
       .eq('household_id', familiaId)
-      .eq('active', true)
+      .eq('active', situacao === 'ativas')
       .in('kind', ['loan', 'financing'])
       .order('name') as typeof cadastros
   }
@@ -232,5 +233,26 @@ export async function registrarPagamentoDivida(d: {
 /** Corrige o nome de um empréstimo ou financiamento (debt_rename, a mesma função dos cartões). O banco aceita de 1 a 60 caracteres. */
 export async function renomearDivida(dividaId: string, nome: string): Promise<void> {
   const { error } = await cliente().rpc('debt_rename', { p_id: dividaId, p_name: nome.trim() })
+  if (error) throw error
+}
+
+/**
+ * Arquiva o empréstimo ou financiamento quitado (debt_archive). Com saldo, parcelas a vencer ou recorrente
+ * ativo, o banco recusa (23514). Ao arquivar, as parcelas planejadas que sobraram do contrato são canceladas
+ * (migration 045) para não seguirem como compromisso futuro.
+ */
+export async function arquivarDivida(dividaId: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_archive', { p_id: dividaId })
+  if (error) throw error
+}
+
+export async function reativarDivida(dividaId: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_unarchive', { p_id: dividaId })
+  if (error) throw error
+}
+
+/** Exclui de vez a dívida que nunca teve pagamento (debt_delete). Com histórico, o banco recusa (23503): só arquivar. */
+export async function excluirDivida(dividaId: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_delete', { p_id: dividaId })
   if (error) throw error
 }

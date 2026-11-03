@@ -1,4 +1,4 @@
--- 44_debt_archive_contract: migration 042. Arquivar e excluir empréstimo/financiamento com contrato e agenda.
+-- 44_debt_archive_contract: migration 045. Arquivar e excluir empréstimo/financiamento com contrato e agenda.
 -- Datas relativas a hoje em São Paulo; nada depende de data fixa nem do fuso do servidor.
 begin;
 create extension if not exists pgtap with schema extensions;

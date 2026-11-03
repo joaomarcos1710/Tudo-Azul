@@ -1,4 +1,4 @@
--- Tudo Azul — migration 042: arquivar empréstimo/financiamento com contrato e agenda de parcelas.
+-- Tudo Azul — migration 045: arquivar empréstimo/financiamento com contrato e agenda de parcelas.
 -- debt_archive (migration 020) só olhava saldo, parcelas de cartão e recorrente. Desde a 038 um contrato
 -- tem agenda (debt_payment_schedule): arquivar uma dívida quitada deixava parcelas "planejadas" soltas, que
 -- seguiam aparecendo como compromissos futuros. Agora, com saldo zero, o arquivamento cancela as parcelas
