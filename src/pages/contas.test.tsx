@@ -219,4 +219,33 @@ describe('Contas', () => {
     await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Já existe um registro com esse nome.')
   })
+  it('agrupa as contas ativas em corrente, poupança e investimento, com o subtotal que vem do banco', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [
+        corrente,
+        { ...corrente, id: 'a2', nome: 'CDB Caixinha', tipo: 'investment', saldo: c(227788) },
+        { ...corrente, id: 'a3', nome: 'Poupança Caixa', tipo: 'savings', saldo: c(30000) },
+      ],
+      total: c(382838),
+      porTipo: [
+        { tipo: 'checking', total: c(125050), totalAtivas: c(125050) },
+        { tipo: 'savings', total: c(30000), totalAtivas: c(30000) },
+        // subtotal do banco diferente da soma da tela: prova que a tela não soma
+        { tipo: 'investment', total: c(999999), totalAtivas: c(999999) },
+      ],
+    })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const titulos = (await screen.findAllByRole('heading', { level: 2 })).map((h) => h.textContent)
+    expect(titulos.slice(0, 3)).toEqual(['Contas correntes', 'Poupanças', 'Investimentos'])
+    const investimentos = screen.getByRole('heading', { name: 'Investimentos' }).closest('section')!
+    expect(within(investimentos).getByText('CDB Caixinha')).toBeTruthy()
+    expect(within(investimentos).getByText('R$ 9.999,99')).toBeTruthy()
+    expect(within(investimentos).queryByText('Itaú')).toBeNull()
+  })
+
+  it('o tipo Investimento aparece no cadastro de conta', async () => {
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    await userEvent.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
+    expect(screen.getByRole('option', { name: 'Investimento' })).toBeTruthy()
+  })
 })
