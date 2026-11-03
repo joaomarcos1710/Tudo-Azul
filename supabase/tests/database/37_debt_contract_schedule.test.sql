@@ -4,7 +4,7 @@ create extension if not exists pgtap with schema extensions;
 select * from no_plan();
 
 -- Data local de São Paulo; pg_temp.hoje() do PostgreSQL usa UTC.
-create function pg_temp.hoje() returns date language sql as $ select (now() at time zone 'America/Sao_Paulo')::date $;
+create function pg_temp.hoje() returns date language sql as $fn$ select (now() at time zone 'America/Sao_Paulo')::date $fn$;
 
 create temp table fixture (k text primary key, v uuid);
 grant all on fixture to public;
