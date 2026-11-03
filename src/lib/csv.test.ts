@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { efeitoNaDivida, exportacaoCompleta, gerarCsv } from './csv'
+import { efeitoNaDivida, exportacaoCompleta, gerarCsv, lancamentosParaExportar } from './csv'
 import type { LinhaExportada } from './csv'
 import type { Cents } from './format'
 
@@ -39,7 +39,7 @@ const fake = vi.hoisted(() => {
     chamadas.push(reg)
     let faixa: [number, number] | null = null
     const b = {
-      select: () => b, eq: () => b, is: () => b,
+      select: () => b, eq: () => b, is: () => b, gte: () => b, lte: () => b,
       order: (c: string) => { reg.ordens.push(c); return b },
       range: (de: number, ate: number) => { faixa = [de, ate]; reg.faixas.push(faixa); return b },
       then: (ok: (r: { data: unknown; error: null }) => unknown) => {
@@ -160,5 +160,51 @@ describe('exportacaoCompleta, casos de borda', () => {
       'Conta;Itaú;Conta corrente;01/10/2026;1000,00;Sim;;',
       'Cartão;Nubank;;30/09/2026;0,00;Sim;;',
     ])
+  })
+})
+
+describe('lancamentosParaExportar: parcelas de dívida (migration 046)', () => {
+  beforeEach(() => { for (const k of Object.keys(fake.tabelas)) delete fake.tabelas[k] })
+
+  it('inclui principal, juros e parcela planejada de empréstimo/financiamento; deixa de fora cartão, anulada e consignado', async () => {
+    fake.tabelas.accounts = [{ id: 'a1', name: 'Itaú' }]
+    fake.tabelas.categories = [{ id: 'fin', name: 'Financiamento' }, { id: 'jur', name: 'Impostos e taxas' }, { id: 'mer', name: 'Mercado' }]
+    fake.tabelas.transactions = [
+      { id: 't1', type: 'expense', account_id: 'a1', destination_account_id: null, category_id: 'mer', description: 'Mercado', amount: 100, date: '2026-10-03', status: 'paid', notes: null },
+    ]
+    fake.tabelas.debts = [
+      { id: 'd1', name: 'Imóvel', kind: 'financing', principal_category_id: 'fin', payment_method: 'boleto', payment_account_id: 'a1', active: true },
+      { id: 'd2', name: 'Nubank', kind: 'card', principal_category_id: null, payment_method: null, payment_account_id: null, active: true },
+      { id: 'd3', name: 'Consignado', kind: 'loan', principal_category_id: null, payment_method: 'payroll', payment_account_id: null, active: true },
+    ]
+    fake.tabelas.debt_events = [
+      { id: 'e1', debt_id: 'd1', date: '2026-10-05', kind: 'payment', amount: 800, account_id: 'a1', category_id: null, voided_at: null },
+      { id: 'e2', debt_id: 'd1', date: '2026-10-05', kind: 'interest', amount: 200, account_id: 'a1', category_id: 'jur', voided_at: null },
+      { id: 'e3', debt_id: 'd2', date: '2026-10-06', kind: 'payment', amount: 300, account_id: 'a1', category_id: null, voided_at: null },
+      { id: 'e4', debt_id: 'd1', date: '2026-10-07', kind: 'payment', amount: 999, account_id: 'a1', category_id: null, voided_at: '2026-10-08T10:00:00Z' },
+      { id: 'e5', debt_id: 'd3', date: '2026-10-08', kind: 'payroll_payment', amount: 500, account_id: null, category_id: null, voided_at: null },
+    ]
+    fake.tabelas.debt_payment_schedule = [
+      { id: 's2', debt_id: 'd1', installment_number: 2, due_date: '2026-11-05', amount: 1000, status: 'planned' },
+      { id: 's9', debt_id: 'd3', installment_number: 2, due_date: '2026-11-05', amount: 500, status: 'planned' },
+    ]
+    const linhas = await lancamentosParaExportar('h1')
+    expect(linhas.map((x) => [x.data, x.descricao, x.categoria, x.conta, x.valor, x.situacao])).toEqual([
+      ['2026-10-03', 'Mercado', 'Mercado', 'Itaú', 10000, 'paid'],
+      ['2026-10-05', 'Parcela de Imóvel (principal)', 'Financiamento', 'Itaú', 80000, 'paid'],
+      ['2026-10-05', 'Parcela de Imóvel (juros)', 'Impostos e taxas', 'Itaú', 20000, 'paid'],
+      ['2026-11-05', 'Parcela 2 de Imóvel', 'Financiamento', 'Itaú', 100000, 'planned'],
+    ])
+    expect(gerarCsv(linhas).split('\r\n')[2]).toBe('05/10/2026;Despesa;Parcela de Imóvel (principal);Financiamento;Itaú;;-800,00;Pago;Parcela de dívida')
+  })
+
+  it('sem categoria escolhida na dívida, o principal sai como "Sem categoria"', async () => {
+    fake.tabelas.accounts = [{ id: 'a1', name: 'Itaú' }]
+    fake.tabelas.categories = []
+    fake.tabelas.transactions = []
+    fake.tabelas.debts = [{ id: 'd1', name: 'Carro', kind: 'loan', principal_category_id: null, payment_method: 'boleto', payment_account_id: null, active: true }]
+    fake.tabelas.debt_events = [{ id: 'e1', debt_id: 'd1', date: '2026-10-05', kind: 'payment', amount: 500, account_id: 'a1', category_id: null, voided_at: null }]
+    fake.tabelas.debt_payment_schedule = []
+    expect((await lancamentosParaExportar('h1'))[0].categoria).toBe('Sem categoria')
   })
 })

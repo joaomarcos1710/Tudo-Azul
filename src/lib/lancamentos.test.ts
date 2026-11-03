@@ -13,7 +13,7 @@ const fake = vi.hoisted(() => {
     b.order = (c: string) => { reg.ordens.push(c); return b }
     b.range = (de: number, ate: number) => { reg.faixa = [de, ate]; return b }
     b.then = (ok: (r: { data: unknown; error: null }) => unknown) => {
-      if (tabela === 'debts') return Promise.resolve(ok({ data: [{ id: 'd1', name: 'Nubank', kind: 'card' }, { id: 'd2', name: 'Empréstimo', kind: 'loan' }], error: null }))
+      if (tabela === 'debts') return Promise.resolve(ok({ data: [{ id: 'd1', name: 'Nubank', kind: 'card', principal_category_id: null }, { id: 'd2', name: 'Empréstimo', kind: 'loan', principal_category_id: 'cfin' }], error: null }))
       const todos = estado.eventos
       return Promise.resolve(ok({ data: reg.faixa ? todos.slice(reg.faixa[0], reg.faixa[1] + 1) : todos, error: null }))
     }
@@ -41,7 +41,7 @@ describe('listarMovimentosDeDivida', () => {
     ]
     const r = await listarMovimentosDeDivida('h1', '2026-10')
     expect(r.map((m) => [m.descricao, m.valor, m.jaEmDespesas])).toEqual([
-      ['Pagamento da fatura · Nubank', -30000, false], ['Pagamento de Empréstimo', -30000, false], ['Amortização de Empréstimo', -30000, false],
+      ['Pagamento da fatura · Nubank', -30000, false], ['Pagamento de Empréstimo', -30000, true], ['Amortização de Empréstimo', -30000, true],
       ['Juros de Empréstimo', -1050, true], ['Tarifa de Empréstimo', -500, true],
       ['Crédito de Empréstimo', 100000, false], ['Devolução de Nubank', 2000, false],
     ])
@@ -58,15 +58,30 @@ describe('listarMovimentosDeDivida', () => {
     expect(f['in:kind']).toEqual(['payment', 'extra_principal', 'disbursement', 'refund_cash', 'interest', 'fee'])
   })
 
-  it('filtro de categoria ou de despesa: só juros e tarifa (são despesa e têm categoria); receita e transferência: nada', async () => {
-    await listarMovimentosDeDivida('h1', '2026-10', { categoriaId: 'c1' })
-    expect(fake.estado.chamadas[0].filtros['in:kind']).toEqual(['interest', 'fee'])
-    expect(fake.estado.chamadas[0].filtros['eq:category_id']).toBe('c1')
-    await listarMovimentosDeDivida('h1', '2026-10', { tipo: 'expense' })
-    expect(fake.estado.chamadas[1].filtros['in:kind']).toEqual(['interest', 'fee'])
+  it('filtro de despesa: juros, tarifa e principal de empréstimo (já em despesas); pagamento de cartão fica de fora', async () => {
+    fake.estado.eventos = [
+      ev({ id: '1', kind: 'payment' }), ev({ id: '2', kind: 'payment', debt_id: 'd2' }),
+      ev({ id: '3', kind: 'interest', debt_id: 'd2', amount: '10.50', category_id: 'cjur' }),
+    ]
+    const r = await listarMovimentosDeDivida('h1', '2026-10', { tipo: 'expense' })
+    expect(fake.estado.chamadas[0].filtros['in:kind']).toEqual(['interest', 'fee', 'payment', 'extra_principal'])
+    expect(r.map((m) => m.descricao)).toEqual(['Pagamento de Empréstimo', 'Juros de Empréstimo'])
+  })
+
+  it('filtro de categoria: juros pela categoria do evento, principal pela categoria escolhida na dívida', async () => {
+    fake.estado.eventos = [
+      ev({ id: '1', kind: 'payment' }), ev({ id: '2', kind: 'payment', debt_id: 'd2' }),
+      ev({ id: '3', kind: 'interest', debt_id: 'd2', amount: '10.50', category_id: 'cjur' }),
+    ]
+    expect((await listarMovimentosDeDivida('h1', '2026-10', { categoriaId: 'cfin' })).map((m) => m.descricao)).toEqual(['Pagamento de Empréstimo'])
+    expect((await listarMovimentosDeDivida('h1', '2026-10', { categoriaId: 'cjur' })).map((m) => m.descricao)).toEqual(['Juros de Empréstimo'])
+    expect(fake.estado.chamadas[0].filtros['eq:category_id']).toBeUndefined() // o principal não tem categoria no evento
+  })
+
+  it('receita e transferência: nada, sem nem consultar', async () => {
     expect(await listarMovimentosDeDivida('h1', '2026-10', { tipo: 'income' })).toEqual([])
     expect(await listarMovimentosDeDivida('h1', '2026-10', { tipo: 'transfer' })).toEqual([])
-    expect(fake.estado.chamadas).toHaveLength(2) // receita e transferência nem consultam
+    expect(fake.estado.chamadas).toHaveLength(0)
   })
 
   it('pagina com ordem total quando passa de 1.000 eventos', async () => {
