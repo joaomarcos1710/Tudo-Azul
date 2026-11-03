@@ -276,7 +276,7 @@ export default function Investimentos() {
                 <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda} · {a.subclasse ?? 'sem subclasse'}</p></div>
                 <span className="flex items-center gap-2">
                   <Button compacto variante="fantasma" onClick={() => setEditandoSub(editandoSub === a.id ? null : a.id)}>Subclasse de {a.nome}</Button>
-                  {a.quantidadeOperacoes === 0 && a.quantidadeAvaliacoes === 0 ? (
+                  {a.quantidadeOperacoes === 0 && a.quantidadeAvaliacoes === 0 && a.quantidadeProventos === 0 ? (
                     <Button compacto variante="secundario" type="button" carregando={excluindoId === a.id}
                       onClick={() => void excluirAtivo(a.id, a.nome)}>Excluir</Button>
                   ) : <span className="text-xs text-slate-500">Histórico protegido</span>}
