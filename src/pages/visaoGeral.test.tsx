@@ -461,26 +461,16 @@ describe('Visão geral', () => {
     expect(screen.getByRole('link', { name: 'Ver cartões' })).toBeTruthy()
   })
 
-  it('conferência: conta nunca conferida e conta conferida há mais de 30 dias pedem atenção; recente fica neutra', async () => {
-    const hojeSP_ = hojeSP() // data de São Paulo, a mesma do app (UTC erra o dia entre 21h e 24h em SP)
-    const dia = (n: number) => new Date(Date.parse(hojeSP_ + 'T12:00:00Z') - n * 86_400_000).toISOString().slice(0, 10)
+  it('o card Contas do Início não mostra conferência com o extrato (pedido do dono: fica só na tela de Contas)', async () => {
     mock.listarContas.mockResolvedValue({
-      contas: [
-        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1000) },
-        { id: 'a3', nome: 'Nubank conta', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(2000) },
-        { id: 'a4', nome: 'Carteira', tipo: 'cash', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(300) },
-      ],
-      total: c(3300),
+      contas: [{ id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1000) }],
+      total: c(1000),
     })
-    mock.ultimasConferencias.mockResolvedValue(new Map([['a3', dia(45)], ['a4', dia(2)]]))
     montar()
-    expect(await screen.findByText('Nunca conferida com o extrato')).toBeTruthy()
-    expect(screen.getByText(/\(há 45 dias\)/)).toBeTruthy()
-    const recente = screen.getByText(`Conferida em ${dia(2).split('-').reverse().join('/')}`)
-    expect(recente.className).toMatch(/text-slate-500/)
-    const hrefs = screen.getAllByRole('link', { name: /^Conferir / }).map((l) => l.getAttribute('href'))
-    expect(screen.getByRole('link', { name: 'Conferir Itaú' })).toBeTruthy()
-    expect(hrefs).toEqual(['/contas/a1/conferir', '/contas/a3/conferir', '/contas/a4/conferir'])
+    expect(await screen.findByText('Itaú')).toBeTruthy()
+    expect(screen.queryByText('Nunca conferida com o extrato')).toBeNull()
+    expect(screen.queryByRole('link', { name: /^Conferir / })).toBeNull()
+    expect(mock.ultimasConferencias).not.toHaveBeenCalled()
   })
 })
 

@@ -84,3 +84,17 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Calendário do mês** (#62, mesclado em 28/10): conferir no celular e no iPad.
 - Ainda não feitos (só com a sua autorização): destaques do mês e comparativo por categoria em Análises.
 - [x] Testes que dependiam de `current_date` em UTC (pgTAP 34, 35, 36) e de `new Date()` UTC (Início): trocados pela data de São Paulo no #124. Ainda vale uma varredura nos demais testes por qualquer dependência de relógio.
+
+## Em aberto (03/11/2026)
+- [x] **041 aplicada** em 03/11/2026 (execução 41619293355): consignado com juros liberado.
+- [x] **043 aplicada** em 03/11/2026 (execução 41663655015). **A 042 (#128) precisa ser renomeada para depois da 044** antes de ir para produção.
+- [x] **Aportes no caixa:** decidido (03/11/2026): investimento de liquidez é conta do tipo Investimento (#131); aplicação e resgate são transferências. Pendente do dono: trocar as aplicações lançadas como despesa por transferências e arquivar o CDB da tela de Investimentos.
+- **FII entrando como renda fixa:** o formulário de novo ativo abre com a classe "Renda fixa" pré-selecionada (`Investimentos.tsx`); exigir a escolha da classe.
+- Gráfico de distribuição do patrimônio; arquivar/excluir dívida em Dívidas; PR 5 (importar extrato) e PR 6 (metas e fluxo mensal) do plano do protótipo.
+
+## Desempenho (03/11/2026)
+- [x] Cache do navegador para `/assets` e JS dividido por tela (#133).
+- [ ] Hospedar a fonte Inter no próprio app (hoje vem do Google Fonts; 4 pesos).
+- [ ] Skeletons no lugar de "Carregando…" nas telas principais.
+- [ ] Conferir o relatório de desempenho do Supabase (índices) e a região do banco em relação ao Rio.
+- [ ] Medir num celular com rede lenta (Lighthouse) depois do #133.

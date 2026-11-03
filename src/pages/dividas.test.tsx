@@ -8,11 +8,13 @@ const mock = vi.hoisted(() => ({
   listarContas: vi.fn(),
   listarCategorias: vi.fn(),
   renomearDivida: vi.fn(),
+  listarParcelasDivida: vi.fn(),
+  registrarPagamentoParcela: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -29,6 +31,8 @@ beforeEach(() => {
   mock.listarContas.mockResolvedValue({ contas: [], total: c(0) })
   mock.listarCategorias.mockResolvedValue([])
   mock.renomearDivida.mockResolvedValue(undefined)
+  mock.listarParcelasDivida.mockResolvedValue([])
+  mock.registrarPagamentoParcela.mockResolvedValue(undefined)
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
@@ -86,5 +90,20 @@ describe('Dívidas', () => {
     await u.click(screen.getByRole('button', { name: 'Salvar nome' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(screen.getByText('Empréstimo pessoal')).toBeTruthy()
+  })
+  it('consignado: a parcela traz juros e só o principal abate o saldo; sem conta de saída', async () => {
+    mock.listarParcelasDivida.mockResolvedValue([
+      { id: 'p1', dividaId: 'd2', nomeDivida: 'Empréstimo pessoal', numero: 1, vencimento: '2027-01-05', valor: c(56000), formaPagamento: 'payroll', contaPagamentoId: null },
+    ])
+    render(<Dividas />)
+    await userEvent.click(await screen.findByRole('button', { name: 'Baixar parcela' }))
+    expect(screen.queryByLabelText('Conta de saída')).toBeNull()
+    const juros = screen.getByLabelText('Juros incluídos (R$)')
+    await userEvent.clear(juros)
+    await userEvent.type(juros, '60,00')
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+    expect(mock.registrarPagamentoParcela).toHaveBeenCalledWith(expect.objectContaining({
+      parcelaId: 'p1', contaId: null, principal: c(50000), juros: c(6000), tarifa: c(0),
+    }))
   })
 })

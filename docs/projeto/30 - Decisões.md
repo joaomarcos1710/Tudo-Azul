@@ -68,3 +68,12 @@ tags: [tudo-azul, decisoes]
 | Extrato mostra só a categoria na linha (sem banco/conta); transferência mostra de qual conta para qual | Pedido do dono (03/11/2026). Custo: o extrato não mostra a conta de cada lançamento; o filtro por conta continua |
 | Dívidas (empréstimo/financiamento) ganham Renomear reaproveitando `debt_rename` | O erro de grafia relatado ("Financiamenyo") era um nome digitado pelo dono, e a tela não permitia corrigir. Sem migration. Arquivar e excluir ficam para depois, com as regras de saldo e histórico já usadas nos cartões |
 | Ativo de investimento: excluir só sem histórico, arquivar o resto (e só sem posição aberta); a moeda do ativo não muda; o ativo zerado fica visível como "Sem posição" e pode ser arquivado | Mesma regra de cartões e contas (migration 020), confirmada pelo dono em 03/11/2026. A moeda não muda porque operações, avaliações e proventos já estão nela. O ativo zerado sumia das posições mas seguia nos cadastrados sem explicação |
+
+## 03/11/2026 — Investimento de liquidez é conta
+O dono trata cada investimento de liquidez (CDB, caixinha) como uma conta com saldo para uso (ou não). Decisão: contas passam a ter o tipo **Investimento**, ao lado de corrente e poupança; aplicação e resgate são **transferências** entre contas (não despesa), o rendimento é receita. Motivo: aparece no extrato da conta e no saldo consolidado, pode ser editado e excluído como qualquer lançamento, e não distorce orçamento nem relatórios de despesa. A tela de Investimentos fica para o que tem cota e cotação (FII, ações).
+
+## 03/11/2026 — Conferência fora do Início
+O dono pediu para tirar "Conferir" e "Nunca conferida com o extrato" do card Contas do Início: não vê necessidade no dia a dia. A conferência com o extrato continua na tela de Contas (botão Conferir em cada conta), para quando ele quiser bater o saldo.
+
+## 03/11/2026 — Desempenho: só o que foi medido
+O dono trouxe uma lista genérica de 31 itens de desempenho. Medição em produção: Brotli e CDN já ativos (Vercel); arquivos do app com `max-age=0` (baixados a cada abertura) e um JS único de 532 kB. Decisão: fazer o que o app sente de verdade (cache do navegador, JS por tela; depois fonte hospedada e skeletons) e **não** fazer o que não se aplica a um app de uma família, sem servidor próprio nem IA: Redis, fila, OpenTelemetry, SSR, várias instâncias, streaming de IA, WebP/AVIF (as imagens são SVG). Motivo: cada peça a mais é custo e risco sem ganho para quem usa.

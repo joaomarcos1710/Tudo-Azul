@@ -1,32 +1,37 @@
+import { Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { RotaProtegida } from './components/layout/RotaProtegida'
 import { ExigeFamilia } from './components/layout/ExigeFamilia'
 import VisaoGeral from './pages/VisaoGeral'
-import Lancamentos from './pages/Lancamentos'
-import Calendario from './pages/Calendario'
-import Recorrentes from './pages/Recorrentes'
-import Contas from './pages/Contas'
-import Conferir from './pages/Conferir'
-import Cartoes from './pages/Cartoes'
-import Dividas from './pages/Dividas'
-import Investimentos from './pages/Investimentos'
-import Bens from './pages/Bens'
-import Categorias from './pages/Categorias'
-import Orcamentos from './pages/Orcamentos'
-import Relatorios from './pages/Relatorios'
-import Familia from './pages/Familia'
 import Entrar from './pages/auth/Entrar'
-import Cadastro from './pages/auth/Cadastro'
-import RecuperarSenha from './pages/auth/RecuperarSenha'
-import NovaSenha from './pages/auth/NovaSenha'
-import Convite from './pages/Convite'
 import { useValoresOcultos } from './lib/privacidade'
+import { carregarTela } from './lib/carregarTela'
+
+// Início e Entrar vêm no arquivo principal (primeira tela); as demais, sob demanda.
+const Lancamentos = carregarTela(() => import('./pages/Lancamentos'))
+const Calendario = carregarTela(() => import('./pages/Calendario'))
+const Recorrentes = carregarTela(() => import('./pages/Recorrentes'))
+const Contas = carregarTela(() => import('./pages/Contas'))
+const Conferir = carregarTela(() => import('./pages/Conferir'))
+const Cartoes = carregarTela(() => import('./pages/Cartoes'))
+const Dividas = carregarTela(() => import('./pages/Dividas'))
+const Investimentos = carregarTela(() => import('./pages/Investimentos'))
+const Bens = carregarTela(() => import('./pages/Bens'))
+const Categorias = carregarTela(() => import('./pages/Categorias'))
+const Orcamentos = carregarTela(() => import('./pages/Orcamentos'))
+const Relatorios = carregarTela(() => import('./pages/Relatorios'))
+const Familia = carregarTela(() => import('./pages/Familia'))
+const Cadastro = carregarTela(() => import('./pages/auth/Cadastro'))
+const RecuperarSenha = carregarTela(() => import('./pages/auth/RecuperarSenha'))
+const NovaSenha = carregarTela(() => import('./pages/auth/NovaSenha'))
+const Convite = carregarTela(() => import('./pages/Convite'))
 
 export default function App() {
   // Ao ocultar/mostrar valores o App re-renderiza e, com ele, todas as telas (que recebem elementos novos).
   useValoresOcultos()
   return (
+    <Suspense fallback={<p role="status" className="p-4 text-sm text-slate-500">Carregando…</p>}>
     <Routes>
       <Route path="entrar" element={<Entrar />} />
       <Route path="cadastro" element={<Cadastro />} />
@@ -54,5 +59,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+    </Suspense>
   )
 }
