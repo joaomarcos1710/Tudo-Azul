@@ -74,3 +74,6 @@ O dono trata cada investimento de liquidez (CDB, caixinha) como uma conta com sa
 
 ## 03/11/2026 — Conferência fora do Início
 O dono pediu para tirar "Conferir" e "Nunca conferida com o extrato" do card Contas do Início: não vê necessidade no dia a dia. A conferência com o extrato continua na tela de Contas (botão Conferir em cada conta), para quando ele quiser bater o saldo.
+
+## 03/11/2026 — Desempenho: só o que foi medido
+O dono trouxe uma lista genérica de 31 itens de desempenho. Medição em produção: Brotli e CDN já ativos (Vercel); arquivos do app com `max-age=0` (baixados a cada abertura) e um JS único de 532 kB. Decisão: fazer o que o app sente de verdade (cache do navegador, JS por tela; depois fonte hospedada e skeletons) e **não** fazer o que não se aplica a um app de uma família, sem servidor próprio nem IA: Redis, fila, OpenTelemetry, SSR, várias instâncias, streaming de IA, WebP/AVIF (as imagens são SVG). Motivo: cada peça a mais é custo e risco sem ganho para quem usa.
