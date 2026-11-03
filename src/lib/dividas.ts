@@ -65,28 +65,35 @@ function cliente() {
 /** Dívidas e financiamentos usam o motor debts/debt_events já existente. Cartões continuam na tela Cartões. */
 export async function listarDividas(familiaId: string, dataRef: string): Promise<Divida[]> {
   const db = cliente()
-  const [cadastros, saldos] = await Promise.all([
-    db.from('debts')
-      .select('id, name, kind, active, monthly_rate_bps, minimum_payment, creditor, contract_number, original_installments, remaining_installments, installment_amount, payment_day, payment_method, payment_account_id, first_due_date')
+  let cadastros = await db.from('debts')
+    .select('id, name, kind, active, monthly_rate_bps, minimum_payment, creditor, contract_number, original_installments, remaining_installments, installment_amount, payment_day, payment_method, payment_account_id, first_due_date')
+    .eq('household_id', familiaId)
+    .eq('active', true)
+    .in('kind', ['loan', 'financing'])
+    .order('name')
+  if (cadastros.error && ['42703', 'PGRST204'].includes(cadastros.error.code)) {
+    // Compatibilidade entre o deploy do front e a aplicação da migration 038.
+    cadastros = await db.from('debts')
+      .select('id, name, kind, active, monthly_rate_bps, minimum_payment')
       .eq('household_id', familiaId)
       .eq('active', true)
       .in('kind', ['loan', 'financing'])
-      .order('name'),
-    db.rpc('debt_balances', { p_household: familiaId, p_as_of: dataRef }),
-  ])
+      .order('name') as typeof cadastros
+  }
   if (cadastros.error) throw cadastros.error
-  if (saldos.error) throw saldos.error
-  const porId = new Map(((saldos.data ?? []) as Record<string, unknown>[]).map((r) => [r.debt_id as string, r]))
+  const { data: saldos, error: erroSaldos } = await db.rpc('debt_balances', { p_household: familiaId, p_as_of: dataRef })
+  if (erroSaldos) throw erroSaldos
+  const porId = new Map(((saldos ?? []) as Record<string, unknown>[]).map((r) => [r.debt_id as string, r]))
   return ((cadastros.data ?? []) as Record<string, unknown>[])
     .flatMap((d) => {
-      const s = porId.get(d.id as string)
-      if (!s) return []
+      const saldo = porId.get(d.id as string)
+      if (!saldo) return []
       return [{
         id: d.id as string,
         nome: d.name as string,
         tipo: d.kind as TipoDivida,
-        saldo: centsFromDb((s.debt ?? 0) as string | number),
-        compromissos: centsFromDb((s.planned_remaining ?? 0) as string | number),
+        saldo: centsFromDb((saldo.debt ?? 0) as string | number),
+        compromissos: centsFromDb((saldo.planned_remaining ?? 0) as string | number),
         ativa: d.active as boolean,
         taxaMensalBps: Number(d.monthly_rate_bps ?? 0),
         pagamentoMinimo: centsFromDb((d.minimum_payment ?? 0) as string | number),
