@@ -460,8 +460,8 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
   const total = parseBRL(totalTexto)
-  const juros = consignado ? asCents(0)! : parseBRL(jurosTexto)
-  const tarifa = consignado ? asCents(0)! : parseBRL(tarifaTexto)
+  const juros = parseBRL(jurosTexto)
+  const tarifa = parseBRL(tarifaTexto)
   const principal = total !== null && juros !== null && tarifa !== null ? asCents(total - juros - tarifa) : null
   const precisaCategoria = !consignado && ((juros ?? 0) > 0 || (tarifa ?? 0) > 0)
 
@@ -494,7 +494,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
     <Card className="mb-5">
       <h2 className="mb-3 text-lg font-semibold">{parcela ? 'Baixar parcela' : 'Registrar pagamento'}: {divida.nome}</h2>
       {consignado ? (
-        <Aviso tipo="info">Consignado: informe apenas o valor que efetivamente amortizou o saldo devedor. A baixa não cria uma segunda saída na conta, pois o salário pode já estar registrado líquido.</Aviso>
+        <Aviso tipo="info">Consignado: informe quanto da parcela é juros e tarifa. Só o principal abate o saldo devedor. A baixa não cria saída na conta, pois o salário já está líquido.</Aviso>
       ) : contas.length === 0 && <Aviso tipo="erro">Cadastre ou reative uma conta antes de registrar o pagamento.</Aviso>}
       <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
@@ -503,19 +503,19 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
           <Selecao rotulo="Conta de saída" valor={contaId} aoMudar={setContaId} todos="Selecione a conta"
             opcoes={contas.map((c) => [c.id, c.nome])} />
         )}
-        <Field rotulo={consignado ? 'Valor amortizado no saldo (R$)' : 'Valor total pago (R$)'} inputMode="decimal"
+        <Field rotulo={consignado ? 'Valor da parcela descontada (R$)' : 'Valor total pago (R$)'} inputMode="decimal"
           placeholder="Ex.: 1.250,00" value={totalTexto} onChange={(e) => setTotalTexto(e.target.value)} />
+        <Field rotulo="Juros incluídos (R$)" inputMode="decimal" value={jurosTexto} onChange={(e) => setJurosTexto(e.target.value)} />
+        <Field rotulo="Tarifas incluídas (R$)" inputMode="decimal" value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} />
         {!consignado && (
           <>
-            <Field rotulo="Juros incluídos (R$)" inputMode="decimal" value={jurosTexto} onChange={(e) => setJurosTexto(e.target.value)} />
-            <Field rotulo="Tarifas incluídas (R$)" inputMode="decimal" value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} />
             <Selecao rotulo="Categoria para juros/tarifas" valor={categoriaId} aoMudar={setCategoriaId} todos={precisaCategoria ? 'Selecione a categoria' : 'Não necessária'}
               opcoes={categorias.map((c) => [c.id, normalizarCategoria(c.nome) === 'financiamyto' ? 'Financiamento' : c.nome])} desabilitado={!precisaCategoria} />
           </>
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           Principal a amortizar: <strong>{principal === null || principal < 0 ? '—' : formatBRL(principal)}</strong>.
-          {!consignado && ' Juros e tarifas são custos separados.'}
+          {consignado ? ' Juros e tarifa ficam registrados na parcela, sem mexer na conta.' : ' Juros e tarifas são custos separados.'}
         </p>
         {!consignado && !parcela && (
           extraObrigatorio ? (
