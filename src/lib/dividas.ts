@@ -101,3 +101,9 @@ export async function registrarPagamentoDivida(d: {
   })
   if (error) throw error
 }
+
+/** Corrige o nome de um empréstimo ou financiamento (debt_rename, a mesma função dos cartões). O banco aceita de 1 a 60 caracteres. */
+export async function renomearDivida(dividaId: string, nome: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_rename', { p_id: dividaId, p_name: nome.trim() })
+  if (error) throw error
+}

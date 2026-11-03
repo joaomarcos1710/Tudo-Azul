@@ -16,7 +16,7 @@ import { asCents, formatBRL, formatBRLCampo, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  criarDivida, definirTermosDivida, listarDividas, registrarPagamentoDivida,
+  criarDivida, definirTermosDivida, listarDividas, registrarPagamentoDivida, renomearDivida,
 } from '../lib/dividas'
 import type { Divida, TipoDivida } from '../lib/dividas'
 
@@ -36,6 +36,7 @@ export default function Dividas() {
   const [nova, setNova] = useState(false)
   const [pagando, setPagando] = useState<Divida | null>(null)
   const [termos, setTermos] = useState<Divida | null>(null)
+  const [renomeando, setRenomeando] = useState<Divida | null>(null)
 
   const carregar = useCallback(async () => {
     if (!familia?.id) return
@@ -69,6 +70,14 @@ export default function Dividas() {
     try {
       await registrarPagamentoDivida(d)
       setPagando(null)
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+
+  async function salvarNome(id: string, nome: string) {
+    try {
+      await renomearDivida(id, nome)
+      setRenomeando(null)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
@@ -112,6 +121,10 @@ export default function Dividas() {
 
       {termos && (
         <FormTermos divida={termos} aoSalvar={salvarTermos} aoCancelar={() => setTermos(null)} />
+      )}
+
+      {renomeando && (
+        <FormRenomear divida={renomeando} aoSalvar={salvarNome} aoCancelar={() => setRenomeando(null)} />
       )}
 
       {dividas === null && !erro && <p role="status" className="text-sm text-slate-600">Carregando dívidas…</p>}
@@ -159,6 +172,7 @@ export default function Dividas() {
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Button compacto onClick={() => setPagando(d)}>Registrar pagamento</Button>
                       <Button compacto variante="secundario" onClick={() => setTermos(d)}>Parâmetros da dívida</Button>
+                      <Button compacto variante="fantasma" onClick={() => setRenomeando(d)} aria-label={`Renomear ${d.nome}`}>Renomear</Button>
                     </div>
                   </Card>
                 </li>
@@ -316,6 +330,35 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar }: {
         </label>
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando} disabled={contas.length === 0}>Registrar pagamento</Button>
+          <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
+        </div>
+      </form>
+    </Card>
+  )
+}
+
+function FormRenomear({ divida, aoSalvar, aoCancelar }: {
+  divida: Divida
+  aoSalvar: (id: string, nome: string) => Promise<void>
+  aoCancelar: () => void
+}) {
+  const [nome, setNome] = useState(divida.nome)
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    if (!nome.trim()) { setErro('Informe o nome.'); return }
+    setErro(''); setEnviando(true)
+    try { await aoSalvar(divida.id, nome) } finally { setEnviando(false) }
+  }
+  return (
+    <Card className="mb-5">
+      <h2 className="mb-3 text-lg font-semibold">Renomear {divida.nome}</h2>
+      <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Field rotulo="Nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={60} />
+        <div className="flex items-end gap-2">
+          <Button type="submit" carregando={enviando}>Salvar nome</Button>
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
