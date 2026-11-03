@@ -220,7 +220,7 @@ export default function Dividas() {
                       {d.formaPagamento === 'account_debit' && <div><p className="text-xs text-slate-500">Conta de pagamento</p><p className="font-semibold">{contas.find((c) => c.id === d.contaPagamentoId)?.nome ?? 'Conta não encontrada'}</p></div>}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {d.parcelasRestantes === null || d.parcelasRestantes === 0
+                      {d.parcelasRestantes == null || d.parcelasRestantes === 0
                         ? <Button compacto onClick={() => { setAmortizacaoExtra(false); setPagando(d) }}>Registrar pagamento</Button>
                         : <Button compacto variante="secundario" onClick={() => { setAmortizacaoExtra(true); setPagando(d) }}>Amortização extra</Button>}
                       <Button compacto variante="secundario" onClick={() => setTermos(d)}>Parâmetros da dívida</Button>
