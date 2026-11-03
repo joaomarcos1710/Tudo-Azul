@@ -79,7 +79,7 @@ insert into fixture select 'distribution_asset',
 select public.investment_distribution_record(
   pg_temp.fx37('distribution_asset'),'dividend',pg_temp.hoje(),1, 
   (select id from public.accounts where household_id=pg_temp.fx37('household') and name='Conta teste'),
-  'paid','provento de teste'
+  'planned','provento de teste'
 );
 select is(pg_temp.sqlstate37(format('select public.investment_asset_delete(%L::uuid)',pg_temp.fx37('distribution_asset'))),'55000',
   'ativo com proventos não pode ser excluído');
