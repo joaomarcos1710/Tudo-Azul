@@ -83,3 +83,4 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Do protótipo do Base44
 - [ ] **Calendário do mês** (#62, mesclado em 28/10): conferir no celular e no iPad.
 - Ainda não feitos (só com a sua autorização): destaques do mês e comparativo por categoria em Análises.
+- [x] Testes que dependiam de `current_date` em UTC (pgTAP 34, 35, 36) e de `new Date()` UTC (Início): trocados pela data de São Paulo no #124. Ainda vale uma varredura nos demais testes por qualquer dependência de relógio.
