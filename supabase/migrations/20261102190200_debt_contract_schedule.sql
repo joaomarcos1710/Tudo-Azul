@@ -91,10 +91,18 @@ $$;
 
 create or replace function public.debt_balances(p_household uuid, p_as_of date)
 returns table(debt_id uuid, name text, kind text, balance numeric, debt numeric, credit_receivable numeric, planned_remaining numeric)
-language sql stable security definer set search_path = '' as $$
+language sql stable security invoker set search_path = '' as $$
   select d.id, d.name, d.kind, b.bal, greatest(b.bal, 0), greatest(-b.bal, 0), coalesce(p.rem, 0)
   from public.debts d
-  cross join lateral (select private.debt_balance(d.id, p_as_of) as bal) b
+  cross join lateral (
+    select d.reference_balance + coalesce(sum(case
+      when e.kind in ('disbursement','charge','refund_cash') then e.amount
+      when e.kind in ('payment','extra_principal','credit','payroll_payment') then -e.amount
+      else 0 end), 0) as bal
+    from public.debt_events e
+    where e.household_id = d.household_id and e.debt_id = d.id
+      and e.voided_at is null and e.date <= p_as_of
+  ) b
   left join lateral (
     select sum(i.face - coalesce((
       select sum(e.amount) from public.debt_events e
@@ -105,7 +113,6 @@ language sql stable security definer set search_path = '' as $$
     where i.household_id = d.household_id and i.debt_id = d.id
   ) p on true
   where d.household_id = p_household and d.reference_date <= p_as_of
-    and (select auth.uid()) is not null
     and (select private.is_member(p_household))
   order by d.name
 $$;
