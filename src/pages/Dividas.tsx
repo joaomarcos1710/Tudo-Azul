@@ -304,10 +304,10 @@ function FormNovaDivida({ aoSalvar, aoCancelar }: {
 }
 
 function primeiroVencimento(dia: number): string {
-  const [ano, mes] = hojeSP().split('-').map(Number)
-  const proximo = new Date(Date.UTC(ano, mes, 1))
-  const y = proximo.getUTCFullYear()
-  const m = proximo.getUTCMonth() + 1
+  const [ano, mes, diaHoje] = hojeSP().split('-').map(Number)
+  const dataMes = dia >= diaHoje ? new Date(Date.UTC(ano, mes - 1, 1)) : new Date(Date.UTC(ano, mes, 1))
+  const y = dataMes.getUTCFullYear()
+  const m = dataMes.getUTCMonth() + 1
   const ultimo = new Date(Date.UTC(y, m, 0)).getUTCDate()
   return `${y}-${String(m).padStart(2, '0')}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`
 }
@@ -533,33 +533,6 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   )
 }
 
-function ResultadoSimulacao({ resultado, titulo, explicacao }: {
-  resultado: ResultadoQuitacao | null
-  titulo: string
-  explicacao: string
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 p-4">
-      <h3 className="font-semibold">{titulo}</h3>
-      <p className="mb-3 text-xs text-slate-500">{explicacao}</p>
-      {!resultado && <p className="text-sm text-slate-500">Informe o orçamento mensal para calcular.</p>}
-      {resultado && (
-        <>
-          {resultado.erro && <p className="mb-2 text-sm text-amber-700">{resultado.erro}</p>}
-          {resultado.meses > 0 && <p className="text-2xl font-bold">{resultado.quitado ? `${resultado.meses} meses` : `Mais de ${resultado.meses} meses`}</p>}
-          {resultado.jurosTotais !== null && <p className="mt-2 text-sm">Juros estimados: <strong>{formatBRL(resultado.jurosTotais)}</strong></p>}
-          {resultado.totalPago !== null && <p className="text-sm">Total pago: <strong>{formatBRL(resultado.totalPago)}</strong></p>}
-          {resultado.quitado && resultado.ordemQuitacao.length > 0 && (
-            <p className="mt-2 text-xs text-slate-600">Ordem de quitação: {resultado.ordemQuitacao.join(' → ')}</p>
-          )}
-          {resultado.prioridadeInicial.length > 0 && (
-            <p className="mt-2 text-xs text-slate-500">Prioridade inicial: {resultado.prioridadeInicial.join(' → ')}</p>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
 function FormRenomear({ divida, aoSalvar, aoCancelar }: {
   divida: Divida
   aoSalvar: (id: string, nome: string) => Promise<void>
