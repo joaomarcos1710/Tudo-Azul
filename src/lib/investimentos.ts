@@ -303,6 +303,25 @@ export async function listarProventosPorAtivo(familiaId: string, de: string, ate
   }))
 }
 
+/** Corrige nome, código e classe do ativo. A moeda não muda (as operações já estão nela). Só a classe muda o agrupamento, nunca um valor. */
+export async function editarAtivoInvestimento(d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo }): Promise<void> {
+  const { error } = await db().rpc('investment_asset_update', {
+    p_asset: d.ativoId, p_name: d.nome.trim(), p_ticker: d.ticker.trim() || null, p_class: d.classe,
+  })
+  if (error) throw error
+}
+
+/** Arquiva o ativo (some das escolhas e das posições, o histórico fica). O banco recusa com posição aberta (23514). */
+export async function arquivarAtivoInvestimento(ativoId: string): Promise<void> {
+  const { error } = await db().rpc('investment_asset_archive', { p_asset: ativoId })
+  if (error) throw error
+}
+
+export async function reativarAtivoInvestimento(ativoId: string): Promise<void> {
+  const { error } = await db().rpc('investment_asset_unarchive', { p_asset: ativoId })
+  if (error) throw error
+}
+
 /** Exclui somente ativos sem operações ou avaliações, preservando o livro histórico. */
 export async function excluirAtivoInvestimento(ativoId: string): Promise<void> {
   const { error } = await db().rpc('investment_asset_delete', { p_asset: ativoId })

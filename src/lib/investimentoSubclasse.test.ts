@@ -106,3 +106,31 @@ describe('definirSubclasseAtivo', () => {
     await expect(definirSubclasseAtivo('a1', 'x')).rejects.toMatchObject({ message: 'subclasse inválida' })
   })
 })
+
+import { arquivarAtivoInvestimento, editarAtivoInvestimento, excluirAtivoInvestimento, reativarAtivoInvestimento } from './investimentos'
+
+describe('gerir ativos (migration 037)', () => {
+  it('editar: manda nome e código aparados (código vazio vira nulo) e a classe', async () => {
+    await editarAtivoInvestimento({ ativoId: 'a1', nome: '  Tesouro Selic ', ticker: '   ', classe: 'fixed_income' })
+    expect(fake.estado.rpcs).toEqual([{ nome: 'investment_asset_update', args: { p_asset: 'a1', p_name: 'Tesouro Selic', p_ticker: null, p_class: 'fixed_income' } }])
+  })
+
+  it('arquivar, reativar e excluir chamam as funções certas, só com o id do ativo', async () => {
+    await arquivarAtivoInvestimento('a1')
+    await reativarAtivoInvestimento('a1')
+    await excluirAtivoInvestimento('a1')
+    expect(fake.estado.rpcs.map((c) => [c.nome, c.args])).toEqual([
+      ['investment_asset_archive', { p_asset: 'a1' }],
+      ['investment_asset_unarchive', { p_asset: 'a1' }],
+      ['investment_asset_delete', { p_asset: 'a1' }],
+    ])
+  })
+
+  it('erro do banco sobe em todas', async () => {
+    fake.estado.rpcResposta = { data: null, error: { message: 'ainda há posição aberta' } }
+    await expect(arquivarAtivoInvestimento('a1')).rejects.toMatchObject({ message: 'ainda há posição aberta' })
+    await expect(excluirAtivoInvestimento('a1')).rejects.toMatchObject({ message: 'ainda há posição aberta' })
+    await expect(editarAtivoInvestimento({ ativoId: 'a1', nome: 'x', ticker: '', classe: 'other' })).rejects.toBeTruthy()
+    await expect(reativarAtivoInvestimento('a1')).rejects.toBeTruthy()
+  })
+})
