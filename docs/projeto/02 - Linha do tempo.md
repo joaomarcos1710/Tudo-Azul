@@ -107,6 +107,7 @@ tags: [tudo-azul, historico]
 - **Macroclasse e subclasse de investimento** (migration 034, #118, 02/11/2026): `investment_assets.subclass`, `investment_asset_set_subclass`, `investment_allocation` + seção de alocação e filtros em Investimentos (merge `f1f36cc`; migration aplicada em 02/11/2026, execução 41545867679). Terceira etapa da implementação do protótipo do AI Studio.
 - **Proventos de investimento** (migration 035, #120, 02/11/2026): `investment_distributions`, `investment_distribution_record` e `investment_income_by_asset` + formulário e seção em Investimentos (merge `d93b152`; migration aplicada em 02/11/2026, execução 41547324721). Quarta etapa da implementação do protótipo do AI Studio.
 - **Recorrentes: categoria vale para todas as ocorrências** (migration 036, #122, 02/11/2026): `recurrence_update` agora propaga a categoria também para pagas, passadas, lixeira e parcelas de cartão, preservando edições manuais. Primeira correção da lista "Melhoria 1" do dono (merge `18962e9`; migration aplicada em 02/11/2026, execução 41549255886).
+- **Ajustes de interface da lista "Melhoria 1"** (#124, 03/11/2026): De → Para com logos no Início, Extrato só com a categoria, planejado sem cortar, totais de Investimentos alinhados, simulador de quitação removido. Sem migration.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

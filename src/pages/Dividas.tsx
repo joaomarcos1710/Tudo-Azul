@@ -16,9 +16,9 @@ import { asCents, formatBRL, formatBRLCampo, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  criarDivida, definirTermosDivida, listarDividas, registrarPagamentoDivida, simularQuitacao,
+  criarDivida, definirTermosDivida, listarDividas, registrarPagamentoDivida,
 } from '../lib/dividas'
-import type { Divida, ResultadoQuitacao, TipoDivida } from '../lib/dividas'
+import type { Divida, TipoDivida } from '../lib/dividas'
 
 function taxaBps(texto: string): number | null {
   const valor = texto.trim().replace(',', '.')
@@ -36,7 +36,6 @@ export default function Dividas() {
   const [nova, setNova] = useState(false)
   const [pagando, setPagando] = useState<Divida | null>(null)
   const [termos, setTermos] = useState<Divida | null>(null)
-  const [orcamentoTexto, setOrcamentoTexto] = useState('')
 
   const carregar = useCallback(async () => {
     if (!familia?.id) return
@@ -84,21 +83,17 @@ export default function Dividas() {
 
   if (!familia) return null
 
-  const orcamento = parseBRL(orcamentoTexto)
-  const simulacaoSnowball = dividas && orcamento !== null ? simularQuitacao(dividas, orcamento, 'snowball') : null
-  const simulacaoAvalanche = dividas && orcamento !== null ? simularQuitacao(dividas, orcamento, 'avalanche') : null
-
   return (
     <>
       <CabecalhoPagina
         titulo="Dívidas e empréstimos"
-        descricao="Acompanhe o saldo devedor real, registre pagamentos e compare estratégias de quitação."
+        descricao="Acompanhe o saldo devedor real e registre os pagamentos de empréstimos e financiamentos."
         acoes={!nova && <Button onClick={() => setNova(true)}>Nova dívida</Button>}
       />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       <Aviso tipo="info">
-        Nesta etapa, dívidas e pagamentos são registrados em reais. O saldo oficial continua vindo do motor financeiro existente. A simulação é uma estimativa e não altera contratos nem lançamentos.
+        Nesta etapa, dívidas e pagamentos são registrados em reais. O saldo oficial continua vindo do motor financeiro existente.
       </Aviso>
 
       {nova && (
@@ -169,34 +164,6 @@ export default function Dividas() {
                 </li>
               ))}
             </ul>
-          </section>
-
-          <section aria-labelledby="titulo-simulador">
-            <div className="mb-3">
-              <h2 id="titulo-simulador" className="text-lg font-semibold">Simulador de quitação</h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Informe quanto a família consegue destinar por mês. O simulador paga os mínimos de todas as dívidas e direciona o excedente conforme Snowball ou Avalanche.
-              </p>
-            </div>
-            <Card>
-              <div className="mb-4 max-w-sm">
-                <Field
-                  rotulo="Orçamento mensal total (R$)"
-                  inputMode="decimal"
-                  placeholder="Ex.: 2.500,00"
-                  value={orcamentoTexto}
-                  onChange={(e) => setOrcamentoTexto(e.target.value)}
-                  erro={orcamentoTexto && orcamento === null ? 'Informe um valor válido.' : undefined}
-                />
-              </div>
-              <p className="mb-4 text-xs text-slate-500">
-                Configure a taxa mensal e o pagamento mínimo de cada dívida em “Parâmetros da dívida”. Se os dados estiverem zerados ou desatualizados, a estimativa pode ficar otimista.
-              </p>
-              <div className="grid gap-3 md:grid-cols-2">
-                <ResultadoSimulacao resultado={simulacaoSnowball} titulo="Snowball" explicacao="Prioriza o menor saldo primeiro." />
-                <ResultadoSimulacao resultado={simulacaoAvalanche} titulo="Avalanche" explicacao="Prioriza a maior taxa mensal primeiro." />
-              </div>
-            </Card>
           </section>
         </>
       )}
@@ -353,33 +320,5 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar }: {
         </div>
       </form>
     </Card>
-  )
-}
-
-function ResultadoSimulacao({ resultado, titulo, explicacao }: {
-  resultado: ResultadoQuitacao | null
-  titulo: string
-  explicacao: string
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 p-4">
-      <h3 className="font-semibold">{titulo}</h3>
-      <p className="mb-3 text-xs text-slate-500">{explicacao}</p>
-      {!resultado && <p className="text-sm text-slate-500">Informe o orçamento mensal para calcular.</p>}
-      {resultado && (
-        <>
-          {resultado.erro && <p className="mb-2 text-sm text-amber-700">{resultado.erro}</p>}
-          {resultado.meses > 0 && <p className="text-2xl font-bold">{resultado.quitado ? `${resultado.meses} meses` : `Mais de ${resultado.meses} meses`}</p>}
-          {resultado.jurosTotais !== null && <p className="mt-2 text-sm">Juros estimados: <strong>{formatBRL(resultado.jurosTotais)}</strong></p>}
-          {resultado.totalPago !== null && <p className="text-sm">Total pago: <strong>{formatBRL(resultado.totalPago)}</strong></p>}
-          {resultado.quitado && resultado.ordemQuitacao.length > 0 && (
-            <p className="mt-2 text-xs text-slate-600">Ordem de quitação: {resultado.ordemQuitacao.join(' → ')}</p>
-          )}
-          {resultado.prioridadeInicial.length > 0 && (
-            <p className="mt-2 text-xs text-slate-500">Prioridade inicial: {resultado.prioridadeInicial.join(' → ')}</p>
-          )}
-        </>
-      )}
-    </div>
   )
 }

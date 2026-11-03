@@ -349,6 +349,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                     <span className="min-w-0 flex-1">
                       {formatDate(x.data).slice(0, 5)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
                       <span className="ml-2 text-xs text-negativo">{atraso === 1 ? 'venceu ontem' : `venceu há ${atraso} dias`}</span>
+                      {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.contas} />}
                     </span>
                     <span className={`tabular-nums font-semibold ${x.tipo === 'income' ? 'text-positivo' : x.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
                       {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatBRL(x.valor)}
@@ -557,7 +558,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                 <li key={l.id} className="flex items-center gap-3 px-5 py-3 text-sm">
                   <span className="w-12 shrink-0 text-xs text-slate-500">{formatDate(l.data).slice(0, 5)}</span>
                   <IconeDaLinha tipo={l.tipo} categoriaId={l.categoriaId} porId={dados.categoriaPorId} />
-                  <span className="min-w-0 flex-1 truncate font-medium">{l.descricao || (l.tipo === 'income' ? 'Receita' : l.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{l.descricao || (l.tipo === 'income' ? 'Receita' : l.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
+                    {l.tipo === 'transfer' && <RotaTransferencia contaId={l.contaId} destinoId={l.destinoId} contas={dados.contas} />}
+                  </span>
                   {l.categoriaId && (
                     <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 sm:inline">{dados.nomeCategoria.get(l.categoriaId) ?? 'Sem categoria'}</span>
                   )}
@@ -579,7 +583,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               {dados.proximos.map((x) => (
                 <li key={x.id} className="flex items-center gap-3 py-2 text-sm">
                   <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
-                  <span className="min-w-0 flex-1">{formatDate(x.data)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
+                  <span className="min-w-0 flex-1">
+                    {formatDate(x.data)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
+                    {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.contas} />}
+                  </span>
                   <span className={`tabular-nums font-semibold ${x.tipo === 'income' ? 'text-positivo' : x.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
                     {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatBRL(x.valor)}
                   </span>
@@ -713,6 +720,27 @@ const SetaBaixo = () => <Icone><path d="M12 5v14M5 12l7 7 7-7" /></Icone>
 const SetaCima = () => <Icone><path d="M12 19V5M5 12l7-7 7 7" /></Icone>
 const Balanca = () => <Icone><path d="M12 3v18M5 7h14M7 7l-3 7a3 3 0 0 0 6 0L7 7M17 7l-3 7a3 3 0 0 0 6 0l-3-7" /></Icone>
 const Cofre = () => <Icone><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M7 6V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1M15 12h2" /></Icone>
+
+/**
+ * Transferência: "De → Para" com a logo e o nome de cada banco, para dizer de onde saiu e para onde foi.
+ * A conta pode não estar na lista (arquivada): mostra "outra conta" sem logo em vez de esconder a transferência.
+ */
+function RotaTransferencia({ contaId, destinoId, contas }: { contaId: string | null; destinoId: string | null; contas: Conta[] }) {
+  const origem = contas.find((c) => c.id === contaId)
+  const destino = contas.find((c) => c.id === destinoId)
+  const ponta = (c: Conta | undefined) => (
+    <span className="inline-flex min-w-0 items-center gap-1">
+      {c && <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="mini" />}
+      <span className="truncate">{c ? c.nome : 'outra conta'}</span>
+    </span>
+  )
+  return (
+    <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-500">
+      <span className="font-medium text-slate-600">De → Para</span>
+      <span className="inline-flex min-w-0 items-center gap-1.5">{ponta(origem)}<span aria-hidden="true">→</span>{ponta(destino)}</span>
+    </span>
+  )
+}
 
 /** Ícone da linha: transferência com setas; receita/despesa com o da categoria. */
 function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense' | 'transfer'; categoriaId: string | null; porId: Map<string, Categoria> }) {

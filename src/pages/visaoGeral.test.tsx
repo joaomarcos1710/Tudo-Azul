@@ -41,6 +41,7 @@ vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar, resumoDosCarto
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: gerar }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
+import { hojeSP } from '../lib/contas'
 import VisaoGeral from './VisaoGeral'
 
 const c = (n: number) => n as Cents
@@ -129,6 +130,59 @@ describe('Visão geral', () => {
     expect(icone('Aluguel')).toBe('casa') // g1 = Moradia
     expect(icone(/Internet/)).toBe('casa')
     expect(icone(/Reserva/)).toBe('transferencia')
+  })
+
+  describe('transferências com De → Para', () => {
+    const contasComNubank = () => mock.listarContas.mockResolvedValue({
+      contas: [
+        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(100000) },
+        { id: 'a3', nome: 'Nubank', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(50000) },
+        { id: 'a2', nome: 'Antiga', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: false, saldo: c(0) },
+      ],
+      total: c(150000),
+    })
+
+    it('próximos planejados: a transferência mostra "De → Para" com o nome (e a logo) de cada conta', async () => {
+      contasComNubank()
+      mock.proximosPlanejados.mockResolvedValue([
+        { id: 't9', tipo: 'transfer', descricao: 'Reserva', valor: c(30000), data: '2026-10-20', categoriaId: null, contaId: 'a1', destinoId: 'a3' },
+      ])
+      montar()
+      const item = (await screen.findByText(/Reserva/)).closest('li')!
+      expect(item.textContent).toMatch(/De → Para/)
+      expect(item.textContent).toMatch(/Itaú.*Nubank/)
+      expect(item.querySelectorAll('[data-banco], img, svg').length).toBeGreaterThan(0)
+    })
+
+    it('vencidos: a transferência também mostra De → Para', async () => {
+      contasComNubank()
+      mock.vencidosPlanejados.mockResolvedValue({
+        itens: [{ id: 'v9', tipo: 'transfer', descricao: 'Guardar', valor: c(10000), data: '2026-10-01', categoriaId: null, contaId: 'a3', destinoId: 'a1' }], total: 1,
+      })
+      montar()
+      const item = (await screen.findByText(/Guardar/)).closest('li')!
+      expect(item.textContent).toMatch(/De → Para.*Nubank.*Itaú/)
+    })
+
+    it('conta arquivada ou fora da lista: mostra "outra conta" em vez de esconder a transferência', async () => {
+      contasComNubank()
+      mock.proximosPlanejados.mockResolvedValue([
+        { id: 't8', tipo: 'transfer', descricao: 'Saque', valor: c(5000), data: '2026-10-21', categoriaId: null, contaId: 'a1', destinoId: 'a2' },
+      ])
+      montar()
+      const item = (await screen.findByText(/Saque/)).closest('li')!
+      expect(item.textContent).toMatch(/Itaú.*outra conta/)
+    })
+
+    it('receita e despesa não ganham De → Para', async () => {
+      contasComNubank()
+      mock.proximosPlanejados.mockResolvedValue([
+        { id: 't1', tipo: 'expense', descricao: 'Internet', valor: c(12000), data: '2026-10-20', categoriaId: 'g1', contaId: 'a1', destinoId: null },
+      ])
+      montar()
+      const item = (await screen.findByText(/Internet/)).closest('li')!
+      expect(item.textContent).not.toMatch(/De → Para/)
+    })
   })
 
   it('compara com o mês anterior', async () => {
@@ -304,7 +358,7 @@ describe('Visão geral', () => {
   })
 
   it('vencidos: lista o planejado que já passou, o mais antigo primeiro, com há quantos dias e link para o mês', async () => {
-    const hojeSP_ = new Date().toISOString().slice(0, 10)
+    const hojeSP_ = hojeSP() // data de São Paulo, a mesma do app (UTC erra o dia entre 21h e 24h em SP)
     const dia = (n: number) => new Date(Date.parse(hojeSP_ + 'T12:00:00Z') - n * 86_400_000).toISOString().slice(0, 10)
     mock.vencidosPlanejados.mockResolvedValue({
       total: 7,
@@ -402,7 +456,7 @@ describe('Visão geral', () => {
   })
 
   it('conferência: conta nunca conferida e conta conferida há mais de 30 dias pedem atenção; recente fica neutra', async () => {
-    const hojeSP_ = new Date().toISOString().slice(0, 10)
+    const hojeSP_ = hojeSP() // data de São Paulo, a mesma do app (UTC erra o dia entre 21h e 24h em SP)
     const dia = (n: number) => new Date(Date.parse(hojeSP_ + 'T12:00:00Z') - n * 86_400_000).toISOString().slice(0, 10)
     mock.listarContas.mockResolvedValue({
       contas: [

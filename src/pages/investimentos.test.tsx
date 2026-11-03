@@ -234,4 +234,19 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(await screen.findByRole('alert')).toBeTruthy()
     })
   })
+
+  it('totais: custo e resultado ficam numa grade só, valores na mesma borda direita', async () => {
+    render(<Investimentos />)
+    const rotuloCusto = await screen.findByText('Custo de aquisição')
+    // "Resultado não realizado" também é rótulo em cada posição: aqui só vale o do cartão de totais
+    const grade = rotuloCusto.parentElement!
+    const rotuloResultado = within(grade).getByText('Resultado não realizado')
+    expect(rotuloCusto.tagName).toBe('DT')
+    expect(rotuloResultado.tagName).toBe('DT')
+    expect(rotuloCusto.parentElement).toBe(rotuloResultado.parentElement) // mesma grade
+    for (const dt of [rotuloCusto, rotuloResultado]) {
+      expect(dt.nextElementSibling?.tagName).toBe('DD')
+      expect(dt.nextElementSibling?.className).toMatch(/text-right/)
+    }
+  })
 })

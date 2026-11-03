@@ -36,18 +36,26 @@ beforeEach(() => {
 describe('vencidosPlanejados', () => {
   it('pede só planejado, fora da lixeira, antes de hoje, do mais antigo para o mais novo, e devolve o total', async () => {
     fake.e.tabelas.transactions = {
-      data: [{ id: 't1', type: 'expense', description: 'Luz', amount: '180.00', date: '2026-10-01', category_id: 'cat-luz' }],
+      data: [{ id: 't1', type: 'expense', description: 'Luz', amount: '180.00', date: '2026-10-01', category_id: 'cat-luz', account_id: 'a1', destination_account_id: null }],
       count: 4,
     }
     const r = await vencidosPlanejados('h1', '2026-10-25', 1)
     expect(r.total).toBe(4)
-    expect(r.itens).toEqual([{ id: 't1', tipo: 'expense', descricao: 'Luz', valor: 18000, data: '2026-10-01', categoriaId: 'cat-luz' }])
+    expect(r.itens).toEqual([{ id: 't1', tipo: 'expense', descricao: 'Luz', valor: 18000, data: '2026-10-01', categoriaId: 'cat-luz', contaId: 'a1', destinoId: null }])
     const f = fake.e.filtros.filter((x) => x.tabela === 'transactions')
     expect(f).toContainEqual({ tabela: 'transactions', op: 'eq', args: ['status', 'planned'] })
     expect(f).toContainEqual({ tabela: 'transactions', op: 'is', args: ['deleted_at', null] })
     expect(f).toContainEqual({ tabela: 'transactions', op: 'lt', args: ['date', '2026-10-25'] })
     expect(f).toContainEqual({ tabela: 'transactions', op: 'order', args: ['date'] })
     expect(f).toContainEqual({ tabela: 'transactions', op: 'limit', args: [1] })
+  })
+
+  it('transferência vem com a conta de origem e a de destino (para o De → Para do Início)', async () => {
+    fake.e.tabelas.transactions = {
+      data: [{ id: 't2', type: 'transfer', description: 'Reserva', amount: '300.00', date: '2026-10-02', category_id: null, account_id: 'a1', destination_account_id: 'a3' }],
+    }
+    const r = await vencidosPlanejados('h1', '2026-10-25')
+    expect(r.itens[0]).toMatchObject({ tipo: 'transfer', contaId: 'a1', destinoId: 'a3', categoriaId: null })
   })
 
   it('sem contagem do banco, o total é o que veio', async () => {
