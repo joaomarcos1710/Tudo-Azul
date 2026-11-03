@@ -22,9 +22,11 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, editarLancamento, listarComprasDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
+  criarLancamento, editarLancamento, limitesDoMes, listarComprasDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
   moverParaLixeira, restaurarDaLixeira, resumoDoMes, somarMeses,
 } from '../lib/lancamentos'
+import { listarParcelasDivida } from '../lib/dividas'
+import type { ParcelaDivida } from '../lib/dividas'
 import type { Filtros, Lancamento, MovimentoDivida, ParcelaDeCartao, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
@@ -54,6 +56,8 @@ export default function Lancamentos() {
   const [filtros, setFiltros] = useState<Filtros>({})
   const [lancamentos, setLancamentos] = useState<Lancamento[] | null>(null)
   const [movimentosDivida, setMovimentosDivida] = useState<MovimentoDivida[]>([])
+  // parcelas do contrato (empréstimo/financiamento) ainda planejadas no mês: só mostram, não entram em total nenhum
+  const [parcelasContrato, setParcelasContrato] = useState<ParcelaDivida[]>([])
   const [compras, setCompras] = useState<ParcelaDeCartao[]>([])
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [comprasFalharam, setComprasFalharam] = useState(false)
@@ -120,12 +124,19 @@ export default function Lancamentos() {
       const semFiltroDeConta = !filtros.contaId && !filtros.categoriaId && !filtros.tipo
       // compras no cartão carregam à parte: se falharem, a lista de conta continua e só este bloco avisa
       const compras = semFiltroDeConta ? listarComprasDeCartao(familiaId, mes).catch(() => null) : Promise.resolve(null)
-      const [l, r, md, cc] = await Promise.all([
-        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), compras,
+      // parcela de contrato não tem categoria nem é receita/transferência; com filtro de conta, só as debitadas nela
+      const [deMes, ateMes] = limitesDoMes(mes)
+      const parcelas = filtros.categoriaId || (filtros.tipo && filtros.tipo !== 'expense')
+        ? Promise.resolve([] as ParcelaDivida[])
+        : listarParcelasDivida(familiaId, deMes, ateMes).catch(() => [] as ParcelaDivida[])
+            .then((ps) => (filtros.contaId ? ps.filter((p) => p.contaPagamentoId === filtros.contaId) : ps))
+      const [l, r, md, cc, pc] = await Promise.all([
+        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), compras, parcelas,
       ])
       if (meu !== pedido.current) return
       setLancamentos(l)
       setMovimentosDivida(md)
+      setParcelasContrato(pc)
       setCompras(cc?.parcelas ?? [])
       setComprasFalharam(semFiltroDeConta && cc === null)
       setSemDataNoBanco(cc?.semData ?? 0)
@@ -160,10 +171,12 @@ export default function Lancamentos() {
 
   // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
   type Item = { origem: 'lancamento'; l: Lancamento } | { origem: 'divida'; m: MovimentoDivida } | { origem: 'cartao'; c: ParcelaDeCartao }
+    | { origem: 'contrato'; p: ParcelaDivida }
   const itens: (Item & { data: string })[] = [
     ...(lancamentos ?? []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
     ...movimentosDivida.map((m) => ({ origem: 'divida' as const, m, data: m.data })),
     ...compras.map((c) => ({ origem: 'cartao' as const, c, data: c.data })),
+    ...parcelasContrato.map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
   ].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
   const porDia: [string, Item[]][] = []
   for (const it of itens) {
@@ -281,7 +294,7 @@ export default function Lancamentos() {
         </Aviso></div>
       )}
 
-      {lancamentos?.length === 0 && movimentosDivida.length === 0 && editando === null && contas.length > 0 && (
+      {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && editando === null && contas.length > 0 && (
         <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
           acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
       )}
@@ -315,6 +328,31 @@ export default function Lancamentos() {
                         </div>
                         <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
                           <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
+                        </div>
+                      </li>
+                    )
+                  }
+                  if (item.origem === 'contrato') {
+                    const p = item.p
+                    return (
+                      <li key={`contrato-${p.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
+                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                        <IconeCategoria fixo="cartao" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium">
+                            {p.nomeDivida} · parcela {p.numero}
+                            <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado · contrato</span>
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {p.formaPagamento === 'account_debit' ? `Débito em ${nomeConta.get(p.contaPagamentoId ?? '') ?? 'conta'}` : p.formaPagamento === 'payroll' ? 'Desconto em folha' : p.formaPagamento === 'boleto' ? 'Boleto' : 'Pagamento manual'}
+                            {' · só entra no saldo e nas despesas quando você der baixa'}
+                          </p>
+                        </div>
+                          <span className="shrink-0 tabular-nums font-semibold text-slate-700">−{formatBRL(p.valor)}</span>
+                        </div>
+                        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
+                          <Link to={`/dividas?baixar=${p.id}`} aria-label={`Baixar parcela ${p.numero} de ${p.nomeDivida}`}
+                            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Baixar parcela</Link>
                         </div>
                       </li>
                     )

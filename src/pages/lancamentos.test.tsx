@@ -19,6 +19,7 @@ const mock = vi.hoisted(() => ({
   restaurarDaLixeira: vi.fn(),
   listarContas: vi.fn(),
   listarCategorias: vi.fn(),
+  listarParcelasDivida: vi.fn(),
 }))
 const automaticos = vi.hoisted(() => ({ atualizarAutomaticos: vi.fn() }))
 vi.mock('../lib/automaticos', () => automaticos)
@@ -45,6 +46,10 @@ vi.mock('../lib/cartoes', async (original) => ({
   ...(await original<typeof import('../lib/cartoes')>()),
   listarCartoes: mock.listarCartoes,
   registrarCompra: mock.registrarCompra,
+}))
+vi.mock('../lib/dividas', async (original) => ({
+  ...(await original<typeof import('../lib/dividas')>()),
+  listarParcelasDivida: mock.listarParcelasDivida,
 }))
 vi.mock('../lib/categorias', async (original) => ({
   ...(await original<typeof import('../lib/categorias')>()),
@@ -77,6 +82,7 @@ beforeEach(() => {
   mock.listarCategorias.mockResolvedValue(categorias)
   mock.listarLancamentos.mockResolvedValue(lancs)
   mock.listarMovimentosDeDivida.mockResolvedValue([])
+  mock.listarParcelasDivida.mockResolvedValue([])
   mock.listarComprasDeCartao.mockResolvedValue({ parcelas: [], semData: 0 })
   mock.listarCartoes.mockResolvedValue([
     { id: 'k1', nome: 'Nubank', fechamento: 17, vencimento: 25, ativo: true, divida: c(0), credito: c(0), compromissos: c(0) },
@@ -639,5 +645,25 @@ describe('Subcategoria na ordem e no nome', () => {
     await screen.findByText('Supermercado')
     const opcoes = within(screen.getByLabelText('Filtrar por categoria')).getAllByRole('option').map((o) => o.textContent)
     expect(opcoes).toEqual(['Todas as categorias', 'Outras receitas (receita)', 'Rendimentos (receita)', 'Royalty (receita)', '↳ Reembolso (receita)'])
+  })
+  it('parcela planejada do contrato aparece no mês, marcada como planejada, com Baixar parcela, e fora dos totais', async () => {
+    mock.listarParcelasDivida.mockResolvedValue([
+      { id: 's3', dividaId: 'd1', nomeDivida: 'Financiamento do imóvel', numero: 3, vencimento: '2026-10-20', valor: c(150000), formaPagamento: 'account_debit', contaPagamentoId: 'a1' },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const linha = (await screen.findByText(/Financiamento do imóvel · parcela 3/)).closest('li')!
+    expect(within(linha).getByText('Planejado · contrato')).toBeTruthy()
+    expect(within(linha).getByText(/Débito em Itaú/)).toBeTruthy()
+    expect(within(linha).getByText('−R$ 1.500,00')).toBeTruthy()
+    expect(within(linha).getByRole('link', { name: 'Baixar parcela 3 de Financiamento do imóvel' }).getAttribute('href')).toBe('/dividas?baixar=s3')
+    expect(screen.getAllByText('−R$ 1.500,00')).toHaveLength(1) // só na linha: os totais continuam os do banco
+    const [de, ate] = limitesDoMes(mock.listarLancamentos.mock.calls[0][1])
+    expect(mock.listarParcelasDivida).toHaveBeenCalledWith('h1', de, ate)
+  })
+
+  it('se a agenda de parcelas falhar, o resto do extrato aparece normalmente', async () => {
+    mock.listarParcelasDivida.mockRejectedValue(new Error('sem a tabela'))
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect((await screen.findAllByText('−R$ 250,50')).length).toBe(2)
   })
 })

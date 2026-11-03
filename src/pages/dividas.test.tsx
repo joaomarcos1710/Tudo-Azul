@@ -160,4 +160,15 @@ describe('Dívidas', () => {
     render(<Dividas />)
     expect(await screen.findByRole('heading', { name: 'Arquivadas' })).toBeTruthy()
   })
+  it('vindo de Lançamentos (?baixar=), abre a baixa da parcela; a agenda inclui as vencidas e as marca', async () => {
+    mock.listarParcelasDivida.mockResolvedValue([
+      { id: 'p1', dividaId: 'd2', nomeDivida: 'Empréstimo pessoal', numero: 1, vencimento: '2026-01-05', valor: c(56000), formaPagamento: 'boleto', contaPagamentoId: null },
+    ])
+    window.history.pushState(null, '', '/dividas?baixar=p1')
+    render(<Dividas />)
+    expect(await screen.findByRole('heading', { name: 'Baixar parcela: Empréstimo pessoal' })).toBeTruthy()
+    expect(screen.getByText('Vencida ·')).toBeTruthy()
+    expect(window.location.search).toBe('')
+    expect(mock.listarParcelasDivida.mock.calls[0][1]).toBe('2000-01-01')
+  })
 })
