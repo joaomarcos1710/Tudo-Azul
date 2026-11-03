@@ -245,7 +245,10 @@ export default function Dividas() {
                       </div>
                       <div className="flex items-center gap-3">
                         <strong className="tabular-nums">{formatBRL(p.valor)}</strong>
-                        <Button compacto onClick={() => setParcelaSelecionada(p)}>Baixar parcela</Button>
+                        <Button compacto disabled={parcelas.find((x) => x.dividaId === p.dividaId)?.id !== p.id}
+                          onClick={() => setParcelaSelecionada(p)}>
+                          {parcelas.find((x) => x.dividaId === p.dividaId)?.id === p.id ? 'Baixar parcela' : 'Pague a anterior primeiro'}
+                        </Button>
                       </div>
                     </li>
                   ))}
