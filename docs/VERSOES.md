@@ -68,3 +68,4 @@ continuam abaixo como histórico.
 | 2026.132 | Início: o card Contas deixa de mostrar "Conferir" e "Nunca conferida com o extrato" (pedido do dono). A conferência continua na tela de Contas. Sem migration. |
 | 2026.133 | Desempenho: arquivos do app ficam no cache do navegador por 1 ano (antes eram baixados a cada abertura) e o JavaScript é dividido por tela (arquivo principal de 532 kB para 263 kB; 153 → 85 kB comprimido). Arquivo antigo depois de deploy recarrega a página uma vez. Diário: migration 044 aplicada. |
 | 2026.133 (#128) | Dívidas: arquivar e excluir empréstimo/financiamento e seção Arquivadas com Reativar (migration 045). Mesclada depois da #133, então mantém a versão 2026.133 (a versão nunca diminui). |
+| 2026.134 | Investimentos: o cadastro de ativo deixa de vir com "Renda fixa" pré-escolhida; é preciso escolher a classe (um FII tinha sido gravado como renda fixa por isso). Sem migration. |
