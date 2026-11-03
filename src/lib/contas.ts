@@ -2,11 +2,12 @@ import { centsFromDb, centsToDecimal } from './format'
 import type { Cents } from './format'
 import { supabase } from './supabase'
 
-export type TipoConta = 'checking' | 'savings' | 'cash' | 'other'
+export type TipoConta = 'checking' | 'savings' | 'investment' | 'cash' | 'other'
 
 export const rotuloTipoConta: Record<TipoConta, string> = {
   checking: 'Conta corrente',
   savings: 'Poupança',
+  investment: 'Investimento',
   cash: 'Dinheiro',
   other: 'Outra',
 }
@@ -61,14 +62,22 @@ async function lerContas(db: NonNullable<typeof supabase>, familiaId: string): P
  * Contas da família com o saldo de hoje. O saldo e o total vêm do banco
  * (account_balances e balance_totals): o front nunca soma dinheiro.
  */
-export async function listarContas(familiaId: string, dataRef: string = hojeSP()): Promise<{ contas: Conta[]; total: Cents }> {
+/** Saldo somado por tipo de conta, calculado no banco (balance_totals_by_type, migration 044). */
+export interface TotalPorTipo { tipo: TipoConta; total: Cents; totalAtivas: Cents }
+
+/** Função ainda não aplicada no banco (o front sobe antes da migration): a tela segue sem os subtotais. */
+const FUNCAO_INEXISTENTE = ['PGRST202', '42883']
+
+export async function listarContas(familiaId: string, dataRef: string = hojeSP()): Promise<{ contas: Conta[]; total: Cents; porTipo: TotalPorTipo[] }> {
   const db = cliente()
-  const [contas, saldos, totais] = await Promise.all([
+  const [contas, saldos, totais, porTipo] = await Promise.all([
     lerContas(db, familiaId),
     db.rpc('account_balances', { p_household: familiaId, p_as_of: dataRef }),
     db.rpc('balance_totals', { p_household: familiaId, p_as_of: dataRef }),
+    db.rpc('balance_totals_by_type', { p_household: familiaId, p_as_of: dataRef }),
   ])
   for (const r of [contas, saldos, totais]) if (r.error) throw r.error
+  if (porTipo.error && !FUNCAO_INEXISTENTE.includes(porTipo.error.code ?? '')) throw porTipo.error
 
   const saldoPorConta = new Map<string, Cents>(
     ((saldos.data ?? []) as { account_id: string; balance: number | string }[]).map((s) => [s.account_id, centsFromDb(s.balance)]),
@@ -86,6 +95,8 @@ export async function listarContas(familiaId: string, dataRef: string = hojeSP()
       saldo: saldoPorConta.get(c.id) ?? null,
     })),
     total: centsFromDb(linhaTotal?.total ?? 0),
+    porTipo: porTipo.error ? [] : ((porTipo.data ?? []) as { account_type: TipoConta; total: number | string; total_active: number | string }[])
+      .map((t) => ({ tipo: t.account_type, total: centsFromDb(t.total), totalAtivas: centsFromDb(t.total_active) })),
   }
 }
 
