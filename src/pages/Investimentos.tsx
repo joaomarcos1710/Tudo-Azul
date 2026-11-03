@@ -12,17 +12,17 @@ import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { currentMonth } from '../lib/format'
 import { limitesDoMes, somarMeses } from '../lib/lancamentos'
-import { formatBRL, parseBRL } from '../lib/format'
+import { formatBRL, formatDate, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, arquivarAtivoInvestimento, criarAtivoInvestimento, definirSubclasseAtivo, editarAtivoInvestimento, excluirAtivoInvestimento,
-  listarAlocacaoInvestimentos, listarAtivosInvestimento, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
+  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirSubclasseAtivo, editarAtivoInvestimento, excluirAtivoInvestimento,
+  listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
   reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento, registrarProventoInvestimento,
 } from '../lib/investimentos'
 import type {
-  AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
+  AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, LinhaExtratoAtivo, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
   TipoOperacaoInvestimento, TipoProvento, TotalInvestimento,
 } from '../lib/investimentos'
 
@@ -62,6 +62,7 @@ export default function Investimentos() {
   const [filtroSub, setFiltroSub] = useState('')
   const [editandoSub, setEditandoSub] = useState<string | null>(null)
   const [editandoAtivo, setEditandoAtivo] = useState<AtivoInvestimento | null>(null)
+  const [extratoDe, setExtratoDe] = useState<string | null>(null)
   const [proventos, setProventos] = useState<ProventoAtivo[]>([])
   const [contas, setContas] = useState<Conta[]>([])
   const [novoProvento, setNovoProvento] = useState(false)
@@ -295,6 +296,7 @@ export default function Investimentos() {
                   <span className="flex flex-wrap items-center gap-1">
                     <span className="mr-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{situacao}</span>
                     <Button compacto variante="fantasma" onClick={() => setEditandoAtivo(a)} aria-label={`Editar ${a.nome}`}>Editar</Button>
+                    <Button compacto variante="fantasma" aria-expanded={extratoDe === a.id} onClick={() => setExtratoDe(extratoDe === a.id ? null : a.id)} aria-label={`Extrato de ${a.nome}`}>Extrato</Button>
                     <Button compacto variante="fantasma" onClick={() => setEditandoSub(editandoSub === a.id ? null : a.id)}>Subclasse de {a.nome}</Button>
                     {a.ativo && !comPosicao && (
                       <Button compacto variante="fantasma" onClick={() => void acaoNoAtivo(() => arquivarAtivoInvestimento(a.id))} aria-label={`Arquivar ${a.nome}`}>Arquivar</Button>
@@ -310,6 +312,11 @@ export default function Investimentos() {
                   {editandoAtivo?.id === a.id && (
                     <div className="w-full">
                       <FormEditarAtivo ativo={a} aoSalvar={salvarEdicaoAtivo} aoCancelar={() => setEditandoAtivo(null)} />
+                    </div>
+                  )}
+                  {extratoDe === a.id && familia?.id && (
+                    <div className="w-full">
+                      <ExtratoAtivo familiaId={familia.id} ativo={a} aoMudar={carregar} aoFechar={() => setExtratoDe(null)} />
                     </div>
                   )}
                   {editandoSub === a.id && <EditorSubclasse ativo={a} aoSalvar={(v) => salvarSubclasse(a.id, v)} aoCancelar={() => setEditandoSub(null)} />}
@@ -434,6 +441,102 @@ function FormProvento({ ativos, contas, aoSalvar, aoCancelar }: {
       <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Registrar provento</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
     </form>
   </Card>
+}
+
+const rotuloLinhaExtrato: Record<LinhaExtratoAtivo['tipo'], string> = {
+  buy: 'Compra', sell: 'Venda', valuation: 'Avaliação', distribution: 'Provento',
+}
+
+/** Extrato do ativo dentro da própria linha. Valores e saldo de quantidade vêm do banco; anular pede motivo. */
+function ExtratoAtivo({ familiaId, ativo, aoMudar, aoFechar }: {
+  familiaId: string
+  ativo: AtivoInvestimento
+  aoMudar: () => Promise<void>
+  aoFechar: () => void
+}) {
+  const [linhas, setLinhas] = useState<LinhaExtratoAtivo[] | null>(null)
+  const [erro, setErro] = useState('')
+  const [anulando, setAnulando] = useState<string | null>(null)
+  const [motivo, setMotivo] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  const ler = useCallback(async () => {
+    try { setLinhas(await listarExtratoAtivo(familiaId, ativo.id)) }
+    catch (e) { setLinhas([]); setErro(mensagemErroBanco(e)) }
+  }, [familiaId, ativo.id])
+  useEffect(() => { void ler() }, [ler])
+
+  async function confirmarAnulacao(e: FormEvent, id: string) {
+    e.preventDefault()
+    if (motivo.trim().length < 3 || motivo.trim().length > 200) { setErro('Informe o motivo da exclusão (3 a 200 caracteres).'); return }
+    setErro(''); setEnviando(true)
+    try {
+      await anularOperacaoInvestimento(id, motivo)
+      setAnulando(null); setMotivo('')
+      await ler()
+      await aoMudar()
+    } catch (err) { setErro(mensagemErroBanco(err)) }
+    finally { setEnviando(false) }
+  }
+
+  return (
+    <Card className="mt-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-base font-semibold">Extrato de {ativo.nome}</h3>
+        <Button compacto variante="secundario" onClick={aoFechar}>Fechar extrato</Button>
+      </div>
+      {erro && <div className="mb-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {linhas === null ? <p className="text-sm text-slate-500">Carregando…</p>
+        : linhas.length === 0 ? <p className="text-sm text-slate-500">Nenhum movimento neste ativo.</p> : (
+        <ul className="divide-y divide-slate-200" aria-label={`Movimentos de ${ativo.nome}`}>
+          {linhas.map((l) => {
+            const operacao = l.tipo === 'buy' || l.tipo === 'sell'
+            return (
+              <li key={l.id} className="py-2 text-sm">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className={l.anulada ? 'text-slate-500 line-through' : ''}>
+                    <p className="font-medium">{rotuloLinhaExtrato[l.tipo]} · {formatDate(l.data)}</p>
+                    {operacao && l.quantidade && l.precoUnitario && (
+                      <p className="text-xs text-slate-600">{quantidade(l.quantidade)} × {preco(l.precoUnitario, ativo.moeda)}{l.taxa ? ` · taxa ${moeda(l.taxa, ativo.moeda)}` : ''}</p>
+                    )}
+                    {l.tipo === 'valuation' && l.precoUnitario && (
+                      <p className="text-xs text-slate-600">Preço {preco(l.precoUnitario, ativo.moeda)}{l.fonte ? ` · ${l.fonte}` : ''}</p>
+                    )}
+                    {l.tipo === 'distribution' && (
+                      <p className="text-xs text-slate-600">{TIPOS_PROVENTO.find((t) => t.chave === l.tipoProvento)?.rotulo ?? 'Provento'} · {l.statusProvento === 'planned' ? 'Planejado' : 'Recebido'}</p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    {l.valor !== null && <p className={`font-semibold ${l.anulada ? 'text-slate-500 line-through' : ''}`}>{moeda(l.valor, ativo.moeda)}</p>}
+                    {l.saldoQuantidade !== null && <p className="text-xs text-slate-500">Saldo: {quantidade(l.saldoQuantidade)}</p>}
+                  </div>
+                </div>
+                {l.anulada && (
+                  <p className="mt-1 text-xs"><span className="rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-700">Anulada</span>{l.motivoAnulacao ? ` Motivo: ${l.motivoAnulacao}` : ''}</p>
+                )}
+                {operacao && !l.anulada && anulando !== l.id && (
+                  <div className="mt-1">
+                    <Button compacto variante="discreto" aria-label={`Excluir ${rotuloLinhaExtrato[l.tipo].toLowerCase()} de ${formatDate(l.data)}`}
+                      onClick={() => { setAnulando(l.id); setMotivo(''); setErro('') }}>Excluir</Button>
+                  </div>
+                )}
+                {anulando === l.id && (
+                  <form className="mt-2 grid gap-2" onSubmit={(e) => void confirmarAnulacao(e, l.id)}>
+                    <Field rotulo="Motivo da exclusão" value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} />
+                    <p className="text-xs text-slate-600">A operação não é apagada: fica no extrato como anulada, com o motivo, e sai da posição e do custo.</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="submit" variante="perigo" carregando={enviando}>Confirmar exclusão</Button>
+                      <Button variante="secundario" onClick={() => { setAnulando(null); setErro('') }}>Cancelar</Button>
+                    </div>
+                  </form>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </Card>
+  )
 }
 
 function FormEditarAtivo({ ativo, aoSalvar, aoCancelar }: {

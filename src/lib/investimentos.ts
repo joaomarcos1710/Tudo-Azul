@@ -343,3 +343,53 @@ export async function listarHistoricoInvestimentos(
     custoTotal: centsFromDb(r.cost_basis as string | number),
   }))
 }
+
+export type TipoLinhaExtrato = 'buy' | 'sell' | 'valuation' | 'distribution'
+
+/** Uma linha do extrato do ativo. Valor e saldo de quantidade vêm calculados do banco. */
+export interface LinhaExtratoAtivo {
+  id: string
+  tipo: TipoLinhaExtrato
+  data: string
+  quantidade: string | null
+  precoUnitario: string | null
+  taxa: Cents | null
+  valor: Cents | null
+  tipoProvento: TipoProvento | null
+  statusProvento: 'paid' | 'planned' | null
+  fonte: string | null
+  observacao: string | null
+  anulada: boolean
+  motivoAnulacao: string | null
+  saldoQuantidade: string | null
+}
+
+/** Compras, vendas, avaliações e proventos do ativo, em ordem de data (investment_asset_statement, migration 043). */
+export async function listarExtratoAtivo(familiaId: string, ativoId: string): Promise<LinhaExtratoAtivo[]> {
+  const { data, error } = await db().rpc('investment_asset_statement', { p_household: familiaId, p_asset: ativoId })
+  if (error) throw error
+  const texto = (v: unknown) => (v === null || v === undefined ? null : String(v))
+  const centavos = (v: unknown) => (v === null || v === undefined ? null : centsFromDb(v as string | number))
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: String(r.entry_id),
+    tipo: r.entry_kind as TipoLinhaExtrato,
+    data: String(r.entry_date),
+    quantidade: texto(r.quantity),
+    precoUnitario: texto(r.unit_price),
+    taxa: centavos(r.fees),
+    valor: centavos(r.amount),
+    tipoProvento: (r.distribution_kind as TipoProvento | null) ?? null,
+    statusProvento: (r.distribution_status as 'paid' | 'planned' | null) ?? null,
+    fonte: texto(r.source),
+    observacao: texto(r.notes),
+    anulada: Boolean(r.voided),
+    motivoAnulacao: texto(r.void_reason),
+    saldoQuantidade: texto(r.balance_quantity),
+  }))
+}
+
+/** Anula (não apaga) uma compra ou venda, com motivo de 3 a 200 caracteres. O banco recusa se a posição ficar negativa (23514). */
+export async function anularOperacaoInvestimento(operacaoId: string, motivo: string): Promise<void> {
+  const { error } = await db().rpc('investment_operation_void', { p_operation: operacaoId, p_reason: motivo.trim() })
+  if (error) throw error
+}

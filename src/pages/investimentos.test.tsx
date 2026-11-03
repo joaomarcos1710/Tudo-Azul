@@ -16,6 +16,8 @@ const mock = vi.hoisted(() => ({
   arquivarAtivoInvestimento: vi.fn(),
   reativarAtivoInvestimento: vi.fn(),
   excluirAtivoInvestimento: vi.fn(),
+  listarExtratoAtivo: vi.fn(),
+  anularOperacaoInvestimento: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -33,6 +35,8 @@ vi.mock('../lib/investimentos', async (o) => ({
   arquivarAtivoInvestimento: mock.arquivarAtivoInvestimento,
   reativarAtivoInvestimento: mock.reativarAtivoInvestimento,
   excluirAtivoInvestimento: mock.excluirAtivoInvestimento,
+  listarExtratoAtivo: mock.listarExtratoAtivo,
+  anularOperacaoInvestimento: mock.anularOperacaoInvestimento,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
@@ -48,6 +52,17 @@ const posicao = (assetId: string, nome: string, classe: string, valor: number) =
   assetId, nome, ticker: null, classe, moeda: 'BRL', quantidade: '1', custoMedio: '1', custoTotal: c(valor), precoAtual: '1',
   valorAtual: c(valor), resultado: c(0), dataAvaliacao: null, fonteAvaliacao: null,
 })
+
+const linhaExtrato = (extra: Record<string, unknown>) => ({
+  id: 'x', tipo: 'buy', data: '2026-10-01', quantidade: '10', precoUnitario: '10', taxa: c(100), valor: c(10100),
+  tipoProvento: null, statusProvento: null, fonte: null, observacao: null, anulada: false, motivoAnulacao: null, saldoQuantidade: '10', ...extra,
+})
+const extratoBase = () => [
+  linhaExtrato({ id: 'o1' }),
+  linhaExtrato({ id: 'o2', data: '2026-10-05', quantidade: '100', precoUnitario: '20', taxa: c(0), valor: c(200000), anulada: true, motivoAnulacao: 'digitei errado', saldoQuantidade: null }),
+  linhaExtrato({ id: 'o3', tipo: 'sell', data: '2026-10-10', quantidade: '4', precoUnitario: '15', taxa: c(0), valor: c(6000), saldoQuantidade: '6' }),
+  linhaExtrato({ id: 'd1', tipo: 'distribution', data: '2026-10-12', quantidade: null, precoUnitario: null, taxa: null, valor: c(350), tipoProvento: 'dividend', statusProvento: 'paid', saldoQuantidade: null }),
+]
 
 beforeEach(() => {
   mock.listarAtivosInvestimento.mockResolvedValue([
@@ -73,6 +88,8 @@ beforeEach(() => {
   for (const f of [mock.editarAtivoInvestimento, mock.arquivarAtivoInvestimento, mock.reativarAtivoInvestimento, mock.excluirAtivoInvestimento]) f.mockResolvedValue(undefined)
   mock.criarAtivoInvestimento.mockResolvedValue('novo-id')
   mock.definirSubclasseAtivo.mockResolvedValue(undefined)
+  mock.anularOperacaoInvestimento.mockResolvedValue(undefined)
+  mock.listarExtratoAtivo.mockResolvedValue(extratoBase())
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
@@ -391,6 +408,60 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.click(screen.getByRole('button', { name: 'Salvar' }))
       expect(within(await linhaDe('Ação zerada')).getByText('Já existe um registro com esse nome.')).toBeTruthy()
       expect(screen.getByLabelText('Nome do ativo')).toBeTruthy()
+    })
+    describe('extrato do ativo', () => {
+      const abrir = async (u: ReturnType<typeof userEvent.setup>) => {
+        await u.click(within(await linhaDe('Tesouro Selic')).getByRole('button', { name: 'Extrato de Tesouro Selic' }))
+        return within(await linhaDe('Tesouro Selic')).findByRole('list', { name: 'Movimentos de Tesouro Selic' })
+      }
+
+      it('abre dentro da linha do ativo com valores e saldo do banco; anulada riscada com o motivo', async () => {
+        comZerado()
+        const u = userEvent.setup()
+        render(<Investimentos />)
+        const lista = await abrir(u)
+        expect(mock.listarExtratoAtivo).toHaveBeenCalledWith('h1', 'a1')
+        expect(lista.textContent).toMatch(/101,00/)
+        expect(lista.textContent).toMatch(/Saldo: 6/)
+        expect(lista.textContent).toMatch(/3,50/)
+        expect(lista.textContent).toMatch(/Dividendos · Recebido/)
+        const anulada = within(lista).getByText('Anulada').closest('li') as HTMLElement
+        expect(anulada.textContent).toMatch(/Motivo: digitei errado/)
+        expect(anulada.querySelector('.line-through')).toBeTruthy()
+        // só compra/venda não anulada tem Excluir: o1 e o3 (nem a anulada nem o provento)
+        expect(within(lista).getAllByRole('button', { name: /^Excluir / })).toHaveLength(2)
+        expect(within(anulada).queryByRole('button', { name: /^Excluir/ })).toBeNull()
+      })
+
+      it('excluir pede o motivo, chama a anulação e recarrega extrato e carteira', async () => {
+        comZerado()
+        const u = userEvent.setup()
+        render(<Investimentos />)
+        const lista = await abrir(u)
+        const antes = mock.listarCarteiraInvestimentos.mock.calls.length
+        await u.click(within(lista).getByRole('button', { name: 'Excluir venda de 10/10/2026' }))
+        await u.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+        expect(screen.getByText(/Informe o motivo da exclusão/)).toBeTruthy()
+        expect(mock.anularOperacaoInvestimento).not.toHaveBeenCalled()
+        await u.type(screen.getByLabelText('Motivo da exclusão'), 'venda duplicada')
+        await u.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+        expect(mock.anularOperacaoInvestimento).toHaveBeenCalledWith('o3', 'venda duplicada')
+        expect(mock.listarExtratoAtivo.mock.calls.length).toBeGreaterThan(1)
+        expect(mock.listarCarteiraInvestimentos.mock.calls.length).toBeGreaterThan(antes)
+      })
+
+      it('recusa do banco (compra cobre venda posterior) aparece dentro do painel do extrato', async () => {
+        comZerado()
+        mock.anularOperacaoInvestimento.mockRejectedValue(Object.assign(new Error('não dá para anular: sem esta compra, as vendas posteriores ficariam maiores que a posição. Anule a venda antes.'), { code: '23514' }))
+        const u = userEvent.setup()
+        render(<Investimentos />)
+        const lista = await abrir(u)
+        await u.click(within(lista).getByRole('button', { name: 'Excluir compra de 01/10/2026' }))
+        await u.type(screen.getByLabelText('Motivo da exclusão'), 'compra errada')
+        await u.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+        const painel = (await screen.findByRole('heading', { name: 'Extrato de Tesouro Selic' })).closest('div')!.parentElement as HTMLElement
+        expect((await within(painel).findByRole('alert')).textContent).toMatch(/Anule a venda antes/)
+      })
     })
   })
 })
