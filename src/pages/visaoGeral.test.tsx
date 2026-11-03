@@ -87,6 +87,8 @@ beforeEach(() => {
   })
   
   // ordem do Promise.all da tela: mês até hoje, mesmo período do ano passado, ano até hoje, ano passado
+  // padrão para a comparação dos indicadores (dia 1 até hoje × mês anterior até o mesmo dia), que vem depois
+  mock.resumoDoPeriodo.mockResolvedValue({ receitas: c(1000000), despesas: c(800000), resultado: c(200000), receitasPrevistas: c(0), despesasPrevistas: c(0) })
   mock.resumoDoPeriodo
     .mockResolvedValueOnce({ receitas: c(1000000), despesas: c(600000), resultado: c(400000), receitasPrevistas: c(0), despesasPrevistas: c(0) })
     .mockResolvedValueOnce({ receitas: c(800000), despesas: c(800000), resultado: c(0), receitasPrevistas: c(0), despesasPrevistas: c(0) })
@@ -188,11 +190,47 @@ describe('Visão geral', () => {
     })
   })
 
-  it('compara com o mês anterior', async () => {
+  it('compara com o mês anterior até o mesmo dia, não com o mês anterior inteiro', async () => {
+    // mês anterior inteiro: despesa 4x maior; até o mesmo dia: metade. Antes a tela mostrava "▼ 75%"; o certo é "▲ 100%"
     mock.resumoDoMes.mockResolvedValueOnce({ receitas: c(1215000), despesas: c(866726), resultado: c(348274), receitasPrevistas: c(0), despesasPrevistas: c(0) })
-      .mockResolvedValueOnce({ receitas: c(1215000), despesas: c(433363), resultado: c(781637), receitasPrevistas: c(0), despesasPrevistas: c(0) })
-    montar('analises')
-    expect(await screen.findByText(/100%/)).toBeTruthy() // despesas dobraram
+      .mockResolvedValueOnce({ receitas: c(1215000), despesas: c(3466904), resultado: c(0), receitasPrevistas: c(0), despesasPrevistas: c(0) })
+    const hoje = hojeSP()
+    const [a, m] = hoje.split('-').map(Number)
+    const ant = `${m === 1 ? a - 1 : a}-${String(m === 1 ? 12 : m - 1).padStart(2, '0')}`
+    const ultimoAnt = new Date(Date.UTC(Number(ant.slice(0, 4)), Number(ant.slice(5)), 0)).getUTCDate()
+    const ateAnt = `${ant}-${String(Math.min(Number(hoje.slice(8)), ultimoAnt)).padStart(2, '0')}`
+    mock.resumoDoPeriodo.mockReset()
+    mock.resumoDoPeriodo.mockImplementation((_f: string, de: string, ate: string) => Promise.resolve(
+      de === `${ant}-01` && ate === ateAnt
+        ? { receitas: c(1215000), despesas: c(433363), resultado: c(781637), receitasPrevistas: c(0), despesasPrevistas: c(0) }
+        : { receitas: c(1215000), despesas: c(866726), resultado: c(348274), receitasPrevistas: c(0), despesasPrevistas: c(0) }))
+    montar()
+    const despesas = (await screen.findByText('Despesas do mês')).closest('div') as HTMLElement
+    expect(within(despesas).getByText(/▲ 100%/)).toBeTruthy()
+    expect(within(despesas).getByText(new RegExp(`até dia ${Number(ateAnt.slice(8))}`))).toBeTruthy()
+    expect(mock.resumoDoPeriodo).toHaveBeenCalledWith('h1', `${ant}-01`, ateAnt)
+  })
+  it('valores ocultos: o saldo em dólar também vira máscara no Início', async () => {
+    const { definirValoresOcultos } = await import('../lib/privacidade')
+    definirValoresOcultos(true)
+    try {
+      montar()
+      const card = (await screen.findByText(/Saldo em USD/)).parentElement as HTMLElement
+      expect(within(card).queryByText(/US\$|201/)).toBeNull()
+    } finally {
+      definirValoresOcultos(false)
+    }
+  })
+  it('uma carga antiga que chega depois da nova é descartada (Início → Análises)', async () => {
+    let soltarInicio: (v: unknown) => void = () => {}
+    mock.listarContas.mockReturnValueOnce(new Promise((r) => { soltarInicio = r }))
+    const tela = render(<MemoryRouter><VisaoGeral secao="inicio" /></MemoryRouter>)
+    tela.rerender(<MemoryRouter><VisaoGeral secao="analises" /></MemoryRouter>)
+    expect(await screen.findByText('Comparação com o ano passado')).toBeTruthy()
+    soltarInicio({ contas: [], total: c(0) })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByText('Próximos planejados')).toBeNull()
+    expect(screen.getByText('Comparação com o ano passado')).toBeTruthy()
   })
   it('mostra a equação do patrimônio com os valores do banco', async () => {
     montar('analises')
@@ -285,7 +323,7 @@ describe('Visão geral', () => {
     expect(ruim.className).toMatch(/text-negativo/)
     expect(screen.getByText(/Mesmos dias nos dois anos/)).toBeTruthy()
     // 4 consultas de período, cada uma com datas no formato AAAA-MM-DD
-    expect(mock.resumoDoPeriodo).toHaveBeenCalledTimes(4)
+    expect(mock.resumoDoPeriodo).toHaveBeenCalledTimes(6) // + 2 da comparação dos indicadores
     for (const [, de, ate] of mock.resumoDoPeriodo.mock.calls) {
       expect(de).toMatch(/^\d{4}-\d{2}-\d{2}$/)
       expect(ate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
@@ -393,7 +431,8 @@ describe('Visão geral', () => {
     mock.vencidosPlanejados.mockRejectedValue(new Error('x'))
     montar()
     expect(await screen.findByText('Próximos planejados')).toBeTruthy() // o Início segue de pé com a consulta de vencidos falhando
-    expect(screen.queryByText(/Não foi possível/)).toBeNull()
+    // mas avisa: sem aviso, "Vencidos" ausente pareceria "nada vencido"
+    expect(screen.getByRole('alert').textContent).toMatch(/Não foi possível verificar agora os vencidos/)
   })
 
   it('cartões: mostra a próxima fatura (valor e vencimento) mesmo sem fatura fechada a pagar', async () => {
@@ -567,6 +606,8 @@ describe('Análises: falha isolada derruba só o bloco dela', () => {
     mock.resumoDoMes
       .mockResolvedValueOnce({ receitas: c(1215000), despesas: c(866726), resultado: c(348274), receitasPrevistas: c(0), despesasPrevistas: c(38990) })
       .mockRejectedValueOnce(new Error('rede'))
+    mock.resumoDoPeriodo.mockReset()
+    mock.resumoDoPeriodo.mockRejectedValue(new Error('rede'))
     montar('analises')
     expect(await screen.findByText('Despesas do mês')).toBeTruthy()
     expect(screen.getByText('−R$ 8.667,26')).toBeTruthy()

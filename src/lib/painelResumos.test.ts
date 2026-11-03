@@ -10,7 +10,7 @@ const fake = vi.hoisted(() => {
   function from(tabela: string) {
     const b: Record<string, unknown> = {}
     const eq: Record<string, unknown> = {}
-    for (const op of ['select', 'eq', 'is', 'lt', 'order', 'limit']) {
+    for (const op of ['select', 'eq', 'is', 'lt', 'in', 'order', 'limit']) {
       b[op] = (...args: unknown[]) => { e.filtros.push({ tabela, op, args }); if (op === 'eq') eq[args[0] as string] = args[1]; return b }
     }
     b.then = (ok: (r: unknown) => unknown) => {
@@ -66,6 +66,32 @@ describe('vencidosPlanejados', () => {
   it('erro do banco sobe', async () => {
     fake.e.tabelas.transactions = { data: [], error: { message: 'rede' } }
     await expect(vencidosPlanejados('h1', '2026-10-25')).rejects.toMatchObject({ message: 'rede' })
+  })
+
+  it('parcela de dívida ativa que passou da data sem baixa também é vencido, misturada por data e somada ao total', async () => {
+    fake.e.tabelas.transactions = {
+      data: [{ id: 't1', type: 'expense', description: 'Luz', amount: '180.00', date: '2026-10-10', category_id: null, account_id: 'a1', destination_account_id: null }],
+      count: 1,
+    }
+    fake.e.tabelas.debts = { data: [{ id: 'd1', name: 'Imóvel', payment_method: 'account_debit', payment_account_id: 'a1' }] }
+    fake.e.tabelas.debt_payment_schedule = { data: [{ id: 'p1', debt_id: 'd1', installment_number: 7, due_date: '2026-10-05', amount: '2500.00' }], count: 2 }
+    const r = await vencidosPlanejados('h1', '2026-10-25')
+    expect(r.total).toBe(3)
+    expect(r.itens.map((x) => x.id)).toEqual(['debt-p1', 't1'])
+    expect(r.itens[0]).toMatchObject({ tipo: 'expense', descricao: 'Parcela 7 · Imóvel', valor: 250000, contaId: 'a1' })
+    const f = fake.e.filtros
+    expect(f).toContainEqual({ tabela: 'debts', op: 'eq', args: ['active', true] })
+    expect(f).toContainEqual({ tabela: 'debt_payment_schedule', op: 'eq', args: ['status', 'planned'] })
+    expect(f).toContainEqual({ tabela: 'debt_payment_schedule', op: 'lt', args: ['due_date', '2026-10-25'] })
+    expect(f).toContainEqual({ tabela: 'debt_payment_schedule', op: 'in', args: ['debt_id', ['d1']] })
+  })
+
+  it('sem dívida ativa, nem consulta a agenda; banco sem a agenda segue só com os lançamentos', async () => {
+    expect((await vencidosPlanejados('h1', '2026-10-25')).total).toBe(0)
+    expect(fake.e.filtros.some((x) => x.tabela === 'debt_payment_schedule')).toBe(false)
+    fake.e.tabelas.debts = { data: [{ id: 'd1', name: 'Imóvel', payment_method: 'boleto', payment_account_id: null }] }
+    fake.e.tabelas.debt_payment_schedule = { data: [], error: { code: 'PGRST205', message: 'sem tabela' } }
+    expect((await vencidosPlanejados('h1', '2026-10-25')).total).toBe(0)
   })
 })
 

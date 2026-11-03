@@ -194,13 +194,39 @@ export interface Vencidos {
 }
 
 export async function vencidosPlanejados(familiaId: string, hoje: string, limite = 5): Promise<Vencidos> {
-  const base = () => cliente().from('transactions').select('id, type, description, amount, date, category_id, account_id, destination_account_id', { count: 'exact' })
-    .eq('household_id', familiaId).eq('status', 'planned').is('deleted_at', null).lt('date', hoje)
-  const { data, error, count } = await base().order('date').order('id').limit(limite)
-  if (error) throw error
+  const db = cliente()
+  const [lancs, ativas] = await Promise.all([
+    db.from('transactions').select('id, type, description, amount, date, category_id, account_id, destination_account_id', { count: 'exact' })
+      .eq('household_id', familiaId).eq('status', 'planned').is('deleted_at', null).lt('date', hoje)
+      .order('date').order('id').limit(limite),
+    db.from('debts').select('id, name, payment_method, payment_account_id').eq('household_id', familiaId).eq('active', true),
+  ])
+  if (lancs.error) throw lancs.error
+  if (ativas.error) throw ativas.error
+  const itens: ProximoPlanejado[] = (lancs.data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null, contaId: t.account_id ?? null, destinoId: t.destination_account_id ?? null }))
+  let totalParcelas = 0
+  const porDivida = new Map((ativas.data ?? []).map((d) => [d.id as string, d]))
+  if (porDivida.size) {
+    // parcela de dívida ativa que passou da data sem baixa também é vencido
+    const agenda = await db.from('debt_payment_schedule').select('id, debt_id, installment_number, due_date, amount', { count: 'exact' })
+      .eq('household_id', familiaId).eq('status', 'planned').in('debt_id', [...porDivida.keys()]).lt('due_date', hoje)
+      .order('due_date').order('id').limit(limite)
+    // banco ainda sem a agenda de dívidas (migration 038): segue só com os lançamentos
+    if (agenda.error && !['PGRST205', '42P01'].includes(agenda.error.code)) throw agenda.error
+    for (const p of agenda.error ? [] : agenda.data ?? []) {
+      const d = porDivida.get(p.debt_id)
+      if (!d) continue
+      itens.push({
+        id: `debt-${p.id}`, tipo: 'expense', descricao: `Parcela ${p.installment_number} · ${d.name}`,
+        valor: centsFromDb(p.amount), data: p.due_date, categoriaId: null,
+        contaId: d.payment_method === 'account_debit' ? d.payment_account_id : null, destinoId: null,
+      })
+    }
+    totalParcelas = agenda.error ? 0 : agenda.count ?? (agenda.data ?? []).length
+  }
   return {
-    itens: (data ?? []).map((t) => ({ id: t.id, tipo: t.type, descricao: t.description, valor: centsFromDb(t.amount), data: t.date, categoriaId: t.category_id ?? null, contaId: t.account_id ?? null, destinoId: t.destination_account_id ?? null })),
-    total: count ?? (data ?? []).length,
+    itens: itens.sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id)).slice(0, limite),
+    total: (lancs.count ?? (lancs.data ?? []).length) + totalParcelas,
   }
 }
 
