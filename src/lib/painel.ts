@@ -70,7 +70,7 @@ export async function proximosPlanejados(familiaId: string, deData: string, limi
     : agenda.data ?? []
   const ids = [...new Set(agendaDisponivel.map((p) => p.debt_id as string))]
   const dividas = ids.length
-    ? await db.from('debts').select('id,name,payment_method,payment_account_id').eq('household_id', familiaId).in('id', ids)
+    ? await db.from('debts').select('id,name,payment_method,payment_account_id').eq('household_id', familiaId).eq('active', true).in('id', ids)
     : { data: [], error: null }
   if (dividas.error) throw dividas.error
   const porDivida = new Map((dividas.data ?? []).map((d) => [d.id, d]))
