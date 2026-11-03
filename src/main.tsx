@@ -24,3 +24,11 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => undefined)
   })
 }
+
+// Monitoramento de erros (Sentry): só em produção, só com o DSN configurado no Vercel, carregado depois da página.
+const dsnSentry = import.meta.env.VITE_SENTRY_DSN as string | undefined
+if (import.meta.env.PROD && dsnSentry) {
+  window.addEventListener('load', () => {
+    void import('./lib/monitoramento').then((m) => m.iniciarMonitoramento(dsnSentry)).catch(() => undefined)
+  })
+}

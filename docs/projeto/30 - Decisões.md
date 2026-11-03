@@ -77,3 +77,6 @@ O dono pediu para tirar "Conferir" e "Nunca conferida com o extrato" do card Con
 
 ## 03/11/2026 — Desempenho: só o que foi medido
 O dono trouxe uma lista genérica de 31 itens de desempenho. Medição em produção: Brotli e CDN já ativos (Vercel); arquivos do app com `max-age=0` (baixados a cada abertura) e um JS único de 532 kB. Decisão: fazer o que o app sente de verdade (cache do navegador, JS por tela; depois fonte hospedada e skeletons) e **não** fazer o que não se aplica a um app de uma família, sem servidor próprio nem IA: Redis, fila, OpenTelemetry, SSR, várias instâncias, streaming de IA, WebP/AVIF (as imagens são SVG). Motivo: cada peça a mais é custo e risco sem ganho para quem usa.
+
+## 03/11/2026 — Sentry para ver erros reais, sem dado financeiro
+Sem monitoramento, um erro no celular do dono passa despercebido. Decisão: Sentry no app, só em produção e só se `VITE_SENTRY_DSN` estiver no Vercel. Por ser app de finanças: `dataCollection` todo desligado (no SDK 11 o padrão coleta cabeçalhos, cookies, query e **corpo** das requisições), sem Replay, sem console, URLs sem query, valores em R$ e e-mails trocados por marcadores antes do envio, e nenhum cabeçalho de rastreio para o Supabase. O SDK é carregado depois da página, num arquivo à parte (54 kB comprimidos), para não desfazer o ganho do #133. Medição de velocidade real em 20% das visitas.
