@@ -12,6 +12,10 @@ const mock = vi.hoisted(() => ({
   listarProventosPorAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
   listarContas: vi.fn(),
+  editarAtivoInvestimento: vi.fn(),
+  arquivarAtivoInvestimento: vi.fn(),
+  reativarAtivoInvestimento: vi.fn(),
+  excluirAtivoInvestimento: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -25,6 +29,10 @@ vi.mock('../lib/investimentos', async (o) => ({
   definirSubclasseAtivo: mock.definirSubclasseAtivo,
   listarProventosPorAtivo: mock.listarProventosPorAtivo,
   registrarProventoInvestimento: mock.registrarProventoInvestimento,
+  editarAtivoInvestimento: mock.editarAtivoInvestimento,
+  arquivarAtivoInvestimento: mock.arquivarAtivoInvestimento,
+  reativarAtivoInvestimento: mock.reativarAtivoInvestimento,
+  excluirAtivoInvestimento: mock.excluirAtivoInvestimento,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
@@ -33,7 +41,9 @@ import type { Cents } from '../lib/format'
 
 const c = (n: number) => n as Cents
 const ativo = (id: string, nome: string, classe: string, extra: Record<string, unknown> = {}) =>
-  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null, ...extra })
+  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null,
+    // contadores de histórico (#125): 0 = nunca teve movimento, então pode ser excluído
+    quantidadeOperacoes: 0, quantidadeAvaliacoes: 0, quantidadeProventos: 0, ...extra })
 const posicao = (assetId: string, nome: string, classe: string, valor: number) => ({
   assetId, nome, ticker: null, classe, moeda: 'BRL', quantidade: '1', custoMedio: '1', custoTotal: c(valor), precoAtual: '1',
   valorAtual: c(valor), resultado: c(0), dataAvaliacao: null, fonteAvaliacao: null,
@@ -60,6 +70,7 @@ beforeEach(() => {
   mock.listarProventosPorAtivo.mockResolvedValue([])
   mock.registrarProventoInvestimento.mockResolvedValue(undefined)
   mock.listarContas.mockResolvedValue({ contas: [{ id: 'c1', nome: 'Corretora', ativa: true }, { id: 'c2', nome: 'Antiga', ativa: false }], total: c(0) })
+  for (const f of [mock.editarAtivoInvestimento, mock.arquivarAtivoInvestimento, mock.reativarAtivoInvestimento, mock.excluirAtivoInvestimento]) f.mockResolvedValue(undefined)
   mock.criarAtivoInvestimento.mockResolvedValue('novo-id')
   mock.definirSubclasseAtivo.mockResolvedValue(undefined)
 })
@@ -248,5 +259,108 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(dt.nextElementSibling?.tagName).toBe('DD')
       expect(dt.nextElementSibling?.className).toMatch(/text-right/)
     }
+  })
+
+  describe('gerir ativos cadastrados', () => {
+    // a1 tem posição; a4 foi zerado (comprou e vendeu: tem operações); a5 está arquivado; a6 nunca foi usado
+    const comZerado = () => mock.listarAtivosInvestimento.mockResolvedValue([
+      ativo('a1', 'Tesouro Selic', 'fixed_income', { quantidadeOperacoes: 3 }),
+      ativo('a4', 'Ação zerada', 'equity', { quantidadeOperacoes: 2 }),
+      ativo('a5', 'Fundo antigo', 'fund', { ativo: false, quantidadeOperacoes: 1 }),
+      ativo('a6', 'Nunca usado', 'other'),
+    ])
+    const linhaDe = async (nome: string) => (await screen.findByText(new RegExp(`^${nome}`), { selector: 'p.font-medium' })).closest('li') as HTMLElement
+
+    it('mostra a situação: posição aberta, sem posição (zerado) e arquivado', async () => {
+      comZerado()
+      render(<Investimentos />)
+      expect(within(await linhaDe('Tesouro Selic')).getByText('Posição aberta')).toBeTruthy()
+      expect(within(await linhaDe('Ação zerada')).getByText('Sem posição')).toBeTruthy()
+      expect(within(await linhaDe('Fundo antigo')).getByText('Arquivado')).toBeTruthy()
+    })
+
+    it('arquivar só sem posição aberta; reativar só no arquivado; excluir só sem histórico (senão "Histórico protegido")', async () => {
+      comZerado()
+      render(<Investimentos />)
+      const aberto = await linhaDe('Tesouro Selic')
+      expect(within(aberto).queryByRole('button', { name: 'Arquivar Tesouro Selic' })).toBeNull()
+      expect(within(aberto).queryByRole('button', { name: 'Excluir Tesouro Selic' })).toBeNull()
+      expect(within(aberto).getByText('Histórico protegido')).toBeTruthy()
+      // zerado: tem histórico, então arquiva mas NÃO exclui
+      const zerado = await linhaDe('Ação zerada')
+      expect(within(zerado).getByRole('button', { name: 'Arquivar Ação zerada' })).toBeTruthy()
+      expect(within(zerado).queryByRole('button', { name: 'Excluir Ação zerada' })).toBeNull()
+      expect(within(zerado).getByText('Histórico protegido')).toBeTruthy()
+      // nunca usado: pode arquivar e pode excluir
+      const virgem = await linhaDe('Nunca usado')
+      expect(within(virgem).getByRole('button', { name: 'Arquivar Nunca usado' })).toBeTruthy()
+      expect(within(virgem).getByRole('button', { name: 'Excluir Nunca usado' })).toBeTruthy()
+      // arquivado: reativa, não arquiva
+      const arquivado = await linhaDe('Fundo antigo')
+      expect(within(arquivado).getByRole('button', { name: 'Reativar Fundo antigo' })).toBeTruthy()
+      expect(within(arquivado).queryByRole('button', { name: 'Arquivar Fundo antigo' })).toBeNull()
+    })
+
+    it('arquivar e reativar chamam o banco e recarregam', async () => {
+      comZerado()
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      const antes = mock.listarAtivosInvestimento.mock.calls.length
+      await u.click(within(await linhaDe('Ação zerada')).getByRole('button', { name: 'Arquivar Ação zerada' }))
+      expect(mock.arquivarAtivoInvestimento).toHaveBeenCalledWith('a4')
+      await u.click(within(await linhaDe('Fundo antigo')).getByRole('button', { name: 'Reativar Fundo antigo' }))
+      expect(mock.reativarAtivoInvestimento).toHaveBeenCalledWith('a5')
+      expect(mock.listarAtivosInvestimento.mock.calls.length).toBeGreaterThan(antes)
+    })
+
+    it('excluir pede confirmação; recusar não chama o banco', async () => {
+      comZerado()
+      const u = userEvent.setup()
+      const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false)
+      render(<Investimentos />)
+      await u.click(within(await linhaDe('Nunca usado')).getByRole('button', { name: 'Excluir Nunca usado' }))
+      expect(confirmar).toHaveBeenCalled()
+      expect(mock.excluirAtivoInvestimento).not.toHaveBeenCalled()
+      confirmar.mockReturnValue(true)
+      await u.click(within(await linhaDe('Nunca usado')).getByRole('button', { name: 'Excluir Nunca usado' }))
+      expect(mock.excluirAtivoInvestimento).toHaveBeenCalledWith('a6')
+      confirmar.mockRestore()
+    })
+
+    it('se o banco recusar a exclusão, a mensagem dele aparece (a tela não confia só nos contadores)', async () => {
+      comZerado()
+      mock.excluirAtivoInvestimento.mockRejectedValue(Object.assign(new Error('Este ativo possui operações, avaliações ou proventos. O histórico financeiro não pode ser excluído.'), { code: '55000' }))
+      const u = userEvent.setup()
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      render(<Investimentos />)
+      await u.click(within(await linhaDe('Nunca usado')).getByRole('button', { name: 'Excluir Nunca usado' }))
+      expect((await screen.findByRole('alert')).textContent).toMatch(/histórico financeiro não pode ser excluído/)
+    })
+
+    it('editar: corrige nome, código e classe; a moeda aparece mas não muda', async () => {
+      comZerado()
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a4', 'Acao zerda', 'equity', { ticker: 'ZER3' })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Acao zerda' }))
+      expect(screen.getByText(/Moeda:/).textContent).toMatch(/BRL/)
+      const nome = screen.getByLabelText('Nome do ativo')
+      await u.clear(nome)
+      await u.type(nome, 'Ação zerada')
+      await u.selectOptions(screen.getByLabelText('Classe'), 'etf')
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      expect(mock.editarAtivoInvestimento).toHaveBeenCalledWith({ ativoId: 'a4', nome: 'Ação zerada', ticker: 'ZER3', classe: 'etf' })
+    })
+
+    it('editar: nome vazio não chama o banco', async () => {
+      comZerado()
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação zerada' }))
+      await u.clear(screen.getByLabelText('Nome do ativo'))
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      expect(screen.getByText('Informe o nome do ativo.')).toBeTruthy()
+      expect(mock.editarAtivoInvestimento).not.toHaveBeenCalled()
+    })
   })
 })

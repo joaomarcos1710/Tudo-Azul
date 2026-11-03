@@ -108,6 +108,7 @@ tags: [tudo-azul, historico]
 - **Proventos de investimento** (migration 035, #120, 02/11/2026): `investment_distributions`, `investment_distribution_record` e `investment_income_by_asset` + formulário e seção em Investimentos (merge `d93b152`; migration aplicada em 02/11/2026, execução 41547324721). Quarta etapa da implementação do protótipo do AI Studio.
 - **Recorrentes: categoria vale para todas as ocorrências** (migration 036, #122, 02/11/2026): `recurrence_update` agora propaga a categoria também para pagas, passadas, lixeira e parcelas de cartão, preservando edições manuais. Primeira correção da lista "Melhoria 1" do dono (merge `18962e9`; migration aplicada em 02/11/2026, execução 41549255886).
 - **Ajustes de interface da lista "Melhoria 1"** (#124, 03/11/2026): De → Para com logos no Início, Extrato só com a categoria, planejado sem cortar, totais de Investimentos alinhados, simulador de quitação removido; testes de relógio corrigidos (Início e pgTAP 34 a 36). Sem migration.
+- **Gerir ativos de investimento** (migration 040, #126, 03/11/2026): `investment_asset_update`, `_archive` e `_unarchive` + Editar, Arquivar e Reativar em Ativos cadastrados. A exclusão (`investment_asset_delete`) é da migration 039, da #125; esta PR foi reabaseada sobre ela.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

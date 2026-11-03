@@ -17,9 +17,9 @@ import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, criarAtivoInvestimento, definirSubclasseAtivo, excluirAtivoInvestimento, listarAlocacaoInvestimentos, listarAtivosInvestimento,
-  listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento,
-  registrarProventoInvestimento,
+  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, arquivarAtivoInvestimento, criarAtivoInvestimento, definirSubclasseAtivo, editarAtivoInvestimento, excluirAtivoInvestimento,
+  listarAlocacaoInvestimentos, listarAtivosInvestimento, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
+  reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento, registrarProventoInvestimento,
 } from '../lib/investimentos'
 import type {
   AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
@@ -61,6 +61,7 @@ export default function Investimentos() {
   const [filtroMacro, setFiltroMacro] = useState('')
   const [filtroSub, setFiltroSub] = useState('')
   const [editandoSub, setEditandoSub] = useState<string | null>(null)
+  const [editandoAtivo, setEditandoAtivo] = useState<AtivoInvestimento | null>(null)
   const [proventos, setProventos] = useState<ProventoAtivo[]>([])
   const [contas, setContas] = useState<Conta[]>([])
   const [novoProvento, setNovoProvento] = useState(false)
@@ -124,6 +125,19 @@ export default function Investimentos() {
     try {
       await registrarProventoInvestimento(d)
       setNovoProvento(false)
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+  async function acaoNoAtivo(acao: () => Promise<void>) {
+    try {
+      await acao()
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+  async function salvarEdicaoAtivo(d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo }) {
+    try {
+      await editarAtivoInvestimento(d)
+      setEditandoAtivo(null)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
@@ -191,6 +205,9 @@ export default function Investimentos() {
       {novoAtivo && <FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
         <FormOperacao ativos={ativosAtivos} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
+      )}
+      {editandoAtivo && (
+        <FormEditarAtivo ativo={editandoAtivo} aoSalvar={salvarEdicaoAtivo} aoCancelar={() => setEditandoAtivo(null)} />
       )}
       {novoProvento && (
         <FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} />
@@ -271,20 +288,33 @@ export default function Investimentos() {
         <h2 id="titulo-cadastro-ativos" className="mb-3 text-lg font-semibold">Ativos cadastrados</h2>
         {ativos.length === 0 ? <p className="text-sm text-slate-500">Nenhum ativo cadastrado.</p> : (
           <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200">
-            {ativos.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
-                <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda} · {a.subclasse ?? 'sem subclasse'}</p></div>
-                <span className="flex items-center gap-2">
-                  <Button compacto variante="fantasma" onClick={() => setEditandoSub(editandoSub === a.id ? null : a.id)}>Subclasse de {a.nome}</Button>
-                  {a.quantidadeOperacoes === 0 && a.quantidadeAvaliacoes === 0 && a.quantidadeProventos === 0 ? (
-                    <Button compacto variante="secundario" type="button" carregando={excluindoId === a.id}
-                      onClick={() => void excluirAtivo(a.id, a.nome)}>Excluir</Button>
-                  ) : <span className="text-xs text-slate-500">Histórico protegido</span>}
-                  <span className="text-xs text-slate-500">{a.ativo ? 'Ativo' : 'Arquivado'}</span>
-                </span>
-                {editandoSub === a.id && <EditorSubclasse ativo={a} aoSalvar={(v) => salvarSubclasse(a.id, v)} aoCancelar={() => setEditandoSub(null)} />}
-              </li>
-            ))}
+            {ativos.map((a) => {
+              const comPosicao = posicoes.some((p) => p.assetId === a.id)
+              // posição aberta = aparece em "Ativos e posições"; ativo sem ela (zerado ou nunca comprado) pode ser arquivado
+              const situacao = !a.ativo ? 'Arquivado' : comPosicao ? 'Posição aberta' : 'Sem posição'
+              const semHistorico = a.quantidadeOperacoes === 0 && a.quantidadeAvaliacoes === 0 && a.quantidadeProventos === 0
+              return (
+                <li key={a.id} className={`flex flex-wrap items-center justify-between gap-2 p-3 ${a.ativo ? '' : 'opacity-70'}`}>
+                  <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda} · {a.subclasse ?? 'sem subclasse'}</p></div>
+                  <span className="flex flex-wrap items-center gap-1">
+                    <span className="mr-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{situacao}</span>
+                    <Button compacto variante="fantasma" onClick={() => setEditandoAtivo(a)} aria-label={`Editar ${a.nome}`}>Editar</Button>
+                    <Button compacto variante="fantasma" onClick={() => setEditandoSub(editandoSub === a.id ? null : a.id)}>Subclasse de {a.nome}</Button>
+                    {a.ativo && !comPosicao && (
+                      <Button compacto variante="fantasma" onClick={() => void acaoNoAtivo(() => arquivarAtivoInvestimento(a.id))} aria-label={`Arquivar ${a.nome}`}>Arquivar</Button>
+                    )}
+                    {!a.ativo && (
+                      <Button compacto variante="fantasma" onClick={() => void acaoNoAtivo(() => reativarAtivoInvestimento(a.id))} aria-label={`Reativar ${a.nome}`}>Reativar</Button>
+                    )}
+                    {semHistorico ? (
+                      <Button compacto variante="secundario" type="button" carregando={excluindoId === a.id} aria-label={`Excluir ${a.nome}`}
+                        onClick={() => void excluirAtivo(a.id, a.nome)}>Excluir</Button>
+                    ) : <span className="text-xs text-slate-500">Histórico protegido</span>}
+                  </span>
+                  {editandoSub === a.id && <EditorSubclasse ativo={a} aoSalvar={(v) => salvarSubclasse(a.id, v)} aoCancelar={() => setEditandoSub(null)} />}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -403,6 +433,38 @@ function FormProvento({ ativos, contas, aoSalvar, aoCancelar }: {
       <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Registrar provento</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
     </form>
   </Card>
+}
+
+function FormEditarAtivo({ ativo, aoSalvar, aoCancelar }: {
+  ativo: AtivoInvestimento
+  aoSalvar: (d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo }) => Promise<void>
+  aoCancelar: () => void
+}) {
+  const [nome, setNome] = useState(ativo.nome)
+  const [ticker, setTicker] = useState(ativo.ticker ?? '')
+  const [classe, setClasse] = useState<ClasseAtivo>(ativo.classe)
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    if (!nome.trim()) { setErro('Informe o nome do ativo.'); return }
+    setErro(''); setEnviando(true)
+    try { await aoSalvar({ ativoId: ativo.id, nome, ticker, classe }) } finally { setEnviando(false) }
+  }
+  return (
+    <Card className="mb-5">
+      <h2 className="mb-3 text-lg font-semibold">Editar {ativo.nome}</h2>
+      <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <Field rotulo="Nome do ativo" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={100} />
+        <Field rotulo="Ticker ou código (opcional)" value={ticker} onChange={(e) => setTicker(e.target.value)} maxLength={20} />
+        <Selecao rotulo="Classe" valor={classe} aoMudar={(v) => setClasse(v as ClasseAtivo)} opcoes={classes} />
+        <p className="self-end text-sm text-slate-600">Moeda: <strong>{ativo.moeda}</strong> (não muda: as operações já estão nela).</p>
+        <p className="text-sm text-slate-600 md:col-span-2">Mudar a classe só muda em qual grupo o ativo aparece na alocação; nenhum valor é alterado.</p>
+        <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Salvar</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
+      </form>
+    </Card>
+  )
 }
 
 function EditorSubclasse({ ativo, aoSalvar, aoCancelar }: { ativo: AtivoInvestimento; aoSalvar: (v: string) => Promise<void>; aoCancelar: () => void }) {
