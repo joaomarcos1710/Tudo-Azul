@@ -58,9 +58,9 @@ select is((select member_limit::int from public.households where id = pg_temp.fx
 -- F1 / N1: segundo vínculo
 select is(pg_temp.sqlstate_of($$select public.create_household('Outra')$$), '55000', 'F1 create_household de quem já tem família: 55000');
 -- C3: categorias padrão
-select is((select count(*) from public.categories where household_id = pg_temp.fx('h1')), 17::bigint, 'C3 17 categorias (4 receitas + 13 despesas, incluindo as 2 "Sem categoria")');
+select is((select count(*) from public.categories where household_id = pg_temp.fx('h1')), 18::bigint, 'C3 18 categorias (4 receitas + 14 despesas, incluindo as 2 "Sem categoria")');
 select is((select count(*) from public.categories where household_id = pg_temp.fx('h1') and type = 'income'), 4::bigint, 'C3 4 categorias de receita');
-select is((select count(*) from public.categories where household_id = pg_temp.fx('h1') and type = 'expense'), 13::bigint, 'C3 13 categorias de despesa');
+select is((select count(*) from public.categories where household_id = pg_temp.fx('h1') and type = 'expense'), 14::bigint, 'C3 14 categorias de despesa');
 select is((select count(*) from public.categories where household_id = pg_temp.fx('h1') and system_key = 'uncategorized'), 2::bigint, 'C3 exatamente 2 "Sem categoria" (uma por tipo)');
 select is((select count(*) from public.categories where household_id = pg_temp.fx('h1') and name in ('Compras pessoais', 'Viagens') and type = 'expense'), 2::bigint, 'as categorias "Compras pessoais" e "Viagens" foram incluídas em despesas');
 select is((select count(*) from public.categories where household_id = pg_temp.fx('h1') and parent_id is not null), 0::bigint, 'as categorias padrão são todas de nível raiz');
@@ -229,7 +229,7 @@ reset role;
 
 -- a exclusão de uma família não toca a outra
 select is((select count(*) from public.households where id = pg_temp.fx('h3')), 1::bigint, 'a H3 continua existindo');
-select is((select count(*) from public.categories where household_id = pg_temp.fx('h3')), 17::bigint, 'a H3 mantém suas 17 categorias');
+select is((select count(*) from public.categories where household_id = pg_temp.fx('h3')), 18::bigint, 'a H3 mantém suas 18 categorias');
 
 -- ======== perfil automático (trigger em auth.users) ========
 select is((select name from public.profiles where id = '00000000-0000-0000-0000-0000000000a4'), 'u4', 'sem nome nos metadados, o perfil usa a parte local do e-mail');
