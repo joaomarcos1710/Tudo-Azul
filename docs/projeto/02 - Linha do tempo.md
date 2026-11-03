@@ -113,6 +113,7 @@ tags: [tudo-azul, historico]
 - **Extrato do ativo e exclusão de operação errada** (migration 043, #129, 03/11/2026): botão "Extrato" em cada ativo e "Excluir" operação, que anula com motivo (não apaga). Corrige o "Editar" do ativo, que abria no topo da página e podia gravar os dados de um ativo no outro. Pedido do dono: não havia onde ver nem desfazer uma compra errada. Merge `f6b6b13`; **migration 043 aplicada em 03/11/2026** (execução 41663655015).
 - **Formulários de Investimentos visíveis ao abrir** (#130, 03/11/2026): novo ativo, compra/venda, provento e avaliação rolam a tela até o formulário. O dono relatou que "Registrar compra" não funcionava: o formulário abria no topo, longe do botão.
 - **Conta do tipo Investimento e Contas por tipo** (migration 044, #131, 03/11/2026): decisão do dono de dividir as contas em corrente, poupança e investimento e tratar o CDB/caixinha como conta (aplicação = transferência). Tela de Contas agrupada por tipo, com subtotal do banco.
+- **Início sem conferência no card Contas** (#132, 03/11/2026): pedido do dono; a conferência com o extrato fica só na tela de Contas.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
