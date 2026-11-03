@@ -199,8 +199,10 @@ describe('Visão geral', () => {
     // patrimônio consolidado inclui a participação familiar nos bens em BRL
     expect(await screen.findByText('Patrimônio líquido')).toBeTruthy()
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
-    expect(screen.getByText(/Saldo em USD/)).toBeTruthy()
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
+    cleanup()
+    montar()
+    expect(await screen.findByText(/Saldo em USD/)).toBeTruthy() // investimentos aparecem no Início, em moeda segregada
   })
   it('resumo do mês (Análises): receitas e despesas do banco', async () => {
     montar('analises')
