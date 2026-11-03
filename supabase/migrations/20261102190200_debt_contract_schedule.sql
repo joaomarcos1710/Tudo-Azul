@@ -406,6 +406,10 @@ begin
     raise exception 'valores do pagamento inválidos' using errcode = '22023';
   end if;
 
+  if round(p_principal + p_interest + p_fee, 2) <> v_s.amount then
+    raise exception 'o total pago deve corresponder ao valor previsto da parcela (%)', v_s.amount using errcode = '22023';
+  end if;
+
   if v_d.payment_method = 'payroll' then
     if p_account is not null or p_interest <> 0 or p_fee <> 0 or p_principal <= 0 or coalesce(p_extra,false) then
       raise exception 'no consignado, informe apenas o valor amortizado no saldo devedor' using errcode = '22023';
