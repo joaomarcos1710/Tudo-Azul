@@ -157,7 +157,7 @@ export async function listarParcelasDivida(
   const ids = [...new Set(linhas.map((r) => r.debt_id as string))]
   const { data: dividas, error: erroDividas } = await db.from('debts')
     .select('id, name, payment_method, payment_account_id')
-    .eq('household_id', familiaId).in('id', ids)
+    .eq('household_id', familiaId).eq('active', true).in('id', ids)
   if (erroDividas) throw erroDividas
   const porId = new Map((dividas ?? []).map((d) => [d.id, d]))
   return linhas.flatMap((r) => {
