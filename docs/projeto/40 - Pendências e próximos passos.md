@@ -23,9 +23,11 @@ atualizado: 2026-10-28
 - [x] **Índice de eventos por parcela** (migration 053, #156): aplicada em 04/11/2026.
 - [x] **Importar o histórico do Organizze** (04/11/2026): feito; saldos das 21 contas batem. Falta você: abrir 2 ou 3 faturas recentes no app e comparar com o Organizze (a conferência automática olhou os saldos das contas e as contagens, não fatura a fatura).
 - [x] **Empréstimo da Funcef em Dívidas** (04/11/2026). Falta você: no boleto de 20/11, comparar juros e amortização com o cronograma do app (taxa cadastrada a partir do extrato).
-- [x] **Reset e exportação completa com investimentos e bens** (migration 054, #158): feito no código; **falta aplicar a 054** em produção pelo workflow (com o seu "pode"). Antes, `reset_preview`, `reset_household` e a exportação completa deixavam de fora ativos, operações, avaliações e proventos de investimento e os bens da família (achado da revisão do Manus, 04/11/2026).
+- [x] **Reset e exportação completa com investimentos e bens** (migration 054, #158): feito e **aplicada em 04/11/2026**. Antes, `reset_preview`, `reset_household` e a exportação completa deixavam de fora ativos, operações, avaliações e proventos de investimento e os bens da família (achado da revisão do Manus, 04/11/2026).
 - [x] **Relatórios: número de arquivos** (#158) — com investimentos e bens a exportação completa tem **8** arquivos; a tela e o `csv.ts` dizem 8 e listam todos. `npm audit fix` feito (0 vulnerabilidades).
-- [ ] **Aplicar a migration 054** em produção (simular → ler o log → aplicar). Até lá, o "Zerar tudo" continua deixando investimentos e bens para trás e a tela mostra 0 neles.
+- [x] **Aplicar a migration 054** em produção: aplicada em 04/11/2026 (execução 41902641771, simulação 41902529963).
+- [x] **Conferência com o extrato fora do app** (#159, decisão do dono de 04/11/2026): tela, botão, menu e textos removidos; coluna "Conferido" saiu da exportação. Banco intacto (sem migration).
+- [ ] **Apagar a conferência do banco** numa migration futura, se a decisão se mantiver: tabela `account_reconciliations`, coluna `reconciliation_id` em `transactions`, `reconcile_account`, `reconciliation_undo`, as travas de período conciliado nos gatilhos e funções, o `reconciled` de `account_movements`, a contagem em `reset_preview`/`reset_household` e os testes pgTAP e o `00_audit` correspondentes. Antes, conferir em produção que continua com 0 conferências.
 - [ ] **Exportação completa: preço e quantidade de investimento como texto** — vão como o banco grava (até 10 e 12 casas, vírgula decimal), não em centavos; a planilha pode ler como texto. Não restaura nada (o app não importa os arquivos).
 - [ ] **Depois:** total de todos os cartões; % quitado das dívidas; relatório por categoria com gráfico.
 - [x] **Crédito no cartão como receita** (migration 052, #153): aplicada em 04/11/2026. Falta você testar no app: lançar um crédito (ex.: estorno de IOF) e conferir a fatura, o limite e Lançamentos.
@@ -60,7 +62,7 @@ atualizado: 2026-10-28
 - [ ] **Excluir recorrente + versão 2026.5** (#84, mesclado em 29/10; **migration 018 aplicada em produção em 29/10/2026**). Falta você: excluir o recorrente já finalizado em Recorrentes → Encerrados, conferir que os lançamentos pagos dele continuam, e testar a 2026.5 no iPhone.
 - [ ] **Banco gravado e bandeira do cartão** (#80, mesclado em 29/10; **migration 017 aplicada em produção em 29/10/2026**). Falta você: escolher o banco das contas (Contas → Editar) e o emissor/bandeira dos cartões (Cartões → "Escolher banco e bandeira") e conferir os logos no iPhone. Next, Original e Will seguem com a sigla (sem logo).
 - [ ] **Logos de banco** (#79, mesclado em 29/10): 20 logos importados de `rzmt/logos-bancos-br` (origem em `src/assets/bancos/ORIGEM.md`); Next, Original e Will continuam com a sigla. Conferir no celular. Banco novo: subir o arquivo com o nome da chave (`LEIAME.md` da pasta).
-- [ ] **Subcategoria sob a principal + selo do banco** (#78, mesclado em 29/10, pedido do dono em 29/10/2026). Conferir no celular: Reembolso logo abaixo da categoria-mãe dele (Salário) e o selo da Caixa em Contas, Conferir, Início e Lançamentos. Se quiser o **logo oficial** (arquivos licenciados seus) ou **escolher o banco** em vez de depender do nome, é PR à parte (coluna + migration, fluxo de produção).
+- [ ] **Subcategoria sob a principal + selo do banco** (#78, mesclado em 29/10, pedido do dono em 29/10/2026). Conferir no celular: Reembolso logo abaixo da categoria-mãe dele (Salário) e o selo da Caixa em Contas, Início e Lançamentos (a tela Conferir saiu na #159). Se quiser o **logo oficial** (arquivos licenciados seus) ou **escolher o banco** em vez de depender do nome, é PR à parte (coluna + migration, fluxo de produção).
 - [ ] Menu "Mais" com cartões de atalho e frase em cada tela (#75, mesclado; opção A do dono). Conferir no iPhone. Sem mudança de versão: entra na próxima edição (2026.5) junto com o próximo lote visível.
 
 - [ ] **Formulário de lançamento em visual de app** (#76, mesclado; pedido do dono): abas, valor grande, campos em linhas, "Registrar e lançar outro" e última conta/cartão lembrados (ideias 2, 3, 6 e 7 de [[50 - Ideias e comparações]]; conta principal na versão "lembrar a última usada", sem banco). Conferir no iPhone a linha da **data**: o iOS escreve a data por extenso e pode não caber.
@@ -72,7 +74,7 @@ atualizado: 2026-10-28
 - A pensar antes de implementar: as parcelas antecipadas entram em qual fatura; o desconto vira abatimento da despesa (a despesa da compra diminui) e em qual mês; o limite libera na hora; precisa de migration (função nova no banco, com teste pgTAP) e passa pelo workflow de produção.
 
 ## Banco (baixo risco, não bloqueiam)
-Idempotência com conteúdo diferente · `debt_chk` quadrático · `card_months` com data futura · "Conferido" de transferência · estorno em mês diferente · trava de reclassificar categoria.
+Idempotência com conteúdo diferente · `debt_chk` quadrático · `card_months` com data futura · ~~"Conferido" de transferência~~ (sem sentido desde a #159: a conferência saiu do app) · estorno em mês diferente · trava de reclassificar categoria.
 
 ## Roadmap
 Dez–Jan multimoeda · Fev–Abr/2027 investimentos · importar do Organizze (volta ao Brasil) · domínio · planos pagos (limite de membros 1/3/5–10).

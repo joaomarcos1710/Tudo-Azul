@@ -132,8 +132,16 @@ O plano gratuito da Vercel permite 100 deploys por dia, e cada push gerava um pr
 - Academia de 191,00 no cartão entra como **reembolso** (crédito), por decisão do dono.
 
 ## 04/11/2026 — Depois da revisão do Manus
-- **Conferência de saldo** continua em Contas (o dono mantém; a revisão sugeria tirar).
+- **Conferência de saldo** continua em Contas (o dono mantém; a revisão sugeria tirar). *Revista no mesmo dia: ver "Conferência com o extrato sai da experiência" abaixo.*
 - **Filtros de Lançamentos** seguem na ordem Conta → Tipo → Categoria (o dono não pediu outra ordem).
 - **"De quem é o gasto"** (botão para separar o que é do João, da Mariane e dos animais): ideia guardada, não fazer agora. Categorias e subcategorias já cobrem a maior parte; um campo novo mexe em todos os relatórios.
 - **Zerar tudo apaga investimentos, bens e a agenda dos contratos** (migration 054, #158): são dados financeiros da família, como contas e dívidas; deixá-los fazia o patrimônio continuar aparecendo depois de "zerar tudo". **Fica** a configuração do aviso diário (preferência de cada pessoa, não dado financeiro).
 - **Exportação completa com investimentos e bens em 2 arquivos** (um de investimentos com ativo, operações, avaliações e proventos; um de bens com avaliações), coluna "Registro" dizendo o tipo da linha: o menor desenho que cobre tudo sem multiplicar downloads. Taxas, proventos e avaliações de bens vão em centavos (`centavos`); quantidade e preço unitário do investimento vão como o banco grava (até 12 e 10 casas), porque arredondar para centavos perderia informação. Operações anuladas entram, marcadas "Anulada".
+
+## 04/11/2026 — Conferência com o extrato sai da experiência (#159)
+- **Decisão do dono:** "Eu hoje entendo que essa função é desnecessária. Não vejo motivo pra continuar com ela." Sai do app a tela Conferir (`/contas/:id/conferir`), o botão "Conferir" em Contas, o rótulo "Contas e conferência" no menu (vira **Contas**) e os textos que falavam em conferir com o extrato.
+- **Motivo:** o dono não usa (em produção, 0 conferências e 0 lançamentos travados por conferência) e o relatório de experiência apontou a conferência como obrigação extra.
+- **Banco fica como está, dormente, sem migration:** tabela `account_reconciliations`, coluna `reconciliation_id`, `reconcile_account`, `reconciliation_undo` e as travas de período continuam no banco e nos testes pgTAP. Sem conferência nova, as travas nunca disparam. Apagar isso é uma migration futura (ver [[40 - Pendências e próximos passos]]), se a decisão se mantiver.
+- **Exportação completa:** o arquivo 2 (movimentos por conta) perde a coluna **"Conferido"**, que só fazia sentido com a função; `account_movements` continua devolvendo `reconciled` e o app ignora.
+- **Zerar tudo:** a contagem de conferências continua vindo do banco, mas só aparece ("conferências antigas") se sobrou alguma; com 0, a tela não fala mais em conferência.
+- **O que se perde:** a trava de períodos conferidos (editar ou excluir lançamento antigo volta a mudar saldos já batidos com o banco, sem aviso) e o diagnóstico de divergência com o extrato (saldo do app × extrato numa data, com a lista de movimentos). Para bater saldo à mão, a exportação completa (movimentos por conta) continua.

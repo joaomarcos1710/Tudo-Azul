@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -81,7 +80,7 @@ export default function Contas() {
   if (!familia) return null
   return (
     <>
-      <CabecalhoPagina titulo="Contas" descricao="Saldo de cada conta, vindo do banco, e a conferência com o extrato."
+      <CabecalhoPagina titulo="Contas" descricao="Saldo de cada conta, vindo do banco."
         acoes={editando === null && <Button onClick={() => setEditando('nova')}>Nova conta</Button>} />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
@@ -115,8 +114,8 @@ export default function Contas() {
           {excluindo && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label="Excluir conta">
               <p className="text-sm">
-                Excluir a conta <strong>{excluindo.nome}</strong> de vez. Só é possível se ela nunca teve lançamento, transferência,
-                recorrente nem conferência; se tiver, o app avisa e você pode <strong>arquivar</strong> em vez de excluir. Não dá para desfazer.
+                Excluir a conta <strong>{excluindo.nome}</strong> de vez. Só é possível se ela nunca teve lançamento, transferência
+                nem recorrente; se tiver, o app avisa e você pode <strong>arquivar</strong> em vez de excluir. Não dá para desfazer.
               </p>
               <div className="mt-3 flex gap-2">
                 <Button variante="perigo" onClick={() => void confirmarExclusao(excluindo)}>Excluir conta</Button>
@@ -147,7 +146,6 @@ export default function Contas() {
                         <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
                           {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
                         </span>
-                        <Link to={`/contas/${c.id}/conferir`} className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-azul hover:bg-azul-claro">Conferir</Link>
                         <Button variante="fantasma" onClick={() => setEditando(c)}>Editar</Button>
                         <Button variante="fantasma" onClick={() => alternarAtiva(c)}>Arquivar</Button>
                         <Button variante="fantasma" onClick={() => setExcluindo(c)}>Excluir</Button>

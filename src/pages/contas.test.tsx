@@ -67,6 +67,14 @@ describe('Contas', () => {
     expect(screen.getByText('Carteira').closest('li')).not.toBeNull()
   })
 
+  it('não oferece conferência com o extrato (removida da experiência em 04/11/2026)', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(125050) })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    expect(await screen.findByText('Itaú')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Conferir' })).toBeNull()
+    expect(screen.queryByText(/confer[eê]ncia|extrato/i)).toBeNull()
+  })
+
   it('conta que abre no futuro mostra a data em vez de saldo', async () => {
     mock.listarContas.mockResolvedValue({ contas: [{ ...corrente, saldo: null }], total: c(0) })
     render(<MemoryRouter><Contas /></MemoryRouter>)

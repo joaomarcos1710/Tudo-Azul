@@ -36,7 +36,7 @@ describe('menu em grupos', () => {
       .toEqual(['Visão geral', 'Movimentações', 'Planejamento', 'Patrimônio', 'Conta'])
     const mov = within(lateral).getByRole('group', { name: 'Movimentações' })
     expect(within(mov).getAllByRole('link').map((a) => a.textContent))
-      .toEqual(['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas e conferência'])
+      .toEqual(['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas'])
     expect(within(lateral).getByRole('link', { name: 'Recorrentes' }).getAttribute('href')).toBe('/recorrentes')
     expect(within(lateral).getByRole('link', { name: 'Investimentos' }).getAttribute('href')).toBe('/investimentos')
   })
@@ -72,7 +72,7 @@ describe('menu em grupos', () => {
     const folha = screen.getByRole('dialog', { name: 'Menu' })
     const atalhos = within(folha).getByRole('group', { name: 'Atalhos' })
     expect(within(atalhos).getAllByRole('link').map((a) => a.getAttribute('aria-label')))
-      .toEqual(['Calendário', 'Recorrentes', 'Contas e conferência', 'Categorias'])
+      .toEqual(['Calendário', 'Recorrentes', 'Contas', 'Categorias'])
     // nenhuma tela aparece duas vezes (cartão e linha)
     const hrefs = within(folha).getAllByRole('link').map((a) => a.getAttribute('href'))
     expect(new Set(hrefs).size).toBe(hrefs.length)
@@ -134,7 +134,7 @@ describe('menu em grupos', () => {
   })
 
   it('itemAtivo: subtela de conta conta como Contas; raiz só casa com "/"', () => {
-    expect(itemAtivo('/contas/abc/conferir')?.rotulo).toBe('Contas e conferência')
+    expect(itemAtivo('/contas/abc')?.rotulo).toBe('Contas')
     expect(itemAtivo('/')?.rotulo).toBe('Início')
     expect(itemAtivo('/desconhecida')).toBeUndefined()
   })

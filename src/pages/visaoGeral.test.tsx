@@ -17,7 +17,6 @@ const mock = vi.hoisted(() => ({
   vencidosPlanejados: vi.fn(),
   resumoDosCartoes: vi.fn(),
   totalFaturasDoMes: vi.fn(),
-  ultimasConferencias: vi.fn(),
   resumoDoPeriodo: vi.fn(),
   listarLancamentos: vi.fn(),
   listarCategorias: vi.fn(),
@@ -37,7 +36,6 @@ vi.mock('../lib/painel', () => ({
   vencidosPlanejados: mock.vencidosPlanejados,
   evolucaoPatrimonio: mock.evolucaoPatrimonio,
 }))
-vi.mock('../lib/conciliacao', () => ({ ultimasConferencias: mock.ultimasConferencias }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1', user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos }))
@@ -89,7 +87,6 @@ beforeEach(() => {
   mock.evolucaoPatrimonio.mockResolvedValue([])
   mock.resumoDosCartoes.mockResolvedValue([])
   mock.totalFaturasDoMes.mockResolvedValue(null)
-  mock.ultimasConferencias.mockResolvedValue(new Map())
   mock.projecaoDoMes.mockResolvedValue({
     diasNoMes: 31, diasDecorridos: 10, diasRestantes: 21, gasto: c(1300000), previsto: c(25000), variavelAteAgora: c(30000),
     ritmoPorDia: c(3000), ritmoRestante: c(63000), projetado: c(1388000),
@@ -546,18 +543,6 @@ describe('Visão geral', () => {
     expect(within(card).getByText('Saldo geral')).toBeTruthy()
     expect(within(card).getAllByText('R$ 12.820,30').length).toBe(2) // total do banco (balance_totals) e a única conta ativa
     expect(within(card).queryByText('Antiga')).toBeNull()
-  })
-
-  it('o card Contas do Início não mostra conferência com o extrato (pedido do dono: fica só na tela de Contas)', async () => {
-    mock.listarContas.mockResolvedValue({
-      contas: [{ id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1000) }],
-      total: c(1000),
-    })
-    montar()
-    expect(await screen.findByText('Itaú')).toBeTruthy()
-    expect(screen.queryByText('Nunca conferida com o extrato')).toBeNull()
-    expect(screen.queryByRole('link', { name: /^Conferir / })).toBeNull()
-    expect(mock.ultimasConferencias).not.toHaveBeenCalled()
   })
 
   it('Início sem número repetido: Patrimônio só com Bens e Dívida; saldo hoje e previsto num card; receita e despesa só no cabeçalho', async () => {

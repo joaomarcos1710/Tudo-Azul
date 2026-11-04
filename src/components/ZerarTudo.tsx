@@ -81,7 +81,12 @@ export function ZerarTudo() {
             <li>{plural(previa.contas, 'conta', 'contas')} e seus saldos</li>
             <li>{plural(previa.cartoesEDividas, 'cartão ou dívida', 'cartões e dívidas')}, com {plural(previa.parcelas, 'parcela', 'parcelas')} e faturas</li>
             {previa.agendaContrato > 0 && <li>{plural(previa.agendaContrato, 'parcela', 'parcelas')} da agenda de contratos de empréstimo e financiamento</li>}
-            <li>{plural(previa.recorrencias, 'recorrência', 'recorrências')}, {plural(previa.conciliacoes, 'conciliação', 'conciliações')} e {plural(previa.orcamentos, 'orçamento', 'orçamentos')}</li>
+            <li>
+              {plural(previa.recorrencias, 'recorrência', 'recorrências')}
+              {/* conferência com o extrato saiu do app (decisão de 04/11/2026); só aparece se sobrou registro antigo no banco */}
+              {previa.conciliacoes > 0 && `, ${plural(previa.conciliacoes, 'conferência antiga', 'conferências antigas')}`} e{' '}
+              {plural(previa.orcamentos, 'orçamento', 'orçamentos')}
+            </li>
             <li>
               {plural(previa.ativosInvestimento, 'investimento', 'investimentos')}, com {plural(previa.operacoesInvestimento, 'operação', 'operações')},{' '}
               {plural(previa.avaliacoesInvestimento, 'avaliação', 'avaliações')} e {plural(previa.proventos, 'provento', 'proventos')}
@@ -95,7 +100,7 @@ export function ZerarTudo() {
 
           <h3 className="mb-2 text-sm font-semibold text-slate-600">1. Baixe a exportação completa</h3>
           <p className="mb-3 text-sm text-slate-700">
-            <strong>A exportação não inclui</strong> orçamentos, recorrências, conciliações, lançamentos da lixeira nem eventos anulados:
+            <strong>A exportação não inclui</strong> orçamentos, recorrências, lançamentos da lixeira nem eventos anulados:
             esses você perde de verdade. E <strong>não lance nada entre baixar e zerar</strong>: o que for lançado depois não estará nos arquivos.
           </p>
           <ExportacaoCompleta aoMudarBaixados={setBaixou} />

@@ -20,7 +20,7 @@ tags: [tudo-azul, regras, dinheiro]
 
 ## Conta
 - Conta **desativada** só impede **novas** movimentações; o saldo continua no patrimônio.
-- Período **conferido** com o extrato trava: não edita, não manda para a lixeira, não restaura.
+- Período **conferido** com o extrato trava: não edita, não manda para a lixeira, não restaura. *Dormente desde 04/11/2026 (#159): a conferência saiu do app; a trava continua no banco, mas sem conferência nova nunca dispara.*
 - Transferência nunca é receita nem despesa.
 
 ## Receita

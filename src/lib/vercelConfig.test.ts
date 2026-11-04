@@ -19,7 +19,7 @@ describe('vercel.json', () => {
     const re = new RegExp(`^${spa!.source.replace(/\(\?!/g, '(?!')}$`)
     expect(re.test('/assets/Lancamentos-antigo.js')).toBe(false)
     expect(re.test('/lancamentos')).toBe(true)
-    expect(re.test('/contas/abc/conferir')).toBe(true)
+    expect(re.test('/contas/abc')).toBe(true)
   })
 
   it('o service worker nunca fica em cache', () => {
