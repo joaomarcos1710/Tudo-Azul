@@ -335,6 +335,48 @@ select is(pg_temp.sqlstate_of(format($$select public.debt_archive(%L)$$, pg_temp
 select public.debt_void(pg_temp.fx('cg'), 'engano');
 select is(pg_temp.sqlstate_of(format($$select public.debt_archive(%L)$$, pg_temp.fx('g'))), null, 'CA2 anulado o crédito, arquiva');
 
+-- ---------------------------------------------------------------------------
+-- R1 (rodada 3): a devolução sai do adiantamento na ordem das datas, não da primeira sobra da história.
+-- Família própria (balance_totals_projected soma todos os cartões da família).
+-- ---------------------------------------------------------------------------
+reset role;
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000052a3', 'c3@teste.com');
+select pg_temp.login('00000000-0000-0000-0000-0000000052a3');
+insert into fixture select 'h3', public.create_household('Casa da Ordem');
+with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
+           values (pg_temp.fx('h3'), 'Banco 3', 'checking', 5000.00, '2026-01-01') returning id)
+  insert into fixture select 'bank3', id from i;
+insert into fixture select 'cat3', id from public.categories where household_id = pg_temp.fx('h3') and name = 'Compras pessoais';
+insert into fixture select 'inc3', id from public.categories where household_id = pg_temp.fx('h3') and name = 'Outras receitas';
+insert into fixture select 'p', public.create_debt('Cartão P', 'card', '2026-01-01', 0);
+select public.set_card_cycle(pg_temp.fx('p'), 17, 25);
+select public.set_card_limit(pg_temp.fx('p'), 500.00);
+-- agosto: compra 100,00 paga com 140,00 ligados à fatura (sobra 40,00); setembro: compra 40,00 (quitada pela sobra)
+select public.card_purchase(pg_temp.fx('p'), '2026-08-05', 100.00, 1, pg_temp.fx('cat3'), 'Compra de agosto');
+select public.card_purchase(pg_temp.fx('p'), '2026-09-05', 40.00, 1, pg_temp.fx('cat3'), 'Compra de setembro');
+select public.card_bill_due('2026-10-31');
+select public.debt_pay(pg_temp.fx('p'), '2026-08-20', pg_temp.fx('bank3'), 140.00,
+                       (select id from public.debt_invoices where debt_id = pg_temp.fx('p') and label = '2026-08'));
+-- outubro: crédito avulso de 40,00 sem compras (vira crédito a receber)
+select public.card_credit_income(pg_temp.fx('p'), '2026-10-01', 40.00, pg_temp.fx('inc3'), 'Cashback');
+select is((select committed::numeric(14,2) || '|' || available::numeric(14,2) from public.card_limits(pg_temp.fx('h3'), '2026-10-18') where debt_id = pg_temp.fx('p')),
+          '0.00|500.00', 'M2 com crédito a receber o comprometido não fica negativo: o disponível nunca passa do limite');
+-- devolvido em dinheiro em 20/10; novembro: compra 100,00
+select public.debt_return(pg_temp.fx('p'), '2026-10-20', pg_temp.fx('bank3'), 40.00);
+select public.card_purchase(pg_temp.fx('p'), '2026-10-25', 100.00, 1, pg_temp.fx('cat3'), 'Compra de novembro');
+select is((select total::numeric(14,2) || '|' || paid::numeric(14,2) from public.card_months(pg_temp.fx('p')) where label = '2026-09'),
+          '40.00|40.00', 'R1a setembro quitado pela sobra de agosto (a devolução de outubro não leva essa sobra)');
+select is((select previous_open::numeric(14,2) || '|' || total::numeric(14,2) from public.card_months(pg_temp.fx('p')) where label = '2026-10'),
+          '0.00|0.00', 'R1b outubro: nada em aberto antes, fatura zerada pelo crédito');
+select is((select total::numeric(14,2) || '|' || paid::numeric(14,2) from public.card_months(pg_temp.fx('p')) where label = '2026-11'),
+          '100.00|0.00', 'R1c novembro: 100,00 sem nada pago (o crédito de outubro voltou em dinheiro)');
+select is((select invoices::numeric(14,2) from public.balance_totals_projected(pg_temp.fx('h3'), '2026-10-31')), 0.00::numeric,
+          'R1d saldo projetado em 31/10: nenhuma fatura a descontar');
+select is((select debt::numeric(14,2) || '|' || credit_receivable::numeric(14,2) from public.debt_balances(pg_temp.fx('h3'), '2026-10-31') where debt_id = pg_temp.fx('p')),
+          '0.00|0.00', 'R1e e bate com a dívida do cartão em 31/10 (zero)');
+reset role;
+select pg_temp.login('00000000-0000-0000-0000-0000000052a1');
+
 select is(pg_temp.sqlstate_of($$set constraints all immediate$$), null, 'CI65 as checagens adiadas passam no fim');
 
 select * from finish();

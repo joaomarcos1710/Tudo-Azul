@@ -450,23 +450,22 @@ returns table (label text, closing_date date, due_date date, charged numeric, pe
 language plpgsql stable security invoker set search_path = '' as $$
 declare
   v_d record; r record; v_credit numeric; v_prev numeric := 0; v_ref numeric; v_s0 numeric; v_link numeric; v_total numeric;
-  v_use numeric; v_surplus numeric; v_paid numeric; v_due date; v_b date; v_fill numeric;
+  v_use numeric; v_surplus numeric; v_paid numeric; v_due date; v_b date; v_first boolean := true;
 begin
   select d.id, d.household_id, d.closing_day, d.due_day, greatest(0, d.reference_balance) as reference_balance into v_d from public.debts d
    where d.id = p_debt and d.kind = 'card' and (select private.is_member(d.household_id));
   if not found then return; end if;
 
-  -- pagamentos sem fatura: entram como adiantamento; a devolução em dinheiro (refund_cash) tira do crédito.
-  -- SEM limitar a zero: a devolução pode ter levado crédito que nasceu de uma SOBRA de fatura (pagamento acima da
-  -- fatura ou crédito avulso acima dela). O saldo negativo espera essa sobra, que o paga primeiro (abaixo); antes, a
-  -- sobra reaparecia como adiantamento já devolvido e a fatura seguinte aparecia paga sem estar.
-  select coalesce(sum(case when e.kind = 'refund_cash' then -e.amount else e.amount end), 0) into v_credit
+  -- pagamentos sem fatura: entram como adiantamento. A devolução em dinheiro (refund_cash) tira do adiantamento NA ORDEM
+  -- DAS DATAS (correção da 052): a de antes do primeiro fechamento sai daqui; as outras saem no loop, depois da sobra
+  -- da fatura cujo fechamento a antecede. Antes ela era descontada no começo, só do que existia sem fatura: a sobra de
+  -- uma fatura (pagamento ou crédito avulso acima dela) já devolvida reaparecia como adiantamento.
+  select coalesce(sum(e.amount), 0) into v_credit
     from public.debt_events e
    where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.voided_at is null
-     and e.kind in ('payment', 'extra_principal', 'refund_cash') and e.invoice_id is null;
-  if v_credit = 0 then v_credit := 0; end if; -- mesma escala de antes na tela ("0", não "0.00")
+     and e.kind in ('payment', 'extra_principal') and e.invoice_id is null;
   v_ref := v_d.reference_balance;
-  v_s0 := least((case when v_credit < 0 then 0 else v_credit end), v_ref);
+  v_s0 := least(v_credit, v_ref);
   v_ref := v_ref - v_s0;
   v_credit := v_credit - v_s0;
 
@@ -501,6 +500,7 @@ begin
         from meses_parc m full join cred c on c.label = m.label
     )
     select m.label, m.closing_date, m.charged, m.pending, m.items, m.cd, m.dd, m.credits, inv.id as inv_id, inv.due_date as inv_due,
+           lead(m.closing_date) over (order by m.label) as next_closing,
            coalesce((select sum(e.amount) from public.debt_events e
                       where e.invoice_id = inv.id and e.voided_at is null
                         and e.kind in ('payment', 'extra_principal')), 0) as pago_fatura
@@ -521,9 +521,18 @@ begin
                                extract(day from (v_b + interval '1 month - 1 day'))::int));
     end if;
 
+    -- devoluções de antes do primeiro fechamento: saem do adiantamento sem fatura
+    if v_first then
+      v_credit := greatest(0, v_credit - coalesce((
+        select sum(e.amount) from public.debt_events e
+         where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.voided_at is null
+           and e.kind = 'refund_cash' and e.date < r.closing_date), 0));
+      v_first := false;
+    end if;
+
     v_total   := greatest(0, r.charged + r.pending);
     v_link    := r.pago_fatura;
-    v_use     := least((case when v_credit < 0 then 0 else v_credit end), greatest(0, v_total - v_link));
+    v_use     := least(v_credit, greatest(0, v_total - v_link));
     -- excedente: pagamento acima da fatura + crédito avulso acima da fatura (migration 052)
     v_surplus := greatest(0, v_link - v_total) + greatest(0, -(r.charged + r.pending));
     v_paid    := least(v_total, v_link) + v_use;
@@ -531,15 +540,19 @@ begin
     label := r.label; closing_date := r.closing_date; due_date := v_due;
     charged := r.charged; pending := r.pending; total := v_total; paid := v_paid;
     items := r.items; invoice_id := r.inv_id; credits := r.credits;
-    previous_open := v_prev + v_ref; advance_in := (case when v_credit < 0 then 0 else v_credit end);
-    -- a sobra paga primeiro o que já foi devolvido em dinheiro (v_credit negativo), depois o saldo de referência
-    v_fill := least(v_surplus, greatest(-v_credit, 0));
-    v_credit := v_credit + v_fill;
-    v_surplus := v_surplus - v_fill;
+    previous_open := v_prev + v_ref; advance_in := v_credit;
     v_s0 := least(v_surplus, v_ref);
     v_ref := v_ref - v_s0;
     v_credit := v_credit - v_use + (v_surplus - v_s0);
-    advance_out := (case when v_credit < 0 then 0 else v_credit end);
+    -- devoluções feitas depois deste fechamento (inclusive) e antes do próximo: levam o crédito que existia então
+    -- (inclui a sobra desta fatura); greatest(0, …) só protege a tela, debt_chk já garante a ordem
+    v_credit := v_credit - coalesce((
+      select sum(e.amount) from public.debt_events e
+       where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.voided_at is null
+         and e.kind = 'refund_cash' and e.date >= r.closing_date
+         and (r.next_closing is null or e.date < r.next_closing)), 0);
+    if v_credit < 0 then v_credit := 0; end if;
+    advance_out := v_credit;
     v_prev := v_prev + (v_total - v_paid);
     return next;
   end loop;
@@ -558,8 +571,9 @@ create or replace function public.card_limits(p_household uuid, p_as_of date)
 returns table (debt_id uuid, credit_limit numeric, committed numeric, available numeric)
 language sql stable security invoker set search_path = '' as $$
   select d.id, d.credit_limit,
-         b.debt + b.planned_remaining - b.credit_receivable - coalesce(c.antecipado, 0),
-         d.credit_limit - (b.debt + b.planned_remaining - b.credit_receivable - coalesce(c.antecipado, 0))
+         -- nunca negativo: crédito a mais não faz o disponível passar do limite
+         greatest(0, b.debt + b.planned_remaining - b.credit_receivable - coalesce(c.antecipado, 0)),
+         d.credit_limit - greatest(0, b.debt + b.planned_remaining - b.credit_receivable - coalesce(c.antecipado, 0))
     from public.debts d
     join public.debt_balances(p_household, p_as_of) b on b.debt_id = d.id
     left join lateral (
