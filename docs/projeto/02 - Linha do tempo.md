@@ -139,6 +139,7 @@ tags: [tudo-azul, historico]
 - **Crédito no cartão como receita** (migration 052, #153, 04/11/2026): estorno, ajuste, cashback ou reembolso sem compra abatem a fatura e contam como receita; planejado até a fatura fechar, limite volta na hora. Merge `3fefb7c`; **migration 052 aplicada em 04/11/2026** (execução 41800682054, simulação 41800598005).
 - **CLAUDE.md: jeito de mexer no código** (#154, 04/11/2026): quatro regras adaptadas do Ponytail; e `vercel.json` sem preview nos branches `claude/**` (limite de 100 deploys por dia do plano gratuito).
 - **Diário: migration 052 aplicada** (#155, 04/11/2026). Sem mudança no app.
+- **Índice de eventos por parcela** (migration 053, #156, 04/11/2026): o cartão com muito histórico deixava a compra e o fechamento da fatura lentos (o fechamento passaria do limite de 8 s). Pré-requisito da importação do histórico do Organizze.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

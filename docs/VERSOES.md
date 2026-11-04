@@ -90,3 +90,4 @@ continuam abaixo como histórico.
 | 2026.154 (#153, mesclada depois da #154) | **Crédito / reembolso no cartão** que conta como receita (estorno de IOF, ajuste, cashback, reembolso): abate a fatura, aparece em verde na fatura e pode ser anulado. Migration 052. |
 | 2026.154 | `CLAUDE.md`: regras de como mexer no código (adaptadas do Ponytail); sem preview da Vercel nos branches do Claude. Sem mudança no app. |
 | 2026.155 | Diário: migration 052 aplicada. Sem mudança no app. |
+| 2026.156 | Índice no banco para o cartão com muito histórico (compra e fechamento da fatura rápidos). Migration 053. Sem mudança na tela. |
