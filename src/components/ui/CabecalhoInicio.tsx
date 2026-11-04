@@ -13,21 +13,27 @@ export function saudacao(agora = new Date()): string {
  * Cabeçalho do Início (inspirado no Organizze): saudação, receita e despesa do mês (do banco, period_summary) e
  * atalhos que abrem o formulário de lançamento já com o tipo escolhido (?novo= em Lançamentos).
  */
-export function CabecalhoInicio({ nome, receitas, despesas }: { nome: string; receitas: Cents | null; despesas: Cents | null }) {
+export function CabecalhoInicio({ nome, receitas, despesas, aReceber = null, aPagar = null }: {
+  nome: string; receitas: Cents | null; despesas: Cents | null
+  /** Ainda planejado no mês (do banco): evita o susto de "receita R$ 0,00" antes do salário cair. */
+  aReceber?: Cents | null; aPagar?: Cents | null
+}) {
   const atalho = 'inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-marinho shadow-sm hover:bg-slate-50'
   return (
     <header className="mb-6 flex flex-col gap-4 rounded-card bg-white p-5 shadow-card md:flex-row md:items-end md:justify-between">
       <div>
         <p className="text-sm text-slate-500">{saudacao()},</p>
         <h1 className="text-xl font-bold text-marinho">{nome ? `${nome}!` : 'bem-vindo!'}</h1>
-        <div className="mt-3 flex items-end gap-6">
+        <div className="mt-3 flex items-start gap-6">
           <div>
             <p className="text-xs text-slate-500">Receita mensal</p>
             <p className="tabular-nums text-lg font-bold text-positivo">{receitas === null ? '—' : formatBRL(receitas)}</p>
+            {aReceber !== null && aReceber > 0 && <p className="tabular-nums text-xs text-slate-500">a receber {formatBRL(aReceber)}</p>}
           </div>
           <div>
             <p className="text-xs text-slate-500">Despesa mensal</p>
             <p className="tabular-nums text-lg font-bold text-negativo">{despesas === null ? '—' : formatBRL(despesas)}</p>
+            {aPagar !== null && aPagar > 0 && <p className="tabular-nums text-xs text-slate-500">a pagar {formatBRL(aPagar)}</p>}
           </div>
           <Link to="/analises" aria-label="Ver análises do mês"
             className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-marinho hover:bg-slate-50">

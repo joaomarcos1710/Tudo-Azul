@@ -106,8 +106,10 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Revisão do painel (03/11/2026)
 - [x] Consertos de valor e privacidade (#140).
-- [ ] "Livre para gastar até o fim do mês" no Início, usando o saldo projetado do Calendário (`saldoProjetado.ts`).
-- [ ] Organizar o Início: um nome por número (Receita/Entradas), sem repetir cabeçalho e card, mostrar o previsto e subir Vencidos/Próximos.
+- [x] "Saldo hoje e previsto" no Início, com o saldo projetado do Calendário (#141).
+- [x] Início sem repetição, com previsto e Vencidos no topo (#141).
+- [ ] Barra de limite usado nos cartões (precisa do limite total no resumo dos cartões).
+- [ ] Subir também "Próximos planejados" (hoje está no fim, com contas e últimos lançamentos).
 - [ ] Não bloquear a leitura do painel esperando `atualizarAutomaticos()`; rodar uma vez por sessão.
 - [ ] Botão "tentar de novo" no erro do painel, mantendo o cabeçalho e os atalhos.
 - [ ] Alvos de toque de 44 px nos links "Ver…" e no Personalizar painel; % com palavra ("aumentou/caiu"), não só cor.

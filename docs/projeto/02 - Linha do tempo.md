@@ -123,6 +123,7 @@ tags: [tudo-azul, historico]
 - **Início: card de patrimônio em linhas** (#138, 03/11/2026): pedido do dono; Disponível, Bens e Dívida um por linha, e o card Saldo disponível sem a dívida repetida.
 - **Início: cabeçalho com atalhos** (#139, 03/11/2026): ideia do dono a partir do Organizze; saudação, receita e despesa do mês e ações rápidas no topo.
 - **Painel: consertos da revisão** (#140, 03/11/2026): comparação até o mesmo dia, ocultar valores em moeda estrangeira, carga atrasada descartada, aviso quando vencidos/cartões falham, parcela de dívida vencida em Vencidos.
+- **Início novo** (#141, 04/11/2026): pedido do dono (números duplicados) e ideias do Google AI Studio filtradas; saldo previsto, a receber/a pagar, vencidos no topo e orçamentos.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
