@@ -22,6 +22,7 @@ const mock = vi.hoisted(() => ({
   listarLancamentos: vi.fn(),
   listarCategorias: vi.fn(),
   saldosProjetados: vi.fn(),
+  evolucaoPatrimonio: vi.fn(),
   listarOrcamentos: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
@@ -34,6 +35,7 @@ vi.mock('../lib/painel', () => ({
   regularidadeRenda: mock.regularidadeRenda,
   projecaoDoMes: mock.projecaoDoMes,
   vencidosPlanejados: mock.vencidosPlanejados,
+  evolucaoPatrimonio: mock.evolucaoPatrimonio,
 }))
 vi.mock('../lib/conciliacao', () => ({ ultimasConferencias: mock.ultimasConferencias }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1', user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
@@ -84,6 +86,7 @@ beforeEach(() => {
   mock.vencidosPlanejados.mockResolvedValue({ itens: [], total: 0 })
   mock.saldosProjetados.mockResolvedValue({ contas: [], total: null })
   mock.listarOrcamentos.mockResolvedValue([])
+  mock.evolucaoPatrimonio.mockResolvedValue([])
   mock.resumoDosCartoes.mockResolvedValue([])
   mock.totalFaturasDoMes.mockResolvedValue(null)
   mock.ultimasConferencias.mockResolvedValue(new Map())
@@ -603,6 +606,37 @@ describe('Visão geral', () => {
     const vencidos = await screen.findByText('Vencidos e precisam de atenção')
     const painel = screen.getByRole('region', { name: 'Resumo financeiro personalizável' })
     expect(vencidos.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('Análises: patrimônio e saldo mês a mês em dois gráficos, com tabela dos valores do banco', async () => {
+    mock.evolucaoPatrimonio.mockResolvedValue([
+      { mes: '2026-09', data: '2026-09-30', patrimonio: c(13000000), disponivel: c(-50000) },
+      { mes: '2026-10', data: '2026-10-31', patrimonio: c(13500000), disponivel: c(120000) },
+      { mes: '2026-11', data: '2026-11-04', patrimonio: c(14056337), disponivel: c(249449) },
+    ])
+    montar('analises')
+    const secao = await screen.findByRole('region', { name: 'Evolução nos últimos 12 meses' })
+    expect(within(secao).getByText('Patrimônio líquido mês a mês')).toBeTruthy()
+    expect(within(secao).getByText('Saldo das contas mês a mês')).toBeTruthy()
+    const [pat, saldo] = within(secao).getAllByRole('table')
+    expect(Array.from(pat.querySelectorAll('tbody tr')).map((r) => r.textContent)).toEqual([
+      'setembro de 2026R$ 130.000,00', 'outubro de 2026R$ 135.000,00', 'novembro de 2026R$ 140.563,37',
+    ])
+    const negativo = within(saldo).getByText('-R$ 500,00')
+    expect(negativo.className).toMatch(/text-negativo/)
+    expect(within(secao).getAllByRole('img')[0].getAttribute('aria-label')).toMatch(/R\$ 140\.563,37 em novembro de 2026/)
+    expect(mock.evolucaoPatrimonio).toHaveBeenCalledWith('h1', hojeSP())
+  })
+
+  it('Análises: se a evolução falhar, o resto segue e o bloco some; o Início nem consulta', async () => {
+    mock.evolucaoPatrimonio.mockRejectedValue(new Error('rede'))
+    montar('analises')
+    expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Evolução nos últimos 12 meses' })).toBeNull()
+    cleanup(); mock.evolucaoPatrimonio.mockClear()
+    montar()
+    await screen.findByText('Próximos planejados')
+    expect(mock.evolucaoPatrimonio).not.toHaveBeenCalled()
   })
 
   it('Análises: card de patrimônio com Disponível, Bens e Dívida em linhas', async () => {

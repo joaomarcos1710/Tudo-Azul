@@ -21,10 +21,11 @@ import { currentMonth, formatBRL, formatMoeda, formatDate, formatMonth, primeira
 import type { Cents } from '../lib/format'
 import { limitesDoMes, listarLancamentos, mesmoDiaAnoPassado, mesmoDiaMesAnterior, resumoDoMes, resumoDoPeriodo, somarMeses } from '../lib/lancamentos'
 import type { Lancamento, ResumoMes } from '../lib/lancamentos'
-import { carregarPatrimonio, carregarResumoInvestimentos, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
-import type { DespesaCategoria, DespesaDia, Patrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
+import { carregarPatrimonio, carregarResumoInvestimentos, evolucaoPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
+import type { DespesaCategoria, DespesaDia, Patrimonio, PontoPatrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
+import { LinhaMensal } from '../components/graficos/LinhaMensal'
 import { saldosProjetados } from '../lib/saldoProjetado'
 import type { SaldoTotal } from '../lib/saldoProjetado'
 import { listarOrcamentos } from '../lib/orcamentos'
@@ -65,6 +66,8 @@ interface Dados {
   faturasDoMes: TotalFaturasMes | null
   /** Saldo das contas até o fim do mês, com planejados e faturas (do banco); null = não carregou. */
   saldoPrevisto: SaldoTotal | null
+  /** Análises: patrimônio e saldo no fim de cada um dos últimos 12 meses (do banco); null = não carregou. */
+  evolucao: PontoPatrimonio[] | null
   /** Orçamentos do mês (do banco); null = não carregou. */
   orcamentos: OrcamentoMes[] | null
   /** data da última conferência de cada conta (conta ausente = nunca conferida); null = não carregou */
@@ -209,7 +212,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(saldosProjetados(familiaId, ate, true).then((r) => r.total)), opcional(listarOrcamentos(familiaId, mes, hoje)),
           ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, saldoPrevisto, orcamentos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos,
+            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos, evolucao: null,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -230,10 +233,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               resumoDoPeriodo(familiaId, `${hoje.slice(0, 4)}-01-01`, hoje),
               resumoDoPeriodo(familiaId, `${Number(hoje.slice(0, 4)) - 1}-01-01`, mesmoDiaAnoPassado(hoje)),
             ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior }))),
-            opcional(projecaoDoMes(familiaId, mes, hoje)), comparar(),
-          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao]): Dados => ({
+            opcional(projecaoDoMes(familiaId, mes, hoje)), comparar(), opcional(evolucaoPatrimonio(familiaId, hoje)),
+          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, evolucao]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => { if (ativo) setDados(d) })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
@@ -482,6 +485,21 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         <p className="mb-4 text-xs text-planejado">Ainda planejado no mês: +{formatBRL(m.receitasPrevistas)} / −{formatBRL(m.despesasPrevistas)}</p>
       )}
       </>}
+
+      {!noInicio && dados.evolucao && dados.evolucao.length > 1 && (
+        // dois gráficos, um por medida: patrimônio (centenas de mil) e saldo (milhares) num eixo só achatariam o saldo
+        <section aria-label="Evolução nos últimos 12 meses" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card>
+            <CardTitle>Patrimônio líquido mês a mês</CardTitle>
+            <LinhaMensal titulo="Patrimônio líquido" pontos={dados.evolucao.map((x) => ({ mes: x.mes, valor: x.patrimonio }))} />
+          </Card>
+          <Card>
+            <CardTitle>Saldo das contas mês a mês</CardTitle>
+            <LinhaMensal titulo="Saldo das contas" pontos={dados.evolucao.map((x) => ({ mes: x.mes, valor: x.disponivel }))} />
+          </Card>
+          <p className="text-xs text-slate-500 lg:col-span-2">Cada ponto é o valor no último dia do mês (no mês atual, hoje), com saldo, dívidas e bens como estavam naquela data.</p>
+        </section>
+      )}
 
       {!noInicio && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>

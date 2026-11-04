@@ -126,6 +126,7 @@ tags: [tudo-azul, historico]
 - **Início novo** (#141, 04/11/2026): pedido do dono (números duplicados) e ideias do Google AI Studio filtradas; saldo previsto, a receber/a pagar, vencidos no topo e orçamentos.
 - **Início: card do previsto em linhas** (#142, 04/11/2026): pedido do dono pelo print; o valor do previsto saía do card. Também: saldo geral em Minhas contas e limite disponível + fatura atual em cada cartão.
 - **Início: "De … → Para …" nas transferências** (#143, 04/11/2026): pedido do dono; conta arquivada aparece com o nome.
+- **Análises: patrimônio e saldo mês a mês** (#144, 04/11/2026): pedido do dono após analisar o personal-financial-dashboard; dois gráficos de 12 meses com tabela.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
