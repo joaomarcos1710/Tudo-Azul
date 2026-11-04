@@ -44,6 +44,8 @@ interface Dados {
   /** Mesmo recorte nos dois meses (dia 1 até hoje × dia 1 até o mesmo dia do mês anterior), só para a % dos indicadores. */
   comparacao: { atual: ResumoMes; anterior: ResumoMes } | null
   contas: Conta[]
+  /** Soma do saldo das contas, do banco (balance_totals); null fora do Início. */
+  saldoGeral: Cents | null
   proximos: ProximoPlanejado[]
   /** null = os gráficos não carregaram (ex.: banco ainda sem as consultas novas); o resto da tela segue normal */
   categorias: DespesaCategoria[] | null
@@ -205,7 +207,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(saldosProjetados(familiaId, ate, true).then((r) => r.total)), opcional(listarOrcamentos(familiaId, mes, hoje)),
           ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, saldoPrevisto, orcamentos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos,
+            contas: c.contas.filter((x) => x.ativa), saldoGeral: c.total, proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -229,7 +231,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(projecaoDoMes(familiaId, mes, hoje)), comparar(),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], saldoGeral: null, proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => { if (ativo) setDados(d) })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
@@ -408,34 +410,33 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               </p>
             </div>
           )}
-          <ul className="divide-y divide-slate-100">
+          <ul className="space-y-3">
             {dados.cartoes.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 py-2 text-sm">
-                <span className="flex min-w-0 items-center gap-2 font-medium">
-                  <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />{c.nome}<BandeiraCartao bandeira={c.bandeira} />
-                </span>
-                <span className="text-left sm:text-right">
-                  {c.divida > 0 ? (
-                    <>
-                      <strong className={`tabular-nums ${c.vencida ? 'text-negativo' : ''}`}>{formatBRL(c.divida)}</strong>
-                      <span className={c.vencida ? 'ml-2 text-xs font-semibold text-negativo' : 'ml-2 text-xs text-slate-500'}>
-                        {c.vencimento ? (c.vencida ? `venceu em ${formatDate(c.vencimento)}` : `vence em ${formatDate(c.vencimento).slice(0, 5)}`) : 'fatura fechada a pagar'}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-xs text-slate-500">
-                      nenhuma fatura fechada a pagar{c.credito > 0 ? ` · crédito de ${formatBRL(c.credito)}` : ''}
-                    </span>
-                  )}
-                  {c.proxima && (
-                    <span className="block text-xs text-slate-500">
-                      próxima fatura {formatBRL(c.proxima.total)}{c.proxima.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}
-                    </span>
-                  )}
-                  {c.limiteDisponivel !== null && (
-                    <span className="block text-xs text-slate-500">limite disponível {formatBRL(c.limiteDisponivel)}</span>
-                  )}
-                </span>
+              <li key={c.id} className="rounded-lg border border-slate-100 p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-2 font-medium">
+                    <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />{c.nome}<BandeiraCartao bandeira={c.bandeira} />
+                  </span>
+                  <Link to="/cartoes" className="inline-flex min-h-11 items-center text-xs font-semibold text-azul hover:underline">Ver fatura</Link>
+                </div>
+                {/* como no Organizze: limite disponível ao lado da fatura atual (aberta) */}
+                <dl className="mt-1 grid grid-cols-2 gap-3 rounded-lg bg-fundo p-2">
+                  <div className="min-w-0">
+                    <dt className="text-xs text-slate-500">Limite disponível</dt>
+                    <dd className="tabular-nums font-semibold">{c.limiteDisponivel === null ? '—' : formatBRL(c.limiteDisponivel)}</dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-xs text-slate-500">Fatura atual{c.proxima?.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}</dt>
+                    <dd className="tabular-nums font-semibold">{c.proxima ? formatBRL(c.proxima.total) : '—'}</dd>
+                  </div>
+                </dl>
+                {c.divida > 0 && (
+                  <p className={`mt-2 text-xs ${c.vencida ? 'font-semibold text-negativo' : 'text-slate-600'}`}>
+                    Fatura fechada a pagar <strong className="tabular-nums">{formatBRL(c.divida)}</strong>
+                    {c.vencimento && (c.vencida ? ` · venceu em ${formatDate(c.vencimento)}` : ` · vence em ${formatDate(c.vencimento).slice(0, 5)}`)}
+                  </p>
+                )}
+                {c.divida === 0 && c.credito > 0 && <p className="mt-2 text-xs text-slate-500">Crédito no cartão de {formatBRL(c.credito)}</p>}
               </li>
             ))}
           </ul>
@@ -626,7 +627,13 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </Card>
 
         <Card>
-          <CardTitle>Contas</CardTitle>
+          <div className="flex items-start justify-between gap-3">
+            <CardTitle>Minhas contas</CardTitle>
+            {dados.saldoGeral !== null && dados.contas.length > 0 && (
+              <p className="text-right"><span className="block text-xs text-slate-500">Saldo geral</span>
+                <span className={`tabular-nums font-bold ${dados.saldoGeral < 0 ? 'text-negativo' : ''}`}>{formatBRL(dados.saldoGeral)}</span></p>
+            )}
+          </div>
           {dados.contas.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhuma conta ativa. <Link to="/contas" className="font-semibold text-azul hover:underline">Cadastrar conta</Link></p>
           ) : (
@@ -778,14 +785,15 @@ function CardSaldo({ hoje, previsto, fimDoMes }: { hoje: Cents | null; previsto:
   return (
     <Card>
       <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-azul-claro text-azul" aria-hidden="true"><Cofre /></span>
-      <dl className="grid grid-cols-2 gap-3">
-        <div className="min-w-0">
+      {/* um item por linha (rótulo à esquerda, valor à direita): em duas colunas o "Previsto em 30/11" quebrava e o valor saía do card */}
+      <dl className="space-y-2">
+        <div className="flex items-baseline justify-between gap-3">
           <dt className="text-sm text-slate-500">Saldo hoje</dt>
-          <dd className="whitespace-nowrap tabular-nums text-base font-bold sm:text-xl">{hoje === null ? '—' : formatBRL(hoje)}</dd>
+          <dd className="whitespace-nowrap tabular-nums text-lg font-bold sm:text-xl">{hoje === null ? '—' : formatBRL(hoje)}</dd>
         </div>
-        <div className="min-w-0">
-          <dt className="text-sm text-slate-500">Previsto em {formatDate(fimDoMes).slice(0, 5)}</dt>
-          <dd className={`whitespace-nowrap tabular-nums text-base font-bold sm:text-xl ${previsto !== null && previsto < 0 ? 'text-negativo' : ''}`}>
+        <div className="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2">
+          <dt className="whitespace-nowrap text-sm text-slate-500">Previsto em {formatDate(fimDoMes).slice(0, 5)}</dt>
+          <dd className={`whitespace-nowrap tabular-nums text-lg font-bold sm:text-xl ${previsto !== null && previsto < 0 ? 'text-negativo' : ''}`}>
             {previsto === null ? '—' : formatBRL(previsto)}
           </dd>
         </div>

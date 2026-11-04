@@ -454,8 +454,12 @@ describe('Visão geral', () => {
         proxima: { mes: '2026-11', vencimento: '2026-11-28', total: c(43897) } },
     ])
     montar('inicio')
-    expect(await screen.findByText(/próxima fatura R\$ 438,97 · vence 28\/11/)).toBeTruthy()
-    expect(screen.getByText(/nenhuma fatura fechada a pagar/)).toBeTruthy()
+    // como no Organizze: limite disponível ao lado da fatura atual (aberta), com o vencimento
+    const cartao = (await screen.findByText('Caixa')).closest('li') as HTMLElement
+    expect(within(cartao).getByText('Fatura atual · vence 28/11')).toBeTruthy()
+    expect(within(cartao).getByText('R$ 438,97')).toBeTruthy()
+    expect(within(cartao).getByText('Limite disponível')).toBeTruthy()
+    expect(within(cartao).queryByText(/Fatura fechada a pagar/)).toBeNull()
   })
 
   it('cartões: total das faturas que vencem no mês, vindo do banco, no topo do bloco', async () => {
@@ -488,12 +492,12 @@ describe('Visão geral', () => {
     ])
     mock.totalFaturasDoMes.mockResolvedValue({ faturas: 0, total: c(0), pago: c(0), falta: c(0) })
     const { unmount } = montar('inicio')
-    expect(await screen.findByText(/nenhuma fatura fechada a pagar/)).toBeTruthy()
+    expect(await screen.findByText('Limite disponível')).toBeTruthy()
     expect(screen.queryByTestId('faturas-do-mes')).toBeNull()
     unmount()
     mock.totalFaturasDoMes.mockRejectedValue({ code: '42883', message: 'function does not exist' })
     montar('inicio')
-    expect(await screen.findByText(/nenhuma fatura fechada a pagar/)).toBeTruthy()
+    expect(await screen.findByText('Limite disponível')).toBeTruthy()
     expect(screen.queryByTestId('faturas-do-mes')).toBeNull()
   })
 
@@ -505,12 +509,24 @@ describe('Visão geral', () => {
     ])
     montar()
     expect(await screen.findByText('Nubank')).toBeTruthy()
-    expect(screen.getByText('R$ 1.333,34')).toBeTruthy()
-    expect(screen.getByText('vence em 25/12')).toBeTruthy()
-    expect(screen.getByText('limite disponível R$ 5.270,00')).toBeTruthy()
-    expect(screen.getByText('venceu em 10/01/2020').className).toMatch(/text-negativo/) // vencida mostra o ano
-    expect(screen.getByText(/nenhuma fatura fechada a pagar · crédito de R\$ 100,00/)).toBeTruthy()
+    const nubank = screen.getByText('Nubank').closest('li') as HTMLElement
+    expect(within(nubank).getByText('R$ 1.333,34')).toBeTruthy()
+    expect(nubank.textContent).toContain('Fatura fechada a pagar R$ 1.333,34 · vence em 25/12')
+    expect(within(nubank).getByText('R$ 5.270,00')).toBeTruthy() // limite disponível
+    const inter = screen.getByText('Inter').closest('li') as HTMLElement
+    const aviso = within(inter).getByText(/Fatura fechada a pagar/)
+    expect(aviso.textContent).toContain('venceu em 10/01/2020') // vencida mostra o ano
+    expect(aviso.className).toMatch(/text-negativo/)
+    expect(screen.getByText('Crédito no cartão de R$ 100,00')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Ver cartões' })).toBeTruthy()
+  })
+
+  it('Minhas contas: saldo geral do banco no topo; conta arquivada fica escondida', async () => {
+    montar()
+    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
+    expect(within(card).getByText('Saldo geral')).toBeTruthy()
+    expect(within(card).getAllByText('R$ 12.820,30').length).toBe(2) // total do banco (balance_totals) e a única conta ativa
+    expect(within(card).queryByText('Antiga')).toBeNull()
   })
 
   it('o card Contas do Início não mostra conferência com o extrato (pedido do dono: fica só na tela de Contas)', async () => {
@@ -535,6 +551,10 @@ describe('Visão geral', () => {
     expect(within(painel).getAllByText('R$ 2.494,49')).toHaveLength(1) // saldo das contas uma vez só
     expect(within(painel).getByText('Saldo hoje')).toBeTruthy()
     expect(within(painel).getByText('R$ 994,49')).toBeTruthy() // previsto no fim do mês, do banco
+    // cada item na sua linha, rótulo e valor juntos (em duas colunas o rótulo quebrava e o valor saía do card)
+    const linhas = Array.from(within(painel).getByText('Saldo hoje').closest('dl')!.children)
+    expect(linhas.map((l) => l.textContent)).toEqual(['Saldo hojeR$ 2.494,49', expect.stringMatching(/^Previsto em \d{2}\/\d{2}R\$ 994,49$/)])
+    for (const l of linhas) expect(l.className).toMatch(/justify-between/)
     expect(within(painel).queryByText('Entradas do mês')).toBeNull()
     expect(within(painel).queryByText('Despesas do mês')).toBeNull()
     expect(within(screen.getByRole('banner')).getByText('R$ 12.150,00')).toBeTruthy() // receita no cabeçalho
