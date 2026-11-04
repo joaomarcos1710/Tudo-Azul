@@ -182,8 +182,8 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
   const cadaValido = Number.isInteger(cada) && cada >= 1 && cada <= MAX_CADA[unidade]
   const hoje = hojeSP()
   // prévia (mesma regra do banco); frequência nova com início no passado começa no dia do cadastro (migration 016)
-  const previa = !editando && cadaValido && inicio && (unidade === 'week' || dia)
-    ? proximasOcorrencias({ unidade, cada, dia: unidade === 'week' ? null : Number(dia), inicio, fim: fim || null }, hoje, 3)
+  const previa = !editando && cadaValido && inicio && (unidade !== 'month' || dia)
+    ? proximasOcorrencias({ unidade, cada, dia: unidade === 'month' ? Number(dia) : null, inicio, fim: fim || null }, hoje, 3)
     : []
   const mensal = unidade === 'month' && cada === 1
   const tipoCategoria = tipo === 'income' ? 'income' : 'expense'
@@ -194,7 +194,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
     descricao: !descricao.trim() ? 'Informe a descrição.' : undefined,
     valor: valor === null || valor <= 0 ? 'Valor inválido. Exemplo: 180,00' : undefined,
     dia: !editando && unidade === 'month' && !dia ? 'Escolha o dia do mês.' : undefined,
-    cada: !editando && !cadaValido ? `Use de 1 a ${MAX_CADA[unidade]} ${unidade === 'week' ? 'semanas' : 'meses'}.` : undefined,
+    cada: !editando && !cadaValido ? `Use de 1 a ${MAX_CADA[unidade]} ${unidade === 'week' ? 'semanas' : unidade === 'day' ? 'dias' : 'meses'}.` : undefined,
     inicio: !editando && !inicio ? 'Informe a data.' : undefined,
     fim: !editando && fim && inicio && fim < inicio ? 'A data final não pode ser antes do início.' : undefined,
     categoria: precisaCategoria && !categoriaId ? 'Escolha a categoria.' : undefined,
@@ -214,7 +214,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         await editarRecorrencia(r.id, { descricao, valor, categoriaId: precisaCategoria ? categoriaId : null })
       } else {
         await criarRecorrencia({
-          tipo, descricao, valor, dia: unidade === 'week' ? null : Number(dia), inicio, fim: fim || null, unidade, cada,
+          tipo, descricao, valor, dia: unidade === 'month' ? Number(dia) : null, inicio, fim: fim || null, unidade, cada,
           contaId: tipo === 'card' ? null : contaId,
           destinoId: tipo === 'transfer' ? destinoId : null,
           cartaoId: tipo === 'card' ? cartaoId : null,
@@ -253,7 +253,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
                 <Field rotulo="A cada" type="number" inputMode="numeric" min={1} max={MAX_CADA[unidadeP]} value={cadaP}
                   onChange={(e) => setCadaP(e.target.value)} erro={erroDe('cada')} />
                 <Selecao rotulo="Unidade" valor={unidadeP} aoMudar={(v) => setUnidadeP(v as UnidadeFrequencia)}
-                  opcoes={[['month', 'meses'], ['week', 'semanas']]} />
+                  opcoes={[['month', 'meses'], ['week', 'semanas'], ['day', 'dias']]} />
               </div>
             )}
             {unidade === 'month' && (
@@ -262,7 +262,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
                 {erroDe('dia') && <p role="alert" className="text-sm text-negativo">{erroDe('dia')}</p>}
               </>
             )}
-            <Field rotulo={unidade === 'week' ? 'Primeira vez em' : 'A partir de'} type="date" value={inicio}
+            <Field rotulo={unidade !== 'month' ? 'Primeira vez em' : 'A partir de'} type="date" value={inicio}
               onChange={(e) => setInicio(e.target.value)} erro={erroDe('inicio')} />
             <Field rotulo="Até (opcional)" type="date" value={fim} onChange={(e) => setFim(e.target.value)} erro={erroDe('fim')} />
             {tipo === 'card' ? (
@@ -296,7 +296,9 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando
             ? `${rotuloFrequencia(r!)}. Valor e descrição valem para os planejados ainda não pagos de hoje em diante. A categoria vale para todos os meses, inclusive os já pagos e os passados. Em qualquer caso, o que você corrigiu à mão em um mês fica como está. Para mudar a frequência ou o dia, exclua este recorrente e cadastre outro.`
-            : unidade === 'week'
+            : unidade === 'day'
+              ? `Repete a cada ${cadaValido ? cada : 1} dia${cadaValido && cada > 1 ? 's' : ''}, a partir da primeira data.`
+              : unidade === 'week'
               ? `Repete ${inicio ? toda(diaDaSemana(inicio)) : 'no mesmo dia da semana da primeira data'}, a cada ${7 * (cadaValido ? cada : 1)} dias.`
               : 'Dia 29, 30 ou 31 em mês mais curto cai no último dia do mês.'}
           {!editando && inicio && inicio < hoje && (mensal

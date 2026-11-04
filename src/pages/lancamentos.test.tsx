@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   resumoDoMes: vi.fn(),
   criarLancamento: vi.fn(),
   criarRecorrencia: vi.fn(),
+  criarParcelado: vi.fn(),
   editarLancamento: vi.fn(),
   marcarComoPago: vi.fn(),
   moverParaLixeira: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/lancamentos', async (original) => ({
   ...(await original<typeof import('../lib/lancamentos')>()),
   listarLancamentos: mock.listarLancamentos,
+  criarParcelado: mock.criarParcelado,
   listarMovimentosDeDivida: mock.listarMovimentosDeDivida,
   listarComprasDeCartao: mock.listarComprasDeCartao,
   resumoDoMes: mock.resumoDoMes,
@@ -748,6 +750,66 @@ describe('painel de lançamento (como no Organizze)', () => {
     await u.click(within(painel).getByRole('button', { name: 'Criar lançamento fixo' }))
     expect(within(painel).getByText(/O "até" não pode ser antes da data/)).toBeTruthy()
     expect(mock.criarRecorrencia).not.toHaveBeenCalled()
+  })
+})
+
+
+describe('lançamento parcelado fora do cartão', () => {
+  async function preencher(u: ReturnType<typeof userEvent.setup>, valor: string) {
+    await abrirNovo(u)
+    const painel = screen.getByRole('dialog')
+    await u.type(within(painel).getByLabelText('Descrição'), 'Sofá')
+    await u.type(within(painel).getByLabelText('Valor (R$)'), valor)
+    await u.selectOptions(within(painel).getByLabelText('Categoria'), 'mer')
+    fireEvent.change(within(painel).getByLabelText('Data'), { target: { value: '2026-01-31' } })
+    await u.click(within(painel).getByRole('button', { name: /Repetir/ }))
+    await u.click(within(painel).getByRole('radio', { name: 'Lançamento parcelado' }))
+    return painel
+  }
+
+  it('prévia com a sobra na primeira; envia ao banco o total, as parcelas e o período, sem criar lançamento solto', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const painel = await preencher(u, '10,00')
+    const parcelas = within(painel).getByRole('spinbutton', { name: 'Parcelas' })
+    await u.clear(parcelas)
+    await u.type(parcelas, '3')
+    expect(within(painel).getByRole('combobox', { name: 'Período de lançamento' }).querySelectorAll('option').length).toBe(8)
+    expect(within(painel).getByTestId('previa-parcelas').textContent).toMatch(/3 parcelas de R\$ 3,33 \(a primeira de R\$ 3,34/)
+    await u.selectOptions(within(painel).getByRole('combobox', { name: 'Período de lançamento' }), 'dias')
+    await u.click(within(painel).getByRole('button', { name: 'Lançar parcelas' }))
+    await waitFor(() => expect(mock.criarParcelado).toHaveBeenCalled())
+    expect(mock.criarParcelado.mock.calls[0][0]).toMatchObject({
+      tipo: 'expense', descricao: 'Sofá', total: 1000, parcelas: 3, unidade: 'day', cada: 1, primeira: '2026-01-31',
+      contaId: 'a1', destinoId: null, categoriaId: 'mer', primeiraPaga: true,
+    })
+    expect(mock.criarLancamento).not.toHaveBeenCalled()
+    expect(mock.criarRecorrencia).not.toHaveBeenCalled()
+  })
+
+  it('valida 2 a 360 parcelas e valor que caiba', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const painel = await preencher(u, '0,02')
+    const parcelas = within(painel).getByRole('spinbutton', { name: 'Parcelas' })
+    await u.clear(parcelas)
+    await u.type(parcelas, '1')
+    await u.click(within(painel).getByRole('button', { name: 'Lançar parcelas' }))
+    expect(within(painel).getByText('De 2 a 360 parcelas.')).toBeTruthy()
+    await u.clear(parcelas)
+    await u.type(parcelas, '3')
+    await u.click(within(painel).getByRole('button', { name: 'Lançar parcelas' }))
+    expect(within(painel).getByText('Valor pequeno demais para tantas parcelas.')).toBeTruthy()
+    expect(mock.criarParcelado).not.toHaveBeenCalled()
+  })
+
+  it('lançamento fixo agora tem "Diária"', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    const painel = screen.getByRole('dialog')
+    await u.click(within(painel).getByRole('button', { name: /Repetir/ }))
+    expect(within(within(painel).getByRole('combobox', { name: 'Repetir' })).getByRole('option', { name: 'Diária' })).toBeTruthy()
   })
 })
 
