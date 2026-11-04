@@ -22,12 +22,12 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
+  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDeCartao, listarCreditosDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
   moverParaLixeira, restaurarDaLixeira, resumoDoMes, somarMeses, valoresDasParcelas,
 } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
-import type { Filtros, Lancamento, MovimentoDivida, ParcelaDeCartao, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { CreditoDeCartao, Filtros, Lancamento, MovimentoDivida, ParcelaDeCartao, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { criarRecorrencia, frequencias } from '../lib/recorrencias'
 
@@ -60,6 +60,8 @@ export default function Lancamentos() {
   // parcelas do contrato (empréstimo/financiamento) ainda planejadas no mês: só mostram, não entram em total nenhum
   const [parcelasContrato, setParcelasContrato] = useState<ParcelaDivida[]>([])
   const [compras, setCompras] = useState<ParcelaDeCartao[]>([])
+  // crédito avulso no cartão (receita, migration 052): só mostra; o valor já está nos totais do mês
+  const [creditosCartao, setCreditosCartao] = useState<CreditoDeCartao[]>([])
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [comprasFalharam, setComprasFalharam] = useState(false)
   const [semDataNoBanco, setSemDataNoBanco] = useState(0)
@@ -148,13 +150,17 @@ export default function Lancamentos() {
         ? Promise.resolve([] as ParcelaDivida[])
         : listarParcelasDivida(familiaId, deMes, ateMes).catch(() => [] as ParcelaDivida[])
             .then((ps) => (filtros.contaId ? ps.filter((p) => p.contaPagamentoId === filtros.contaId) : ps))
-      const [l, r, md, cc, pc] = await Promise.all([
+      // falha nos créditos do cartão não derruba a lista
+      const creditos = listarCreditosDeCartao(familiaId, mes, filtros, hojeSP()).catch(() => [] as CreditoDeCartao[])
+      const [l, r, md, cc, pc, cr] = await Promise.all([
         listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), compras, parcelas,
+        creditos,
       ])
       if (meu !== pedido.current) return
       setLancamentos(l)
       setMovimentosDivida(md)
       setParcelasContrato(pc)
+      setCreditosCartao(cr)
       setCompras(cc?.parcelas ?? [])
       setComprasFalharam(semFiltroDeConta && cc === null)
       setSemDataNoBanco(cc?.semData ?? 0)
@@ -189,12 +195,13 @@ export default function Lancamentos() {
 
   // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
   type Item = { origem: 'lancamento'; l: Lancamento } | { origem: 'divida'; m: MovimentoDivida } | { origem: 'cartao'; c: ParcelaDeCartao }
-    | { origem: 'contrato'; p: ParcelaDivida }
+    | { origem: 'contrato'; p: ParcelaDivida } | { origem: 'credito'; k: CreditoDeCartao }
   const itens: (Item & { data: string })[] = [
     ...(lancamentos ?? []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
     ...movimentosDivida.map((m) => ({ origem: 'divida' as const, m, data: m.data })),
     ...compras.map((c) => ({ origem: 'cartao' as const, c, data: c.data })),
     ...parcelasContrato.map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
+    ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.data })),
   ].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
   const porDia: [string, Item[]][] = []
   for (const it of itens) {
@@ -313,7 +320,7 @@ export default function Lancamentos() {
         </Aviso></div>
       )}
 
-      {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && editando === null && contas.length > 0 && (
+      {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && creditosCartao.length === 0 && editando === null && contas.length > 0 && (
         <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
           acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
       )}
@@ -344,6 +351,32 @@ export default function Lancamentos() {
                           </p>
                         </div>
                           <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatBRL(c.valor)}</span>
+                        </div>
+                        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
+                          <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
+                        </div>
+                      </li>
+                    )
+                  }
+                  if (item.origem === 'credito') {
+                    const k = item.k
+                    return (
+                      <li key={`credito-${k.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
+                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                        <IconeCategoria visual={visualPorId(k.categoriaId, categoriaPorId, 'income')} />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium">
+                            {k.descricao}
+                            <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">Crédito no cartão</span>
+                            {k.planejado && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado</span>}
+                          </p>
+                          <p className="text-sm text-slate-500">
+                            {nomeCategoria.get(k.categoriaId ?? '') ?? 'Sem categoria'} · {k.cartaoNome}
+                            {k.dataCredito !== k.data ? ` · crédito de ${formatDate(k.dataCredito)}` : ''}
+                            {` · a receita conta em ${formatDate(k.data)} (fechamento da fatura)`}
+                          </p>
+                        </div>
+                          <span className="shrink-0 tabular-nums font-semibold text-positivo">+{formatBRL(k.valor)}</span>
                         </div>
                         <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
                           <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>

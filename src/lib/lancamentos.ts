@@ -285,6 +285,57 @@ export async function listarComprasDeCartao(familiaId: string, mes: string): Pro
   return { parcelas: lista, semData: await contarSemData(familiaId) }
 }
 
+/**
+ * Crédito avulso no cartão (migration 052: estorno de IOF, cashback, reembolso). É RECEITA e já está nos totais do mês
+ * (period_summary); esta lista só mostra a linha, sem somar nada. A linha fica no dia do FECHAMENTO da fatura em que o
+ * crédito entrou, que é o dia (e o mês) em que ele conta nos totais; o dia do crédito vai no subtítulo. Antes do
+ * fechamento é receita planejada (decisão do dono, 04/11/2026).
+ */
+export interface CreditoDeCartao {
+  id: string
+  /** Fechamento da fatura: dia em que a receita conta. */
+  data: string
+  /** Dia em que o crédito aconteceu. */
+  dataCredito: string
+  descricao: string
+  cartaoNome: string
+  categoriaId: string | null
+  valor: Cents
+  /** A fatura ainda não fechou: receita planejada. */
+  planejado: boolean
+}
+
+const COLUNA_INEXISTENTE = '42703'
+
+/** Sem conta (o dinheiro não passou por conta): some com filtro de conta, de despesa ou de transferência. */
+export async function listarCreditosDeCartao(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<CreditoDeCartao[]> {
+  if (f.contaId || f.tipo === 'expense' || f.tipo === 'transfer') return []
+  const [de, ate] = limitesDoMes(mes)
+  const db = cliente()
+  let q = db.from('debt_events').select('id, debt_id, date, credit_date, amount, category_id, note')
+    .eq('household_id', familiaId).eq('kind', 'income_credit').is('voided_at', null).gte('date', de).lte('date', ate)
+  if (f.categoriaId) q = q.eq('category_id', f.categoriaId)
+  const { data, error } = await q.order('date', { ascending: false }).order('id')
+  // banco ainda sem a migration 052: não há créditos avulsos
+  if (error?.code === COLUNA_INEXISTENTE) return []
+  if (error) throw error
+  const eventos = (data ?? []) as { id: string; debt_id: string; date: string; credit_date: string | null; amount: number | string; category_id: string | null; note: string | null }[]
+  if (eventos.length === 0) return []
+  const dividas = await db.from('debts').select('id, name').eq('household_id', familiaId).eq('kind', 'card')
+  if (dividas.error) throw dividas.error
+  const nome = new Map(((dividas.data ?? []) as { id: string; name: string }[]).map((d) => [d.id, d.name]))
+  return eventos.map((e) => ({
+    id: e.id,
+    data: e.date,
+    dataCredito: e.credit_date ?? e.date,
+    descricao: e.note || 'Crédito no cartão',
+    cartaoNome: nome.get(e.debt_id) ?? 'cartão',
+    categoriaId: e.category_id,
+    valor: centsFromDb(e.amount),
+    planejado: e.date > hoje,
+  }))
+}
+
 async function contarSemData(familiaId: string): Promise<number> {
   const { count, error } = await cliente().from('debt_installments').select('id', { count: 'exact', head: true })
     .eq('household_id', familiaId).is('purchase_date', null)

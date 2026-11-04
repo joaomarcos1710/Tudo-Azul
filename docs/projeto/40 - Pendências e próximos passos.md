@@ -132,9 +132,8 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Orçamento que se repete todo mês sozinho (o dono pediu explicação).
 - [x] **Crédito avulso no cartão com categoria, contando como receita** (migration 052): Cartões → "Crédito / reembolso"; entra na fatura aberta pela data (ou numa posterior escolhida), aparece em verde com "+" e pode ser anulado. Falta aplicar a 052 em produção e o dono conferir no app.
 - [ ] Novo lançamento com só 3 abas, "Conta/Cartão" num seletor só e categoria com ícone (a receita no cartão pode chamar `card_credit_income`).
-- [ ] Mostrar o crédito avulso do cartão também na lista de **Lançamentos** (hoje aparece em Cartões, nos totais e nos relatórios; a lista de Lançamentos só traz as compras do cartão). Na exportação completa ele já sai como "Crédito no cartão (receita)".
-- [ ] **Decidir (dono)**: crédito avulso numa fatura que ainda não fechou já conta como receita **recebida** do mês do fechamento (as compras dessa fatura ainda aparecem como planejadas até fechar). Alternativa: contar como receita planejada até o fechamento.
-- [ ] **Decidir (dono)**: o limite disponível do cartão só sobe com o crédito na data do fechamento (como as compras). Se o banco libera o limite na hora, dá para mudar `card_limits`.
+- [x] Crédito avulso do cartão também na lista de **Lançamentos** (linha só de leitura no dia do fechamento, "Crédito no cartão", "Planejado" até fechar). Na exportação completa ele sai como "Crédito no cartão (receita)".
+- [x] Decidido pelo dono (04/11): crédito numa fatura aberta é receita **planejada** até fechar; o **limite** volta na data do crédito. Feito na 052, junto com os achados da revisão (fatura até 3 depois, trava pelo fechamento, chave de repetição, arquivar com crédito aberto e a devolução em dinheiro que reaparecia como adiantamento em `card_months`).
 - [ ] Cartões: abas de fatura com navegação por setas (`tabpanel`); Dívidas: menu "Mais" para Renomear/Arquivar/Excluir no celular.
 - [ ] Orçamentos: `window.confirm` ao remover → confirmação do app; barra como `progressbar`.
 - [ ] Testes que faltam: CSV mensal, cartão 50-30-20, Dívidas (`primeiroVencimento`, contrato, amortização extra).

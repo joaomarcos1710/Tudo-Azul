@@ -886,8 +886,10 @@ function FormCredito({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & {
 
   const valor = parseBRL(valorTexto)
   const receitas = categorias.filter((c) => c.tipo === 'income' && c.ativa)
-  // só faturas que fecham depois do crédito (no dia do fechamento ele já vai para a seguinte)
-  const posteriores = faturas.filter((f) => f.fechamento > data)
+  // só faturas que fecham depois do crédito (no dia do fechamento ele já vai para a seguinte) e até 3 depois da aberta:
+  // a aberta fecha em menos de um mês, então "até 4 meses depois da data" cobre as 4 (o banco confere a regra exata)
+  const limite = data ? (() => { const [a, m, d] = data.split('-').map(Number); return new Date(Date.UTC(a, m + 3, d)).toISOString().slice(0, 10) })() : ''
+  const posteriores = faturas.filter((f) => f.fechamento > data && f.fechamento <= limite)
   const escolhida = posteriores.some((f) => f.fechamento === fechamento) ? fechamento : ''
 
   const erroValor = tentou && (valor === null || valor <= 0) ? 'Valor inválido. Exemplo: 1.250,50' : undefined

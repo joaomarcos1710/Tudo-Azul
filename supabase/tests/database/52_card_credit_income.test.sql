@@ -38,7 +38,7 @@ insert into auth.users (id, email) values
 select pg_temp.login('00000000-0000-0000-0000-0000000052a1');
 insert into fixture select 'h', public.create_household('Casa do Crédito');
 with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
-           values (pg_temp.fx('h'), 'Banco', 'checking', 5000.00, '2026-07-01') returning id)
+           values (pg_temp.fx('h'), 'Banco', 'checking', 5000.00, '2026-01-01') returning id)
   insert into fixture select 'bank', id from i;
 insert into fixture select 'cat', id from public.categories where household_id = pg_temp.fx('h') and name = 'Compras pessoais';
 insert into fixture select 'inc', id from public.categories where household_id = pg_temp.fx('h') and name = 'Outras receitas';
@@ -131,15 +131,23 @@ select is((select array_agg(income::numeric(14,2) order by period_start)
              from public.cash_flow_report(pg_temp.fx('h'), '2026-08-01', '2026-10-31', 'month')),
           array[50.00, 80.00, 20.00]::numeric[], 'CI28 fluxo mês a mês: 50 / 80 / 20');
 
--- fatura escolhida
-insert into fixture select 'c4', public.card_credit_income(pg_temp.fx('a'), '2026-10-01', 10.00, pg_temp.fx('inc'), 'Cashback', '2026-11-17');
-select is((select date from public.debt_events where id = pg_temp.fx('c4')), '2026-11-17'::date, 'CI29 fatura escolhida (17/11) em vez da aberta (17/10)');
-select is(pg_temp.resumo('2026-11-01', '2026-11-30'), '10.00|0.00|0.00|0.00', 'CI30 receita no mês da fatura escolhida (novembro)');
-select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-10-01', 10.00, %L, 'x', '2026-10-10')$$, pg_temp.fx('a'), pg_temp.fx('inc'))),
+-- fatura escolhida (cartão D, datas passadas e isoladas: maio/junho de 2026 não têm outro movimento)
+insert into fixture select 'd', public.create_debt('Cartão D', 'card', '2026-01-01', 0);
+select public.set_card_cycle(pg_temp.fx('d'), 17, 25);
+insert into fixture select 'c4', public.card_credit_income(pg_temp.fx('d'), '2026-03-01', 10.00, pg_temp.fx('inc'), 'Cashback', '2026-05-17');
+select is((select date from public.debt_events where id = pg_temp.fx('c4')), '2026-05-17'::date, 'CI29 fatura escolhida (17/05) em vez da aberta (17/03)');
+select is(pg_temp.resumo('2026-05-01', '2026-05-31'), '10.00|0.00|0.00|0.00', 'CI30 receita no mês da fatura escolhida (maio)');
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-01', 1.00, %L, 'x', '2026-06-17')$$, pg_temp.fx('d'), pg_temp.fx('inc'))),
+          null, 'CI30b até 3 faturas depois da aberta (17/03 + 3 = 17/06): aceito');
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-01', 1.00, %L, 'x', '2026-07-17')$$, pg_temp.fx('d'), pg_temp.fx('inc'))),
+          '22023', 'CI30c 4 faturas depois: recusado (limite de 3, como na 051)');
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-01', 1.00, %L, 'x', '2027-03-17')$$, pg_temp.fx('d'), pg_temp.fx('inc'))),
+          '22023', 'CI30d um ano depois: recusado');
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-01', 10.00, %L, 'x', '2026-04-10')$$, pg_temp.fx('d'), pg_temp.fx('inc'))),
           '22023', 'CI31 data que não é fechamento do cartão: recusada');
-select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-10-01', 10.00, %L, 'x', '2026-09-17')$$, pg_temp.fx('a'), pg_temp.fx('inc'))),
-          '22023', 'CI32 fatura que fechou antes do crédito: recusada');
-select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-10-17', 10.00, %L, 'x', '2026-10-17')$$, pg_temp.fx('a'), pg_temp.fx('inc'))),
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-01', 10.00, %L, 'x', '2026-02-17')$$, pg_temp.fx('d'), pg_temp.fx('inc'))),
+          '22023', 'CI32 fatura antes da aberta (fechou antes do crédito): recusada');
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-17', 10.00, %L, 'x', '2026-03-17')$$, pg_temp.fx('d'), pg_temp.fx('inc'))),
           '22023', 'CI33 fatura que fecha no dia do crédito: recusada (já é a seguinte)');
 
 -- idempotência
@@ -166,8 +174,13 @@ select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '202
           '22023', 'CI41 sem descrição: recusado');
 select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-10-01', 10.00, %L, 'x')$$, pg_temp.fx('a'), pg_temp.fx('cat'))),
           '23514', 'CI42 categoria de DESPESA: recusada (o crédito é receita)');
-select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-07-01', 10.00, %L, 'x')$$, pg_temp.fx('a'), pg_temp.fx('inc'))),
-          '23514', 'CI43 crédito na data de referência do cartão (ou antes): recusado');
+-- trava do início do cartão pela data do FECHAMENTO (como a 051), não pela do crédito. Cartão C começa em 01/04.
+insert into fixture select 'cc', public.create_debt('Cartão C', 'card', '2026-04-01', 0);
+select public.set_card_cycle(pg_temp.fx('cc'), 17, 25);
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-10', 10.00, %L, 'x')$$, pg_temp.fx('cc'), pg_temp.fx('inc'))),
+          '23514', 'CI43 crédito numa fatura que fecha até o início do cartão (17/03 <= 01/04): recusado');
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-25', 10.00, %L, 'x')$$, pg_temp.fx('cc'), pg_temp.fx('inc'))),
+          null, 'CI43b crédito de antes do início que fecha depois dele (17/04): aceito');
 insert into fixture select 'loan', public.create_debt('Empréstimo', 'loan', '2026-07-01', 1000.00);
 select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-10-01', 10.00, %L, 'x')$$, pg_temp.fx('loan'), pg_temp.fx('inc'))),
           '23514', 'CI44 empréstimo não tem crédito avulso');
@@ -229,6 +242,98 @@ select is(pg_temp.saldo(pg_temp.fx('b'), '2026-08-31'), '0.00|40.00', 'CI63 cart
 select public.debt_return(pg_temp.fx('b'), '2026-08-20', pg_temp.fx('bank'), 40.00);
 select is(pg_temp.sqlstate_of(format($$select public.debt_void(%L, 'engano')$$, pg_temp.fx('c5'))), '23514',
           'CI64 depois da devolução em dinheiro, anular o crédito é recusado (devolução acima do crédito)');
+
+-- ---------------------------------------------------------------------------
+-- Revisão (achado 1): a devolução em dinheiro que levou o crédito não pode reaparecer como adiantamento
+-- ---------------------------------------------------------------------------
+-- cartão B: crédito de 40,00 (fatura 17/08 sem compras), devolvido em 20/08; compra de 100,00 em 20/08 (fatura 17/09)
+select public.card_purchase(pg_temp.fx('b'), '2026-08-20', 100.00, 1, pg_temp.fx('cat'), 'Compra depois da devolução');
+select public.card_bill_due('2026-10-31');
+select is(pg_temp.fatura(pg_temp.fx('b'), '2026-09'), '100.00|0.00|100.00|0.00|0.00',
+          'CR1 setembro: 100,00 a pagar e NADA pago (os 40,00 de crédito já voltaram em dinheiro)');
+select is((select advance_in::numeric(14,2) || '|' || advance_out::numeric(14,2) from public.card_months(pg_temp.fx('b')) where label = '2026-09'),
+          '0.00|0.00', 'CR2 sem adiantamento fantasma');
+select is((select remaining from public.card_invoices_due(pg_temp.fx('h'), '2026-09-01', '2026-09-30') where debt_id = pg_temp.fx('b')),
+          100.00::numeric, 'CR3 faturas que vencem: falta 100,00');
+select is(pg_temp.saldo(pg_temp.fx('b'), '2026-09-30'), '100.00|0.00', 'CR4 e bate com a dívida do cartão (100,00)');
+
+-- crédito + pagamento acima da fatura (cartão H, fevereiro/março)
+insert into fixture select 'hc', public.create_debt('Cartão H', 'card', '2026-01-01', 0);
+select public.set_card_cycle(pg_temp.fx('hc'), 17, 25);
+select public.card_purchase(pg_temp.fx('hc'), '2026-02-05', 100.00, 1, pg_temp.fx('cat'), 'Compra de fevereiro');
+select public.card_credit_income(pg_temp.fx('hc'), '2026-02-06', 30.00, pg_temp.fx('inc'), 'Estorno de IOF');
+select public.card_bill_due('2026-10-31');
+select public.debt_pay(pg_temp.fx('hc'), '2026-02-20', pg_temp.fx('bank'), 100.00,
+                       (select id from public.debt_invoices where debt_id = pg_temp.fx('hc') and label = '2026-02'));
+select is(pg_temp.fatura(pg_temp.fx('hc'), '2026-02'), '70.00|0.00|70.00|70.00|30.00', 'CP1 fatura de 70,00 (100 − 30) paga com 100,00');
+select is((select advance_out from public.card_months(pg_temp.fx('hc')) where label = '2026-02'), 30.00::numeric, 'CP2 sobra 30,00 de adiantamento');
+select is(pg_temp.saldo(pg_temp.fx('hc'), '2026-02-28'), '0.00|30.00', 'CP3 crédito a receber de 30,00');
+select public.card_purchase(pg_temp.fx('hc'), '2026-03-01', 50.00, 1, pg_temp.fx('cat'), 'Compra de março');
+select public.card_bill_due('2026-10-31');
+select is(pg_temp.fatura(pg_temp.fx('hc'), '2026-03'), '50.00|0.00|50.00|30.00|0.00', 'CP4 março: o adiantamento paga 30,00 dos 50,00');
+select is(pg_temp.saldo(pg_temp.fx('hc'), '2026-03-31'), '20.00|0.00', 'CP5 dívida de 20,00, igual ao que falta na fatura');
+
+-- idempotência (achados 2 e 7)
+insert into fixture values ('k2', '00000000-0000-0000-0000-0000000052f2'), ('k3', '00000000-0000-0000-0000-0000000052f3');
+select public.debt_pay(pg_temp.fx('hc'), '2026-03-20', pg_temp.fx('bank'), 5.00, null, false, pg_temp.fx('k2'));
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-02', 1.00, %L, 'x', null, %L)$$,
+                                     pg_temp.fx('hc'), pg_temp.fx('inc'), pg_temp.fx('k2'))),
+          '22023', 'CK1 chave já usada num pagamento do mesmo cartão: recusada (anular um anularia o outro)');
+select is((select count(*)::int from public.debt_events where op_id = pg_temp.fx('k2')), 1, 'CK2 nada foi gravado com a chave do pagamento');
+insert into fixture select 'ck', public.card_credit_income(pg_temp.fx('hc'), '2026-03-02', 2.00, pg_temp.fx('inc'), 'Ajuste', null, pg_temp.fx('k3'));
+select public.debt_void(pg_temp.fx('ck'), 'engano');
+select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '2026-03-02', 2.00, %L, 'Ajuste', null, %L)$$,
+                                     pg_temp.fx('hc'), pg_temp.fx('inc'), pg_temp.fx('k3'))),
+          '22023', 'CK3 chave de crédito já anulado: recusada (não regrava nem finge que gravou)');
+select is((select count(*)::int from public.debt_events where op_id = pg_temp.fx('k3')), 1, 'CK4 continua um evento só com a chave');
+
+-- ---------------------------------------------------------------------------
+-- Fatura que ainda não fechou (datas a partir de hoje): receita planejada, limite volta na hora, não arquiva
+-- ---------------------------------------------------------------------------
+reset role;
+create temp table dias as
+  select (now() at time zone 'America/Sao_Paulo')::date as hoje,
+         private.card_first_closing((now() at time zone 'America/Sao_Paulo')::date, 10) as fecha;
+grant select on dias to public;
+select pg_temp.login('00000000-0000-0000-0000-0000000052a1');
+insert into fixture select 'f', public.create_debt('Cartão F', 'card', (select hoje - 60 from dias), 0);
+select public.set_card_cycle(pg_temp.fx('f'), 10, 20);
+select public.set_card_limit(pg_temp.fx('f'), 1000.00);
+select public.card_purchase(pg_temp.fx('f'), (select hoje from dias), 100.00, 1, pg_temp.fx('cat'), 'Compra de hoje');
+insert into fixture select 'cf', public.card_credit_income(pg_temp.fx('f'), (select hoje from dias), 30.00, pg_temp.fx('inc'), 'Cashback de hoje');
+select is((select date from public.debt_events where id = pg_temp.fx('cf')), (select fecha from dias), 'CF1 entra na fatura que fecha depois de hoje');
+select is((select income_paid::numeric(14,2) || '|' || income_planned::numeric(14,2)
+             from public.period_summary(pg_temp.fx('h'), (select fecha from dias), (select fecha from dias))),
+          '0.00|30.00', 'CF2 antes do fechamento: receita PLANEJADA (30,00), não recebida');
+select is((select total_income::numeric(14,2) from public.cash_flow_report(pg_temp.fx('h'), (select fecha from dias), (select fecha from dias), 'day') limit 1),
+          0.00::numeric, 'CF3 fluxo só com efetuados: fora');
+select is((select total_income::numeric(14,2) from public.cash_flow_report(pg_temp.fx('h'), (select fecha from dias), (select fecha from dias), 'day', null, null, true) limit 1),
+          30.00::numeric, 'CF4 fluxo com planejados: entra (como as compras)');
+select is((select income_regular::numeric(14,2) || '|' || income_eventual::numeric(14,2)
+             from public.income_regularity(pg_temp.fx('h'), (select fecha from dias), (select fecha from dias))),
+          '0.00|0.00', 'CF5 renda regular × eventual só conta o realizado: fora até fechar');
+select is((select share_income from public.budget_rule_report(pg_temp.fx('h'), (select fecha from dias), (select fecha from dias)) where grp = 'none'),
+          null, 'CF6 regra 50-30-20: base de renda só com o realizado (sem renda = nulo)');
+select is((select committed::numeric(14,2) || '|' || available::numeric(14,2) from public.card_limits(pg_temp.fx('h'), (select hoje from dias)) where debt_id = pg_temp.fx('f')),
+          '70.00|930.00', 'CF7 limite: o crédito devolve 30,00 já na data do crédito (compra 100 − 30)');
+select is((select committed::numeric(14,2) from public.card_limits(pg_temp.fx('h'), (select hoje - 1 from dias)) where debt_id = pg_temp.fx('f')),
+          100.00::numeric, 'CF8 na véspera do crédito o limite ainda não voltou');
+select is((select committed::numeric(14,2) from public.card_limits(pg_temp.fx('h'), (select fecha from dias)) where debt_id = pg_temp.fx('f')),
+          70.00::numeric, 'CF9 no fechamento o crédito está no saldo e não conta duas vezes');
+select is((select (select net_worth from public.net_worth(pg_temp.fx('h'), (select fecha from dias)))
+                - (select net_worth from public.net_worth(pg_temp.fx('h'), (select hoje from dias))))::numeric(14,2),
+          30.00::numeric, 'CF10 patrimônio: o crédito entra (como crédito a receber) no fechamento');
+select is((select credit_receivable from public.debt_balances(pg_temp.fx('h'), (select fecha from dias)) where debt_id = pg_temp.fx('f')),
+          30.00::numeric, 'CF11 no fechamento (compra ainda não cobrada): 30,00 a receber');
+
+-- arquivar (achado 3): cartão G só com crédito futuro
+insert into fixture select 'g', public.create_debt('Cartão G', 'card', (select hoje - 60 from dias), 0);
+select public.set_card_cycle(pg_temp.fx('g'), 10, 20);
+insert into fixture select 'cg', public.card_credit_income(pg_temp.fx('g'), (select hoje from dias), 15.00, pg_temp.fx('inc'), 'Reembolso');
+select is(pg_temp.sqlstate_of(format($$select public.debt_archive(%L)$$, pg_temp.fx('g'))), '23514',
+          'CA1 cartão com crédito numa fatura que ainda não fechou não arquiva');
+select public.debt_void(pg_temp.fx('cg'), 'engano');
+select is(pg_temp.sqlstate_of(format($$select public.debt_archive(%L)$$, pg_temp.fx('g'))), null, 'CA2 anulado o crédito, arquiva');
 
 select is(pg_temp.sqlstate_of($$set constraints all immediate$$), null, 'CI65 as checagens adiadas passam no fim');
 

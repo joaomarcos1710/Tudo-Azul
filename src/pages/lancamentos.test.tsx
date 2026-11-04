@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({
   listarLancamentos: vi.fn(),
   listarMovimentosDeDivida: vi.fn(),
   listarComprasDeCartao: vi.fn(),
+  listarCreditosDeCartao: vi.fn(),
   listarCartoes: vi.fn(),
   registrarCompra: vi.fn(),
   resumoDoMes: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
   criarParcelado: mock.criarParcelado,
   listarMovimentosDeDivida: mock.listarMovimentosDeDivida,
   listarComprasDeCartao: mock.listarComprasDeCartao,
+  listarCreditosDeCartao: mock.listarCreditosDeCartao,
   resumoDoMes: mock.resumoDoMes,
   criarLancamento: mock.criarLancamento,
   editarLancamento: mock.editarLancamento,
@@ -91,6 +93,7 @@ beforeEach(() => {
   mock.listarMovimentosDeDivida.mockResolvedValue([])
   mock.listarParcelasDivida.mockResolvedValue([])
   mock.listarComprasDeCartao.mockResolvedValue({ parcelas: [], semData: 0 })
+  mock.listarCreditosDeCartao.mockResolvedValue([])
   mock.listarCartoes.mockResolvedValue([
     { id: 'k1', nome: 'Nubank', fechamento: 17, vencimento: 25, ativo: true, divida: c(0), credito: c(0), compromissos: c(0) },
   ])
@@ -373,6 +376,29 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const item = (await screen.findByText('Fone')).closest('li') as HTMLElement
     expect(item.querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
+  })
+
+  it('crédito avulso no cartão aparece como receita (+, verde) no dia do fechamento, só leitura', async () => {
+    const fecha = `${hojeSP().slice(0, 8)}17`
+    mock.listarCreditosDeCartao.mockResolvedValue([
+      { id: 'cr1', data: fecha, dataCredito: `${hojeSP().slice(0, 8)}03`, descricao: 'Estorno de IOF', cartaoNome: 'Nubank', categoriaId: 'sal', valor: c(5000), planejado: true },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const item = (await screen.findByText('Estorno de IOF')).closest('li') as HTMLElement
+    expect(within(item).getByText('Crédito no cartão')).toBeTruthy()
+    expect(within(item).getByText('Planejado')).toBeTruthy()
+    expect(within(item).getByText(new RegExp(`Salário · Nubank · crédito de 03/.* · a receita conta em 17/`))).toBeTruthy()
+    const valor = within(item).getByText(/^\+R\$\s?50,00$/)
+    expect(valor.className).toContain('text-positivo')
+    expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
+    expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
+    expect(mock.listarCreditosDeCartao).toHaveBeenCalledWith('h1', expect.stringMatching(/^\d{4}-\d{2}$/), {}, hojeSP())
+  })
+
+  it('se os créditos do cartão falharem, a lista continua', async () => {
+    mock.listarCreditosDeCartao.mockRejectedValue(new Error('falhou'))
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Supermercado')).toBeTruthy()
   })
 
   it('se as compras no cartão falharem, a lista de conta continua e só o bloco avisa', async () => {

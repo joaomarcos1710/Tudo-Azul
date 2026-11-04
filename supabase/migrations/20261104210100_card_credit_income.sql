@@ -10,23 +10,28 @@
 --     de RECEITA (category_type = 'income'); a data do crédito informada pela pessoa fica em credit_date (só neste tipo).
 --   * date do evento = DATA DE FECHAMENTO da fatura em que o crédito entra. Padrão: a fatura aberta na data do crédito,
 --     mesma regra das compras (private.card_first_closing: no dia do fechamento ou depois, a seguinte). Pode-se escolher
---     uma fatura posterior (p_closing), desde que seja um fechamento do cartão e feche DEPOIS do crédito.
+--     uma fatura posterior (p_closing): até 3 faturas depois da natural (como a 051 na compra), nunca antes, e que seja
+--     um fechamento do cartão. A trava do início do cartão vale para a data do FECHAMENTO (como a 051).
 --     Por isso UMA data governa tudo, como na compra: o mês da receita é o do fechamento (o mesmo em que as compras
 --     daquela fatura viram despesa), a fatura do mês AAAA-MM do fechamento é abatida e a dívida do cartão cai nessa data.
 --   * efeito no saldo do cartão: como o 'credit' (reduz a dívida; se passar dela, vira crédito a receber — o mesmo
 --     caminho do pagamento adiantado, que private.debt_chk já aceita em cartão). A devolução em dinheiro (refund_cash)
 --     continua presa ao crédito a receber; anular um crédito já devolvido em dinheiro é recusado (23514), como hoje.
---   * receita: conta como RECEBIDA (não planejada) no mês do fechamento, em period_summary, cash_flow_report,
---     income_regularity (regular × eventual pela categoria) e budget_rule_report (base de renda). Fonte única:
---     private.card_income_items. NÃO entra em nenhuma despesa (expense_items, budget_usage, period_summary.expense_*):
---     o filtro de tipo dessas funções já deixa o evento de fora.
+--   * receita (decisão do dono, 04/11/2026): PLANEJADA enquanto a fatura não fechou (date > hoje em São Paulo) e
+--     RECEBIDA a partir do fechamento, como a compra, que é compromisso até fechar. period_summary (income_planned ×
+--     income_paid), cash_flow_report (a futura só com p_include_planned), income_regularity e budget_rule_report (só
+--     contam realizado: a futura fica de fora até fechar). Fonte única: private.card_income_items (coluna paid).
+--     NÃO entra em nenhuma despesa (expense_items, budget_usage, period_summary.expense_*): o filtro de tipo dessas
+--     funções já deixa o evento de fora.
 --   * fatura: card_months ganha a coluna credits (créditos avulsos da fatura) e "charged" passa a descontá-los; o total
 --     nunca fica negativo: o que sobra do crédito vira adiantamento para as próximas faturas (mesmo caminho do excedente
 --     de pagamento). Com isso card_invoices_month, card_invoices_due, account_balances_projected e
 --     balance_totals_projected (todas leem card_months) mostram a fatura abatida sem mudar.
 --   * anulação: debt_void (já existente) anula o evento; tudo volta.
--- Limite conhecido: o limite disponível (card_limits) só sobe na data do fechamento, quando o crédito passa a abater a
--- dívida (mesma hora em que as compras daquela fatura passam a contar nela).
+--   * limite (decisão do dono, 04/11/2026): card_limits devolve o limite NA DATA DO CRÉDITO (credit_date), antes do
+--     fechamento; depois do fechamento o crédito já está no saldo e não conta duas vezes.
+--   * arquivar: debt_archive recusa cartão com crédito numa fatura que ainda não fechou.
+--   * card_months: a devolução em dinheiro (refund_cash) que levou uma sobra deixa de reaparecer como adiantamento.
 --
 -- Códigos de erro: 42501 sem permissão/registro inexistente; 22023 parâmetro inválido; 22003 mais de 2 casas;
 -- 23514 regra de integridade; 55000 cartão sem ciclo.
@@ -148,7 +153,9 @@ grant execute on function public.debt_balances(uuid, date) to authenticated;
 create function public.card_credit_income(p_debt uuid, p_date date, p_amount numeric, p_category uuid,
                                           p_description text, p_closing date default null, p_idem uuid default null)
 returns uuid language plpgsql security definer set search_path = '' as $$
-declare v_d public.debts%rowtype; v_closing date; v_desc text := nullif(btrim(p_description), ''); v_id uuid;
+declare
+  v_d public.debts%rowtype; v_natural date; v_ultima date; v_closing date;
+  v_desc text := nullif(btrim(p_description), ''); v_id uuid; v_voided boolean;
 begin
   v_d := private.debt_lock(p_debt);
   if v_d.kind <> 'card' then
@@ -172,17 +179,18 @@ begin
   ) then
     raise exception 'categoria de receita inválida ou inativa' using errcode = '23514';
   end if;
-  if p_date <= v_d.reference_date then
-    raise exception 'crédito anterior ou igual à data de referência do cartão (%)', v_d.reference_date using errcode = '23514';
-  end if;
 
+  -- fatura natural: a aberta na data do crédito (mesma regra da compra). A escolhida (p_closing) vai da natural até
+  -- 3 faturas depois (como a 051 na compra), nunca antes; e tem de ser um fechamento do cartão: o dia do ciclo atual
+  -- naquele mês ou o fechamento de uma fatura que já existe (ciclo antigo)
+  v_natural := private.card_first_closing(p_date, v_d.closing_day);
   if p_closing is null then
-    v_closing := private.card_first_closing(p_date, v_d.closing_day);
+    v_closing := v_natural;
   else
-    -- fatura escolhida: precisa fechar DEPOIS do crédito (no dia do fechamento já é a seguinte) e ser um fechamento do
-    -- cartão: o dia do ciclo atual naquele mês ou o fechamento de uma fatura que já existe (ciclo antigo)
-    if p_closing <= p_date then
-      raise exception 'a fatura escolhida fecha antes do crédito (ou no mesmo dia): use uma fatura posterior' using errcode = '22023';
+    v_ultima := private.card_day_in_month((date_trunc('month', v_natural) + interval '3 months')::date, v_d.closing_day);
+    if p_closing < v_natural or p_closing > v_ultima then
+      raise exception 'a fatura escolhida precisa fechar entre % e % (a aberta na data do crédito e até 3 depois)',
+        v_natural, v_ultima using errcode = '22023';
     end if;
     if p_closing <> private.card_day_in_month(p_closing, v_d.closing_day)
        and not exists (select 1 from public.debt_installments i
@@ -191,17 +199,31 @@ begin
     end if;
     v_closing := p_closing;
   end if;
+  -- o que FECHA até a data de referência já está no saldo de referência (mesma trava da compra na 051: vale a data
+  -- do fechamento, não a do crédito)
+  if v_closing <= v_d.reference_date then
+    raise exception 'esta fatura fecha em %, até o início do cartão (%): recue o início do cartão', v_closing, v_d.reference_date
+      using errcode = '23514';
+  end if;
 
+  -- idempotência: a chave só vale para ESTE crédito. Em qualquer outro evento (deste ou de outro cartão) ela faria
+  -- debt_void anular os dois juntos (op_id compartilhado): recusa. Crédito com a mesma chave já ANULADO: recusa em vez
+  -- de regravar ou de devolver o anulado como se tivesse gravado (a tela gera chave nova a cada formulário).
   if p_idem is not null then
-    select e.id into v_id from public.debt_events e
-     where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.op_id = p_idem
-       and e.kind = 'income_credit' and e.voided_at is null
-     limit 1;
-    if found then return v_id; end if;
-    -- a mesma chave em outra dívida faria debt_void anular os dois (op_id compartilhado)
     if exists (select 1 from public.debt_events e
-                where e.household_id = v_d.household_id and e.debt_id <> v_d.id and e.op_id = p_idem) then
-      raise exception 'chave de idempotência já usada em outra dívida' using errcode = '22023';
+                where e.household_id = v_d.household_id and e.op_id = p_idem
+                  and (e.debt_id <> v_d.id or e.kind <> 'income_credit')) then
+      raise exception 'chave de idempotência já usada em outro movimento' using errcode = '22023';
+    end if;
+    select e.id, e.voided_at is not null into v_id, v_voided from public.debt_events e
+     where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.op_id = p_idem and e.kind = 'income_credit'
+     order by (e.voided_at is null) desc
+     limit 1;
+    if found then
+      if v_voided then
+        raise exception 'esta chave é de um crédito já anulado: lance de novo' using errcode = '22023';
+      end if;
+      return v_id;
     end if;
   end if;
 
@@ -221,10 +243,13 @@ grant execute on function public.card_credit_income(uuid, date, numeric, uuid, t
 -- 4. Fonte única da receita do cartão (para os relatórios SECURITY INVOKER)
 -- ---------------------------------------------------------------------------
 -- Mês = data do evento = fechamento da fatura. Sem conta (o dinheiro não passou por conta nenhuma).
+-- paid: a fatura já fechou (data <= hoje em São Paulo). Antes disso é receita PLANEJADA, como a compra é compromisso
+-- até o fechamento (decisão do dono, 04/11/2026). "Hoje" escrito aqui (mesma expressão de private.today_sp) porque os
+-- relatórios rodam como o cliente, que não executa today_sp.
 create function private.card_income_items(p_household uuid, p_from date, p_to date)
-returns table (day date, category_id uuid, amount numeric, created_by uuid)
+returns table (day date, category_id uuid, amount numeric, created_by uuid, paid boolean)
 language sql stable security invoker set search_path = '' as $$
-  select e.date, e.category_id, e.amount, e.created_by
+  select e.date, e.category_id, e.amount, e.created_by, e.date <= (now() at time zone 'America/Sao_Paulo')::date
     from public.debt_events e
    where e.household_id = p_household and e.voided_at is null and e.kind = 'income_credit'
      and e.date between p_from and p_to
@@ -244,7 +269,7 @@ language sql stable security invoker set search_path = '' as $$
          s.income_planned, s.expense_planned
     from (
       select coalesce(sum(t.amount) filter (where t.type = 'income'  and t.status = 'paid'), 0)
-               + coalesce((select sum(ci.amount) from private.card_income_items(p_household, p_from, p_to) ci), 0) as income_paid,
+               + coalesce((select sum(ci.amount) from private.card_income_items(p_household, p_from, p_to) ci where ci.paid), 0) as income_paid,
              coalesce(sum(t.amount) filter (where t.type = 'expense' and t.status = 'paid'), 0)
                + coalesce((select sum(case when e.kind = 'credit' then -e.amount else e.amount end)
                              from public.debt_events e
@@ -252,7 +277,8 @@ language sql stable security invoker set search_path = '' as $$
                               and e.kind in ('charge', 'credit', 'interest', 'fee')
                               and e.date between p_from and p_to), 0)
                + coalesce((select sum(l.amount) from private.loan_principal_items(p_household, p_from, p_to) l), 0) as expense_paid,
-             coalesce(sum(t.amount) filter (where t.type = 'income'  and t.status = 'planned'), 0) as income_planned,
+             coalesce(sum(t.amount) filter (where t.type = 'income'  and t.status = 'planned'), 0)
+               + coalesce((select sum(ci.amount) from private.card_income_items(p_household, p_from, p_to) ci where not ci.paid), 0) as income_planned,
              coalesce(sum(t.amount) filter (where t.type = 'expense' and t.status = 'planned'), 0)
                + coalesce((select sum(i.face - coalesce((select sum(e.amount) from public.debt_events e
                                     where e.installment_id = i.id and e.kind in ('charge', 'cancel')
@@ -306,6 +332,7 @@ begin
     select ci.day, 'income', ci.amount
       from private.card_income_items(p_household, p_from, p_to) ci
      where p_accounts is null
+       and (ci.paid or p_include_planned)
        and (p_member is null or ci.created_by = p_member)
     union all
     select i.due_date, 'expense',
@@ -370,7 +397,8 @@ language sql stable security invoker set search_path = '' as $$
              and t.type = 'income' and t.status = 'paid'
              and t.date between p_from and p_to
           union all
-          select ci.category_id, ci.amount from private.card_income_items(p_household, p_from, p_to) ci
+          -- só o realizado (como os lançamentos pagos): crédito de fatura que ainda não fechou fica de fora
+          select ci.category_id, ci.amount from private.card_income_items(p_household, p_from, p_to) ci where ci.paid
         ) r
         left join public.categories c on c.household_id = p_household and c.id = r.category_id
         left join public.categories p on p.household_id = c.household_id and p.id = c.parent_id
@@ -397,7 +425,7 @@ language sql stable security invoker set search_path = '' as $$
                        from public.transactions t
                       where t.household_id = p_household and t.type = 'income' and t.status = 'paid'
                         and t.deleted_at is null and t.date between p_from and p_to), 0)
-           + coalesce((select sum(ci.amount) from private.card_income_items(p_household, p_from, p_to) ci), 0) as total
+           + coalesce((select sum(ci.amount) from private.card_income_items(p_household, p_from, p_to) ci where ci.paid), 0) as total
   )
   select g.grp, g.total,
          case when sum(g.total) over () = 0 then 0 else round(100 * g.total / sum(g.total) over (), 1) end,
@@ -422,19 +450,23 @@ returns table (label text, closing_date date, due_date date, charged numeric, pe
 language plpgsql stable security invoker set search_path = '' as $$
 declare
   v_d record; r record; v_credit numeric; v_prev numeric := 0; v_ref numeric; v_s0 numeric; v_link numeric; v_total numeric;
-  v_use numeric; v_surplus numeric; v_paid numeric; v_due date; v_b date;
+  v_use numeric; v_surplus numeric; v_paid numeric; v_due date; v_b date; v_fill numeric;
 begin
   select d.id, d.household_id, d.closing_day, d.due_day, greatest(0, d.reference_balance) as reference_balance into v_d from public.debts d
    where d.id = p_debt and d.kind = 'card' and (select private.is_member(d.household_id));
   if not found then return; end if;
 
-  -- pagamentos sem fatura: entram como adiantamento; a devolução em dinheiro (refund_cash) tira do crédito
-  select greatest(0, coalesce(sum(case when e.kind = 'refund_cash' then -e.amount else e.amount end), 0)) into v_credit
+  -- pagamentos sem fatura: entram como adiantamento; a devolução em dinheiro (refund_cash) tira do crédito.
+  -- SEM limitar a zero: a devolução pode ter levado crédito que nasceu de uma SOBRA de fatura (pagamento acima da
+  -- fatura ou crédito avulso acima dela). O saldo negativo espera essa sobra, que o paga primeiro (abaixo); antes, a
+  -- sobra reaparecia como adiantamento já devolvido e a fatura seguinte aparecia paga sem estar.
+  select coalesce(sum(case when e.kind = 'refund_cash' then -e.amount else e.amount end), 0) into v_credit
     from public.debt_events e
    where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.voided_at is null
      and e.kind in ('payment', 'extra_principal', 'refund_cash') and e.invoice_id is null;
+  if v_credit = 0 then v_credit := 0; end if; -- mesma escala de antes na tela ("0", não "0.00")
   v_ref := v_d.reference_balance;
-  v_s0 := least(v_credit, v_ref);
+  v_s0 := least((case when v_credit < 0 then 0 else v_credit end), v_ref);
   v_ref := v_ref - v_s0;
   v_credit := v_credit - v_s0;
 
@@ -491,7 +523,7 @@ begin
 
     v_total   := greatest(0, r.charged + r.pending);
     v_link    := r.pago_fatura;
-    v_use     := least(v_credit, greatest(0, v_total - v_link));
+    v_use     := least((case when v_credit < 0 then 0 else v_credit end), greatest(0, v_total - v_link));
     -- excedente: pagamento acima da fatura + crédito avulso acima da fatura (migration 052)
     v_surplus := greatest(0, v_link - v_total) + greatest(0, -(r.charged + r.pending));
     v_paid    := least(v_total, v_link) + v_use;
@@ -499,11 +531,15 @@ begin
     label := r.label; closing_date := r.closing_date; due_date := v_due;
     charged := r.charged; pending := r.pending; total := v_total; paid := v_paid;
     items := r.items; invoice_id := r.inv_id; credits := r.credits;
-    previous_open := v_prev + v_ref; advance_in := v_credit;
+    previous_open := v_prev + v_ref; advance_in := (case when v_credit < 0 then 0 else v_credit end);
+    -- a sobra paga primeiro o que já foi devolvido em dinheiro (v_credit negativo), depois o saldo de referência
+    v_fill := least(v_surplus, greatest(-v_credit, 0));
+    v_credit := v_credit + v_fill;
+    v_surplus := v_surplus - v_fill;
     v_s0 := least(v_surplus, v_ref);
     v_ref := v_ref - v_s0;
     v_credit := v_credit - v_use + (v_surplus - v_s0);
-    advance_out := v_credit;
+    advance_out := (case when v_credit < 0 then 0 else v_credit end);
     v_prev := v_prev + (v_total - v_paid);
     return next;
   end loop;
@@ -511,3 +547,65 @@ end $$;
 
 revoke execute on function public.card_months(uuid) from public, anon;
 grant execute on function public.card_months(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 7. Limite: o crédito avulso devolve o limite NA DATA DO CRÉDITO (decisão do dono, 04/11/2026)
+-- ---------------------------------------------------------------------------
+-- card_limits (versão da migration 011). Até o fechamento o crédito ainda não está no saldo (debt_balances conta pela
+-- data do evento = fechamento); aqui ele já abate o comprometido a partir de credit_date. Depois do fechamento ele está
+-- no saldo e sai desta parcela extra: não conta duas vezes.
+create or replace function public.card_limits(p_household uuid, p_as_of date)
+returns table (debt_id uuid, credit_limit numeric, committed numeric, available numeric)
+language sql stable security invoker set search_path = '' as $$
+  select d.id, d.credit_limit,
+         b.debt + b.planned_remaining - b.credit_receivable - coalesce(c.antecipado, 0),
+         d.credit_limit - (b.debt + b.planned_remaining - b.credit_receivable - coalesce(c.antecipado, 0))
+    from public.debts d
+    join public.debt_balances(p_household, p_as_of) b on b.debt_id = d.id
+    left join lateral (
+      select sum(e.amount) as antecipado
+        from public.debt_events e
+       where e.household_id = d.household_id and e.debt_id = d.id and e.voided_at is null
+         and e.kind = 'income_credit' and e.credit_date <= p_as_of and e.date > p_as_of
+    ) c on true
+   where d.household_id = p_household and d.kind = 'card' and d.credit_limit is not null
+     and (select private.is_member(p_household))
+   order by d.name
+$$;
+revoke execute on function public.card_limits(uuid, date) from public, anon;
+grant execute on function public.card_limits(uuid, date) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 8. Arquivar: cartão com crédito avulso numa fatura que ainda não fechou não arquiva
+-- ---------------------------------------------------------------------------
+-- debt_archive (versão da migration 045). O crédito futuro ainda não está no saldo de hoje, mas entra no patrimônio
+-- no fechamento: arquivado, sumiria da tela de Cartões e continuaria no patrimônio.
+create or replace function public.debt_archive(p_id uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+declare v public.debts%rowtype; b record; v_fecha date;
+begin
+  v := private.debt_lock(p_id);
+  select * into b from public.debt_balances(v.household_id, private.today_sp()) x where x.debt_id = v.id;
+  if found and (b.balance <> 0 or b.planned_remaining <> 0) then
+    raise exception 'tem saldo ou parcelas a vencer: quite ou cancele antes de arquivar' using errcode = '23514';
+  end if;
+  select min(e.date) into v_fecha from public.debt_events e
+   where e.debt_id = v.id and e.household_id = v.household_id and e.voided_at is null
+     and e.kind = 'income_credit' and e.date > private.today_sp();
+  if v_fecha is not null then
+    raise exception 'tem crédito numa fatura que ainda não fechou (fecha em %): espere o fechamento ou anule o crédito antes de arquivar',
+      to_char(v_fecha, 'DD/MM/YYYY') using errcode = '23514';
+  end if;
+  if exists (select 1 from public.recurrences r where r.debt_id = v.id and r.active) then
+    raise exception 'tem recorrente ativo nesta dívida: exclua antes de arquivar' using errcode = '23514';
+  end if;
+  update public.debt_payment_schedule
+     set status = 'cancelled', updated_at = now()
+   where debt_id = v.id and household_id = v.household_id and status = 'planned';
+  update public.debts
+     set active = false,
+         remaining_installments = case when remaining_installments is null then null else 0 end
+   where id = v.id;
+end $$;
+revoke execute on function public.debt_archive(uuid) from public, anon;
+grant execute on function public.debt_archive(uuid) to authenticated;
