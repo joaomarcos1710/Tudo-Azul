@@ -257,3 +257,61 @@ describe('Contas', () => {
     expect(screen.getByRole('option', { name: 'Investimento' })).toBeTruthy()
   })
 })
+
+describe('Contas em outras moedas (multimoeda F1, migration 055)', () => {
+  const dolar = { ...corrente, id: 'u1', nome: 'Conta em dólar', moeda: 'USD', saldoInicial: c(25050), saldo: c(25050) }
+
+  it('cadastra conta em dólar: a moeda vai junto e o rótulo do saldo inicial muda', async () => {
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
+    expect((screen.getByLabelText('Moeda') as HTMLSelectElement).value).toBe('BRL')
+    await u.type(screen.getByLabelText('Nome'), 'Conta em dólar')
+    await u.selectOptions(screen.getByLabelText('Moeda'), 'USD')
+    const saldo = screen.getByLabelText('Saldo inicial (US$)')
+    await u.clear(saldo)
+    await u.type(saldo, '250,50')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
+    expect(mock.criarConta).toHaveBeenCalledWith('h1', expect.objectContaining({ nome: 'Conta em dólar', saldoInicial: 25050, moeda: 'USD' }))
+  })
+
+  it('na edição a moeda fica travada e não é enviada', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [dolar], total: c(0), porMoeda: [{ moeda: 'USD', total: c(25050), totalAtivas: c(25050) }] })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Editar' }))
+    const moeda = screen.getByLabelText('Moeda') as HTMLSelectElement
+    expect(moeda.value).toBe('USD')
+    expect(moeda.disabled).toBe(true)
+    expect(screen.getByText('A moeda não muda depois de criada.')).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarConta.mock.calls[0][1]).not.toHaveProperty('moeda')
+  })
+
+  it('saldo na moeda da conta, com selo, num grupo à parte; o total em reais não soma o dólar', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [corrente, dolar], total: c(125050),
+      porTipo: [{ tipo: 'checking', total: c(125050), totalAtivas: c(125050) }],
+      porMoeda: [{ moeda: 'BRL', total: c(125050), totalAtivas: c(125050) }, { moeda: 'USD', total: c(25050), totalAtivas: c(25050) }],
+    })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const outras = (await screen.findByRole('heading', { name: 'Contas em outras moedas' })).closest('section') as HTMLElement
+    expect(within(outras).getByText('Conta em dólar')).toBeTruthy()
+    expect(within(outras).getByText('USD')).toBeTruthy() // selo
+    expect(within(outras).getAllByText(/US\$\s*250,50/).length).toBeGreaterThan(0)
+    const correntes = screen.getByRole('heading', { name: 'Contas correntes' }).closest('section') as HTMLElement
+    expect(within(correntes).queryByText('Conta em dólar')).toBeNull()
+    expect(screen.getByText('Saldo total em reais hoje')).toBeTruthy()
+    const bloco = screen.getByRole('group', { name: 'Em outras moedas' })
+    expect(bloco.textContent).toMatch(/US\$\s*250,50/)
+    expect(bloco.textContent).not.toMatch(/R\$\s*1\.250,50/)
+  })
+
+  it('só com contas em reais, não mostra "Em outras moedas"', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(125050), porMoeda: [{ moeda: 'BRL', total: c(125050), totalAtivas: c(125050) }] })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    expect(await screen.findByText('Saldo total hoje')).toBeTruthy()
+    expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Contas em outras moedas' })).toBeNull()
+  })
+})

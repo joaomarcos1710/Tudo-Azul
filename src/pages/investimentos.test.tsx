@@ -215,7 +215,11 @@ describe('Investimentos × macroclasse e subclasse', () => {
       }))
     })
 
-    it('só oferece contas ativas e só ativos em reais', async () => {
+    it('só oferece contas ativas em reais (multimoeda F1) e só ativos em reais', async () => {
+      mock.listarContas.mockResolvedValue({ contas: [
+        { id: 'c1', nome: 'Corretora', ativa: true }, { id: 'c2', nome: 'Antiga', ativa: false },
+        { id: 'c3', nome: 'Conta em dólar', ativa: true, moeda: 'USD' },
+      ], total: c(0) })
       mock.listarAtivosInvestimento.mockResolvedValue([
         ativo('a1', 'Tesouro Selic', 'fixed_income'), ativo('a9', 'ETF Global', 'etf', { moeda: 'USD' }),
       ])

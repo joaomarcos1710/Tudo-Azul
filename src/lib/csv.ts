@@ -1,6 +1,6 @@
 import { centsFromDb } from './format'
 import type { Cents } from './format'
-import { rotuloTipoConta } from './contas'
+import { COLUNA_INEXISTENTE, rotuloTipoConta } from './contas'
 import type { TipoConta } from './contas'
 import { supabase } from './supabase'
 
@@ -347,12 +347,21 @@ function linhasBens(bens: Registro[], avaliacoes: Registro[]): Celula[][] {
   return linhas
 }
 
+/** Moeda da conta exportada (valores do saldo e dos movimentos estão nela); sem a coluna no banco, BRL. */
+function moedaDaConta(c: Registro): string {
+  return typeof c.currency_code === 'string' && c.currency_code ? c.currency_code : 'BRL'
+}
+
 /** Os 8 arquivos da exportação completa, com saldos na data `hoje` (YYYY-MM-DD, fuso de São Paulo). */
 export async function exportacaoCompleta(familiaId: string, hoje: string): Promise<ArquivoExportado[]> {
   if (!supabase) throw new Error('Supabase não configurado')
   const db = supabase
+  // moeda da conta (migration 055); banco ainda sem a coluna: lê sem ela e tudo sai como BRL
+  const lerContas = async (colunas: string): Promise<{ data: unknown; error: { code?: string } | null }> =>
+    db.from('accounts').select(colunas).eq('household_id', familiaId).order('name')
   const [contas, categorias, listaDividas, faturas, saldos, saldosDividas] = await Promise.all([
-    db.from('accounts').select('id, name, type, initial_balance, opening_date, active').eq('household_id', familiaId).order('name'),
+    lerContas('id, name, type, initial_balance, opening_date, active, currency_code')
+      .then((r) => (r.error?.code === COLUNA_INEXISTENTE ? lerContas('id, name, type, initial_balance, opening_date, active') : r)),
     db.from('categories').select('id, name').eq('household_id', familiaId),
     buscarDividasExportacao(db, familiaId),
     db.from('debt_invoices').select('id, label').eq('household_id', familiaId),
@@ -411,7 +420,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     for (const m of movimentosPorConta[i]) {
       movimentos.push([
         texto(c.name), dataBR(texto(m.date)), rotuloOrigem[texto(m.source)] ?? texto(m.source),
-        texto(m.description) || 'Sem descrição', centavos(m.amount),
+        texto(m.description) || 'Sem descrição', centavos(m.amount), moedaDaConta(c),
       ])
     }
   })
@@ -419,13 +428,13 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
   const cadastros: Celula[][] = [
     ...listaContas.map((c): Celula[] => [
       'Conta', texto(c.name), rotuloTipoConta[c.type as TipoConta] ?? texto(c.type), dataBR(texto(c.opening_date)),
-      centavos(c.initial_balance), c.active ? 'Sim' : 'Não', talvez(saldoConta.get(c.id)), '',
+      centavos(c.initial_balance), moedaDaConta(c), c.active ? 'Sim' : 'Não', talvez(saldoConta.get(c.id)), '',
     ]),
     ...listaDividas.map((d): Celula[] => {
       const s = saldoDivida.get(d.id)
       return [
         rotuloDivida[texto(d.kind)] ?? texto(d.kind), texto(d.name), '', dataBR(texto(d.reference_date)),
-        centavos(d.reference_balance), d.active ? 'Sim' : 'Não', talvez(s?.balance), talvez(s?.planned_remaining),
+        centavos(d.reference_balance), 'BRL', d.active ? 'Sim' : 'Não', talvez(s?.balance), talvez(s?.planned_remaining),
       ]
     }),
   ]
@@ -473,11 +482,11 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     { nome: `tudo-azul-${hoje}-1-lancamentos.csv`, conteudo: gerarCsv(lancamentos), linhas: lancamentos.length },
     {
       nome: `tudo-azul-${hoje}-2-movimentos-por-conta.csv`, linhas: movimentos.length,
-      conteudo: montarCsv(['Conta', 'Data', 'Origem', 'Descrição', 'Valor'], movimentos),
+      conteudo: montarCsv(['Conta', 'Data', 'Origem', 'Descrição', 'Valor', 'Moeda'], movimentos),
     },
     {
       nome: `tudo-azul-${hoje}-3-cadastros.csv`, linhas: cadastros.length,
-      conteudo: montarCsv(['Cadastro', 'Nome', 'Tipo', 'Data inicial', 'Valor inicial', 'Ativo',
+      conteudo: montarCsv(['Cadastro', 'Nome', 'Tipo', 'Data inicial', 'Valor inicial', 'Moeda', 'Ativo',
         `Saldo em ${dataBR(hoje)}`, 'Parcelas futuras'], cadastros),
     },
     {

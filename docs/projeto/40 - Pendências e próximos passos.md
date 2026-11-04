@@ -20,6 +20,13 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+- [ ] **Multimoeda F1 — moeda na conta e saldos por moeda** (migration 055, #160): código pronto; marcar feito ao **aplicar a 055** em produção (workflow: simular → ler o log → aplicar, com o "pode").
+- [ ] **Multimoeda F2**: receita e despesa em moeda estrangeira e relatórios por moeda (libera o bloqueio provisório da F1 para receita/despesa, recorrente e provento).
+- [ ] **Multimoeda F3**: transferência entre moedas (`destination_amount`); libera transferência e pagamento de cartão/dívida a partir de conta estrangeira, se fizer sentido.
+- [ ] **Multimoeda F4**: cotações PTAX (compra) e total convertido para BRL (nunca somar sem conversão).
+- [ ] **Multimoeda F5**: relançar a Nomad a partir de 01/01/2026 pelo extrato (o passado fica em reais; "Nomad Real" continua BRL); contas da corretora numa segunda rodada.
+- [ ] **Opcional (multimoeda)**: pares de câmbio de 2024–2025 (cotações históricas), se o dono quiser converter o passado.
+- [ ] **Atalho da F1**: os formulários escondem a conta estrangeira (`aceitaLancamento` em `src/lib/contas.ts`) e o banco recusa; liberar na F2/F3. Calendário: o total previsto é só em reais; a conta estrangeira aparece na lista com o saldo na moeda dela, sem "Em outras moedas" no total.
 - [x] **Índice de eventos por parcela** (migration 053, #156): aplicada em 04/11/2026.
 - [x] **Importar o histórico do Organizze** (04/11/2026): feito; saldos das 21 contas batem. Falta você: abrir 2 ou 3 faturas recentes no app e comparar com o Organizze (a conferência automática olhou os saldos das contas e as contagens, não fatura a fatura).
 - [x] **Empréstimo da Funcef em Dívidas** (04/11/2026). Falta você: no boleto de 20/11, comparar juros e amortização com o cronograma do app (taxa cadastrada a partir do extrato).

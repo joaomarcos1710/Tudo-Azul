@@ -296,4 +296,19 @@ describe('Recorrentes', () => {
     expect(screen.getByText('A data final não pode ser antes do início.')).toBeTruthy()
     expect(mock.criarRecorrencia).not.toHaveBeenCalled()
   })
+
+  it('multimoeda F1: conta em outra moeda não é oferecida no recorrente (o banco também recusa)', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [
+        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+        { id: 'a3', nome: 'Conta em euro', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'EUR' },
+      ],
+      total: c(0),
+    })
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+    const opcoes = Array.from((screen.getByLabelText('Conta') as HTMLSelectElement).options).map((o) => o.textContent)
+    expect(opcoes).toEqual(['Escolha…', 'Itaú'])
+  })
 })

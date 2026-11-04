@@ -7,7 +7,7 @@ import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
+import { currentMonth, formatBRL, formatDate, formatMoeda, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { saldosProjetados, faturasQueVencem } from '../lib/saldoProjetado'
 import type { SaldoProjetado } from '../lib/saldoProjetado'
@@ -321,7 +321,7 @@ function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; a
                     </span>
                   )}
                 </span>
-                <span className={`shrink-0 tabular-nums font-semibold ${c.saldo < 0 ? 'text-negativo' : ''}`}>{formatBRL(c.saldo)}</span>
+                <span className={`shrink-0 tabular-nums font-semibold ${c.saldo < 0 ? 'text-negativo' : ''}`}>{formatMoeda(c.saldo, c.moeda ?? 'BRL')}</span>
               </li>
             ))}
           </ul>

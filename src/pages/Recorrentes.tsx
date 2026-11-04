@@ -12,7 +12,7 @@ import { listarCartoes } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
-import { hojeSP, listarContas } from '../lib/contas'
+import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
@@ -155,7 +155,8 @@ interface PropsForm {
 
 function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar, aoCancelar }: PropsForm) {
   const editando = r !== null
-  const contasAtivas = contas.filter((c) => c.ativa)
+  // conta em outra moeda ainda não aceita recorrente (multimoeda F1, o banco também recusa)
+  const contasAtivas = contas.filter((c) => c.ativa && aceitaLancamento(c))
   const cartoesComCiclo = cartoes.filter((c) => c.ativo && c.fechamento !== null)
   const [tipo, setTipo] = useState<TipoRecorrencia>(r?.tipo ?? 'expense')
   const [descricao, setDescricao] = useState(r?.descricao ?? '')

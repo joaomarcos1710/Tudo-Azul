@@ -107,16 +107,16 @@ describe('exportacaoCompleta', () => {
     expect(ARQ(arqs, 'investimentos')).toHaveLength(1)
     expect(ARQ(arqs, '8-bens')).toHaveLength(1)
     expect(ARQ(arqs, 'movimentos').slice(1)).toEqual([
-      'Itaú;01/10/2026;Saldo inicial;Saldo inicial;1000,00',
-      'Itaú;05/10/2026;Lançamento;Mercado;-250,40',
-      'Itaú;25/10/2026;Cartão/dívida;Pagamento de Nubank;-150,00',
+      'Itaú;01/10/2026;Saldo inicial;Saldo inicial;1000,00;BRL',
+      'Itaú;05/10/2026;Lançamento;Mercado;-250,40;BRL',
+      'Itaú;25/10/2026;Cartão/dívida;Pagamento de Nubank;-150,00;BRL',
     ])
     // a conferência saiu do app (04/11/2026): o arquivo não tem mais a coluna "Conferido", mesmo com reconciled=true no banco
-    expect(ARQ(arqs, 'movimentos')[0]).toBe('\uFEFFConta;Data;Origem;Descrição;Valor')
+    expect(ARQ(arqs, 'movimentos')[0]).toBe('\uFEFFConta;Data;Origem;Descrição;Valor;Moeda')
     expect(ARQ(arqs, 'cadastros')).toEqual([
-      '\uFEFFCadastro;Nome;Tipo;Data inicial;Valor inicial;Ativo;Saldo em 31/10/2026;Parcelas futuras',
-      'Conta;Itaú;Conta corrente;01/10/2026;1000,00;Sim;599,60;',
-      'Cartão;Nubank;;30/09/2026;0,00;Sim;0,00;150,00',
+      '\uFEFFCadastro;Nome;Tipo;Data inicial;Valor inicial;Moeda;Ativo;Saldo em 31/10/2026;Parcelas futuras',
+      'Conta;Itaú;Conta corrente;01/10/2026;1000,00;BRL;Sim;599,60;',
+      'Cartão;Nubank;;30/09/2026;0,00;BRL;Sim;0,00;150,00',
     ])
     expect(ARQ(arqs, 'parcelas').slice(1)).toEqual([
       'Nubank;Fone;1/2;02/10/2026;17/10/2026;Eletrônicos;150,00;Cobrada',
@@ -213,9 +213,20 @@ describe('exportacaoCompleta, casos de borda', () => {
     const arqs = await exportacaoCompleta('h1', '2026-10-31')
     expect(ARQ(arqs, 'parcelas')[2]).toBe('Nubank;Fone;2/2;02/10/2026;17/11/2026;Eletrônicos;150,00;Com cancelamento (ver eventos)')
     expect(ARQ(arqs, 'cadastros').slice(1)).toEqual([
-      'Conta;Itaú;Conta corrente;01/10/2026;1000,00;Sim;;',
-      'Cartão;Nubank;;30/09/2026;0,00;Sim;;',
+      'Conta;Itaú;Conta corrente;01/10/2026;1000,00;BRL;Sim;;',
+      'Cartão;Nubank;;30/09/2026;0,00;BRL;Sim;;',
     ])
+  })
+
+  it('conta em outra moeda (migration 055): cadastro e movimentos dizem a moeda; o valor fica como o banco mandou, sem converter', async () => {
+    fake.tabelas.accounts = [{ id: 'a1', name: 'Conta em dólar', type: 'checking', initial_balance: '250.50', opening_date: '2026-10-01', active: true, currency_code: 'USD' }]
+    fake.rpcs.account_balances = () => [{ account_id: 'a1', balance: '250.50', currency_code: 'USD' }]
+    fake.rpcs.account_movements = () => [
+      { source: 'opening', id: 'a1', date: '2026-10-01', description: 'Saldo inicial', amount: '250.50', reconciled: false },
+    ]
+    const arqs = await exportacaoCompleta('h1', '2026-10-31')
+    expect(ARQ(arqs, 'cadastros')[1]).toBe('Conta;Conta em dólar;Conta corrente;01/10/2026;250,50;USD;Sim;250,50;')
+    expect(ARQ(arqs, 'movimentos').slice(1)).toEqual(['Conta em dólar;01/10/2026;Saldo inicial;Saldo inicial;250,50;USD'])
   })
 })
 

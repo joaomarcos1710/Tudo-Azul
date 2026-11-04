@@ -16,7 +16,7 @@ import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeTransferir } from '../components/layout/icons'
 import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
-import { hojeSP, listarContas } from '../lib/contas'
+import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
@@ -566,7 +566,8 @@ const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</sp
 
 function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
   const hoje = hojeSP()
-  const ativas = contas.filter((c) => c.ativa || c.id === l?.contaId || c.id === l?.destinoId)
+  // conta em outra moeda ainda não aceita lançamento (multimoeda F1, o banco também recusa)
+  const ativas = contas.filter((c) => aceitaLancamento(c) && (c.ativa || c.id === l?.contaId || c.id === l?.destinoId))
   const [tipo, setTipo] = useState<TipoLancamento>(l?.tipo ?? (inicial && inicial !== 'cartao' ? inicial : 'expense'))
   const [valorTexto, setValorTexto] = useState(l ? formatBRLCampo(l.valor) : '')
   const [data, setData] = useState(l?.data ?? hoje)

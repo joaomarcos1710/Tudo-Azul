@@ -840,3 +840,18 @@ describe('lançamento parcelado fora do cartão', () => {
 })
 
 })
+
+describe('multimoeda F1 (migration 055)', () => {
+  it('conta em outra moeda não aparece como conta do lançamento (o banco também recusa)', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [...contas, { id: 'a3', nome: 'Conta em dólar', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0), moeda: 'USD' }],
+      total: c(0),
+    })
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    const opcoes = Array.from((screen.getByLabelText('Conta') as HTMLSelectElement).options).map((o) => o.textContent)
+    expect(opcoes).toContain('Itaú')
+    expect(opcoes).not.toContain('Conta em dólar')
+  })
+})

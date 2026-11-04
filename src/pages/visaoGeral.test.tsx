@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
   proximosPlanejados: vi.fn(),
   resumoDoMes: vi.fn(),
   listarContas: vi.fn(),
+  totaisPorMoeda: vi.fn(),
   despesasPorCategoria: vi.fn(),
   despesasPorDia: vi.fn(),
   regularidadeRenda: vi.fn(),
@@ -45,7 +46,7 @@ vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar, resumoDosCarto
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: gerar }))
 vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados }))
 vi.mock('../lib/orcamentos', () => ({ listarOrcamentos: mock.listarOrcamentos }))
-vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
+vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas, totaisPorMoeda: mock.totaisPorMoeda }))
 
 import { hojeSP } from '../lib/contas'
 import VisaoGeral from './VisaoGeral'
@@ -55,6 +56,7 @@ const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(<MemoryRouter
 
 beforeEach(() => {
   window.localStorage.clear()
+  mock.totaisPorMoeda.mockResolvedValue([])
   cobrar.mockResolvedValue(0)
   gerar.mockResolvedValue(0)
   mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), bens: c(0), patrimonio: c(1087560), compromissos: c(482000) })
@@ -543,6 +545,35 @@ describe('Visão geral', () => {
     expect(within(card).getByText('Saldo geral')).toBeTruthy()
     expect(within(card).getAllByText('R$ 12.820,30').length).toBe(2) // total do banco (balance_totals) e a única conta ativa
     expect(within(card).queryByText('Antiga')).toBeNull()
+    // só contas em reais: nada de "Em outras moedas"
+    expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
+  })
+
+  it('multimoeda F1: conta em dólar no Início fica na moeda dela e em "Em outras moedas", fora do saldo em reais', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [
+        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1282030), moeda: 'BRL' },
+        { id: 'u1', nome: 'Conta em dólar', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(25050), moeda: 'USD' },
+      ],
+      total: c(1282030),
+      porMoeda: [{ moeda: 'BRL', total: c(1282030), totalAtivas: c(1282030) }, { moeda: 'USD', total: c(25050), totalAtivas: c(25050) }],
+    })
+    montar()
+    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
+    expect(within(card).getByText('Saldo geral em reais')).toBeTruthy()
+    expect(within(card).getByText('R$ 12.820,30', { selector: 'span.font-bold' })).toBeTruthy() // o total do banco, sem o dólar
+    expect(within(card).getByText(/US\$\s*250,50/)).toBeTruthy()
+    const bloco = screen.getByRole('group', { name: 'Em outras moedas' })
+    expect(bloco.textContent).toMatch(/US\$\s*250,50/)
+  })
+
+  it('multimoeda F1: Análises mostra "Em outras moedas" junto do patrimônio, do banco (balance_totals_by_currency)', async () => {
+    mock.totaisPorMoeda.mockResolvedValue([{ moeda: 'BRL', total: c(100), totalAtivas: c(100) }, { moeda: 'EUR', total: c(8000), totalAtivas: c(8000) }])
+    montar('analises')
+    const bloco = await screen.findByRole('group', { name: 'Em outras moedas' })
+    expect(bloco.textContent).toMatch(/€\s*80,00/)
+    expect(bloco.textContent).not.toMatch(/R\$/)
+    expect(mock.totaisPorMoeda).toHaveBeenCalledWith('h1', expect.any(String))
   })
 
   it('Início sem número repetido: Patrimônio só com Bens e Dívida; saldo hoje e previsto num card; receita e despesa só no cabeçalho', async () => {
