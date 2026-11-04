@@ -13,6 +13,14 @@ export interface PreviaZerar {
   recorrencias: number
   conciliacoes: number
   orcamentos: number
+  /** Agenda de parcelas do contrato de empréstimo/financiamento (migration 037). */
+  agendaContrato: number
+  ativosInvestimento: number
+  operacoesInvestimento: number
+  avaliacoesInvestimento: number
+  proventos: number
+  bens: number
+  avaliacoesBens: number
 }
 
 function cliente() {
@@ -26,12 +34,17 @@ function paraPrevia(c: Contagens): PreviaZerar {
   return {
     lancamentos: n(c, 'transactions'), contas: n(c, 'accounts'), cartoesEDividas: n(c, 'debts'), parcelas: n(c, 'installments'),
     eventos: n(c, 'events'), recorrencias: n(c, 'recurrences'), conciliacoes: n(c, 'reconciliations'), orcamentos: n(c, 'budgets'),
+    // chaves da migration 054; num banco sem ela chegam ausentes e contam 0
+    agendaContrato: n(c, 'schedule'), ativosInvestimento: n(c, 'investment_assets'), operacoesInvestimento: n(c, 'investment_operations'),
+    avaliacoesInvestimento: n(c, 'investment_valuations'), proventos: n(c, 'investment_distributions'), bens: n(c, 'family_assets'),
+    avaliacoesBens: n(c, 'family_asset_valuations'),
   }
 }
 
 /** Soma de contagens de itens (não é dinheiro). Zero = não há o que zerar. */
 export function totalDaPrevia(p: PreviaZerar): number {
   return p.lancamentos + p.contas + p.cartoesEDividas + p.parcelas + p.eventos + p.recorrencias + p.conciliacoes + p.orcamentos
+    + p.agendaContrato + p.ativosInvestimento + p.operacoesInvestimento + p.avaliacoesInvestimento + p.proventos + p.bens + p.avaliacoesBens
 }
 
 export async function previaZerar(familiaId: string): Promise<PreviaZerar> {

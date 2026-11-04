@@ -63,13 +63,14 @@ export function ZerarTudo() {
         <div className="mb-3">
           <Aviso tipo="sucesso">
             Pronto, tudo foi zerado ({plural(feito.lancamentos, 'lançamento', 'lançamentos')}, {plural(feito.contas, 'conta', 'contas')},{' '}
-            {plural(feito.cartoesEDividas, 'cartão ou dívida', 'cartões e dívidas')} apagados). Agora cadastre suas contas em{' '}
+            {plural(feito.cartoesEDividas, 'cartão ou dívida', 'cartões e dívidas')}, {plural(feito.ativosInvestimento, 'investimento', 'investimentos')},{' '}
+            {plural(feito.bens, 'bem', 'bens')} apagados). Agora cadastre suas contas em{' '}
             <Link to="/contas" className="font-semibold underline">Contas</Link> com os saldos reais.
           </Aviso>
         </div>
       )}
       {previa === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
-      {vazio && !feito && <p className="text-sm text-slate-600">Não há nada para zerar: a família não tem contas, cartões nem lançamentos.</p>}
+      {vazio && !feito && <p className="text-sm text-slate-600">Não há nada para zerar: a família não tem contas, cartões, lançamentos, investimentos nem bens.</p>}
       {previa !== null && !vazio && (
         <>
           <p className="mb-2 text-sm text-slate-700">
@@ -79,7 +80,13 @@ export function ZerarTudo() {
             <li>{plural(previa.lancamentos, 'lançamento', 'lançamentos')} (inclusive os da lixeira e os planejados)</li>
             <li>{plural(previa.contas, 'conta', 'contas')} e seus saldos</li>
             <li>{plural(previa.cartoesEDividas, 'cartão ou dívida', 'cartões e dívidas')}, com {plural(previa.parcelas, 'parcela', 'parcelas')} e faturas</li>
+            {previa.agendaContrato > 0 && <li>{plural(previa.agendaContrato, 'parcela', 'parcelas')} da agenda de contratos de empréstimo e financiamento</li>}
             <li>{plural(previa.recorrencias, 'recorrência', 'recorrências')}, {plural(previa.conciliacoes, 'conciliação', 'conciliações')} e {plural(previa.orcamentos, 'orçamento', 'orçamentos')}</li>
+            <li>
+              {plural(previa.ativosInvestimento, 'investimento', 'investimentos')}, com {plural(previa.operacoesInvestimento, 'operação', 'operações')},{' '}
+              {plural(previa.avaliacoesInvestimento, 'avaliação', 'avaliações')} e {plural(previa.proventos, 'provento', 'proventos')}
+            </li>
+            <li>{plural(previa.bens, 'bem', 'bens')} da família, com {plural(previa.avaliacoesBens, 'avaliação', 'avaliações')}</li>
           </ul>
           <p className="mb-4 text-sm text-slate-700">
             <strong>Ficam:</strong> a família, os membros e as categorias. <strong>Não tem volta</strong>: a exportação serve para consulta

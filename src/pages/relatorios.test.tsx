@@ -31,18 +31,22 @@ describe('Relatórios', () => {
   it('exportação completa: prepara, e cada arquivo é baixado por um clique; avisa que não é restaurável', async () => {
     const u = userEvent.setup()
     mock.exportacaoCompleta.mockResolvedValue(
-      [1, 2, 3, 4, 5].map((n) => ({ nome: `arq-${n}.csv`, conteudo: 'x', linhas: n })),
+      [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ nome: `arq-${n}.csv`, conteudo: 'x', linhas: n })),
     )
     render(<Relatorios />)
     expect(screen.getByText(/não é restaurável automaticamente/)).toBeTruthy()
+    // o título diz o número real de arquivos e a lista descreve investimentos e bens (arquivos 7 e 8)
+    expect(screen.getByText('Exportação completa (8 arquivos CSV)')).toBeTruthy()
+    expect(screen.getByText('Investimentos:')).toBeTruthy()
+    expect(screen.getByText('Bens:')).toBeTruthy()
     await u.click(screen.getByRole('button', { name: 'Preparar exportação completa' }))
     expect(mock.exportacaoCompleta).toHaveBeenCalledWith('h1', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
-    expect(await screen.findByText(/0 de 5 baixados/)).toBeTruthy()
+    expect(await screen.findByText(/0 de 8 baixados/)).toBeTruthy()
     expect(mock.baixarArquivo).not.toHaveBeenCalled()
     await u.click(screen.getByRole('button', { name: 'Baixar arq-1.csv' }))
     await u.click(screen.getByRole('button', { name: 'Baixar arq-4.csv' }))
     expect(mock.baixarArquivo.mock.calls.map((c) => c[0])).toEqual(['arq-1.csv', 'arq-4.csv'])
-    expect(screen.getByText(/2 de 5 baixados/)).toBeTruthy()
+    expect(screen.getByText(/2 de 8 baixados/)).toBeTruthy()
     expect(screen.getByText('· 1 linha')).toBeTruthy()
   })
 

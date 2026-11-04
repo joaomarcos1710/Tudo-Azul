@@ -20,7 +20,11 @@ vi.mock('../lib/csv', async (o) => ({
 
 import { ZerarTudo } from './ZerarTudo'
 
-const previa = { lancamentos: 12, contas: 2, cartoesEDividas: 1, parcelas: 3, eventos: 4, recorrencias: 1, conciliacoes: 1, orcamentos: 0 }
+const previa = {
+  lancamentos: 12, contas: 2, cartoesEDividas: 1, parcelas: 3, eventos: 4, recorrencias: 1, conciliacoes: 1, orcamentos: 0,
+  agendaContrato: 6, ativosInvestimento: 2, operacoesInvestimento: 5, avaliacoesInvestimento: 1, proventos: 3, bens: 1, avaliacoesBens: 2,
+}
+const nada = Object.fromEntries(Object.keys(previa).map((k) => [k, 0]))
 const montar = () => render(<MemoryRouter><ZerarTudo /></MemoryRouter>)
 const arquivos = [1, 2].map((n) => ({ nome: `arq-${n}.csv`, conteudo: 'x', linhas: n }))
 
@@ -41,6 +45,9 @@ describe('Zerar tudo', () => {
     expect(screen.getByText(/2 contas/)).toBeTruthy()
     expect(screen.getByText(/1 cartão ou dívida/)).toBeTruthy()
     expect(screen.getByText(/3 parcelas/)).toBeTruthy()
+    expect(screen.getByText(/6 parcelas da agenda de contratos/)).toBeTruthy()
+    expect(screen.getByText(/2 investimentos, com 5 operações, 1 avaliação e 3 proventos/)).toBeTruthy()
+    expect(screen.getByText(/1 bem da família, com 2 avaliações/)).toBeTruthy()
     expect(screen.getByText(/a família, os membros e as categorias/)).toBeTruthy()
     expect(screen.getByText(/Não tem volta/)).toBeTruthy()
   })
@@ -103,8 +110,16 @@ describe('Zerar tudo', () => {
     expect(screen.queryByText(/Pronto, tudo foi zerado/)).toBeNull()
   })
 
+  it('só um bem (sem conta nem lançamento) ainda é algo a zerar: oferece o botão', async () => {
+    mock.previaZerar.mockResolvedValue({ ...nada, bens: 1, avaliacoesBens: 1 })
+    montar()
+    expect(await screen.findByText(/1 bem da família, com 1 avaliação/)).toBeTruthy()
+    expect(screen.queryByText(/Não há nada para zerar/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Zerar tudo' })).toBeTruthy()
+  })
+
   it('sem nada para zerar, não oferece o botão', async () => {
-    mock.previaZerar.mockResolvedValue({ ...previa, lancamentos: 0, contas: 0, cartoesEDividas: 0, parcelas: 0, eventos: 0, recorrencias: 0, conciliacoes: 0 })
+    mock.previaZerar.mockResolvedValue(nada)
     montar()
     expect(await screen.findByText(/Não há nada para zerar/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Zerar tudo' })).toBeNull()

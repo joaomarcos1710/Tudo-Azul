@@ -81,6 +81,8 @@ beforeEach(() => {
         { id: 'e3', debt_id: 'd1', date: '2026-11-02', kind: 'interest', amount: '9.90', account_id: 'a1', installment_id: null, category_id: 'c2', note: 'mora' },
       ],
       debt_invoices: [{ id: 'f1', label: '2026-10' }],
+      investment_assets: [], investment_operations: [], investment_valuations: [], investment_distributions: [],
+      family_assets: [], family_asset_valuations: [],
     })
     Object.assign(fake.rpcs, {
       account_balances: () => [{ account_id: 'a1', balance: '599.60' }],
@@ -94,12 +96,16 @@ beforeEach(() => {
 })
 
 describe('exportacaoCompleta', () => {
-  it('gera os 6 arquivos com saldos e dívidas vindos do banco, sem somar no front', async () => {
+  it('gera os 8 arquivos com saldos e dívidas vindos do banco, sem somar no front', async () => {
     const arqs = await exportacaoCompleta('h1', '2026-10-31')
     expect(arqs.map((a) => a.nome)).toEqual([
       'tudo-azul-2026-10-31-1-lancamentos.csv', 'tudo-azul-2026-10-31-2-movimentos-por-conta.csv', 'tudo-azul-2026-10-31-3-cadastros.csv',
       'tudo-azul-2026-10-31-4-parcelas-cartao.csv', 'tudo-azul-2026-10-31-5-eventos-cartao-e-dividas.csv', 'tudo-azul-2026-10-31-6-agenda-parcelas-dividas.csv',
+      'tudo-azul-2026-10-31-7-investimentos.csv', 'tudo-azul-2026-10-31-8-bens.csv',
     ])
+    // sem investimentos nem bens: os arquivos saem só com o cabeçalho
+    expect(ARQ(arqs, 'investimentos')).toHaveLength(1)
+    expect(ARQ(arqs, '8-bens')).toHaveLength(1)
     expect(ARQ(arqs, 'movimentos').slice(1)).toEqual([
       'Itaú;01/10/2026;Saldo inicial;Saldo inicial;1000,00;Não',
       'Itaú;05/10/2026;Lançamento;Mercado;-250,40;Sim',
@@ -135,6 +141,54 @@ describe('exportacaoCompleta', () => {
     expect(mov.flatMap((c) => c.faixas)).toEqual([[0, 999], [1000, 1999]])
     expect(mov[0].ordens).toEqual(['date', 'source', 'id'])
     expect(fake.chamadas.find((c) => c.alvo === 'debt_events')?.ordens).toEqual(['date', 'id'])
+  })
+})
+
+describe('exportacaoCompleta: investimentos e bens (arquivos 7 e 8)', () => {
+  it('ativo com operações (inclusive anulada), avaliação e provento; bem com avaliações; valores do banco, sem conta no front', async () => {
+    Object.assign(fake.tabelas, {
+      investment_assets: [
+        { id: 'ia1', name: 'FII Teste', ticker: 'TSTE11', asset_class: 'reit', subclass: 'Tijolo', currency_code: 'BRL', active: true },
+        { id: 'ia2', name: 'ETF Global', ticker: null, asset_class: 'etf', subclass: null, currency_code: 'USD', active: false },
+      ],
+      investment_operations: [
+        { id: 'o1', asset_id: 'ia1', operation_date: '2026-10-02', kind: 'buy', quantity: '10.5', unit_price: '100.1234567891', fees: '1.90', notes: 'compra', voided_at: null, void_reason: null },
+        { id: 'o2', asset_id: 'ia1', operation_date: '2026-10-20', kind: 'sell', quantity: '4', unit_price: '110', fees: '0', notes: null, voided_at: '2026-10-21T10:00:00Z', void_reason: 'lançada em dobro' },
+      ],
+      investment_valuations: [{ id: 'v1', asset_id: 'ia1', valuation_date: '2026-10-10', unit_price: '105.5', source: 'Extrato' }],
+      investment_distributions: [
+        { id: 'p1', asset_id: 'ia1', kind: 'dividend', transaction: { date: '2026-10-15', amount: '12.34', status: 'paid', deleted_at: null, account_id: 'a1' } },
+        { id: 'p2', asset_id: 'ia1', kind: 'jcp', transaction: { date: '2026-10-25', amount: 5, status: 'paid', deleted_at: '2026-10-26T10:00:00Z', account_id: 'a1' } },
+      ],
+      family_assets: [
+        { id: 'b1', name: 'Casa de praia', asset_type: 'real_estate', description: 'Litoral', currency_code: 'BRL', ownership_label: 'Casal', household_share: '50.0000', acquired_on: '2020-01-10', status: 'active', ended_on: null },
+      ],
+      family_asset_valuations: [
+        { id: 'fv1', asset_id: 'b1', valuation_date: '2020-01-10', total_value: '200000.00', source: 'Escritura', notes: null },
+        { id: 'fv2', asset_id: 'b1', valuation_date: '2026-10-01', total_value: 210000.5, source: 'Corretor', notes: 'estimativa' },
+      ],
+    })
+    const arqs = await exportacaoCompleta('h1', '2026-10-31')
+    expect(ARQ(arqs, 'investimentos')).toEqual([
+      '\uFEFFRegistro;Ativo;Ticker;Classe;Subclasse;Moeda;Data;Tipo;Quantidade;Preço unitário;Taxas;Valor do provento;Conta;Situação;Observação',
+      'Ativo;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;;;;;;;;Ativo;',
+      'Operação;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;02/10/2026;Compra;10,5;100,1234567891;1,90;;;Válida;compra',
+      'Avaliação;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;10/10/2026;Avaliação;;105,5;;;;;Extrato',
+      'Provento;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;15/10/2026;Dividendos;;;;12,34;Itaú;Pago;',
+      'Operação;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;20/10/2026;Venda;4;110;0,00;;;Anulada;Anulada: lançada em dobro',
+      'Provento;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;25/10/2026;JCP;;;;5,00;Itaú;Na lixeira;',
+      'Ativo;ETF Global;;ETFs;;USD;;;;;;;;Arquivado;',
+    ])
+    expect(arqs.find((a) => a.nome.includes('investimentos'))?.linhas).toBe(7)
+    expect(ARQ(arqs, '8-bens')).toEqual([
+      '\uFEFFRegistro;Bem;Tipo;Moeda;Titularidade;Participação da família (%);Aquisição;Encerramento;Data da avaliação;Valor total;Fonte;Situação;Observação',
+      'Bem;Casa de praia;Imóvel;BRL;Casal;50,0000;10/01/2020;;;;;Ativo;Litoral',
+      'Avaliação;Casa de praia;;BRL;;;;;10/01/2020;200000,00;Escritura;;',
+      'Avaliação;Casa de praia;;BRL;;;;;01/10/2026;210000,50;Corretor;;estimativa',
+    ])
+    // as leituras têm ordem total (paginação segura)
+    expect(fake.chamadas.find((c) => c.alvo === 'investment_operations')?.ordens).toEqual(['operation_date', 'id'])
+    expect(fake.chamadas.find((c) => c.alvo === 'family_asset_valuations')?.ordens).toEqual(['valuation_date', 'id'])
   })
 })
 

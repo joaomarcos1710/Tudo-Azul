@@ -8,7 +8,7 @@ import type { ArquivoExportado } from '../lib/csv'
 import { mensagemErroBanco } from '../lib/erros'
 
 /**
- * Exportação completa (5 CSVs) em dois passos: "Preparar" lê o banco, e cada arquivo tem o seu botão de baixar
+ * Exportação completa (8 CSVs) em dois passos: "Preparar" lê o banco, e cada arquivo tem o seu botão de baixar
  * (o navegador bloqueia vários downloads de uma vez). `aoMudarBaixados(true)` quando todos foram baixados e
  * `aoMudarBaixados(false)` sempre que uma nova exportação é preparada (a anterior deixa de valer).
  */
