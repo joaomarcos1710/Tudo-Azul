@@ -19,6 +19,8 @@ const mock = vi.hoisted(() => ({
   reativarCartao: vi.fn(),
   excluirCartao: vi.fn(),
   registrarCompra: vi.fn(),
+  lancarCreditoNoCartao: vi.fn(),
+  listarCreditosDaFatura: vi.fn(),
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
   pagarFatura: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
   listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
+  lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
 }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0) }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
@@ -52,7 +55,7 @@ const c = (n: number) => n as Cents
 const nubank = { id: 'k1', nome: 'Nubank', emissor: null, bandeira: null, fechamento: 17, vencimento: 25, ativo: true, divida: c(13334), credito: c(0), compromissos: c(39666), limite: null, limiteComprometido: null, limiteDisponivel: null }
 const fatura = (f: Partial<Fatura>): Fatura => ({
   mes: '2026-03', fechamento: '2026-03-17', vencimento: '2026-03-25', cobrado: c(0), aCobrar: c(0), total: c(0), pago: c(0), itens: 1, faturaId: null,
-  saldoAnterior: c(0), adiantamentoEntrada: c(0), adiantamentoSaida: c(0), ...f,
+  saldoAnterior: c(0), adiantamentoEntrada: c(0), adiantamentoSaida: c(0), creditos: c(0), ...f,
 })
 
 beforeEach(() => {
@@ -67,6 +70,8 @@ beforeEach(() => {
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
   mock.previaExclusao.mockResolvedValue([])
+  mock.listarCreditosDaFatura.mockResolvedValue([])
+  mock.lancarCreditoNoCartao.mockResolvedValue('ev1')
   for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.definirContaPagamento, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
@@ -387,6 +392,62 @@ describe('Cartões', () => {
     expect(mock.reabrirFatura).not.toHaveBeenCalled()
     await u.click(within(screen.getByRole('group', { name: 'Reabrir fatura' })).getByRole('button', { name: 'Reabrir fatura' }))
     expect(mock.reabrirFatura).toHaveBeenCalledWith('k1', '2099-04')
+  })
+
+  it('crédito / reembolso: só categorias de RECEITA e envia valor em centavos, data e descrição', async () => {
+    const u = userEvent.setup()
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Crédito / reembolso' }))
+    await u.type(screen.getByLabelText('Descrição'), 'Estorno de IOF')
+    expect(screen.queryByRole('option', { name: 'Compras pessoais' })).toBeNull() // só receita
+    await u.selectOptions(screen.getByLabelText('Categoria de receita'), 'g2')
+    await u.type(screen.getByLabelText('Valor (R$)'), '50,00')
+    const data = screen.getByLabelText('Data do crédito')
+    await u.clear(data)
+    await u.type(data, '2026-10-10')
+    await u.click(screen.getByRole('button', { name: 'Lançar crédito' }))
+    expect(mock.lancarCreditoNoCartao).toHaveBeenCalledWith('k1',
+      { descricao: 'Estorno de IOF', data: '2026-10-10', valor: 5000, categoriaId: 'g2', fechamento: null }, expect.any(String))
+  })
+
+  it('crédito / reembolso: pode escolher uma fatura posterior; sem categoria não envia', async () => {
+    const u = userEvent.setup()
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-09', fechamento: '2026-09-17' }), fatura({ mes: '2026-11', fechamento: '2026-11-17' }),
+    ])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Crédito / reembolso' }))
+    await u.type(screen.getByLabelText('Descrição'), 'Cashback')
+    await u.type(screen.getByLabelText('Valor (R$)'), '10,00')
+    const data = screen.getByLabelText('Data do crédito')
+    await u.clear(data)
+    await u.type(data, '2026-10-01')
+    expect(screen.queryByRole('option', { name: /Setembro/i })).toBeNull() // fechou antes do crédito
+    await u.selectOptions(screen.getByLabelText('Fatura'), '2026-11-17')
+    await u.click(screen.getByRole('button', { name: 'Lançar crédito' }))
+    expect(screen.getByText('Escolha a categoria de receita.')).toBeTruthy()
+    expect(mock.lancarCreditoNoCartao).not.toHaveBeenCalled()
+    await u.selectOptions(screen.getByLabelText('Categoria de receita'), 'g2')
+    await u.click(screen.getByRole('button', { name: 'Lançar crédito' }))
+    expect(mock.lancarCreditoNoCartao).toHaveBeenCalledWith('k1', expect.objectContaining({ fechamento: '2026-11-17', valor: 1000 }), expect.any(String))
+  })
+
+  it('o crédito aparece na fatura em verde, com sinal +, e pode ser anulado', async () => {
+    const u = userEvent.setup()
+    mock.listarCreditosDaFatura.mockResolvedValue([
+      { id: 'ev9', descricao: 'Reembolso do plano', dataCredito: '2099-04-02', fechamento: '2099-04-17', valor: c(5000), categoriaId: 'g2' },
+    ])
+    mock.anularMovimentoCartao.mockResolvedValue(undefined)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await abrirFatura(u, { creditos: c(5000) })
+    expect(mock.listarCreditosDaFatura).toHaveBeenCalledWith('k1', '2099-04')
+    const linha = (await screen.findByText('Reembolso do plano')).closest('li')!
+    const valor = within(linha).getByText(/^\+R\$\s?50,00$/)
+    expect(valor.className).toContain('text-positivo')
+    expect(within(linha).getByText(/Salário · receita/)).toBeTruthy()
+    expect(screen.getByText(/Créditos e reembolsos nesta fatura.*R\$\s?50,00/)).toBeTruthy()
+    await u.click(within(linha).getByRole('button', { name: 'Anular crédito Reembolso do plano' }))
+    expect(mock.anularMovimentoCartao).toHaveBeenCalledWith('ev9', expect.any(String))
   })
 
   it('mostra saldo anterior e adiantamento da fatura', async () => {
