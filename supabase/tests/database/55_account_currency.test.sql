@@ -141,5 +141,8 @@ select is((select count(*) from public.balance_totals_by_currency(pg_temp.fx('h2
   'V2 a família vizinha (sem contas) não enxerga as moedas da outra');
 select is((select count(*) from public.accounts where household_id = pg_temp.fx('h')), 0::bigint, 'V3 nem as contas');
 
+select ok(has_function_privilege('service_role', 'public.balance_totals_projected(uuid, date, boolean)', 'execute'),
+  'G1 o aviso diário (service_role) continua podendo chamar balance_totals_projected depois de recriada');
+
 select * from finish();
 rollback;

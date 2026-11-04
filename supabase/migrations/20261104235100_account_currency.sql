@@ -519,4 +519,4 @@ revoke execute on function public.account_balances(uuid, date), public.account_b
   from public, anon;
 grant execute on function public.account_balances(uuid, date), public.account_balances_projected(uuid, date, boolean),
   public.balance_totals_projected(uuid, date, boolean), public.balance_totals_by_currency(uuid, date)
-  to authenticated;
+  to authenticated, service_role;  -- service_role: o aviso diário (daily_digest) chama balance_totals_projected
