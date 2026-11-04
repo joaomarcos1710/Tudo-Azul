@@ -41,6 +41,7 @@ export default function Dividas() {
   const [contrato, setContrato] = useState<Divida | null>(null)
   const [parcelaSelecionada, setParcelaSelecionada] = useState<ParcelaDivida | null>(null)
   const [parcelas, setParcelas] = useState<ParcelaDivida[]>([])
+  const [agendaFalhou, setAgendaFalhou] = useState(false)
   const [renomeando, setRenomeando] = useState<Divida | null>(null)
   const [arquivadas, setArquivadas] = useState<Divida[]>([])
   // confirmação de arquivar/excluir, aberta dentro do card da própria dívida
@@ -55,12 +56,14 @@ export default function Dividas() {
         listarContas(familia.id),
         listarCategorias(familia.id),
         // desde sempre: parcela vencida e ainda não baixada aparece primeiro (antes ficava escondida por começar em hoje)
-        listarParcelasDivida(familia.id, '2000-01-01', '2100-01-01').catch(() => []),
+        listarParcelasDivida(familia.id, '2000-01-01', '2100-01-01').then((a) => { setAgendaFalhou(false); return a })
+          .catch(() => { setAgendaFalhou(true); return [] as ParcelaDivida[] }),
         listarDividas(familia.id, hoje, 'arquivadas').catch(() => []),
       ])
       setDividas(lista)
       setArquivadas(listaArquivadas)
-      setParcelas(agenda.slice(0, 12))
+      // todas as parcelas, até a última: a tela agrupa por dívida (antes, as 12 primeiras de todas juntas escondiam dívidas)
+      setParcelas(agenda)
       // vindo de Lançamentos ("Baixar parcela"): abre a baixa daquela parcela e limpa o endereço
       const baixar = new URLSearchParams(window.location.search).get('baixar')
       if (baixar) {
@@ -259,29 +262,18 @@ export default function Dividas() {
               ))}
             </ul>
           </section>
+          {agendaFalhou && (
+            <div className="mb-4"><Aviso tipo="erro">Não foi possível carregar as próximas parcelas agora. Recarregue a página em instantes.</Aviso></div>
+          )}
           {parcelas.length > 0 && (
             <section className="mb-8" aria-labelledby="titulo-agenda-dividas">
               <h2 id="titulo-agenda-dividas" className="mb-3 text-lg font-semibold">Próximas parcelas</h2>
-              <Card>
-                <ul className="divide-y divide-slate-100">
-                  {parcelas.map((p) => (
-                    <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                      <div className="min-w-0">
-                        <p className="font-medium">{p.nomeDivida} · parcela {p.numero}</p>
-                        <p className="text-xs text-slate-500">{p.vencimento < hojeSP() && <span className="mr-1 font-semibold text-negativo">Vencida ·</span>}Vencimento {p.vencimento.split('-').reverse().join('/')} · {p.formaPagamento === 'account_debit' ? 'Débito em conta' : p.formaPagamento === 'boleto' ? 'Boleto' : p.formaPagamento === 'payroll' ? 'Consignado' : 'Manual'}</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <strong className="tabular-nums">{formatBRL(p.valor)}</strong>
-                        <Button compacto disabled={parcelas.find((x) => x.dividaId === p.dividaId)?.id !== p.id}
-                          onClick={() => setParcelaSelecionada(p)}>
-                          {parcelas.find((x) => x.dividaId === p.dividaId)?.id === p.id ? 'Baixar parcela' : 'Pague a anterior primeiro'}
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-2 text-xs text-slate-500">Parcelas futuras são compromissos planejados. Elas não reduzem o saldo da conta nem o saldo devedor até a confirmação do pagamento.</p>
-              </Card>
+              <div className="flex flex-col gap-3">
+                {agruparPorDivida(parcelas).map((g) => (
+                  <AgendaDaDivida key={g.dividaId} nome={g.nome} parcelas={g.parcelas} aoBaixar={setParcelaSelecionada} />
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-slate-500">Parcelas futuras são compromissos planejados. Elas não reduzem o saldo da conta nem o saldo devedor até a confirmação do pagamento.</p>
             </section>
           )}
         </>
@@ -684,3 +676,50 @@ function CategoriaDaParcela({ divida, categorias, aoMudar }: { divida: Divida; c
     </div>
   )
 }
+
+function agruparPorDivida(parcelas: ParcelaDivida[]): { dividaId: string; nome: string; parcelas: ParcelaDivida[] }[] {
+  const grupos = new Map<string, { dividaId: string; nome: string; parcelas: ParcelaDivida[] }>()
+  for (const p of parcelas) {
+    const g = grupos.get(p.dividaId) ?? { dividaId: p.dividaId, nome: p.nomeDivida, parcelas: [] }
+    g.parcelas.push(p)
+    grupos.set(p.dividaId, g)
+  }
+  return [...grupos.values()]
+}
+
+const VISIVEIS = 3
+
+/** Uma dívida por cartão: as 3 próximas à mostra e "Ver todas" até a última. Só a primeira pode ser baixada. */
+function AgendaDaDivida({ nome, parcelas, aoBaixar }: { nome: string; parcelas: ParcelaDivida[]; aoBaixar: (p: ParcelaDivida) => void }) {
+  const [todas, setTodas] = useState(false)
+  const hoje = hojeSP()
+  const lista = todas ? parcelas : parcelas.slice(0, VISIVEIS)
+  return (
+    <Card>
+      <h3 className="mb-1 font-semibold">{nome} <span className="text-sm font-normal text-slate-500">· {parcelas.length === 1 ? '1 parcela' : `${parcelas.length} parcelas`} a pagar</span></h3>
+      <ul className="divide-y divide-slate-100">
+        {lista.map((p, i) => (
+          <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div className="min-w-0">
+              <p className="font-medium">Parcela {p.numero}</p>
+              <p className="text-xs text-slate-500">{p.vencimento < hoje && <span className="mr-1 font-semibold text-negativo">Vencida ·</span>}Vencimento {p.vencimento.split('-').reverse().join('/')} · {p.formaPagamento === 'account_debit' ? 'Débito em conta' : p.formaPagamento === 'boleto' ? 'Boleto' : p.formaPagamento === 'payroll' ? 'Consignado' : 'Manual'}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <strong className="tabular-nums">{formatBRL(p.valor)}</strong>
+              {i === 0
+                ? <Button compacto onClick={() => aoBaixar(p)}>Baixar parcela</Button>
+                : <span className="text-xs text-slate-500">depois da anterior</span>}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {parcelas.length > VISIVEIS && (
+        <button type="button" onClick={() => setTodas((v) => !v)} aria-expanded={todas}
+          className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">
+          {todas ? 'Mostrar menos' : `Ver todas as ${parcelas.length} parcelas`}
+        </button>
+      )}
+    </Card>
+  )
+}
+

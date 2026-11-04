@@ -5,9 +5,10 @@ import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card, CardTitle } from '../components/ui/Card'
 import { useFamilia } from '../lib/FamiliaContext'
-import { baixarArquivo, gerarCsv, lancamentosParaExportar } from '../lib/csv'
+import { baixarArquivo, gerarCsv, lancamentosParaExportar, primeiraDataDeLancamento } from '../lib/csv'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatMonth } from '../lib/format'
+import { currentMonth, formatDate } from '../lib/format'
+import { hojeSP } from '../lib/contas'
 import { limitesDoMes } from '../lib/lancamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
@@ -17,6 +18,22 @@ export default function Relatorios() {
   const [ok, setOk] = useState('')
   const [exportando, setExportando] = useState(false)
   const mes = currentMonth()
+  // período do CSV: começa no mês atual; "Desde o primeiro lançamento" vai até o primeiro dia de uso
+  const [de, setDe] = useState(() => limitesDoMes(mes)[0])
+  const [ate, setAte] = useState(() => hojeSP())
+  const periodoOk = !!de && !!ate && de <= ate
+
+  async function desdeOInicio() {
+    if (!familia) return
+    setErro('')
+    try {
+      const primeira = await primeiraDataDeLancamento(familia.id)
+      if (primeira) setDe(primeira)
+      else setOk('Ainda não há lançamentos para exportar.')
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    }
+  }
 
   async function exportarMes() {
     if (!familia) return
@@ -24,9 +41,9 @@ export default function Relatorios() {
     setOk('')
     setExportando(true)
     try {
-      const [de, ate] = limitesDoMes(mes)
+      if (!periodoOk) { setErro('Escolha um período válido: o início não pode ser depois do fim.'); return }
       const linhas = await lancamentosParaExportar(familia.id, { de, ate })
-      const nome = `tudo-azul-${mes}.csv`
+      const nome = `tudo-azul-${de}-a-${ate}.csv`
       baixarArquivo(nome, gerarCsv(linhas))
       setOk(`${linhas.length} lançamento(s) exportado(s) em ${nome}.`)
     } catch (err) {
@@ -43,13 +60,22 @@ export default function Relatorios() {
       {ok && <div className="mb-4"><Aviso tipo="sucesso">{ok}</Aviso></div>}
       <EntradasSaidas />
       <Card className="mb-4">
-        <CardTitle>Lançamentos do mês (CSV)</CardTitle>
+        <CardTitle>Lançamentos do período (CSV)</CardTitle>
         <p className="mb-4 text-sm text-slate-600">
           Abre no Excel e no Google Planilhas. Despesas saem com valor negativo; transferências, com as duas contas.
           Lançamentos na lixeira ficam de fora. Compras no cartão não estão aqui: ficam na exportação completa.
         </p>
-        <Button onClick={exportarMes} carregando={exportando} disabled={exportando}>
-          Exportar {formatMonth(mes)}
+        <div className="mb-3 grid gap-3 sm:grid-cols-3 sm:items-end">
+          <label className="flex flex-col gap-1 text-sm"><span className="font-medium">De</span>
+            <input type="date" value={de} max={ate || undefined} onChange={(e) => setDe(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-3" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm"><span className="font-medium">Até</span>
+            <input type="date" value={ate} min={de || undefined} onChange={(e) => setAte(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-3" />
+          </label>
+          <Button variante="secundario" onClick={() => void desdeOInicio()}>Desde o primeiro lançamento</Button>
+        </div>
+        <Button onClick={exportarMes} carregando={exportando} disabled={exportando || !periodoOk}>
+          {periodoOk ? `Exportar de ${formatDate(de)} a ${formatDate(ate)}` : 'Escolha o período'}
         </Button>
       </Card>
       <Card>

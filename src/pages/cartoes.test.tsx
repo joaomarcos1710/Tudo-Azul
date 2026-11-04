@@ -639,4 +639,14 @@ describe('Próxima fatura', () => {
     await screen.findByRole('button', { name: 'Pagar fatura' })
     expect(screen.queryByTestId('proxima-k1')).toBeNull()
   })
+
+  it('erro ao carregar os itens de uma fatura aparece só ali: as abas de fatura continuam na tela', async () => {
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(10000), total: c(10000) })])
+    mock.listarItens.mockRejectedValue(new Error('rede'))
+    const u = userEvent.setup()
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getAllByRole('tab').length).toBeGreaterThan(0)
+  })
 })

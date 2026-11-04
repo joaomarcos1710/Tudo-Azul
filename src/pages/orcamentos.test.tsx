@@ -69,14 +69,14 @@ describe('Orçamentos', () => {
   })
 
   it('já estourou o limite: avisa o quanto, sem falar de projeção', async () => {
-    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(120000), projetado: c(150000), sobra: c(-50000) })])
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(120000), projetado: c(150000), sobra: c(-50000), restante: c(-20000) })])
     render(<Orcamentos />)
     expect(await screen.findByText('Já passou do limite em R$ 200,00.')).toBeTruthy()
     expect(screen.queryByText(/No ritmo/)).toBeNull()
   })
 
   it('mês passado: sem projeção, só o resultado', async () => {
-    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(90000), previsto: null, ritmo: null, projetado: null, sobra: null })])
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(90000), previsto: null, ritmo: null, projetado: null, sobra: null, restante: c(10000) })])
     const u = userEvent.setup()
     render(<Orcamentos />)
     await screen.findByText('Mercado')
@@ -181,5 +181,12 @@ describe('Orçamentos', () => {
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(screen.getByLabelText('Limite do mês (R$)')).toBeTruthy()
+  })
+
+  it('"passou do limite em" usa o restante do banco, não uma conta na tela', async () => {
+    // valor de propósito diferente de gasto − limite: prova que a tela mostra o número do banco
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(120000), projetado: c(150000), sobra: c(-50000), restante: c(-25000) })])
+    render(<Orcamentos />)
+    expect(await screen.findByText('Já passou do limite em R$ 250,00.')).toBeTruthy()
   })
 })

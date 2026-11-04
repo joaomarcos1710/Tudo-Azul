@@ -20,6 +20,8 @@ export interface OrcamentoMes {
   projetado: Cents | null
   /** Limite − projetado (negativo = vai estourar). null sem projeção. */
   sobra: Cents | null
+  /** Limite − gasto, calculado no banco (budget_usage.remaining); negativo = já passou do limite. */
+  restante: Cents
 }
 
 function cliente() {
@@ -38,8 +40,13 @@ function funcaoInexistente(err: { code?: string; message?: string }): boolean {
 export async function listarOrcamentos(familiaId: string, mes: string, hoje: string): Promise<OrcamentoMes[]> {
   const db = cliente()
   const primeiro = `${mes}-01`
-  const proj = await db.rpc('budget_projection', { p_household: familiaId, p_month: primeiro, p_today: hoje })
+  const [proj, usoJunto] = await Promise.all([
+    db.rpc('budget_projection', { p_household: familiaId, p_month: primeiro, p_today: hoje }),
+    db.rpc('budget_usage', { p_household: familiaId, p_month: primeiro }),
+  ])
   if (!proj.error) {
+    if (usoJunto.error) throw usoJunto.error
+    const restantePor = new Map(((usoJunto.data ?? []) as Linha[]).map((r) => [r.category_id as string, centsFromDb(r.remaining ?? 0)]))
     return ((proj.data ?? []) as Linha[]).map((r) => ({
       categoriaId: r.category_id as string,
       nome: r.category_name as string,
@@ -49,10 +56,11 @@ export async function listarOrcamentos(familiaId: string, mes: string, hoje: str
       ritmo: centsFromDb(r.pace_extra ?? 0),
       projetado: centsFromDb(r.projected ?? 0),
       sobra: centsFromDb(r.remaining ?? 0),
+      restante: restantePor.get(r.category_id as string) ?? (0 as Cents),
     }))
   }
   if (!funcaoInexistente(proj.error)) throw proj.error
-  const uso = await db.rpc('budget_usage', { p_household: familiaId, p_month: primeiro })
+  const uso = usoJunto
   if (uso.error) throw uso.error
   return ((uso.data ?? []) as Linha[]).map((r) => ({
     categoriaId: r.category_id as string,
@@ -60,6 +68,7 @@ export async function listarOrcamentos(familiaId: string, mes: string, hoje: str
     limite: centsFromDb(r.amount_limit ?? 0),
     gasto: centsFromDb(r.spent ?? 0),
     previsto: null, ritmo: null, projetado: null, sobra: null,
+    restante: centsFromDb(r.remaining ?? 0),
   }))
 }
 

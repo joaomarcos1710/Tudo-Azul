@@ -99,3 +99,9 @@ Muda a decisão antiga ("push só se necessário"): o dono quer o aviso. Canal: 
 ## 04/11/2026 — Lançamento fixo no painel cria a regra, não um lançamento pago
 No Organizze, "Lançamento fixo" fica dentro do painel de lançamento. Aqui também, mas ele cria a **regra de recorrente** (a mesma da tela Recorrentes) e as ocorrências entram **planejadas**, inclusive a primeira; quem já pagou marca como pago. Motivo: criar um lançamento pago e mais a regra arriscaria duplicar a primeira ocorrência. Períodos: semanal, quinzenal, mensal, bimestral, trimestral, semestral e anual (o banco já aceitava). Ficam para a próxima PR, com migration: o período em **dias** (pedido do dono) e o **lançamento parcelado** fora do cartão (N parcelas com o valor dividido em centavos exatos, a sobra na primeira).
 
+## 04/11/2026 — Exceção da chave do servidor só para leitura
+A auditoria apontou que a exceção da 047 valia para funções que gravam. Decisão: a `is_member` só aceita a service_role com uma marca ligada pela função de leitura do aviso (`daily_digest_service`), durante a chamada. Assim o aviso continua usando as mesmas funções do app, e nenhuma função que grava fica aberta à chave do servidor.
+
+## 04/11/2026 — Reembolso no cartão conta como receita
+Pergunta ao dono: reembolso de uma despesa sua (plano de saúde, empresa) deve abater a despesa ou contar como receita? Escolha do dono: **receita** (opção A), mesmo inflando receita e despesa do mês. Vale para o crédito avulso no cartão (próxima PR).
+

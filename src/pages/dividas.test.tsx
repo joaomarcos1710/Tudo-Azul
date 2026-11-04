@@ -191,4 +191,32 @@ describe('Dívidas', () => {
     await userEvent.selectOptions(doImovel, '')
     expect(mock.definirCategoriaPrincipal).toHaveBeenCalledWith('d1', null)
   })
+
+  it('agenda: todas as parcelas, separadas por dívida, até a última (antes, só as 12 primeiras de todas juntas)', async () => {
+    const parc = (d: string, nome: string, n: number) => ({ id: `${d}-${n}`, dividaId: d, nomeDivida: nome, numero: n,
+      vencimento: `2027-${String(n).padStart(2, '0')}-05`.replace(/-(1[3-9]|[2-9]\d)-/, '-12-'), valor: c(250000), formaPagamento: 'boleto', contaPagamentoId: null })
+    mock.listarParcelasDivida.mockResolvedValue([
+      ...Array.from({ length: 15 }, (_, i) => parc('d1', 'Financiamento do imóvel', i + 1)),
+      parc('d2', 'Empréstimo pessoal', 1), parc('d2', 'Empréstimo pessoal', 2),
+    ])
+    const u = userEvent.setup()
+    render(<Dividas />)
+    const agenda = (await screen.findByRole('heading', { name: 'Próximas parcelas' })).closest('section') as HTMLElement
+    const imovel = within(agenda).getByRole('heading', { name: /Financiamento do imóvel/ }).closest('div[class*="rounded"]') as HTMLElement
+    const emprestimo = within(agenda).getByRole('heading', { name: /Empréstimo pessoal/ }).closest('div[class*="rounded"]') as HTMLElement
+    expect(within(emprestimo).getAllByRole('listitem')).toHaveLength(2) // a segunda dívida não some
+    expect(within(imovel).getAllByRole('listitem')).toHaveLength(3)
+    await u.click(within(imovel).getByRole('button', { name: 'Ver todas as 15 parcelas' }))
+    expect(within(imovel).getAllByRole('listitem')).toHaveLength(15)
+    expect(within(imovel).getByText('Parcela 15')).toBeTruthy()
+    // só a primeira de cada dívida pode ser baixada
+    expect(within(imovel).getAllByRole('button', { name: 'Baixar parcela' })).toHaveLength(1)
+    expect(within(emprestimo).getAllByRole('button', { name: 'Baixar parcela' })).toHaveLength(1)
+  })
+
+  it('agenda que falha avisa, em vez de sumir (parecia que não havia nada a pagar)', async () => {
+    mock.listarParcelasDivida.mockRejectedValue(new Error('rede'))
+    render(<Dividas />)
+    expect(await screen.findByText(/Não foi possível carregar as próximas parcelas/)).toBeTruthy()
+  })
 })

@@ -36,22 +36,23 @@ const linhaProj = { category_id: 'c1', category_name: 'Mercado', amount_limit: '
 describe('listarOrcamentos', () => {
   it('lê a projeção do banco em centavos e manda o primeiro dia do mês e a data de hoje', async () => {
     fake.e.rpc.budget_projection = { data: [linhaProj], error: null }
+    // o "restante" (limite − gasto) vem do banco (budget_usage.remaining): a tela não faz essa conta
+    fake.e.rpc.budget_usage = { data: [{ category_id: 'c1', remaining: '700.00' }], error: null }
     const r = await listarOrcamentos('h1', '2026-10', '2026-10-10')
-    expect(r).toEqual([{ categoriaId: 'c1', nome: 'Mercado', limite: 100000, gasto: 30000, previsto: 20000, ritmo: 63000, projetado: 113000, sobra: -13000 }])
+    expect(r).toEqual([{ categoriaId: 'c1', nome: 'Mercado', limite: 100000, gasto: 30000, previsto: 20000, ritmo: 63000, projetado: 113000, sobra: -13000, restante: 70000 }])
     expect(fake.e.chamadas[0]).toMatchObject({ op: 'rpc:budget_projection', payload: { p_household: 'h1', p_month: '2026-10-01', p_today: '2026-10-10' } })
   })
 
   it('banco ainda sem a projeção (migration 013): cai para budget_usage, só com o gasto', async () => {
     fake.e.rpc.budget_projection = { data: null, error: { code: 'PGRST202', message: 'Could not find the function public.budget_projection' } }
-    fake.e.rpc.budget_usage = { data: [{ category_id: 'c1', category_name: 'Mercado', amount_limit: '1000.00', spent: '300.00' }], error: null }
+    fake.e.rpc.budget_usage = { data: [{ category_id: 'c1', category_name: 'Mercado', amount_limit: '1000.00', spent: '300.00', remaining: '700.00' }], error: null }
     const r = await listarOrcamentos('h1', '2026-10', '2026-10-10')
-    expect(r[0]).toMatchObject({ limite: 100000, gasto: 30000, projetado: null, sobra: null, previsto: null, ritmo: null })
+    expect(r[0]).toMatchObject({ limite: 100000, gasto: 30000, projetado: null, sobra: null, previsto: null, ritmo: null, restante: 70000 })
   })
 
   it('erro que não é "função inexistente" (ex.: queda do banco) não vira "sem projeção" em silêncio', async () => {
     fake.e.rpc.budget_projection = { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } }
     await expect(listarOrcamentos('h1', '2026-10', '2026-10-10')).rejects.toMatchObject({ code: '57014' })
-    expect(fake.e.chamadas.some((c) => c.op === 'rpc:budget_usage')).toBe(false)
   })
 
   it('se os dois falharem, o erro sobe', async () => {
