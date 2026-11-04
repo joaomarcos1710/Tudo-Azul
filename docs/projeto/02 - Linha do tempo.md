@@ -137,6 +137,6 @@ tags: [tudo-azul, historico]
 - **Excluir ativo com histórico** (migration 050, #151, 04/11/2026): botão Excluir pede o nome do ativo quando ele tem histórico. Merge `3124e34`; **migration 050 aplicada em 04/11/2026** (execução 41760547266, simulação 41760479629).
 - **Escolher a fatura e recuar o início do cartão** (migration 051, #152, 04/11/2026): seletor de fatura (3 antes a 3 depois) na compra; o início do cartão pode recuar para lançar o passado.
 
+- **CLAUDE.md: jeito de mexer no código** (#154, 04/11/2026): quatro regras adaptadas do Ponytail. Sem mudança no app.
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
-- **CLAUDE.md: jeito de mexer no código** (#154, 04/11/2026): quatro regras adaptadas do Ponytail. Sem mudança no app.
