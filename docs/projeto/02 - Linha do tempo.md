@@ -130,7 +130,8 @@ tags: [tudo-azul, historico]
 - **Aviso diário — banco** (migration 047, #145, 04/11/2026): decisão do dono (e-mail, esconder valores ligado, opção 1 de acesso). Merge `49fb434`; **migration 047 aplicada em 04/11/2026** (execução 41751150847, simulação 41751084406).
 - **Aviso diário — tela** (#146, 04/11/2026): card na tela Família com a prévia de hoje.
 - **Lançamentos: painel, menu e lançamento fixo** (#147, 04/11/2026): pedido do dono a partir do Organizze.
-- **Parcelado fora do cartão e recorrência em dias** (migration 048, #148, 04/11/2026): pedido do dono a partir do Organizze; **migration 048 ainda não aplicada**.
+- **Parcelado fora do cartão e recorrência em dias** (migration 048, #148, 04/11/2026): pedido do dono a partir do Organizze. Merge `1efa1f0`; **migration 048 aplicada em 04/11/2026** (execução 41753252297, simulação 41753191906).
+- **Consertos da auditoria** (migration 049, #149, 04/11/2026): três agentes revisaram o app; o dono mandou corrigir os itens graves; **migration 049 ainda não aplicada**.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

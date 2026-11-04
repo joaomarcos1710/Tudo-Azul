@@ -7,13 +7,14 @@ const mock = vi.hoisted(() => ({
   baixarArquivo: vi.fn(),
   exportacaoCompleta: vi.fn(),
   lancamentosParaExportar: vi.fn(),
+  primeiraDataDeLancamento: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
 vi.mock('../lib/csv', async (o) => ({
   ...(await o<typeof import('../lib/csv')>()),
-  baixarArquivo: mock.baixarArquivo, exportacaoCompleta: mock.exportacaoCompleta, lancamentosParaExportar: mock.lancamentosParaExportar,
+  baixarArquivo: mock.baixarArquivo, exportacaoCompleta: mock.exportacaoCompleta, lancamentosParaExportar: mock.lancamentosParaExportar, primeiraDataDeLancamento: mock.primeiraDataDeLancamento,
 }))
 
 // o bloco Entradas x Saídas tem teste próprio (components/entradasSaidas.test.tsx); aqui só importa a exportação
@@ -52,5 +53,25 @@ describe('Relatórios', () => {
     await u.click(screen.getByRole('button', { name: 'Preparar exportação completa' }))
     expect(mock.baixarArquivo).not.toHaveBeenCalled()
     expect(await screen.findByRole('alert')).toBeTruthy()
+  })
+
+  it('CSV de um período: "Desde o primeiro lançamento" vai até o primeiro dia de uso e exporta de lá até a data final', async () => {
+    mock.primeiraDataDeLancamento.mockResolvedValue('2025-03-14')
+    mock.lancamentosParaExportar.mockResolvedValue([])
+    const u = (await import('@testing-library/user-event')).default.setup()
+    render(<Relatorios />)
+    await u.click(screen.getByRole('button', { name: 'Desde o primeiro lançamento' }))
+    expect(await screen.findByDisplayValue('2025-03-14')).toBeTruthy()
+    const exportar = screen.getByRole('button', { name: /Exportar de 14\/03\/2025 a/ })
+    await u.click(exportar)
+    expect(mock.lancamentosParaExportar).toHaveBeenCalledWith('h1', expect.objectContaining({ de: '2025-03-14' }))
+  })
+
+  it('período invertido não exporta', async () => {
+    const { fireEvent } = await import('@testing-library/react')
+    render(<Relatorios />)
+    fireEvent.change(screen.getByLabelText('De'), { target: { value: '2099-01-01' } })
+    const botao = screen.getByRole('button', { name: 'Escolha o período' }) as HTMLButtonElement
+    expect(botao.disabled).toBe(true)
   })
 })

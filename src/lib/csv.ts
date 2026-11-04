@@ -403,3 +403,12 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     },
   ]
 }
+
+/** Data do lançamento mais antigo da família (fora da lixeira); null sem lançamentos. Para "desde o primeiro dia de uso". */
+export async function primeiraDataDeLancamento(familiaId: string): Promise<string | null> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const { data, error } = await supabase.from('transactions').select('date').eq('household_id', familiaId)
+    .is('deleted_at', null).order('date', { ascending: true }).limit(1)
+  if (error) throw error
+  return ((data ?? []) as { date: string }[])[0]?.date ?? null
+}

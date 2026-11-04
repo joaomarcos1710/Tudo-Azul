@@ -205,8 +205,8 @@ function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, herdaEve
 
 /** Despesa do mês por grupo. Valores e percentuais vêm do banco (budget_rule_report); aqui só se apresenta. */
 function CartaoRegra({ linhas, mes }: { linhas: LinhaRegra[]; mes: string }) {
-  const total = linhas.reduce((n, l) => n + l.valor, 0)
-  if (total === 0) return null
+  // só para saber se há algo a mostrar: nenhum valor em reais é somado aqui
+  if (!linhas.some((l) => l.valor > 0)) return null
   return (
     <Card className="mb-4">
       <h2 className="mb-1 text-lg font-semibold">Regra 50-30-20 em {primeiraMaiuscula(formatMonth(mes))}</h2>

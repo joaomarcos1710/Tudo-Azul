@@ -384,16 +384,22 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
   const [mes, setMes] = useState<string | null>(null)
   const [itens, setItens] = useState<ItemFatura[] | null>(null)
   const [erro, setErro] = useState('')
+  const [erroItens, setErroItens] = useState('')
   const hoje = hojeSP()
 
   useEffect(() => {
+    // vivo: uma resposta antiga (gravação anterior) não sobrescreve a nova; e o erro de antes some ao tentar de novo
+    let vivo = true
+    setErro('')
     listarFaturas(cartaoId)
       .then((f) => {
+        if (!vivo) return
         setFaturas(f)
         // abre a primeira fatura ainda não paga (ou a última, se todas pagas)
         setMes((atual) => atual ?? (f.find((x) => situacaoFatura(x, hoje) !== 'paga') ?? f[f.length - 1])?.mes ?? null)
       })
-      .catch((err) => setErro(mensagemErroBanco(err)))
+      .catch((err) => { if (vivo) setErro(mensagemErroBanco(err)) })
+    return () => { vivo = false }
   }, [cartaoId, versao, hoje])
 
   useEffect(() => {
@@ -401,9 +407,10 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
     // resposta de uma fatura que já não é a escolhida não pode preencher a lista da outra (Editar/Excluir ficariam no item errado)
     let vivo = true
     setItens(null)
+    setErroItens('')
     listarItens(cartaoId, mes)
       .then((i) => { if (vivo) setItens(i) })
-      .catch((err) => { if (vivo) setErro(mensagemErroBanco(err)) })
+      .catch((err) => { if (vivo) setErroItens(mensagemErroBanco(err)) })
     return () => { vivo = false }
   }, [cartaoId, mes, versao])
 
@@ -457,7 +464,7 @@ function Faturas({ cartaoId, versao, categorias, contas, aoAlterar }: {
               <PainelExcluir cartaoId={cartaoId} item={acao.item} contas={contas} aoFechar={() => setAcao(null)}
                 aoConcluir={async () => { setAcao(null); setMes(null); await aoAlterar() }} />
             )}
-            {itens === null ? <p className="mt-2 text-sm text-slate-600" role="status">Carregando…</p> : (
+            {erroItens ? <div className="mt-2"><Aviso tipo="erro">{erroItens}</Aviso></div> : itens === null ? <p className="mt-2 text-sm text-slate-600" role="status">Carregando…</p> : (
               <div className="mt-3 flex flex-col gap-4">
                 {comprasPorDia(itens).map(([dia, doDia]) => (
                   <div key={dia ?? 'sem-data'} role="group" aria-label={dia ? formatDate(dia) : 'Sem data da compra'}>

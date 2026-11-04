@@ -54,7 +54,8 @@ select ok(private.is_member(pg_temp.fx('h')), 'M1 dono é membro');
 select pg_temp.login('00000000-0000-0000-0000-0000000048a2');
 select ok(not private.is_member(pg_temp.fx('h')), 'M2 usuário de outra família continua sem acesso');
 select pg_temp.servidor();
-select ok(private.is_member(pg_temp.fx('h')), 'M3 service_role (a Edge Function) passa');
+-- migration 049: a service_role só passa durante a leitura do aviso (daily_digest_service), nunca sozinha
+select ok(not private.is_member(pg_temp.fx('h')), 'M3 service_role sozinha não passa (não grava por is_member)');
 reset role;
 select set_config('request.jwt.claims', '', true);
 select ok(not private.is_member(pg_temp.fx('h')), 'M4 sem login: continua sem acesso');
@@ -76,8 +77,17 @@ select is((select projected_balance from dono),
   'D5 saldo previsto = o mesmo balance_totals_projected do Início (uma fonte só)');
 
 select pg_temp.servidor();
-select is((select row(d.*)::text from public.daily_digest(pg_temp.fx('h'), pg_temp.hoje()) d),
-          (select row(x.*)::text from dono x), 'D6 a Edge Function vê exatamente os mesmos números que o dono');
+select is((select row(d.*)::text from public.daily_digest_service(pg_temp.fx('h'), pg_temp.hoje()) d),
+          (select row(x.*)::text from dono x), 'D6 a Edge Function (daily_digest_service) vê exatamente os mesmos números que o dono');
+select is(current_setting('app.service_read', true), 'off', 'D6.1 a marca de leitura é desligada no fim da chamada');
+select ok(not private.is_member(pg_temp.fx('h')), 'D6.2 depois da leitura, a service_role volta a não passar');
+select is_empty($$select * from public.daily_digest(pg_temp.fx('h'), pg_temp.hoje())$$, 'D6.3 o resumo direto (sem a função do servidor) não responde');
+select pg_temp.login('00000000-0000-0000-0000-0000000048a1');
+select is(pg_temp.sqlstate_of($$select * from public.daily_digest_service(pg_temp.fx('h'), pg_temp.hoje())$$), '42501',
+  'D6.4 usuário comum não chama a função do servidor');
+select pg_temp.anonimo();
+select is(pg_temp.sqlstate_of($$select * from public.daily_digest_service(null::uuid, current_date)$$), '42501',
+  'D6.5 anon também não');
 
 select pg_temp.login('00000000-0000-0000-0000-0000000048a2');
 select is_empty($$select * from public.daily_digest(pg_temp.fx('h'), pg_temp.hoje())$$, 'D7 outra família: nada');

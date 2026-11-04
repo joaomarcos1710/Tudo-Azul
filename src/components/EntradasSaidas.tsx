@@ -50,6 +50,9 @@ export function EntradasSaidas() {
   useEffect(() => {
     if (!familiaId) return
     let vivo = true
+    // troca de mês, passo ou filtro: some a tabela antiga (senão o título novo aparece em cima dos números do filtro anterior)
+    setFluxo(null)
+    setErro('')
     const [de, ate] = periodoDoFluxo(mes, passo)
     fluxoDeCaixa(familiaId, de, ate, passo, { contas: contasEscolhidas, membro, incluirNaoPagos: naoPagos })
       .then((r) => { if (vivo) { setFluxo(r); setErro('') } })
@@ -125,8 +128,32 @@ export function EntradasSaidas() {
       {!fluxo && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
       {fluxo && (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[34rem] text-sm">
+        // celular: um cartão por período, sem rolar para o lado; a partir de sm, a tabela
+        <ul className="divide-y divide-slate-100 sm:hidden" aria-label="Entradas e saídas por período">
+          {fluxo.linhas.map((l) => (
+            <li key={l.inicio} className="py-3 text-sm">
+              <p className="mb-1 font-semibold text-marinho">{rotuloBalde(l.inicio, passo)}</p>
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <dt className="text-slate-500">Entradas</dt><dd className="text-right tabular-nums text-positivo">{formatBRL(l.entradas)}</dd>
+                <dt className="text-slate-500">Saídas</dt><dd className="text-right tabular-nums text-negativo">{formatBRL(l.saidas)}</dd>
+                <dt className="text-slate-500">Saldo</dt><dd className="text-right tabular-nums">{formatBRL(l.saldo)}</dd>
+                <dt className="text-slate-500">Acumulado</dt><dd className="text-right tabular-nums">{formatBRL(l.acumulado)}</dd>
+              </dl>
+            </li>
+          ))}
+          <li className="py-3 text-sm font-semibold">
+            <p className="mb-1">Total do período</p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+              <dt>Entradas</dt><dd className="text-right tabular-nums text-positivo">{formatBRL(fluxo.totalEntradas)}</dd>
+              <dt>Saídas</dt><dd className="text-right tabular-nums text-negativo">{formatBRL(fluxo.totalSaidas)}</dd>
+              <dt>Saldo</dt><dd className="text-right tabular-nums">{formatBRL(fluxo.linhas[fluxo.linhas.length - 1]?.acumulado ?? asCents(0)!)}</dd>
+            </dl>
+          </li>
+        </ul>
+      )}
+      {fluxo && (
+        <div className="hidden overflow-x-auto sm:block">
+          <table className="w-full text-sm">
             <caption className="sr-only">Entradas, saídas, saldo e acumulado por período</caption>
             <thead>
               <tr className="border-b border-slate-200 text-left text-slate-600">

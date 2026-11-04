@@ -122,3 +122,14 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Novo lançamento com só Despesa / Receita / Transferência; "Conta/Cartão" num seletor só (grupos Contas e Cartões); receita no cartão = estorno/reembolso/pagamento adiantado (pedido do dono, 04/11).
 - [ ] Parcelado: editar ou excluir todas as parcelas de uma vez.
 
+## Auditoria por agentes (04/11/2026)
+- [x] Chave do servidor só lê (migration 049) · Orçamentos/Categorias sem conta de dinheiro na tela · faturas de Cartões sem erro preso · Dívidas com todas as parcelas por dívida e aviso de falha · Entradas × Saídas sem números velhos e em cartões no celular · CSV de qualquer período (#149).
+- [ ] **Relatório de gastos por categoria com gráfico** e comparação entre meses (pedido do dono: "criar!").
+- [ ] **Total de todos os cartões juntos** (do banco) (pedido do dono: "precisa ter").
+- [ ] **Barra de "% quitado"** em cada dívida (pedido do dono: "precisa ter").
+- [ ] Orçamento que se repete todo mês sozinho (o dono pediu explicação).
+- [ ] Crédito avulso no cartão com categoria, contando como receita; novo lançamento com só 3 abas, "Conta/Cartão" num seletor só e categoria com ícone (PR grande, com migration).
+- [ ] Cartões: abas de fatura com navegação por setas (`tabpanel`); Dívidas: menu "Mais" para Renomear/Arquivar/Excluir no celular.
+- [ ] Orçamentos: `window.confirm` ao remover → confirmação do app; barra como `progressbar`.
+- [ ] Testes que faltam: CSV mensal, cartão 50-30-20, Dívidas (`primeiroVencimento`, contrato, amortização extra).
+

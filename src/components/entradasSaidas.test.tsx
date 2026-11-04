@@ -118,4 +118,22 @@ describe('Entradas x Saídas', () => {
     await screen.findByRole('table')
     expect(screen.queryByLabelText('Lançado por')).toBeNull()
   })
+
+  it('trocar o filtro tira a tabela antiga enquanto o número novo não chega', async () => {
+    const u = userEvent.setup()
+    render(<EntradasSaidas />)
+    expect((await screen.findAllByText('R$ 1.500,00')).length).toBeGreaterThan(0)
+    mock.fluxoDeCaixa.mockReturnValueOnce(new Promise(() => {}))
+    await u.selectOptions(screen.getByLabelText('Lançado por'), 'u2')
+    expect(screen.getByRole('status').textContent).toMatch(/Carregando/)
+    expect(screen.queryByText('R$ 1.500,00')).toBeNull()
+  })
+
+  it('no celular, cada período é um cartão (sem rolar para o lado)', async () => {
+    render(<EntradasSaidas />)
+    const lista = await screen.findByRole('list', { name: 'Entradas e saídas por período' })
+    expect(lista.className).toMatch(/sm:hidden/)
+    expect(within(lista).getAllByRole('listitem')).toHaveLength(3) // 2 períodos + total
+    expect(screen.getByRole('table').closest('div')!.className).toMatch(/hidden.*sm:block/)
+  })
 })
