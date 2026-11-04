@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const mock = vi.hoisted(() => ({
@@ -16,6 +16,7 @@ const mock = vi.hoisted(() => ({
   arquivarAtivoInvestimento: vi.fn(),
   reativarAtivoInvestimento: vi.fn(),
   excluirAtivoInvestimento: vi.fn(),
+  excluirAtivoComHistorico: vi.fn(),
   listarExtratoAtivo: vi.fn(),
   anularOperacaoInvestimento: vi.fn(),
 }))
@@ -35,6 +36,7 @@ vi.mock('../lib/investimentos', async (o) => ({
   arquivarAtivoInvestimento: mock.arquivarAtivoInvestimento,
   reativarAtivoInvestimento: mock.reativarAtivoInvestimento,
   excluirAtivoInvestimento: mock.excluirAtivoInvestimento,
+  excluirAtivoComHistorico: mock.excluirAtivoComHistorico,
   listarExtratoAtivo: mock.listarExtratoAtivo,
   anularOperacaoInvestimento: mock.anularOperacaoInvestimento,
 }))
@@ -347,14 +349,40 @@ describe('Investimentos × macroclasse e subclasse', () => {
       confirmar.mockRestore()
     })
 
-    it('se o banco recusar a exclusão, a mensagem dele aparece (a tela não confia só nos contadores)', async () => {
+    it('ativo com histórico: pede o nome; cancelar não exclui nada', async () => {
       comZerado()
       mock.excluirAtivoInvestimento.mockRejectedValue(Object.assign(new Error('Este ativo possui operações, avaliações ou proventos. O histórico financeiro não pode ser excluído.'), { code: '55000' }))
       const u = userEvent.setup()
       vi.spyOn(window, 'confirm').mockReturnValue(true)
+      const prompt = vi.spyOn(window, 'prompt').mockReturnValue(null)
       render(<Investimentos />)
       await u.click(within(await linhaDe('Nunca usado')).getByRole('button', { name: 'Excluir Nunca usado' }))
-      expect((await screen.findByRole('alert')).textContent).toMatch(/histórico financeiro não pode ser excluído/)
+      await waitFor(() => expect(prompt).toHaveBeenCalled())
+      expect(mock.excluirAtivoComHistorico).not.toHaveBeenCalled()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('ativo com histórico: com o nome digitado, exclui junto com o histórico', async () => {
+      comZerado()
+      mock.excluirAtivoInvestimento.mockRejectedValue(Object.assign(new Error('trava'), { code: '55000' }))
+      mock.excluirAtivoComHistorico.mockResolvedValue({ operacoes: 1, avaliacoes: 0, proventos: 0 })
+      const u = userEvent.setup()
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      vi.spyOn(window, 'prompt').mockReturnValue('Nunca usado')
+      render(<Investimentos />)
+      await u.click(within(await linhaDe('Nunca usado')).getByRole('button', { name: 'Excluir Nunca usado' }))
+      await waitFor(() => expect(mock.excluirAtivoComHistorico).toHaveBeenCalledWith(expect.any(String), 'Nunca usado'))
+    })
+
+    it('outro erro do banco aparece na tela', async () => {
+      comZerado()
+      mock.excluirAtivoInvestimento.mockRejectedValue(Object.assign(new Error('ativo não encontrado'), { code: '42501' }))
+      const u = userEvent.setup()
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+      render(<Investimentos />)
+      await u.click(within(await linhaDe('Nunca usado')).getByRole('button', { name: 'Excluir Nunca usado' }))
+      expect(await screen.findByRole('alert')).toBeTruthy()
+      expect(mock.excluirAtivoComHistorico).not.toHaveBeenCalled()
     })
 
     it('editar: corrige nome, código e classe; a moeda aparece mas não muda', async () => {

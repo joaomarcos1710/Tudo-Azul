@@ -132,4 +132,6 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Cartões: abas de fatura com navegação por setas (`tabpanel`); Dívidas: menu "Mais" para Renomear/Arquivar/Excluir no celular.
 - [ ] Orçamentos: `window.confirm` ao remover → confirmação do app; barra como `progressbar`.
 - [ ] Testes que faltam: CSV mensal, cartão 50-30-20, Dívidas (`primeiroVencimento`, contrato, amortização extra).
-
+- [x] **Excluir ativo com histórico** (migration 050, #151). Falta aplicar a 050 em produção.
+- [ ] **Categoria: excluir e migrar** no lugar de desativar (escolher a categoria destino; lançamentos, recorrentes e orçamentos vão juntos).
+- [ ] **Importar o histórico do Organizze** a partir do arquivo exportado (.xls).

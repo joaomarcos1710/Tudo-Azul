@@ -134,3 +134,18 @@ describe('gerir ativos (migration 037)', () => {
     await expect(reativarAtivoInvestimento('a1')).rejects.toBeTruthy()
   })
 })
+
+import { excluirAtivoComHistorico } from './investimentos'
+
+describe('excluir ativo com histórico (migration 050)', () => {
+  it('manda o id e o nome digitado e devolve as contagens', async () => {
+    fake.estado.rpcResposta = { data: [{ operations: 7, valuations: 1, distributions: 0 }], error: null }
+    await expect(excluirAtivoComHistorico('a1', 'CDB')).resolves.toEqual({ operacoes: 7, avaliacoes: 1, proventos: 0 })
+    expect(fake.estado.rpcs[fake.estado.rpcs.length - 1]).toEqual({ nome: 'investment_asset_purge', args: { p_asset: 'a1', p_confirm_name: 'CDB' } })
+  })
+
+  it('nome errado: o erro do banco sobe', async () => {
+    fake.estado.rpcResposta = { data: null, error: { code: '22023', message: 'Digite o nome exato do ativo para confirmar a exclusão.' } }
+    await expect(excluirAtivoComHistorico('a1', 'x')).rejects.toMatchObject({ code: '22023' })
+  })
+})

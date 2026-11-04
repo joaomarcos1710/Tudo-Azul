@@ -133,6 +133,8 @@ tags: [tudo-azul, historico]
 - **Parcelado fora do cartão e recorrência em dias** (migration 048, #148, 04/11/2026): pedido do dono a partir do Organizze. Merge `1efa1f0`; **migration 048 aplicada em 04/11/2026** (execução 41753252297, simulação 41753191906).
 - **Consertos da auditoria** (migration 049, #149, 04/11/2026): três agentes revisaram o app; o dono mandou corrigir os itens graves. Merge `c4e14f0`; **migration 049 aplicada em 04/11/2026** (execução 41755314777, simulação 41755254149).
 - **Engenharia reversa do Organizze** (#150, 04/11/2026): leitura pelo conector oficial, só estrutura (doc `51`).
+- **Importação do cadastro do Organizze** (04/11/2026, sem PR, pelo SQL de administrador com o "pode" do dono, identificado como o usuário e com simulação antes): contas com o saldo do dia, cartões, categorias e recorrentes. Categorias de teste desativadas e depois excluídas.
+- **Excluir ativo com histórico** (migration 050, #151, 04/11/2026): botão Excluir pede o nome do ativo quando ele tem histórico.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
