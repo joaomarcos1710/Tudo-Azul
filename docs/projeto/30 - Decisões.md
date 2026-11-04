@@ -122,3 +122,10 @@ O dono mandou o link do Ponytail (plugin de agentes de código, licença MIT). D
 
 ## 04/11/2026 — Sem preview da Vercel nos branches do Claude
 O plano gratuito da Vercel permite 100 deploys por dia, e cada push gerava um preview; o limite estourou em 04/11. Decisão do dono: `vercel.json` desliga o deploy automático dos branches `claude/**`. O `main` (produção) continua publicando sozinho; quem testa as PRs é o CI.
+
+## 04/11/2026 — Importação do histórico do Organizze: como entra
+- **Parcelas na fatura em que o Organizze cobrou** (opção A), não pela data calculada: assim as faturas fechadas batem com o que foi pago, inclusive quando parcelas foram antecipadas. Efeito: compras com antecipação aparecem divididas em trechos, com outro número de parcelas.
+- **"Pagamento Adiantado"** com saída de mesmo valor e data na conta entra como **pagamento adiantado do cartão**, não como receita + despesa (senão os dois lados do relatório ficam inflados).
+- **Empréstimo da Funcef** vai para Dívidas (com saldo devedor), não como regra recorrente.
+- Recorrentes: seguro residencial não renovado (não cria); seguro de vida encerrado; Light fixa como estimativa; barbearia é gasto do mês sem dia certo (não vira regra).
+- Antes de gravar: índice novo (053), porque o histórico deixava o fechamento da fatura acima do limite de 8 s.
