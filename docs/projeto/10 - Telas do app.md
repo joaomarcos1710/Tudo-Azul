@@ -25,7 +25,7 @@ Menu em **grupos** (barra lateral no iPad/computador; no celular, 4 atalhos + "M
 - **Categorias** — despesas e receitas, subcategorias (1 nível), desativar, marcar receita como **eventual**; em despesa, escolher o **grupo da regra 50-30-20** (Necessidades, Desejos, Investir e poupar — o app só sugere pelo nome) e ver o cartão "Regra 50-30-20" do mês com a parte da renda em cada grupo.
 
 ## Conta
-- **Família** — criar família, convidar por link (token guardado só como hash), aceitar convite, membros, **Zerar tudo** (só o dono).
+- **Família** — criar família, convidar por link (token guardado só como hash), aceitar convite, membros, **Zerar tudo** (só o dono) e **Aviso diário por e-mail** (cada pessoa liga o seu: horário 5h–22h, esconder valores ligado por padrão, prévia de hoje com o mesmo texto do e-mail; sem nada a avisar, o e-mail não sai).
 - **Acesso** — entrar, criar conta, recuperar e trocar senha.
 
 ## Em todo o app
