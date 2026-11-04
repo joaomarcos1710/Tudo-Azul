@@ -137,6 +137,7 @@ tags: [tudo-azul, historico]
 - **Excluir ativo com histórico** (migration 050, #151, 04/11/2026): botão Excluir pede o nome do ativo quando ele tem histórico. Merge `3124e34`; **migration 050 aplicada em 04/11/2026** (execução 41760547266, simulação 41760479629).
 - **Escolher a fatura e recuar o início do cartão** (migration 051, #152, 04/11/2026): seletor de fatura (3 antes a 3 depois) na compra; o início do cartão pode recuar para lançar o passado. Merge `d0a2df4`; **migration 051 aplicada em 04/11/2026** (execução 41761250133, simulação 41761186576).
 - **Crédito no cartão como receita** (migration 052, #153, 04/11/2026): estorno, ajuste, cashback ou reembolso sem compra abatem a fatura e contam como receita.
+- **CLAUDE.md: jeito de mexer no código** (#154, 04/11/2026): quatro regras adaptadas do Ponytail; e `vercel.json` sem preview nos branches `claude/**` (limite de 100 deploys por dia do plano gratuito).
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

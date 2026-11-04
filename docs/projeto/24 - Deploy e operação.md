@@ -22,3 +22,6 @@ Nunca editar migration já aplicada.
 ## Quando algo falha
 - CI vermelho: reproduzir, corrigir, provar, empurrar (nunca pular teste).
 - "Rate limit" ao instalar o CLI do Supabase: erro da infraestrutura do GitHub; rodar a simulação de novo.
+
+## Preview dos branches do Claude desligado (04/11/2026)
+`vercel.json` → `git.deploymentEnabled` com `"claude/**": false`: push em branch `claude/...` não gera preview (o plano gratuito tem 100 deploys por dia). Produção (`main`) segue automática. Para ver um preview pontual, publique pela Vercel à mão ou tire a regra numa PR.
