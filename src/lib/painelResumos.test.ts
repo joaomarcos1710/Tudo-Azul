@@ -25,7 +25,7 @@ vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
 import { resumoDosCartoes } from './cartoes'
 import { ultimasConferencias } from './conciliacao'
-import { vencidosPlanejados } from './painel'
+import { evolucaoPatrimonio, vencidosPlanejados } from './painel'
 
 beforeEach(() => {
   fake.e.tabelas = {}
@@ -171,3 +171,32 @@ describe('resumoDosCartoes', () => {
     expect(r[1].credito).toBe(10000)
   })
 })
+
+describe('evolucaoPatrimonio', () => {
+  it('um ponto por mês no último dia (mês atual: hoje), do mais antigo ao atual, com os valores do banco', async () => {
+    const datas: string[] = []
+    fake.e.rpc.net_worth_with_assets = (args) => {
+      const d = (args as { p_as_of: string }).p_as_of
+      datas.push(d)
+      return { data: [{ available: d === '2026-02-28' ? '-10.50' : '100.00', debt: 0, credit_receivable: 0, net_worth: '1000.25', family_assets_brl: 0, planned_commitments: 0 }], error: null }
+    }
+    const r = await evolucaoPatrimonio('h1', '2026-03-04', 3)
+    expect(r.map((p) => [p.mes, p.data])).toEqual([['2026-01', '2026-01-31'], ['2026-02', '2026-02-28'], ['2026-03', '2026-03-04']])
+    expect(datas.sort()).toEqual(['2026-01-31', '2026-02-28', '2026-03-04'])
+    expect(r[1]).toMatchObject({ disponivel: -1050, patrimonio: 100025 })
+  })
+
+  it('virada de ano: dezembro do ano anterior entra certo', async () => {
+    fake.e.rpc.net_worth_with_assets = { data: [{ available: 0, debt: 0, credit_receivable: 0, net_worth: 0, family_assets_brl: 0, planned_commitments: 0 }], error: null }
+    const r = await evolucaoPatrimonio('h1', '2027-01-15', 2)
+    expect(r.map((p) => p.data)).toEqual(['2026-12-31', '2027-01-15'])
+  })
+
+  it('um mês que falha derruba a série (sem buraco falso no gráfico)', async () => {
+    fake.e.rpc.net_worth_with_assets = (args) => ((args as { p_as_of: string }).p_as_of === '2026-02-28'
+      ? { data: null, error: { message: 'rede' } }
+      : { data: [{ available: 0, debt: 0, credit_receivable: 0, net_worth: 0, family_assets_brl: 0, planned_commitments: 0 }], error: null })
+    await expect(evolucaoPatrimonio('h1', '2026-03-04', 3)).rejects.toMatchObject({ message: 'rede' })
+  })
+})
+

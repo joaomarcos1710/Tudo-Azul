@@ -114,4 +114,6 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Botão "tentar de novo" no erro do painel, mantendo o cabeçalho e os atalhos.
 - [ ] Alvos de toque de 44 px nos links "Ver…" e no Personalizar painel; % com palavra ("aumentou/caiu"), não só cor.
 - [ ] "Últimos lançamentos" sem filtro de mês (no dia 1 a lista fica vazia).
+- [x] Gráfico de patrimônio e saldo mês a mês em Análises (#144).
+- [ ] Aviso diário (vencimentos e saldo previsto), de preferência como notificação no celular — ideia do personal-financial-dashboard.
 

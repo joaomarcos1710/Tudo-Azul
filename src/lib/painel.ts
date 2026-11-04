@@ -247,3 +247,29 @@ export async function carregarResumoInvestimentos(familiaId: string, dataRef: st
     valorAtual: centsFromDb(r.market_value ?? 0),
   }))
 }
+
+/** Um ponto por mês: patrimônio e saldo das contas no último dia do mês (ou hoje, no mês corrente). */
+export interface PontoPatrimonio {
+  mes: string
+  data: string
+  patrimonio: Cents
+  disponivel: Cents
+}
+
+/**
+ * Evolução dos últimos `meses` meses. Cada ponto é o próprio net_worth_with_assets na data (saldo, dívida e
+ * bens como estavam naquele dia): nada é somado aqui. Um ponto que falhe derruba a série toda (sem buracos falsos).
+ */
+export async function evolucaoPatrimonio(familiaId: string, hoje: string, meses = 12): Promise<PontoPatrimonio[]> {
+  const atual = hoje.slice(0, 7)
+  const datas = Array.from({ length: meses }, (_, i) => {
+    const [a, m] = atual.split('-').map(Number)
+    const d = new Date(Date.UTC(a, m - 1 - (meses - 1 - i), 1))
+    const mes = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    const ultimo = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+    const fim = `${mes}-${String(ultimo).padStart(2, '0')}`
+    return { mes, data: fim < hoje ? fim : hoje }
+  })
+  const valores = await Promise.all(datas.map((d) => carregarPatrimonio(familiaId, d.data)))
+  return datas.map((d, i) => ({ ...d, patrimonio: valores[i].patrimonio, disponivel: valores[i].disponivel }))
+}
