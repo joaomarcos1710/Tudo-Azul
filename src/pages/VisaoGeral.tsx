@@ -44,6 +44,8 @@ interface Dados {
   /** Mesmo recorte nos dois meses (dia 1 até hoje × dia 1 até o mesmo dia do mês anterior), só para a % dos indicadores. */
   comparacao: { atual: ResumoMes; anterior: ResumoMes } | null
   contas: Conta[]
+  /** Todas as contas, inclusive arquivadas: só para dar nome às pontas de uma transferência antiga. */
+  todasContas: Conta[]
   /** Soma do saldo das contas, do banco (balance_totals); null fora do Início. */
   saldoGeral: Cents | null
   proximos: ProximoPlanejado[]
@@ -207,7 +209,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(saldosProjetados(familiaId, ate, true).then((r) => r.total)), opcional(listarOrcamentos(familiaId, mes, hoje)),
           ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, saldoPrevisto, orcamentos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), saldoGeral: c.total, proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos,
+            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -231,7 +233,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(projecaoDoMes(familiaId, mes, hoje)), comparar(),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], saldoGeral: null, proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => { if (ativo) setDados(d) })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
@@ -303,7 +305,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                     <span className="min-w-0 flex-1">
                       {formatDate(x.data).slice(0, 5)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
                       <span className="ml-2 text-xs text-negativo">{atraso === 1 ? 'venceu ontem' : `venceu há ${atraso} dias`}</span>
-                      {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.contas} />}
+                      {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.todasContas} />}
                     </span>
                     <span className={`tabular-nums font-semibold ${x.tipo === 'income' ? 'text-positivo' : x.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
                       {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatBRL(x.valor)}
@@ -366,7 +368,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             Nenhum widget selecionado. Use <strong>Personalizar painel</strong> para adicionar indicadores.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores financeiros">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Indicadores financeiros">
             {widgetsVisiveis.map((id) => <div key={id} className="min-w-0">{indicadoresWidgets[id]}</div>)}
           </div>
         )}
@@ -590,7 +592,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                   <IconeDaLinha tipo={l.tipo} categoriaId={l.categoriaId} porId={dados.categoriaPorId} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{l.descricao || (l.tipo === 'income' ? 'Receita' : l.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
-                    {l.tipo === 'transfer' && <RotaTransferencia contaId={l.contaId} destinoId={l.destinoId} contas={dados.contas} />}
+                    {l.tipo === 'transfer' && <RotaTransferencia contaId={l.contaId} destinoId={l.destinoId} contas={dados.todasContas} />}
                   </span>
                   {l.categoriaId && (
                     <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 sm:inline">{dados.nomeCategoria.get(l.categoriaId) ?? 'Sem categoria'}</span>
@@ -615,7 +617,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                   <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
                   <span className="min-w-0 flex-1">
                     {formatDate(x.data)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
-                    {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.contas} />}
+                    {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.todasContas} />}
                   </span>
                   <span className={`tabular-nums font-semibold ${x.tipo === 'income' ? 'text-positivo' : x.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
                     {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatBRL(x.valor)}
@@ -753,7 +755,7 @@ const Balanca = () => <Icone><path d="M12 3v18M5 7h14M7 7l-3 7a3 3 0 0 0 6 0L7 7
 const Cofre = () => <Icone><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M7 6V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1M15 12h2" /></Icone>
 
 /**
- * Transferência: "De → Para" com a logo e o nome de cada banco, para dizer de onde saiu e para onde foi.
+ * Transferência: "De <conta> → Para <conta>" com a logo e o nome de cada banco, para dizer de onde saiu e para onde foi.
  * A conta pode não estar na lista (arquivada): mostra "outra conta" sem logo em vez de esconder a transferência.
  */
 function RotaTransferencia({ contaId, destinoId, contas }: { contaId: string | null; destinoId: string | null; contas: Conta[] }) {
@@ -767,8 +769,10 @@ function RotaTransferencia({ contaId, destinoId, contas }: { contaId: string | n
   )
   return (
     <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-500">
-      <span className="font-medium text-slate-600">De → Para</span>
-      <span className="inline-flex min-w-0 items-center gap-1.5">{ponta(origem)}<span aria-hidden="true">→</span>{ponta(destino)}</span>
+      {/* "De Mercado Pago → Para Caixa": cada palavra junto da sua conta (pedido do dono) */}
+      <span className="font-medium text-slate-600">De</span>{ponta(origem)}
+      <span aria-hidden="true">→</span>
+      <span className="font-medium text-slate-600">Para</span>{ponta(destino)}
     </span>
   )
 }
@@ -787,13 +791,13 @@ function CardSaldo({ hoje, previsto, fimDoMes }: { hoje: Cents | null; previsto:
       <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-azul-claro text-azul" aria-hidden="true"><Cofre /></span>
       {/* um item por linha (rótulo à esquerda, valor à direita): em duas colunas o "Previsto em 30/11" quebrava e o valor saía do card */}
       <dl className="space-y-2">
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
           <dt className="text-sm text-slate-500">Saldo hoje</dt>
-          <dd className="whitespace-nowrap tabular-nums text-lg font-bold sm:text-xl">{hoje === null ? '—' : formatBRL(hoje)}</dd>
+          <dd className="ml-auto whitespace-nowrap tabular-nums text-lg font-bold">{hoje === null ? '—' : formatBRL(hoje)}</dd>
         </div>
-        <div className="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2">
-          <dt className="whitespace-nowrap text-sm text-slate-500">Previsto em {formatDate(fimDoMes).slice(0, 5)}</dt>
-          <dd className={`whitespace-nowrap tabular-nums text-lg font-bold sm:text-xl ${previsto !== null && previsto < 0 ? 'text-negativo' : ''}`}>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-t border-slate-100 pt-2">
+          <dt className="text-sm text-slate-500">Previsto em {formatDate(fimDoMes).slice(0, 5)}</dt>
+          <dd className={`ml-auto whitespace-nowrap tabular-nums text-lg font-bold ${previsto !== null && previsto < 0 ? 'text-negativo' : ''}`}>
             {previsto === null ? '—' : formatBRL(previsto)}
           </dd>
         </div>

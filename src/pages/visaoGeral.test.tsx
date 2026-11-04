@@ -165,8 +165,7 @@ describe('Visão geral', () => {
       ])
       montar()
       const item = (await screen.findByText(/Reserva/)).closest('li')!
-      expect(item.textContent).toMatch(/De → Para/)
-      expect(item.textContent).toMatch(/Itaú.*Nubank/)
+      expect(item.textContent).toMatch(/De\s*Itaú\s*→\s*Para\s*Nubank/)
       expect(item.querySelectorAll('[data-banco], img, svg').length).toBeGreaterThan(0)
     })
 
@@ -177,17 +176,34 @@ describe('Visão geral', () => {
       })
       montar()
       const item = (await screen.findByText(/Guardar/)).closest('li')!
-      expect(item.textContent).toMatch(/De → Para.*Nubank.*Itaú/)
+      expect(item.textContent).toMatch(/De\s*Nubank\s*→\s*Para\s*Itaú/)
     })
 
-    it('conta arquivada ou fora da lista: mostra "outra conta" em vez de esconder a transferência', async () => {
+    it('conta arquivada aparece com o nome dela; só conta desconhecida vira "outra conta"', async () => {
       contasComNubank()
       mock.proximosPlanejados.mockResolvedValue([
         { id: 't8', tipo: 'transfer', descricao: 'Saque', valor: c(5000), data: '2026-10-21', categoriaId: null, contaId: 'a1', destinoId: 'a2' },
+        { id: 't7', tipo: 'transfer', descricao: 'Sumida', valor: c(5000), data: '2026-10-22', categoriaId: null, contaId: 'a1', destinoId: 'zz' },
       ])
       montar()
-      const item = (await screen.findByText(/Saque/)).closest('li')!
-      expect(item.textContent).toMatch(/Itaú.*outra conta/)
+      expect((await screen.findByText(/Saque/)).closest('li')!.textContent).toMatch(/De\s*Itaú\s*→\s*Para\s*Antiga/)
+      expect(screen.getByText(/Sumida/).closest('li')!.textContent).toMatch(/Para\s*outra conta/)
+    })
+
+    it('últimos lançamentos: transferência paga mostra "De Mercado Pago → Para Caixa"', async () => {
+      mock.listarContas.mockResolvedValue({
+        contas: [
+          { id: 'mp', nome: 'Mercado Pago', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
+          { id: 'cx', nome: 'Caixa Econômica', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
+        ],
+        total: c(0),
+      })
+      mock.listarLancamentos.mockResolvedValue([
+        { id: 'l9', tipo: 'transfer', contaId: 'mp', destinoId: 'cx', categoriaId: null, descricao: 'Transferência', valor: c(20000), data: '2026-10-05', status: 'paid', notas: '' },
+      ])
+      montar()
+      const card = (await screen.findByText('Últimos lançamentos')).closest('div[class*="rounded"]') as HTMLElement
+      expect(within(card).getByText('Transferência').closest('li')!.textContent).toMatch(/De\s*Mercado Pago\s*→\s*Para\s*Caixa Econômica/)
     })
 
     it('receita e despesa não ganham De → Para', async () => {
@@ -554,7 +570,10 @@ describe('Visão geral', () => {
     // cada item na sua linha, rótulo e valor juntos (em duas colunas o rótulo quebrava e o valor saía do card)
     const linhas = Array.from(within(painel).getByText('Saldo hoje').closest('dl')!.children)
     expect(linhas.map((l) => l.textContent)).toEqual(['Saldo hojeR$ 2.494,49', expect.stringMatching(/^Previsto em \d{2}\/\d{2}R\$ 994,49$/)])
-    for (const l of linhas) expect(l.className).toMatch(/justify-between/)
+    // card estreito (4 colunas → ~240px): o valor pode descer para baixo do rótulo, nunca sair do card
+    for (const l of linhas) expect(l.className).toMatch(/flex-wrap/)
+    for (const dt of linhas.map((l) => l.querySelector('dt')!)) expect(dt.className).not.toMatch(/whitespace-nowrap/)
+    expect(painel.querySelector('[aria-label="Indicadores financeiros"]')!.className).toMatch(/xl:grid-cols-3/)
     expect(within(painel).queryByText('Entradas do mês')).toBeNull()
     expect(within(painel).queryByText('Despesas do mês')).toBeNull()
     expect(within(screen.getByRole('banner')).getByText('R$ 12.150,00')).toBeTruthy() // receita no cabeçalho
