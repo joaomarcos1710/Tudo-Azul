@@ -125,6 +125,7 @@ tags: [tudo-azul, historico]
 - **Painel: consertos da revisão** (#140, 03/11/2026): comparação até o mesmo dia, ocultar valores em moeda estrangeira, carga atrasada descartada, aviso quando vencidos/cartões falham, parcela de dívida vencida em Vencidos.
 - **Início novo** (#141, 04/11/2026): pedido do dono (números duplicados) e ideias do Google AI Studio filtradas; saldo previsto, a receber/a pagar, vencidos no topo e orçamentos.
 - **Início: card do previsto em linhas** (#142, 04/11/2026): pedido do dono pelo print; o valor do previsto saía do card. Também: saldo geral em Minhas contas e limite disponível + fatura atual em cada cartão.
+- **Início: "De … → Para …" nas transferências** (#143, 04/11/2026): pedido do dono; conta arquivada aparece com o nome.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
