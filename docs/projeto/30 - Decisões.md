@@ -105,3 +105,8 @@ A auditoria apontou que a exceção da 047 valia para funções que gravam. Deci
 ## 04/11/2026 — Reembolso no cartão conta como receita
 Pergunta ao dono: reembolso de uma despesa sua (plano de saúde, empresa) deve abater a despesa ou contar como receita? Escolha do dono: **receita** (opção A), mesmo inflando receita e despesa do mês. Vale para o crédito avulso no cartão (próxima PR).
 
+## 04/11/2026 — Excluir ativo com histórico
+O dono pediu para tirar a trava. Decisão: a trava do botão comum fica (um toque errado apagaria meses de histórico); quando o ativo tem histórico, o app pede o **nome exato** e então apaga tudo (migration 050). Proventos: a receita na conta fica, porque o dinheiro entrou de verdade.
+
+## 04/11/2026 — Categoria: desativar vira excluir e migrar
+Pedido do dono: em vez de desativar, **excluir a categoria e passar os lançamentos, recorrentes e orçamentos para outra categoria escolhida**. Fica para a próxima PR.

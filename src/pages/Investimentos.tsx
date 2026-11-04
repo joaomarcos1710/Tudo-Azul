@@ -17,7 +17,7 @@ import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
 import {
-  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirSubclasseAtivo, editarAtivoInvestimento, excluirAtivoInvestimento,
+  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirSubclasseAtivo, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
   reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento, registrarProventoInvestimento,
 } from '../lib/investimentos'
@@ -167,10 +167,20 @@ export default function Investimentos() {
   }
 
   async function excluirAtivo(id: string, nome: string) {
-    if (!window.confirm(`Excluir o ativo “${nome}”? Só é possível excluir ativos sem operações ou avaliações.`)) return
+    if (!window.confirm(`Excluir o ativo “${nome}”? Se ele tiver histórico, vou pedir o nome para confirmar.`)) return
     setExcluindoId(id)
     try {
-      await excluirAtivoInvestimento(id)
+      try {
+        await excluirAtivoInvestimento(id)
+      } catch (e) {
+        // 55000: o ativo tem histórico. Só sai junto com ele, digitando o nome (migration 050).
+        if ((e as { code?: string })?.code !== '55000') throw e
+        const digitado = window.prompt(
+          `“${nome}” tem operações, avaliações ou proventos. Excluir apaga esse histórico para sempre ` +
+          `(a receita dos proventos continua na conta). Para confirmar, digite o nome do ativo:`)
+        if (digitado === null) return
+        await excluirAtivoComHistorico(id, digitado)
+      }
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
     finally { setExcluindoId(null) }

@@ -328,6 +328,17 @@ export async function excluirAtivoInvestimento(ativoId: string): Promise<void> {
   if (error) throw error
 }
 
+/** Exclui o ativo com todo o histórico (operações, avaliações e vínculo dos proventos; a receita na conta fica).
+ *  O banco só aceita se `nomeDigitado` for o nome exato do ativo (migration 050). */
+export async function excluirAtivoComHistorico(
+  ativoId: string, nomeDigitado: string,
+): Promise<{ operacoes: number; avaliacoes: number; proventos: number }> {
+  const { data, error } = await db().rpc('investment_asset_purge', { p_asset: ativoId, p_confirm_name: nomeDigitado })
+  if (error) throw error
+  const r = (Array.isArray(data) ? data[0] : data) as { operations: number; valuations: number; distributions: number } | null
+  return { operacoes: r?.operations ?? 0, avaliacoes: r?.valuations ?? 0, proventos: r?.distributions ?? 0 }
+}
+
 /** Histórico mensal da carteira, calculado no banco e separado por moeda. */
 export async function listarHistoricoInvestimentos(
   familiaId: string, deData: string, ateData: string,
