@@ -25,6 +25,10 @@ import { carregarPatrimonio, carregarResumoInvestimentos, despesasPorCategoria, 
 import type { DespesaCategoria, DespesaDia, Patrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
+import { saldosProjetados } from '../lib/saldoProjetado'
+import type { SaldoTotal } from '../lib/saldoProjetado'
+import { listarOrcamentos } from '../lib/orcamentos'
+import type { OrcamentoMes } from '../lib/orcamentos'
 
 /**
  * Cada tela carrega só o que mostra. Início: contas, lançamentos e planejados são essenciais (se falharem, a tela
@@ -55,6 +59,10 @@ interface Dados {
   cartoes: ResumoCartao[] | null
   /** Faturas de todos os cartões que vencem neste mês (soma do banco); null = não carregou (ex.: banco ainda sem a migration 023) */
   faturasDoMes: TotalFaturasMes | null
+  /** Saldo das contas até o fim do mês, com planejados e faturas (do banco); null = não carregou. */
+  saldoPrevisto: SaldoTotal | null
+  /** Orçamentos do mês (do banco); null = não carregou. */
+  orcamentos: OrcamentoMes[] | null
   /** data da última conferência de cada conta (conta ausente = nunca conferida); null = não carregou */
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
@@ -85,13 +93,12 @@ function variacao(atual: Cents, anterior: Cents): number | null {
   return ((atual - anterior) / Math.abs(anterior)) * 100
 }
 
-type WidgetDashboardId = 'patrimonio' | 'disponivel' | 'receitas' | 'despesas' | 'resultado'
+type WidgetDashboardId = 'patrimonio' | 'disponivel' | 'resultado'
 
 const WIDGETS_DASHBOARD: { id: WidgetDashboardId; rotulo: string }[] = [
   { id: 'patrimonio', rotulo: 'Patrimônio líquido' },
-  { id: 'disponivel', rotulo: 'Saldo disponível' },
-  { id: 'receitas', rotulo: 'Entradas do mês' },
-  { id: 'despesas', rotulo: 'Despesas do mês' },
+  // receita e despesa do mês ficam só no cabeçalho do Início (antes apareciam duas vezes)
+  { id: 'disponivel', rotulo: 'Saldo hoje e previsto' },
   { id: 'resultado', rotulo: 'Resultado do mês' },
 ]
 const WIDGETS_DASHBOARD_PADRAO: WidgetDashboardId[] = WIDGETS_DASHBOARD.map((w) => w.id)
@@ -194,9 +201,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             // O resumo do Início reutiliza as mesmas fontes financeiras já usadas em Análises.
             opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
             opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))), comparar(),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao]): Dados => ({
+            // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
+            opcional(saldosProjetados(familiaId, ate, true).then((r) => r.total)), opcional(listarOrcamentos(familiaId, mes, hoje)),
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, saldoPrevisto, orcamentos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, faturasDoMes,
+            contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -220,7 +229,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(projecaoDoMes(familiaId, mes, hoje)), comparar(),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => { if (ativo) setDados(d) })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
@@ -236,22 +245,13 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   const comparadoAteHoje = `${mesAnteriorCurto} até dia ${Number(mesmoDiaMesAnterior(hoje).slice(8))}`
   const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
+    // o saldo das contas já está no card "Saldo hoje e previsto": aqui só Bens e Dívida, para não repetir
     patrimonio: p ? <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-      detalhes={[['Disponível', p.disponivel], ['Bens', p.bens], ['Dívida', p.divida]]} /> : (
+      detalhes={[['Bens', p.bens], ['Dívida', p.divida]]} /> : (
       <Card><CardTitle>Patrimônio líquido</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
     // a dívida já aparece no card de patrimônio: aqui só o saldo das contas
-    disponivel: p ? <Indicador rotulo="Saldo disponível" valor={p.disponivel} icone={<Cofre />} corIcone="bg-azul-claro text-azul" /> : (
-      <Card><CardTitle>Saldo disponível</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
-    ),
-    receitas: m ? <Indicador rotulo="Entradas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-green-50 text-positivo"
-      var={cmp ? variacao(cmp.atual.receitas, cmp.anterior.receitas) : null} subirEhBom comparado={comparadoAteHoje} /> : (
-      <Card><CardTitle>Entradas do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
-    ),
-    despesas: m ? <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-red-50 text-negativo"
-      var={cmp ? variacao(cmp.atual.despesas, cmp.anterior.despesas) : null} subirEhBom={false} comparado={comparadoAteHoje} /> : (
-      <Card><CardTitle>Despesas do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
-    ),
+    disponivel: <CardSaldo hoje={p?.disponivel ?? null} previsto={dados.saldoPrevisto?.saldo ?? null} fimDoMes={limitesDoMes(mes)[1]} />,
     resultado: m ? <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
       var={cmp ? variacao(cmp.atual.resultado, cmp.anterior.resultado) : null} subirEhBom comparado={comparadoAteHoje} negativoVermelho /> : (
       <Card><CardTitle>Resultado do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
@@ -260,7 +260,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   return (
     <>
       {noInicio
-        ? <CabecalhoInicio nome={nome} receitas={dados?.mes?.receitas ?? null} despesas={dados?.mes?.despesas ?? null} />
+        ? <CabecalhoInicio nome={nome} receitas={m?.receitas ?? null} despesas={m?.despesas ?? null}
+          aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
         : <CabecalhoPagina titulo="Análises" descricao={`Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />}
       {cobrancaFalhou && (
         <div className="mb-4">
@@ -271,6 +272,49 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         <div className="mb-4">
           <Aviso tipo="erro">Não foi possível lançar os recorrentes agora. Contas mensais e assinaturas podem estar faltando.</Aviso>
         </div>
+      )}
+
+      {noInicio && (dados.vencidos === null || dados.cartoes === null) && (
+        // card que falhou não pode simplesmente sumir: sem aviso, "Vencidos" ausente parece "nada vencido"
+        <div className="mb-4">
+          <Aviso tipo="erro">
+            Não foi possível verificar agora {dados.vencidos === null && dados.cartoes === null ? 'os vencidos e os cartões' : dados.vencidos === null ? 'os vencidos' : 'os cartões'}.
+            Recarregue a página em instantes.
+          </Aviso>
+        </div>
+      )}
+
+      {noInicio && dados.vencidos && dados.vencidos.total > 0 && (
+        <Card className="mb-4 !border !border-red-200">
+          <CardTitle>Vencidos e precisam de atenção</CardTitle>
+          <p className="mb-2 text-sm text-slate-600">
+            {dados.vencidos.total === 1 ? '1 compromisso planejado já passou' : `${dados.vencidos.total} compromissos planejados já passaram`} da data
+            sem ser marcado como pago ou recebido.
+          </p>
+          <ul className="divide-y divide-slate-100">
+            {dados.vencidos.itens.map((x) => {
+              const atraso = diasEntre(x.data, hoje)
+              return (
+                <li key={x.id}>
+                  <Link to={x.id.startsWith('debt-') ? `/dividas?baixar=${x.id.slice(5)}` : `/lancamentos?mes=${x.data.slice(0, 7)}`} className="flex items-center gap-3 py-2 text-sm hover:bg-slate-50">
+                    <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
+                    <span className="min-w-0 flex-1">
+                      {formatDate(x.data).slice(0, 5)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
+                      <span className="ml-2 text-xs text-negativo">{atraso === 1 ? 'venceu ontem' : `venceu há ${atraso} dias`}</span>
+                      {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.contas} />}
+                    </span>
+                    <span className={`tabular-nums font-semibold ${x.tipo === 'income' ? 'text-positivo' : x.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
+                      {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatBRL(x.valor)}
+                    </span>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+          {dados.vencidos.total > dados.vencidos.itens.length && (
+            <p className="mt-2 text-xs text-slate-500">e mais {dados.vencidos.total - dados.vencidos.itens.length} (os mais antigos aparecem primeiro).</p>
+          )}
+        </Card>
       )}
 
       {noInicio && <section aria-label="Resumo financeiro personalizável" className="mb-5">
@@ -325,8 +369,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </div>
         )}
         {p && <p className="mt-2 text-xs text-slate-500">
-          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens BRL {formatBRL(p.bens)} − dívida {formatBRL(p.divida)}.
-          Considera contas, bens em BRL e dívidas. Investimentos aparecem em indicador separado enquanto aportes não movimentam contas, evitando dupla contagem. Bens em outras moedas ainda não entram no consolidado. Parcelas de cartão ainda não cobradas ficam fora do patrimônio atual.
+          Patrimônio = saldo das contas + crédito a receber + bens em reais − dívidas. Investimentos ficam à parte, abaixo.
         </p>}
         {dados.investimentos && <Card className="mt-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -348,49 +391,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         {!m && <p className="mt-2 text-xs text-slate-500" role="status">Resumo do mês indisponível agora; os demais widgets continuam disponíveis.</p>}
       </section>}
 
-
-      {noInicio && (dados.vencidos === null || dados.cartoes === null) && (
-        // card que falhou não pode simplesmente sumir: sem aviso, "Vencidos" ausente parece "nada vencido"
-        <div className="mb-4">
-          <Aviso tipo="erro">
-            Não foi possível verificar agora {dados.vencidos === null && dados.cartoes === null ? 'os vencidos e os cartões' : dados.vencidos === null ? 'os vencidos' : 'os cartões'}.
-            Recarregue a página em instantes.
-          </Aviso>
-        </div>
-      )}
-
-      {noInicio && dados.vencidos && dados.vencidos.total > 0 && (
-        <Card className="mb-4 !border !border-red-200">
-          <CardTitle>Vencidos e precisam de atenção</CardTitle>
-          <p className="mb-2 text-sm text-slate-600">
-            {dados.vencidos.total === 1 ? '1 compromisso planejado já passou' : `${dados.vencidos.total} compromissos planejados já passaram`} da data
-            sem ser marcado como pago ou recebido.
-          </p>
-          <ul className="divide-y divide-slate-100">
-            {dados.vencidos.itens.map((x) => {
-              const atraso = diasEntre(x.data, hoje)
-              return (
-                <li key={x.id}>
-                  <Link to={x.id.startsWith('debt-') ? `/dividas?baixar=${x.id.slice(5)}` : `/lancamentos?mes=${x.data.slice(0, 7)}`} className="flex items-center gap-3 py-2 text-sm hover:bg-slate-50">
-                    <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
-                    <span className="min-w-0 flex-1">
-                      {formatDate(x.data).slice(0, 5)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
-                      <span className="ml-2 text-xs text-negativo">{atraso === 1 ? 'venceu ontem' : `venceu há ${atraso} dias`}</span>
-                      {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.contas} />}
-                    </span>
-                    <span className={`tabular-nums font-semibold ${x.tipo === 'income' ? 'text-positivo' : x.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
-                      {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatBRL(x.valor)}
-                    </span>
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-          {dados.vencidos.total > dados.vencidos.itens.length && (
-            <p className="mt-2 text-xs text-slate-500">e mais {dados.vencidos.total - dados.vencidos.itens.length} (os mais antigos aparecem primeiro).</p>
-          )}
-        </Card>
-      )}
 
       {noInicio && dados.cartoes && dados.cartoes.length > 0 && (
         <Card className="mb-4">
@@ -441,6 +441,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </ul>
         </Card>
       )}
+
+      {noInicio && dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
 
       {!noInicio && <>
       {(m || p) ? (
@@ -770,3 +772,64 @@ function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense'
     ? <IconeCategoria fixo="transferencia" tamanho="pequeno" />
     : <IconeCategoria visual={visualPorId(categoriaId, porId, tipo)} tamanho="pequeno" />
 }
+
+/** Saldo das contas hoje e o previsto no fim do mês (planejados e faturas descontados); os dois vêm do banco. */
+function CardSaldo({ hoje, previsto, fimDoMes }: { hoje: Cents | null; previsto: Cents | null; fimDoMes: string }) {
+  return (
+    <Card>
+      <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-azul-claro text-azul" aria-hidden="true"><Cofre /></span>
+      <dl className="grid grid-cols-2 gap-3">
+        <div className="min-w-0">
+          <dt className="text-sm text-slate-500">Saldo hoje</dt>
+          <dd className="whitespace-nowrap tabular-nums text-base font-bold sm:text-xl">{hoje === null ? '—' : formatBRL(hoje)}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-sm text-slate-500">Previsto em {formatDate(fimDoMes).slice(0, 5)}</dt>
+          <dd className={`whitespace-nowrap tabular-nums text-base font-bold sm:text-xl ${previsto !== null && previsto < 0 ? 'text-negativo' : ''}`}>
+            {previsto === null ? '—' : formatBRL(previsto)}
+          </dd>
+        </div>
+      </dl>
+      <p className="mt-2 text-xs text-slate-500">
+        O previsto já desconta as contas planejadas e as faturas até o fim do mês. <Link to="/calendario" className="font-semibold text-azul hover:underline">Ver no calendário</Link>
+      </p>
+    </Card>
+  )
+}
+
+/** Até 4 orçamentos, os mais perto de estourar primeiro (pela fração do limite já gasta; nenhum valor em reais é somado aqui). */
+function OrcamentosDoInicio({ orcamentos }: { orcamentos: OrcamentoMes[] }) {
+  const usado = (o: OrcamentoMes) => (o.limite > 0 ? o.gasto / o.limite : Infinity)
+  const lista = [...orcamentos].sort((x, y) => usado(y) - usado(x)).slice(0, 4)
+  return (
+    <Card className="mb-4">
+      <div className="flex items-center justify-between">
+        <CardTitle>Orçamentos do mês</CardTitle>
+        <Link to="/orcamentos" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todos</Link>
+      </div>
+      <ul className="space-y-3">
+        {lista.map((o) => {
+          // largura da barra: razão entre dois valores do banco (apresentação, não soma de dinheiro)
+          const pct = o.limite > 0 ? Math.min(100, Math.round((o.gasto / o.limite) * 100)) : 100
+          const estourou = o.gasto > o.limite
+          const vaiEstourar = !estourou && o.sobra !== null && o.sobra < 0
+          return (
+            <li key={o.categoriaId}>
+              <div className="flex items-baseline justify-between gap-2 text-sm">
+                <span className="min-w-0 truncate font-medium">{o.nome}</span>
+                <span className="tabular-nums text-slate-600">{formatBRL(o.gasto)} de {formatBRL(o.limite)}</span>
+              </div>
+              <div className="mt-1 h-2 rounded-full bg-slate-100" role="progressbar" aria-label={`${o.nome}: ${pct}% do orçamento`}
+                aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+                <div className={`h-2 rounded-full ${estourou ? 'bg-negativo' : vaiEstourar ? 'bg-amber-500' : 'bg-positivo'}`} style={{ width: `${pct}%` }} />
+              </div>
+              {estourou && <p className="mt-1 text-xs font-semibold text-negativo">Passou do limite</p>}
+              {vaiEstourar && <p className="mt-1 text-xs text-amber-700">No ritmo atual, vai passar do limite</p>}
+            </li>
+          )
+        })}
+      </ul>
+    </Card>
+  )
+}
+
