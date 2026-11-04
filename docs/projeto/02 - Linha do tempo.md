@@ -127,6 +127,7 @@ tags: [tudo-azul, historico]
 - **Início: card do previsto em linhas** (#142, 04/11/2026): pedido do dono pelo print; o valor do previsto saía do card. Também: saldo geral em Minhas contas e limite disponível + fatura atual em cada cartão.
 - **Início: "De … → Para …" nas transferências** (#143, 04/11/2026): pedido do dono; conta arquivada aparece com o nome.
 - **Análises: patrimônio e saldo mês a mês** (#144, 04/11/2026): pedido do dono após analisar o personal-financial-dashboard; dois gráficos de 12 meses com tabela.
+- **Aviso diário — banco** (migration 047, #145, 04/11/2026): decisão do dono (e-mail, esconder valores ligado, opção 1 de acesso); **migration 047 ainda não aplicada**.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
