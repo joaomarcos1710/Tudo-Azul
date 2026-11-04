@@ -118,5 +118,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Aviso diário (vencimentos e saldo previsto), de preferência como notificação no celular — ideia do personal-financial-dashboard.
 - [ ] Aviso diário: PR 1 banco (#145, migration 047 aplicada) · PR 2 tela na Família (#146) · PR 3 Edge Function + agendamento + "Enviar teste" (o dono cria a conta no serviço de e-mail e cola a chave nos Secrets).
 - [x] Painel de lançamento com menu (D, R, T, C) e Lançamento fixo (#147).
-- [ ] Lançamento parcelado fora do cartão (N parcelas, centavos exatos, sobra na primeira) e recorrência em **dias** — migration nova.
+- [x] Lançamento parcelado fora do cartão e recorrência em **dias** (#148, migration 048).
+- [ ] Novo lançamento com só Despesa / Receita / Transferência; "Conta/Cartão" num seletor só (grupos Contas e Cartões); receita no cartão = estorno/reembolso/pagamento adiantado (pedido do dono, 04/11).
+- [ ] Parcelado: editar ou excluir todas as parcelas de uma vez.
 

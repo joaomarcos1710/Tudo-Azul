@@ -122,7 +122,8 @@ select is(pg_temp.sqlstate_of($$select pg_temp.regra(null, '2027-01-01', 'month'
 select is(pg_temp.sqlstate_of($$select pg_temp.regra(10, '2027-01-01', 'month', 13)$$), '22023', 'RF11 a cada 13 meses: 22023');
 select is(pg_temp.sqlstate_of($$select pg_temp.regra(10, '2027-01-01', 'month', 0)$$), '22023', 'RF11 a cada 0: 22023');
 select is(pg_temp.sqlstate_of($$select pg_temp.regra(null, '2027-01-01', 'week', 5)$$), '22023', 'RF11 a cada 5 semanas: 22023');
-select is(pg_temp.sqlstate_of($$select pg_temp.regra(10, '2027-01-01', 'day', 1)$$), '22023', 'RF11 unidade desconhecida: 22023');
+-- 'day' passou a existir na migration 048 (pedido do dono, 04/11/2026); unidade desconhecida continua recusada
+select is(pg_temp.sqlstate_of($$select pg_temp.regra(10, '2027-01-01', 'year', 1)$$), '22023', 'RF11 unidade desconhecida: 22023');
 select is(pg_temp.sqlstate_of($$select public.recurrence_create('expense', 'Teste', 10, 10, '2027-01-01', pg_temp.fx('bank'), null, null, pg_temp.fx('cexp'), null, null, 1)$$),
   '22023', 'RF11 unidade nula: 22023');
 insert into fixture select 'semana_dia', pg_temp.regra(20, '2027-01-01', 'week', 1);

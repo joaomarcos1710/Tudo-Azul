@@ -9,7 +9,7 @@ import { supabase } from './supabase'
  * Frequência = unidade (mês ou semana) + "a cada N". Frequência, dia e início não mudam depois de criados.
  */
 export type TipoRecorrencia = 'expense' | 'income' | 'transfer' | 'card'
-export type UnidadeFrequencia = 'month' | 'week'
+export type UnidadeFrequencia = 'month' | 'week' | 'day'
 
 export const rotuloTipoRecorrencia: Record<TipoRecorrencia, string> = {
   expense: 'Despesa em conta',
@@ -19,10 +19,11 @@ export const rotuloTipoRecorrencia: Record<TipoRecorrencia, string> = {
 }
 
 /** Limites aceitos pelo banco (constraint recurrences_frequency). */
-export const MAX_CADA: Record<UnidadeFrequencia, number> = { month: 12, week: 4 }
+export const MAX_CADA: Record<UnidadeFrequencia, number> = { month: 12, week: 4, day: 365 }
 
 /** As opções da tela. Quinzenal = a cada 14 dias (não "duas vezes por mês": isso são duas regras mensais). */
 export const frequencias: { chave: string; rotulo: string; unidade: UnidadeFrequencia; cada: number }[] = [
+  { chave: 'diaria', rotulo: 'Diária', unidade: 'day', cada: 1 },
   { chave: 'semanal', rotulo: 'Semanal', unidade: 'week', cada: 1 },
   { chave: 'quinzenal', rotulo: 'Quinzenal (a cada 14 dias)', unidade: 'week', cada: 2 },
   { chave: 'mensal', rotulo: 'Mensal', unidade: 'month', cada: 1 },
@@ -91,8 +92,8 @@ export function proximasOcorrencias(
   const de = desde > r.inicio ? desde : r.inicio
   const fora = (d: string) => r.fim !== null && d > r.fim
   const out: string[] = []
-  if (r.unidade === 'week') {
-    const passo = 7 * r.cada
+  if (r.unidade === 'week' || r.unidade === 'day') {
+    const passo = (r.unidade === 'week' ? 7 : 1) * r.cada
     let k = Math.max(0, Math.ceil(diasEntre(r.inicio, de) / passo))
     while (out.length < n) {
       const d = somarDias(r.inicio, k * passo)
@@ -117,6 +118,7 @@ export function proximasOcorrencias(
 
 /** "Todo dia 10", "Trimestral · dia 31", "Toda sexta", "A cada 3 semanas · terça"… */
 export function rotuloFrequencia(r: Pick<Recorrencia, 'unidade' | 'cada' | 'dia' | 'inicio'>): string {
+  if (r.unidade === 'day') return r.cada === 1 ? 'Todo dia' : `A cada ${r.cada} dias`
   if (r.unidade === 'week') {
     const dia = diaDaSemana(r.inicio)
     if (r.cada === 1) return `${dia === 'sábado' || dia === 'domingo' ? 'Todo' : 'Toda'} ${dia}`
@@ -166,7 +168,7 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
   const db = cliente()
   const { error } = await db.rpc('recurrence_create', {
     p_kind: d.tipo, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor),
-    p_day: d.unidade === 'week' ? null : d.dia, p_start: d.inicio,
+    p_day: d.unidade === 'month' ? d.dia : null, p_start: d.inicio,
     p_account: d.tipo === 'card' ? null : d.contaId,
     p_destination: d.tipo === 'transfer' ? d.destinoId : null,
     p_debt: d.tipo === 'card' ? d.cartaoId : null,

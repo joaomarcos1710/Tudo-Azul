@@ -22,8 +22,8 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, editarLancamento, limitesDoMes, listarComprasDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
-  moverParaLixeira, restaurarDaLixeira, resumoDoMes, somarMeses,
+  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
+  moverParaLixeira, restaurarDaLixeira, resumoDoMes, somarMeses, valoresDasParcelas,
 } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
@@ -566,11 +566,17 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const [parcelasTexto, setParcelasTexto] = useState('1')
   // "Repetir → Lançamento fixo": cria a regra de recorrente (a mesma da tela Recorrentes) em vez de um lançamento solto
   const [repetir, setRepetir] = useState(false)
+  const [modoRepetir, setModoRepetir] = useState<'fixo' | 'parcelado'>('fixo')
+  const [nParcelasTexto, setNParcelasTexto] = useState('2')
+  const [periodo, setPeriodo] = useState('meses')
   const [frequencia, setFrequencia] = useState('mensal')
   const [repetirAte, setRepetirAte] = useState('')
   const chaveRef = useRef<{ sig: string; chave: string } | null>(null)
   const cartaoMode = !l && onde === 'cartao'
-  const fixo = !l && !cartaoMode && repetir
+  const fixo = !l && !cartaoMode && repetir && modoRepetir === 'fixo'
+  const parcelado = !l && !cartaoMode && repetir && modoRepetir === 'parcelado'
+  const nParcelas = Number(nParcelasTexto)
+  const nParcelasOk = Number.isInteger(nParcelas) && nParcelas >= 2 && nParcelas <= 360
   const cartoesComCiclo = cartoes.filter((c) => c.ativo && c.fechamento !== null)
   const parcelas = Number(parcelasTexto)
 
@@ -589,7 +595,10 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     categoria: !transferencia && !categoriaId ? 'Escolha a categoria.' : undefined,
     data: !data ? 'Informe a data.' : undefined,
     repetir: fixo && !descricao.trim() ? 'Dê um nome ao lançamento fixo (ex.: Aluguel, Internet).'
-      : fixo && repetirAte && data && repetirAte < data ? 'O "até" não pode ser antes da data.' : undefined,
+      : fixo && repetirAte && data && repetirAte < data ? 'O "até" não pode ser antes da data.'
+      : parcelado && !descricao.trim() ? 'Dê um nome ao parcelado (ex.: Sofá, Curso).'
+      : parcelado && !nParcelasOk ? 'De 2 a 360 parcelas.'
+      : parcelado && valor !== null && valor > 0 && Math.floor(valor / nParcelas) < 1 ? 'Valor pequeno demais para tantas parcelas.' : undefined,
   }
 
   /** Depois de gravar: fecha o formulário, ou (em "Registrar e lançar outro") limpa valor, descrição e categoria e continua aberto. */
@@ -617,6 +626,18 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         await registrarCompra(cartaoId, { descricao: descricao.trim(), data, total: valor as Cents, parcelas, categoriaId }, chaveRef.current.chave)
         lembrarEscolha(familiaId, 'cartao', cartaoId)
         await concluir('Compra registrada.')
+        return
+      }
+      if (parcelado) {
+        const p = PERIODOS.find((x) => x.chave === periodo) ?? PERIODOS[4]
+        await criarParcelado({
+          tipo, descricao, total: valor as Cents, parcelas: nParcelas, unidade: p.unidade, cada: p.cada, primeira: data,
+          contaId, destinoId: transferencia ? destinoId : null, categoriaId: transferencia ? null : categoriaId,
+          primeiraPaga: statusEfetivo === 'paid',
+        })
+        lembrarEscolha(familiaId, 'conta', contaId)
+        setRepetir(false); setNParcelasTexto('2')
+        await concluir(`${nParcelas} parcelas lançadas.`)
         return
       }
       if (fixo) {
@@ -762,21 +783,54 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             </button>
             {repetir && (
               <fieldset className="mt-3 space-y-3">
-                <legend className="text-sm font-semibold text-marinho">Lançamento fixo</legend>
-                <p className="text-xs text-slate-500">Repete sem fim (ou até a data escolhida). Aparece também em Recorrentes, onde dá para editar ou encerrar.</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="font-medium">Repetir</span>
-                    <select value={frequencia} onChange={(e) => setFrequencia(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-3">
-                      {frequencias.map((f) => <option key={f.chave} value={f.chave}>{f.rotulo}</option>)}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1 text-sm">
-                    <span className="font-medium">Até (opcional)</span>
-                    <input type="date" value={repetirAte} min={data || undefined} onChange={(e) => setRepetirAte(e.target.value)}
-                      className="min-h-11 rounded-lg border border-slate-300 px-3" />
-                  </label>
+                <legend className="text-sm font-semibold text-marinho">Repetir {tipo === 'income' ? 'receita' : tipo === 'transfer' ? 'transferência' : 'despesa'}</legend>
+                <div className="flex flex-col gap-1">
+                  {([['fixo', 'Lançamento fixo'], ['parcelado', 'Lançamento parcelado']] as const).map(([m, rotulo]) => (
+                    <label key={m} className="flex min-h-11 items-center gap-3 text-sm">
+                      <input type="radio" name="modo-repetir" className="h-5 w-5" checked={modoRepetir === m} onChange={() => setModoRepetir(m)} />{rotulo}
+                    </label>
+                  ))}
                 </div>
+                {modoRepetir === 'fixo' ? (<>
+                  <p className="text-xs text-slate-500">Repete sem fim (ou até a data escolhida). Aparece também em Recorrentes, onde dá para editar ou encerrar.</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="font-medium">Repetir</span>
+                      <select value={frequencia} onChange={(e) => setFrequencia(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-3">
+                        {frequencias.map((f) => <option key={f.chave} value={f.chave}>{f.rotulo}</option>)}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="font-medium">Até (opcional)</span>
+                      <input type="date" value={repetirAte} min={data || undefined} onChange={(e) => setRepetirAte(e.target.value)}
+                        className="min-h-11 rounded-lg border border-slate-300 px-3" />
+                    </label>
+                  </div>
+                </>) : (<>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="font-medium">Parcelas</span>
+                      <input type="number" min={2} max={360} value={nParcelasTexto} onChange={(e) => setNParcelasTexto(e.target.value)}
+                        className="min-h-11 rounded-lg border border-slate-300 px-3" />
+                    </label>
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="font-medium">Período de lançamento</span>
+                      <select value={periodo} onChange={(e) => setPeriodo(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-3">
+                        {PERIODOS.map((p) => <option key={p.chave} value={p.chave}>{p.rotulo}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  {valor !== null && valor > 0 && nParcelasOk && Math.floor(valor / nParcelas) >= 1 && (() => {
+                    const v = valoresDasParcelas(valor as Cents, nParcelas)
+                    return (
+                      <p className="rounded-lg bg-slate-50 p-3 text-sm" data-testid="previa-parcelas">
+                        Serão lançadas {nParcelas} parcelas de <strong className="tabular-nums">{formatBRL(v[1])}</strong>
+                        {v[0] !== v[1] && <> (a primeira de <strong className="tabular-nums">{formatBRL(v[0])}</strong>, com a sobra dos centavos)</>}.
+                        <span className="block text-xs text-slate-500">A primeira segue a situação escolhida abaixo; as outras entram como planejadas.</span>
+                      </p>
+                    )
+                  })()}
+                </>)}
               </fieldset>
             )}
           </div>
@@ -821,7 +875,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
 
         <div className="flex flex-col gap-2">
           <Button type="submit" carregando={enviando} className="w-full" onClick={() => { outroRef.current = false }}>
-            {l ? 'Salvar alterações' : fixo ? 'Criar lançamento fixo' : rotuloAcao[aba]}
+            {l ? 'Salvar alterações' : fixo ? 'Criar lançamento fixo' : parcelado ? 'Lançar parcelas' : rotuloAcao[aba]}
           </Button>
           <div className="flex flex-wrap justify-center gap-2">
             {!l && <Button type="submit" variante="fantasma" disabled={enviando} onClick={() => { outroRef.current = true }}>Registrar e lançar outro</Button>}
@@ -832,6 +886,18 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     </Card>
   )
 }
+
+/** Períodos do parcelado, como no Organizze. */
+const PERIODOS: { chave: string; rotulo: string; unidade: 'month' | 'week' | 'day'; cada: number }[] = [
+  { chave: 'anos', rotulo: 'Anos', unidade: 'month', cada: 12 },
+  { chave: 'semestres', rotulo: 'Semestres', unidade: 'month', cada: 6 },
+  { chave: 'trimestres', rotulo: 'Trimestres', unidade: 'month', cada: 3 },
+  { chave: 'bimestres', rotulo: 'Bimestres', unidade: 'month', cada: 2 },
+  { chave: 'meses', rotulo: 'Meses', unidade: 'month', cada: 1 },
+  { chave: 'quinzenas', rotulo: 'Quinzenas', unidade: 'week', cada: 2 },
+  { chave: 'semanas', rotulo: 'Semanas', unidade: 'week', cada: 1 },
+  { chave: 'dias', rotulo: 'Dias', unidade: 'day', cada: 1 },
+]
 
 const ATALHOS: Record<string, InicialForm> = { d: 'expense', r: 'income', t: 'transfer', c: 'cartao' }
 

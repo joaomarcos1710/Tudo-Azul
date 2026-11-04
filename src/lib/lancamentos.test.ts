@@ -92,3 +92,14 @@ describe('listarMovimentosDeDivida', () => {
     expect(fake.estado.chamadas[0].ordens).toEqual(['date', 'created_at', 'id'])
   })
 })
+
+describe('valoresDasParcelas (prévia do parcelado; o banco usa a mesma regra)', () => {
+  it('sobra dos centavos na primeira e soma igual ao total', async () => {
+    const { valoresDasParcelas } = await import('./lancamentos')
+    expect(valoresDasParcelas(1000 as never, 3)).toEqual([334, 333, 333])
+    expect(valoresDasParcelas(120000 as never, 12).every((v) => v === 10000)).toBe(true)
+    const v = valoresDasParcelas(1234567 as never, 7)
+    expect(v.reduce((a, b) => a + b, 0)).toBe(1234567)
+    expect(Number.isInteger(v[0])).toBe(true)
+  })
+})

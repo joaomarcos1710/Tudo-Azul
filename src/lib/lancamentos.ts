@@ -375,3 +375,38 @@ export async function restaurarDaLixeira(id: string): Promise<void> {
   const { error } = await cliente().from('transactions').update({ deleted_at: null }).eq('id', id)
   if (error) throw error
 }
+
+/**
+ * Valor de cada parcela, como o banco divide (transaction_installments_create): o mesmo valor inteiro em centavos em
+ * todas e a sobra somada à primeira. Só para a prévia na tela: quem grava os valores é o banco.
+ */
+export function valoresDasParcelas(total: Cents, parcelas: number): Cents[] {
+  const base = Math.floor(total / parcelas)
+  return Array.from({ length: parcelas }, (_, i) => (i === 0 ? total - base * (parcelas - 1) : base) as Cents)
+}
+
+export interface DadosParcelado {
+  tipo: TipoLancamento
+  descricao: string
+  total: Cents
+  parcelas: number
+  unidade: 'month' | 'week' | 'day'
+  cada: number
+  primeira: string
+  contaId: string
+  destinoId: string | null
+  categoriaId: string | null
+  primeiraPaga: boolean
+}
+
+/** Cria as N parcelas de uma vez no banco (todas ou nenhuma); devolve o id do grupo. */
+export async function criarParcelado(d: DadosParcelado): Promise<string> {
+  const { data, error } = await cliente().rpc('transaction_installments_create', {
+    p_kind: d.tipo, p_description: d.descricao.trim(), p_total: centsToDecimal(d.total), p_count: d.parcelas,
+    p_unit: d.unidade, p_every: d.cada, p_first: d.primeira, p_account: d.contaId,
+    p_destination: d.tipo === 'transfer' ? d.destinoId : null, p_category: d.tipo === 'transfer' ? null : d.categoriaId,
+    p_first_paid: d.primeiraPaga,
+  })
+  if (error) throw error
+  return data as string
+}
