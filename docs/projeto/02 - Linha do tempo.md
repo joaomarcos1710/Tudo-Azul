@@ -139,7 +139,11 @@ tags: [tudo-azul, historico]
 - **Crédito no cartão como receita** (migration 052, #153, 04/11/2026): estorno, ajuste, cashback ou reembolso sem compra abatem a fatura e contam como receita; planejado até a fatura fechar, limite volta na hora. Merge `3fefb7c`; **migration 052 aplicada em 04/11/2026** (execução 41800682054, simulação 41800598005).
 - **CLAUDE.md: jeito de mexer no código** (#154, 04/11/2026): quatro regras adaptadas do Ponytail; e `vercel.json` sem preview nos branches `claude/**` (limite de 100 deploys por dia do plano gratuito).
 - **Diário: migration 052 aplicada** (#155, 04/11/2026). Sem mudança no app.
-- **Índice de eventos por parcela** (migration 053, #156, 04/11/2026): o cartão com muito histórico deixava a compra e o fechamento da fatura lentos (o fechamento passaria do limite de 8 s). Pré-requisito da importação do histórico do Organizze.
+- **Índice de eventos por parcela** (migration 053, #156, 04/11/2026): o cartão com muito histórico deixava a compra e o fechamento da fatura lentos (o fechamento passaria do limite de 8 s). Pré-requisito da importação do histórico do Organizze. Merge `48835f0`; **migration 053 aplicada em 04/11/2026** (execução 41814329909).
+- **Ajustes das recorrentes** (04/11/2026, sem PR, pelo SQL de administrador com o "pode" do dono, identificado como o usuário, simulado antes): dia e início de algumas regras corrigidos (excluir e recriar, ou encerrar e criar outra); os planejados das regras antigas foram para a lixeira e a regeneração criou os novos.
+- **Importação do histórico do Organizze** (04/11/2026, sem PR, mesmo caminho, com o "pode importar" do dono): lançamentos das contas, transferências e todas as faturas dos cartões, em 120 lotes com conferência de integridade em cada um. Conferência final: os saldos das 21 contas batem com o Organizze no dia; nenhuma despesa ou receita sem categoria.
+- **Empréstimo da Funcef** (04/11/2026, sem PR, mesmo caminho, com o "pode" do dono): cadastrado em Dívidas com contrato e cronograma; sem CPF nem matrícula.
+- **Diário: importação, Funcef e 053 aplicada** (#157, 04/11/2026). Sem mudança no app.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

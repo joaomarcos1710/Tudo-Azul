@@ -91,3 +91,4 @@ continuam abaixo como histórico.
 | 2026.154 | `CLAUDE.md`: regras de como mexer no código (adaptadas do Ponytail); sem preview da Vercel nos branches do Claude. Sem mudança no app. |
 | 2026.155 | Diário: migration 052 aplicada. Sem mudança no app. |
 | 2026.156 | Índice no banco para o cartão com muito histórico (compra e fechamento da fatura rápidos). Migration 053. Sem mudança na tela. |
+| 2026.157 | Diário: histórico do Organizze importado, empréstimo da Funcef cadastrado, migration 053 aplicada. Sem mudança no app. |
