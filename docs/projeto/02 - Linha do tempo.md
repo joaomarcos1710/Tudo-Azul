@@ -136,8 +136,9 @@ tags: [tudo-azul, historico]
 - **Importação do cadastro do Organizze** (04/11/2026, sem PR, pelo SQL de administrador com o "pode" do dono, identificado como o usuário e com simulação antes): contas com o saldo do dia, cartões, categorias e recorrentes. Categorias de teste desativadas e depois excluídas.
 - **Excluir ativo com histórico** (migration 050, #151, 04/11/2026): botão Excluir pede o nome do ativo quando ele tem histórico. Merge `3124e34`; **migration 050 aplicada em 04/11/2026** (execução 41760547266, simulação 41760479629).
 - **Escolher a fatura e recuar o início do cartão** (migration 051, #152, 04/11/2026): seletor de fatura (3 antes a 3 depois) na compra; o início do cartão pode recuar para lançar o passado. Merge `d0a2df4`; **migration 051 aplicada em 04/11/2026** (execução 41761250133, simulação 41761186576).
-- **Crédito no cartão como receita** (migration 052, #153, 04/11/2026): estorno, ajuste, cashback ou reembolso sem compra abatem a fatura e contam como receita.
+- **Crédito no cartão como receita** (migration 052, #153, 04/11/2026): estorno, ajuste, cashback ou reembolso sem compra abatem a fatura e contam como receita; planejado até a fatura fechar, limite volta na hora. Merge `3fefb7c`; **migration 052 aplicada em 04/11/2026** (execução 41800682054, simulação 41800598005).
 - **CLAUDE.md: jeito de mexer no código** (#154, 04/11/2026): quatro regras adaptadas do Ponytail; e `vercel.json` sem preview nos branches `claude/**` (limite de 100 deploys por dia do plano gratuito).
+- **Diário: migration 052 aplicada** (#155, 04/11/2026). Sem mudança no app.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
