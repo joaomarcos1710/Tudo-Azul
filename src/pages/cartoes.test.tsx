@@ -683,6 +683,24 @@ describe('Conta de pagamento do cartão', () => {
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Pagar fatura' }))
     expect((screen.getByLabelText('Pagar com a conta') as HTMLSelectElement).value).toBe('a1')
   })
+
+  it('multimoeda F1: conta em outra moeda não paga fatura nem vira conta de pagamento (o banco também recusa)', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(500000), moeda: 'BRL' },
+      { id: 'a3', nome: 'Conta em dólar', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(10000), moeda: 'USD' },
+    ], total: c(500000) })
+    mock.listarCartoes.mockResolvedValue([nubank])
+    render(<Cartoes />)
+    const u = userEvent.setup()
+    const opcoes = (rotulo: string) => Array.from((screen.getByLabelText(rotulo) as HTMLSelectElement).options).map((o) => o.textContent)
+    await u.click(await screen.findByRole('button', { name: 'Escolher conta de pagamento' }))
+    expect(opcoes('Conta que paga a fatura')).toContain('Itaú')
+    expect(opcoes('Conta que paga a fatura')).not.toContain('Conta em dólar')
+    await u.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await u.click(screen.getByRole('button', { name: 'Pagar fatura' }))
+    expect(opcoes('Pagar com a conta')).toContain('Itaú')
+    expect(opcoes('Pagar com a conta')).not.toContain('Conta em dólar')
+  })
 })
 
 describe('Próxima fatura', () => {

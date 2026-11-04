@@ -14,8 +14,8 @@ import type { ResumoCartao, TotalFaturasMes } from '../lib/cartoes'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
-import { hojeSP, listarContas } from '../lib/contas'
-import type { Conta } from '../lib/contas'
+import { hojeSP, listarContas, outrasMoedas, totaisPorMoeda } from '../lib/contas'
+import type { Conta, TotalPorMoeda } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatMoeda, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
@@ -25,6 +25,7 @@ import { carregarPatrimonio, carregarResumoInvestimentos, evolucaoPatrimonio, de
 import type { DespesaCategoria, DespesaDia, Patrimonio, PontoPatrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
+import { EmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { LinhaMensal } from '../components/graficos/LinhaMensal'
 import { saldosProjetados } from '../lib/saldoProjetado'
 import type { SaldoTotal } from '../lib/saldoProjetado'
@@ -47,8 +48,10 @@ interface Dados {
   contas: Conta[]
   /** Todas as contas, inclusive arquivadas: só para dar nome às pontas de uma transferência antiga. */
   todasContas: Conta[]
-  /** Soma do saldo das contas, do banco (balance_totals); null fora do Início. */
+  /** Soma do saldo das contas EM REAIS, do banco (balance_totals); null fora do Início. */
   saldoGeral: Cents | null
+  /** Saldo das contas por moeda, sem conversão (balance_totals_by_currency); vazio = só reais ou não carregou. */
+  porMoeda: TotalPorMoeda[]
   proximos: ProximoPlanejado[]
   /** null = os gráficos não carregaram (ex.: banco ainda sem as consultas novas); o resto da tela segue normal */
   categorias: DespesaCategoria[] | null
@@ -211,7 +214,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(saldosProjetados(familiaId, ate, true).then((r) => r.total)), opcional(listarOrcamentos(familiaId, mes, hoje)),
           ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, saldoPrevisto, orcamentos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos, evolucao: null,
+            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos, evolucao: null,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -233,9 +236,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               resumoDoPeriodo(familiaId, `${Number(hoje.slice(0, 4)) - 1}-01-01`, mesmoDiaAnoPassado(hoje)),
             ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior }))),
             opcional(projecaoDoMes(familiaId, mes, hoje)), comparar(), opcional(evolucaoPatrimonio(familiaId, hoje)),
-          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, evolucao]): Dados => ({
+            opcional(totaisPorMoeda(familiaId, hoje)),
+          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, evolucao, porMoeda]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => { if (ativo) setDados(d) })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
@@ -257,7 +261,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       <Card><CardTitle>Patrimônio líquido</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
     // a dívida já aparece no card de patrimônio: aqui só o saldo das contas
-    disponivel: <CardSaldo hoje={p?.disponivel ?? null} previsto={dados.saldoPrevisto?.saldo ?? null} fimDoMes={limitesDoMes(mes)[1]} />,
+    disponivel: <CardSaldo hoje={p?.disponivel ?? null} previsto={dados.saldoPrevisto?.saldo ?? null} fimDoMes={limitesDoMes(mes)[1]} porMoeda={dados.porMoeda} />,
     resultado: m ? <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
       var={cmp ? variacao(cmp.atual.resultado, cmp.anterior.resultado) : null} subirEhBom comparado={comparadoAteHoje} negativoVermelho /> : (
       <Card><CardTitle>Resultado do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
@@ -471,9 +475,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {p && (
         <p className="mb-2 text-xs text-slate-500">
           Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens em BRL {formatBRL(p.bens)} − dívida {formatBRL(p.divida)}.
-          Bens em USD/EUR ainda não entram no consolidado. Investimentos são exibidos separadamente até a integração com o caixa.
+          Bens em USD/EUR e contas em outras moedas ainda não entram no consolidado. Investimentos são exibidos separadamente até a integração com o caixa.
         </p>
       )}
+      {p && <EmOutrasMoedas porMoeda={dados.porMoeda} className="mb-4" />}
       {p && p.compromissos > 0 && (
         <div className="mb-4 rounded-card border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-600">
           Compromissos futuros (parcelas de cartão ainda não cobradas): <strong className="tabular-nums">{formatBRL(p.compromissos)}</strong>.
@@ -649,7 +654,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           <div className="flex items-start justify-between gap-3">
             <CardTitle>Minhas contas</CardTitle>
             {dados.saldoGeral !== null && dados.contas.length > 0 && (
-              <p className="text-right"><span className="block text-xs text-slate-500">Saldo geral</span>
+              <p className="text-right"><span className="block text-xs text-slate-500">{outrasMoedas(dados.porMoeda).length > 0 ? 'Saldo geral em reais' : 'Saldo geral'}</span>
                 <span className={`tabular-nums font-bold ${dados.saldoGeral < 0 ? 'text-negativo' : ''}`}>{formatBRL(dados.saldoGeral)}</span></p>
             )}
           </div>
@@ -661,7 +666,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                 <li key={c.id} className="flex flex-wrap items-center justify-between py-2 text-sm">
                   <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="pequeno" />{c.nome}</span>
                   <span className={`tabular-nums font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
-                    {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
+                    {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatMoeda(c.saldo, c.moeda ?? 'BRL')}
                   </span>
                 </li>
               ))}
@@ -802,7 +807,7 @@ function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense'
 }
 
 /** Saldo das contas hoje e o previsto no fim do mês (planejados e faturas descontados); os dois vêm do banco. */
-function CardSaldo({ hoje, previsto, fimDoMes }: { hoje: Cents | null; previsto: Cents | null; fimDoMes: string }) {
+function CardSaldo({ hoje, previsto, fimDoMes, porMoeda }: { hoje: Cents | null; previsto: Cents | null; fimDoMes: string; porMoeda: TotalPorMoeda[] }) {
   return (
     <Card>
       <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-azul-claro text-azul" aria-hidden="true"><Cofre /></span>
@@ -819,6 +824,7 @@ function CardSaldo({ hoje, previsto, fimDoMes }: { hoje: Cents | null; previsto:
           </dd>
         </div>
       </dl>
+      <EmOutrasMoedas porMoeda={porMoeda} className="mt-2 border-t border-slate-100 pt-2" />
       <p className="mt-2 text-xs text-slate-500">
         O previsto já desconta as contas planejadas e as faturas até o fim do mês. <Link to="/calendario" className="font-semibold text-azul hover:underline">Ver no calendário</Link>
       </p>

@@ -59,6 +59,19 @@ describe('Dívidas', () => {
     expect(screen.getByText('Empréstimo')).toBeTruthy()
   })
 
+  it('multimoeda F1: conta em outra moeda não aparece como conta de saída do pagamento (o banco também recusa)', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+      { id: 'a3', nome: 'Conta em dólar', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'USD' },
+    ], total: c(0) })
+    render(<Dividas />)
+    const u = userEvent.setup()
+    await screen.findByText('Financiamento do imóvel')
+    await u.click(screen.getAllByRole('button', { name: 'Registrar pagamento' })[0])
+    const opcoes = Array.from((screen.getByLabelText('Conta de saída') as HTMLSelectElement).options).map((o) => o.textContent)
+    expect(opcoes).toEqual(['Selecione a conta', 'Itaú'])
+  })
+
   it('não oferece o simulador de quitação (removido a pedido do dono)', async () => {
     render(<Dividas />)
     await screen.findByText('Financiamento do imóvel')

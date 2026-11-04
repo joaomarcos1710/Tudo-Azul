@@ -8,13 +8,30 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { BANCOS_POR_NOME } from '../lib/bancos'
 import { IconeConta } from '../components/ui/IconeConta'
+import { EmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { useFamilia } from '../lib/FamiliaContext'
-import { criarConta, definirAtiva, editarConta, excluirConta, hojeSP, listarContas, rotuloTipoConta } from '../lib/contas'
-import type { Conta, TipoConta, TotalPorTipo } from '../lib/contas'
+import { aceitaLancamento, criarConta, definirAtiva, editarConta, excluirConta, hojeSP, listarContas, MOEDAS_CONTA, outrasMoedas, rotuloTipoConta } from '../lib/contas'
+import type { Conta, TipoConta, TotalPorMoeda, TotalPorTipo } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
+import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+
+/** Saldo na moeda da conta (BRL continua com formatBRL). */
+function textoSaldo(c: Conta): string {
+  return c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatMoeda(c.saldo, c.moeda ?? 'BRL')
+}
+
+/** Selo da moeda, só nas contas que não são em reais. */
+function SeloMoeda({ conta }: { conta: Conta }) {
+  if (aceitaLancamento(conta)) return null
+  return (
+    <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 align-middle text-xs font-semibold text-slate-700"
+      title={`Conta em ${conta.moeda}: o saldo fica fora do total em reais`}>
+      {conta.moeda}
+    </span>
+  )
+}
 
 const TITULO_GRUPO: Record<TipoConta, string> = {
   checking: 'Contas correntes',
@@ -30,6 +47,7 @@ export default function Contas() {
   const [contas, setContas] = useState<Conta[] | null>(null)
   const [total, setTotal] = useState<Cents | null>(null)
   const [porTipo, setPorTipo] = useState<TotalPorTipo[]>([])
+  const [porMoeda, setPorMoeda] = useState<TotalPorMoeda[]>([])
   const [erro, setErro] = useState('')
   // null = formulário fechado; 'nova' = criando; Conta = editando
   const [editando, setEditando] = useState<Conta | 'nova' | null>(null)
@@ -42,6 +60,7 @@ export default function Contas() {
       setContas(r.contas)
       setTotal(r.total)
       setPorTipo(r.porTipo ?? [])
+      setPorMoeda(r.porMoeda ?? [])
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -70,12 +89,23 @@ export default function Contas() {
     }
   }
 
-  const ativas = contas?.filter((c) => c.ativa) ?? []
+  // contas em reais agrupadas por tipo (o subtotal do banco só soma BRL); as de outra moeda ficam num grupo à parte
+  const ativas = contas?.filter((c) => c.ativa && aceitaLancamento(c)) ?? []
+  const ativasOutras = contas?.filter((c) => c.ativa && !aceitaLancamento(c)) ?? []
   const arquivadas = contas?.filter((c) => !c.ativa) ?? []
+  const outras = outrasMoedas(porMoeda)
   // agrupadas por tipo, na ordem corrente, poupança, investimento, dinheiro, outra; o subtotal vem do banco
-  const grupos = (Object.keys(rotuloTipoConta) as TipoConta[])
-    .map((tipo) => ({ tipo, contas: ativas.filter((c) => c.tipo === tipo), subtotal: porTipo.find((t) => t.tipo === tipo)?.totalAtivas ?? null }))
+  const grupos: { chave: string; titulo: string; contas: Conta[]; subtotal: string | null }[] = (Object.keys(rotuloTipoConta) as TipoConta[])
+    .map((tipo) => {
+      const sub = porTipo.find((t) => t.tipo === tipo)?.totalAtivas
+      return { chave: tipo, titulo: TITULO_GRUPO[tipo], contas: ativas.filter((c) => c.tipo === tipo), subtotal: sub === undefined ? null : formatBRL(sub) }
+    })
     .filter((g) => g.contas.length > 0)
+  // subtotal por moeda (do banco, sem conversão), nunca somando moedas diferentes
+  if (ativasOutras.length > 0) {
+    grupos.push({ chave: 'outras-moedas', titulo: 'Contas em outras moedas', contas: ativasOutras,
+      subtotal: outras.length > 0 ? outras.map((m) => formatMoeda(m.totalAtivas, m.moeda)).join(' · ') : null })
+  }
 
   if (!familia) return null
   return (
@@ -107,9 +137,10 @@ export default function Contas() {
       {contas && contas.length > 0 && (
         <>
           <Card className="mb-4">
-            <p className="text-sm font-semibold text-slate-500">Saldo total hoje</p>
+            <p className="text-sm font-semibold text-slate-500">{outras.length > 0 ? 'Saldo total em reais hoje' : 'Saldo total hoje'}</p>
             <p className="tabular-nums text-3xl font-bold">{total !== null ? formatBRL(total) : '—'}</p>
             <p className="mt-1 text-xs text-slate-500">Inclui contas arquivadas: o dinheiro continua lá.</p>
+            <EmOutrasMoedas porMoeda={porMoeda} className="mt-3 border-t border-slate-200 pt-3" />
           </Card>
           {excluindo && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label="Excluir conta">
@@ -124,10 +155,10 @@ export default function Contas() {
             </div>
           )}
           {grupos.map((g) => (
-            <section key={g.tipo} className="mb-6" aria-labelledby={`titulo-contas-${g.tipo}`}>
+            <section key={g.chave} className="mb-6" aria-labelledby={`titulo-contas-${g.chave}`}>
               <div className="mb-2 flex items-baseline justify-between gap-3">
-                <h2 id={`titulo-contas-${g.tipo}`} className="text-lg font-semibold">{TITULO_GRUPO[g.tipo]}</h2>
-                {g.subtotal !== null && <span className="tabular-nums text-sm font-semibold text-slate-600">{formatBRL(g.subtotal)}</span>}
+                <h2 id={`titulo-contas-${g.chave}`} className="text-lg font-semibold">{g.titulo}</h2>
+                {g.subtotal !== null && <span className="tabular-nums text-sm font-semibold text-slate-600">{g.subtotal}</span>}
               </div>
               <ul className="flex flex-col gap-3">
                 {g.contas.map((c) => (
@@ -137,14 +168,14 @@ export default function Contas() {
                         <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} />
                         <div className="min-w-0">
                           <p className="font-semibold">
-                            {c.nome}
+                            {c.nome}<SeloMoeda conta={c} />
                           </p>
                           <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
-                          {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
+                          {textoSaldo(c)}
                         </span>
                         <Button variante="fantasma" onClick={() => setEditando(c)}>Editar</Button>
                         <Button variante="fantasma" onClick={() => alternarAtiva(c)}>Arquivar</Button>
@@ -168,13 +199,13 @@ export default function Contas() {
                       <div className="flex min-w-0 items-center gap-3">
                         <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} />
                         <div className="min-w-0">
-                          <p className="font-semibold">{c.nome}</p>
+                          <p className="font-semibold">{c.nome}<SeloMoeda conta={c} /></p>
                           <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
-                          {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatBRL(c.saldo)}
+                          {textoSaldo(c)}
                         </span>
                         <Button variante="secundario" onClick={() => alternarAtiva(c)}>Reativar</Button>
                       </div>
@@ -203,6 +234,9 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
   const [saldoTexto, setSaldoTexto] = useState(conta ? formatBRLCampo(conta.saldoInicial) : '0,00')
   const [abertura, setAbertura] = useState(conta?.abertura ?? hojeSP())
   const [banco, setBanco] = useState(conta?.banco ?? '')
+  // a moeda só se escolhe na criação; na edição fica travada (o banco também recusa trocar com movimento)
+  const [moeda, setMoeda] = useState(conta?.moeda ?? 'BRL')
+  const simbolo = moeda === 'USD' ? 'US$' : moeda === 'EUR' ? '€' : 'R$'
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -220,7 +254,8 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
     setEnviando(true)
     try {
       // só envia o banco quando há o que gravar ou limpar (conta sem banco e sem escolha não toca na coluna)
-      const dados = { nome, tipo, saldoInicial, abertura, ...((tipo !== 'cash' && banco) || conta?.banco ? { banco: tipo === 'cash' || !banco ? null : banco } : {}) }
+      const dados = { nome, tipo, saldoInicial, abertura, ...((tipo !== 'cash' && banco) || conta?.banco ? { banco: tipo === 'cash' || !banco ? null : banco } : {}),
+        ...(conta || moeda === 'BRL' ? {} : { moeda }) }
       if (conta) await editarConta(conta.id, dados)
       else await criarConta(familiaId, dados)
       await aoSalvar()
@@ -250,7 +285,27 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
         </div>
         <Selecao rotulo="Banco" valor={tipo === 'cash' ? '' : banco} aoMudar={setBanco} desabilitado={tipo === 'cash'}
           todos={tipo === 'cash' ? 'Dinheiro não tem banco' : 'Automático (pelo nome da conta)'} opcoes={BANCOS_POR_NOME.map((b) => [b.chave, b.nome])} />
-        <Field rotulo="Saldo inicial (R$)" inputMode="decimal" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
+        <div className="flex flex-col gap-1">
+          <label htmlFor="moeda-conta" className="text-sm font-medium">Moeda</label>
+          <select
+            id="moeda-conta"
+            value={moeda}
+            onChange={(e) => setMoeda(e.target.value)}
+            disabled={conta !== null}
+            aria-describedby="moeda-conta-ajuda"
+            className="min-h-11 rounded-lg border border-slate-500 bg-white px-3 text-base disabled:bg-slate-100"
+          >
+            {MOEDAS_CONTA.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+          </select>
+          <p id="moeda-conta-ajuda" className="text-xs text-slate-600">
+            {conta
+              ? 'A moeda não muda depois de criada.'
+              : moeda === 'BRL'
+                ? 'O saldo entra no total em reais.'
+                : 'O saldo fica separado, na moeda da conta, fora do total em reais. Lançamentos nesta conta chegam em breve.'}
+          </p>
+        </div>
+        <Field rotulo={`Saldo inicial (${simbolo})`} inputMode="decimal" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
         <Field rotulo="Data do saldo inicial" type="date" value={abertura} onChange={(e) => setAbertura(e.target.value)} erro={erroData} />
         <p className="text-sm text-slate-600 md:col-span-2">
           O saldo inicial é o valor <strong>no início do dia</strong> escolhido. Lançamentos a partir dessa data mudam o saldo; lançamentos anteriores entram nos relatórios, mas não no saldo.

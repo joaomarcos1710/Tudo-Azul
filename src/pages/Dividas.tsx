@@ -8,7 +8,7 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { useFamilia } from '../lib/FamiliaContext'
-import { hojeSP, listarContas } from '../lib/contas'
+import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { listarCategorias } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
@@ -71,7 +71,8 @@ export default function Dividas() {
         if (alvo) setParcelaSelecionada(alvo)
         window.history.replaceState(null, '', window.location.pathname)
       }
-      setContas(contasAtuais.contas.filter((c) => c.ativa))
+      // só contas em reais pagam dívida por enquanto (multimoeda F1, o banco também recusa)
+      setContas(contasAtuais.contas.filter((c) => c.ativa && aceitaLancamento(c)))
       setCategorias(cats.filter((c) => c.tipo === 'expense' && c.ativa))
       setErro('')
     } catch (e) {

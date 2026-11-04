@@ -242,6 +242,17 @@ describe('Calendário: faturas e saldo projetado', () => {
     expect(screen.queryByTestId('saldo-sem-conta')).toBeNull()
   })
 
+  it('multimoeda F1: conta em dólar aparece na moeda dela, não em reais', async () => {
+    mock.saldosProjetados.mockResolvedValue({
+      contas: [{ id: 'u1', nome: 'Conta em dólar', ativa: true, moeda: 'USD', efetuado: c(25050), planejado: c(0), faturas: c(0), saldo: c(25050) }],
+      total: { efetuado: c(0), planejado: c(0), faturas: c(0), faturasSemConta: c(0), saldo: c(0) },
+    })
+    montar()
+    const linha = (await screen.findByText('Conta em dólar')).closest('li') as HTMLElement
+    expect(linha.textContent).toMatch(/US\$\s*250,50/)
+    expect(linha.textContent).not.toMatch(/R\$/)
+  })
+
   it('em outro mês o saldo vai até o fim dele', async () => {
     montar()
     await screen.findByTestId('saldo-total')

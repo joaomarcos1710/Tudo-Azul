@@ -8,7 +8,7 @@ import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { useFamilia } from '../lib/FamiliaContext'
-import { hojeSP, listarContas } from '../lib/contas'
+import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { currentMonth } from '../lib/format'
 import { limitesDoMes, somarMeses } from '../lib/lancamentos'
@@ -189,7 +189,7 @@ export default function Investimentos() {
   const ativosAtivos = ativos.filter((a) => a.ativo)
   // provento vira receita numa conta, e as contas ainda são só em reais: só ativos em BRL
   const ativosEmReais = ativosAtivos.filter((a) => a.moeda === 'BRL')
-  const contasAtivas = contas.filter((c) => c.ativa)
+  const contasAtivas = contas.filter((c) => c.ativa && aceitaLancamento(c))
   const porId = new Map(ativos.map((a) => [a.id, a]))
   const subclassesExistentes = [...new Set(ativos.map((a) => a.subclasse).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const posicoesFiltradas = posicoes.filter((p) =>

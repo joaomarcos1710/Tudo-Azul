@@ -19,7 +19,7 @@ import type { Cartao, CreditoFatura, Fatura, ItemFatura, ItemPrevia, MovimentoCa
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
-import { hojeSP, listarContas } from '../lib/contas'
+import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { asCents, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
@@ -630,7 +630,7 @@ function FormCartao({ contas, aoSalvar, aoCancelar }: PropsBase & { contas: Cont
         <Selecao rotulo="Dia do fechamento" valor={fechamento} aoMudar={setFechamento} opcoes={dias} todos="Escolha…" />
         <Selecao rotulo="Dia do vencimento" valor={vencimento} aoMudar={setVencimento} opcoes={dias} todos="Escolha…" />
         <Selecao rotulo="Conta que paga a fatura (opcional)" valor={contaPagamento} aoMudar={setContaPagamento} todos="Escolher depois"
-          opcoes={contas.filter((c) => c.ativa).map((c) => [c.id, c.nome])} />
+          opcoes={contas.filter((c) => c.ativa && aceitaLancamento(c)).map((c) => [c.id, c.nome])} />
         {tentou && (!fechamento || !vencimento) && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha o dia de fechamento e o de vencimento.</p>}
         <p className="text-sm text-slate-600 md:col-span-2">
           As compras da <strong>fatura aberta</strong> (e as parcelas que ainda vão vir) você lança depois, em <strong>Nova compra</strong>:
@@ -703,7 +703,8 @@ function FormCiclo({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Carta
 }
 
 function FormContaPagamento({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; contas: Conta[] }) {
-  const ativas = contas.filter((c) => c.ativa)
+  // só contas em reais pagam cartão por enquanto (multimoeda F1, o banco também recusa)
+  const ativas = contas.filter((c) => c.ativa && aceitaLancamento(c))
   const [contaId, setContaId] = useState(cartao.contaPagamentoId ?? '')
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
 
@@ -929,7 +930,7 @@ function FormCredito({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & {
 }
 
 function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; contas: Conta[] }) {
-  const ativas = contas.filter((c) => c.ativa)
+  const ativas = contas.filter((c) => c.ativa && aceitaLancamento(c))
   // a conta de pagamento do cartão, se existir e ainda estiver ativa; senão a primeira ativa
   const [contaId, setContaId] = useState(ativas.find((c) => c.id === cartao.contaPagamentoId)?.id ?? ativas[0]?.id ?? '')
   // com fatura fechada, sugere a dívida; sem fatura, é pagamento adiantado e o valor fica por conta do dono

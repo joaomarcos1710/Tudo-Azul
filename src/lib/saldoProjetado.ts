@@ -16,6 +16,8 @@ export interface SaldoDaConta {
   id: string
   nome: string
   ativa: boolean
+  /** Moeda da conta (migration 055): os valores desta linha estão nela. Banco sem a 055: BRL. */
+  moeda: string
   efetuado: Cents
   planejado: Cents
   faturas: Cents
@@ -51,7 +53,7 @@ export async function saldosProjetados(familiaId: string, ate: string, incluirPl
   const t = ((total.data ?? []) as Linha[])[0]
   return {
     contas: ((contas.data ?? []) as Linha[]).map((c) => ({
-      id: c.account_id as string, nome: c.name as string, ativa: c.active as boolean,
+      id: c.account_id as string, nome: c.name as string, ativa: c.active as boolean, moeda: (c.currency_code as string | undefined) ?? 'BRL',
       efetuado: dinheiro(c.realized), planejado: dinheiro(c.planned), faturas: dinheiro(c.invoices), saldo: dinheiro(c.balance),
     })),
     total: t ? {

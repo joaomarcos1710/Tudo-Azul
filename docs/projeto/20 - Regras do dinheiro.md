@@ -20,6 +20,9 @@ tags: [tudo-azul, regras, dinheiro]
 
 ## Conta
 - Conta **desativada** só impede **novas** movimentações; o saldo continua no patrimônio.
+- **Moeda da conta** (multimoeda F1, migration 055): cada conta tem uma moeda (BRL, USD, EUR), escolhida **só na criação**; o banco só deixa trocar enquanto a conta não tem nenhum movimento (nem na lixeira). O saldo da conta fica **na moeda dela**.
+- **Nunca somar moedas diferentes sem conversão.** Saldo total, por tipo, previsto, disponível e patrimônio somam **só contas em reais**; as outras aparecem à parte, por moeda ("Em outras moedas", `balance_totals_by_currency`), sem converter. A conversão (PTAX de compra) chega na F4.
+- **Bloqueio provisório** (até a F2/F3): conta que não é BRL ainda não aceita lançamento (receita, despesa, transferência, origem ou destino), recorrente, evento de dívida, ser conta de pagamento de cartão/dívida nem provento. O banco recusa e os formulários nem oferecem essas contas; por enquanto o saldo delas é só o saldo inicial.
 - Período **conferido** com o extrato trava: não edita, não manda para a lixeira, não restaura. *Dormente desde 04/11/2026 (#159): a conferência saiu do app; a trava continua no banco, mas sem conferência nova nunca dispara.*
 - Transferência nunca é receita nem despesa.
 

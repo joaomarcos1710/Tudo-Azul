@@ -145,7 +145,8 @@ tags: [tudo-azul, historico]
 - **Empréstimo da Funcef** (04/11/2026, sem PR, mesmo caminho, com o "pode" do dono): cadastrado em Dívidas com contrato e cronograma; sem CPF nem matrícula.
 - **Diário: importação, Funcef e 053 aplicada** (#157, 04/11/2026). Sem mudança no app.
 - **Zerar tudo e exportação completa com investimentos e bens** (migration 054, #158, 04/11/2026): o zerar passa a apagar e contar investimentos (ativos, operações, avaliações, proventos), bens com avaliações e a agenda dos contratos (antes deixava investimentos e bens para trás, sem erro); a exportação completa ganha os arquivos 7 (investimentos) e 8 (bens) e a tela diz 8 arquivos; `npm audit fix` (postcss-selector-parser 6.1.5, só desenvolvimento). Merge `a749099`; **migration 054 aplicada em 04/11/2026** (execução 41902641771, simulação 41902529963).
-- **Conferência com o extrato sai do app** (#159, 04/11/2026): decisão do dono (não usa; 0 conferências em produção). Saem a tela Conferir, o botão em Contas, o "e conferência" do menu e a coluna "Conferido" da exportação; o banco fica dormente, sem migration.
+- **Conferência com o extrato sai do app** (#159, 04/11/2026): decisão do dono (não usa; 0 conferências em produção). Saem a tela Conferir, o botão em Contas, o "e conferência" do menu e a coluna "Conferido" da exportação; o banco fica dormente, sem migration. Merge `4cdcaf1`.
+- **Multimoeda F1: moeda na conta e saldos por moeda** (migration 055, #160, 04/11/2026): com o "pode" do dono para a F1 do plano em fases. Cada conta tem moeda (BRL, USD, EUR), escolhida só na criação; o saldo fica na moeda da conta; os totais em reais somam só contas BRL e as outras aparecem em "Em outras moedas", sem conversão. Conta estrangeira ainda não aceita lançamento, recorrente, pagamento de cartão/dívida nem provento (bloqueio provisório até a F2/F3). Exportação com a coluna Moeda. **Migration 055 não aplicada.**
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
