@@ -129,6 +129,7 @@ tags: [tudo-azul, historico]
 - **Análises: patrimônio e saldo mês a mês** (#144, 04/11/2026): pedido do dono após analisar o personal-financial-dashboard; dois gráficos de 12 meses com tabela.
 - **Aviso diário — banco** (migration 047, #145, 04/11/2026): decisão do dono (e-mail, esconder valores ligado, opção 1 de acesso). Merge `49fb434`; **migration 047 aplicada em 04/11/2026** (execução 41751150847, simulação 41751084406).
 - **Aviso diário — tela** (#146, 04/11/2026): card na tela Família com a prévia de hoje.
+- **Lançamentos: painel, menu e lançamento fixo** (#147, 04/11/2026): pedido do dono a partir do Organizze.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

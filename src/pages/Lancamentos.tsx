@@ -29,6 +29,7 @@ import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
 import type { Filtros, Lancamento, MovimentoDivida, ParcelaDeCartao, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { criarRecorrencia, frequencias } from '../lib/recorrencias'
 
 const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', income: 'Receita', transfer: 'Transferência' }
 
@@ -88,6 +89,23 @@ export default function Lancamentos() {
     if (tipo && editando === null) { setInicial(tipo); setEditando('novo') }
     setParams((p) => { const n = new URLSearchParams(p); n.delete('novo'); return n }, { replace: true })
   }, [params, contas.length, setParams, editando])
+
+  // atalhos de teclado como no Organizze: D despesa, R receita, T transferência, C compra no cartão (fora de campos de texto)
+  useEffect(() => {
+    if (editando !== null || contas.length === 0) return
+    function tecla(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
+      const alvo = e.target as HTMLElement | null
+      if (alvo && (alvo.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(alvo.tagName))) return
+      const t = ATALHOS[e.key.toLowerCase()]
+      if (!t) return
+      e.preventDefault()
+      setInicial(t)
+      setEditando('novo')
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  }, [editando, contas.length])
 
   // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
   const [automaticosProntos, setAutomaticosProntos] = useState(false)
@@ -190,7 +208,7 @@ export default function Lancamentos() {
       <CabecalhoPagina titulo="Lançamentos" descricao="Receitas, despesas e transferências do mês, pagas e planejadas."
         acoes={<>
           <Link to="/recorrentes" className="inline-flex min-h-11 items-center rounded-lg px-4 text-sm font-semibold text-azul hover:bg-azul-claro">↻ Recorrentes</Link>
-          {editando === null && <Button onClick={() => { setInicial(undefined); setEditando('novo') }} disabled={contas.length === 0}>Novo lançamento</Button>}
+          {editando === null && <MenuNovo desabilitado={contas.length === 0} aoEscolher={(t) => { setInicial(t); setEditando('novo') }} />}
         </>} />
 
       {contas.length === 0 && lancamentos !== null && (
@@ -261,6 +279,7 @@ export default function Lancamentos() {
       )}
 
       {editando !== null && (
+        <PainelLancamento aoFechar={() => setEditando(null)}>
         <FormLancamento
           lancamento={editando === 'novo' ? null : editando}
           inicial={inicial}
@@ -272,6 +291,7 @@ export default function Lancamentos() {
           aoRegistrarOutro={carregar}
           aoCancelar={() => setEditando(null)}
         />
+        </PainelLancamento>
       )}
 
       {pagando !== null && (
@@ -544,8 +564,13 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const [registrado, setRegistrado] = useState('')
   const outroRef = useRef(false)
   const [parcelasTexto, setParcelasTexto] = useState('1')
+  // "Repetir → Lançamento fixo": cria a regra de recorrente (a mesma da tela Recorrentes) em vez de um lançamento solto
+  const [repetir, setRepetir] = useState(false)
+  const [frequencia, setFrequencia] = useState('mensal')
+  const [repetirAte, setRepetirAte] = useState('')
   const chaveRef = useRef<{ sig: string; chave: string } | null>(null)
   const cartaoMode = !l && onde === 'cartao'
+  const fixo = !l && !cartaoMode && repetir
   const cartoesComCiclo = cartoes.filter((c) => c.ativo && c.fechamento !== null)
   const parcelas = Number(parcelasTexto)
 
@@ -563,6 +588,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     destino: transferencia && (!destinoId || destinoId === contaId) ? 'Escolha uma conta de destino diferente da origem.' : undefined,
     categoria: !transferencia && !categoriaId ? 'Escolha a categoria.' : undefined,
     data: !data ? 'Informe a data.' : undefined,
+    repetir: fixo && !descricao.trim() ? 'Dê um nome ao lançamento fixo (ex.: Aluguel, Internet).'
+      : fixo && repetirAte && data && repetirAte < data ? 'O "até" não pode ser antes da data.' : undefined,
   }
 
   /** Depois de gravar: fecha o formulário, ou (em "Registrar e lançar outro") limpa valor, descrição e categoria e continua aberto. */
@@ -592,6 +619,18 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         await concluir('Compra registrada.')
         return
       }
+      if (fixo) {
+        const f = frequencias.find((x) => x.chave === frequencia) ?? frequencias[2]
+        await criarRecorrencia({
+          tipo, descricao: descricao.trim(), valor: valor as Cents, dia: f.unidade === 'month' ? Number(data.slice(8, 10)) : null,
+          unidade: f.unidade, cada: f.cada, inicio: data, fim: repetirAte || null,
+          contaId, destinoId: transferencia ? destinoId : null, cartaoId: null, categoriaId: transferencia ? null : categoriaId,
+        })
+        lembrarEscolha(familiaId, 'conta', contaId)
+        setRepetir(false); setRepetirAte('')
+        await concluir(`Lançamento fixo criado (${f.rotulo.toLowerCase()}). As ocorrências entram como planejadas.`)
+        return
+      }
       const dados = {
         tipo, contaId, destinoId: transferencia ? destinoId : null, categoriaId: transferencia ? null : categoriaId,
         descricao, valor: valor as Cents, data, status: statusEfetivo, notas,
@@ -617,8 +656,12 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const corValor = aba === 'income' ? 'text-positivo' : aba === 'transfer' ? 'text-marinho' : 'text-negativo'
 
   return (
-    <Card className="mb-6">
-      <h2 className="mb-4 text-lg font-semibold">{l ? 'Editar lançamento' : 'Novo lançamento'}</h2>
+    <Card className="!shadow-none">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <h2 id="titulo-painel-lancamento" className="text-lg font-semibold">{l ? 'Editar lançamento' : 'Novo lançamento'}</h2>
+        <button type="button" onClick={aoCancelar} aria-label="Fechar"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-2xl leading-none text-slate-500 hover:bg-slate-100">×</button>
+      </div>
       <form onSubmit={salvar} className="mx-auto flex max-w-xl flex-col gap-4" noValidate>
         {erro && <Aviso tipo="erro">{erro}</Aviso>}
         {registrado && <p role="status" className="rounded-lg bg-pago-fundo px-3 py-2 text-sm font-medium text-pago">{registrado} Pode lançar o próximo.</p>}
@@ -700,9 +743,9 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             </Linha>
           )}
         </div>
-        {tentou && (erros.data || erros.conta || erros.cartao || erros.parcelas || erros.destino || erros.categoria) && (
+        {tentou && (erros.data || erros.conta || erros.cartao || erros.parcelas || erros.destino || erros.categoria || erros.repetir) && (
           <div className="flex flex-col gap-1">
-            {[erros.data, erros.conta, erros.cartao, erros.parcelas, erros.destino, erros.categoria].filter(Boolean).map((m) => (
+            {[erros.data, erros.conta, erros.cartao, erros.parcelas, erros.destino, erros.categoria, erros.repetir].filter(Boolean).map((m) => (
               <p key={m} className="text-sm text-negativo" role="alert">{m}</p>
             ))}
           </div>
@@ -711,7 +754,34 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
           <p className="text-sm text-slate-600">Nenhum cartão com fechamento definido. Defina em <Link to="/cartoes" className="font-semibold text-azul underline">Cartões</Link>.</p>
         )}
 
-        {!cartaoMode && (
+        {!l && !cartaoMode && (
+          <div className="rounded-xl border border-slate-200 px-3 py-2">
+            <button type="button" aria-pressed={repetir} onClick={() => setRepetir((v) => !v)}
+              className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold ${repetir ? 'border-azul bg-azul-claro text-azul' : 'border-slate-300 text-slate-600'}`}>
+              <span aria-hidden="true">↻</span>Repetir
+            </button>
+            {repetir && (
+              <fieldset className="mt-3 space-y-3">
+                <legend className="text-sm font-semibold text-marinho">Lançamento fixo</legend>
+                <p className="text-xs text-slate-500">Repete sem fim (ou até a data escolhida). Aparece também em Recorrentes, onde dá para editar ou encerrar.</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="font-medium">Repetir</span>
+                    <select value={frequencia} onChange={(e) => setFrequencia(e.target.value)} className="min-h-11 rounded-lg border border-slate-300 px-3">
+                      {frequencias.map((f) => <option key={f.chave} value={f.chave}>{f.rotulo}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="font-medium">Até (opcional)</span>
+                    <input type="date" value={repetirAte} min={data || undefined} onChange={(e) => setRepetirAte(e.target.value)}
+                      className="min-h-11 rounded-lg border border-slate-300 px-3" />
+                  </label>
+                </div>
+              </fieldset>
+            )}
+          </div>
+        )}
+        {!cartaoMode && !fixo && (
           <fieldset className="flex flex-wrap items-center gap-2">
             <legend className="sr-only">Situação</legend>
             {(['paid', 'planned'] as StatusLancamento[]).map((s) => (
@@ -737,7 +807,10 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             Data anterior ao saldo inicial de {conta.nome} ({formatDate(conta.abertura)}): o lançamento entra nos relatórios, mas <strong>não altera o saldo</strong> da conta.
           </Aviso>
         )}
-        {statusEfetivo === 'planned' && !cartaoMode && (
+        {fixo && (
+          <p className="text-sm text-slate-600">Cada ocorrência entra como <strong>planejada</strong>, a partir da data escolhida; marque como pago quando acontecer.</p>
+        )}
+        {statusEfetivo === 'planned' && !cartaoMode && !fixo && (
           <p className="text-sm text-slate-600">Planejado não entra no saldo nem nos totais pagos até ser marcado como pago.</p>
         )}
         {cartaoMode && (
@@ -748,7 +821,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
 
         <div className="flex flex-col gap-2">
           <Button type="submit" carregando={enviando} className="w-full" onClick={() => { outroRef.current = false }}>
-            {l ? 'Salvar alterações' : rotuloAcao[aba]}
+            {l ? 'Salvar alterações' : fixo ? 'Criar lançamento fixo' : rotuloAcao[aba]}
           </Button>
           <div className="flex flex-wrap justify-center gap-2">
             {!l && <Button type="submit" variante="fantasma" disabled={enviando} onClick={() => { outroRef.current = true }}>Registrar e lançar outro</Button>}
@@ -759,3 +832,58 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     </Card>
   )
 }
+
+const ATALHOS: Record<string, InicialForm> = { d: 'expense', r: 'income', t: 'transfer', c: 'cartao' }
+
+/** "+ Lançamento": menu com os quatro tipos e a tecla de atalho de cada um. */
+function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscolher: (t: InicialForm) => void }) {
+  const [aberto, setAberto] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!aberto) return
+    const fora = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAberto(false) }
+    document.addEventListener('mousedown', fora)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc) }
+  }, [aberto])
+  const itens: [InicialForm, string, string][] = [
+    ['expense', 'Nova despesa', 'D'], ['income', 'Nova receita', 'R'], ['transfer', 'Nova transferência', 'T'], ['cartao', 'Compra no cartão', 'C'],
+  ]
+  return (
+    <div className="relative" ref={ref}>
+      <Button onClick={() => setAberto((v) => !v)} disabled={desabilitado} aria-haspopup="menu" aria-expanded={aberto}>+ Lançamento</Button>
+      {aberto && (
+        <div role="menu" aria-label="Novo lançamento" className="absolute right-0 z-40 mt-2 w-64 rounded-xl bg-marinho p-2 shadow-card">
+          {itens.map(([t, rotulo, tecla]) => (
+            <button key={t} type="button" role="menuitem" onClick={() => { setAberto(false); aoEscolher(t) }}
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm font-semibold text-white hover:bg-white/10">
+              {rotulo}<span className="rounded-full border border-white/30 px-2 text-xs font-normal text-blue-100" aria-label={`atalho: tecla ${tecla}`}>tecla {tecla}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Painel por cima da lista (como no Organizze): fecha no ×, no Esc ou clicando fora; a página de trás não rola. */
+function PainelLancamento({ aoFechar, children }: { aoFechar: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') aoFechar() }
+    document.addEventListener('keydown', esc)
+    const antes = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', esc); document.body.style.overflow = antes }
+  }, [aoFechar])
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar() }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="titulo-painel-lancamento"
+        className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-white sm:rounded-2xl">
+        {children}
+      </div>
+    </div>
+  )
+}
+

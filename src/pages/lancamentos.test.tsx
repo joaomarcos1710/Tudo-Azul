@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../lib/format'
@@ -13,6 +13,7 @@ const mock = vi.hoisted(() => ({
   registrarCompra: vi.fn(),
   resumoDoMes: vi.fn(),
   criarLancamento: vi.fn(),
+  criarRecorrencia: vi.fn(),
   editarLancamento: vi.fn(),
   marcarComoPago: vi.fn(),
   moverParaLixeira: vi.fn(),
@@ -23,6 +24,10 @@ const mock = vi.hoisted(() => ({
 }))
 const automaticos = vi.hoisted(() => ({ atualizarAutomaticos: vi.fn() }))
 vi.mock('../lib/automaticos', () => automaticos)
+vi.mock('../lib/recorrencias', async (original) => ({
+  ...(await original<typeof import('../lib/recorrencias')>()),
+  criarRecorrencia: mock.criarRecorrencia,
+}))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
@@ -98,6 +103,12 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+/** "+ Lançamento" abre o menu; "Nova despesa" abre o painel (o formulário troca de aba depois, se o teste quiser). */
+async function abrirNovo(u: ReturnType<typeof userEvent.setup>) {
+  await u.click(await screen.findByRole('button', { name: '+ Lançamento' }))
+  await u.click(screen.getByRole('menuitem', { name: /Nova despesa/ }))
+}
+
 describe('datas do mês', () => {
   it('limites e navegação entre meses, inclusive virada de ano e fevereiro', () => {
     expect(limitesDoMes('2026-02')).toEqual(['2026-02-01', '2026-02-28'])
@@ -149,7 +160,7 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
-    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    await abrirNovo(u)
     await u.type(screen.getByLabelText('Valor (R$)'), '1.234,56')
     await u.type(screen.getByLabelText('Descrição'), 'Feira')
     await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
@@ -164,7 +175,7 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
-    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    await abrirNovo(u)
     await u.type(screen.getByLabelText('Valor (R$)'), '1.2.3')
     await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect(screen.getByText(/Informe um valor maior que zero/)).toBeTruthy()
@@ -176,7 +187,7 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
-    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    await abrirNovo(u)
     await u.click(screen.getByRole('radio', { name: 'Transferência' }))
     await u.type(screen.getByLabelText('Valor (R$)'), '100')
     await u.selectOptions(screen.getByLabelText('Para a conta'), 'a2')
@@ -190,7 +201,7 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
-    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    await abrirNovo(u)
     const data = screen.getByLabelText('Data')
     await u.clear(data)
     await u.type(data, '2099-01-10')
@@ -201,7 +212,7 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
-    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    await abrirNovo(u)
     const data = screen.getByLabelText('Data')
     await u.clear(data)
     await u.type(data, '2026-09-20')
@@ -272,7 +283,7 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
-    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    await abrirNovo(u)
     await u.type(screen.getByLabelText('Valor (R$)'), '10')
     await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
     await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
@@ -308,7 +319,7 @@ describe('Lançamentos', () => {
   it('lançamento no cartão: esconde conta e situação, registra a compra com parcelas e não cria lançamento de conta', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await abrirNovo(u)
     await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
     expect(screen.queryByLabelText('Conta')).toBeNull()
     expect(screen.queryByRole('group', { name: 'Situação' })).toBeNull()
@@ -327,7 +338,7 @@ describe('Lançamentos', () => {
   it('cartão: parcela fora de 1 a 72 e cartão não escolhido não chamam o banco', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await abrirNovo(u)
     await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
     await u.type(screen.getByLabelText('Valor (R$)'), '50,00')
     await u.type(screen.getByLabelText('Descrição'), 'Pão')
@@ -373,7 +384,7 @@ describe('Lançamentos', () => {
     mock.listarCartoes.mockRejectedValue(new Error('falhou'))
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     expect(await screen.findByText('Supermercado')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Novo lançamento' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '+ Lançamento' })).toBeTruthy()
   })
 
   it('avisa quando há parcelas antigas sem data de compra', async () => {
@@ -385,7 +396,7 @@ describe('Lançamentos', () => {
   it('reenvio do mesmo cartão com outro valor usa outra chave (não grava 100 quando o usuário corrigiu para 120)', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await abrirNovo(u)
     await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
     await u.type(screen.getByLabelText('Valor (R$)'), '100,00')
     await u.type(screen.getByLabelText('Descrição'), 'Fone')
@@ -407,7 +418,7 @@ describe('Lançamentos', () => {
   it('reenvio com o mesmo conteúdo usa a mesma chave (não duplica a compra)', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await abrirNovo(u)
     await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
     await u.type(screen.getByLabelText('Valor (R$)'), '100,00')
     await u.type(screen.getByLabelText('Descrição'), 'Fone')
@@ -423,7 +434,7 @@ describe('Lançamentos', () => {
   it('trocar para cartão limpa a categoria de receita (não manda categoria de outro tipo)', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+    await abrirNovo(u)
     await u.click(screen.getByRole('radio', { name: 'Receita' }))
     await u.selectOptions(screen.getByLabelText('Categoria'), 'sal')
     await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
@@ -445,7 +456,7 @@ describe('Lançamentos', () => {
     await screen.findByText(/março de 2026/i)
     unmount()
     render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-13']}><Lancamentos /></MemoryRouter>)
-    await screen.findByText('Novo lançamento')
+    await screen.findByRole('button', { name: '+ Lançamento' })
     expect(screen.queryByText(/2026-13/)).toBeNull()
   })
 
@@ -531,7 +542,7 @@ describe('Lançamentos', () => {
       render(<MemoryRouter><Lancamentos /></MemoryRouter>)
       await screen.findByText('Supermercado')
       expect(screen.getByLabelText('Filtrar por tipo')).toBeTruthy()
-      await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+      await abrirNovo(u)
       expect(screen.queryByLabelText('Filtrar por conta')).toBeNull()
       expect(screen.queryByLabelText('Filtrar por tipo')).toBeNull()
       expect(screen.queryByLabelText('Filtrar por categoria')).toBeNull()
@@ -546,7 +557,7 @@ describe('Formulário de lançamento (novo visual)', () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
-    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    await abrirNovo(u)
     return u
   }
 
@@ -623,7 +634,7 @@ describe('Subcategoria na ordem e no nome', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
-    await u.click(screen.getAllByRole('button', { name: 'Novo lançamento' })[0])
+    await abrirNovo(u)
     await u.click(within(screen.getByRole('radiogroup', { name: 'Tipo do lançamento' })).getByRole('radio', { name: 'Receita' }))
     const opcoes = within(screen.getByLabelText('Categoria')).getAllByRole('option').map((o) => o.textContent)
     expect(opcoes).toEqual(['Escolher', 'Outras receitas', 'Rendimentos', 'Royalty', '↳ Reembolso'])
@@ -666,4 +677,78 @@ describe('Subcategoria na ordem e no nome', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     expect((await screen.findAllByText('−R$ 250,50')).length).toBe(2)
   })
+
+describe('painel de lançamento (como no Organizze)', () => {
+  it('"+ Lançamento" abre o menu com os quatro tipos; a escolha abre o painel por cima, que fecha no × e no Esc', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: '+ Lançamento' }))
+    const menu = screen.getByRole('menu', { name: 'Novo lançamento' })
+    expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual([
+      'Nova despesatecla D', 'Nova receitatecla R', 'Nova transferênciatecla T', 'Compra no cartãotecla C',
+    ])
+    await u.click(within(menu).getByRole('menuitem', { name: /Nova receita/ }))
+    const painel = screen.getByRole('dialog', { name: 'Novo lançamento' })
+    expect(painel.getAttribute('aria-modal')).toBe('true')
+    expect(within(painel).getByRole('radio', { name: 'Receita' }).getAttribute('aria-checked')).toBe('true')
+    await u.click(within(painel).getByRole('button', { name: 'Fechar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await abrirNovo(u)
+    await u.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('atalhos: T abre transferência, C abre compra no cartão; dentro de um campo a tecla não abre nada', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByRole('button', { name: '+ Lançamento' })
+    await u.keyboard('t')
+    expect(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Transferência' }).getAttribute('aria-checked')).toBe('true')
+    await u.keyboard('{Escape}')
+    await u.keyboard('c')
+    expect(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Cartão de crédito' }).getAttribute('aria-checked')).toBe('true')
+    await u.keyboard('{Escape}')
+    await u.click(screen.getByRole('combobox', { name: 'Filtrar por conta' }))
+    await u.keyboard('d')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('Repetir → lançamento fixo: cria a regra de recorrente (mensal no dia da data) e não um lançamento solto', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    const painel = screen.getByRole('dialog')
+    await u.type(within(painel).getByLabelText('Descrição'), 'Internet')
+    await u.type(within(painel).getByLabelText('Valor (R$)'), '120,00')
+    await u.selectOptions(within(painel).getByLabelText('Categoria'), within(painel).getAllByRole('option').find((o) => o.textContent === 'Mercado')?.getAttribute('value') ?? '')
+    fireEvent.change(within(painel).getByLabelText('Data'), { target: { value: '2026-11-10' } })
+    await u.click(within(painel).getByRole('button', { name: /Repetir/ }))
+    await u.selectOptions(within(painel).getByRole('combobox', { name: 'Repetir' }), 'trimestral')
+    expect(within(painel).queryByRole('radio', { name: 'Pago' })).toBeNull() // ocorrências entram planejadas
+    await u.click(within(painel).getByRole('button', { name: 'Criar lançamento fixo' }))
+    await waitFor(() => expect(mock.criarRecorrencia).toHaveBeenCalled())
+    expect(mock.criarRecorrencia.mock.calls[0][0]).toMatchObject({
+      tipo: 'expense', descricao: 'Internet', valor: 12000, dia: 10, unidade: 'month', cada: 3, inicio: '2026-11-10', fim: null, destinoId: null, cartaoId: null,
+    })
+    expect(mock.criarLancamento).not.toHaveBeenCalled()
+  })
+
+  it('lançamento fixo exige nome e "até" depois da data', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    const painel = screen.getByRole('dialog')
+    await u.type(within(painel).getByLabelText('Valor (R$)'), '50,00')
+    fireEvent.change(within(painel).getByLabelText('Data'), { target: { value: '2026-11-10' } })
+    await u.click(within(painel).getByRole('button', { name: /Repetir/ }))
+    fireEvent.change(within(painel).getByLabelText('Até (opcional)'), { target: { value: '2026-10-01' } })
+    await u.click(within(painel).getByRole('button', { name: 'Criar lançamento fixo' }))
+    expect(within(painel).getByText(/Dê um nome ao lançamento fixo/)).toBeTruthy()
+    await u.type(within(painel).getByLabelText('Descrição'), 'Academia')
+    await u.click(within(painel).getByRole('button', { name: 'Criar lançamento fixo' }))
+    expect(within(painel).getByText(/O "até" não pode ser antes da data/)).toBeTruthy()
+    expect(mock.criarRecorrencia).not.toHaveBeenCalled()
+  })
+})
+
 })
