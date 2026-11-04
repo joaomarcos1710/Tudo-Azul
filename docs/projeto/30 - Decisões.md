@@ -116,3 +116,6 @@ O dono pediu para "desproteger" a data de referência e escolher a fatura (até 
 
 ## 04/11/2026 — Ponytail: só as ideias, sem instalar
 O dono mandou o link do Ponytail (plugin de agentes de código, licença MIT). Decisão: **não instalar** (traz hooks que rodam na máquina, de autor desconhecido, e os números de ganho são do próprio autor); trazer para o `CLAUDE.md` só quatro regras que somam ao que já temos.
+
+## 04/11/2026 — Sem preview da Vercel nos branches do Claude
+O plano gratuito da Vercel permite 100 deploys por dia, e cada push gerava um preview; o limite estourou em 04/11. Decisão do dono: `vercel.json` desliga o deploy automático dos branches `claude/**`. O `main` (produção) continua publicando sozinho; quem testa as PRs é o CI.
