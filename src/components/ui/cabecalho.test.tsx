@@ -9,20 +9,18 @@ import { CabecalhoPagina } from './CabecalhoPagina'
 afterEach(cleanup)
 
 describe('CabecalhoPagina', () => {
-  it('mostra título, descrição, link de volta e ações', () => {
+  it('mostra título, descrição e ações', () => {
     render(
       <MemoryRouter>
-        <CabecalhoPagina titulo="Conferir" descricao="Compare com o extrato." voltar={{ para: '/contas', rotulo: 'Contas' }}
-          acoes={<button>Salvar</button>} />
+        <CabecalhoPagina titulo="Contas" descricao="Saldo de cada conta." acoes={<button>Salvar</button>} />
       </MemoryRouter>,
     )
-    expect(screen.getByRole('heading', { level: 1, name: 'Conferir' })).toBeTruthy()
-    expect(screen.getByText('Compare com o extrato.')).toBeTruthy()
-    expect(screen.getByRole('link', { name: '← Contas' }).getAttribute('href')).toBe('/contas')
+    expect(screen.getByRole('heading', { level: 1, name: 'Contas' })).toBeTruthy()
+    expect(screen.getByText('Saldo de cada conta.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Salvar' })).toBeTruthy()
   })
 
-  it('sem descrição, volta nem ações, só o título', () => {
+  it('sem descrição nem ações, só o título', () => {
     const { container } = render(<MemoryRouter><CabecalhoPagina titulo="Início" /></MemoryRouter>)
     expect(container.querySelectorAll('p, a, button')).toHaveLength(0)
   })

@@ -177,7 +177,7 @@ export function baixarArquivo(nome: string, conteudo: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// Exportação completa (critério 3 do corte): o que é preciso para conferir os saldos fora do app.
+// Exportação completa (critério 3 do corte): o que é preciso para refazer os saldos fora do app.
 // Só leitura; quem calcula saldo e dívida é o banco (account_movements, account_balances, debt_balances).
 // NÃO é restaurável automaticamente: o app ainda não importa estes arquivos.
 // ---------------------------------------------------------------------------
@@ -411,7 +411,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     for (const m of movimentosPorConta[i]) {
       movimentos.push([
         texto(c.name), dataBR(texto(m.date)), rotuloOrigem[texto(m.source)] ?? texto(m.source),
-        texto(m.description) || 'Sem descrição', centavos(m.amount), m.reconciled ? 'Sim' : 'Não',
+        texto(m.description) || 'Sem descrição', centavos(m.amount),
       ])
     }
   })
@@ -473,7 +473,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     { nome: `tudo-azul-${hoje}-1-lancamentos.csv`, conteudo: gerarCsv(lancamentos), linhas: lancamentos.length },
     {
       nome: `tudo-azul-${hoje}-2-movimentos-por-conta.csv`, linhas: movimentos.length,
-      conteudo: montarCsv(['Conta', 'Data', 'Origem', 'Descrição', 'Valor', 'Conferido'], movimentos),
+      conteudo: montarCsv(['Conta', 'Data', 'Origem', 'Descrição', 'Valor'], movimentos),
     },
     {
       nome: `tudo-azul-${hoje}-3-cadastros.csv`, linhas: cadastros.length,

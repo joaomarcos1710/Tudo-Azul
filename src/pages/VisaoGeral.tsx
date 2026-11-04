@@ -70,7 +70,6 @@ interface Dados {
   evolucao: PontoPatrimonio[] | null
   /** Orçamentos do mês (do banco); null = não carregou. */
   orcamentos: OrcamentoMes[] | null
-  /** data da última conferência de cada conta (conta ausente = nunca conferida); null = não carregou */
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
   categoriaPorId: Map<string, Categoria>

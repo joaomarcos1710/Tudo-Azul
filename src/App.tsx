@@ -13,7 +13,6 @@ const Lancamentos = carregarTela(() => import('./pages/Lancamentos'))
 const Calendario = carregarTela(() => import('./pages/Calendario'))
 const Recorrentes = carregarTela(() => import('./pages/Recorrentes'))
 const Contas = carregarTela(() => import('./pages/Contas'))
-const Conferir = carregarTela(() => import('./pages/Conferir'))
 const Cartoes = carregarTela(() => import('./pages/Cartoes'))
 const Dividas = carregarTela(() => import('./pages/Dividas'))
 const Investimentos = carregarTela(() => import('./pages/Investimentos'))
@@ -47,7 +46,6 @@ export default function App() {
           <Route path="calendario" element={<Calendario />} />
           <Route path="recorrentes" element={<Recorrentes />} />
           <Route path="contas" element={<Contas />} />
-          <Route path="contas/:contaId/conferir" element={<Conferir />} />
           <Route path="cartoes" element={<Cartoes />} />
           <Route path="dividas" element={<Dividas />} />
           <Route path="investimentos" element={<Investimentos />} />

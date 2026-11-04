@@ -16,6 +16,6 @@ npm run dev
 - `npm run build` — build de produção
 
 ## Status
-Em uso: contas, cartões, recorrentes, conferência com o extrato, dívidas e empréstimos, investimentos, bens familiares, orçamentos, relatórios, projeção e exportação CSV. Versão `AAAA.PR` (ver [`docs/VERSOES.md`](docs/VERSOES.md)).
+Em uso: contas, cartões, recorrentes, dívidas e empréstimos, investimentos, bens familiares, orçamentos, relatórios, projeção e exportação CSV. Versão `AAAA.PR` (ver [`docs/VERSOES.md`](docs/VERSOES.md)).
 
 O **diário do projeto** (linha do tempo, telas, banco, decisões e pendências) está em [`docs/projeto/`](docs/projeto/00%20-%20In%C3%ADcio.md) e é atualizado a cada PR.

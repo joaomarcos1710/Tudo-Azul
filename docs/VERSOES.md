@@ -93,3 +93,4 @@ continuam abaixo como histórico.
 | 2026.156 | Índice no banco para o cartão com muito histórico (compra e fechamento da fatura rápidos). Migration 053. Sem mudança na tela. |
 | 2026.157 | Diário: histórico do Organizze importado, empréstimo da Funcef cadastrado, migration 053 aplicada. Sem mudança no app. |
 | 2026.158 | **Zerar tudo** apaga também investimentos (com operações, avaliações e proventos), bens (com avaliações) e a agenda dos contratos, e a prévia mostra quantos; a **exportação completa** ganha os arquivos de investimentos e de bens (8 arquivos). Migration 054. |
+| 2026.159 | A **conferência com o extrato** saiu do app (tela Conferir, botão em Contas e o "e conferência" do menu, que vira **Contas**); a exportação completa não tem mais a coluna "Conferido". Sem migration. |

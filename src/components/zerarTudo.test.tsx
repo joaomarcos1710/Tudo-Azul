@@ -21,7 +21,7 @@ vi.mock('../lib/csv', async (o) => ({
 import { ZerarTudo } from './ZerarTudo'
 
 const previa = {
-  lancamentos: 12, contas: 2, cartoesEDividas: 1, parcelas: 3, eventos: 4, recorrencias: 1, conciliacoes: 1, orcamentos: 0,
+  lancamentos: 12, contas: 2, cartoesEDividas: 1, parcelas: 3, eventos: 4, recorrencias: 1, conciliacoes: 0, orcamentos: 0,
   agendaContrato: 6, ativosInvestimento: 2, operacoesInvestimento: 5, avaliacoesInvestimento: 1, proventos: 3, bens: 1, avaliacoesBens: 2,
 }
 const nada = Object.fromEntries(Object.keys(previa).map((k) => [k, 0]))
@@ -50,6 +50,14 @@ describe('Zerar tudo', () => {
     expect(screen.getByText(/1 bem da família, com 2 avaliações/)).toBeTruthy()
     expect(screen.getByText(/a família, os membros e as categorias/)).toBeTruthy()
     expect(screen.getByText(/Não tem volta/)).toBeTruthy()
+    // conferência com o extrato saiu do app: sem registro antigo, nem é citada
+    expect(screen.queryByText(/confer[eê]ncia|concilia/i)).toBeNull()
+  })
+
+  it('conferência antiga que sobrou no banco aparece na contagem do que será apagado', async () => {
+    mock.previaZerar.mockResolvedValue({ ...previa, conciliacoes: 2 })
+    montar()
+    expect(await screen.findByText(/1 recorrência, 2 conferências antigas e 0 orçamentos/)).toBeTruthy()
   })
 
   it('só libera a frase depois de baixar TODOS os arquivos, e só zera com "zerar tudo"', async () => {

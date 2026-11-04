@@ -107,10 +107,12 @@ describe('exportacaoCompleta', () => {
     expect(ARQ(arqs, 'investimentos')).toHaveLength(1)
     expect(ARQ(arqs, '8-bens')).toHaveLength(1)
     expect(ARQ(arqs, 'movimentos').slice(1)).toEqual([
-      'Itaú;01/10/2026;Saldo inicial;Saldo inicial;1000,00;Não',
-      'Itaú;05/10/2026;Lançamento;Mercado;-250,40;Sim',
-      'Itaú;25/10/2026;Cartão/dívida;Pagamento de Nubank;-150,00;Não',
+      'Itaú;01/10/2026;Saldo inicial;Saldo inicial;1000,00',
+      'Itaú;05/10/2026;Lançamento;Mercado;-250,40',
+      'Itaú;25/10/2026;Cartão/dívida;Pagamento de Nubank;-150,00',
     ])
+    // a conferência saiu do app (04/11/2026): o arquivo não tem mais a coluna "Conferido", mesmo com reconciled=true no banco
+    expect(ARQ(arqs, 'movimentos')[0]).toBe('\uFEFFConta;Data;Origem;Descrição;Valor')
     expect(ARQ(arqs, 'cadastros')).toEqual([
       '\uFEFFCadastro;Nome;Tipo;Data inicial;Valor inicial;Ativo;Saldo em 31/10/2026;Parcelas futuras',
       'Conta;Itaú;Conta corrente;01/10/2026;1000,00;Sim;599,60;',
