@@ -778,14 +778,15 @@ function CardSaldo({ hoje, previsto, fimDoMes }: { hoje: Cents | null; previsto:
   return (
     <Card>
       <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-azul-claro text-azul" aria-hidden="true"><Cofre /></span>
-      <dl className="grid grid-cols-2 gap-3">
-        <div className="min-w-0">
+      {/* um item por linha (rótulo à esquerda, valor à direita): em duas colunas o "Previsto em 30/11" quebrava e o valor saía do card */}
+      <dl className="space-y-2">
+        <div className="flex items-baseline justify-between gap-3">
           <dt className="text-sm text-slate-500">Saldo hoje</dt>
-          <dd className="whitespace-nowrap tabular-nums text-base font-bold sm:text-xl">{hoje === null ? '—' : formatBRL(hoje)}</dd>
+          <dd className="whitespace-nowrap tabular-nums text-lg font-bold sm:text-xl">{hoje === null ? '—' : formatBRL(hoje)}</dd>
         </div>
-        <div className="min-w-0">
-          <dt className="text-sm text-slate-500">Previsto em {formatDate(fimDoMes).slice(0, 5)}</dt>
-          <dd className={`whitespace-nowrap tabular-nums text-base font-bold sm:text-xl ${previsto !== null && previsto < 0 ? 'text-negativo' : ''}`}>
+        <div className="flex items-baseline justify-between gap-3 border-t border-slate-100 pt-2">
+          <dt className="whitespace-nowrap text-sm text-slate-500">Previsto em {formatDate(fimDoMes).slice(0, 5)}</dt>
+          <dd className={`whitespace-nowrap tabular-nums text-lg font-bold sm:text-xl ${previsto !== null && previsto < 0 ? 'text-negativo' : ''}`}>
             {previsto === null ? '—' : formatBRL(previsto)}
           </dd>
         </div>
