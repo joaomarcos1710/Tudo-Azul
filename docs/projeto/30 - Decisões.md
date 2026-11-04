@@ -103,7 +103,10 @@ No Organizze, "Lançamento fixo" fica dentro do painel de lançamento. Aqui tamb
 A auditoria apontou que a exceção da 047 valia para funções que gravam. Decisão: a `is_member` só aceita a service_role com uma marca ligada pela função de leitura do aviso (`daily_digest_service`), durante a chamada. Assim o aviso continua usando as mesmas funções do app, e nenhuma função que grava fica aberta à chave do servidor.
 
 ## 04/11/2026 — Reembolso no cartão conta como receita
-Pergunta ao dono: reembolso de uma despesa sua (plano de saúde, empresa) deve abater a despesa ou contar como receita? Escolha do dono: **receita** (opção A), mesmo inflando receita e despesa do mês. Vale para o crédito avulso no cartão (próxima PR).
+Pergunta ao dono: reembolso de uma despesa sua (plano de saúde, empresa) deve abater a despesa ou contar como receita? Escolha do dono: **receita** (opção A), mesmo inflando receita e despesa do mês. Vale para o crédito avulso no cartão (próxima PR). Implementado na migration 052: o mês da receita é o do **fechamento da fatura** em que o crédito entra (o mesmo critério da despesa do cartão), para receita e despesa da fatura caírem juntas; o estorno ligado a uma compra continua abatendo a despesa.
+
+## 04/11/2026 — Crédito no cartão: planejado até fechar e limite na hora
+Duas perguntas da revisão da migration 052, respondidas pelo dono: (1) o crédito numa fatura que ainda não fechou é **receita planejada** e vira **recebida** no fechamento, igual às compras, que são compromisso até fechar; (2) o **limite** do cartão volta **na data do crédito**, como o banco faz, sem esperar o fechamento. Junto com a revisão: a fatura escolhida vai no máximo 3 faturas depois da aberta (como na compra, migration 051); a trava do início do cartão vale pela data do fechamento (como na 051); chave de repetição de um crédito anulado ou de outro movimento é recusada; cartão com crédito numa fatura aberta não arquiva.
 
 ## 04/11/2026 — Excluir ativo com histórico
 O dono pediu para tirar a trava. Decisão: a trava do botão comum fica (um toque errado apagaria meses de histórico); quando o ativo tem histórico, o app pede o **nome exato** e então apaga tudo (migration 050). Proventos: a receita na conta fica, porque o dinheiro entrou de verdade.

@@ -49,6 +49,8 @@ export interface Fatura {
   /** Adiantamento disponível ao chegar nesta fatura e o que sobra depois dela. */
   adiantamentoEntrada: Cents
   adiantamentoSaida: Cents
+  /** Créditos avulsos (receita) que abatem esta fatura (migration 052); já descontados de `cobrado` e de `total`. */
+  creditos: Cents
 }
 
 export interface ItemFatura {
@@ -71,6 +73,28 @@ export interface ItemPrevia {
   valor: Cents
   contaId: string | null
   fatura: string | null
+}
+
+/** Crédito avulso na fatura (estorno de IOF, cashback, reembolso): conta como RECEITA no mês do fechamento (migration 052). */
+export interface CreditoFatura {
+  id: string
+  descricao: string
+  /** Quando o crédito aconteceu (informado pela pessoa). */
+  dataCredito: string
+  /** Fechamento da fatura em que entrou (é o mês da receita). */
+  fechamento: string
+  valor: Cents
+  categoriaId: string
+}
+
+export interface DadosCredito {
+  descricao: string
+  data: string
+  valor: Cents
+  /** Categoria de RECEITA. */
+  categoriaId: string
+  /** Fechamento (AAAA-MM-DD) de uma fatura posterior; null/ausente = a fatura aberta na data do crédito (o banco calcula). */
+  fechamento?: string | null
 }
 
 export interface DadosCompra {
@@ -262,6 +286,8 @@ export async function listarFaturas(cartaoId: string): Promise<Fatura[]> {
     saldoAnterior: centsFromDb(f.previous_open ?? 0),
     adiantamentoEntrada: centsFromDb(f.advance_in ?? 0),
     adiantamentoSaida: centsFromDb(f.advance_out ?? 0),
+    // banco ainda sem a migration 052: a coluna não vem e a fatura segue sem créditos
+    creditos: centsFromDb(f.credits ?? 0),
   }))
 }
 
@@ -279,6 +305,47 @@ export async function listarItens(cartaoId: string, mes: string): Promise<ItemFa
     falta: centsFromDb(i.remaining ?? 0),
     categoriaId: i.category_id as string,
   }))
+}
+
+/**
+ * Lança um crédito no cartão que NÃO é estorno de compra (estorno de IOF, cashback, reembolso da empresa ou do plano).
+ * Decisão do dono (04/11/2026): conta como RECEITA, na categoria de receita escolhida, no mês do fechamento da fatura em
+ * que entra; abate o valor a pagar dessa fatura. Fatura, mês e validações ficam no banco (card_credit_income).
+ */
+export async function lancarCreditoNoCartao(cartaoId: string, d: DadosCredito, chave?: string): Promise<string> {
+  const { data, error } = await cliente().rpc('card_credit_income', {
+    p_debt: cartaoId, p_date: d.data, p_amount: centsToDecimal(d.valor), p_category: d.categoriaId,
+    p_description: d.descricao.trim(), p_closing: d.fechamento ?? null, ...(chave ? { p_idem: chave } : {}),
+  })
+  if (error) throw error
+  return data as string
+}
+
+/** Último dia do mês AAAA-MM. */
+function fimDoMes(mes: string): string {
+  const [a, m] = mes.split('-').map(Number)
+  return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10)
+}
+
+/** Créditos avulsos da fatura do mês `mes` (AAAA-MM do fechamento), não anulados. Só lista: o total vem de card_months. */
+export async function listarCreditosDaFatura(cartaoId: string, mes: string): Promise<CreditoFatura[]> {
+  const { data, error } = await cliente()
+    .from('debt_events')
+    .select('id, date, credit_date, amount, category_id, note')
+    .eq('debt_id', cartaoId)
+    .eq('kind', 'income_credit')
+    .is('voided_at', null)
+    .gte('date', `${mes}-01`)
+    .lte('date', fimDoMes(mes))
+    .order('credit_date', { ascending: false })
+  // banco ainda sem a migration 052 (coluna credit_date inexistente): não há créditos para mostrar
+  if (error?.code === COLUNA_INEXISTENTE) return []
+  if (error) throw error
+  return ((data ?? []) as { id: string; date: string; credit_date: string; amount: number | string; category_id: string; note: string | null }[])
+    .map((e) => ({
+      id: e.id, descricao: e.note ?? 'Crédito', dataCredito: e.credit_date, fechamento: e.date,
+      valor: centsFromDb(e.amount), categoriaId: e.category_id,
+    }))
 }
 
 /** Pagamento da fatura a partir de uma conta: reduz a dívida, não é despesa. */

@@ -20,7 +20,7 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
-- [x] **Escolher a fatura da compra e recuar o início do cartão** (migration 051, #152). Falta aplicar em produção.
+- [x] **Escolher a fatura da compra e recuar o início do cartão** (migration 051, #152): aplicada em 04/11/2026.
 - [x] **Aplicar a migration 050** (excluir ativo com histórico, #151): aplicada em 04/11/2026.
 - [ ] **Lista "Melhoria 1" do dono (02/11/2026)** — os arquivos Melhoria_2 ("Investimento") e Melhoria_3 ("Dívidas") vieram só com o título; os prints IMG_0373 a IMG_0377 não vieram. Itens: ~~(5) categoria do recorrente em todos os lugares~~ (#122; 036 aplicada em 02/11/2026); ~~(1) Início: transferências com logo dos bancos e "De → Para"~~ (#124); ~~(2) Extrato: só a categoria~~ e ~~valor truncado no planejado~~ (#124, causa provável: o par de valores não quebrava de linha no celular; confirmar no preview); ~~(3a) Investimentos: alinhar custo e resultado~~ (#124); ~~(3b) ativos cadastrados: editar, excluir e tratar o zerado~~ (#126, sobre a #125; falta aplicar a 040); (3c) gráfico de distribuição do patrimônio (contas, investimentos, tipos); ~~(4a) grafia de "Financiamento"~~: o "Financiamenyo" era o **nome digitado** na dívida, não texto do app; a tela de Dívidas não deixava renomear, agora deixa (#124); **ainda falta** arquivar/excluir dívida (loan/financing) na tela de Dívidas; ~~(4b) remover o simulador Snowball/Avalanche~~ (#124); (4c) gráfico de evolução de investimentos e dívidas no dashboard, sem confundir aporte com rentabilidade.
 - [x] **Aplicar a migration 031 (`recurrence_end_delete`)** — aplicada em 02/11/2026 (execução 41542393688), junto com a 032, com o "pode" do dono.
@@ -130,7 +130,10 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Total de todos os cartões juntos** (do banco) (pedido do dono: "precisa ter").
 - [ ] **Barra de "% quitado"** em cada dívida (pedido do dono: "precisa ter").
 - [ ] Orçamento que se repete todo mês sozinho (o dono pediu explicação).
-- [ ] Crédito avulso no cartão com categoria, contando como receita; novo lançamento com só 3 abas, "Conta/Cartão" num seletor só e categoria com ícone (PR grande, com migration).
+- [x] **Crédito avulso no cartão com categoria, contando como receita** (migration 052): Cartões → "Crédito / reembolso"; entra na fatura aberta pela data (ou numa posterior escolhida), aparece em verde com "+" e pode ser anulado. Falta aplicar a 052 em produção e o dono conferir no app.
+- [ ] Novo lançamento com só 3 abas, "Conta/Cartão" num seletor só e categoria com ícone (a receita no cartão pode chamar `card_credit_income`).
+- [x] Crédito avulso do cartão também na lista de **Lançamentos** (linha só de leitura no dia do fechamento, "Crédito no cartão", "Planejado" até fechar). Na exportação completa ele sai como "Crédito no cartão (receita)".
+- [x] Decidido pelo dono (04/11): crédito numa fatura aberta é receita **planejada** até fechar; o **limite** volta na data do crédito. Feito na 052, junto com os achados da revisão (fatura até 3 depois, trava pelo fechamento, chave de repetição, arquivar com crédito aberto e a devolução em dinheiro que reaparecia como adiantamento em `card_months`).
 - [ ] Cartões: abas de fatura com navegação por setas (`tabpanel`); Dívidas: menu "Mais" para Renomear/Arquivar/Excluir no celular.
 - [ ] Orçamentos: `window.confirm` ao remover → confirmação do app; barra como `progressbar`.
 - [ ] Testes que faltam: CSV mensal, cartão 50-30-20, Dívidas (`primeiroVencimento`, contrato, amortização extra).

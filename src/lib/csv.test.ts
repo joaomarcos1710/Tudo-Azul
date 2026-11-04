@@ -142,7 +142,7 @@ describe('efeitoNaDivida', () => {
   it('segue a regra de public.debt_balances para todos os tipos de evento do banco', () => {
     // migration 003: disbursement/charge/refund_cash somam; payment/extra_principal/credit subtraem; o resto não mexe
     expect(efeitoNaDivida).toEqual({
-      disbursement: 1, charge: 1, refund_cash: 1, payment: -1, extra_principal: -1, credit: -1, payroll_payment: -1, interest: 0, fee: 0, cancel: 0,
+      disbursement: 1, charge: 1, refund_cash: 1, payment: -1, extra_principal: -1, credit: -1, payroll_payment: -1, income_credit: -1, interest: 0, fee: 0, cancel: 0,
     })
   })
 })
