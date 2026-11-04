@@ -103,6 +103,8 @@ export interface DadosCompra {
   total: Cents
   parcelas: number
   categoriaId: string
+  /** Em qual fatura lançar: 0 = a que a data dá; -3 a +3 = tantas faturas antes ou depois (migration 051). */
+  deslocamento?: number
 }
 
 function cliente() {
@@ -237,11 +239,28 @@ export function novaChave(): string {
 }
 
 export async function registrarCompra(cartaoId: string, d: DadosCompra, chave?: string): Promise<void> {
-  const { error } = await cliente().rpc('card_purchase', {
+  const { error } = await cliente().rpc('card_purchase_at', {
     p_debt: cartaoId, p_date: d.data, p_total: centsToDecimal(d.total), p_count: d.parcelas,
-    p_category: d.categoriaId, p_description: d.descricao.trim(), ...(chave ? { p_idem: chave } : {}),
+    p_category: d.categoriaId, p_description: d.descricao.trim(), p_invoice_offset: d.deslocamento ?? 0,
+    ...(chave ? { p_idem: chave } : {}),
   })
   if (error) throw error
+}
+
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+
+/** As 7 faturas possíveis para uma compra (3 antes, a da data, 3 depois), pelo mês do fechamento.
+ *  Mesma regra do banco (private.card_first_closing): antes do dia do fechamento, a fatura do mês; no dia ou
+ *  depois, a seguinte. É só o rótulo do seletor; quem calcula a fatura de verdade é o banco. */
+export function opcoesDeFatura(data: string, fechamento: number): { deslocamento: number; rotulo: string }[] {
+  const [a, m, d] = data.split('-').map(Number)
+  if (!a || !m || !d) return []
+  const base = a * 12 + (m - 1) + (d < fechamento ? 0 : 1)
+  return [-3, -2, -1, 0, 1, 2, 3].map((k) => {
+    const x = base + k
+    const rotulo = `${MESES[x % 12]}/${Math.floor(x / 12)}`
+    return { deslocamento: k, rotulo: k === 0 ? `${rotulo} (a da data)` : `${rotulo} (${k > 0 ? '+' : ''}${k})` }
+  })
 }
 
 /** Cobra as parcelas cujo fechamento já chegou (idempotente). Chamado ao abrir o app e a tela. */

@@ -86,3 +86,5 @@ continuam abaixo como histórico.
 | 2026.149 | Consertos da auditoria: a chave do servidor só lê no aviso diário (migration 049); Orçamentos e Categorias sem conta de dinheiro na tela; faturas de Cartões não ficam presas no erro; Dívidas mostra todas as parcelas, por dívida, e avisa se a agenda falhar; Entradas × Saídas não mostra números do filtro anterior e vira cartões no celular; CSV de qualquer período, "desde o primeiro lançamento"; Lançamentos sem o botão Recorrentes no topo. |
 | 2026.150 | Diário: engenharia reversa do Organizze (`51`), só estrutura, sem dados; migration 049 aplicada. Sem mudança no app. |
 | 2026.151 | **Excluir ativo com histórico**: pede o nome exato do ativo e apaga operações e avaliações; a receita dos proventos fica na conta. Migration 050. |
+| 2026.152 | **Escolher a fatura** da compra no cartão (até 3 antes e 3 depois) e recuar o início do cartão para lançar o passado. Migration 051. |
+| 2026.153 | **Crédito / reembolso no cartão** que conta como receita (estorno de IOF, ajuste, cashback, reembolso): abate a fatura, aparece em verde na fatura e pode ser anulado. Migration 052. |

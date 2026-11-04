@@ -110,3 +110,6 @@ O dono pediu para tirar a trava. Decisão: a trava do botão comum fica (um toqu
 
 ## 04/11/2026 — Categoria: desativar vira excluir e migrar
 Pedido do dono: em vez de desativar, **excluir a categoria e passar os lançamentos, recorrentes e orçamentos para outra categoria escolhida**. Fica para a próxima PR.
+
+## 04/11/2026 — Fatura escolhida e início do cartão
+O dono pediu para "desproteger" a data de referência e escolher a fatura (até 3 antes e 3 depois). Decisão: a trava continua contra contar duas vezes, mas agora olha a **data de fechamento da fatura** (o que fecha até o início já está no saldo de referência); para lançar o passado, o início do cartão **recua** por uma função própria. Motivo: o Organizze às vezes põe a compra noutra fatura que a calculada pelo dia de fechamento (218 casos no histórico).
