@@ -34,6 +34,13 @@ export function formatBRL(cents: Cents): string {
   return valoresOcultos() ? MASCARA : brlReal(cents)
 }
 
+/** Valor em centavos numa moeda (BRL, USD, EUR...), respeitando "ocultar valores" como o formatBRL. */
+export function formatMoeda(cents: Cents, moeda: string): string {
+  if (moeda === 'BRL') return formatBRL(cents)
+  if (valoresOcultos()) return MASCARA
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: moeda }).format(cents / 100)
+}
+
 /** "1.250,50" / "-30,00": o valor de verdade (sem "R$ "), para preencher campos de edição; nunca é mascarado. */
 export function formatBRLCampo(cents: Cents): string {
   return brlReal(cents).replace('R$ ', '')

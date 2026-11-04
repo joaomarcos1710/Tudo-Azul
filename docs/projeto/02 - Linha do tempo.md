@@ -122,6 +122,7 @@ tags: [tudo-azul, historico]
 - **Parcela de dívida como despesa do mês** (migration 046, #137, 03/11/2026): relato do dono, "no Relatórios e exportação não aparece a parcela". Decisão: despesa do mês, com o principal na categoria escolhida em cada dívida. Relatórios, orçamento, 50-30-20 e exportação passam a contar a parcela; Lançamentos marca o pagamento do empréstimo como "já em despesas". Merge `f75f180`; **migration 046 aplicada em 03/11/2026** (execução 41740081652).
 - **Início: card de patrimônio em linhas** (#138, 03/11/2026): pedido do dono; Disponível, Bens e Dívida um por linha, e o card Saldo disponível sem a dívida repetida.
 - **Início: cabeçalho com atalhos** (#139, 03/11/2026): ideia do dono a partir do Organizze; saudação, receita e despesa do mês e ações rápidas no topo.
+- **Painel: consertos da revisão** (#140, 03/11/2026): comparação até o mesmo dia, ocultar valores em moeda estrangeira, carga atrasada descartada, aviso quando vencidos/cartões falham, parcela de dívida vencida em Vencidos.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

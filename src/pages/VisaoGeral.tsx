@@ -17,9 +17,9 @@ import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
+import { currentMonth, formatBRL, formatMoeda, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
-import { limitesDoMes, listarLancamentos, mesmoDiaAnoPassado, resumoDoMes, resumoDoPeriodo, somarMeses } from '../lib/lancamentos'
+import { limitesDoMes, listarLancamentos, mesmoDiaAnoPassado, mesmoDiaMesAnterior, resumoDoMes, resumoDoPeriodo, somarMeses } from '../lib/lancamentos'
 import type { Lancamento, ResumoMes } from '../lib/lancamentos'
 import { carregarPatrimonio, carregarResumoInvestimentos, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
 import type { DespesaCategoria, DespesaDia, Patrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
@@ -37,6 +37,8 @@ interface Dados {
   investimentos: ResumoInvestimento[] | null
   mes: ResumoMes | null
   anterior: ResumoMes | null
+  /** Mesmo recorte nos dois meses (dia 1 até hoje × dia 1 até o mesmo dia do mês anterior), só para a % dos indicadores. */
+  comparacao: { atual: ResumoMes; anterior: ResumoMes } | null
   contas: Conta[]
   proximos: ProximoPlanejado[]
   /** null = os gráficos não carregaram (ex.: banco ainda sem as consultas novas); o resto da tela segue normal */
@@ -171,6 +173,15 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
     if (!familiaId) return
     const [de, ate] = limitesDoMes(mes)
     const opcional = <T,>(p: Promise<T>) => p.catch(() => null)
+    // no dia 3, comparar 3 dias com o mês anterior inteiro engana ("▼ 90%"): os dois lados vão até o mesmo dia
+    const comparar = () => opcional(Promise.all([
+      resumoDoPeriodo(familiaId, de, hoje),
+      resumoDoPeriodo(familiaId, `${somarMeses(mes, -1)}-01`, mesmoDiaMesAnterior(hoje)),
+    ]).then(([atual, anterior]) => ({ atual, anterior })))
+    // uma carga antiga (mês, dia ou seção anteriores) que chegue depois da nova é descartada
+    let ativo = true
+    setDados(null)
+    setErro('')
     // gera recorrentes e cobra faturas fechadas; se falhar, o painel mostra o que já está gravado, com aviso
     atualizarAutomaticos()
       .then((r) => { setCobrancaFalhou(!r.faturasOk); setRecorrentesFalhou(!r.recorrentesOk) })
@@ -182,9 +193,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(totalFaturasDoMes(familiaId, mes)),
             // O resumo do Início reutiliza as mesmas fontes financeiras já usadas em Análises.
             opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
-            opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior]): Dados => ({
-            patrimonio, investimentos, mes: resumo, anterior, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
+            opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))), comparar(),
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao]): Dados => ({
+            patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), proximos, vencidos, cartoes, faturasDoMes,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
@@ -206,13 +217,14 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               resumoDoPeriodo(familiaId, `${hoje.slice(0, 4)}-01-01`, hoje),
               resumoDoPeriodo(familiaId, `${Number(hoje.slice(0, 4)) - 1}-01-01`, mesmoDiaAnoPassado(hoje)),
             ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior }))),
-            opcional(projecaoDoMes(familiaId, mes, hoje)),
-          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao]): Dados => ({
-            patrimonio, investimentos, mes: resumo, anterior, categorias, dias, regularidade, anoPassado, projecao,
+            opcional(projecaoDoMes(familiaId, mes, hoje)), comparar(),
+          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao]): Dados => ({
+            patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
             contas: [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
-      .then(setDados)
-      .catch((err) => setErro(mensagemErroBanco(err)))
+      .then((d) => { if (ativo) setDados(d) })
+      .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
+    return () => { ativo = false }
   }, [familiaId, hoje, mes, noInicio])
 
   if (!familiaId) return null
@@ -220,8 +232,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   if (!dados) return <p className="text-sm text-slate-600" role="status">Carregando…</p>
 
   // null = não carregou; o bloco correspondente some e o resto da tela segue
-  const { patrimonio: p, mes: m, anterior: a } = dados
+  const { patrimonio: p, mes: m, anterior: a, comparacao: cmp } = dados
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
+  const comparadoAteHoje = `${mesAnteriorCurto} até dia ${Number(mesmoDiaMesAnterior(hoje).slice(8))}`
   const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
     patrimonio: p ? <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
       detalhes={[['Disponível', p.disponivel], ['Bens', p.bens], ['Dívida', p.divida]]} /> : (
@@ -232,15 +245,15 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       <Card><CardTitle>Saldo disponível</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
     receitas: m ? <Indicador rotulo="Entradas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-green-50 text-positivo"
-      var={a ? variacao(m.receitas, a.receitas) : null} subirEhBom comparado={mesAnteriorCurto} /> : (
+      var={cmp ? variacao(cmp.atual.receitas, cmp.anterior.receitas) : null} subirEhBom comparado={comparadoAteHoje} /> : (
       <Card><CardTitle>Entradas do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
     despesas: m ? <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-red-50 text-negativo"
-      var={a ? variacao(m.despesas, a.despesas) : null} subirEhBom={false} comparado={mesAnteriorCurto} /> : (
+      var={cmp ? variacao(cmp.atual.despesas, cmp.anterior.despesas) : null} subirEhBom={false} comparado={comparadoAteHoje} /> : (
       <Card><CardTitle>Despesas do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
     resultado: m ? <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
-      var={a ? variacao(m.resultado, a.resultado) : null} subirEhBom comparado={mesAnteriorCurto} negativoVermelho /> : (
+      var={cmp ? variacao(cmp.atual.resultado, cmp.anterior.resultado) : null} subirEhBom comparado={comparadoAteHoje} negativoVermelho /> : (
       <Card><CardTitle>Resultado do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
   }
@@ -326,7 +339,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <div className="grid gap-3 sm:grid-cols-3">
               {dados.investimentos.map((x) => <div key={x.moeda}>
                 <p className="text-xs text-slate-500">Saldo em {x.moeda}</p>
-                <p className="text-lg font-bold tabular-nums">{x.moeda === 'BRL' ? formatBRL(x.valorAtual) : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: x.moeda }).format(x.valorAtual / 100)}</p>
+                <p className="text-lg font-bold tabular-nums">{formatMoeda(x.valorAtual, x.moeda)}</p>
               </div>)}
             </div>
           )}
@@ -335,6 +348,16 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         {!m && <p className="mt-2 text-xs text-slate-500" role="status">Resumo do mês indisponível agora; os demais widgets continuam disponíveis.</p>}
       </section>}
 
+
+      {noInicio && (dados.vencidos === null || dados.cartoes === null) && (
+        // card que falhou não pode simplesmente sumir: sem aviso, "Vencidos" ausente parece "nada vencido"
+        <div className="mb-4">
+          <Aviso tipo="erro">
+            Não foi possível verificar agora {dados.vencidos === null && dados.cartoes === null ? 'os vencidos e os cartões' : dados.vencidos === null ? 'os vencidos' : 'os cartões'}.
+            Recarregue a página em instantes.
+          </Aviso>
+        </div>
+      )}
 
       {noInicio && dados.vencidos && dados.vencidos.total > 0 && (
         <Card className="mb-4 !border !border-red-200">
@@ -348,7 +371,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               const atraso = diasEntre(x.data, hoje)
               return (
                 <li key={x.id}>
-                  <Link to={`/lancamentos?mes=${x.data.slice(0, 7)}`} className="flex items-center gap-3 py-2 text-sm hover:bg-slate-50">
+                  <Link to={x.id.startsWith('debt-') ? `/dividas?baixar=${x.id.slice(5)}` : `/lancamentos?mes=${x.data.slice(0, 7)}`} className="flex items-center gap-3 py-2 text-sm hover:bg-slate-50">
                     <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
                     <span className="min-w-0 flex-1">
                       {formatDate(x.data).slice(0, 5)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
@@ -424,11 +447,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         <section aria-label="Resumo do mês" className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {m && <>
             <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-red-50 text-negativo"
-              var={a && variacao(m.despesas, a.despesas)} subirEhBom={false} comparado={mesAnteriorCurto} />
+              var={cmp ? variacao(cmp.atual.despesas, cmp.anterior.despesas) : null} subirEhBom={false} comparado={comparadoAteHoje} />
             <Indicador rotulo="Receitas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-green-50 text-positivo"
-              var={a && variacao(m.receitas, a.receitas)} subirEhBom comparado={mesAnteriorCurto} />
+              var={cmp ? variacao(cmp.atual.receitas, cmp.anterior.receitas) : null} subirEhBom comparado={comparadoAteHoje} />
             <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
-              var={a && variacao(m.resultado, a.resultado)} subirEhBom comparado={mesAnteriorCurto} negativoVermelho />
+              var={cmp ? variacao(cmp.atual.resultado, cmp.anterior.resultado) : null} subirEhBom comparado={comparadoAteHoje} negativoVermelho />
           </>}
           {p && (
             <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque

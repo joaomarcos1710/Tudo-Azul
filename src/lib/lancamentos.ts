@@ -304,6 +304,14 @@ export function mesmoDiaAnoPassado(iso: string): string {
   return `${a - 1}-${String(m).padStart(2, '0')}-${String(Math.min(d, ultimo)).padStart(2, '0')}`
 }
 
+/** Mesmo dia no mês anterior; se ele não existir (31/03 → fevereiro), o último dia daquele mês. */
+export function mesmoDiaMesAnterior(iso: string): string {
+  const [a, m, d] = iso.split('-').map(Number)
+  const ant = new Date(Date.UTC(a, m - 2, 1))
+  const ultimo = new Date(Date.UTC(ant.getUTCFullYear(), ant.getUTCMonth() + 1, 0)).getUTCDate()
+  return `${ant.getUTCFullYear()}-${String(ant.getUTCMonth() + 1).padStart(2, '0')}-${String(Math.min(d, ultimo)).padStart(2, '0')}`
+}
+
 /** Totais de um período qualquer, calculados no banco (period_summary). */
 export async function resumoDoPeriodo(familiaId: string, de: string, ate: string): Promise<ResumoMes> {
   const { data, error } = await cliente().rpc('period_summary', { p_household: familiaId, p_from: de, p_to: ate })

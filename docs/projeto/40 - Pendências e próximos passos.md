@@ -103,3 +103,13 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Dono:** criar o projeto no Sentry (React) e colar o DSN em `VITE_SENTRY_DSN` no Vercel (Production); depois, um novo deploy liga o monitoramento. Sem isso, nada é enviado.
 - [x] **046 aplicada** em 03/11/2026 (execução 41740081652). **Dono:** escolher a categoria da parcela em cada dívida (Dívidas).
 - **Atenção a lançamento duplicado:** quem já lançou a parcela à mão como despesa (além da baixa em Dívidas) vai ver a parcela contada duas vezes; excluir o lançamento manual.
+
+## Revisão do painel (03/11/2026)
+- [x] Consertos de valor e privacidade (#140).
+- [ ] "Livre para gastar até o fim do mês" no Início, usando o saldo projetado do Calendário (`saldoProjetado.ts`).
+- [ ] Organizar o Início: um nome por número (Receita/Entradas), sem repetir cabeçalho e card, mostrar o previsto e subir Vencidos/Próximos.
+- [ ] Não bloquear a leitura do painel esperando `atualizarAutomaticos()`; rodar uma vez por sessão.
+- [ ] Botão "tentar de novo" no erro do painel, mantendo o cabeçalho e os atalhos.
+- [ ] Alvos de toque de 44 px nos links "Ver…" e no Personalizar painel; % com palavra ("aumentou/caiu"), não só cor.
+- [ ] "Últimos lançamentos" sem filtro de mês (no dia 1 a lista fica vazia).
+
