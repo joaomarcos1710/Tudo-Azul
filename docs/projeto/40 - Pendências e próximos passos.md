@@ -116,5 +116,5 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] "Últimos lançamentos" sem filtro de mês (no dia 1 a lista fica vazia).
 - [x] Gráfico de patrimônio e saldo mês a mês em Análises (#144).
 - [ ] Aviso diário (vencimentos e saldo previsto), de preferência como notificação no celular — ideia do personal-financial-dashboard.
-- [ ] Aviso diário: PR 1 banco (#145, migration 047 a aplicar) · PR 2 tela em Perfil · PR 3 Edge Function + agendamento + "Enviar teste" (o dono cria a conta no serviço de e-mail e cola a chave nos Secrets).
+- [ ] Aviso diário: PR 1 banco (#145, migration 047 a aplicar) · PR 2 tela na Família (#146) · PR 3 Edge Function + agendamento + "Enviar teste" (o dono cria a conta no serviço de e-mail e cola a chave nos Secrets).
 

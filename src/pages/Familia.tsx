@@ -13,6 +13,8 @@ import {
 } from '../lib/familia'
 import type { ConvitePendente, Membro } from '../lib/familia'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { AvisoDiario } from '../components/AvisoDiario'
+import { useAuth } from '../lib/auth'
 
 export default function Familia() {
   const { familia, carregando } = useFamilia()
@@ -78,6 +80,7 @@ function SemFamilia() {
 
 function MinhaFamilia() {
   const { familia } = useFamilia()
+  const { sessao } = useAuth()
   const [membros, setMembros] = useState<Membro[]>([])
   const [convites, setConvites] = useState<ConvitePendente[]>([])
   const [erroLista, setErroLista] = useState('')
@@ -129,6 +132,7 @@ function MinhaFamilia() {
         )}
       </Card>
       {dono && <Convidar aoConvidar={carregarListas} />}
+      {sessao?.user.id && <AvisoDiario userId={sessao.user.id} familiaId={familia.id} email={sessao.user.email ?? null} />}
       {dono && <div className="md:col-span-2"><ZerarTudo /></div>}
     </div>
   )
