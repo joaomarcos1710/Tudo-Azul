@@ -134,7 +134,7 @@ tags: [tudo-azul, historico]
 - **Consertos da auditoria** (migration 049, #149, 04/11/2026): três agentes revisaram o app; o dono mandou corrigir os itens graves. Merge `c4e14f0`; **migration 049 aplicada em 04/11/2026** (execução 41755314777, simulação 41755254149).
 - **Engenharia reversa do Organizze** (#150, 04/11/2026): leitura pelo conector oficial, só estrutura (doc `51`).
 - **Importação do cadastro do Organizze** (04/11/2026, sem PR, pelo SQL de administrador com o "pode" do dono, identificado como o usuário e com simulação antes): contas com o saldo do dia, cartões, categorias e recorrentes. Categorias de teste desativadas e depois excluídas.
-- **Excluir ativo com histórico** (migration 050, #151, 04/11/2026): botão Excluir pede o nome do ativo quando ele tem histórico. Merge `3124e34`.
+- **Excluir ativo com histórico** (migration 050, #151, 04/11/2026): botão Excluir pede o nome do ativo quando ele tem histórico. Merge `3124e34`; **migration 050 aplicada em 04/11/2026** (execução 41760547266, simulação 41760479629).
 - **Escolher a fatura e recuar o início do cartão** (migration 051, #152, 04/11/2026): seletor de fatura (3 antes a 3 depois) na compra; o início do cartão pode recuar para lançar o passado.
 
 ## Ainda abertos
