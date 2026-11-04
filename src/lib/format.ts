@@ -41,6 +41,11 @@ export function formatMoeda(cents: Cents, moeda: string): string {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: moeda }).format(cents / 100)
 }
 
+/** Símbolo da moeda para rótulo de campo: BRL → "R$", USD → "US$", EUR → "€"; outra → o próprio código. */
+export function simboloMoeda(moeda: string): string {
+  return ({ BRL: 'R$', USD: 'US$', EUR: '€' } as Record<string, string>)[moeda] ?? moeda
+}
+
 /** "1.250,50" / "-30,00": o valor de verdade (sem "R$ "), para preencher campos de edição; nunca é mascarado. */
 export function formatBRLCampo(cents: Cents): string {
   return brlReal(cents).replace('R$ ', '')

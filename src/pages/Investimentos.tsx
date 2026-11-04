@@ -187,9 +187,9 @@ export default function Investimentos() {
   }
 
   const ativosAtivos = ativos.filter((a) => a.ativo)
-  // provento vira receita numa conta, e as contas ainda são só em reais: só ativos em BRL
+  // provento vira receita numa conta em reais (multimoeda F2: provento segue só em BRL; o banco também recusa): só ativos em BRL
   const ativosEmReais = ativosAtivos.filter((a) => a.moeda === 'BRL')
-  const contasAtivas = contas.filter((c) => c.ativa && aceitaLancamento(c))
+  const contasAtivas = contas.filter((c) => c.ativa && aceitaLancamento(c, 'cartao_divida_provento'))
   const porId = new Map(ativos.map((a) => [a.id, a]))
   const subclassesExistentes = [...new Set(ativos.map((a) => a.subclasse).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const posicoesFiltradas = posicoes.filter((p) =>

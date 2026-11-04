@@ -77,20 +77,21 @@ select is(pg_temp.por_moeda(pg_temp.fx('h'), 'EUR'), '80.00|0', 'M15 arquivada: 
 update public.accounts set active = true where id = pg_temp.fx('eur');
 
 -- 2. bloqueio provisório ------------------------------------------------------
-select is(pg_temp.sqlstate_of($$insert into public.transactions (household_id, type, status, date, amount, description, account_id, category_id)
-  values (pg_temp.fx('h'), 'expense', 'paid', pg_temp.hoje(), 10, 'Café', pg_temp.fx('usd'), pg_temp.fx('cexp'))$$), '23514',
-  'B1 despesa em conta USD é recusada');
-select matches(pg_temp.erro_de($$insert into public.transactions (household_id, type, status, date, amount, description, account_id, category_id)
-  values (pg_temp.fx('h'), 'expense', 'paid', pg_temp.hoje(), 10, 'Café', pg_temp.fx('usd'), pg_temp.fx('cexp'))$$),
-  'moeda estrangeira.*ainda não aceitam lançamentos', 'B1.1 com mensagem clara em português');
+-- Receita e despesa em conta USD foram liberadas na F2 (migration 056, teste 56); aqui fica o que segue recusado.
+select is(pg_temp.sqlstate_of($$insert into public.transactions (household_id, type, status, date, amount, description, account_id, destination_account_id)
+  values (pg_temp.fx('h'), 'transfer', 'paid', pg_temp.hoje(), 10, 'Câmbio', pg_temp.fx('brl'), pg_temp.fx('eur'))$$), '23514',
+  'B1 transferência BRL → EUR é recusada (F3)');
+select matches(pg_temp.erro_de($$insert into public.transactions (household_id, type, status, date, amount, description, account_id, destination_account_id)
+  values (pg_temp.fx('h'), 'transfer', 'paid', pg_temp.hoje(), 10, 'Câmbio', pg_temp.fx('brl'), pg_temp.fx('eur'))$$),
+  'moedas diferentes', 'B1.1 com mensagem clara em português');
 select is(pg_temp.sqlstate_of($$insert into public.transactions (household_id, type, status, date, amount, description, account_id, destination_account_id)
   values (pg_temp.fx('h'), 'transfer', 'paid', pg_temp.hoje(), 10, 'Envio', pg_temp.fx('brl'), pg_temp.fx('usd'))$$), '23514',
   'B2 transferência para conta USD (destino) é recusada');
 select is(pg_temp.sqlstate_of($$insert into public.transactions (household_id, type, status, date, amount, description, account_id, destination_account_id)
   values (pg_temp.fx('h'), 'transfer', 'paid', pg_temp.hoje(), 10, 'Volta', pg_temp.fx('usd'), pg_temp.fx('brl'))$$), '23514',
   'B3 transferência saindo de conta USD (origem) é recusada');
-select is(pg_temp.sqlstate_of($$select public.recurrence_create('expense', 'Assinatura', 10, 5, pg_temp.hoje(), pg_temp.fx('usd'), null, null, pg_temp.fx('cexp'))$$),
-  '23514', 'B4 recorrente em conta USD é recusado');
+select is(pg_temp.sqlstate_of($$select public.recurrence_create('transfer', 'Envio mensal', 10, 5, pg_temp.hoje(), pg_temp.fx('brl'), pg_temp.fx('usd'), null, null)$$),
+  '23514', 'B4 recorrente de transferência BRL → USD é recusado');
 insert into fixture select 'loan', public.create_debt('Empréstimo teste', 'loan', pg_temp.hoje() - 10, 0);
 select is(pg_temp.sqlstate_of($$select public.debt_loan_event(pg_temp.fx('loan'), pg_temp.hoje(), 'disbursement', pg_temp.fx('usd'), 100)$$),
   '23514', 'B5 evento de dívida em conta USD é recusado');

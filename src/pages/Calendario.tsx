@@ -11,14 +11,16 @@ import { currentMonth, formatBRL, formatDate, formatMoeda, formatMonth, primeira
 import type { Cents } from '../lib/format'
 import { saldosProjetados, faturasQueVencem } from '../lib/saldoProjetado'
 import type { SaldoProjetado } from '../lib/saldoProjetado'
-import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, somarMeses } from '../lib/lancamentos'
+import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, resumoPorMoeda, somarMeses } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
-import type { ResumoMes } from '../lib/lancamentos'
+import type { ResumoMes, ResumoPorMoeda } from '../lib/lancamentos'
+import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 /**
  * Calendário do mês: o que entra e sai das contas em cada dia (pago e planejado).
- * Mostra cada lançamento com o seu valor; não soma nada aqui. Os totais do mês vêm do banco (period_summary).
+ * Mostra cada lançamento com o seu valor, na moeda da conta; não soma nada aqui. Os totais do mês vêm do banco
+ * (period_summary, só em reais) e, à parte, o resultado das contas em outras moedas (period_summary_by_currency).
  * Compra no cartão não aparece no dia da compra: entra na fatura, e o pagamento da fatura aparece no dia em que sai da conta.
  */
 
@@ -30,6 +32,8 @@ interface ItemDoDia {
   descricao: string
   detalhe: string
   valor: Cents
+  /** Moeda da conta do lançamento (multimoeda F2); cartão, dívida e fatura são sempre em reais. */
+  moeda: string
   sentido: Sentido
   planejado: boolean
 }
@@ -46,6 +50,7 @@ export default function Calendario() {
   const [dia, setDia] = useState<string | null>(() => (hoje.startsWith(mes) ? hoje : null))
   const [itens, setItens] = useState<ItemDoDia[] | null>(null)
   const [resumo, setResumo] = useState<ResumoMes | null>(null)
+  const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
   const [erro, setErro] = useState('')
   const [automaticosFalharam, setAutomaticosFalharam] = useState(false)
   const pedido = useRef(0)
@@ -56,6 +61,7 @@ export default function Calendario() {
     const vivo = () => meu === pedido.current
     setItens(null)
     setResumo(null)
+    setPorMoeda([])
     setErro('')
     atualizarAutomaticos()
       .then((r) => { if (vivo()) setAutomaticosFalharam(!r.faturasOk || !r.recorrentesOk) })
@@ -68,10 +74,12 @@ export default function Calendario() {
         // faturas por vencimento: extra; se a consulta falhar (ex.: banco ainda sem a migration 025) o calendário segue sem elas
         faturasQueVencem(familiaId, ...limitesDoMes(mes)).catch(() => []),
         listarParcelasDivida(familiaId, ...limitesDoMes(mes)).catch(() => []),
+        resumoPorMoeda(familiaId, ...limitesDoMes(mes)).catch(() => [] as ResumoPorMoeda[]),
       ]))
-      .then(([lancs, movs, contas, cats, res, faturas, parcelasDivida]) => {
+      .then(([lancs, movs, contas, cats, res, faturas, parcelasDivida, pm]) => {
         if (!vivo()) return
         const nomeConta = new Map((contas?.contas ?? []).map((c) => [c.id, c.nome]))
+        const moedaConta = new Map((contas?.contas ?? []).map((c) => [c.id, c.moeda ?? 'BRL']))
         const nomeCategoria = nomesCompletos(cats ?? [])
         const doMes: ItemDoDia[] = [
           ...lancs.map((l): ItemDoDia => ({
@@ -82,6 +90,7 @@ export default function Calendario() {
               ? `${nomeConta.get(l.contaId) ?? 'Conta'} → ${l.destinoId ? nomeConta.get(l.destinoId) ?? 'Conta' : 'Conta'}`
               : [l.categoriaId ? nomeCategoria.get(l.categoriaId) : null, nomeConta.get(l.contaId)].filter(Boolean).join(' · '),
             valor: l.valor,
+            moeda: moedaConta.get(l.contaId) ?? 'BRL',
             sentido: l.tipo === 'income' ? 'entrada' : l.tipo === 'expense' ? 'saida' : 'transferencia',
             planejado: l.status === 'planned',
           })),
@@ -92,6 +101,7 @@ export default function Calendario() {
             detalhe: nomeConta.get(m.contaId) ?? '',
             // o banco devolve com sinal do ponto de vista da conta; aqui só o valor positivo e o sentido
             valor: Math.abs(m.valor) as Cents,
+            moeda: 'BRL',
             sentido: m.valor >= 0 ? 'entrada' : 'saida',
             planejado: false,
           })),
@@ -105,6 +115,7 @@ export default function Calendario() {
                 : p.formaPagamento === 'payroll' ? 'consignado · desconto em folha'
                   : 'pagamento manual',
             valor: p.valor,
+            moeda: 'BRL',
             sentido: 'saida',
             planejado: true,
           })),
@@ -117,12 +128,14 @@ export default function Calendario() {
               ? `vence neste dia · paga com ${nomeConta.get(f.contaPagamentoId)}`
               : 'vence neste dia · conta de pagamento não escolhida',
             valor: f.falta,
+            moeda: 'BRL',
             sentido: 'saida',
             planejado: true,
           })),
         ]
         setItens(doMes)
         setResumo(res)
+        setPorMoeda(pm)
       })
       .catch((err) => { if (vivo()) setErro(mensagemErroBanco(err)) })
   }, [familiaId, mes, hoje])
@@ -171,6 +184,8 @@ export default function Calendario() {
           <Card className="!p-3"><p className="text-xs text-slate-500">Resultado</p><p className={`tabular-nums font-semibold ${resumo.resultado < 0 ? 'text-negativo' : 'text-marinho'}`}>{formatBRL(resumo.resultado)}</p></Card>
         </section>
       )}
+      {/* resultado das contas em outras moedas: à parte, sem conversão, fora dos totais em reais acima */}
+      {resumo && <ResultadoEmOutrasMoedas porMoeda={porMoeda} className="mb-4 rounded-card bg-white px-3 py-2 shadow-card" />}
 
       <SaldoAteADataEscolhida familiaId={familiaId} ate={dia ?? fimDoMes} hoje={hoje} />
 
@@ -237,13 +252,18 @@ export default function Calendario() {
                         </span>
                         <span className="shrink-0 text-right">
                           <span className={`block tabular-nums font-semibold ${x.sentido === 'entrada' ? 'text-positivo' : x.sentido === 'saida' ? 'text-negativo' : 'text-slate-600'}`}>
-                            {x.sentido === 'entrada' ? '+' : x.sentido === 'saida' ? '−' : '⇄ '}{formatBRL(x.valor)}
+                            {x.sentido === 'entrada' ? '+' : x.sentido === 'saida' ? '−' : '⇄ '}{formatMoeda(x.valor, x.moeda)}
                           </span>
                           <span className={`text-[11px] font-medium ${x.planejado ? 'text-planejado' : 'text-pago'}`}>{x.planejado ? 'Planejado' : 'Pago'}</span>
                         </span>
                       </li>
                     ))}
                   </ul>
+                )}
+                {doDia.some((x) => x.moeda !== 'BRL') && (
+                  <p className="mt-2 text-xs text-slate-500" data-testid="dia-outras-moedas">
+                    Valores em {[...new Set(doDia.filter((x) => x.moeda !== 'BRL').map((x) => x.moeda))].join(', ')} ficam na moeda da conta, sem conversão: não entram nos totais em reais.
+                  </p>
                 )}
               </>
             )}
@@ -317,7 +337,7 @@ function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; a
                   <span className="block truncate font-medium">{c.nome}</span>
                   {incluir && (c.planejado !== 0 || c.faturas > 0) && (
                     <span className="block truncate text-xs text-slate-500">
-                      efetuado {formatBRL(c.efetuado)}{c.planejado !== 0 ? ` · planejado ${c.planejado < 0 ? '−' : '+'}${formatBRL(Math.abs(c.planejado) as Cents)}` : ''}{c.faturas > 0 ? ` · faturas −${formatBRL(c.faturas)}` : ''}
+                      efetuado {formatMoeda(c.efetuado, c.moeda ?? 'BRL')}{c.planejado !== 0 ? ` · planejado ${c.planejado < 0 ? '−' : '+'}${formatMoeda(Math.abs(c.planejado) as Cents, c.moeda ?? 'BRL')}` : ''}{c.faturas > 0 ? ` · faturas −${formatBRL(c.faturas)}` : ''}
                     </span>
                   )}
                 </span>

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { Aviso } from './ui/Aviso'
 import { Card, CardTitle } from './ui/Card'
 import { useFamilia } from '../lib/FamiliaContext'
-import { listarContas } from '../lib/contas'
+import { ResultadoEmOutrasMoedas } from './ui/EmOutrasMoedas'
+import { ehReais, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { listarMembros } from '../lib/familia'
@@ -10,7 +11,8 @@ import type { Membro } from '../lib/familia'
 import { fluxoDeCaixa, periodoDoFluxo } from '../lib/fluxoCaixa'
 import type { FluxoCaixa, Passo } from '../lib/fluxoCaixa'
 import { asCents, currentMonth, formatBRL, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
-import { somarMeses } from '../lib/lancamentos'
+import { resumoPorMoeda, somarMeses } from '../lib/lancamentos'
+import type { ResumoPorMoeda } from '../lib/lancamentos'
 
 const PASSOS: { chave: Passo; rotulo: string }[] = [
   { chave: 'day', rotulo: 'Diário' },
@@ -36,13 +38,16 @@ export function EntradasSaidas() {
   const [contas, setContas] = useState<Conta[]>([])
   const [membros, setMembros] = useState<Membro[]>([])
   const [fluxo, setFluxo] = useState<FluxoCaixa | null>(null)
+  // contas em outras moedas (multimoeda F2): à parte, sem conversão; o relatório acima é só em reais
+  const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
   const [erro, setErro] = useState('')
 
   // contas e membros só alimentam os filtros: se falharem, o relatório segue sem eles
   useEffect(() => {
     if (!familiaId) return
     let vivo = true
-    listarContas(familiaId).then((r) => { if (vivo) setContas(r.contas) }).catch(() => {})
+    // o relatório é em reais (cash_flow_report ignora contas em outra moeda): o filtro só oferece contas em reais
+    listarContas(familiaId).then((r) => { if (vivo) setContas(r.contas.filter(ehReais)) }).catch(() => {})
     listarMembros(familiaId).then((r) => { if (vivo) setMembros(r) }).catch(() => {})
     return () => { vivo = false }
   }, [familiaId])
@@ -57,6 +62,11 @@ export function EntradasSaidas() {
     fluxoDeCaixa(familiaId, de, ate, passo, { contas: contasEscolhidas, membro, incluirNaoPagos: naoPagos })
       .then((r) => { if (vivo) { setFluxo(r); setErro('') } })
       .catch((err) => { if (vivo) { setFluxo(null); setErro(mensagemErroBanco(err)) } })
+    // o bloco por moeda é só do pago e sem filtros de conta e de quem lançou; se falhar, o relatório em reais segue
+    setPorMoeda([])
+    if (contasEscolhidas.length === 0 && !membro) {
+      resumoPorMoeda(familiaId, de, ate).then((r) => { if (vivo) setPorMoeda(r) }).catch(() => {})
+    }
     return () => { vivo = false }
   }, [familiaId, mes, passo, contasEscolhidas, membro, naoPagos])
 
@@ -71,7 +81,7 @@ export function EntradasSaidas() {
     <Card className="mb-4">
       <CardTitle>Entradas x Saídas</CardTitle>
       <p className="mb-3 text-sm text-slate-600">
-        Quanto entrou e quanto saiu, com o acumulado. Transferências entre contas ficam de fora.
+        Quanto entrou e quanto saiu, em reais, com o acumulado. Transferências entre contas ficam de fora; contas em outras moedas aparecem à parte, só o que foi pago.
         {passo === 'month' ? ' No mensal, mostra os 12 meses até o mês escolhido.' : ' No diário e no semanal, mostra o mês escolhido.'}
       </p>
 
@@ -127,6 +137,7 @@ export function EntradasSaidas() {
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
       {!fluxo && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
+      {fluxo && <ResultadoEmOutrasMoedas porMoeda={porMoeda} className="mb-3 rounded-lg bg-slate-50 px-3 py-2" />}
       {fluxo && (
         // celular: um cartão por período, sem rolar para o lado; a partir de sm, a tabela
         <ul className="divide-y divide-slate-100 sm:hidden" aria-label="Entradas e saídas por período">

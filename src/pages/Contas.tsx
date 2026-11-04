@@ -10,10 +10,10 @@ import { BANCOS_POR_NOME } from '../lib/bancos'
 import { IconeConta } from '../components/ui/IconeConta'
 import { EmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { useFamilia } from '../lib/FamiliaContext'
-import { aceitaLancamento, criarConta, definirAtiva, editarConta, excluirConta, hojeSP, listarContas, MOEDAS_CONTA, outrasMoedas, rotuloTipoConta } from '../lib/contas'
+import { criarConta, definirAtiva, editarConta, excluirConta, ehReais, hojeSP, listarContas, MOEDAS_CONTA, outrasMoedas, rotuloTipoConta } from '../lib/contas'
 import type { Conta, TipoConta, TotalPorMoeda, TotalPorTipo } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL } from '../lib/format'
+import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
@@ -24,7 +24,7 @@ function textoSaldo(c: Conta): string {
 
 /** Selo da moeda, só nas contas que não são em reais. */
 function SeloMoeda({ conta }: { conta: Conta }) {
-  if (aceitaLancamento(conta)) return null
+  if (ehReais(conta)) return null
   return (
     <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 align-middle text-xs font-semibold text-slate-700"
       title={`Conta em ${conta.moeda}: o saldo fica fora do total em reais`}>
@@ -90,8 +90,8 @@ export default function Contas() {
   }
 
   // contas em reais agrupadas por tipo (o subtotal do banco só soma BRL); as de outra moeda ficam num grupo à parte
-  const ativas = contas?.filter((c) => c.ativa && aceitaLancamento(c)) ?? []
-  const ativasOutras = contas?.filter((c) => c.ativa && !aceitaLancamento(c)) ?? []
+  const ativas = contas?.filter((c) => c.ativa && ehReais(c)) ?? []
+  const ativasOutras = contas?.filter((c) => c.ativa && !ehReais(c)) ?? []
   const arquivadas = contas?.filter((c) => !c.ativa) ?? []
   const outras = outrasMoedas(porMoeda)
   // agrupadas por tipo, na ordem corrente, poupança, investimento, dinheiro, outra; o subtotal vem do banco
@@ -236,7 +236,7 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
   const [banco, setBanco] = useState(conta?.banco ?? '')
   // a moeda só se escolhe na criação; na edição fica travada (o banco também recusa trocar com movimento)
   const [moeda, setMoeda] = useState(conta?.moeda ?? 'BRL')
-  const simbolo = moeda === 'USD' ? 'US$' : moeda === 'EUR' ? '€' : 'R$'
+  const simbolo = simboloMoeda(moeda)
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -302,7 +302,7 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
               ? 'A moeda não muda depois de criada.'
               : moeda === 'BRL'
                 ? 'O saldo entra no total em reais.'
-                : 'O saldo fica separado, na moeda da conta, fora do total em reais. Lançamentos nesta conta chegam em breve.'}
+                : 'O saldo fica separado, na moeda da conta, fora do total em reais. Aceita receita, despesa e transferência com outra conta da mesma moeda; cartão, dívida e provento seguem só em reais.'}
           </p>
         </div>
         <Field rotulo={`Saldo inicial (${simbolo})`} inputMode="decimal" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />

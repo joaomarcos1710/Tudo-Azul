@@ -17,6 +17,8 @@ export interface LinhaExportada {
   conta: string
   contaDestino: string
   valor: Cents
+  /** Moeda da conta do lançamento (multimoeda F2, migration 056); parcela de dívida é sempre BRL. */
+  moeda: string
   situacao: 'paid' | 'planned'
   notas: string
 }
@@ -52,11 +54,12 @@ export function montarCsv(cabecalho: string[], linhas: Celula[][]): string {
 
 export function gerarCsv(linhas: LinhaExportada[]): string {
   return montarCsv(
-    ['Data', 'Tipo', 'Descrição', 'Categoria', 'Conta', 'Conta destino', 'Valor', 'Situação', 'Observações'],
+    ['Data', 'Tipo', 'Descrição', 'Categoria', 'Conta', 'Conta destino', 'Valor', 'Moeda', 'Situação', 'Observações'],
     linhas.map((l) => [
       // valor com sinal pelo efeito: despesa negativa, receita positiva, transferência positiva (movimento entre contas)
+      // e na moeda da conta: nunca somar a coluna Valor sem separar pela Moeda
       dataBR(l.data), rotulos[l.tipo], l.descricao, l.categoria, l.conta, l.contaDestino,
-      { centavos: l.tipo === 'expense' ? (-l.valor as Cents) : l.valor }, l.situacao === 'paid' ? 'Pago' : 'Planejado', l.notas,
+      { centavos: l.tipo === 'expense' ? (-l.valor as Cents) : l.valor }, l.moeda, l.situacao === 'paid' ? 'Pago' : 'Planejado', l.notas,
     ]),
   )
 }
@@ -64,13 +67,19 @@ export function gerarCsv(linhas: LinhaExportada[]): string {
 /** Todos os lançamentos fora da lixeira, com nomes de conta e categoria, em páginas de 1.000. */
 export async function lancamentosParaExportar(familiaId: string, periodo?: { de: string; ate: string }): Promise<LinhaExportada[]> {
   if (!supabase) throw new Error('Supabase não configurado')
+  const db = supabase
+  // moeda da conta (migration 055); banco ainda sem a coluna: lê sem ela e tudo sai como BRL
+  const lerContas = async (colunas: string): Promise<{ data: unknown; error: { code?: string } | null }> =>
+    db.from('accounts').select(colunas).eq('household_id', familiaId)
   const [contas, categorias] = await Promise.all([
-    supabase.from('accounts').select('id, name').eq('household_id', familiaId),
+    lerContas('id, name, currency_code').then((r) => (r.error?.code === COLUNA_INEXISTENTE ? lerContas('id, name') : r)),
     supabase.from('categories').select('id, name').eq('household_id', familiaId),
   ])
   if (contas.error) throw contas.error
   if (categorias.error) throw categorias.error
-  const nomeConta = new Map((contas.data ?? []).map((c) => [c.id, c.name as string]))
+  const listaContas = (contas.data ?? []) as Registro[]
+  const nomeConta = new Map(listaContas.map((c) => [c.id as string, c.name as string]))
+  const moedaConta = new Map(listaContas.map((c) => [c.id as string, moedaDaConta(c)]))
   const nomeCategoria = new Map((categorias.data ?? []).map((c) => [c.id, c.name as string]))
 
   const linhas: LinhaExportada[] = []
@@ -93,6 +102,7 @@ export async function lancamentosParaExportar(familiaId: string, periodo?: { de:
         conta: nomeConta.get(t.account_id) ?? '',
         contaDestino: t.destination_account_id ? nomeConta.get(t.destination_account_id) ?? '' : '',
         valor: centsFromDb(t.amount),
+        moeda: moedaConta.get(t.account_id) ?? 'BRL',
         situacao: t.status,
         notas: t.notes ?? '',
       })
@@ -139,7 +149,7 @@ async function parcelasDeDividaParaExportar(
       linhas.push({
         data: e.date, tipo: 'expense', descricao: `Parcela de ${d.name} (${rotuloParcela[e.kind]})`,
         categoria: principal ? categoriaPrincipal(d) : e.category_id ? nomeCategoria.get(e.category_id) ?? '' : '',
-        conta: nomeConta.get(e.account_id) ?? '', contaDestino: '', valor: centsFromDb(e.amount), situacao: 'paid', notas: 'Parcela de dívida',
+        conta: nomeConta.get(e.account_id) ?? '', contaDestino: '', valor: centsFromDb(e.amount), moeda: 'BRL', situacao: 'paid', notas: 'Parcela de dívida',
       })
     }
     if (!data || data.length < pagina) break
@@ -157,7 +167,7 @@ async function parcelasDeDividaParaExportar(
       linhas.push({
         data: r.due_date, tipo: 'expense', descricao: `Parcela ${r.installment_number} de ${d.name}`, categoria: categoriaPrincipal(d),
         conta: d.payment_account_id ? nomeConta.get(d.payment_account_id) ?? '' : '', contaDestino: '', valor: centsFromDb(r.amount),
-        situacao: 'planned', notas: 'Parcela de dívida (contrato)',
+        moeda: 'BRL', situacao: 'planned', notas: 'Parcela de dívida (contrato)',
       })
     }
   }

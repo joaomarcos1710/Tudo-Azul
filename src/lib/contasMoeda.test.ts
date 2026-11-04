@@ -6,6 +6,7 @@ const fake = vi.hoisted(() => {
     inseridos: [] as Record<string, unknown>[],
     atualizados: [] as Record<string, unknown>[],
     porMoeda: { data: [] as unknown, error: null as { code: string } | null },
+    rpcs: [] as [string, Record<string, unknown>][],
   }
   const fim = { eq: () => Promise.resolve({ error: null }) }
   const supabase = {
@@ -13,14 +14,15 @@ const fake = vi.hoisted(() => {
       insert: (v: Record<string, unknown>) => { e.inseridos.push(v); return Promise.resolve({ error: null }) },
       update: (v: Record<string, unknown>) => { e.atualizados.push(v); return fim },
     }),
-    rpc: () => Promise.resolve(e.porMoeda),
+    rpc: (nome: string, args: Record<string, unknown>) => { e.rpcs.push([nome, args]); return Promise.resolve(e.porMoeda) },
   }
   return { e, supabase }
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { aceitaLancamento, criarConta, editarConta, outrasMoedas, totaisPorMoeda } from './contas'
+import { aceitaLancamento, criarConta, editarConta, mesmaMoeda, outrasMoedas, totaisPorMoeda } from './contas'
 import type { Cents } from './format'
+import { resumoPorMoeda } from './lancamentos'
 
 const c = (n: number) => n as Cents
 const dados = { nome: 'Conta', tipo: 'checking' as const, saldoInicial: c(25050), abertura: '2026-11-01' }
@@ -29,6 +31,7 @@ beforeEach(() => {
   fake.e.inseridos = []
   fake.e.atualizados = []
   fake.e.porMoeda = { data: [], error: null }
+  fake.e.rpcs = []
 })
 
 describe('moeda da conta', () => {
@@ -46,11 +49,19 @@ describe('moeda da conta', () => {
     expect(fake.e.atualizados[0]).not.toHaveProperty('currency_code')
   })
 
-  it('só conta em reais aceita lançamento por enquanto (sem moeda conhecida = BRL)', () => {
-    expect(aceitaLancamento({ moeda: 'BRL' })).toBe(true)
-    expect(aceitaLancamento({})).toBe(true)
-    expect(aceitaLancamento({ moeda: 'USD' })).toBe(false)
-    expect(aceitaLancamento({ moeda: 'EUR' })).toBe(false)
+  it('F2 (056): receita, despesa e transferência em qualquer moeda; cartão, dívida e provento só em reais (sem moeda = BRL)', () => {
+    for (const moeda of ['BRL', 'USD', 'EUR']) expect(aceitaLancamento({ moeda }, 'lancamento')).toBe(true)
+    expect(aceitaLancamento({}, 'cartao_divida_provento')).toBe(true)
+    expect(aceitaLancamento({ moeda: 'BRL' }, 'cartao_divida_provento')).toBe(true)
+    expect(aceitaLancamento({ moeda: 'USD' }, 'cartao_divida_provento')).toBe(false)
+    expect(aceitaLancamento({ moeda: 'EUR' }, 'cartao_divida_provento')).toBe(false)
+  })
+
+  it('transferência só entre contas da mesma moeda (sem moeda = BRL)', () => {
+    expect(mesmaMoeda({ moeda: 'USD' }, { moeda: 'USD' })).toBe(true)
+    expect(mesmaMoeda({}, { moeda: 'BRL' })).toBe(true)
+    expect(mesmaMoeda({ moeda: 'BRL' }, { moeda: 'USD' })).toBe(false)
+    expect(mesmaMoeda({ moeda: 'USD' }, { moeda: 'EUR' })).toBe(false)
   })
 })
 
@@ -76,5 +87,23 @@ describe('totaisPorMoeda', () => {
   it('outro erro continua sendo erro', async () => {
     fake.e.porMoeda = { data: null, error: { code: '42501' } }
     await expect(totaisPorMoeda('h1')).rejects.toMatchObject({ code: '42501' })
+  })
+})
+
+describe('resumoPorMoeda (multimoeda F2, migration 056)', () => {
+  it('lê receita, despesa e resultado pagos por moeda, em centavos, do banco (period_summary_by_currency)', async () => {
+    fake.e.porMoeda = { data: [{ currency_code: 'USD', income: '1000.00', expense: '40.25', result: '959.75' }], error: null }
+    expect(await resumoPorMoeda('h1', '2026-11-01', '2026-11-30')).toEqual([{ moeda: 'USD', receitas: 100000, despesas: 4025, resultado: 95975 }])
+    expect(fake.e.rpcs).toEqual([['period_summary_by_currency', { p_household: 'h1', p_from: '2026-11-01', p_to: '2026-11-30' }]])
+  })
+
+  it('banco ainda sem a função (migration 056 não aplicada): lista vazia, a tela segue', async () => {
+    fake.e.porMoeda = { data: null, error: { code: '42883' } }
+    expect(await resumoPorMoeda('h1', '2026-11-01', '2026-11-30')).toEqual([])
+  })
+
+  it('outro erro continua sendo erro', async () => {
+    fake.e.porMoeda = { data: null, error: { code: '42501' } }
+    await expect(resumoPorMoeda('h1', '2026-11-01', '2026-11-30')).rejects.toMatchObject({ code: '42501' })
   })
 })

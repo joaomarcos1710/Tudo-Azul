@@ -297,18 +297,47 @@ describe('Recorrentes', () => {
     expect(mock.criarRecorrencia).not.toHaveBeenCalled()
   })
 
-  it('multimoeda F1: conta em outra moeda não é oferecida no recorrente (o banco também recusa)', async () => {
-    mock.listarContas.mockResolvedValue({
-      contas: [
-        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
-        { id: 'a3', nome: 'Conta em euro', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'EUR' },
-      ],
-      total: c(0),
+  describe('multimoeda F2 (migration 056)', () => {
+    const contasMoedas = [
+      { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+      { id: 'a3', nome: 'Conta em euro', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'EUR' },
+      { id: 'a4', nome: 'Reserva em euro', tipo: 'savings', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'EUR' },
+    ]
+    /** "€ 9,90" com o espaço do Intl (NBSP ou espaço comum). */
+    const moeda = (texto: string) => new RegExp(`^${texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(' ', '[\\s\\u00a0]')}$`)
+
+    it('conta em euro é oferecida no recorrente de despesa e o valor pede €', async () => {
+      mock.listarContas.mockResolvedValue({ contas: contasMoedas, total: c(0) })
+      const u = userEvent.setup()
+      montar()
+      await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+      const opcoes = Array.from((screen.getByLabelText('Conta') as HTMLSelectElement).options).map((o) => o.textContent)
+      expect(opcoes).toEqual(['Escolha…', 'Itaú', 'Conta em euro', 'Reserva em euro'])
+      await u.selectOptions(screen.getByLabelText('Conta'), 'a3')
+      await u.type(screen.getByLabelText('Descrição'), 'Assinatura')
+      await u.type(screen.getByLabelText('Valor estimado (€)'), '9,90')
+      await u.selectOptions(screen.getByLabelText('Dia do mês'), '5')
+      await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+      await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
+      expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', contaId: 'a3', valor: 990 }))
     })
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    const opcoes = Array.from((screen.getByLabelText('Conta') as HTMLSelectElement).options).map((o) => o.textContent)
-    expect(opcoes).toEqual(['Escolha…', 'Itaú'])
+
+    it('transferência: o destino só oferece contas da moeda da origem', async () => {
+      mock.listarContas.mockResolvedValue({ contas: contasMoedas, total: c(0) })
+      const u = userEvent.setup()
+      montar()
+      await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+      await u.selectOptions(screen.getByLabelText('Tipo'), 'transfer')
+      await u.selectOptions(screen.getByLabelText('Da conta'), 'a3')
+      const destinos = Array.from((screen.getByLabelText('Para a conta') as HTMLSelectElement).options).map((o) => o.textContent)
+      expect(destinos).toEqual(['Escolha…', 'Reserva em euro'])
+    })
+
+    it('a lista mostra o valor na moeda da conta', async () => {
+      mock.listarContas.mockResolvedValue({ contas: contasMoedas, total: c(0) })
+      mock.listarRecorrencias.mockResolvedValue([{ ...luz, descricao: 'Assinatura', valor: c(990), contaId: 'a3' }])
+      montar()
+      expect(await screen.findByText(moeda('−€ 9,90'))).toBeTruthy()
+    })
   })
 })

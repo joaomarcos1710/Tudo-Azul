@@ -71,8 +71,8 @@ export default function Dividas() {
         if (alvo) setParcelaSelecionada(alvo)
         window.history.replaceState(null, '', window.location.pathname)
       }
-      // só contas em reais pagam dívida por enquanto (multimoeda F1, o banco também recusa)
-      setContas(contasAtuais.contas.filter((c) => c.ativa && aceitaLancamento(c)))
+      // só contas em reais pagam dívida (multimoeda F2: cartão, dívida e provento seguem em reais; o banco também recusa)
+      setContas(contasAtuais.contas.filter((c) => c.ativa && aceitaLancamento(c, 'cartao_divida_provento')))
       setCategorias(cats.filter((c) => c.tipo === 'expense' && c.ativa))
       setErro('')
     } catch (e) {
