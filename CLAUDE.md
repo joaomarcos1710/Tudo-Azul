@@ -19,3 +19,10 @@ Sem segredos, senhas, chaves nem dados reais nas notas.
 - **Merge só com o "pode" do dono**, com a trava do commit exato; PR nasce rascunho e confirma o CI verde e a ausência de conflito antes.
 - Todo conserto vem com teste que **falha sem a correção**.
 - Nunca colar nem aceitar senha, chave secreta ou `service_role`; nada de dado real em teste.
+
+## Jeito de mexer no código (ideias do Ponytail, adaptadas)
+- **Antes de editar**, liste tudo o que a mudança alcança: quem chama a função, testes, telas, exportação (CSV), docs. Num conserto, procure **todos** os que chamam o que você muda e corrija a causa uma vez, no código comum.
+- **A menor mudança completa**: primeiro veja se já existe no projeto (componente, função do banco, helper) e use do mesmo jeito; depois o que a plataforma ou uma dependência já instalada faz. Nunca adicione dependência por poucas linhas. Sem opção, configuração ou abstração "para depois" que ninguém pediu.
+- **Nunca corte** validação, tratamento de erro que evita perda de dados, segurança, acessibilidade, nem o teste da lógica com dinheiro.
+- **Atalho com limite conhecido** leva comentário `atalho: <o limite>, <quando melhorar>` e uma linha em `40 - Pendências`.
+- **Toda resposta termina** com o que ficou de fora ou não foi conferido e o risco que o dono precisa saber.

@@ -139,3 +139,4 @@ tags: [tudo-azul, historico]
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.
+- **CLAUDE.md: jeito de mexer no código** (#154, 04/11/2026): quatro regras adaptadas do Ponytail. Sem mudança no app.

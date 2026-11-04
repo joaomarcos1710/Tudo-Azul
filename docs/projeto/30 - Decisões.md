@@ -113,3 +113,6 @@ Pedido do dono: em vez de desativar, **excluir a categoria e passar os lançamen
 
 ## 04/11/2026 — Fatura escolhida e início do cartão
 O dono pediu para "desproteger" a data de referência e escolher a fatura (até 3 antes e 3 depois). Decisão: a trava continua contra contar duas vezes, mas agora olha a **data de fechamento da fatura** (o que fecha até o início já está no saldo de referência); para lançar o passado, o início do cartão **recua** por uma função própria. Motivo: o Organizze às vezes põe a compra noutra fatura que a calculada pelo dia de fechamento (218 casos no histórico).
+
+## 04/11/2026 — Ponytail: só as ideias, sem instalar
+O dono mandou o link do Ponytail (plugin de agentes de código, licença MIT). Decisão: **não instalar** (traz hooks que rodam na máquina, de autor desconhecido, e os números de ganho são do próprio autor); trazer para o `CLAUDE.md` só quatro regras que somam ao que já temos.
