@@ -129,3 +129,9 @@ O plano gratuito da Vercel permite 100 deploys por dia, e cada push gerava um pr
 - **Empréstimo da Funcef** vai para Dívidas (com saldo devedor), não como regra recorrente.
 - Recorrentes: seguro residencial não renovado (não cria); seguro de vida encerrado; Light fixa como estimativa; barbearia é gasto do mês sem dia certo (não vira regra).
 - Antes de gravar: índice novo (053), porque o histórico deixava o fechamento da fatura acima do limite de 8 s.
+- Academia de 191,00 no cartão entra como **reembolso** (crédito), por decisão do dono.
+
+## 04/11/2026 — Depois da revisão do Manus
+- **Conferência de saldo** continua em Contas (o dono mantém; a revisão sugeria tirar).
+- **Filtros de Lançamentos** seguem na ordem Conta → Tipo → Categoria (o dono não pediu outra ordem).
+- **"De quem é o gasto"** (botão para separar o que é do João, da Mariane e dos animais): ideia guardada, não fazer agora. Categorias e subcategorias já cobrem a maior parte; um campo novo mexe em todos os relatórios.

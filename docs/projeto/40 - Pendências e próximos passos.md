@@ -20,8 +20,12 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
-- [ ] **Índice de eventos por parcela** (migration 053, #156): mesclar e aplicar **antes** de importar o histórico do Organizze (sem ele o fechamento da fatura passa do limite de 8 s).
-- [ ] **Importar o histórico do Organizze** (caminho A, parcelas na fatura do Organizze): simulado em banco local, saldos das 21 contas e as 40 faturas fechadas batem. Falta: aplicar a 053, ajustar as recorrentes (Google, Epidemic e MLabs a partir de 12/2026 antes de abrir o app), rodar os lotes, conferir e registrar.
+- [x] **Índice de eventos por parcela** (migration 053, #156): aplicada em 04/11/2026.
+- [x] **Importar o histórico do Organizze** (04/11/2026): feito; saldos das 21 contas batem. Falta você: abrir 2 ou 3 faturas recentes no app e comparar com o Organizze (a conferência automática olhou os saldos das contas e as contagens, não fatura a fatura).
+- [x] **Empréstimo da Funcef em Dívidas** (04/11/2026). Falta você: no boleto de 20/11, comparar juros e amortização com o cronograma do app (taxa cadastrada a partir do extrato).
+- [ ] **Reset e exportação completa com investimentos e bens** (migration 054): hoje `reset_preview`, `reset_household` e a exportação completa deixam de fora ativos, operações, avaliações e proventos de investimento e os bens da família (achado da revisão do Manus, 04/11/2026).
+- [ ] **Relatórios: "6 arquivos"** — a tela e o `csv.ts` dizem 5 arquivos na exportação completa, são 6; e `npm audit fix` da vulnerabilidade de desenvolvimento.
+- [ ] **Depois:** total de todos os cartões; % quitado das dívidas; relatório por categoria com gráfico.
 - [x] **Crédito no cartão como receita** (migration 052, #153): aplicada em 04/11/2026. Falta você testar no app: lançar um crédito (ex.: estorno de IOF) e conferir a fatura, o limite e Lançamentos.
 - [x] **Escolher a fatura da compra e recuar o início do cartão** (migration 051, #152): aplicada em 04/11/2026.
 - [x] **Aplicar a migration 050** (excluir ativo com histórico, #151): aplicada em 04/11/2026.
