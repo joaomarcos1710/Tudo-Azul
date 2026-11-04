@@ -12,7 +12,7 @@ import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
   arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, proximaFatura, reativarCartao, renomearCartao,
-  novaChave, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
+  novaChave, opcoesDeFatura, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, listarMovimentosDoCartao,
 } from '../lib/cartoes'
 import type { Cartao, Fatura, ItemFatura, ItemPrevia, MovimentoCartao, ProximaFatura } from '../lib/cartoes'
@@ -735,6 +735,7 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
   const [parcelasTexto, setParcelasTexto] = useState('1')
   const [data, setData] = useState(hoje)
   const [categoriaId, setCategoriaId] = useState('')
+  const [deslocamento, setDeslocamento] = useState(0)
   const [tentou, setTentou] = useState(false)
   const [chave] = useState(novaChave)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
@@ -753,7 +754,9 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
     e.preventDefault()
     setTentou(true)
     if (!descricao.trim() || total === null || total <= 0 || !parcelasOk || !categoriaId || (!andamento && !data)) return
-    void enviar(() => registrarCompra(cartao.id, { descricao, data: andamento ? hoje : data, total, parcelas, categoriaId }, chave))
+    const desloc = andamento ? 0 : deslocamento
+    void enviar(() => registrarCompra(cartao.id,
+      { descricao, data: andamento ? hoje : data, total, parcelas, categoriaId, ...(desloc !== 0 ? { deslocamento: desloc } : {}) }, chave))
   }
 
   return (
@@ -782,10 +785,14 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
         {!andamento && (
           <Field rotulo="Data da compra" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou && !data ? 'Informe a data.' : undefined} />
         )}
+        {!andamento && cartao.fechamento !== null && data && (
+          <Selecao rotulo="Fatura" valor={String(deslocamento)} aoMudar={(v) => setDeslocamento(Number(v))}
+            opcoes={opcoesDeFatura(data, cartao.fechamento).map((o) => [String(o.deslocamento), o.rotulo])} />
+        )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {andamento
             ? 'As parcelas restantes entram a partir da fatura aberta, uma por mês.'
-            : `Compra antes do dia ${cartao.fechamento} entra na fatura deste mês; no dia do fechamento ou depois, na seguinte. Cada parcela vira despesa no mês da fatura.`}
+            : `Compra antes do dia ${cartao.fechamento} entra na fatura deste mês; no dia do fechamento ou depois, na seguinte. Cada parcela vira despesa no mês da fatura. Se o banco lançou em outra fatura, escolha-a acima (até 3 antes ou 3 depois).`}
           {total !== null && parcelasOk && parcelas > 1 && <> Total: <strong className="tabular-nums">{formatBRL(total)}</strong>.</>}
         </p>
         <Botoes rotulo="Lançar compra" enviando={enviando} aoCancelar={aoCancelar} />

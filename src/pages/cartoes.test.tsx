@@ -206,6 +206,23 @@ describe('Cartões', () => {
     expect(mock.registrarCompra).toHaveBeenCalledWith('k1', { descricao: 'TV', data: '2026-10-15', total: 30000, parcelas: 3, categoriaId: 'g1' }, expect.any(String))
   })
 
+  it('compra em outra fatura: o seletor manda o deslocamento escolhido', async () => {
+    const u = userEvent.setup()
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
+    await u.type(screen.getByLabelText('Descrição'), 'TV')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await u.type(screen.getByLabelText('Valor total (R$)'), '300,00')
+    const data = screen.getByLabelText('Data da compra')
+    await u.clear(data)
+    await u.type(data, '2026-10-15')
+    const fatura = screen.getByLabelText('Fatura') as HTMLSelectElement
+    expect(fatura.options).toHaveLength(7)
+    await u.selectOptions(fatura, '-1')
+    await u.click(screen.getByRole('button', { name: 'Lançar compra' }))
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', { descricao: 'TV', data: '2026-10-15', total: 30000, parcelas: 1, categoriaId: 'g1', deslocamento: -1 }, expect.any(String))
+  })
+
   it('parcelamento em andamento: valor da parcela × parcelas restantes, a partir de hoje', async () => {
     const u = userEvent.setup()
     render(<Cartoes />)
