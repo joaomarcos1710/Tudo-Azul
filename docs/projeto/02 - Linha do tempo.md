@@ -144,6 +144,7 @@ tags: [tudo-azul, historico]
 - **Importação do histórico do Organizze** (04/11/2026, sem PR, mesmo caminho, com o "pode importar" do dono): lançamentos das contas, transferências e todas as faturas dos cartões, em 120 lotes com conferência de integridade em cada um. Conferência final: os saldos das 21 contas batem com o Organizze no dia; nenhuma despesa ou receita sem categoria.
 - **Empréstimo da Funcef** (04/11/2026, sem PR, mesmo caminho, com o "pode" do dono): cadastrado em Dívidas com contrato e cronograma; sem CPF nem matrícula.
 - **Diário: importação, Funcef e 053 aplicada** (#157, 04/11/2026). Sem mudança no app.
+- **Zerar tudo e exportação completa com investimentos e bens** (migration 054, #158, 04/11/2026): o zerar passa a apagar e contar investimentos (ativos, operações, avaliações, proventos), bens com avaliações e a agenda dos contratos (antes deixava investimentos e bens para trás, sem erro); a exportação completa ganha os arquivos 7 (investimentos) e 8 (bens) e a tela diz 8 arquivos; `npm audit fix` (postcss-selector-parser 6.1.5, só desenvolvimento). Migration 054 **não aplicada**.
 
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

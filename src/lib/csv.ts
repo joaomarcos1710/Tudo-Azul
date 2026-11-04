@@ -273,7 +273,81 @@ const centavos = (v: unknown) => ({ centavos: centsFromDb((v ?? 0) as number | s
 /** Vazio quando o banco não devolveu valor (ex.: conta aberta depois de hoje), em vez de um 0,00 inventado. */
 const talvez = (v: unknown): Celula => (v === null || v === undefined ? '' : centavos(v))
 
-/** Os 5 arquivos da exportação completa, com saldos na data `hoje` (YYYY-MM-DD, fuso de São Paulo). */
+/**
+ * Quantidade, preço unitário e participação (até 12 e 10 casas, não são centavos): o texto exato do banco
+ * (lido com `::text`), só trocando o ponto pela vírgula. Nenhuma conta no front.
+ */
+const decimalTexto = (v: unknown) => texto(v).replace('.', ',')
+
+const rotuloClasse: Record<string, string> = {
+  fixed_income: 'Renda fixa', equity: 'Ações', fund: 'Fundos de investimento', reit: 'FIIs / REITs', etf: 'ETFs',
+  crypto: 'Criptoativos', other: 'Outros',
+}
+const rotuloProvento: Record<string, string> = { dividend: 'Dividendos', jcp: 'JCP', income: 'Rendimentos' }
+const rotuloTipoBem: Record<string, string> = { real_estate: 'Imóvel', vehicle: 'Veículo', collectible: 'Bem de valor', other: 'Outro' }
+const rotuloSituacaoBem: Record<string, string> = { active: 'Ativo', sold: 'Vendido', disposed: 'Baixado' }
+
+/** Lançamento ligado ao provento (o valor e a data do provento são os do lançamento). */
+type LancamentoProvento = { date?: unknown; amount?: unknown; status?: unknown; deleted_at?: unknown; account_id?: unknown }
+
+/**
+ * Arquivo 7: cada ativo seguido das suas operações (inclusive as anuladas), avaliações e proventos, por data.
+ * O provento também está no arquivo 1 (é uma receita na conta); aqui só aparece ligado ao ativo.
+ */
+function linhasInvestimentos(
+  ativos: Registro[], operacoes: Registro[], avaliacoes: Registro[], proventos: Registro[], nomeConta: Map<unknown, string>,
+): Celula[][] {
+  const linhas: Celula[][] = []
+  for (const a of ativos) {
+    const base = (registro: string): Celula[] => [
+      registro, texto(a.name), texto(a.ticker), rotuloClasse[texto(a.asset_class)] ?? texto(a.asset_class), texto(a.subclass), texto(a.currency_code),
+    ]
+    linhas.push([...base('Ativo'), '', '', '', '', '', '', '', a.active ? 'Ativo' : 'Arquivado', ''])
+    const doAtivo: [string, Celula[]][] = [
+      ...operacoes.filter((o) => o.asset_id === a.id).map((o): [string, Celula[]] => [texto(o.operation_date), [
+        ...base('Operação'), dataBR(texto(o.operation_date)), o.kind === 'sell' ? 'Venda' : 'Compra',
+        decimalTexto(o.quantity), decimalTexto(o.unit_price), centavos(o.fees), '', '',
+        o.voided_at ? 'Anulada' : 'Válida', [texto(o.notes), o.voided_at ? `Anulada: ${texto(o.void_reason)}` : ''].filter(Boolean).join(' · '),
+      ]]),
+      ...avaliacoes.filter((v) => v.asset_id === a.id).map((v): [string, Celula[]] => [texto(v.valuation_date), [
+        ...base('Avaliação'), dataBR(texto(v.valuation_date)), 'Avaliação', '', decimalTexto(v.unit_price), '', '', '', '', texto(v.source),
+      ]]),
+      ...proventos.filter((p) => p.asset_id === a.id).map((p): [string, Celula[]] => {
+        const t = (p.transaction ?? {}) as LancamentoProvento
+        const situacao = t.deleted_at ? 'Na lixeira' : t.status === 'planned' ? 'Planejado' : 'Pago'
+        return [texto(t.date), [
+          ...base('Provento'), dataBR(texto(t.date)), rotuloProvento[texto(p.kind)] ?? texto(p.kind), '', '', '', talvez(t.amount),
+          t.account_id ? nomeConta.get(t.account_id) ?? '' : '', situacao, '',
+        ]]
+      }),
+    ]
+    // ordem por data (texto AAAA-MM-DD); no mesmo dia, operações, avaliações e proventos nessa ordem
+    doAtivo.map((x, i) => [x, i] as const).sort((p, q) => (p[0][0] < q[0][0] ? -1 : p[0][0] > q[0][0] ? 1 : p[1] - q[1]))
+      .forEach(([x]) => linhas.push(x[1]))
+  }
+  return linhas
+}
+
+/** Arquivo 8: cada bem seguido das suas avaliações (valor total do bem, na moeda dele; a parte da família não é calculada aqui). */
+function linhasBens(bens: Registro[], avaliacoes: Registro[]): Celula[][] {
+  const linhas: Celula[][] = []
+  for (const b of bens) {
+    linhas.push([
+      'Bem', texto(b.name), rotuloTipoBem[texto(b.asset_type)] ?? texto(b.asset_type), texto(b.currency_code), texto(b.ownership_label),
+      decimalTexto(b.household_share), dataBR(texto(b.acquired_on)), dataBR(texto(b.ended_on)), '', '', '',
+      rotuloSituacaoBem[texto(b.status)] ?? texto(b.status), texto(b.description),
+    ])
+    for (const v of avaliacoes.filter((x) => x.asset_id === b.id)) {
+      linhas.push([
+        'Avaliação', texto(b.name), '', texto(b.currency_code), '', '', '', '', dataBR(texto(v.valuation_date)), centavos(v.total_value),
+        texto(v.source), '', texto(v.notes),
+      ])
+    }
+  }
+  return linhas
+}
+
+/** Os 8 arquivos da exportação completa, com saldos na data `hoje` (YYYY-MM-DD, fuso de São Paulo). */
 export async function exportacaoCompleta(familiaId: string, hoje: string): Promise<ArquivoExportado[]> {
   if (!supabase) throw new Error('Supabase não configurado')
   const db = supabase
@@ -294,13 +368,28 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
   const saldoConta = new Map(((saldos.data ?? []) as Registro[]).map((s) => [s.account_id, s.balance]))
   const saldoDivida = new Map(((saldosDividas.data ?? []) as Registro[]).map((s) => [s.debt_id, s]))
 
-  const [lancamentos, parcelas, eventos, agendaDividas, ...movimentosPorConta] = await Promise.all([
+  const [lancamentos, parcelas, eventos, agendaDividas, ativos, operacoes, avaliacoes, proventos, bens, avaliacoesBens, ...movimentosPorConta] = await Promise.all([
     lancamentosParaExportar(familiaId),
     todas(() => db.from('debt_installments')
       .select('id, debt_id, plan, seq, description, purchase_date, due_date, face, category_id')
       .eq('household_id', familiaId).order('due_date').order('id')),
     buscarEventosExportacao(db, familiaId),
     buscarAgendaDividasExportacao(db, familiaId),
+    todas(() => db.from('investment_assets').select('id, name, ticker, asset_class, subclass, currency_code, active')
+      .eq('household_id', familiaId).order('name').order('id')),
+    todas(() => db.from('investment_operations')
+      .select('id, asset_id, operation_date, kind, quantity::text, unit_price::text, fees, notes, voided_at, void_reason')
+      .eq('household_id', familiaId).order('operation_date').order('id')),
+    todas(() => db.from('investment_valuations').select('id, asset_id, valuation_date, unit_price::text, source')
+      .eq('household_id', familiaId).order('valuation_date').order('id')),
+    todas(() => db.from('investment_distributions')
+      .select('id, asset_id, kind, transaction:transactions(date, amount, status, deleted_at, account_id)')
+      .eq('household_id', familiaId).order('id')),
+    todas(() => db.from('family_assets')
+      .select('id, name, asset_type, description, currency_code, ownership_label, household_share::text, acquired_on, status, ended_on')
+      .eq('household_id', familiaId).order('name').order('id')),
+    todas(() => db.from('family_asset_valuations').select('id, asset_id, valuation_date, total_value, source, notes')
+      .eq('household_id', familiaId).order('valuation_date').order('id')),
     ...listaContas.map((c) => todas(() => db.rpc('account_movements', { p_account: c.id, p_to: hoje })
       .order('date').order('source').order('id'))),
   ])
@@ -377,6 +466,9 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     ]
   })
 
+  const linhasInv = linhasInvestimentos(ativos, operacoes, avaliacoes, proventos, nomeConta)
+  const linhasBem = linhasBens(bens, avaliacoesBens)
+
   return [
     { nome: `tudo-azul-${hoje}-1-lancamentos.csv`, conteudo: gerarCsv(lancamentos), linhas: lancamentos.length },
     {
@@ -401,6 +493,16 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
       nome: `tudo-azul-${hoje}-6-agenda-parcelas-dividas.csv`, linhas: linhasAgendaDividas.length,
       conteudo: montarCsv(['Dívida', 'Credor', 'Contrato', 'Parcela', 'Vencimento', 'Valor', 'Situação',
         'Data do pagamento', 'Forma de pagamento', 'Conta de pagamento', 'Operação'], linhasAgendaDividas),
+    },
+    {
+      nome: `tudo-azul-${hoje}-7-investimentos.csv`, linhas: linhasInv.length,
+      conteudo: montarCsv(['Registro', 'Ativo', 'Ticker', 'Classe', 'Subclasse', 'Moeda', 'Data', 'Tipo', 'Quantidade', 'Preço unitário',
+        'Taxas', 'Valor do provento', 'Conta', 'Situação', 'Observação'], linhasInv),
+    },
+    {
+      nome: `tudo-azul-${hoje}-8-bens.csv`, linhas: linhasBem.length,
+      conteudo: montarCsv(['Registro', 'Bem', 'Tipo', 'Moeda', 'Titularidade', 'Participação da família (%)', 'Aquisição', 'Encerramento',
+        'Data da avaliação', 'Valor total', 'Fonte', 'Situação', 'Observação'], linhasBem),
     },
   ]
 }

@@ -23,8 +23,10 @@ atualizado: 2026-10-28
 - [x] **Índice de eventos por parcela** (migration 053, #156): aplicada em 04/11/2026.
 - [x] **Importar o histórico do Organizze** (04/11/2026): feito; saldos das 21 contas batem. Falta você: abrir 2 ou 3 faturas recentes no app e comparar com o Organizze (a conferência automática olhou os saldos das contas e as contagens, não fatura a fatura).
 - [x] **Empréstimo da Funcef em Dívidas** (04/11/2026). Falta você: no boleto de 20/11, comparar juros e amortização com o cronograma do app (taxa cadastrada a partir do extrato).
-- [ ] **Reset e exportação completa com investimentos e bens** (migration 054): hoje `reset_preview`, `reset_household` e a exportação completa deixam de fora ativos, operações, avaliações e proventos de investimento e os bens da família (achado da revisão do Manus, 04/11/2026).
-- [ ] **Relatórios: "6 arquivos"** — a tela e o `csv.ts` dizem 5 arquivos na exportação completa, são 6; e `npm audit fix` da vulnerabilidade de desenvolvimento.
+- [x] **Reset e exportação completa com investimentos e bens** (migration 054, #158): feito no código; **falta aplicar a 054** em produção pelo workflow (com o seu "pode"). Antes, `reset_preview`, `reset_household` e a exportação completa deixavam de fora ativos, operações, avaliações e proventos de investimento e os bens da família (achado da revisão do Manus, 04/11/2026).
+- [x] **Relatórios: número de arquivos** (#158) — com investimentos e bens a exportação completa tem **8** arquivos; a tela e o `csv.ts` dizem 8 e listam todos. `npm audit fix` feito (0 vulnerabilidades).
+- [ ] **Aplicar a migration 054** em produção (simular → ler o log → aplicar). Até lá, o "Zerar tudo" continua deixando investimentos e bens para trás e a tela mostra 0 neles.
+- [ ] **Exportação completa: preço e quantidade de investimento como texto** — vão como o banco grava (até 10 e 12 casas, vírgula decimal), não em centavos; a planilha pode ler como texto. Não restaura nada (o app não importa os arquivos).
 - [ ] **Depois:** total de todos os cartões; % quitado das dívidas; relatório por categoria com gráfico.
 - [x] **Crédito no cartão como receita** (migration 052, #153): aplicada em 04/11/2026. Falta você testar no app: lançar um crédito (ex.: estorno de IOF) e conferir a fatura, o limite e Lançamentos.
 - [x] **Escolher a fatura da compra e recuar o início do cartão** (migration 051, #152): aplicada em 04/11/2026.

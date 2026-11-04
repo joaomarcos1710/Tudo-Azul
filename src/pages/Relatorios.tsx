@@ -79,13 +79,16 @@ export default function Relatorios() {
         </Button>
       </Card>
       <Card>
-        <CardTitle>Exportação completa (5 arquivos CSV)</CardTitle>
+        <CardTitle>Exportação completa (8 arquivos CSV)</CardTitle>
         <ul className="mb-3 list-disc pl-5 text-sm text-slate-600">
           <li><strong>Lançamentos:</strong> todos, pagos e planejados.</li>
           <li><strong>Movimentos por conta:</strong> tudo o que mexe no saldo (saldo inicial, lançamentos pagos, pagamentos de fatura, juros e tarifas pagos, empréstimos recebidos), com sinal. A soma de cada conta dá o saldo dela hoje.</li>
           <li><strong>Cadastros:</strong> contas, cartões e dívidas com o saldo de hoje calculado pelo app. Em cartão e dívida, positivo é o que você deve; negativo, crédito a receber.</li>
           <li><strong>Parcelas de cartão:</strong> cada parcela com a data da compra, o fechamento da fatura e a situação (cobrada, a cobrar, com cancelamento).</li>
           <li><strong>Eventos de cartão e dívidas:</strong> cobranças, estornos, pagamentos, juros e tarifas, com o efeito de cada um na dívida. Valor inicial + soma dos efeitos até hoje = dívida do cadastro.</li>
+          <li><strong>Agenda de parcelas de dívidas:</strong> as parcelas do contrato de empréstimo e financiamento, pagas e planejadas.</li>
+          <li><strong>Investimentos:</strong> cada ativo com as operações (inclusive as anuladas), as avaliações e os proventos.</li>
+          <li><strong>Bens:</strong> cada bem da família com a titularidade, a situação e todas as avaliações.</li>
         </ul>
         <p className="mb-4 text-sm text-slate-600">
           Serve para conferência e arquivo, <strong>não é restaurável automaticamente</strong>: o app ainda não importa estes arquivos.
