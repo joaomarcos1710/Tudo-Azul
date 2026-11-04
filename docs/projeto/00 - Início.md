@@ -23,3 +23,4 @@ Fica no repositório, em `docs/projeto/`, e é atualizada **na mesma PR** de cad
 
 ## Em uma linha
 Em 14 dias (13 a 26/10/2026) saiu de uma base vazia para um app com contas, cartões, recorrentes, conferência com extrato, orçamentos, projeção do mês, exportação CSV e painel — com 19 migrations, 22 arquivos de teste de banco e 240 testes de front.
+- [[51 - Engenharia reversa do Organizze]] — como o Organizze organiza as coisas e o que trazer (só estrutura).
