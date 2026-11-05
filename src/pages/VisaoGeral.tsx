@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LinhaAcumulada } from '../components/graficos/LinhaAcumulada'
-import { Rosca } from '../components/graficos/Rosca'
+import { BarrasCategorias } from '../components/graficos/BarrasCategorias'
+import { BalancoMensal } from '../components/graficos/BalancoMensal'
+import type { MesBalanco } from '../components/graficos/BalancoMensal'
 import { Aviso } from '../components/ui/Aviso'
 import { Card, CardTitle } from '../components/ui/Card'
 import { BandeiraCartao, IconeConta, IconeEmissor } from '../components/ui/IconeConta'
@@ -32,6 +34,7 @@ import type { AvisoInicio } from '../lib/avisosInicio'
 import { EmOutrasMoedas, ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { LinhaMensal } from '../components/graficos/LinhaMensal'
 import { saldosProjetados } from '../lib/saldoProjetado'
+import { fluxoDeCaixa } from '../lib/fluxoCaixa'
 import type { SaldoTotal } from '../lib/saldoProjetado'
 import { listarOrcamentos } from '../lib/orcamentos'
 import type { OrcamentoMes } from '../lib/orcamentos'
@@ -75,6 +78,10 @@ interface Dados {
   faturasDoMes: TotalFaturasMes | null
   /** Saldo das contas até o fim do mês, com planejados e faturas (do banco); null = não carregou. */
   saldoPrevisto: SaldoTotal | null
+  /** Início: saldo previsto no fim do mês de cada conta, na moeda dela (account_balances_projected); null = não carregou. */
+  previstoPorConta: Map<string, Cents> | null
+  /** Análises: receitas, despesas e resultado pagos dos últimos 6 meses, em reais (cash_flow_report por mês); null = não carregou. */
+  balanco: MesBalanco[] | null
   /** Análises: patrimônio e saldo no fim de cada um dos últimos 12 meses (do banco); null = não carregou. */
   evolucao: PontoPatrimonio[] | null
   /** Orçamentos do mês (do banco); null = não carregou. */
@@ -128,7 +135,7 @@ function validarWidgetsDashboard(valor: unknown): WidgetDashboardId[] {
   ))]
 }
 
-/** Painel: todo valor em reais vem calculado do banco (net_worth, period_summary, expenses_by_category, daily_expenses). */
+/** Painel: todo valor em reais vem calculado do banco (net_worth, period_summary, expenses_by_category, daily_expenses, cash_flow_report, account_balances_projected). */
 /** Início ("o que fazer agora") e Análises ("como estou indo"): cada seção carrega e mostra só os seus blocos. */
 export type SecaoResumo = 'inicio' | 'analises'
 
@@ -219,11 +226,14 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
             opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))), comparar(),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
-            opcional(saldosProjetados(familiaId, ate, true).then((r) => r.total)), opcional(listarOrcamentos(familiaId, mes, hoje)),
+            // e o previsto de cada conta (Minhas contas: "Hoje · Fim do mês"), da mesma consulta
+            opcional(saldosProjetados(familiaId, ate, true)), opcional(listarOrcamentos(familiaId, mes, hoje)),
             opcional(resumoPorMoeda(familiaId, de, ate)), opcional(avisosDoInicio(familiaId, hoje)),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, saldoPrevisto, orcamentos, mesPorMoeda, avisos]): Dados => ({
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos, avisos, evolucao: null,
+            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes,
+            saldoPrevisto: projetado?.total ?? null, previstoPorConta: projetado ? new Map(projetado.contas.map((x) => [x.id, x.saldo])) : null, balanco: null,
+            orcamentos, avisos, evolucao: null,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -232,7 +242,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             // Análises: cada consulta é opcional; um bloco que falha some, o resto segue
             opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
             opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
-            opcional(despesasPorCategoria(familiaId, de, ate, 4)), opcional(despesasPorDia(familiaId, de, ate)),
+            // as 6 maiores categorias + "Outros" (somado no banco)
+            opcional(despesasPorCategoria(familiaId, de, ate, 6)), opcional(despesasPorDia(familiaId, de, ate)),
             opcional(Promise.all([
               regularidadeRenda(familiaId, de, ate),
               regularidadeRenda(familiaId, limitesDoMes(somarMeses(mes, -11))[0], ate),
@@ -246,9 +257,13 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior }))),
             opcional(projecaoDoMes(familiaId, mes, hoje)), comparar(), opcional(evolucaoPatrimonio(familiaId, hoje)),
             opcional(totaisPorMoeda(familiaId, hoje)), opcional(resumoPorMoeda(familiaId, de, ate)),
-          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, evolucao, porMoeda, mesPorMoeda]): Dados => ({
+            // balanço dos últimos 6 meses: um balde por mês, com o resultado do mês já calculado no banco
+            opcional(fluxoDeCaixa(familiaId, limitesDoMes(somarMeses(mes, -5))[0], ate, 'month').then((f): MesBalanco[] => f.linhas.map((l) => ({
+              mes: l.inicio.slice(0, 7), receitas: l.entradas, despesas: l.saidas, resultado: l.saldo,
+            })))),
+          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, evolucao, porMoeda, mesPorMoeda, balanco]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, avisos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, previstoPorConta: null, balanco, orcamentos: null, avisos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => { if (ativo) setDados(d) })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
@@ -263,9 +278,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const { patrimonio: p, mes: m, anterior: a, comparacao: cmp } = dados
   // valor de um lançamento na moeda da conta dele (multimoeda F2); parcela de dívida e sem conta = reais
   const moedaDe = (contaId: string | null) => dados.todasContas.find((c) => c.id === contaId)?.moeda ?? 'BRL'
-  // "Minhas contas" do Início: só as ativas com saldo (do banco) diferente de zero; a lista completa fica na aba Contas.
-  // Conta que ainda não abriu (saldo null) continua aparecendo, com a data de abertura.
-  const contasComSaldo = dados.contas.filter((c) => c.saldo !== 0)
+  // "Minhas contas" do Início: só as ativas com saldo de hoje OU previsto no fim do mês (os dois do banco) diferente de
+  // zero; a lista completa fica na aba Contas. Conta que ainda não abriu (saldo null) continua aparecendo, com a data de abertura.
+  const previstoDe = (id: string) => dados.previstoPorConta?.get(id) ?? null
+  const contasComSaldo = dados.contas.filter((c) => c.saldo !== 0 || (previstoDe(c.id) ?? 0) !== 0)
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   const comparadoAteHoje = `${mesAnteriorCurto} até dia ${Number(mesmoDiaMesAnterior(hoje).slice(8))}`
   const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
@@ -517,14 +533,15 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {!noInicio && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardTitle>Despesas por categoria</CardTitle>
-          {dados.categorias === null || m === null ? (
+          {dados.categorias === null ? (
             <p className="text-sm text-slate-500" role="status">Gráfico indisponível agora.</p>
           ) : dados.categorias.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
           ) : (
-            <Rosca total={m.despesas} fatias={dados.categorias.map((c) => ({
-              chave: c.categoriaId ?? 'outros', nome: c.nome, valor: c.valor, percentual: c.percentual, outros: c.categoriaId === null,
-            }))} />
+            <>
+              <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · só o que já foi pago, em reais. Toque numa categoria para ver as despesas do mês.</p>
+              <BarrasCategorias barras={dados.categorias} mes={mes} />
+            </>
           )}
         </Card>
 
@@ -537,6 +554,21 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <p className="mt-2 rounded-lg bg-azul-claro px-3 py-2 text-sm text-marinho">
               No mês passado inteiro foram {formatBRL(a.despesas)}; neste mês, até hoje, {formatBRL(m.despesas)}.
             </p>
+          )}
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardTitle>Balanço dos últimos 6 meses</CardTitle>
+          {dados.balanco === null ? (
+            <p className="text-sm text-slate-500" role="status">Gráfico indisponível agora.</p>
+          ) : (
+            <>
+              <BalancoMensal meses={dados.balanco} />
+              <p className="mt-2 text-xs text-slate-500">
+                Só o que já foi pago, em reais (o mês atual vai até hoje). Cartão conta no fechamento da fatura.
+                {outrasMoedas(dados.porMoeda).length > 0 && ' Contas em outras moedas ficam fora deste gráfico.'}
+              </p>
+            </>
           )}
         </Card>
 
@@ -673,14 +705,26 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <p className="text-sm text-slate-500">Todas as contas estão zeradas.</p>
           ) : (
             <ul className="divide-y divide-slate-100">
-              {contasComSaldo.map((c) => (
-                <li key={c.id} className="flex flex-wrap items-center justify-between py-2 text-sm">
-                  <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="pequeno" />{c.nome}</span>
-                  <span className={`tabular-nums font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
-                    {c.saldo === null ? `abre em ${formatDate(c.abertura)}` : formatMoeda(c.saldo, c.moeda ?? 'BRL')}
-                  </span>
-                </li>
-              ))}
+              {contasComSaldo.map((c) => {
+                const previsto = previstoDe(c.id)
+                return (
+                  <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 py-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="pequeno" />{c.nome}</span>
+                    {c.saldo === null ? (
+                      <span className="tabular-nums font-semibold">abre em {formatDate(c.abertura)}</span>
+                    ) : (
+                      // hoje e o previsto no fim do mês (planejados e faturas): os dois do banco, na moeda da conta
+                      <span className="ml-auto flex flex-wrap justify-end gap-x-1 text-right" data-testid="saldos-da-conta">
+                        <span className="whitespace-nowrap"><span className="text-xs text-slate-500">Hoje </span>
+                          <span className={`tabular-nums font-semibold ${c.saldo < 0 ? 'text-negativo' : ''}`}>{formatMoeda(c.saldo, c.moeda ?? 'BRL')}</span></span>
+                        {previsto !== null && <span className="whitespace-nowrap"><span className="text-xs text-slate-500" aria-hidden="true">· </span>
+                          <span className="text-xs text-slate-500">Fim do mês </span>
+                          <span className={`tabular-nums font-semibold ${previsto < 0 ? 'text-negativo' : 'text-slate-600'}`}>{formatMoeda(previsto, c.moeda ?? 'BRL')}</span></span>}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
           {dados.contas.length > 0 && (

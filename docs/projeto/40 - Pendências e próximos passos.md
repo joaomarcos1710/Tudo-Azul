@@ -75,7 +75,7 @@ atualizado: 2026-10-28
 - [x] **Conferência com o extrato fora do app** (#159, decisão do dono de 04/11/2026): tela, botão, menu e textos removidos; coluna "Conferido" saiu da exportação. Banco intacto (sem migration).
 - [ ] **Apagar a conferência do banco** numa migration futura, se a decisão se mantiver: tabela `account_reconciliations`, coluna `reconciliation_id` em `transactions`, `reconcile_account`, `reconciliation_undo`, as travas de período conciliado nos gatilhos e funções, o `reconciled` de `account_movements`, a contagem em `reset_preview`/`reset_household` e os testes pgTAP e o `00_audit` correspondentes. Antes, conferir em produção que continua com 0 conferências.
 - [ ] **Exportação completa: preço e quantidade de investimento como texto** — vão como o banco grava (até 10 e 12 casas, vírgula decimal), não em centavos; a planilha pode ler como texto. Não restaura nada (o app não importa os arquivos).
-- [ ] **Depois:** total de todos os cartões; % quitado das dívidas; relatório por categoria com gráfico.
+- [ ] **Depois:** total de todos os cartões; % quitado das dívidas; ~~relatório por categoria com gráfico~~ (#168, barras em Análises).
 - [x] **Crédito no cartão como receita** (migration 052, #153): aplicada em 04/11/2026. Falta você testar no app: lançar um crédito (ex.: estorno de IOF) e conferir a fatura, o limite e Lançamentos.
 - [x] **Escolher a fatura da compra e recuar o início do cartão** (migration 051, #152): aplicada em 04/11/2026.
 - [x] **Aplicar a migration 050** (excluir ativo com histórico, #151): aplicada em 04/11/2026.
@@ -183,7 +183,11 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Auditoria por agentes (04/11/2026)
 - [x] Chave do servidor só lê (migration 049) · Orçamentos/Categorias sem conta de dinheiro na tela · faturas de Cartões sem erro preso · Dívidas com todas as parcelas por dívida e aviso de falha · Entradas × Saídas sem números velhos e em cartões no celular · CSV de qualquer período (#149).
-- [ ] **Relatório de gastos por categoria com gráfico** e comparação entre meses (pedido do dono: "criar!").
+- [x] **Relatório de gastos por categoria com gráfico** (#168: barras em Análises, 6 maiores + "Outros", do banco). Falta a **comparação entre meses** por categoria.
+- [ ] **Lançamentos filtrado pela categoria via link** (`?categoria=`): a barra de categoria de Análises (#168) leva só a `?mes=&tipo=despesa`, porque Lançamentos ainda não lê a categoria da URL. Quando ler, a barra passa a abrir já na categoria.
+- [ ] **Seletor de mês em Análises**: hoje a aba mostra só o mês atual (barras de categoria e o fim do balanço de 6 meses incluídos).
+- [ ] **Total por dia no Calendário** (ideia do Livro de contas/Mobills): precisa de função nova no banco com a regra do calendário (movimento da conta; fatura no dia do pagamento), migration à parte.
+- [ ] **Modo escuro dos gráficos**: o app não tem tema escuro; quando tiver, escolher e validar os passos escuros das cores dos gráficos (`src/components/graficos/cores.ts`).
 - [ ] **Total de todos os cartões juntos** (do banco) (pedido do dono: "precisa ter").
 - [ ] **Barra de "% quitado"** em cada dívida (pedido do dono: "precisa ter").
 - [ ] Orçamento que se repete todo mês sozinho (o dono pediu explicação).

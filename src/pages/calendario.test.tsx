@@ -230,30 +230,40 @@ describe('Calendário: faturas e saldo projetado', () => {
     expect(screen.queryByText('Fatura Inter')).toBeNull()
   })
 
-  it('mostra o saldo total e por conta, com a escolha entre só efetuados e efetuados + planejados', async () => {
+  it('saldo numa linha só (total do banco), com a escolha entre só efetuados e efetuados + planejados', async () => {
     montar()
     const total = await screen.findByTestId('saldo-total')
     expect(total.textContent).toBe('R$ 1.150,00')
-    expect(screen.getByTestId('saldo-detalhe').textContent).toContain('faturas e parcelas sem conta −R$ 300,00')
+    expect(total.closest('p')!.textContent).toBe('Saldo previsto hoje: R$ 1.150,00')
     expect(screen.getByTestId('saldo-sem-conta').textContent).toContain('R$ 100,00 em faturas e parcelas sem conta')
     expect(mock.saldosProjetados).toHaveBeenCalledWith('h1', '2026-10-16', true)
-    expect(screen.getByText('Saldo hoje')).toBeTruthy()
     const u = userEvent.setup()
     await u.click(screen.getByRole('button', { name: 'Só efetuados' }))
     expect(mock.saldosProjetados).toHaveBeenLastCalledWith('h1', '2026-10-16', false)
-    expect(screen.queryByTestId('saldo-detalhe')).toBeNull()
+    expect((await screen.findByTestId('saldo-total')).closest('p')!.textContent).toBe('Saldo hoje (só efetuados): R$ 1.150,00')
     expect(screen.queryByTestId('saldo-sem-conta')).toBeNull()
   })
 
-  it('multimoeda F1: conta em dólar aparece na moeda dela, não em reais', async () => {
+  it('pedido do dono (05/11/2026): sem lista de saldo por conta nem detalhamento; o saldo por conta fica no Início', async () => {
+    montar()
+    const card = (await screen.findByTestId('saldo-total')).closest('[aria-label="Saldo na data escolhida"]') as HTMLElement
+    expect(card).toBeTruthy()
+    // as contas Itaú e Poupança vêm do banco em saldosProjetados, mas não são listadas aqui
+    expect(within(card).queryByText('Itaú')).toBeNull()
+    expect(within(card).queryByText('Poupança')).toBeNull()
+    expect(within(card).queryByRole('list')).toBeNull()
+    expect(card.textContent).not.toMatch(/Efetuado R\$|planejado [+−]/)
+    expect(screen.queryByTestId('saldo-detalhe')).toBeNull()
+  })
+
+  it('sem fatura ou parcela sem conta, a linha de aviso não aparece', async () => {
     mock.saldosProjetados.mockResolvedValue({
-      contas: [{ id: 'u1', nome: 'Conta em dólar', ativa: true, moeda: 'USD', efetuado: c(25050), planejado: c(0), faturas: c(0), saldo: c(25050) }],
-      total: { efetuado: c(0), planejado: c(0), faturas: c(0), faturasSemConta: c(0), saldo: c(0) },
+      contas: [],
+      total: { efetuado: c(0), planejado: c(0), faturas: c(0), faturasSemConta: c(0), saldo: c(-2500) },
     })
     montar()
-    const linha = (await screen.findByText('Conta em dólar')).closest('li') as HTMLElement
-    expect(linha.textContent).toMatch(/US\$\s*250,50/)
-    expect(linha.textContent).not.toMatch(/R\$/)
+    expect((await screen.findByTestId('saldo-total')).textContent).toBe('-R$ 25,00')
+    expect(screen.queryByTestId('saldo-sem-conta')).toBeNull()
   })
 
   it('multimoeda F2: lançamento em conta USD aparece na moeda dela, o dia avisa e o resultado em dólar fica à parte', async () => {
@@ -297,7 +307,7 @@ describe('Calendário: faturas e saldo projetado', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Próximo mês' }))
     expect(await screen.findByRole('heading', { name: 'Novembro de 2026' })).toBeTruthy()
     expect(mock.saldosProjetados).toHaveBeenLastCalledWith('h1', '2026-11-30', true)
-    expect(await screen.findByText('Saldo até 30/11/2026')).toBeTruthy()
+    expect((await screen.findByTestId('saldo-total')).closest('p')!.textContent).toMatch(/^Saldo previsto em 30\/11: /)
   })
 
   it('sem as funções do banco (migration 025 ainda não aplicada) o calendário segue sem o saldo e sem as faturas', async () => {
