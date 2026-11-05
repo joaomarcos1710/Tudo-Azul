@@ -11,6 +11,7 @@ tags: [tudo-azul, regras, dinheiro]
 ## Cartão de crédito
 - A parcela é **cobrada no fechamento da fatura** (data de vencimento da parcela).
 - Compra **no dia do fechamento ou depois** entra na fatura seguinte.
+- **Troca dos dias do cartão** (migration 061, decisão de 05/11/2026): os dias novos valem a partir da fatura do **mês seguinte ao da fatura aberta hoje**; a aberta termina com os dias antigos. Ex.: hoje 01/12, fechava 5/vencia 15 e passa a 25/5 → a aberta fecha 05/12 e vence 15/12; a seguinte fecha 25/01 e vence 05/02 (compra de 05/12 a 24/01 cai nela). Assim **cada mês tem um só fechamento** (a fatura é identificada pelo mês). Se o cartão já tem parcelas (ou crédito, ou fatura) do ciclo atual num mês em que os dias novos valeriam — uma compra parcelada, por exemplo —, a troca é **recusada** com a data a partir da qual pode ser feita. Voltar aos dias da fatura aberta desfaz uma troca que ainda não começou. A primeira definição dos dias vale na hora. Nada já lançado muda de fatura.
 - Resto de centavos vai na **1ª parcela** (100,00 em 3x = 33,34 + 33,33 + 33,33).
 - **Base dos gastos de cartão no relatório por categoria** (migration 062, decisão do dono de 05/11/2026, como no Organizze). Só o gráfico/relatório **por categoria** deixa escolher:
   - **Data da fatura** (padrão, a regra de sempre): cada parcela é despesa no mês do fechamento da fatura, quando é cobrada; estorno abate na data dele.

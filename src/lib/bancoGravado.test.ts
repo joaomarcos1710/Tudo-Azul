@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // banco de mentira: ainda sem a migration 017 (faltam bank, issuer e brand) ou já com ela
 const fake = vi.hoisted(() => {
-  const e = { migration017: false, migration024: false, migration055: false, selects: [] as { tabela: string; colunas: string }[] }
+  const e = { migration017: false, migration024: false, migration055: false, migration061: false, selects: [] as { tabela: string; colunas: string }[] }
   function from(tabela: string) {
     let colunas = ''
     const b: Record<string, unknown> = {}
@@ -13,13 +13,16 @@ const fake = vi.hoisted(() => {
       const novas = /\b(bank|issuer|brand)\b/.test(colunas)
       // a 024 (pay_account_id) vem depois da 017: o banco pode ter uma e não a outra
       if (/\bpay_account_id\b/.test(colunas) && !e.migration024) return Promise.resolve(ok({ data: null, error: { code: '42703', message: 'column does not exist' } }))
+      // a 061 (cycle_from, prev_*: troca de dias do cartão) vem depois da 024
+      const troca = /\bcycle_from\b/.test(colunas)
+      if (troca && !e.migration061) return Promise.resolve(ok({ data: null, error: { code: '42703', message: 'column does not exist' } }))
       if (novas && !e.migration017) return Promise.resolve(ok({ data: null, error: { code: '42703', message: 'column does not exist' } }))
       // a 055 (currency_code) vem depois da 017
       const moeda = /\bcurrency_code\b/.test(colunas)
       if (moeda && !e.migration055) return Promise.resolve(ok({ data: null, error: { code: '42703', message: 'column does not exist' } }))
       const linha = tabela === 'accounts'
         ? { id: 'a1', name: 'Corrente', type: 'checking', initial_balance: '0.00', opening_date: '2026-01-01', active: true, ...(novas ? { bank: 'caixa' } : {}), ...(moeda ? { currency_code: 'USD' } : {}) }
-        : { id: 'k1', name: 'Cartão principal', closing_day: 17, due_day: 25, active: true, ...(novas ? { issuer: 'nubank', brand: 'mastercard' } : {}), ...(/\bpay_account_id\b/.test(colunas) ? { pay_account_id: 'a1' } : {}) }
+        : { id: 'k1', name: 'Cartão principal', closing_day: 17, due_day: 25, active: true, ...(novas ? { issuer: 'nubank', brand: 'mastercard' } : {}), ...(/\bpay_account_id\b/.test(colunas) ? { pay_account_id: 'a1' } : {}), ...(troca ? { cycle_from: '2026-12-01', prev_closing_day: 5, prev_due_day: 15 } : {}) }
       return Promise.resolve(ok({ data: [linha], error: null }))
     }
     return b
@@ -35,6 +38,7 @@ beforeEach(() => {
   fake.e.migration017 = false
   fake.e.migration024 = false
   fake.e.migration055 = false
+  fake.e.migration061 = false
   fake.e.selects = []
 })
 
@@ -70,8 +74,8 @@ describe('antes da migration 017 (colunas novas inexistentes)', () => {
     const r = await listarCartoes('h1', '2026-10-29')
     expect(r[0]).toMatchObject({ nome: 'Cartão principal', emissor: null, bandeira: null, contaPagamentoId: null, fechamento: 17 })
     const colunas = fake.e.selects.filter((s) => s.tabela === 'debts').map((s) => s.colunas)
-    expect(colunas).toHaveLength(3)
-    expect(colunas[2]).not.toMatch(/issuer|brand|pay_account_id/)
+    expect(colunas).toHaveLength(4)
+    expect(colunas[3]).not.toMatch(/issuer|brand|pay_account_id|cycle_from/)
   })
 
   it('Cartões com a 017 mas sem a 024 lê emissor e bandeira, sem a conta de pagamento', async () => {
@@ -79,16 +83,26 @@ describe('antes da migration 017 (colunas novas inexistentes)', () => {
     const r = await listarCartoes('h1', '2026-10-29')
     expect(r[0]).toMatchObject({ emissor: 'nubank', bandeira: 'mastercard', contaPagamentoId: null })
     const colunas = fake.e.selects.filter((s) => s.tabela === 'debts').map((s) => s.colunas)
-    expect(colunas).toHaveLength(2)
-    expect(colunas[0]).toContain('pay_account_id')
-    expect(colunas[1]).not.toContain('pay_account_id')
+    expect(colunas).toHaveLength(3)
+    expect(colunas[0]).toContain('cycle_from')
+    expect(colunas[1]).toContain('pay_account_id')
+    expect(colunas[2]).not.toContain('pay_account_id')
   })
 
   it('Cartões com a 024 lê a conta de pagamento', async () => {
     fake.e.migration017 = true
     fake.e.migration024 = true
     const r = await listarCartoes('h1', '2026-10-29')
-    expect(r[0]).toMatchObject({ contaPagamentoId: 'a1' })
+    expect(r[0]).toMatchObject({ contaPagamentoId: 'a1', cicloAnterior: null })
+    expect(fake.e.selects.filter((s) => s.tabela === 'debts')).toHaveLength(2)
+  })
+
+  it('Cartões com a 061 lê a troca de dias marcada (dias anteriores e o mês em que os novos passam a valer)', async () => {
+    fake.e.migration017 = true
+    fake.e.migration024 = true
+    fake.e.migration061 = true
+    const r = await listarCartoes('h1', '2026-10-29')
+    expect(r[0]).toMatchObject({ fechamento: 17, vencimento: 25, cicloAnterior: { fechamento: 5, vencimento: 15, novoDesde: '2026-12' } })
     expect(fake.e.selects.filter((s) => s.tabela === 'debts')).toHaveLength(1)
   })
 
@@ -109,10 +123,11 @@ describe('antes da migration 017 (colunas novas inexistentes)', () => {
 })
 
 describe('com a migration 017', () => {
-  it('Contas e Cartões trazem o banco, o emissor e a bandeira numa consulta só (banco já com a 055)', async () => {
+  it('Contas e Cartões trazem o banco, o emissor e a bandeira numa consulta só (banco já com a 055 e a 061)', async () => {
     fake.e.migration017 = true
     fake.e.migration024 = true
     fake.e.migration055 = true
+    fake.e.migration061 = true
     const contas = await listarContas('h1', '2026-10-29')
     const cartoes = await listarCartoes('h1', '2026-10-29')
     expect(contas.contas[0].banco).toBe('caixa')

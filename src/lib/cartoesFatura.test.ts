@@ -9,7 +9,7 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { estornarParcela, faturaVencida, opcoesDeFatura, registrarCompra } from './cartoes'
+import { estornarParcela, faturaVencida, fechamentoNoCiclo, inicioDaTroca, melhorDiaDeCompra, opcoesDeFatura, proximaFatura, registrarCompra } from './cartoes'
 import type { Fatura } from './cartoes'
 import type { Cents } from './format'
 
@@ -54,6 +54,47 @@ describe('escolher a fatura da compra (migration 051)', () => {
       { nome: 'card_purchase_at', args: { p_debt: 'k1', p_date: '2026-07-10', p_total: '300.00', p_count: 3, p_category: 'g1', p_description: 'TV', p_invoice_offset: 0, p_idem: 'c1' } },
       { nome: 'card_purchase_at', args: { p_debt: 'k1', p_date: '2026-07-10', p_total: '1.00', p_count: 1, p_category: 'g1', p_description: 'TV', p_invoice_offset: -2 } },
     ])
+  })
+})
+
+describe('troca dos dias do cartão (migration 061): vale a partir do ciclo seguinte ao da fatura aberta', () => {
+  // fechava 5/vencia 15, trocou em 01/12/2026 para 25/5: a aberta (05/12) segue nos dias antigos; a 1ª nova fecha 25/01
+  const ciclo = { fechamento: 25, vencimento: 5, cicloAnterior: { fechamento: 5, vencimento: 15, novoDesde: '2027-01' } }
+
+  it('fechamento de cada compra com o dia que vale no mês (como private.card_cycle_first)', () => {
+    expect(fechamentoNoCiclo('2026-12-01', ciclo)).toBe('2026-12-05')
+    expect(fechamentoNoCiclo('2026-12-05', ciclo)).toBe('2027-01-25')
+    expect(fechamentoNoCiclo('2026-12-10', ciclo)).toBe('2027-01-25')
+    expect(fechamentoNoCiclo('2027-01-25', ciclo)).toBe('2027-02-25')
+    expect(fechamentoNoCiclo('2026-11-05', ciclo)).toBe('2026-12-05')
+    expect(fechamentoNoCiclo('', ciclo)).toBeNull()
+    expect(fechamentoNoCiclo('2026-12-10', { fechamento: null, vencimento: null })).toBeNull()
+  })
+
+  it('fatura atual e o seletor de fatura usam o ciclo do mês', () => {
+    expect(proximaFatura([], '2026-12-03', ciclo)).toEqual({ mes: '2026-12', vencimento: '2026-12-15', total: 0 })
+    expect(proximaFatura([], '2026-12-10', ciclo)).toEqual({ mes: '2027-01', vencimento: '2027-02-05', total: 0 })
+    expect(opcoesDeFatura('2026-12-10', 25, ciclo.cicloAnterior)[3].rotulo).toBe('Janeiro/2027 (a da data)')
+    // sem a troca, a compra de 10/12 com dia 25 seria de dezembro
+    expect(opcoesDeFatura('2026-12-10', 25)[3].rotulo).toBe('Dezembro/2026 (a da data)')
+    // melhor dia de compra: na aberta (05/12) ainda é o dia 5; depois dela, o 25 do ciclo novo
+    expect(melhorDiaDeCompra('2026-12-03', 25, ciclo.cicloAnterior)).toBe(5)
+    expect(melhorDiaDeCompra('2026-12-10', 25, ciclo.cicloAnterior)).toBe(25)
+  })
+
+  it('aviso "vale a partir da fatura que fecha em": mês seguinte ao da aberta, só quando muda algo', () => {
+    const semTroca = { fechamento: 5, vencimento: 15 }
+    expect(inicioDaTroca('2026-12-01', semTroca, 25, 5)).toBe('2027-01-25')
+    expect(inicioDaTroca('2026-12-05', semTroca, 25, 5)).toBe('2027-02-25')
+    expect(inicioDaTroca('2026-12-01', semTroca, 5, 20)).toBe('2027-01-05')
+    expect(inicioDaTroca('2026-12-01', semTroca, 5, 15)).toBeNull()
+    // 31/01 com fechamento 30: a aberta fecha 28/02, então o dia 31 vale a partir de março
+    expect(inicioDaTroca('2026-01-31', { fechamento: 30, vencimento: 5 }, 31, 5)).toBe('2026-03-31')
+    expect(inicioDaTroca('2025-12-31', { fechamento: 30, vencimento: 5 }, 31, 5)).toBe('2026-02-28')
+    // troca já marcada: os dias novos mostram a mesma data; voltar aos dias da aberta não avisa (desfaz a troca)
+    expect(inicioDaTroca('2026-12-01', ciclo, 25, 5)).toBe('2027-01-25')
+    expect(inicioDaTroca('2026-12-01', ciclo, 5, 15)).toBeNull()
+    expect(inicioDaTroca('2026-12-01', { fechamento: null, vencimento: null }, 25, 5)).toBeNull()
   })
 })
 

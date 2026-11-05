@@ -18,6 +18,9 @@ export interface Cartao {
   /** null em cartão criado antes do ciclo existir: compras ficam bloqueadas até definir. */
   fechamento: number | null
   vencimento: number | null
+  /** Troca de dias (migration 061): fechamento/vencimento são os dias novos; estes valem nas faturas de meses antes de
+   *  `novoDesde` (AAAA-MM). null = sem troca. */
+  cicloAnterior?: CicloAnterior | null
   ativo: boolean
   /** Fatura cobrada e ainda não paga (dívida do cartão hoje). */
   divida: Cents
@@ -31,6 +34,20 @@ export interface Cartao {
   limiteComprometido: Cents | null
   /** Limite − comprometido; negativo = passou do limite. null sem limite. */
   limiteDisponivel: Cents | null
+}
+
+export interface CicloAnterior {
+  fechamento: number
+  vencimento: number
+  /** AAAA-MM da primeira fatura com os dias novos. */
+  novoDesde: string
+}
+
+/** Dias do cartão para os cálculos de fatura (só datas; quem decide de verdade é o banco). */
+export interface CicloCartao {
+  fechamento: number | null
+  vencimento: number | null
+  cicloAnterior?: CicloAnterior | null
 }
 
 export interface Fatura {
@@ -118,13 +135,14 @@ export function ontemSP(agora: Date = new Date()): string {
   return new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10)
 }
 
-interface LinhaCartao { id: string; name: string; closing_day: number | null; due_day: number | null; active: boolean; issuer?: string | null; brand?: string | null; pay_account_id?: string | null }
+interface LinhaCartao { id: string; name: string; closing_day: number | null; due_day: number | null; active: boolean; cycle_from?: string | null; prev_closing_day?: number | null; prev_due_day?: number | null; issuer?: string | null; brand?: string | null; pay_account_id?: string | null }
 
 export async function listarCartoes(familiaId: string, dataRef: string = hojeSP()): Promise<Cartao[]> {
   const db = cliente()
   const lerCartoes = async (): Promise<{ data: LinhaCartao[]; error: { code?: string } | null }> => {
-    // colunas novas ainda inexistentes (banco sem a migration 024, depois sem a 017): segue sem elas em vez de quebrar a tela
-    for (const colunas of ['id, name, closing_day, due_day, active, issuer, brand, pay_account_id', 'id, name, closing_day, due_day, active, issuer, brand']) {
+    // colunas novas ainda inexistentes (banco sem a migration 061, depois sem a 024, depois sem a 017): segue sem elas em vez de quebrar a tela
+    for (const colunas of ['id, name, closing_day, due_day, active, issuer, brand, pay_account_id, cycle_from, prev_closing_day, prev_due_day',
+      'id, name, closing_day, due_day, active, issuer, brand, pay_account_id', 'id, name, closing_day, due_day, active, issuer, brand']) {
       const r = await db.from('debts').select(colunas).eq('household_id', familiaId).eq('kind', 'card').order('name')
       if (r.error?.code !== COLUNA_INEXISTENTE) return { data: (r.data ?? []) as unknown as LinhaCartao[], error: r.error }
     }
@@ -157,6 +175,9 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
       contaPagamentoId: c.pay_account_id ?? null,
       fechamento: c.closing_day,
       vencimento: c.due_day,
+      cicloAnterior: c.cycle_from && c.prev_closing_day != null && c.prev_due_day != null
+        ? { fechamento: c.prev_closing_day, vencimento: c.prev_due_day, novoDesde: c.cycle_from.slice(0, 7) }
+        : null,
       ativo: c.active,
       divida: centsFromDb(s?.debt ?? 0),
       credito: centsFromDb(s?.credit_receivable ?? 0),
@@ -258,15 +279,48 @@ export function diaNoMes(ano: number, mes: number, dia: number): string {
   return `${ano}-${doisDigitos(mes)}-${doisDigitos(Math.min(dia, ultimo))}`
 }
 
+/** Dias que valem na fatura do mês `mes` (AAAA-MM): os anteriores antes da troca, senão os do cartão (private.card_cycle_*). */
+export function diasDoMes(mes: string, ciclo: CicloCartao): { fechamento: number; vencimento: number } | null {
+  const a = ciclo.cicloAnterior
+  if (a && mes < a.novoDesde) return { fechamento: a.fechamento, vencimento: a.vencimento }
+  return ciclo.fechamento != null && ciclo.vencimento != null ? { fechamento: ciclo.fechamento, vencimento: ciclo.vencimento } : null
+}
+
+const mesSeguinte = (mes: string) => {
+  const [a, m] = mes.split('-').map(Number)
+  return m === 12 ? `${a + 1}-01` : `${a}-${doisDigitos(m + 1)}`
+}
+const fechamentoDoMes = (mes: string, ciclo: CicloCartao) => {
+  const d = diasDoMes(mes, ciclo)
+  const [a, m] = mes.split('-').map(Number)
+  return d ? diaNoMes(a, m, d.fechamento) : null
+}
+
 /** Fechamento (AAAA-MM-DD) da fatura em que cai uma compra feita em `data`. Mesma regra do banco
- *  (private.card_first_closing): antes do fechamento do mês (ajustado ao tamanho do mês), a fatura do mês; no dia ou
- *  depois, a seguinte. Só datas: quem decide de verdade é o banco. null com data inválida. */
+ *  (private.card_cycle_first, migration 061): antes do fechamento do mês (ajustado ao tamanho do mês, com o dia que vale
+ *  naquele mês se houve troca de dias), a fatura do mês; no dia ou depois, a seguinte. Só datas: quem decide de verdade
+ *  é o banco. null com data inválida ou cartão sem dias. */
+export function fechamentoNoCiclo(data: string, ciclo: CicloCartao): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return null
+  const doMes = fechamentoDoMes(data.slice(0, 7), ciclo)
+  if (!doMes) return null
+  return data < doMes ? doMes : fechamentoDoMes(mesSeguinte(data.slice(0, 7)), ciclo)
+}
+
+/** fechamentoNoCiclo sem troca de dias: só o dia de fechamento (private.card_first_closing). */
 export function fechamentoDaCompra(data: string, fechamento: number): string | null {
-  const [a, m, d] = data.split('-').map(Number)
-  if (!a || !m || !d) return null
-  const doMes = diaNoMes(a, m, fechamento)
-  if (data < doMes) return doMes
-  return m === 12 ? diaNoMes(a + 1, 1, fechamento) : diaNoMes(a, m + 1, fechamento)
+  return fechamentoNoCiclo(data, { fechamento, vencimento: 1 })
+}
+
+/** Se a pessoa salvar estes dias hoje, a partir de que fatura (fechamento AAAA-MM-DD) eles valem: a do mês seguinte ao
+ *  da fatura aberta hoje (regra de set_card_cycle, migration 061). null quando nada muda na fatura aberta (mesmos dias
+ *  que valem nela) e em cartão sem dias definidos (a primeira definição vale já). Só o aviso: quem decide é o banco. */
+export function inicioDaTroca(hoje: string, ciclo: CicloCartao, novoFechamento: number, novoVencimento: number): string | null {
+  const aberta = fechamentoNoCiclo(hoje, ciclo)
+  const atuais = aberta ? diasDoMes(aberta.slice(0, 7), ciclo) : null
+  if (!aberta || !atuais || (atuais.fechamento === novoFechamento && atuais.vencimento === novoVencimento)) return null
+  const [a, m] = mesSeguinte(aberta.slice(0, 7)).split('-').map(Number)
+  return diaNoMes(a, m, novoFechamento)
 }
 
 /** Vencimento da fatura que fecha em `fechamentoData`. Mesma regra do banco (private.card_due_date): vencimento depois do
@@ -282,10 +336,10 @@ export function textoDiaFechamento(dia: number): string {
   return dia > 28 ? `dia ${dia} ou o último dia do mês, se for mais curto` : `dia ${dia}`
 }
 
-/** As 7 faturas possíveis para uma compra (3 antes, a da data, 3 depois), pelo mês do fechamento (fechamentoDaCompra).
+/** As 7 faturas possíveis para uma compra (3 antes, a da data, 3 depois), pelo mês do fechamento (fechamentoNoCiclo).
  *  É só o rótulo do seletor; quem calcula a fatura de verdade é o banco. */
-export function opcoesDeFatura(data: string, fechamento: number): { deslocamento: number; rotulo: string }[] {
-  const f = fechamentoDaCompra(data, fechamento)
+export function opcoesDeFatura(data: string, fechamento: number, cicloAnterior?: CicloAnterior | null): { deslocamento: number; rotulo: string }[] {
+  const f = fechamentoNoCiclo(data, { fechamento, vencimento: 1, cicloAnterior })
   if (!f) return []
   const [a, m] = f.split('-').map(Number)
   const base = a * 12 + (m - 1)
@@ -445,17 +499,17 @@ export function faturaVencida(f: Fatura, hoje: string): boolean {
 
 /**
  * "Melhor dia de compra": o primeiro dia em que a compra já cai na fatura SEGUINTE (o prazo mais longo até pagar). Pela
- * regra do banco (private.card_first_closing, a mesma de fechamentoDaCompra), a compra NO DIA do fechamento já vai para a
- * seguinte; então o melhor dia é o próprio dia do fechamento deste ciclo, ajustado ao mês (fecha 31 → 30 em novembro).
- * Devolve o dia (1–31) ou null sem ciclo.
+ * regra do banco (private.card_cycle_first, a mesma de fechamentoNoCiclo), a compra NO DIA do fechamento já vai para a
+ * seguinte; então o melhor dia é o próprio dia do fechamento deste ciclo, ajustado ao mês (fecha 31 → 30 em novembro) e,
+ * com troca de dias marcada (migration 061), o dia que vale nele. Devolve o dia (1–31) ou null sem ciclo.
  */
-export function melhorDiaDeCompra(hoje: string, fechamento: number | null): number | null {
+export function melhorDiaDeCompra(hoje: string, fechamento: number | null, cicloAnterior?: CicloAnterior | null): number | null {
   if (fechamento === null) return null
   const [a, m, d] = hoje.split('-').map(Number)
   if (!a || !m || !d) return null
   // o fechamento do ciclo de ONTEM: no próprio dia do fechamento, hoje ainda é o melhor dia (e não o do mês que vem)
   const ontem = new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10)
-  const f = fechamentoDaCompra(ontem, fechamento)
+  const f = fechamentoNoCiclo(ontem, { fechamento, vencimento: 1, cicloAnterior })
   return f ? Number(f.slice(8, 10)) : null
 }
 
@@ -475,20 +529,21 @@ export interface ProximaFatura {
 }
 
 /**
- * A fatura atual: a do ciclo em que cai uma compra feita hoje (mesma regra do banco, fechamentoDaCompra). O valor é o
+ * A fatura atual: a do ciclo em que cai uma compra feita hoje (mesma regra do banco, fechamentoNoCiclo). O valor é o
  * `total` que o banco já calculou (card_months); aqui só se escolhe a linha. card_months só tem linha para mês com parcela
  * ou crédito: sem linha do ciclo atual, a fatura atual é R$ 0,00 (e não a do mês seguinte), com o vencimento pelo ciclo.
  * Cartão sem ciclo (dias não definidos): cai na aberta que fecha primeiro.
  */
-export function proximaFatura(faturas: Fatura[], hoje: string, ciclo?: { fechamento: number | null; vencimento: number | null }): ProximaFatura | null {
+export function proximaFatura(faturas: Fatura[], hoje: string, ciclo?: CicloCartao): ProximaFatura | null {
   if (ciclo?.fechamento != null && ciclo.vencimento != null) {
-    const fechamento = fechamentoDaCompra(hoje, ciclo.fechamento)
-    if (fechamento) {
+    const fechamento = fechamentoNoCiclo(hoje, ciclo)
+    const dias = fechamento ? diasDoMes(fechamento.slice(0, 7), ciclo) : null
+    if (fechamento && dias) {
       const mes = fechamento.slice(0, 7)
       const f = faturas.find((x) => x.mes === mes)
       return f
         ? { mes, vencimento: f.vencimento, total: f.total }
-        : { mes, vencimento: vencimentoDaFatura(fechamento, ciclo.fechamento, ciclo.vencimento), total: 0 as Cents }
+        : { mes, vencimento: vencimentoDaFatura(fechamento, dias.fechamento, dias.vencimento), total: 0 as Cents }
     }
   }
   const abertas = faturas.filter((f) => situacaoFatura(f, hoje) === 'aberta').sort((x, y) => (x.fechamento < y.fechamento ? -1 : 1))

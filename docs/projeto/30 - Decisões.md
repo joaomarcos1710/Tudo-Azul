@@ -198,6 +198,12 @@ Com o "pode" do dono, inspirado no painel do Mobills.
 - **Calendário sem a lista de saldo por conta** (o dono achou redundante): fica só a linha do saldo total previsto na data escolhida, a única informação daquele bloco que não está em outra tela; o saldo por conta ("Hoje · Fim do mês") fica em Minhas contas, no Início.
 - **Calendário já mostrava entradas e saídas por dia** (marcas verde/vermelha na grade e a lista do dia com valores): não foi mexido. Um total por dia não foi acrescentado porque não existe função do banco com a regra do calendário (pagamento da fatura no dia em que sai da conta); o `cash_flow_report` diário põe a compra do cartão no fechamento e não bateria com a lista do dia.
 
+
+## 05/11/2026 — Troca dos dias do cartão vale a partir do ciclo seguinte (migration 061, #169)
+O dono mandou corrigir o limite achado no teste 58 (troca de dias com dois fechamentos no mesmo mês: duas faturas fundidas e vencimento de nenhum dos ciclos) e pediu que o coordenador escolhesse entre as opções.
+- **Escolhida (b): a troca vale a partir do ciclo seguinte ao da fatura aberta hoje**, e o banco recusa, com mensagem clara e as datas, a troca que ainda assim deixaria dois fechamentos no mesmo mês (ex.: parcelas de uma compra parcelada no ciclo atual). Faturas, parcelas e créditos já gravados não mudam.
+- **Descartada (a): identificar a fatura por (cartão, data de fechamento)** em vez de (cartão, mês). Mexeria em `card_months`, `card_bill_due`, `debt_invoices` (rótulo e chave única de faturas já gravadas), `card_items`, pagamento de fatura, `card_invoices_*` e na tela, para um caso raro (o dono troca os dias poucas vezes na vida do cartão).
+- **Custo aceito:** cartão com compra parcelada em andamento só troca os dias depois que a última parcela do ciclo atual estiver na fatura aberta (a mensagem diz a data).
 ## 05/11/2026 — Base dos gastos de cartão só nos relatórios por categoria (#170)
 Com o "pode" do dono, inspirado no Organizze ("Gastos de cartão com base na: data da fatura / data da compra / data da parcela").
 - **O seletor fica só no relatório por categoria** (hoje, o gráfico de Análises; Relatórios não tem relatório por categoria). Motivo: totais do mês, orçamento, saldo e resultado precisam fechar com a fatura que sai da conta; se mudassem de base, o resultado do mês e o orçamento deixariam de bater com o extrato e com a tela Cartões. A base só muda a pergunta "em que mês essa compra pesou nesta categoria".
