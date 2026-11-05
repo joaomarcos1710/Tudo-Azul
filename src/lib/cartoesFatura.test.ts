@@ -33,6 +33,19 @@ describe('escolher a fatura da compra (migration 051)', () => {
     expect(opcoesDeFatura('', 18)).toEqual([])
   })
 
+  it('fechamento 29–31 em mês mais curto: usa o último dia do mês, como o banco (card_day_in_month)', () => {
+    // fecha 30: em fevereiro fecha 28/02; compra em 28/02 já é no dia do fechamento → março
+    expect(opcoesDeFatura('2026-02-28', 30)[3].rotulo).toBe('Março/2026 (a da data)')
+    expect(opcoesDeFatura('2026-02-27', 30)[3].rotulo).toBe('Fevereiro/2026 (a da data)')
+    // fecha 31: abril tem 30 dias, fecha 30/04 → compra em 30/04 vai para maio
+    expect(opcoesDeFatura('2026-04-30', 31)[3].rotulo).toBe('Maio/2026 (a da data)')
+    // 2028 é bissexto: fevereiro fecha 29/02 → compra em 29/02 vai para março; em 28/02 fica em fevereiro
+    expect(opcoesDeFatura('2028-02-29', 30)[3].rotulo).toBe('Março/2028 (a da data)')
+    expect(opcoesDeFatura('2028-02-28', 30)[3].rotulo).toBe('Fevereiro/2028 (a da data)')
+    // dezembro vira o ano
+    expect(opcoesDeFatura('2026-12-31', 31)[3].rotulo).toBe('Janeiro/2027 (a da data)')
+  })
+
   it('a compra vai para card_purchase_at com o deslocamento (0 quando não escolhido)', async () => {
     await registrarCompra('k1', { descricao: ' TV ', data: '2026-07-10', total: 30000 as Cents, parcelas: 3, categoriaId: 'g1' }, 'c1')
     await registrarCompra('k1', { descricao: 'TV', data: '2026-07-10', total: 100 as Cents, parcelas: 1, categoriaId: 'g1', deslocamento: -2 })

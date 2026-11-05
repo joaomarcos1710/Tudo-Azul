@@ -249,13 +249,46 @@ export async function registrarCompra(cartaoId: string, d: DadosCompra, chave?: 
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
-/** As 7 faturas possíveis para uma compra (3 antes, a da data, 3 depois), pelo mês do fechamento.
- *  Mesma regra do banco (private.card_first_closing): antes do dia do fechamento, a fatura do mês; no dia ou
- *  depois, a seguinte. É só o rótulo do seletor; quem calcula a fatura de verdade é o banco. */
-export function opcoesDeFatura(data: string, fechamento: number): { deslocamento: number; rotulo: string }[] {
+const doisDigitos = (n: number) => String(n).padStart(2, '0')
+
+/** Dia `dia` do mês (ano, mês 1–12); em mês mais curto, o último dia. Mesma regra do banco (private.card_day_in_month):
+ *  fecha dia 31 → 28/02 (29/02 no ano bissexto), 30/04... Devolve AAAA-MM-DD. */
+export function diaNoMes(ano: number, mes: number, dia: number): string {
+  const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate()
+  return `${ano}-${doisDigitos(mes)}-${doisDigitos(Math.min(dia, ultimo))}`
+}
+
+/** Fechamento (AAAA-MM-DD) da fatura em que cai uma compra feita em `data`. Mesma regra do banco
+ *  (private.card_first_closing): antes do fechamento do mês (ajustado ao tamanho do mês), a fatura do mês; no dia ou
+ *  depois, a seguinte. Só datas: quem decide de verdade é o banco. null com data inválida. */
+export function fechamentoDaCompra(data: string, fechamento: number): string | null {
   const [a, m, d] = data.split('-').map(Number)
-  if (!a || !m || !d) return []
-  const base = a * 12 + (m - 1) + (d < fechamento ? 0 : 1)
+  if (!a || !m || !d) return null
+  const doMes = diaNoMes(a, m, fechamento)
+  if (data < doMes) return doMes
+  return m === 12 ? diaNoMes(a + 1, 1, fechamento) : diaNoMes(a, m + 1, fechamento)
+}
+
+/** Vencimento da fatura que fecha em `fechamentoData`. Mesma regra do banco (private.card_due_date): vencimento depois do
+ *  fechamento no calendário (fecha 17, vence 25) = mesmo mês; senão (fecha 28, vence 5) = mês seguinte. */
+export function vencimentoDaFatura(fechamentoData: string, diaFechamento: number, diaVencimento: number): string {
+  const [a, m] = fechamentoData.split('-').map(Number)
+  if (diaVencimento > diaFechamento) return diaNoMes(a, m, diaVencimento)
+  return m === 12 ? diaNoMes(a + 1, 1, diaVencimento) : diaNoMes(a, m + 1, diaVencimento)
+}
+
+/** "dia 17"; com dia 29–31, avisa que em mês mais curto o fechamento é no último dia (como o banco faz). */
+export function textoDiaFechamento(dia: number): string {
+  return dia > 28 ? `dia ${dia} ou o último dia do mês, se for mais curto` : `dia ${dia}`
+}
+
+/** As 7 faturas possíveis para uma compra (3 antes, a da data, 3 depois), pelo mês do fechamento (fechamentoDaCompra).
+ *  É só o rótulo do seletor; quem calcula a fatura de verdade é o banco. */
+export function opcoesDeFatura(data: string, fechamento: number): { deslocamento: number; rotulo: string }[] {
+  const f = fechamentoDaCompra(data, fechamento)
+  if (!f) return []
+  const [a, m] = f.split('-').map(Number)
+  const base = a * 12 + (m - 1)
   return [-3, -2, -1, 0, 1, 2, 3].map((k) => {
     const x = base + k
     const rotulo = `${MESES[x % 12]}/${Math.floor(x / 12)}`
@@ -393,10 +426,12 @@ export async function editarParcela(parcelaId: string, valor: Cents, motivo?: st
   if (error) throw error
 }
 
-/** Situação da fatura para a tela (comparações de valores já calculados no banco). */
+/** Situação da fatura para a tela (comparações de valores já calculados no banco). Usa o `total` (cobrado + a cobrar,
+ *  card_months) e não só o cobrado: se o fechamento ainda não foi cobrado (card_bill_due falhou), a fatura fechada com
+ *  cobrado 0 continua "fechada", e não "paga". */
 export function situacaoFatura(f: Fatura, hoje: string): 'aberta' | 'fechada' | 'paga' {
   if (f.fechamento > hoje) return 'aberta'
-  return f.cobrado <= 0 || f.pago >= f.cobrado ? 'paga' : 'fechada'
+  return f.total <= 0 || f.pago >= f.total ? 'paga' : 'fechada'
 }
 
 /** A fatura que vem aí: ainda não fechou, então não é "a pagar", mas já tem valor (compras e parcelas que caem nela). */
@@ -406,8 +441,23 @@ export interface ProximaFatura {
   total: Cents
 }
 
-/** A fatura aberta que fecha primeiro. O valor é o `total` que o banco já calculou (card_months); aqui só se escolhe a linha. */
-export function proximaFatura(faturas: Fatura[], hoje: string): ProximaFatura | null {
+/**
+ * A fatura atual: a do ciclo em que cai uma compra feita hoje (mesma regra do banco, fechamentoDaCompra). O valor é o
+ * `total` que o banco já calculou (card_months); aqui só se escolhe a linha. card_months só tem linha para mês com parcela
+ * ou crédito: sem linha do ciclo atual, a fatura atual é R$ 0,00 (e não a do mês seguinte), com o vencimento pelo ciclo.
+ * Cartão sem ciclo (dias não definidos): cai na aberta que fecha primeiro.
+ */
+export function proximaFatura(faturas: Fatura[], hoje: string, ciclo?: { fechamento: number | null; vencimento: number | null }): ProximaFatura | null {
+  if (ciclo?.fechamento != null && ciclo.vencimento != null) {
+    const fechamento = fechamentoDaCompra(hoje, ciclo.fechamento)
+    if (fechamento) {
+      const mes = fechamento.slice(0, 7)
+      const f = faturas.find((x) => x.mes === mes)
+      return f
+        ? { mes, vencimento: f.vencimento, total: f.total }
+        : { mes, vencimento: vencimentoDaFatura(fechamento, ciclo.fechamento, ciclo.vencimento), total: 0 as Cents }
+    }
+  }
   const abertas = faturas.filter((f) => situacaoFatura(f, hoje) === 'aberta').sort((x, y) => (x.fechamento < y.fechamento ? -1 : 1))
   const f = abertas[0]
   return f ? { mes: f.mes, vencimento: f.vencimento, total: f.total } : null
@@ -503,7 +553,7 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
       try {
         const faturas = await listarFaturas(c.id)
         if (c.divida > 0) vencimento = faturas.find((f) => situacaoFatura(f, hoje) === 'fechada')?.vencimento ?? null
-        proxima = proximaFatura(faturas, hoje)
+        proxima = proximaFatura(faturas, hoje, c)
       } catch {
         vencimento = null
         proxima = null

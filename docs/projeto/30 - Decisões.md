@@ -157,3 +157,11 @@ Pedido e "pode" do dono, a partir dos cartões de aviso do Organizze.
 - **Janela de 7 dias inclusive** (de hoje até hoje + 7). **Vencidos separados em "a pagar" e "a receber"**: um total misturando entrada e saída não diz nada. Transferência planejada não entra nos avisos (não é a pagar nem a receber) e continua no card de Vencidos, que fica como estava (o aviso de vencidos leva até ele).
 - **Só contas em reais** (regra da multimoeda F1/F2); conta em outra moeda fica para quando o Início tiver bloco por moeda.
 - **Minhas contas só com saldo** (pedido do dono): conta ativa com saldo zero sai do bloco do Início; a lista completa fica na aba Contas ("Ver todas as contas"). Conta que ainda não abriu (sem saldo) continua aparecendo, com a data de abertura.
+
+## 05/11/2026 — Cartões: destaque é a fatura atual e ações secundárias no menu "Mais opções" (#163)
+- **Pedido do dono:** ver "Fatura a pagar R$ 0,00" em destaque parecia errado (no Organizze o destaque é "Fatura atual (Venc. 28/11) R$ X") e havia botões demais em cada cartão.
+- **Destaque:** com fatura fechada e não paga, ela é o destaque ("Fatura fechada a pagar (vence dd/mm)") e a atual fica embaixo, menor; sem fechada, o destaque é a **fatura atual** (a aberta que fecha primeiro), com "aberta — fecha dia N"; sem nada, "Sem fatura em aberto". Os valores são os mesmos de antes, vindos do banco (dívida de `debt_balances`; total da aberta de `card_months`); a tela só escolhe a linha, não soma.
+- **Botões:** visíveis só Nova compra, Pagar fatura e Ver faturas; as outras 8 ações vão para o menu "⋯ Mais opções" (Excluir por último, separado, em vermelho). Mantida a regra de qual botão é o principal (Pagar fatura com fatura fechada; Nova compra sem ela) e a regra do pagamento sugerido.
+- **Texto do crédito antecipado:** o parágrafo fixo "Não há fatura fechada… vira crédito no cartão" saiu do cartão; a explicação aparece no painel "Pagar fatura" sempre que não há fatura fechada, antes de digitar o valor.
+- **Menu novo `MenuAcoes`** (`src/components/ui/MenuAcoes.tsx`), no mesmo jeito do menu "+ Lançamento" (que era local de Lançamentos); unificar os dois fica como pendência.
+
