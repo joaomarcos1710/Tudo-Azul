@@ -127,6 +127,17 @@ describe('Entradas x Saídas: o período escolhido, fatiado pela divisão', () =
     expect(screen.queryByText(/12 meses até/)).toBeNull()
   })
 
+  it('período da página (o mesmo da aba Contas): usa o recebido, começa numa divisão que vale nele e avisa a página ao trocar', async () => {
+    const u = userEvent.setup()
+    const aoMudar = vi.fn()
+    render(<EntradasSaidas periodo={periodoDoAno(2026)} aoMudarPeriodo={aoMudar} />)
+    await screen.findByRole('table')
+    // o ano não cabe no diário: começa no mensal
+    expect(ultimaChamada().slice(1, 4)).toEqual(['2026-01-01', '2026-12-31', 'month'])
+    await u.click(screen.getByRole('button', { name: 'Próximo período' }))
+    expect(aoMudar).toHaveBeenCalledWith(periodoDoAno(2027))
+  })
+
   it('novembro semanal: as 6 semanas que tocam novembro, de "26/10 a 01/11" a "30/11 a 06/12"; o período pedido continua novembro', async () => {
     const u = userEvent.setup()
     render(<EntradasSaidas />)
