@@ -6,11 +6,11 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
-import { BANCOS_POR_NOME } from '../lib/bancos'
+import { BANCOS_POR_NOME, tipoSemBanco } from '../lib/bancos'
 import { IconeConta } from '../components/ui/IconeConta'
 import { EmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { useFamilia } from '../lib/FamiliaContext'
-import { criarConta, definirAtiva, editarConta, excluirConta, ehReais, hojeSP, listarContas, MOEDAS_CONTA, outrasMoedas, rotuloTipoConta } from '../lib/contas'
+import { ajudaTipoConta, criarConta, definirAtiva, editarConta, ehReais, ehTipoConta, excluirConta, GRUPOS_TIPO_CONTA, hojeSP, listarContas, MOEDAS_CONTA, outrasMoedas, rotuloDoTipo, rotuloTipoConta, TIPOS_CONTA } from '../lib/contas'
 import type { Conta, TipoConta, TotalPorMoeda, TotalPorTipo } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
@@ -34,12 +34,15 @@ function SeloMoeda({ conta }: { conta: Conta }) {
   )
 }
 
+/** Título de cada grupo da lista (um por tipo, na ordem de TIPOS_CONTA). */
 const TITULO_GRUPO: Record<TipoConta, string> = {
   checking: 'Contas correntes',
-  savings: 'Poupanças',
-  investment: 'Investimentos',
-  cash: 'Dinheiro',
-  other: 'Outras',
+  savings: 'Poupança / reserva',
+  brokerage: 'Corretora (saldo a aplicar)',
+  fixed_income: 'Renda fixa',
+  variable_income: 'Renda variável',
+  crypto: 'Cripto',
+  cash: 'Dinheiro (carteira)',
 }
 
 export default function Contas() {
@@ -95,13 +98,16 @@ export default function Contas() {
   const ativasOutras = contas?.filter((c) => c.ativa && !ehReais(c)) ?? []
   const arquivadas = contas?.filter((c) => !c.ativa) ?? []
   const outras = outrasMoedas(porMoeda)
-  // agrupadas por tipo, na ordem corrente, poupança, investimento, dinheiro, outra; o subtotal vem do banco
-  const grupos: { chave: string; titulo: string; contas: Conta[]; subtotal: string | null }[] = (Object.keys(rotuloTipoConta) as TipoConta[])
+  // agrupadas pelos 7 tipos (onde o dinheiro está), na ordem de TIPOS_CONTA; o subtotal vem do banco
+  const grupos: { chave: string; titulo: string; contas: Conta[]; subtotal: string | null }[] = TIPOS_CONTA
     .map((tipo) => {
       const sub = porTipo.find((t) => t.tipo === tipo)?.totalAtivas
       return { chave: tipo, titulo: TITULO_GRUPO[tipo], contas: ativas.filter((c) => c.tipo === tipo), subtotal: sub === undefined ? null : formatBRL(sub) }
     })
     .filter((g) => g.contas.length > 0)
+  // tipo de antes da 070 (front no ar antes da migration): a conta não some; fica num grupo próprio, sem subtotal
+  const tipoAntigo = ativas.filter((c) => !ehTipoConta(c.tipo))
+  if (tipoAntigo.length > 0) grupos.push({ chave: 'tipo-antigo', titulo: 'Tipo a revisar', contas: tipoAntigo, subtotal: null })
   // subtotal por moeda (do banco, sem conversão), nunca somando moedas diferentes
   if (ativasOutras.length > 0) {
     grupos.push({ chave: 'outras-moedas', titulo: 'Contas em outras moedas', contas: ativasOutras,
@@ -130,7 +136,7 @@ export default function Contas() {
       {contas?.length === 0 && editando === null && (
         <EmptyState
           titulo="Nenhuma conta ainda"
-          descricao="Cadastre as contas da família (corrente, poupança, dinheiro) com o saldo do dia em que você começar a usar o app."
+          descricao="Cadastre as contas da família (corrente, reserva, corretora, investimentos, dinheiro) com o saldo do dia em que você começar a usar o app."
           acao={<Button onClick={() => setEditando('nova')}>Cadastrar a primeira conta</Button>}
         />
       )}
@@ -171,7 +177,7 @@ export default function Contas() {
                           <p className="font-semibold">
                             {c.nome}<SeloMoeda conta={c} />
                           </p>
-                          <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
+                          <p className="text-sm text-slate-500">{rotuloDoTipo(c.tipo)} · desde {formatDate(c.abertura)}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -201,7 +207,7 @@ export default function Contas() {
                         <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} />
                         <div className="min-w-0">
                           <p className="font-semibold">{c.nome}<SeloMoeda conta={c} /></p>
-                          <p className="text-sm text-slate-500">{rotuloTipoConta[c.tipo]} · desde {formatDate(c.abertura)}</p>
+                          <p className="text-sm text-slate-500">{rotuloDoTipo(c.tipo)} · desde {formatDate(c.abertura)}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -255,7 +261,7 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
     setEnviando(true)
     try {
       // só envia o banco quando há o que gravar ou limpar (conta sem banco e sem escolha não toca na coluna)
-      const dados = { nome, tipo, saldoInicial, abertura, ...((tipo !== 'cash' && banco) || conta?.banco ? { banco: tipo === 'cash' || !banco ? null : banco } : {}),
+      const dados = { nome, tipo, saldoInicial, abertura, ...((!tipoSemBanco(tipo) && banco) || conta?.banco ? { banco: tipoSemBanco(tipo) || !banco ? null : banco } : {}),
         ...(conta || moeda === 'BRL' ? {} : { moeda }) }
       if (conta) await editarConta(conta.id, dados)
       else await criarConta(familiaId, dados)
@@ -279,13 +285,23 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
             id="tipo-conta"
             value={tipo}
             onChange={(e) => setTipo(e.target.value as TipoConta)}
+            aria-describedby="tipo-conta-ajuda"
             className="min-h-11 rounded-lg border border-slate-500 bg-white px-3 text-base"
           >
-            {Object.entries(rotuloTipoConta).map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+            {/* conta de tipo antigo (antes da 070): mostra o atual em vez de trocar sem avisar */}
+            {!ehTipoConta(tipo) && <option value={tipo}>{rotuloDoTipo(tipo)}</option>}
+            {GRUPOS_TIPO_CONTA.map((g) => (
+              <optgroup key={g.rotulo} label={g.rotulo}>
+                {g.tipos.map((t) => <option key={t} value={t}>{rotuloTipoConta[t]}</option>)}
+              </optgroup>
+            ))}
           </select>
+          <p id="tipo-conta-ajuda" className="text-xs text-slate-600">
+            {ehTipoConta(tipo) ? ajudaTipoConta[tipo] : 'Tipo antigo: escolha onde o dinheiro está.'}
+          </p>
         </div>
-        <Selecao rotulo="Banco" valor={tipo === 'cash' ? '' : banco} aoMudar={setBanco} desabilitado={tipo === 'cash'}
-          todos={tipo === 'cash' ? 'Dinheiro não tem banco' : 'Automático (pelo nome da conta)'} opcoes={BANCOS_POR_NOME.map((b) => [b.chave, b.nome])} />
+        <Selecao rotulo="Banco" valor={tipoSemBanco(tipo) ? '' : banco} aoMudar={setBanco} desabilitado={tipoSemBanco(tipo)}
+          todos={tipoSemBanco(tipo) ? 'Dinheiro não tem banco' : 'Automático (pelo nome da conta)'} opcoes={BANCOS_POR_NOME.map((b) => [b.chave, b.nome])} />
         <div className="flex flex-col gap-1">
           <label htmlFor="moeda-conta" className="text-sm font-medium">Moeda</label>
           <select

@@ -1,15 +1,57 @@
 import { centsFromDb, centsToDecimal } from './format'
 import type { Cents } from './format'
 import { supabase } from './supabase'
+import { tipoSemBanco } from './bancos'
 
-export type TipoConta = 'checking' | 'savings' | 'investment' | 'cash' | 'other'
+/**
+ * Tipo da conta = onde o dinheiro está (migration 070, decisão do dono de 05/11/2026). A moeda é separada (`moeda`).
+ * 'savings' é a "Poupança / reserva" (chave mantida da 001). 'investment' e 'other' não existem mais: a 070 converteu
+ * investment -> fixed_income e other -> checking (genérico; o dono ajusta conta por conta).
+ */
+export type TipoConta = 'checking' | 'savings' | 'brokerage' | 'fixed_income' | 'variable_income' | 'crypto' | 'cash'
+
+/** Os 7 tipos na ordem de sempre (a mesma de balance_totals_by_type). */
+export const TIPOS_CONTA: readonly TipoConta[] = ['checking', 'savings', 'brokerage', 'fixed_income', 'variable_income', 'crypto', 'cash']
 
 export const rotuloTipoConta: Record<TipoConta, string> = {
   checking: 'Conta corrente',
-  savings: 'Poupança',
-  investment: 'Investimento',
-  cash: 'Dinheiro',
-  other: 'Outra',
+  savings: 'Poupança / reserva',
+  brokerage: 'Corretora (saldo a aplicar)',
+  fixed_income: 'Renda fixa',
+  variable_income: 'Renda variável',
+  crypto: 'Cripto',
+  cash: 'Dinheiro (carteira)',
+}
+
+/** Explicação curta de cada tipo, embaixo do seletor do formulário. */
+export const ajudaTipoConta: Record<TipoConta, string> = {
+  checking: 'Conta do dia a dia: salário, contas a pagar, cartão.',
+  savings: 'Reserva de emergência ou poupança.',
+  brokerage: 'Dinheiro parado na corretora esperando ser aplicado: não rende. O que já foi aplicado vai em Renda fixa, Renda variável ou Cripto.',
+  fixed_income: 'Tesouro, CDB, LCI/LCA e parecidos.',
+  variable_income: 'Ações, FII, ETF e stocks.',
+  crypto: 'Criptomoedas.',
+  cash: 'Dinheiro em espécie. Não tem banco.',
+}
+
+/** Os tipos agrupados no seletor do formulário (cada grupo vira um <optgroup>). */
+export const GRUPOS_TIPO_CONTA: readonly { rotulo: string; tipos: readonly TipoConta[] }[] = [
+  { rotulo: 'Dia a dia', tipos: ['checking', 'cash'] },
+  { rotulo: 'Reserva', tipos: ['savings'] },
+  { rotulo: 'Investimentos', tipos: ['brokerage', 'fixed_income', 'variable_income', 'crypto'] },
+]
+
+export function ehTipoConta(tipo: string): tipo is TipoConta {
+  return (TIPOS_CONTA as readonly string[]).includes(tipo)
+}
+
+/**
+ * Rótulo de qualquer tipo, inclusive os de antes da 070 (o front pode subir antes da migration ser aplicada):
+ * nunca some com a conta nem mostra a chave crua.
+ */
+export function rotuloDoTipo(tipo: string): string {
+  if (ehTipoConta(tipo)) return rotuloTipoConta[tipo]
+  return tipo === 'investment' ? 'Investimento (tipo antigo)' : tipo === 'other' ? 'Outra (tipo antigo)' : tipo
 }
 
 export interface Conta {
@@ -175,7 +217,7 @@ function linha(d: DadosConta) {
     initial_balance: centsToDecimal(d.saldoInicial),
     opening_date: d.abertura,
     // só entra no envio quando há o que gravar ou limpar: assim criar/editar conta segue funcionando no banco sem a coluna
-    ...(d.banco === undefined ? {} : { bank: d.tipo === 'cash' ? null : d.banco }),
+    ...(d.banco === undefined ? {} : { bank: tipoSemBanco(d.tipo) ? null : d.banco }),
   }
 }
 

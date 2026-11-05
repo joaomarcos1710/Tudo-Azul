@@ -113,7 +113,7 @@ select functions_are('public', array[
   'transactions_bulk_mark_paid','transactions_bulk_mark_planned','transactions_bulk_restore','transactions_bulk_set_category','transactions_bulk_trash'],
   'funções do schema public');
 select functions_are('private', array[
-  'account_brl_only','account_recurrence_pending','accounts_guard','accounts_period_guard','budgets_guard','card_cycle_closing','card_cycle_closing_day','card_cycle_due','card_cycle_due_day','card_cycle_first','card_day_in_month','card_due_date','card_first_closing','card_pending_by_due','card_recurrence_pending',
+  'account_brl_only','account_recurrence_pending','account_type_from_legacy','accounts_guard','accounts_period_guard','budgets_guard','card_cycle_closing','card_cycle_closing_day','card_cycle_due','card_cycle_due_day','card_cycle_first','card_day_in_month','card_due_date','card_first_closing','card_pending_by_due','card_recurrence_pending',
   'card_income_items','card_paid_lock_check','card_paid_lock_raise','card_paid_snapshot','card_reopen_invoice','card_void_events','categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
   'debt_effect','debt_events_card_payment_date','debt_events_guard','debt_events_period_guard','expense_items','expense_items_basis','fx_rates_immutable','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debt_schedule_restore_void','debts_immutable',
   'handle_new_user','is_member','is_owner','loan_principal_items','loan_schedule_planned','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrence_occurrences','recurrences_money_guard','seed_default_categories',
