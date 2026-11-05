@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
+import { MenuAcoes } from '../components/ui/MenuAcoes'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import { listarCartoes } from '../lib/cartoes'
@@ -15,37 +16,91 @@ import type { Categoria } from '../lib/categorias'
 import { aceitaLancamento, hojeSP, listarContas, mesmaMoeda } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
+import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
+import type { Cents } from '../lib/format'
 import {
-  criarRecorrencia, diaDaSemana, editarRecorrencia, excluirRecorrencia, frequencias, listarRecorrencias, MAX_CADA,
-  proximasOcorrencias, rotuloFrequencia, rotuloTipoRecorrencia,
+  criarRecorrencia, diaDaSemana, editarRecorrencia, excluirRecorrencia, frequenciaResumo, frequencias, listarRecorrencias, MAX_CADA,
+  ordemFrequencias, proximasOcorrencias, resumoRecorrencias, rotuloFrequencia, rotuloGrupoFrequencia, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
-import type { Recorrencia, TipoRecorrencia, UnidadeFrequencia } from '../lib/recorrencias'
+import type {
+  FrequenciaResumo, LinhaResumoRecorrencia, Recorrencia, TipoRecorrencia, UnidadeFrequencia,
+} from '../lib/recorrencias'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 const dias: [string, string][] = Array.from({ length: 31 }, (_, i) => [String(i + 1), `Dia ${i + 1}`])
 const toda = (diaSemana: string) => `${diaSemana === 'sábado' || diaSemana === 'domingo' ? 'todo' : 'toda'} ${diaSemana}`
+const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+
+type Aba = 'todos' | 'conta' | 'cartao'
+const abas: [Aba, string][] = [['todos', 'Todos'], ['conta', 'Conta'], ['cartao', 'Cartão']]
+type TipoResumo = LinhaResumoRecorrencia['tipo']
+const rotuloTipoResumo: Record<TipoResumo, string> = { expense: 'saídas', income: 'entradas', transfer: 'transferências' }
+
+/** Quando acontece, curto (o cabeçalho do grupo já diz a frequência): "dia 10", "20 de fev", "sexta", "a cada 10 dias". */
+function quando(r: Recorrencia): string {
+  if (r.unidade === 'day') return r.cada === 1 ? 'todo dia' : `a cada ${r.cada} dias`
+  if (r.unidade === 'week') {
+    const dia = diaDaSemana(r.inicio)
+    return r.cada === 1 ? dia : r.cada === 2 ? `quinzenal · ${dia}` : `a cada ${r.cada} semanas · ${dia}`
+  }
+  if (r.cada === 12) return `${r.dia} de ${MESES_CURTOS[Number(r.inicio.slice(5, 7)) - 1]}`
+  if (frequenciaResumo(r) === 'custom') return `a cada ${r.cada} meses · dia ${r.dia}`
+  return `dia ${r.dia}`
+}
+
+/** "01/12" no ano corrente; "20/02/2027" em outro ano. */
+function dataCurta(iso: string, hoje: string): string {
+  return iso.slice(0, 4) === hoje.slice(0, 4) ? formatDate(iso).slice(0, 5) : formatDate(iso)
+}
+
+/** Ícone (i) que mostra a explicação completa logo abaixo da frase (abre e fecha no clique; Esc fecha e devolve o foco). */
+function Explicacao({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+  const [aberto, setAberto] = useState(false)
+  const id = useId()
+  const botao = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!aberto) return
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { setAberto(false); botao.current?.focus() } }
+    document.addEventListener('keydown', esc)
+    return () => document.removeEventListener('keydown', esc)
+  }, [aberto])
+  return (
+    <>
+      <button ref={botao} type="button" aria-label={rotulo} title={rotulo} aria-expanded={aberto} aria-controls={aberto ? id : undefined}
+        onClick={() => setAberto((v) => !v)}
+        className="-my-3 ml-0.5 inline-flex min-h-11 min-w-11 items-center justify-center rounded-full align-middle text-azul hover:bg-azul-claro">
+        <span aria-hidden="true" className="inline-flex h-5 w-5 items-center justify-center rounded-full border-2 border-current text-xs font-bold italic leading-none">i</span>
+      </button>
+      {/* renderização condicional: a classe "block" venceria o atributo hidden */}
+      {aberto && <span id={id} className="mt-2 block rounded-lg bg-azul-claro p-3 text-marinho">{children}</span>}
+    </>
+  )
+}
 
 export default function Recorrentes() {
   const { familia } = useFamilia()
   const familiaId = familia?.id
   const [recorrencias, setRecorrencias] = useState<Recorrencia[] | null>(null)
+  const [resumo, setResumo] = useState<LinhaResumoRecorrencia[]>([])
   const [contas, setContas] = useState<Conta[]>([])
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState<Recorrencia | 'nova' | null>(null)
+  const [aba, setAba] = useState<Aba>('todos')
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
     try {
-      const [r, c, k, cat] = await Promise.all([
+      const [r, c, k, cat, s] = await Promise.all([
         listarRecorrencias(familiaId), listarContas(familiaId), listarCartoes(familiaId), listarCategorias(familiaId),
+        resumoRecorrencias(familiaId),
       ])
       setRecorrencias(r)
       setContas(c.contas)
       setCartoes(k)
       setCategorias(cat)
+      setResumo(s)
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -59,6 +114,8 @@ export default function Recorrentes() {
   const moedaConta = useMemo(() => new Map(contas.map((c) => [c.id, c.moeda ?? 'BRL'])), [contas])
   const nomeCartao = useMemo(() => new Map(cartoes.map((c) => [c.id, c.nome])), [cartoes])
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
+  // só a subcategoria (o próprio nome) na linha; o caminho completo vai no title e para o leitor de tela
+  const nomeCurtoCategoria = useMemo(() => new Map(categorias.map((c) => [c.id, c.nome])), [categorias])
 
   async function excluir(r: Recorrencia) {
     if (!window.confirm(`Excluir "${r.descricao}"? Os próximos planejados vão para a lixeira; o que já foi pago ou lançado no cartão continua no histórico.`)) return
@@ -71,25 +128,94 @@ export default function Recorrentes() {
   }
 
   if (!familiaId) return null
+  const hoje = hojeSP()
   const ativas = recorrencias?.filter((r) => r.ativa) ?? []
+  // mesma base do banco (migration 063): data final passada fica fora dos grupos e dos totais, mas continua à mão para excluir
+  const vigentes = ativas.filter((r) => !r.fim || r.fim >= hoje)
+  const terminadas = ativas.filter((r) => r.fim && r.fim < hoje)
+  const emOutraMoeda = vigentes.filter((r) => r.tipo !== 'card' && (moedaConta.get(r.contaId ?? '') ?? 'BRL') !== 'BRL').length
 
-  const proxima = (r: Recorrencia) => proximasOcorrencias(r, hojeSP(), 1)[0] ?? null
+  const proxima = (r: Recorrencia) => proximasOcorrencias(r, hoje, 1)[0] ?? null
+  const daAba = (r: Recorrencia) => aba === 'todos' || (aba === 'cartao') === (r.tipo === 'card')
+  const grupos = ordemFrequencias
+    .map((f) => ({
+      f,
+      itens: vigentes.filter((r) => daAba(r) && frequenciaResumo(r) === f)
+        .map((r) => ({ r, prox: proxima(r) }))
+        .sort((a, b) => (a.prox ?? '9999').localeCompare(b.prox ?? '9999') || a.r.descricao.localeCompare(b.r.descricao, 'pt-BR')),
+    }))
+    .filter((g) => g.itens.length > 0)
+
+  const linha = (nivel: LinhaResumoRecorrencia['nivel'], meio: LinhaResumoRecorrencia['meio'], tipo: TipoResumo, f?: FrequenciaResumo) =>
+    resumo.find((l) => l.nivel === nivel && l.meio === meio && l.tipo === tipo && (f === undefined || l.frequencia === f))
 
   function onde(r: Recorrencia) {
-    if (r.tipo === 'card') return `Cartão ${nomeCartao.get(r.cartaoId ?? '') ?? '?'}`
+    if (r.tipo === 'card') return nomeCartao.get(r.cartaoId ?? '') ?? '?'
     if (r.tipo === 'transfer') return `${nomeConta.get(r.contaId ?? '') ?? '?'} → ${nomeConta.get(r.destinoId ?? '') ?? '?'}`
     return nomeConta.get(r.contaId ?? '') ?? '?'
   }
+
+  function item(r: Recorrencia, prox: string | null) {
+    const caminho = r.categoriaId ? nomeCategoria.get(r.categoriaId) ?? 'Sem categoria' : null
+    const curta = r.categoriaId ? nomeCurtoCategoria.get(r.categoriaId) ?? 'Sem categoria' : null
+    const fimTexto = r.fim ? (r.fim < hoje ? `terminou em ${formatDate(r.fim)}` : `até ${formatDate(r.fim)}`) : null
+    const completo = [rotuloFrequencia(r), onde(r), caminho, rotuloTipoRecorrencia[r.tipo],
+      prox && `próxima ${formatDate(prox)}`, fimTexto].filter(Boolean).join(' · ')
+    const moeda = r.tipo === 'card' ? 'BRL' : moedaConta.get(r.contaId ?? '') ?? 'BRL'
+    return (
+      <li key={r.id} className="flex items-center gap-1 py-1.5 pl-4 pr-1 sm:pl-5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-3">
+            <p className="min-w-0 flex-1 truncate font-medium" title={r.descricao}>{r.descricao}</p>
+            <span className={`shrink-0 whitespace-nowrap text-right font-semibold tabular-nums ${r.tipo === 'income' ? 'text-positivo' : r.tipo === 'transfer' ? 'text-slate-600' : 'text-negativo'}`}>
+              {r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}{formatMoeda(r.valor, moeda)}
+            </span>
+          </div>
+          <p className="truncate text-xs text-slate-500" title={completo} data-testid="meta-recorrente">
+            {quando(r)} · {onde(r)}
+            {curta && <> · <span aria-hidden="true">{curta}</span><span className="sr-only">{caminho}</span></>}
+            {prox && <> · próxima {dataCurta(prox, hoje)}</>}
+            {fimTexto && <> · {fimTexto}</>}
+          </p>
+        </div>
+        <MenuAcoes rotulo={`Ações de ${r.descricao}`} acoes={[
+          { rotulo: 'Editar', aoEscolher: () => setEditando(r), desabilitado: editando !== null },
+          { rotulo: 'Excluir', aoEscolher: () => { void excluir(r) }, perigo: true },
+        ]} />
+      </li>
+    )
+  }
+
+  /** "saídas R$ 300,00 por vez · ≈ R$ 99,99/mês" (mensal: só "R$ X/mês"), com os números do banco. */
+  function totaisDoGrupo(f: FrequenciaResumo) {
+    const nivel = aba === 'todos' ? 'frequency_all' : 'frequency'
+    const meio = aba === 'todos' ? null : aba === 'cartao' ? 'card' : 'account'
+    return (['expense', 'income', 'transfer'] as TipoResumo[]).flatMap((tipo) => {
+      const l = linha(nivel, meio, tipo, f)
+      if (!l) return []
+      return [f === 'monthly'
+        ? `${rotuloTipoResumo[tipo]} ${formatBRL(l.porMes)}/mês`
+        : `${rotuloTipoResumo[tipo]} ${formatBRL(l.porOcorrencia)} por vez · ≈ ${formatBRL(l.porMes)}/mês`]
+    }).join(' · ')
+  }
+
+  const porAlvo = resumo.filter((l) => l.nivel === 'target')
 
   return (
     <>
       <CabecalhoPagina titulo="Recorrentes"
         acoes={editando === null && <Button onClick={() => setEditando('nova')}>Novo recorrente</Button>}
         descricao={<>
-          Contas, salários e assinaturas que se repetem: toda semana, a cada 14 dias, todo mês, a cada 2, 3 ou 6 meses ou todo ano.
-          Em conta, os próximos 12 meses aparecem como <strong>Planejado</strong> (ou, se você informar a data final, todas as parcelas até ela) em{' '}
-          <Link to="/lancamentos" className="font-semibold text-azul hover:underline">Lançamentos</Link>: quando a conta chegar,
-          corrija o valor e marque como pago. No cartão, a compra entra no dia, na fatura certa.
+          Contas, salários e assinaturas que se repetem, separados por frequência.
+          <Explicacao rotulo="Como funcionam os recorrentes">
+            Repetem toda semana, a cada 14 dias, todo mês, a cada 2, 3 ou 6 meses, todo ano ou a cada N dias.
+            Em conta, os próximos 12 meses aparecem como <strong>Planejado</strong> (ou, se você informar a data final, todas as parcelas até ela) em{' '}
+            <Link to="/lancamentos" className="font-semibold text-azul hover:underline">Lançamentos</Link>: quando a conta chegar,
+            corrija o valor e marque como pago. No cartão, a compra entra no dia, na fatura certa.
+            Os totais do topo são o <strong>equivalente por mês</strong>: anual ÷ 12, a cada N meses ÷ N, semanal × 52 ÷ 12,
+            a cada N dias × 365 ÷ 12 ÷ N, arredondado no centavo em cada recorrente. Só contam os recorrentes em reais e sem data final passada;
+            transferências ficam à parte, fora dos gastos.
+          </Explicacao>
         </>} />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
@@ -113,36 +239,102 @@ export default function Recorrentes() {
         />
       )}
 
+      {vigentes.length > 0 && (
+        <section aria-labelledby="resumo-recorrentes" className="mb-4">
+          <h2 id="resumo-recorrentes" className="sr-only">Resumo por mês</h2>
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+            <CartaoResumo titulo="No cartão, por mês" linha={linha('medium', 'card', 'expense')} unidade="assinatura" />
+            <CartaoResumo titulo="Na conta, por mês — saídas" linha={linha('medium', 'account', 'expense')} unidade="despesa" />
+            <CartaoResumo titulo="Na conta, por mês — entradas" linha={linha('medium', 'account', 'income')} unidade="receita" positivo />
+            {linha('medium', 'account', 'transfer') && (
+              <CartaoResumo titulo="Transferências, por mês" linha={linha('medium', 'account', 'transfer')} unidade="transferência"
+                nota="à parte, fora dos gastos" />
+            )}
+          </div>
+          {emOutraMoeda > 0 && (
+            <p className="mt-2 text-xs text-slate-600">
+              {emOutraMoeda === 1 ? '1 recorrente em outra moeda fica' : `${emOutraMoeda} recorrentes em outra moeda ficam`} fora dos totais (que são em reais).
+            </p>
+          )}
+          {porAlvo.length > 0 && (
+            <details className="mt-2 rounded-xl border border-slate-200 bg-white text-sm">
+              <summary className="flex min-h-11 cursor-pointer items-center px-4 font-semibold text-azul">Por cartão e por conta</summary>
+              <ul className="divide-y divide-slate-100 border-t border-slate-100">
+                {porAlvo.map((l) => (
+                  <li key={`${l.meio}-${l.alvoId}-${l.tipo}`} className="flex items-baseline gap-3 px-4 py-2">
+                    <span className="min-w-0 flex-1 truncate">
+                      {l.alvoNome} <span className="text-slate-500">· {l.meio === 'card' ? 'cartão' : rotuloTipoResumo[l.tipo]} · {l.qtde}</span>
+                    </span>
+                    <span className="shrink-0 whitespace-nowrap text-right tabular-nums">
+                      <strong>{formatBRL(l.porMes)}</strong>/mês
+                      <span className="block text-xs text-slate-500">{formatBRL(l.porOcorrencia)} por vez</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      )}
+
       {ativas.length > 0 && (
-        <Card semPadding>
-          <ul className="divide-y divide-slate-100">
-            {ativas.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
-                <div className="min-w-0">
-                  <p className="font-medium">{r.descricao}</p>
-                  <p className="text-sm text-slate-500">
-                    {rotuloFrequencia(r)} · {onde(r)}{r.categoriaId && <> · {nomeCategoria.get(r.categoriaId) ?? 'Sem categoria'}</>}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {rotuloTipoRecorrencia[r.tipo]} · desde {formatDate(r.inicio)}
-                    {proxima(r) && <> · próxima {formatDate(proxima(r)!)}</>}
-                    {r.fim && <> · até {formatDate(r.fim)}</>}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-1">
-                  <span className={`tabular-nums font-semibold ${r.tipo === 'income' ? 'text-positivo' : r.tipo === 'transfer' ? 'text-slate-600' : 'text-negativo'}`}>
-                    {r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}{formatMoeda(r.valor, r.tipo === 'card' ? 'BRL' : moedaConta.get(r.contaId ?? '') ?? 'BRL')}
-                  </span>
-                  <Button variante="fantasma" onClick={() => setEditando(r)} disabled={editando !== null}>Editar</Button>
-                  <Button variante="discreto" onClick={() => excluir(r)}>Excluir</Button>
-                </div>
-              </li>
+        <>
+          <div role="group" aria-label="Mostrar recorrentes" className="mb-3 flex gap-2">
+            {abas.map(([chave, rotulo]) => (
+              <button key={chave} type="button" aria-pressed={aba === chave} onClick={() => setAba(chave)}
+                className={`min-h-11 rounded-full px-4 text-sm font-semibold transition-colors ${aba === chave
+                  ? 'bg-azul text-white' : 'border border-slate-200 bg-white text-marinho hover:bg-azul-claro'}`}>
+                {rotulo}
+              </button>
             ))}
-          </ul>
-        </Card>
+          </div>
+          <Card semPadding>
+            {grupos.length === 0 && <p className="px-5 py-4 text-sm text-slate-600">Nenhum recorrente {aba === 'cartao' ? 'no cartão' : 'em conta'}.</p>}
+            {grupos.map((g) => (
+              <section key={g.f} aria-labelledby={`grupo-${g.f}`} className="border-b border-slate-100 last:border-b-0">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 bg-slate-50 px-4 py-2 sm:px-5">
+                  <h2 id={`grupo-${g.f}`} className="text-sm font-semibold text-marinho">
+                    {rotuloGrupoFrequencia[g.f]} <span className="font-normal text-slate-500">· {g.itens.length}</span>
+                  </h2>
+                  <p className="text-xs text-slate-600 tabular-nums">{totaisDoGrupo(g.f)}</p>
+                </div>
+                <ul className="divide-y divide-slate-100">{g.itens.map(({ r, prox }) => item(r, prox))}</ul>
+              </section>
+            ))}
+            {terminadas.length > 0 && aba === 'todos' && (
+              <section aria-labelledby="grupo-terminados" className="border-t border-slate-100">
+                <div className="bg-slate-50 px-4 py-2 sm:px-5">
+                  <h2 id="grupo-terminados" className="text-sm font-semibold text-marinho">
+                    Já terminaram <span className="font-normal text-slate-500">· fora dos totais</span>
+                  </h2>
+                </div>
+                <ul className="divide-y divide-slate-100">{terminadas.map((r) => item(r, null))}</ul>
+              </section>
+            )}
+          </Card>
+        </>
       )}
 
     </>
+  )
+}
+
+/** Cartão do topo: equivalente por mês (grande) e o total por ocorrência (pequeno), os dois do banco. */
+function CartaoResumo({ titulo, linha, unidade, positivo = false, nota }: {
+  titulo: string; linha: LinhaResumoRecorrencia | undefined; unidade: string; positivo?: boolean; nota?: string
+}) {
+  const qtde = linha?.qtde ?? 0
+  return (
+    <Card semPadding className="p-3 sm:p-4">
+      <h3 className="text-xs font-semibold text-slate-600 sm:text-sm">{titulo}</h3>
+      <p className={`mt-1 whitespace-nowrap text-lg font-bold tabular-nums sm:text-2xl ${positivo ? 'text-positivo' : 'text-marinho'}`}>
+        {formatBRL(linha?.porMes ?? (0 as Cents))}
+      </p>
+      <p className="text-xs text-slate-500">
+        equivalente por mês · {formatBRL(linha?.porOcorrencia ?? (0 as Cents))} por ocorrência · {qtde} {unidade}{qtde === 1 ? '' : 's'}
+        {nota && <> · {nota}</>}
+      </p>
+    </Card>
   )
 }
 

@@ -46,6 +46,13 @@ tags: [tudo-azul, regras, dinheiro]
 - **A tela não soma o que está selecionado**: a confirmação mostra a quantidade; os totais do mês continuam vindo do banco depois de recarregar.
 - Só lançamentos (`transactions`): fatura, compra de cartão, contrato e crédito no cartão não entram na seleção.
 
+## Equivalente mensal dos recorrentes (migration 063, #173)
+- **Fórmula, por regra**: mensal = valor; a cada N meses = valor ÷ N (anual = ÷ 12); a cada N semanas = valor × 52 ÷ (12 × N); a cada N dias = valor × 365 ÷ (12 × N).
+- **Arredondamento**: `round(x, 2)` **em cada regra** (meio centavo para longe do zero), e só então a soma. O total de um grupo é exatamente a soma dos equivalentes que cada regra teria sozinha: três trimestrais de R$ 100,00 dão R$ 33,33 cada e **R$ 99,99** no total (nunca R$ 100,00).
+- **"Por ocorrência"** ao lado: a soma simples dos valores de uma vez de cada regra, para ninguém se surpreender com o anual "sumindo" no mensal.
+- **O que entra**: só regras ativas e sem data final passada (data final hoje ainda conta), só em reais (cartão sempre; conta só BRL — conta em outra moeda fica **fora**, não é convertida). Transferência é linha própria e **nunca** entra nos totais de gasto/receita. Assinatura de cartão é saída no cartão.
+- **A tela não soma**: todos os totais (cartões do topo, por cartão/conta, cabeçalho de cada grupo, nas três abas) vêm de `public.recurrence_summary`.
+
 ## Receita
 - **Regular × eventual** (categoria marcada como eventual): a renda regular é a base para a cobertura das despesas.
 

@@ -231,3 +231,12 @@ Pedido do dono (prints do iPad em retrato, ~820px).
 - **Ações**: Marcar pago, Editar e Excluir no menu ⋯ (`MenuAcoes`); a ação principal, **Marcar pago**, fica também num botão ✓ de 44×44 ao lado do ⋯, embaixo do valor. Motivo: é a ação do dia a dia (pagar a conta do mês) e cabe sem tirar largura do texto (a coluna já tem a largura do valor). Linhas só de leitura têm um link curto ("Cartões", "Baixar") com o nome inteiro no rótulo acessível.
 - **Fatura na lista**: a própria linha abre e fecha (▸/▾, `aria-expanded`); metadados "Aberta · fecha dd/mm" (fechada → "vence", vencida → "venceu", paga → só o selo), sem ano e sem "N compras"; "Ver em Cartões" fica dentro da área aberta.
 - **Explicações acima da lista**: uma linha com (i) e o texto inteiro num `<details>` (teclado e leitor de tela sem código extra).
+
+## 05/11/2026 — Recorrentes agrupados e equivalente mensal (#173)
+Pedido do dono (print da tela Recorrentes no iPad): separar por frequência e por meio, e saber quanto sai por mês no cartão e na conta.
+- **Equivalente mensal com arredondamento por regra** (`round(x, 2)` e depois soma): o total do grupo bate com a soma do que cada recorrente mostraria sozinho; arredondar só no fim daria R$ 100,00 para três trimestrais de R$ 100,00, mas cada um "vale" R$ 33,33. Diferença de no máximo meio centavo por regra, aceita.
+- **"Por ocorrência" sempre ao lado** do equivalente mensal: o IPVA anual de R$ 1.800 vira R$ 150 no mensal, e mostrar só isso surpreenderia.
+- **Uma função só, em níveis (`GROUPING SETS`)**, em vez de várias: os totais do topo, por cartão/conta e por grupo saem da mesma base, e a tela não soma nada (regra do dinheiro).
+- **Frequências**: semanal e quinzenal juntas em "Semanais / quinzenais"; diária e a cada N dias juntas em "Diários"; a cada 4, 5, 7–11 meses em "Personalizados".
+- **Outra moeda fora dos totais**, não convertida (a lista mostra o item com o valor na moeda dele e um aviso). **Transferência à parte**, fora dos gastos. **Data final passada fora** (aparece em "Já terminaram", só para excluir).
+- **Item compacto como em Lançamentos**: valor em coluna própria, só a subcategoria visível (caminho completo no `title` e para leitor de tela), Editar e Excluir no menu ⋯. A explicação longa foi para trás de um (i).
