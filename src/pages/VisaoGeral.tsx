@@ -25,6 +25,9 @@ import { carregarPatrimonio, carregarResumoInvestimentos, evolucaoPatrimonio, de
 import type { DespesaCategoria, DespesaDia, Patrimonio, PontoPatrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
+import { AvisosInicio } from '../components/ui/AvisosInicio'
+import { avisosDoInicio } from '../lib/avisosInicio'
+import type { AvisoInicio } from '../lib/avisosInicio'
 import { EmOutrasMoedas, ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { LinhaMensal } from '../components/graficos/LinhaMensal'
 import { saldosProjetados } from '../lib/saldoProjetado'
@@ -75,6 +78,8 @@ interface Dados {
   evolucao: PontoPatrimonio[] | null
   /** Orçamentos do mês (do banco); null = não carregou. */
   orcamentos: OrcamentoMes[] | null
+  /** Avisos do topo do Início (home_alerts, do banco); null = não carregou (a faixa some, o resto segue). */
+  avisos: AvisoInicio[] | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
   categoriaPorId: Map<string, Categoria>
@@ -214,10 +219,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))), comparar(),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
             opcional(saldosProjetados(familiaId, ate, true).then((r) => r.total)), opcional(listarOrcamentos(familiaId, mes, hoje)),
-            opcional(resumoPorMoeda(familiaId, de, ate)),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, saldoPrevisto, orcamentos, mesPorMoeda]): Dados => ({
+            opcional(resumoPorMoeda(familiaId, de, ate)), opcional(avisosDoInicio(familiaId, hoje)),
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, saldoPrevisto, orcamentos, mesPorMoeda, avisos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos, evolucao: null,
+            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes, saldoPrevisto, orcamentos, avisos, evolucao: null,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -242,7 +247,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(totaisPorMoeda(familiaId, hoje)), opcional(resumoPorMoeda(familiaId, de, ate)),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, evolucao, porMoeda, mesPorMoeda]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, orcamentos: null, avisos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => { if (ativo) setDados(d) })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
@@ -257,6 +262,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const { patrimonio: p, mes: m, anterior: a, comparacao: cmp } = dados
   // valor de um lançamento na moeda da conta dele (multimoeda F2); parcela de dívida e sem conta = reais
   const moedaDe = (contaId: string | null) => dados.todasContas.find((c) => c.id === contaId)?.moeda ?? 'BRL'
+  // "Minhas contas" do Início: só as ativas com saldo (do banco) diferente de zero; a lista completa fica na aba Contas.
+  // Conta que ainda não abriu (saldo null) continua aparecendo, com a data de abertura.
+  const contasComSaldo = dados.contas.filter((c) => c.saldo !== 0)
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   const comparadoAteHoje = `${mesAnteriorCurto} até dia ${Number(mesmoDiaMesAnterior(hoje).slice(8))}`
   const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
@@ -274,6 +282,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   }
   return (
     <>
+      {/* avisos do topo (a receber, a pagar, fatura e vencidos): só aparecem quando há algo a dizer */}
+      {noInicio && dados.avisos && <AvisosInicio avisos={dados.avisos} hoje={hoje} />}
       {noInicio
         ? <CabecalhoInicio nome={nome} receitas={m?.receitas ?? null} despesas={m?.despesas ?? null}
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
@@ -302,7 +312,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
 
       {noInicio && dados.vencidos && dados.vencidos.total > 0 && (
-        <Card className="mb-4 !border !border-red-200">
+        <Card id="vencidos" className="mb-4 scroll-mt-4 !border !border-red-200">
           <CardTitle>Vencidos e precisam de atenção</CardTitle>
           <p className="mb-2 text-sm text-slate-600">
             {dados.vencidos.total === 1 ? '1 compromisso planejado já passou' : `${dados.vencidos.total} compromissos planejados já passaram`} da data
@@ -667,9 +677,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </div>
           {dados.contas.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhuma conta ativa. <Link to="/contas" className="font-semibold text-azul hover:underline">Cadastrar conta</Link></p>
+          ) : contasComSaldo.length === 0 ? (
+            <p className="text-sm text-slate-500">Todas as contas estão zeradas.</p>
           ) : (
             <ul className="divide-y divide-slate-100">
-              {dados.contas.map((c) => (
+              {contasComSaldo.map((c) => (
                 <li key={c.id} className="flex flex-wrap items-center justify-between py-2 text-sm">
                   <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="pequeno" />{c.nome}</span>
                   <span className={`tabular-nums font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
@@ -678,6 +690,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                 </li>
               ))}
             </ul>
+          )}
+          {dados.contas.length > 0 && (
+            <Link to="/contas" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todas as contas</Link>
           )}
         </Card>
       </div>}
