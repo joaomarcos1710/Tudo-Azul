@@ -332,7 +332,9 @@ reset role;
 select pg_temp.mk('h', 120010);
 select public.card_purchase(pg_temp.fx('hcard'), '2026-02-10', 100.00, 2, pg_temp.fx('hcat'), 'Fone');
 select public.set_card_cycle(pg_temp.fx('hcard'), 5, 12);
-select public.card_purchase(pg_temp.fx('hcard'), '2026-04-20', 40.00, 1, pg_temp.fx('hcat'), 'Livro');
+-- a troca vale a partir do ciclo seguinte ao da fatura aberta hoje (migration 061): compra bem no futuro, já no ciclo novo
+-- (uma compra retroativa, de antes da troca, fica com os dias antigos: teste 59)
+select public.card_purchase(pg_temp.fx('hcard'), '2030-04-20', 40.00, 1, pg_temp.fx('hcat'), 'Livro');
 select is((select array_agg(description || '|' || closing_day || '|' || due_day order by description)
              from (select distinct description, closing_day, due_day from public.debt_installments
                     where debt_id = pg_temp.fx('hcard')) x),

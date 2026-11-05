@@ -447,3 +447,39 @@ export async function criarParcelado(d: DadosParcelado): Promise<string> {
   if (error) throw error
   return data as string
 }
+
+/**
+ * Edição em lote (migration 060): cada chamada é UMA operação no banco, tudo ou nada, com as mesmas guardas do UPDATE de
+ * um só (período conciliado, conta desativada, moeda, categoria do tipo certo). No máximo LIMITE_LOTE ids por chamada.
+ * Devolvem quantos lançamentos o banco de fato alterou.
+ */
+export const LIMITE_LOTE = 500
+
+async function rpcLote(nome: string, args: Record<string, unknown>): Promise<number> {
+  const { data, error } = await cliente().rpc(nome, args)
+  if (error) throw error
+  return Number(data ?? 0)
+}
+
+/** Só receita e despesa; transferência é recusada (não tem categoria). */
+export function mudarCategoriaEmLote(ids: string[], categoriaId: string): Promise<number> {
+  return rpcLote('transactions_bulk_set_category', { p_ids: ids, p_category: categoriaId })
+}
+
+/** Planejado → pago na data informada (o valor de cada um não muda). */
+export function marcarPagoEmLote(ids: string[], data: string): Promise<number> {
+  return rpcLote('transactions_bulk_mark_paid', { p_ids: ids, p_date: data })
+}
+
+/** "Desfazer" do pago: volta a planejado, cada um na data que tinha (datas na mesma ordem dos ids). */
+export function voltarPlanejadoEmLote(ids: string[], datas: string[]): Promise<number> {
+  return rpcLote('transactions_bulk_mark_planned', { p_ids: ids, p_dates: datas })
+}
+
+export function moverParaLixeiraEmLote(ids: string[]): Promise<number> {
+  return rpcLote('transactions_bulk_trash', { p_ids: ids })
+}
+
+export function restaurarDaLixeiraEmLote(ids: string[]): Promise<number> {
+  return rpcLote('transactions_bulk_restore', { p_ids: ids })
+}

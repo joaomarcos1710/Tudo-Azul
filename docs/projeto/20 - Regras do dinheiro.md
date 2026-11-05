@@ -11,6 +11,7 @@ tags: [tudo-azul, regras, dinheiro]
 ## Cartão de crédito
 - A parcela é **cobrada no fechamento da fatura** (data de vencimento da parcela).
 - Compra **no dia do fechamento ou depois** entra na fatura seguinte.
+- **Troca dos dias do cartão** (migration 061, decisão de 05/11/2026): os dias novos valem a partir da fatura do **mês seguinte ao da fatura aberta hoje**; a aberta termina com os dias antigos. Ex.: hoje 01/12, fechava 5/vencia 15 e passa a 25/5 → a aberta fecha 05/12 e vence 15/12; a seguinte fecha 25/01 e vence 05/02 (compra de 05/12 a 24/01 cai nela). Assim **cada mês tem um só fechamento** (a fatura é identificada pelo mês). Se o cartão já tem parcelas (ou crédito, ou fatura) do ciclo atual num mês em que os dias novos valeriam — uma compra parcelada, por exemplo —, a troca é **recusada** com a data a partir da qual pode ser feita. Voltar aos dias da fatura aberta desfaz uma troca que ainda não começou. A primeira definição dos dias vale na hora. Nada já lançado muda de fatura.
 - Resto de centavos vai na **1ª parcela** (100,00 em 3x = 33,34 + 33,33 + 33,33).
 - **Pagar fatura não é despesa** (a compra já contou no mês da fatura). **Juros e tarifa são despesa.**
 - **Parcela de empréstimo/financiamento é despesa do mês em que é paga** (migration 046, decisão do dono em 03/11/2026): o principal pago entra na categoria escolhida na dívida (ou "Sem categoria"), juros e tarifa nas deles; somados = parcela inteira. Parcela do contrato ainda não baixada entra em despesas **planejadas**. **Consignado não conta** (o salário já entra líquido). O dinheiro recebido ao pegar o empréstimo **não é receita**. Consequência: em mês com amortização, "resultado do mês" fica abaixo da variação do patrimônio pelo principal pago (o patrimônio continua certo).
@@ -30,6 +31,13 @@ tags: [tudo-azul, regras, dinheiro]
 - **Orçamento só em reais**: despesa em conta estrangeira não consome limite de categoria (`budget_usage` e `budget_projection` filtram).
 - Período **conferido** com o extrato trava: não edita, não manda para a lixeira, não restaura. *Dormente desde 04/11/2026 (#159): a conferência saiu do app; a trava continua no banco, mas sem conferência nova nunca dispara.*
 - Transferência nunca é receita nem despesa.
+
+## Edição em lote (Lançamentos no computador, migration 060)
+- **Uma operação só no banco, tudo ou nada**: mudar categoria, marcar como pago e lixeira em vários lançamentos são uma chamada (`transactions_bulk_*`); se um item é recusado, nenhum muda.
+- **As mesmas guardas do lançamento de um só**: é o mesmo UPDATE, então valem os gatilhos de sempre (período conferido, conta desativada ao restaurar, abertura da conta, moeda da transferência) e a categoria do tipo certo (receita só com categoria de receita; transferência não tem categoria). SECURITY INVOKER: a RLS decide; todos os ids da mesma família e visíveis para quem chama; no máximo 500 por vez.
+- **Marcar pago em lote não muda o valor**: só a situação e a data escolhida. Se o valor real foi outro, use o "Marcar pago" do lançamento (que pede data e valor).
+- **A tela não soma o que está selecionado**: a confirmação mostra a quantidade; os totais do mês continuam vindo do banco depois de recarregar.
+- Só lançamentos (`transactions`): fatura, compra de cartão, contrato e crédito no cartão não entram na seleção.
 
 ## Receita
 - **Regular × eventual** (categoria marcada como eventual): a renda regular é a base para a cobertura das despesas.
