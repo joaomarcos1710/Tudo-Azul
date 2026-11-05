@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
+import { Folha } from '../components/ui/Folha'
 import { Selecao } from '../components/ui/Selecao'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import type { AcaoMenu } from '../components/ui/MenuAcoes'
@@ -588,9 +589,10 @@ function PainelPagar({ lancamento: l, nomeConta, moeda, aoConfirmar, aoCancelar 
     }
   }
 
+  // Abre por cima da tela (Folha), não no topo da página: na tabela do iPad/computador a pessoa costuma estar rolada
+  // para baixo e a confirmação ficava fora da vista, com o menu travado esperando por ela.
   return (
-    <Card className="mb-4">
-      <h2 className="mb-1 text-lg font-semibold">Marcar como pago · {l.descricao || rotuloTipo[l.tipo]}</h2>
+    <Folha titulo={`Marcar como pago · ${l.descricao || rotuloTipo[l.tipo]}`} aoFechar={aoCancelar}>
       <p className="mb-4 text-sm text-slate-600">
         Planejado: {formatDate(l.data)} · {formatMoeda(l.valor, moeda)} · {nomeConta}. Informe {entrada ? 'quando e quanto entrou' : 'quando e quanto saiu'} de
         verdade: o saldo da conta e o extrato usam esta data e este valor.
@@ -604,7 +606,7 @@ function PainelPagar({ lancamento: l, nomeConta, moeda, aoConfirmar, aoCancelar 
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+    </Folha>
   )
 }
 

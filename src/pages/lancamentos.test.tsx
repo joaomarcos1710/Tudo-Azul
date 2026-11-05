@@ -254,6 +254,7 @@ describe('Lançamentos', () => {
     await screen.findByText('Supermercado')
     await u.click(screen.getByRole('button', { name: 'Marcar pago' }))
     expect(mock.marcarComoPago).not.toHaveBeenCalled() // não paga no clique: pede data e valor reais
+    expect(screen.getByRole('dialog', { name: /Marcar como pago/ })).toBeTruthy() // por cima da tela, não no topo da página
     expect((screen.getByLabelText('Data do recebimento') as HTMLInputElement).value).toBe(hojeSP())
     expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('8.000,00')
     await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
