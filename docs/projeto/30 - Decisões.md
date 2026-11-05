@@ -198,3 +198,11 @@ Com o "pode" do dono, inspirado no painel do Mobills.
 - **Calendário sem a lista de saldo por conta** (o dono achou redundante): fica só a linha do saldo total previsto na data escolhida, a única informação daquele bloco que não está em outra tela; o saldo por conta ("Hoje · Fim do mês") fica em Minhas contas, no Início.
 - **Calendário já mostrava entradas e saídas por dia** (marcas verde/vermelha na grade e a lista do dia com valores): não foi mexido. Um total por dia não foi acrescentado porque não existe função do banco com a regra do calendário (pagamento da fatura no dia em que sai da conta); o `cash_flow_report` diário põe a compra do cartão no fechamento e não bateria com a lista do dia.
 
+## 05/11/2026 — Recorrentes agrupados e equivalente mensal (#173)
+Pedido do dono (print da tela Recorrentes no iPad): separar por frequência e por meio, e saber quanto sai por mês no cartão e na conta.
+- **Equivalente mensal com arredondamento por regra** (`round(x, 2)` e depois soma): o total do grupo bate com a soma do que cada recorrente mostraria sozinho; arredondar só no fim daria R$ 100,00 para três trimestrais de R$ 100,00, mas cada um "vale" R$ 33,33. Diferença de no máximo meio centavo por regra, aceita.
+- **"Por ocorrência" sempre ao lado** do equivalente mensal: o IPVA anual de R$ 1.800 vira R$ 150 no mensal, e mostrar só isso surpreenderia.
+- **Uma função só, em níveis (`GROUPING SETS`)**, em vez de várias: os totais do topo, por cartão/conta e por grupo saem da mesma base, e a tela não soma nada (regra do dinheiro).
+- **Frequências**: semanal e quinzenal juntas em "Semanais / quinzenais"; diária e a cada N dias juntas em "Diários"; a cada 4, 5, 7–11 meses em "Personalizados".
+- **Outra moeda fora dos totais**, não convertida (a lista mostra o item com o valor na moeda dele e um aviso). **Transferência à parte**, fora dos gastos. **Data final passada fora** (aparece em "Já terminaram", só para excluir).
+- **Item compacto como em Lançamentos**: valor em coluna própria, só a subcategoria visível (caminho completo no `title` e para leitor de tela), Editar e Excluir no menu ⋯. A explicação longa foi para trás de um (i).
