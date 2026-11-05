@@ -193,7 +193,7 @@ function Convidar({ aoConvidar }: { aoConvidar: () => Promise<void> }) {
               href={`https://wa.me/?text=${textoWhatsApp}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex min-h-11 items-center rounded-lg bg-positivo px-4 text-sm font-semibold text-white hover:opacity-90"
+              className="inline-flex min-h-11 items-center rounded-lg bg-azul px-4 text-sm font-semibold text-white hover:opacity-90"
             >
               Enviar pelo WhatsApp
             </a>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { PointerEvent } from 'react'
 import { formatBRL, formatMonth } from '../../lib/format'
 import type { Cents } from '../../lib/format'
-import { COR_LINHA } from './cores'
+import { COR_CONTORNO, COR_EIXO, COR_GRADE, COR_LINHA } from './cores'
 import { useLargura } from './useLargura'
 import { brlCompacto } from './LinhaAcumulada'
 import { valoresOcultos } from '../../lib/privacidade'
@@ -81,7 +81,7 @@ export function LinhaMensal({ titulo, pontos, cor = COR_LINHA, tabelaAbaixo = fa
         aria-label={`${titulo}: ${ultimo ? `${formatBRL(ultimo.valor)} em ${longo(ultimo)}` : 'sem dados'}. Os valores de cada período estão na tabela abaixo.`}>
         {marcas.map((v) => (
           <g key={v}>
-            <line x1={esq} x2={L - dir} y1={y(v)} y2={y(v)} stroke={v === 0 ? '#94a3b8' : '#e2e8f0'} strokeWidth="1" />
+            <line x1={esq} x2={L - dir} y1={y(v)} y2={y(v)} stroke={v === 0 ? COR_EIXO : COR_GRADE} strokeWidth="1" />
             <text x={esq - 8} y={y(v) + 4} textAnchor="end" fontSize="13" className="fill-slate-500">{brlCompacto(v)}</text>
           </g>
         ))}
@@ -90,15 +90,15 @@ export function LinhaMensal({ titulo, pontos, cor = COR_LINHA, tabelaAbaixo = fa
         ))}
         {caminho && <path d={caminho} fill="none" stroke={cor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
         {pontos.map((m, i) => (
-          <circle key={m.mes} cx={x(i)} cy={y(m.valor)} r={ativo === i ? 5 : 4} fill={cor} stroke="#fff" strokeWidth="2" />
+          <circle key={m.mes} cx={x(i)} cy={y(m.valor)} r={ativo === i ? 5 : 4} fill={cor} stroke={COR_CONTORNO} strokeWidth="2" />
         ))}
         {tabelaAbaixo && ultimo && pontos.length <= 12 && (
           // rótulo direto só no último ponto (o valor que importa); os demais ficam no tooltip e na tabela.
           // Com muitos pontos (dias) a linha é densa demais para o rótulo não encostar nela: fica só a tabela
           <text x={x(pontos.length - 1) - 8} y={y(ultimo.valor) + (pontos.length > 1 && pontos[pontos.length - 2].valor > ultimo.valor ? 20 : -10)} textAnchor="end" fontSize="13" fontWeight="600"
-            className={ultimo.valor < 0 ? 'fill-negativo' : 'fill-marinho'}>{ultimo.valor < 0 && !valoresOcultos() ? `−${brlCompacto(-ultimo.valor)}` : brlCompacto(ultimo.valor)}</text>
+            className={ultimo.valor < 0 ? 'fill-prejuizo' : 'fill-marinho'}>{ultimo.valor < 0 && !valoresOcultos() ? `−${brlCompacto(-ultimo.valor)}` : brlCompacto(ultimo.valor)}</text>
         )}
-        {p && ativo !== null && <line x1={x(ativo)} x2={x(ativo)} y1={topo} y2={A - base} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 3" />}
+        {p && ativo !== null && <line x1={x(ativo)} x2={x(ativo)} y1={topo} y2={A - base} stroke={COR_EIXO} strokeWidth="1" strokeDasharray="3 3" />}
         <rect x={esq} y={topo} width={L - esq - dir} height={A - topo - base} fill="transparent"
           onPointerMove={mover} onPointerDown={mover} onPointerLeave={() => setAtivo(null)} />
       </svg>
@@ -116,7 +116,7 @@ export function LinhaMensal({ titulo, pontos, cor = COR_LINHA, tabelaAbaixo = fa
           <tbody className="divide-y divide-slate-100">
             {pontos.map((m) => (
               <tr key={m.mes}><td className="py-1">{formatMonth(m.mes)}</td>
-                <td className={`py-1 text-right tabular-nums ${m.valor < 0 ? 'text-negativo' : ''}`}>{formatBRL(m.valor)}</td></tr>
+                <td className={`py-1 text-right tabular-nums ${m.valor < 0 ? 'text-prejuizo' : ''}`}>{formatBRL(m.valor)}</td></tr>
             ))}
           </tbody>
         </table>

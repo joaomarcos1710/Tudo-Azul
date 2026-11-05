@@ -6,11 +6,12 @@ import { textoDoAviso } from '../../lib/avisosInicio'
 import type { AvisoInicio, TipoAviso } from '../../lib/avisosInicio'
 
 const VISUAL: Record<TipoAviso, { icone: ReactNode; cor: string }> = {
-  overdue_payable: { icone: <IconeCalendario />, cor: 'bg-red-50 text-negativo' },
-  overdue_receivable: { icone: <IconeCalendario />, cor: 'bg-amber-50 text-amber-700' },
-  invoice: { icone: <IconeCartoes />, cor: 'bg-azul-claro text-azul' },
-  payable: { icone: <IconeSubtrair />, cor: 'bg-red-50 text-negativo' },
-  receivable: { icone: <IconeSomar />, cor: 'bg-green-50 text-positivo' },
+  // #184: vencido = prejuízo (vermelho); atrasado a receber, fatura e conta a pagar perto = atenção; a receber = agendado
+  overdue_payable: { icone: <IconeCalendario />, cor: 'bg-prejuizo-fundo text-prejuizo' },
+  overdue_receivable: { icone: <IconeCalendario />, cor: 'bg-atencao-fundo text-atencao' },
+  invoice: { icone: <IconeCartoes />, cor: 'bg-atencao-fundo text-atencao' },
+  payable: { icone: <IconeSubtrair />, cor: 'bg-atencao-fundo text-atencao' },
+  receivable: { icone: <IconeSomar />, cor: 'bg-agendado-fundo text-agendado' },
 }
 
 /**

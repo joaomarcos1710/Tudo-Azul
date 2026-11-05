@@ -16,6 +16,7 @@ import { listarParcelasDivida } from '../lib/dividas'
 import type { ResumoMes, ResumoPorMoeda } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { corDoValor } from '../lib/cores'
 
 /**
  * Calendário do mês: o que entra e sai das contas em cada dia (pago e planejado).
@@ -179,9 +180,9 @@ export default function Calendario() {
 
       {resumo && (
         <section aria-label="Totais do mês" className="mb-4 grid grid-cols-3 gap-2 text-sm">
-          <Card className="!p-3"><p className="text-xs text-slate-500">Receitas pagas</p><p className="tabular-nums font-semibold text-positivo">+{formatBRL(resumo.receitas)}</p></Card>
-          <Card className="!p-3"><p className="text-xs text-slate-500">Despesas pagas</p><p className="tabular-nums font-semibold text-negativo">−{formatBRL(resumo.despesas)}</p></Card>
-          <Card className="!p-3"><p className="text-xs text-slate-500">Resultado</p><p className={`tabular-nums font-semibold ${resumo.resultado < 0 ? 'text-negativo' : 'text-marinho'}`}>{formatBRL(resumo.resultado)}</p></Card>
+          <Card className="!p-3"><p className="text-xs text-slate-500">Receitas pagas</p><p className="tabular-nums font-semibold text-lucro">+{formatBRL(resumo.receitas)}</p></Card>
+          <Card className="!p-3"><p className="text-xs text-slate-500">Despesas pagas</p><p className="tabular-nums font-semibold text-prejuizo">−{formatBRL(resumo.despesas)}</p></Card>
+          <Card className="!p-3"><p className="text-xs text-slate-500">Resultado</p><p className={`tabular-nums font-semibold ${corDoValor(resumo.resultado)}`}>{formatBRL(resumo.resultado)}</p></Card>
         </section>
       )}
       {/* resultado das contas em outras moedas: à parte, sem conversão, fora dos totais em reais acima */}
@@ -216,18 +217,18 @@ export default function Calendario() {
                     }`}>
                     <span className={`text-xs tabular-nums sm:text-sm ${ehHoje ? 'font-bold text-azul' : 'text-slate-700'}`}>{n}</span>
                     <span className="mt-auto flex w-full flex-col gap-0.5" aria-hidden="true">
-                      {entrada && <span className="h-1 rounded-full bg-positivo" />}
-                      {saida && <span className="h-1 rounded-full bg-negativo" />}
-                      {planejados > 0 && <span className="h-1 rounded-full bg-planejado" />}
+                      {entrada && <span className="h-1 rounded-full bg-lucro-marca" />}
+                      {saida && <span className="h-1 rounded-full bg-prejuizo-marca" />}
+                      {planejados > 0 && <span className="h-1 rounded-full bg-agendado-marca" />}
                     </span>
                   </button>
                 )
               })}
             </div>
             <p className="mt-2 flex flex-wrap gap-3 border-t border-slate-100 px-1 pt-2 text-[11px] text-slate-500">
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-positivo" /> Entrou</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-negativo" /> Saiu</span>
-              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-planejado" /> Planejado</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-lucro-marca" /> Entrou</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-prejuizo-marca" /> Saiu</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-agendado-marca" /> Planejado (ainda não aconteceu)</span>
             </p>
           </Card>
 
@@ -251,10 +252,10 @@ export default function Calendario() {
                           {x.detalhe && <span className="block truncate text-xs text-slate-500">{x.detalhe}</span>}
                         </span>
                         <span className="shrink-0 text-right">
-                          <span className={`block tabular-nums font-semibold ${x.sentido === 'entrada' ? 'text-positivo' : x.sentido === 'saida' ? 'text-negativo' : 'text-slate-600'}`}>
+                          <span className={`block tabular-nums font-semibold ${x.sentido === 'entrada' ? 'text-lucro' : x.sentido === 'saida' ? 'text-prejuizo' : 'text-transferencia'}`}>
                             {x.sentido === 'entrada' ? '+' : x.sentido === 'saida' ? '−' : '⇄ '}{formatMoeda(x.valor, x.moeda)}
                           </span>
-                          <span className={`text-[11px] font-medium ${x.planejado ? 'text-planejado' : 'text-pago'}`}>{x.planejado ? 'Planejado' : 'Pago'}</span>
+                          <span className={`text-[11px] font-medium ${x.planejado ? 'text-agendado' : 'text-lucro'}`}>{x.planejado ? 'Planejado' : 'Pago'}</span>
                         </span>
                       </li>
                     ))}
@@ -311,7 +312,7 @@ function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; a
           {carregando || !total ? (
             <span className="text-slate-500" role="status">calculando…</span>
           ) : (
-            <strong className={`tabular-nums ${total.saldo < 0 ? 'text-negativo' : 'text-marinho'}`} data-testid="saldo-total">{formatBRL(total.saldo)}</strong>
+            <strong className={`tabular-nums ${corDoValor(total.saldo)}`} data-testid="saldo-total">{formatBRL(total.saldo)}</strong>
           )}
         </p>
         <div className="flex gap-1" role="group" aria-label="O que entra no saldo">
@@ -322,7 +323,7 @@ function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; a
         </div>
       </div>
       {incluir && !carregando && total && total.faturasSemConta > 0 && (
-        <p className="mt-1 text-xs text-planejado" data-testid="saldo-sem-conta">
+        <p className="mt-1 text-xs text-atencao" data-testid="saldo-sem-conta">
           Inclui {formatBRL(total.faturasSemConta)} em faturas e parcelas sem conta de pagamento; escolha a conta em{' '}
           <Link to="/cartoes" className="font-semibold underline">Cartões</Link>.
         </p>

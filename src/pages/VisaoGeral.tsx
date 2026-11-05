@@ -41,6 +41,7 @@ import { fluxoDeCaixa } from '../lib/fluxoCaixa'
 import type { SaldoTotal } from '../lib/saldoProjetado'
 import { listarOrcamentos } from '../lib/orcamentos'
 import type { OrcamentoMes } from '../lib/orcamentos'
+import { corDoTipo, corDoValor } from '../lib/cores'
 
 /**
  * Cada tela carrega só o que mostra. Início: contas, lançamentos e planejados são essenciais (se falharem, a tela
@@ -315,7 +316,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
     // a dívida já aparece no card de patrimônio: aqui só o saldo das contas
     disponivel: <CardSaldo hoje={p?.disponivel ?? null} previsto={dados.saldoPrevisto?.saldo ?? null} fimDoMes={limitesDoMes(mes)[1]} porMoeda={dados.porMoeda} />,
     resultado: m ? <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
-      var={cmp ? variacao(cmp.atual.resultado, cmp.anterior.resultado) : null} subirEhBom comparado={comparadoAteHoje} negativoVermelho /> : (
+      var={cmp ? variacao(cmp.atual.resultado, cmp.anterior.resultado) : null} subirEhBom comparado={comparadoAteHoje} corPeloSinal /> : (
       <Card><CardTitle>Resultado do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
     ),
   }
@@ -351,7 +352,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
 
       {noInicio && dados.vencidos && dados.vencidos.total > 0 && (
-        <Card id="vencidos" className="mb-4 scroll-mt-4 !border !border-red-200">
+        <Card id="vencidos" className="mb-4 scroll-mt-4 !border !border-prejuizo-borda">
           <CardTitle>Vencidos e precisam de atenção</CardTitle>
           <p className="mb-2 text-sm text-slate-600">
             {dados.vencidos.total === 1 ? '1 compromisso planejado já passou' : `${dados.vencidos.total} compromissos planejados já passaram`} da data
@@ -366,10 +367,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                     <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
                     <span className="min-w-0 flex-1">
                       {formatDate(x.data).slice(0, 5)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
-                      <span className="ml-2 text-xs text-negativo">{atraso === 1 ? 'venceu ontem' : `venceu há ${atraso} dias`}</span>
+                      <span className="ml-2 text-xs text-prejuizo">{atraso === 1 ? 'venceu ontem' : `venceu há ${atraso} dias`}</span>
                       {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.todasContas} />}
                     </span>
-                    <span className={`tabular-nums font-semibold ${x.tipo === 'income' ? 'text-positivo' : x.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
+                    <span className={`tabular-nums font-semibold ${corDoTipo(x.tipo)}`}>
                       {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(x.valor, moedaDe(x.contaId))}
                     </span>
                   </Link>
@@ -486,7 +487,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                   </div>
                 </dl>
                 {c.divida > 0 && (
-                  <p className={`mt-2 text-xs ${c.vencida ? 'font-semibold text-negativo' : 'text-slate-600'}`}>
+                  <p className={`mt-2 text-xs ${c.vencida ? 'font-semibold text-prejuizo' : 'text-atencao'}`}>
                     Fatura fechada a pagar <strong className="tabular-nums">{formatBRL(c.divida)}</strong>
                     {c.vencimento && (c.vencida ? ` · venceu em ${formatDate(c.vencimento)}` : ` · vence em ${formatDate(c.vencimento).slice(0, 5)}`)}
                   </p>
@@ -504,12 +505,12 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {(m || p) ? (
         <section aria-label="Resumo do mês" className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
           {m && <>
-            <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-red-50 text-negativo"
+            <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-prejuizo-fundo text-prejuizo"
               var={cmp ? variacao(cmp.atual.despesas, cmp.anterior.despesas) : null} subirEhBom={false} comparado={comparadoAteHoje} />
-            <Indicador rotulo="Receitas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-green-50 text-positivo"
+            <Indicador rotulo="Receitas do mês" valor={m.receitas} sinal="+" icone={<SetaCima />} corIcone="bg-lucro-fundo text-lucro"
               var={cmp ? variacao(cmp.atual.receitas, cmp.anterior.receitas) : null} subirEhBom comparado={comparadoAteHoje} />
             <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
-              var={cmp ? variacao(cmp.atual.resultado, cmp.anterior.resultado) : null} subirEhBom comparado={comparadoAteHoje} negativoVermelho />
+              var={cmp ? variacao(cmp.atual.resultado, cmp.anterior.resultado) : null} subirEhBom comparado={comparadoAteHoje} corPeloSinal />
           </>}
           {p && (
             <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
@@ -533,7 +534,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </div>
       )}
       {m && (m.receitasPrevistas > 0 || m.despesasPrevistas > 0) && (
-        <p className="mb-4 text-xs text-planejado">Ainda planejado no mês: +{formatBRL(m.receitasPrevistas)} / −{formatBRL(m.despesasPrevistas)}</p>
+        <p className="mb-4 text-xs text-agendado">Ainda planejado no mês: +{formatBRL(m.receitasPrevistas)} / −{formatBRL(m.despesasPrevistas)}</p>
       )}
       </>}
 
@@ -603,7 +604,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p className="text-sm text-slate-500">Até o fim de {formatMonth(mes)}, no ritmo atual, você terá gasto</p>
-                <p className="tabular-nums text-2xl font-bold text-negativo">{formatBRL(dados.projecao.projetado)}</p>
+                <p className="tabular-nums text-2xl font-bold text-prejuizo">{formatBRL(dados.projecao.projetado)}</p>
               </div>
               {a && variacao(dados.projecao.projetado, a.despesas) !== null && (
                 <p className="text-sm text-slate-600">
@@ -685,7 +686,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                   {l.categoriaId && (
                     <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 sm:inline">{dados.nomeCategoria.get(l.categoriaId) ?? 'Sem categoria'}</span>
                   )}
-                  <span className={`w-28 text-right tabular-nums font-semibold ${l.tipo === 'income' ? 'text-positivo' : l.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
+                  <span className={`w-28 text-right tabular-nums font-semibold ${corDoTipo(l.tipo)}`}>
                     {l.tipo === 'income' ? '+' : l.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(l.valor, moedaDe(l.contaId))}
                   </span>
                 </li>
@@ -707,7 +708,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                     {formatDate(x.data)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
                     {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.todasContas} />}
                   </span>
-                  <span className={`tabular-nums font-semibold ${x.tipo === 'income' ? 'text-positivo' : x.tipo === 'expense' ? 'text-negativo' : 'text-slate-600'}`}>
+                  <span className={`tabular-nums font-semibold ${corDoTipo(x.tipo)}`}>
                     {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(x.valor, moedaDe(x.contaId))}
                   </span>
                 </li>
@@ -721,7 +722,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <CardTitle>Minhas contas</CardTitle>
             {dados.saldoGeral !== null && dados.contas.length > 0 && (
               <p className="text-right"><span className="block text-xs text-slate-500">{outrasMoedas(dados.porMoeda).length > 0 ? 'Saldo geral em reais' : 'Saldo geral'}</span>
-                <span className={`tabular-nums font-bold ${dados.saldoGeral < 0 ? 'text-negativo' : ''}`}>{formatBRL(dados.saldoGeral)}</span></p>
+                <span className={`tabular-nums font-bold ${corDoValor(dados.saldoGeral)}`}>{formatBRL(dados.saldoGeral)}</span></p>
             )}
           </div>
           {dados.contas.length === 0 ? (
@@ -739,7 +740,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                   {c.saldo === null ? (
                     <span className="shrink-0 tabular-nums font-semibold">abre em {formatDate(c.abertura)}</span>
                   ) : (
-                    <span data-testid="saldos-da-conta" className={`shrink-0 whitespace-nowrap tabular-nums font-semibold ${c.saldo < 0 ? 'text-negativo' : ''}`}>
+                    <span data-testid="saldos-da-conta" className={`shrink-0 whitespace-nowrap tabular-nums font-semibold ${corDoValor(c.saldo)}`}>
                       {formatMoeda(c.saldo, c.moeda ?? 'BRL')}</span>
                   )}
                 </li>
@@ -780,7 +781,7 @@ function BlocoAnual({ titulo, rotuloAnterior, atual, anterior }: { titulo: strin
                 <span className="ml-2 text-xs text-slate-500">antes {formatBRL(l.b)}</span>
                 {v !== null && igual && <span className="ml-2 text-xs text-slate-500">= igual</span>}
                 {v !== null && !igual && (
-                  <span className={`ml-2 text-xs font-semibold ${bom ? 'text-positivo' : 'text-negativo'}`}>
+                  <span className={`ml-2 text-xs font-semibold ${bom ? 'text-lucro' : 'text-prejuizo'}`}>
                     {v >= 0 ? '▲' : '▼'} {Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
                   </span>
                 )}
@@ -799,9 +800,9 @@ function BlocoRegularidade({ titulo, r }: { titulo: string; r: RegularidadeRenda
     <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm">
       <p className="font-semibold">{primeiraMaiuscula(titulo)}</p>
       <dl className="mt-2 grid grid-cols-2 gap-y-1">
-        <dt className="text-slate-500">Renda regular</dt><dd className="text-right tabular-nums font-semibold text-positivo">{formatBRL(r.regular)}</dd>
+        <dt className="text-slate-500">Renda regular</dt><dd className="text-right tabular-nums font-semibold text-lucro">{formatBRL(r.regular)}</dd>
         <dt className="text-slate-500">Renda eventual</dt><dd className="text-right tabular-nums font-semibold">{formatBRL(r.eventual)}</dd>
-        <dt className="text-slate-500">Despesas</dt><dd className="text-right tabular-nums font-semibold text-negativo">{formatBRL(r.despesas)}</dd>
+        <dt className="text-slate-500">Despesas</dt><dd className="text-right tabular-nums font-semibold text-prejuizo">{formatBRL(r.despesas)}</dd>
       </dl>
       <p className="mt-2 text-marinho">
         {r.cobertura === null
@@ -812,9 +813,9 @@ function BlocoRegularidade({ titulo, r }: { titulo: string; r: RegularidadeRenda
   )
 }
 
-function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, comparado, destaque = false, negativoVermelho = false, rodape, detalhes }: {
+function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, comparado, destaque = false, corPeloSinal = false, rodape, detalhes }: {
   rotulo: string; valor: Cents; sinal?: '+' | '−'; icone: ReactNode; corIcone: string; var?: number | null; subirEhBom?: boolean
-  comparado?: string; destaque?: boolean; negativoVermelho?: boolean; rodape?: string
+  comparado?: string; destaque?: boolean; corPeloSinal?: boolean; rodape?: string
   /** Composição do valor, uma linha por item (valores do banco; a tela não soma). */
   detalhes?: [string, Cents][]
 }) {
@@ -824,9 +825,9 @@ function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, 
     <Card className={destaque ? '!bg-marinho text-white' : ''}>
       <span className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full ${corIcone}`} aria-hidden="true">{icone}</span>
       <p className={`text-sm ${destaque ? 'text-blue-100' : 'text-slate-500'}`}>{rotulo}</p>
-      <p className={`whitespace-nowrap tabular-nums text-base font-bold sm:text-2xl ${destaque && valor < 0 ? 'text-red-300' : negativoVermelho && valor < 0 ? 'text-negativo' : ''}`}>{texto}</p>
+      <p className={`whitespace-nowrap tabular-nums text-base font-bold sm:text-2xl ${destaque && valor < 0 ? 'text-prejuizo-sobre-escuro' : corPeloSinal ? corDoValor(valor) : ''}`}>{texto}</p>
       {v !== null && v !== undefined && (
-        <p className={`mt-1 text-xs ${bom ? 'text-positivo' : 'text-negativo'}`}>
+        <p className={`mt-1 text-xs ${bom ? 'text-lucro' : 'text-prejuizo'}`}>
           {v >= 0 ? '▲' : '▼'} {Math.abs(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% <span className="text-slate-500">vs {comparado}</span>
         </p>
       )}
@@ -892,11 +893,11 @@ function CardSaldo({ hoje, previsto, fimDoMes, porMoeda }: { hoje: Cents | null;
       <dl className="space-y-2">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
           <dt className="text-sm text-slate-500">Saldo hoje</dt>
-          <dd className="ml-auto whitespace-nowrap tabular-nums text-lg font-bold">{hoje === null ? '—' : formatBRL(hoje)}</dd>
+          <dd className={`ml-auto whitespace-nowrap tabular-nums text-lg font-bold ${hoje === null ? '' : corDoValor(hoje)}`}>{hoje === null ? '—' : formatBRL(hoje)}</dd>
         </div>
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-t border-slate-100 pt-2">
           <dt className="text-sm text-slate-500">Previsto em {formatDate(fimDoMes).slice(0, 5)}</dt>
-          <dd className={`ml-auto whitespace-nowrap tabular-nums text-lg font-bold ${previsto !== null && previsto < 0 ? 'text-negativo' : ''}`}>
+          <dd className={`ml-auto whitespace-nowrap tabular-nums text-lg font-bold ${previsto === null ? '' : corDoValor(previsto)}`}>
             {previsto === null ? '—' : formatBRL(previsto)}
           </dd>
         </div>
@@ -933,10 +934,10 @@ function OrcamentosDoInicio({ orcamentos }: { orcamentos: OrcamentoMes[] }) {
               </div>
               <div className="mt-1 h-2 rounded-full bg-slate-100" role="progressbar" aria-label={`${o.nome}: ${pct}% do orçamento`}
                 aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-                <div className={`h-2 rounded-full ${estourou ? 'bg-negativo' : vaiEstourar ? 'bg-amber-500' : 'bg-positivo'}`} style={{ width: `${pct}%` }} />
+                <div className={`h-2 rounded-full ${estourou ? 'bg-prejuizo-marca' : vaiEstourar ? 'bg-atencao-marca' : 'bg-lucro-marca'}`} style={{ width: `${pct}%` }} />
               </div>
-              {estourou && <p className="mt-1 text-xs font-semibold text-negativo">Passou do limite</p>}
-              {vaiEstourar && <p className="mt-1 text-xs text-amber-700">No ritmo atual, vai passar do limite</p>}
+              {estourou && <p className="mt-1 text-xs font-semibold text-prejuizo">Passou do limite</p>}
+              {vaiEstourar && <p className="mt-1 text-xs text-atencao">Atenção: no ritmo atual, vai passar do limite</p>}
             </li>
           )
         })}

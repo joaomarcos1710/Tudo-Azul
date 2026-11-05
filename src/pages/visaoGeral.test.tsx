@@ -355,9 +355,9 @@ describe('Visão geral', () => {
     expect(await screen.findByText('Comparação com o ano passado')).toBeTruthy()
     // mês: despesas 6.000 contra 8.000 = −25% (bom); ano: 66.000 contra 60.000 = +10% (ruim)
     const bom = screen.getByText('▼ 25%')
-    expect(bom.className).toMatch(/text-positivo/)
+    expect(bom.className).toMatch(/text-lucro/)
     const ruim = screen.getByText('▲ 10%')
-    expect(ruim.className).toMatch(/text-negativo/)
+    expect(ruim.className).toMatch(/text-prejuizo/)
     expect(screen.getByText(/Mesmos dias nos dois anos/)).toBeTruthy()
     // 4 consultas de período, cada uma com datas no formato AAAA-MM-DD
     expect(mock.resumoDoPeriodo).toHaveBeenCalledTimes(6) // + 2 da comparação dos indicadores
@@ -538,11 +538,13 @@ describe('Visão geral', () => {
     const nubank = screen.getByText('Nubank').closest('li') as HTMLElement
     expect(within(nubank).getByText('R$ 1.333,34')).toBeTruthy()
     expect(nubank.textContent).toContain('Fatura fechada a pagar R$ 1.333,34 · vence em 25/12')
+    // #184: fechada a pagar (ainda no prazo) é atenção (âmbar); só a vencida é vermelha
+    expect(within(nubank).getByText(/Fatura fechada a pagar/).className).toMatch(/text-atencao/)
     expect(within(nubank).getByText('R$ 5.270,00')).toBeTruthy() // limite disponível
     const inter = screen.getByText('Inter').closest('li') as HTMLElement
     const aviso = within(inter).getByText(/Fatura fechada a pagar/)
     expect(aviso.textContent).toContain('venceu em 10/01/2020') // vencida mostra o ano
-    expect(aviso.className).toMatch(/text-negativo/)
+    expect(aviso.className).toMatch(/text-prejuizo/)
     expect(screen.getByText('Crédito no cartão de R$ 100,00')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Ver cartões' })).toBeTruthy()
   })
@@ -720,7 +722,8 @@ describe('Visão geral', () => {
       'Mercado: 100% do orçamento', 'Saúde: 90% do orçamento', 'Moradia: 50% do orçamento', 'Lazer: 10% do orçamento',
     ])
     expect(within(card).getByText('Passou do limite')).toBeTruthy()
-    expect(within(card).getByText('No ritmo atual, vai passar do limite')).toBeTruthy()
+    const atencao = within(card).getByText('Atenção: no ritmo atual, vai passar do limite')
+    expect(atencao.className).toMatch(/text-atencao/)
     expect(within(card).getByRole('link', { name: 'Ver todos' }).getAttribute('href')).toBe('/orcamentos')
   })
 
@@ -747,7 +750,7 @@ describe('Visão geral', () => {
       'setembro de 2026R$ 130.000,00', 'outubro de 2026R$ 135.000,00', 'novembro de 2026R$ 140.563,37',
     ])
     const negativo = within(saldo).getByText('-R$ 500,00')
-    expect(negativo.className).toMatch(/text-negativo/)
+    expect(negativo.className).toMatch(/text-prejuizo/)
     expect(within(secao).getAllByRole('img')[0].getAttribute('aria-label')).toMatch(/R\$ 140\.563,37 em novembro de 2026/)
     expect(mock.evolucaoPatrimonio).toHaveBeenCalledWith('h1', hojeSP())
   })

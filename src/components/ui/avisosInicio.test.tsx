@@ -31,6 +31,18 @@ describe('Avisos do topo do Início', () => {
     expect(within(l).getByText('Contas a receber')).toBeTruthy()
   })
 
+  it('#184: o ícone de cada aviso segue a regra de cores (vencido vermelho; fatura, a pagar e atrasado atenção; a receber verde)', () => {
+    montar([aviso({ tipo: 'overdue_payable' }), aviso({ tipo: 'overdue_receivable' }), aviso({ tipo: 'invoice', cartaoNome: 'Cartão X' }),
+      aviso({ tipo: 'payable' }), aviso({ tipo: 'receivable' })])
+    const corDoIcone = (titulo: string) => (within(screen.getByRole('region', { name: 'Avisos' })).getByText(titulo).closest('a') as HTMLElement)
+      .querySelector('[aria-hidden="true"]')!.className.match(/text-(prejuizo|atencao|agendado|lucro)\b/)?.[0]
+    expect(corDoIcone('Contas vencidas')).toBe('text-prejuizo')
+    expect(corDoIcone('Recebimentos atrasados')).toBe('text-atencao')
+    expect(corDoIcone('Fatura do cartão')).toBe('text-atencao')
+    expect(corDoIcone('Contas a pagar')).toBe('text-atencao')
+    expect(corDoIcone('Contas a receber')).toBe('text-agendado')
+  })
+
   it('a pagar: plural e link filtrado por despesa no mês do mais próximo', () => {
     montar([aviso({ tipo: 'payable', quantidade: 3, total: c(106250), data: '2026-04-30' })])
     expect(link(/Você tem 3 contas a pagar no total de R\$ 1\.062,50 nos próximos 7 dias/).getAttribute('href'))

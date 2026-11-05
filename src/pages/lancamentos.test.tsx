@@ -144,6 +144,16 @@ describe('Lançamentos', () => {
     expect(screen.getByText('Mercado')).toBeTruthy()
     expect(screen.queryByText('Mercado · Itaú')).toBeNull()
     expect(screen.getByText('Planejado')).toBeTruthy()
+    // #184 (regra de cores do dono): selo "Planejado" verde (agendado), receita azul (lucro), despesa vermelha (prejuízo)
+    expect(screen.getByText('Planejado').className).toContain('bg-agendado-fundo text-agendado')
+    const linha = (texto: string) => screen.getByText(texto).closest('li') as HTMLElement
+    expect(within(linha('Supermercado')).getByText('−R$ 250,50').className).toContain('text-prejuizo')
+    expect(within(linha('Planejado')).getByText('+R$ 8.000,00').className).toContain('text-lucro')
+    expect(within(linha('Itaú → Nubank')).getByText('⇄ R$ 100,00').className).toContain('text-transferencia')
+    // os totais: receitas pagas azul, despesas pagas vermelho, "Planejado: +… / −…" verde
+    const totais = screen.getAllByText('−R$ 250,50').find((e) => e.tagName === 'P') as HTMLElement
+    expect(totais.className).toContain('text-prejuizo')
+    expect(screen.getByText('Planejado:').parentElement!.className).toContain('text-agendado')
     expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
   })
 
@@ -181,7 +191,7 @@ describe('Lançamentos', () => {
     expect(linha('Supermercado').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
     expect(linha('Itaú → Nubank').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('transferencia')
     const valor = within(linha('Supermercado')).getByText('−R$ 250,50')
-    expect(valor.className).toContain('text-negativo')
+    expect(valor.className).toContain('text-prejuizo')
     expect(valor.getAttribute('style')).toBeNull()
   })
 
@@ -526,7 +536,7 @@ describe('Lançamentos', () => {
       valor: c(2309), planejado: true, vencimento: null,
     }
 
-    it('sem filtro: os créditos ficam DENTRO da fatura, em "Créditos e reembolsos" (verde, +), e não soltos', async () => {
+    it('sem filtro: os créditos ficam DENTRO da fatura, em "Créditos e reembolsos" (azul, +), e não soltos', async () => {
       mock.listarFaturasDoMes.mockResolvedValue([faturaComCredito()])
       mock.listarItens.mockResolvedValue([
         { parcelaId: 'p1', compra: 'pl1', parcela: 1, deParcelas: 1, descricao: 'Mercado do mês', dataCompra: `${mesAtual()}-02`, valor: c(100000), falta: c(0), categoriaId: 'mer' },
@@ -548,7 +558,7 @@ describe('Lançamentos', () => {
       expect(mock.listarCreditosDaFatura).toHaveBeenCalledWith('k1', mesAtual())
       const iof = within(lista).getByText('IOF').closest('li') as HTMLElement
       const valor = within(iof).getByText('+R$ 23,09')
-      expect(valor.className).toContain('text-positivo')
+      expect(valor.className).toContain('text-lucro')
       expect(valor.className).toContain('whitespace-nowrap')
       expect(within(lista).getByText('+R$ 0,06')).toBeTruthy()
       expect(within(item).queryByText(/976,85/)).toBeNull()
@@ -575,7 +585,7 @@ describe('Lançamentos', () => {
       expect(within(item).getByText('Crédito no cartão')).toBeTruthy()
       expect(within(item).getByText('Planejado')).toBeTruthy()
       expect(within(item).getByText(/CAIXA INFINITE · crédito de 03\/.* · a receita conta em 18\//)).toBeTruthy()
-      expect(within(item).getByText(/^\+R\$\s?23,09$/).className).toContain('text-positivo')
+      expect(within(item).getByText(/^\+R\$\s?23,09$/).className).toContain('text-lucro')
       expect(within(item).queryByRole('button', { name: /Ações de/ })).toBeNull() // só leitura
       expect(screen.queryByText('Fatura CAIXA INFINITE')).toBeNull()
     })

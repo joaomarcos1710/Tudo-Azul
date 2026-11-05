@@ -144,12 +144,17 @@ describe('Lançamentos no computador: tabela', () => {
     for (const h of within(tabela).getAllByRole('columnheader')) expect(h.getAttribute('scope')).toBe('col')
     // valor com sinal e cor (não só cor); situação com texto acessível
     const linhaLuz = screen.getByText('Luz').closest('tr') as HTMLElement
-    expect(within(linhaLuz).getByText('−R$ 143,20').className).toContain('text-negativo')
+    expect(within(linhaLuz).getByText('−R$ 143,20').className).toContain('text-prejuizo')
     expect(within(linhaLuz).getByText('Vencido')).toBeTruthy() // planejado com data antes de hoje
     expect(within(screen.getByText('Feira').closest('tr') as HTMLElement).getByText('Planejado')).toBeTruthy()
     expect(within(screen.getByText('Supermercado').closest('tr') as HTMLElement).getByText('Pago')).toBeTruthy()
+    // #184: o ícone da situação leva a cor da regra (planejado verde, pago azul, vencido vermelho) e o nome em texto
+    const icone = (descricao: string) => within(screen.getByText(descricao).closest('tr') as HTMLElement).getByTitle(/^(Planejado|Pago|Vencido)$/)
+    expect(icone('Feira').className).toContain('bg-agendado-fundo text-agendado')
+    expect(icone('Supermercado').className).toContain('bg-lucro-fundo text-lucro')
+    expect(icone('Luz').className).toContain('bg-prejuizo-fundo text-prejuizo')
     const linhaSalario = within(tabela).getAllByText('Salário').map((e) => e.closest('tr') as HTMLElement)[0]
-    expect(within(linhaSalario).getByText('+R$ 8.000,00').className).toContain('text-positivo')
+    expect(within(linhaSalario).getByText('+R$ 8.000,00').className).toContain('text-lucro')
     expect(screen.getByText('Itaú → Nubank')).toBeTruthy()
     // a fatura é linha especial: sem caixa de seleção, expansível
     const linhaFatura = screen.getByText('Fatura Nubank').closest('tr') as HTMLElement
@@ -335,7 +340,7 @@ describe('Lançamentos no computador: tabela', () => {
     expect(within(celula).getByText('Casa › Condomínio').className).toContain('sr-only')
   })
 
-  it('fatura com créditos: ao abrir, "Créditos e reembolsos" (+, verde) dentro dela; o total é o do banco', async () => {
+  it('fatura com créditos: ao abrir, "Créditos e reembolsos" (+, azul) dentro dela; o total é o do banco', async () => {
     mock.listarFaturasDoMes.mockResolvedValue([{ ...fatura, total: c(44000), creditos: c(1000), situacao: 'aberta' }])
     mock.listarCreditosDaFaturaDoMes.mockResolvedValue([
       { id: 'k1', data: '2026-10-17', dataCredito: '2026-10-03', descricao: 'Estorno de IOF', cartaoNome: 'Nubank', categoriaId: 'sal', valor: c(1000), planejado: false, vencimento: '2026-10-25' },
@@ -348,6 +353,6 @@ describe('Lançamentos no computador: tabela', () => {
     expect(screen.queryByText('Estorno de IOF')).toBeNull()
     await u.click(within(linhaFatura).getByRole('button', { name: 'Ver compras' }))
     const lista = await screen.findByRole('list', { name: 'Créditos e reembolsos da fatura Nubank' })
-    expect(within(lista).getByText('+R$ 10,00').className).toContain('text-positivo')
+    expect(within(lista).getByText('+R$ 10,00').className).toContain('text-lucro')
   })
 })
