@@ -198,3 +198,10 @@ Com o "pode" do dono, inspirado no painel do Mobills.
 - **Calendário sem a lista de saldo por conta** (o dono achou redundante): fica só a linha do saldo total previsto na data escolhida, a única informação daquele bloco que não está em outra tela; o saldo por conta ("Hoje · Fim do mês") fica em Minhas contas, no Início.
 - **Calendário já mostrava entradas e saídas por dia** (marcas verde/vermelha na grade e a lista do dia com valores): não foi mexido. Um total por dia não foi acrescentado porque não existe função do banco com a regra do calendário (pagamento da fatura no dia em que sai da conta); o `cash_flow_report` diário põe a compra do cartão no fechamento e não bateria com a lista do dia.
 
+## 05/11/2026 — Base dos gastos de cartão só nos relatórios por categoria (#170)
+Com o "pode" do dono, inspirado no Organizze ("Gastos de cartão com base na: data da fatura / data da compra / data da parcela").
+- **O seletor fica só no relatório por categoria** (hoje, o gráfico de Análises; Relatórios não tem relatório por categoria). Motivo: totais do mês, orçamento, saldo e resultado precisam fechar com a fatura que sai da conta; se mudassem de base, o resultado do mês e o orçamento deixariam de bater com o extrato e com a tela Cartões. A base só muda a pergunta "em que mês essa compra pesou nesta categoria".
+- **Padrão fatura** (a regra de sempre); a escolha fica no aparelho (como os widgets do Início), não na família: é preferência de leitura, não regra de dinheiro.
+- **Compra e parcela contam a parcela mesmo com a fatura aberta** (a compra já foi feita); a fatura conta só o cobrado. É o comportamento esperado de "data da compra"; no mês corrente as bases podem somar valores diferentes.
+- **Assinatura de cartão fica pela fatura nas três bases**: cada cobrança é uma "compra" do mês; mover para a data da ocorrência só trocaria o dia, não o mês, e confundiria com a projeção.
+- **Função nova, sem mexer na antiga**: `expenses_by_category` continua igual (outras telas e o gráfico na base da fatura a chamam), e o front só chama a nova nas bases compra/parcela — assim o gráfico não quebra se o front sair antes da 062 ser aplicada.

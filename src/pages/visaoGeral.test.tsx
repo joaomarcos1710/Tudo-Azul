@@ -1088,3 +1088,53 @@ describe('Início: Minhas contas com "Hoje · Fim do mês" (PR #167)', () => {
     }
   })
 })
+
+describe('Análises: base dos gastos de cartão no gráfico por categoria (PR #170, migration 062)', () => {
+  it('padrão: Data da fatura marcada, a consulta vai com a base da fatura e o aviso dos totais aparece', async () => {
+    montar('analises')
+    const grupo = await screen.findByRole('group', { name: 'Gastos de cartão com base na:' })
+    expect((within(grupo).getByRole('radio', { name: 'Data da fatura' }) as HTMLInputElement).checked).toBe(true)
+    expect((within(grupo).getByRole('radio', { name: 'Data da compra' }) as HTMLInputElement).checked).toBe(false)
+    expect((within(grupo).getByRole('radio', { name: 'Data da parcela' }) as HTMLInputElement).checked).toBe(false)
+    expect(mock.despesasPorCategoria.mock.calls[0][4]).toBe('invoice')
+    expect(grupo.textContent).toContain('Cada parcela conta no mês em que a fatura do cartão fecha.')
+    expect(grupo.textContent).toContain('Totais do mês e orçamento seguem a data da fatura')
+  })
+  it('escolher Data da compra recarrega só o gráfico com a base "purchase", troca a frase e guarda a escolha', async () => {
+    montar('analises')
+    const grupo = await screen.findByRole('group', { name: 'Gastos de cartão com base na:' })
+    await screen.findByRole('list', { name: /Despesas por categoria/ })
+    const cargasDaTela = mock.resumoDoMes.mock.calls.length
+    mock.despesasPorCategoria.mockResolvedValueOnce([{ categoriaId: 'g1', nome: 'Moradia', valor: c(120000), percentual: 100 }])
+    fireEvent.click(within(grupo).getByRole('radio', { name: 'Data da compra' }))
+    await waitFor(() => expect(screen.getByRole('list', { name: /Despesas por categoria/ }).textContent).toContain('R$ 1.200,00'))
+    const chamadas = mock.despesasPorCategoria.mock.calls
+    const ultima = chamadas[chamadas.length - 1]
+    expect(ultima?.[3]).toBe(6)
+    expect(ultima?.[4]).toBe('purchase')
+    expect(mock.resumoDoMes.mock.calls.length).toBe(cargasDaTela)
+    expect(grupo.textContent).toContain('A compra conta inteira')
+    expect(grupo.textContent).toContain('Totais do mês e orçamento seguem a data da fatura')
+    expect(window.localStorage.getItem('tudoazul:base-gastos-cartao')).toBe('purchase')
+  })
+  it('a base guardada no aparelho (Data da parcela) já vale na primeira carga; valor inválido volta para a fatura', async () => {
+    window.localStorage.setItem('tudoazul:base-gastos-cartao', 'installment')
+    montar('analises')
+    const grupo = await screen.findByRole('group', { name: 'Gastos de cartão com base na:' })
+    expect((within(grupo).getByRole('radio', { name: 'Data da parcela' }) as HTMLInputElement).checked).toBe(true)
+    await waitFor(() => expect(mock.despesasPorCategoria).toHaveBeenCalled())
+    expect(mock.despesasPorCategoria.mock.calls[0][4]).toBe('installment')
+    cleanup()
+    mock.despesasPorCategoria.mockClear()
+    window.localStorage.setItem('tudoazul:base-gastos-cartao', 'vencimento')
+    montar('analises')
+    await screen.findByRole('group', { name: 'Gastos de cartão com base na:' })
+    await waitFor(() => expect(mock.despesasPorCategoria).toHaveBeenCalled())
+    expect(mock.despesasPorCategoria.mock.calls[0][4]).toBe('invoice')
+  })
+  it('o seletor não aparece no Início', async () => {
+    montar('inicio')
+    await screen.findByText(/João Marcos/)
+    expect(screen.queryByRole('group', { name: 'Gastos de cartão com base na:' })).toBeNull()
+  })
+})
