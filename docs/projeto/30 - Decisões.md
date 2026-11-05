@@ -275,3 +275,7 @@ Pedidos do dono, com base no Relatório do Organizze: "notei que no Tudo Azul o 
 - **Saldo como área ao fundo, com escala própria e sem eixo** (como no Organizze): é contexto; o eixo é o das barras e o valor de cada saldo está no toque e na tabela. No acumulado, só as duas barras.
 - **Celular sem "R$" nas células** ("Valores em R$." acima): é o jeito de as 5 colunas caberem em 375px sem rolar para o lado; do `sm` para cima o "R$" volta.
 - **O CSV de lançamentos começa no período do relatório** (e pode ser mudado à mão); a tabela em si ainda não tem exportação própria.
+
+## 05/11/2026 — Exportação em Conta, Relatórios só com relatórios (#180)
+- Pedido do dono: a exportação ocupava metade da tela de Relatórios sem ser relatório. Vai para **Conta › Exportar dados** (`/exportar`), junto de Família, porque é cuidado com os dados da conta (arquivo, conferência), não análise. O espaço liberado em Relatórios fica para relatórios novos (ex.: Categorias e Contas, como as abas do Organizze).
+- O CSV de lançamentos passa a começar no **mês de hoje** (antes seguia o período escolhido no relatório, que não está mais na mesma tela).

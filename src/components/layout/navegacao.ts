@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
-  IconeAnalises, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens,
+  IconeAnalises, IconeExportar, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens,
 } from './icons'
 
 export interface ItemNavegacao {
@@ -30,7 +30,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     itens: [
       { caminho: '/', rotulo: 'Início', curto: 'Início', Icone: IconeVisaoGeral, descricao: 'O que pede atenção agora na família.', fixoNoCelular: true },
       { caminho: '/analises', rotulo: 'Análises', curto: 'Análises', Icone: IconeAnalises, descricao: 'Como as finanças estão indo no mês.' },
-      { caminho: '/relatorios', rotulo: 'Relatórios e exportação', curto: 'Relat.', Icone: IconeRelatorios, descricao: 'Planilha e cópia completa dos dados.' },
+      { caminho: '/relatorios', rotulo: 'Relatórios', curto: 'Relat.', Icone: IconeRelatorios, descricao: 'Quanto entrou e saiu em cada período.' },
     ],
   },
   {
@@ -62,6 +62,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     titulo: 'Conta',
     itens: [
       { caminho: '/familia', rotulo: 'Família', curto: 'Família', Icone: IconeFamilia, descricao: 'Quem participa, convites e versão do app.' },
+      { caminho: '/exportar', rotulo: 'Exportar dados', curto: 'Exportar', Icone: IconeExportar, descricao: 'Lançamentos em planilha e cópia completa dos dados.' },
     ],
   },
 ]
