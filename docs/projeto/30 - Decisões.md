@@ -260,3 +260,6 @@ O dono viu na tela Cartões, olhando faturas passadas "Paga", o "Pagar fatura" d
 - **Limites totais só dos cartões com limite**; o disponível total pode ficar negativo (cartão que passou do limite entra com o negativo dele). Cartão arquivado fica fora de tudo.
 - **Banco ainda sem a 065** (o front publica no merge e a migration é aplicada depois pelo workflow): a tela volta ao caminho antigo (`card_months` por cartão e `card_invoices_month`). Atalho com prazo: sai quando a 065 estiver aplicada (Pendências).
 - **Carrossel de mês** é o dos Relatórios (#171), movido para `ui/SeletorMes` e usado nas duas telas (o rótulo do grupo muda).
+
+## 05/11/2026 — Início: Minhas contas só com o saldo de hoje (#178)
+- O "Hoje · Fim do mês" por conta (da #168) sai do Início: o dono achou poluído (duas informações por conta, quebrando linha no iPad). Fica só o saldo de hoje. O previsto do mês por conta pode voltar em outra tela (ex.: Contas); o dono ainda não decidiu onde.

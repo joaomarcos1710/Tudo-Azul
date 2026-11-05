@@ -281,7 +281,7 @@ export default function Calendario() {
 /**
  * Uma linha só: o saldo total (em reais, do banco: balance_totals_projected) no dia escolhido ou no fim do mês, só
  * efetuados ou efetuados + planejados. É a única informação daqui que não está em outra tela: o saldo por conta
- * ("Hoje · Fim do mês") fica em Minhas contas, no Início (decisão do dono, 05/11/2026).
+ * fica em Contas e no Início (só o de hoje, decisão do dono de 05/11/2026).
  */
 function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; ate: string; hoje: string }) {
   const [incluir, setIncluir] = useState(true)

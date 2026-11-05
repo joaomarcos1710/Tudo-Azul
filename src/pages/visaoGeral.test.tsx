@@ -1029,51 +1029,30 @@ describe('Análises: balanço dos últimos 6 meses (PR #167)', () => {
   })
 })
 
-describe('Início: Minhas contas com "Hoje · Fim do mês" (PR #167)', () => {
+describe('Início: Minhas contas só com o saldo de hoje (pedido do dono, 05/11/2026)', () => {
   const contas = [
     { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1282030) },
     { id: 'a3', nome: 'Só no fim', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
-    { id: 'a5', nome: 'Zerada', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
   ]
   const projetado = {
     contas: [
       { id: 'a1', nome: 'Itaú', ativa: true, moeda: 'BRL', efetuado: c(1282030), planejado: c(-100000), faturas: c(0), saldo: c(1182030) },
       { id: 'a3', nome: 'Só no fim', ativa: true, moeda: 'BRL', efetuado: c(0), planejado: c(-20000), faturas: c(0), saldo: c(-20000) },
-      { id: 'a5', nome: 'Zerada', ativa: true, moeda: 'BRL', efetuado: c(0), planejado: c(0), faturas: c(0), saldo: c(0) },
     ],
     total: { efetuado: c(1282030), planejado: c(-120000), faturas: c(0), faturasSemConta: c(0), saldo: c(1162030) },
   }
-  it('cada conta mostra o saldo de hoje e o previsto no fim do mês, os dois do banco', async () => {
+  it('cada conta mostra só o saldo de hoje, sem "Fim do mês"', async () => {
     mock.listarContas.mockResolvedValue({ contas, total: c(1282030) })
     mock.saldosProjetados.mockResolvedValue(projetado)
     montar()
     const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
     const itau = within(card).getByText('Itaú').closest('li') as HTMLElement
-    expect(within(itau).getByTestId('saldos-da-conta').textContent).toBe('Hoje R$ 12.820,30· Fim do mês R$ 11.820,30')
-    // mesma consulta do "Saldo hoje e previsto": até o último dia do mês, com planejados
-    const [, ate, incluir] = mock.saldosProjetados.mock.calls[0]
-    expect(incluir).toBe(true)
-    expect(ate).toMatch(/-(28|29|30|31)$/)
-  })
-  it('conta zerada hoje mas com previsto diferente de zero aparece; zerada nos dois continua escondida', async () => {
-    mock.listarContas.mockResolvedValue({ contas, total: c(1282030) })
-    mock.saldosProjetados.mockResolvedValue(projetado)
-    montar()
-    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
-    const fim = within(card).getByText('Só no fim').closest('li') as HTMLElement
-    expect(fim.textContent).toContain('Fim do mês -R$ 200,00')
-    expect(within(card).queryByText('Zerada')).toBeNull()
-  })
-  it('se o saldo previsto falhar, a conta mostra só o de hoje', async () => {
-    mock.listarContas.mockResolvedValue({ contas, total: c(1282030) })
-    mock.saldosProjetados.mockRejectedValue(new Error('rede'))
-    montar()
-    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
-    const itau = within(card).getByText('Itaú').closest('li') as HTMLElement
-    expect(within(itau).getByTestId('saldos-da-conta').textContent).toBe('Hoje R$ 12.820,30')
+    expect(within(itau).getByTestId('saldos-da-conta').textContent).toBe('R$ 12.820,30')
+    expect(within(card).queryByText(/Fim do mês/)).toBeNull()
+    // conta zerada hoje fica escondida, mesmo com planejado no mês
     expect(within(card).queryByText('Só no fim')).toBeNull()
   })
-  it('valores ocultos: hoje e fim do mês viram máscara', async () => {
+  it('valores ocultos: o saldo vira máscara', async () => {
     mock.listarContas.mockResolvedValue({ contas, total: c(1282030) })
     mock.saldosProjetados.mockResolvedValue(projetado)
     const { definirValoresOcultos } = await import('../lib/privacidade')
@@ -1082,7 +1061,7 @@ describe('Início: Minhas contas com "Hoje · Fim do mês" (PR #167)', () => {
       montar()
       const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
       const itau = within(card).getByText('Itaú').closest('li') as HTMLElement
-      expect(within(itau).getByTestId('saldos-da-conta').textContent).toBe('Hoje R$ ••••· Fim do mês R$ ••••')
+      expect(within(itau).getByTestId('saldos-da-conta').textContent).toBe('R$ ••••')
     } finally {
       definirValoresOcultos(false)
     }
