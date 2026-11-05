@@ -42,6 +42,10 @@ export const BANCOS: Banco[] = [
   { chave: 'banrisul', nome: 'Banrisul', sigla: 'Bn', cor: '#00529B', texto: '#FFFFFF', palavras: ['banrisul'] },
   { chave: 'brb', nome: 'BRB', sigla: 'BRB', cor: '#005AA7', texto: '#FFFFFF', palavras: ['brb'] },
   { chave: 'revolut', nome: 'Revolut', sigla: 'Rv', cor: '#0666EB', texto: '#FFFFFF', palavras: ['revolut'] },
+  { chave: 'nomad', nome: 'Nomad', sigla: 'No', cor: '#F0C419', texto: '#1A1A13', palavras: ['nomad'] },
+  { chave: 'okx', nome: 'OKX', sigla: 'OKX', cor: '#000000', texto: '#FFFFFF', palavras: ['okx'] },
+  { chave: 'binance', nome: 'Binance', sigla: 'Bi', cor: '#F0B90B', texto: '#1E2026', palavras: ['binance'] },
+  { chave: 'funcef', nome: 'Funcef', sigla: 'Fu', cor: '#1F4FD8', texto: '#FFFFFF', palavras: ['funcef'] },
 ]
 
 /** Sem acento, minúsculas, em palavras: "Conta Corrente Itaú João" → [conta, corrente, itau, joao]. */
