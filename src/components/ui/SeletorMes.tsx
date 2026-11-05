@@ -2,7 +2,8 @@ import { formatMonth, primeiraMaiuscula } from '../../lib/format'
 import { somarMeses } from '../../lib/lancamentos'
 
 /**
- * Carrossel de mês: "‹ Set · [Outubro de 2026] · Nov ›"; o anterior e o seguinte também são clicáveis (#171, Relatórios).
+ * Carrossel de mês: "‹ Set · [Outubro de 2026] · Nov ›"; o anterior e o seguinte também são clicáveis (nasceu nos Relatórios, #171;
+ * desde a #179 os Relatórios usam ui/SeletorPeriodo, que sabe de ano e de período livre).
  * Usado também no resumo de Cartões (#175). `rotulo` = nome do grupo para leitor de tela.
  */
 export function SeletorMes({ mes, aoMudar, rotulo = 'Mês do relatório', className = 'lg:justify-start' }: {
