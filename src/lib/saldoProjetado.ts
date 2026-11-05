@@ -87,6 +87,8 @@ export async function faturasQueVencem(familiaId: string, de: string, ate: strin
  * Saldo total em reais (balance_totals_projected.total) em cada data, na mesma ordem: uma chamada por data (no
  * máximo 31, no relatório diário), e nada é somado aqui. `incluirPlanejados = false` = só o efetuado. Uma data que
  * falhe derruba a lista toda (sem buraco falso no meio da coluna). A função do banco não filtra por conta.
+ * atalho: uma chamada por data (até 31 no diário), melhorar com uma função do banco que devolva a série inteira
+ * (e aceite filtro de conta) quando houver migration de relatórios; ver "40 - Pendências" (#171).
  */
 export async function saldosNasDatas(familiaId: string, datas: string[], incluirPlanejados: boolean): Promise<Cents[]> {
   const db = cliente()
