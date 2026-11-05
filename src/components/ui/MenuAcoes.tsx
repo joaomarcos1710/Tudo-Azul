@@ -11,7 +11,8 @@ export interface AcaoMenu {
 
 /**
  * Botão "⋯" com as ações secundárias de um item (mesmo comportamento do menu "+ Lançamento"): fecha no Esc, no clique fora
- * e no Tab; setas, Home e End andam entre as ações; ao fechar pelo teclado o foco volta para o botão.
+ * e no Tab; setas, Home e End andam entre as ações; ao fechar pelo teclado o foco volta para o botão. Ao escolher uma ação,
+ * o foco também volta para o botão antes dela rodar: quem abre um painel guarda o botão como origem e devolve o foco a ele.
  */
 export function MenuAcoes({ rotulo, acoes, desabilitado = false }: { rotulo: string; acoes: AcaoMenu[]; desabilitado?: boolean }) {
   const [aberto, setAberto] = useState(false)
@@ -57,7 +58,7 @@ export function MenuAcoes({ rotulo, acoes, desabilitado = false }: { rotulo: str
             <div key={a.rotulo} role="none">
               {a.perigo && <div role="separator" className="my-1 border-t border-slate-200" />}
               <button type="button" role="menuitem" disabled={a.desabilitado}
-                onClick={() => { setAberto(false); a.aoEscolher() }}
+                onClick={() => { setAberto(false); botao.current?.focus(); a.aoEscolher() }}
                 className={`flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
                   a.perigo ? 'text-negativo hover:bg-red-50' : 'text-marinho hover:bg-azul-claro'}`}>
                 {a.rotulo}

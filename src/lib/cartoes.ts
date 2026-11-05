@@ -23,7 +23,7 @@ export interface Cartao {
   divida: Cents
   /** Crédito a receber (estorno maior que a dívida). */
   credito: Cents
-  /** Parcelas futuras ainda não cobradas. */
+  /** Parcelas ainda não cobradas (debt_balances.planned_remaining): a fatura atual (aberta) + as futuras. */
   compromissos: Cents
   /** Limite informado pelo dono (migration 011); null = não informado. Só acompanhamento, nada é bloqueado. */
   limite: Cents | null
@@ -426,6 +426,39 @@ export async function editarParcela(parcelaId: string, valor: Cents, motivo?: st
   if (error) throw error
 }
 
+/**
+ * Estorno (total ou parcial) de UMA parcela de compra (debt_refund, migration 002). Abate a despesa da compra (não é
+ * receita: para crédito avulso, lancarCreditoNoCartao). O banco decide o efeito: a parte ainda não cobrada da parcela é
+ * cancelada; a já cobrada vira crédito que abate a fatura. `faturaId` = a fatura da parcela (card_months), se existir.
+ */
+export async function estornarParcela(parcelaId: string, d: { data: string; valor: Cents; faturaId: string | null }): Promise<void> {
+  const { error } = await cliente().rpc('debt_refund', {
+    p_installment: parcelaId, p_date: d.data, p_amount: centsToDecimal(d.valor), p_invoice: d.faturaId,
+  })
+  if (error) throw error
+}
+
+/** Fatura vencida: fechada, não paga e com o vencimento já passado. Mesma regra do aviso do Início (resumoDosCartoes). */
+export function faturaVencida(f: Fatura, hoje: string): boolean {
+  return situacaoFatura(f, hoje) === 'fechada' && f.vencimento !== null && f.vencimento < hoje
+}
+
+/**
+ * "Melhor dia de compra": o primeiro dia em que a compra já cai na fatura SEGUINTE (o prazo mais longo até pagar). Pela
+ * regra do banco (private.card_first_closing, a mesma de fechamentoDaCompra), a compra NO DIA do fechamento já vai para a
+ * seguinte; então o melhor dia é o próprio dia do fechamento deste ciclo, ajustado ao mês (fecha 31 → 30 em novembro).
+ * Devolve o dia (1–31) ou null sem ciclo.
+ */
+export function melhorDiaDeCompra(hoje: string, fechamento: number | null): number | null {
+  if (fechamento === null) return null
+  const [a, m, d] = hoje.split('-').map(Number)
+  if (!a || !m || !d) return null
+  // o fechamento do ciclo de ONTEM: no próprio dia do fechamento, hoje ainda é o melhor dia (e não o do mês que vem)
+  const ontem = new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10)
+  const f = fechamentoDaCompra(ontem, fechamento)
+  return f ? Number(f.slice(8, 10)) : null
+}
+
 /** Situação da fatura para a tela (comparações de valores já calculados no banco). Usa o `total` (cobrado + a cobrar,
  *  card_months) e não só o cobrado: se o fechamento ainda não foi cobrado (card_bill_due falhou), a fatura fechada com
  *  cobrado 0 continua "fechada", e não "paga". */
@@ -561,6 +594,7 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
     }
     return {
       id: c.id, nome: c.nome, emissor: c.emissor, bandeira: c.bandeira, divida: c.divida, vencimento,
+      // mesma regra de faturaVencida (a tela de Cartões usa aquela)
       vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel, credito: c.credito, proxima,
     }
   }))
