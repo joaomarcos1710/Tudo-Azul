@@ -14,7 +14,7 @@ import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
   arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, proximaFatura, reativarCartao, renomearCartao,
-  novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
+  inicioDaTroca, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao,
   estornarParcela, faturaVencida, melhorDiaDeCompra, totalFaturasDoMes,
 } from '../lib/cartoes'
@@ -290,8 +290,8 @@ export default function Cartoes() {
                   ) : (
                     <p className="text-sm text-planejado">Defina o dia de fechamento e de vencimento para lançar compras.</p>
                   )}
-                  {melhorDiaDeCompra(hoje, c.fechamento) !== null && (
-                    <p className="text-sm text-slate-500">Melhor dia de compra: {String(melhorDiaDeCompra(hoje, c.fechamento)).padStart(2, '0')}</p>
+                  {melhorDiaDeCompra(hoje, c.fechamento, c.cicloAnterior) !== null && (
+                    <p className="text-sm text-slate-500">Melhor dia de compra: {String(melhorDiaDeCompra(hoje, c.fechamento, c.cicloAnterior)).padStart(2, '0')}</p>
                   )}
                 </div>
               </div>
@@ -909,6 +909,7 @@ function FormCiclo({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Carta
   const [fechamento, setFechamento] = useState(cartao.fechamento ? String(cartao.fechamento) : '')
   const [vencimento, setVencimento] = useState(cartao.vencimento ? String(cartao.vencimento) : '')
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
+  const desde = fechamento && vencimento ? inicioDaTroca(hojeSP(), cartao, Number(fechamento), Number(vencimento)) : null
 
   function salvar(e: FormEvent) {
     e.preventDefault()
@@ -924,6 +925,7 @@ function FormCiclo({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Carta
         <Selecao rotulo="Dia do fechamento" valor={fechamento} aoMudar={setFechamento} opcoes={dias} todos="Escolha…" />
         <Selecao rotulo="Dia do vencimento" valor={vencimento} aoMudar={setVencimento} opcoes={dias} todos="Escolha…" />
         <p className="text-sm text-slate-600 md:col-span-2">Vale para as próximas compras. Parcelas já lançadas continuam nas faturas em que estão.</p>
+        {desde && <p className="text-sm font-medium text-slate-700 md:col-span-2">A mudança vale a partir da fatura que fecha em {formatDate(desde)}.</p>}
         <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoCancelar} />
       </form>
     </Card>
@@ -1078,7 +1080,7 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
         )}
         {!andamento && cartao.fechamento !== null && data && (
           <Selecao rotulo="Fatura" valor={String(deslocamento)} aoMudar={(v) => setDeslocamento(Number(v))}
-            opcoes={opcoesDeFatura(data, cartao.fechamento).map((o) => [String(o.deslocamento), o.rotulo])} />
+            opcoes={opcoesDeFatura(data, cartao.fechamento, cartao.cicloAnterior).map((o) => [String(o.deslocamento), o.rotulo])} />
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {andamento

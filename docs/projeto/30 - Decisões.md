@@ -190,3 +190,9 @@ Aprovadas pelo dono ("pode") a partir da análise da aba Cartões, sem migration
 - **Marcar pago em lote não pede valor**: com vários itens não há como informar o valor real de cada um; quem pagou outro valor usa o "Marcar pago" daquele lançamento.
 - **Desfazer por 10 segundos.** Para isso entraram duas funções além das três pedidas: `transactions_bulk_mark_planned` (volta a planejado na data de cada um, numa chamada só) e `transactions_bulk_restore` (restaura da lixeira numa chamada só). O desfazer de categoria usa a mesma `transactions_bulk_set_category`, uma chamada por categoria antiga (atalho: não é uma operação só; se uma falhar, o aviso mostra o erro e dá para tentar de novo).
 - **Fatura, compra de cartão, crédito, contrato e pagamento de cartão/dívida ficam fora da seleção**: não são `transactions`; cada um tem a sua tela.
+
+## 05/11/2026 — Troca dos dias do cartão vale a partir do ciclo seguinte (migration 061, #169)
+O dono mandou corrigir o limite achado no teste 58 (troca de dias com dois fechamentos no mesmo mês: duas faturas fundidas e vencimento de nenhum dos ciclos) e pediu que o coordenador escolhesse entre as opções.
+- **Escolhida (b): a troca vale a partir do ciclo seguinte ao da fatura aberta hoje**, e o banco recusa, com mensagem clara e as datas, a troca que ainda assim deixaria dois fechamentos no mesmo mês (ex.: parcelas de uma compra parcelada no ciclo atual). Faturas, parcelas e créditos já gravados não mudam.
+- **Descartada (a): identificar a fatura por (cartão, data de fechamento)** em vez de (cartão, mês). Mexeria em `card_months`, `card_bill_due`, `debt_invoices` (rótulo e chave única de faturas já gravadas), `card_items`, pagamento de fatura, `card_invoices_*` e na tela, para um caso raro (o dono troca os dias poucas vezes na vida do cartão).
+- **Custo aceito:** cartão com compra parcelada em andamento só troca os dias depois que a última parcela do ciclo atual estiver na fatura aberta (a mensagem diz a data).
