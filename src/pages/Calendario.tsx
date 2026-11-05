@@ -10,7 +10,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatDate, formatMoeda, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { saldosProjetados, faturasQueVencem } from '../lib/saldoProjetado'
-import type { SaldoProjetado } from '../lib/saldoProjetado'
+import type { SaldoTotal } from '../lib/saldoProjetado'
 import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, resumoPorMoeda, somarMeses } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ResumoMes, ResumoPorMoeda } from '../lib/lancamentos'
@@ -279,73 +279,53 @@ export default function Calendario() {
 }
 
 /**
- * Saldo total e por conta até o dia escolhido (ou o fim do mês), em qualquer mês: só efetuados ou efetuados + planejados.
- * Os números vêm do banco; a fatura do cartão desconta da conta que o paga no dia do vencimento.
+ * Uma linha só: o saldo total (em reais, do banco: balance_totals_projected) no dia escolhido ou no fim do mês, só
+ * efetuados ou efetuados + planejados. É a única informação daqui que não está em outra tela: o saldo por conta
+ * ("Hoje · Fim do mês") fica em Minhas contas, no Início (decisão do dono, 05/11/2026).
  */
 function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; ate: string; hoje: string }) {
   const [incluir, setIncluir] = useState(true)
-  const [saldo, setSaldo] = useState<SaldoProjetado | null>(null)
+  const [total, setTotal] = useState<SaldoTotal | null>(null)
+  const [carregando, setCarregando] = useState(true)
   const [indisponivel, setIndisponivel] = useState(false)
 
   useEffect(() => {
     let vivo = true
-    setSaldo(null)
+    setCarregando(true)
     setIndisponivel(false)
     saldosProjetados(familiaId, ate, incluir)
-      .then((r) => { if (vivo) setSaldo(r) })
+      .then((r) => { if (vivo) { setTotal(r.total); setCarregando(false) } })
       .catch(() => { if (vivo) setIndisponivel(true) })
     return () => { vivo = false }
   }, [familiaId, ate, incluir])
 
   if (indisponivel) return null
-  const mostrar = saldo?.contas.filter((c) => c.ativa || c.saldo !== 0) ?? []
-  const quando = ate === hoje ? 'hoje' : `até ${formatDate(ate)}`
+  const quando = ate === hoje ? 'hoje' : `em ${formatDate(ate).slice(0, 5)}`
+  const rotulo = incluir ? `Saldo previsto ${quando}` : `Saldo ${quando} (só efetuados)`
 
   return (
-    <Card className="mb-4" aria-label="Saldo até a data escolhida">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <CardTitle>Saldo {quando}</CardTitle>
-        <div className="mb-3 flex gap-1" role="group" aria-label="O que entra no saldo">
+    <Card className="mb-4 !py-3" aria-label="Saldo na data escolhida">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <p className="text-sm" aria-live="polite">
+          <span className="text-slate-500">{rotulo}: </span>
+          {carregando || !total ? (
+            <span className="text-slate-500" role="status">calculando…</span>
+          ) : (
+            <strong className={`tabular-nums ${total.saldo < 0 ? 'text-negativo' : 'text-marinho'}`} data-testid="saldo-total">{formatBRL(total.saldo)}</strong>
+          )}
+        </p>
+        <div className="flex gap-1" role="group" aria-label="O que entra no saldo">
           <button type="button" aria-pressed={!incluir} onClick={() => setIncluir(false)}
             className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${!incluir ? 'bg-azul text-white' : 'bg-fundo text-slate-600'}`}>Só efetuados</button>
           <button type="button" aria-pressed={incluir} onClick={() => setIncluir(true)}
             className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${incluir ? 'bg-azul text-white' : 'bg-fundo text-slate-600'}`}>Efetuados + planejados</button>
         </div>
       </div>
-      {saldo === null ? (
-        <p className="text-sm text-slate-500" role="status">Calculando…</p>
-      ) : saldo.total && (
-        <>
-          <p className={`tabular-nums text-3xl font-bold tracking-tight ${saldo.total.saldo < 0 ? 'text-negativo' : 'text-marinho'}`} data-testid="saldo-total">
-            {formatBRL(saldo.total.saldo)}
-          </p>
-          {incluir && (
-            <p className="mt-1 text-xs text-slate-500" data-testid="saldo-detalhe">
-              Efetuado {formatBRL(saldo.total.efetuado)} · planejado {saldo.total.planejado < 0 ? '−' : '+'}{formatBRL(Math.abs(saldo.total.planejado) as Cents)} · faturas e parcelas sem conta −{formatBRL(saldo.total.faturas)}
-            </p>
-          )}
-          {incluir && saldo.total.faturasSemConta > 0 && (
-            <p className="mt-2 text-xs text-planejado" data-testid="saldo-sem-conta">
-              {formatBRL(saldo.total.faturasSemConta)} em faturas e parcelas sem conta entram só no total. Informe a conta ao cadastrar o contrato ou ao registrar o pagamento. Para cartões, escolha a conta em{' '}
-              <Link to="/cartoes" className="font-semibold underline">Cartões</Link> para descontar da conta certa.
-            </p>
-          )}
-          <ul className="mt-3 divide-y divide-slate-100">
-            {mostrar.map((c) => (
-              <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">{c.nome}</span>
-                  {incluir && (c.planejado !== 0 || c.faturas > 0) && (
-                    <span className="block truncate text-xs text-slate-500">
-                      efetuado {formatMoeda(c.efetuado, c.moeda ?? 'BRL')}{c.planejado !== 0 ? ` · planejado ${c.planejado < 0 ? '−' : '+'}${formatMoeda(Math.abs(c.planejado) as Cents, c.moeda ?? 'BRL')}` : ''}{c.faturas > 0 ? ` · faturas −${formatBRL(c.faturas)}` : ''}
-                    </span>
-                  )}
-                </span>
-                <span className={`shrink-0 tabular-nums font-semibold ${c.saldo < 0 ? 'text-negativo' : ''}`}>{formatMoeda(c.saldo, c.moeda ?? 'BRL')}</span>
-              </li>
-            ))}
-          </ul>
-        </>
+      {incluir && !carregando && total && total.faturasSemConta > 0 && (
+        <p className="mt-1 text-xs text-planejado" data-testid="saldo-sem-conta">
+          Inclui {formatBRL(total.faturasSemConta)} em faturas e parcelas sem conta de pagamento; escolha a conta em{' '}
+          <Link to="/cartoes" className="font-semibold underline">Cartões</Link>.
+        </p>
       )}
     </Card>
   )
