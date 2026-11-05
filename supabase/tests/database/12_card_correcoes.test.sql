@@ -1,8 +1,11 @@
 -- 12_card_correcoes: migration de correções do cartão (decisões de 24/10/2026).
 --   * cobrança de parcela não se anula "no solto" (a anulação era desfeita pela cobrança automática);
 --   * excluir compra inteira (desfaz pagamentos das faturas envolvidas; o dinheiro volta à conta);
---   * reabrir fatura paga (exclui os pagamentos ligados a ela);
---   * editar o valor de cada parcela (fatura paga: só depois de reabrir), com trilha de auditoria;
+--   * reabrir fatura com pagamento (exclui os pagamentos ligados a ela);
+--   * editar o valor de cada parcela (fatura com pagamento: só depois de reabrir), com trilha de auditoria;
+-- Migration 064: fatura fechada e PAGA (pago >= total) fica travada — não reabre, não exclui/edita/estorna o que está
+-- nela (teste 64). Por isso os cenários de reabrir/excluir/estornar daqui usam fatura fechada com pagamento PARCIAL
+-- (a mecânica é a mesma); onde o cenário pagava a fatura inteira, confere-se também a recusa.
 --   * pagamento diferente da fatura: saldo anterior e adiantamento (derivados em card_months);
 --   * abertura da conta x pagamentos de cartão; compra retroativa x devolução; ciclo por parcela;
 --   * idempotência (clique duplo) em card_purchase e debt_pay.
@@ -59,9 +62,9 @@ select pg_temp.uid(n), 'k' || n || '@teste.com' from generate_series(120001, 120
 select pg_temp.mk('a', 120001);
 insert into fixture select 'ap1', public.card_purchase(pg_temp.fx('acard'), '2026-03-15', 300.00, 3, pg_temp.fx('acat'), 'Geladeira');
 select is(public.card_bill_due('2026-03-31'), 1, 'A0 março: 1ª parcela da geladeira cobrada');
-select lives_ok($$select public.debt_pay(pg_temp.fx('acard'), '2026-03-25', pg_temp.fx('abank'), 100.00, pg_temp.fat('a', '2026-03'))$$,
-                'A0 fatura de março paga');
-select is(pg_temp.banco('a'), 4900.00, 'A0 conta: 5000 − 100');
+select lives_ok($$select public.debt_pay(pg_temp.fx('acard'), '2026-03-25', pg_temp.fx('abank'), 60.00, pg_temp.fat('a', '2026-03'))$$,
+                'A0 fatura de março paga em parte (60 de 100; paga inteira ficaria travada — 064)');
+select is(pg_temp.banco('a'), 4940.00, 'A0 conta: 5000 − 60');
 
 -- A1: a cobrança automática não se anula "no solto": a anulação seria desfeita na próxima abertura do app
 select is(pg_temp.sqlstate_of($$select public.debt_void((select id from public.debt_events
@@ -72,7 +75,7 @@ select is(pg_temp.sqlstate_of($$select public.debt_void((select id from public.d
 select is((select array_agg(item || '|' || event_date || '|' || amount || '|' || coalesce(invoice_label, '') order by item, event_date)
              from public.card_purchase_delete_preview(pg_temp.fx('acard'), pg_temp.fx('ap1')::text)),
           array['cancel|2026-03-17|100.00|', 'cancel|2026-04-17|100.00|', 'cancel|2026-05-17|100.00|',
-                'charge|2026-03-17|100.00|2026-03', 'payment|2026-03-25|100.00|2026-03'],
+                'charge|2026-03-17|100.00|2026-03', 'payment|2026-03-25|60.00|2026-03'],
           'A2 prévia: cobrança de março, pagamento de 25/03 (fatura 2026-03) e 3 parcelas a cancelar');
 
 -- A3: motivo curto demais e dívida que não é cartão
@@ -82,7 +85,7 @@ insert into fixture select 'aloan', public.create_debt('Empréstimo', 'loan', '2
 select is(pg_temp.sqlstate_of($$select public.card_purchase_delete(pg_temp.fx('aloan'), 'qualquer', 'lançada errada')$$),
           '23514', 'A3 exclusão de compra em dívida que não é cartão: recusada');
 
--- A4: excluir a compra inteira, inclusive a parcela já paga; o dinheiro volta para a conta
+-- A4: excluir a compra inteira, inclusive a parcela já cobrada (fatura paga em parte); o dinheiro volta para a conta
 select lives_ok($$select public.card_purchase_delete(pg_temp.fx('acard'), pg_temp.fx('ap1')::text, 'lançada errada')$$,
                 'A4 compra excluída');
 select is(pg_temp.banco('a'), 5000.00, 'A4 o pagamento foi desfeito: o dinheiro voltou para a conta (5000)');
@@ -116,8 +119,14 @@ insert into fixture select 'fp2', public.card_purchase(pg_temp.fx('fcard'), '202
 select is(public.card_bill_due('2026-03-31'), 2, 'A6 as duas compras cobradas em março');
 select public.debt_pay(pg_temp.fx('fcard'), '2026-03-25', pg_temp.fx('fbank'), 150.00, pg_temp.fat('f', '2026-03'));
 select is(pg_temp.banco('f'), 4850.00, 'A6 conta: 5000 − 150');
+-- paga inteira = travada (064): excluir a TV é recusado; anula-se o pagamento recém-lançado (exceção) e paga-se 140
+select is(pg_temp.sqlstate_of($$select public.card_purchase_delete(pg_temp.fx('fcard'), pg_temp.fx('fp1')::text, 'TV lançada errada')$$),
+          '55000', 'A6 fatura de março paga: excluir compra dela é recusado (travada)');
+select public.debt_void((select id from public.debt_events where debt_id = pg_temp.fx('fcard') and kind = 'payment'), 'valor errado');
+select public.debt_pay(pg_temp.fx('fcard'), '2026-03-25', pg_temp.fx('fbank'), 140.00, pg_temp.fat('f', '2026-03'));
+select is(pg_temp.banco('f'), 4860.00, 'A6 conta: 5000 − 140 (fatura paga em parte)');
 select public.card_purchase_delete(pg_temp.fx('fcard'), pg_temp.fx('fp1')::text, 'TV lançada errada');
-select is(pg_temp.banco('f'), 5000.00, 'A6 o pagamento da fatura inteira foi desfeito: os 150 voltaram');
+select is(pg_temp.banco('f'), 5000.00, 'A6 o pagamento da fatura inteira foi desfeito: os 140 voltaram');
 select is((select array[charged, pending, total, paid] from public.card_months(pg_temp.fx('fcard')) where label = '2026-03'),
           array[50, 0, 50, 0]::numeric[], 'A6 fatura de março: só o Mercado (50), sem pagamento');
 select is((select debt from public.debt_balances(pg_temp.fx('fh'), '2099-12-31') where name = 'Cartão'),
@@ -180,12 +189,12 @@ select is(public.card_bill_due('2026-03-31'), 0, 'B2 a cobrança automática nã
 select is((select array[charged, pending, total] from public.card_months(pg_temp.fx('bcard')) where label = '2026-03'),
           array[33.35, 0, 33.35]::numeric[], 'B2 fatura de março com 33,35');
 
--- B3: fatura paga: só depois de reabrir
-select public.debt_pay(pg_temp.fx('bcard'), '2026-03-25', pg_temp.fx('bbank'), 33.35, pg_temp.fat('b', '2026-03'));
-select is(pg_temp.banco('b'), 4966.65, 'B3 conta: 5000 − 33,35');
+-- B3: fatura com pagamento (parcial; paga inteira fica travada — 064): só depois de reabrir
+select public.debt_pay(pg_temp.fx('bcard'), '2026-03-25', pg_temp.fx('bbank'), 30.00, pg_temp.fat('b', '2026-03'));
+select is(pg_temp.banco('b'), 4970.00, 'B3 conta: 5000 − 30');
 select is(pg_temp.sqlstate_of($$select public.card_installment_edit(
          (select id from public.debt_installments where plan = pg_temp.fx('bp')::text and seq = 1), 33.36)$$),
-          '55000', 'B3 parcela em fatura paga: recusado até reabrir a fatura');
+          '55000', 'B3 parcela em fatura com pagamento: recusado até reabrir a fatura');
 select is(public.card_invoice_reopen(pg_temp.fx('bcard'), '2026-03', 'corrigir valor'), 1,
           'B3 reabrir a fatura de março desfaz 1 pagamento');
 select is(pg_temp.banco('b'), 5000.00, 'B3 o dinheiro voltou para a conta');
@@ -265,20 +274,25 @@ select public.debt_pay(pg_temp.fx('dcard'), '2026-03-25', pg_temp.fx('dbank'), 1
 select is((select paid from public.card_months(pg_temp.fx('dcard')) where label = '2026-03'), 100.00::numeric,
           'C4 pagamento marcado como extra e ligado à fatura conta como pago');
 
--- C5: estorno depois de pago — o excedente pago vira adiantamento da fatura seguinte
+-- C5: estorno depois de pagar parte — o excedente pago vira adiantamento da fatura seguinte. Com a fatura paga
+-- inteira o estorno é recusado (travada, 064): confere-se a recusa e segue com pagamento parcial (60).
 reset role;
 select pg_temp.mk('i', 120007);
 select public.card_purchase(pg_temp.fx('icard'), '2026-03-01', 100.00, 1, pg_temp.fx('icat'), 'Mercado');
 select public.card_purchase(pg_temp.fx('icard'), '2026-04-01', 80.00, 1, pg_temp.fx('icat'), 'Roupa');
 select public.card_bill_due('2026-04-30');
 select public.debt_pay(pg_temp.fx('icard'), '2026-03-25', pg_temp.fx('ibank'), 100.00, pg_temp.fat('i', '2026-03'));
+select is(pg_temp.sqlstate_of($$select public.debt_refund((select installment_id from public.card_items(pg_temp.fx('icard'), '2026-03') limit 1), '2026-04-10', 100.00)$$),
+          '55000', 'C5 estorno de compra da fatura paga: recusado (travada)');
+select public.debt_void((select id from public.debt_events where debt_id = pg_temp.fx('icard') and kind = 'payment'), 'valor errado');
+select public.debt_pay(pg_temp.fx('icard'), '2026-03-25', pg_temp.fx('ibank'), 60.00, pg_temp.fat('i', '2026-03'));
 select public.debt_refund((select installment_id from public.card_items(pg_temp.fx('icard'), '2026-03') limit 1), '2026-04-10', 100.00);
 select is((select array[total, paid, previous_open, advance_in, advance_out] from public.card_months(pg_temp.fx('icard')) where label = '2026-03'),
-          array[0, 0, 0, 0, 100]::numeric[], 'C5 março: total 0 após o estorno; os 100 pagos sobram como adiantamento');
+          array[0, 0, 0, 0, 60]::numeric[], 'C5 março: total 0 após o estorno; os 60 pagos sobram como adiantamento');
 select is((select array[total, paid, previous_open, advance_in, advance_out] from public.card_months(pg_temp.fx('icard')) where label = '2026-04'),
-          array[80, 80, 0, 100, 20]::numeric[], 'C5 abril: o adiantamento paga os 80; sobram 20');
+          array[80, 60, 0, 60, 0]::numeric[], 'C5 abril: o adiantamento paga 60 dos 80');
 select is((select array[debt, credit_receivable] from public.net_worth(pg_temp.fx('ih'), '2099-12-31')),
-          array[0, 20]::numeric[], 'C5 saldo real: crédito a receber de 20 (bate com o adiantamento)');
+          array[20, 0]::numeric[], 'C5 saldo real: dívida de 20 (o que falta de abril, já descontado o adiantamento)');
 
 -- =====================================================================================
 -- D. Abertura da conta x pagamentos de cartão (j)
@@ -303,9 +317,10 @@ insert into fixture select 'ecard2', public.create_debt('Cartão 2', 'card', '20
 select public.set_card_cycle(pg_temp.fx('ecard2'), 17, 25);
 insert into fixture select 'ep1', public.card_purchase(pg_temp.fx('ecard'), '2026-02-01', 100.00, 1, pg_temp.fx('ecat'), 'Compra A');
 select public.card_bill_due('2026-02-28');
-select public.debt_pay(pg_temp.fx('ecard'), '2026-02-25', pg_temp.fx('ebank'), 100.00, pg_temp.fat('e', '2026-02'));
+-- pagamento parcial (60): com a fatura paga inteira o estorno seria recusado (travada, 064)
+select public.debt_pay(pg_temp.fx('ecard'), '2026-02-25', pg_temp.fx('ebank'), 60.00, pg_temp.fat('e', '2026-02'));
 select public.debt_refund((select id from public.debt_installments where plan = pg_temp.fx('ep1')::text), '2026-03-05', 100.00);
-select public.debt_return(pg_temp.fx('ecard'), '2026-03-10', pg_temp.fx('ebank'), 100.00);
+select public.debt_return(pg_temp.fx('ecard'), '2026-03-10', pg_temp.fx('ebank'), 60.00);
 select is(pg_temp.sqlstate_of($$select public.card_purchase(pg_temp.fx('ecard'), '2026-02-01', 50.00, 1, pg_temp.fx('ecat'), 'Compra B')$$),
           '23514', 'E1 compra que fecharia antes de uma devolução já lançada: recusada na hora');
 select lives_ok($$select public.card_purchase(pg_temp.fx('ecard'), '2026-03-20', 50.00, 1, pg_temp.fx('ecat'), 'Compra C')$$,

@@ -35,6 +35,17 @@ atualizado: 2026-10-28
 - [ ] **Unificar painéis**: `PainelLancamento` (Lançamentos) passar a usar `ui/Folha` (que prende o foco e devolve ao botão).
 - [ ] **Eixo do gráfico de linha com negativo** usa hífen ("R$ -20 mil", `brlCompacto`); trocar pelo "−" tipográfico em todos os gráficos.
 
+### Fatura paga travada (#174, migration 064)
+- [x] **Botão "Pagar fatura" diz qual fatura** (destaque) e a aba de fatura paga não tem ação de pagar nem de mudar; mostra "Paga em dd/mm" e "Fatura paga — travada".
+- [x] **Detalhes da fatura** (referência do Organizze): cabeçalho com situação, "Fechou/Fecha em" e "Venceu/Vence em"; resumo Saldo anterior, Gasto do mês e Valor pago (do banco); lista "Pagamento recebido em dd/mm/aaaa"; lado a lado a partir de 768px, empilhados no celular.
+- [ ] **Aplicar a migration 064** em produção (workflow; simular → ler o log → `APLICAR`), com o "pode" do dono.
+- [ ] **Estorno de compra de fatura já paga**: hoje só vira crédito avulso (receita) na fatura atual; o estorno da compra (abatendo a despesa da categoria) não é aceito porque `card_months` conta o estorno no mês da parcela, que está travado. Melhorar: estorno "na fatura atual" contado no mês da fatura onde entra (decisão do dono; mexe em `card_months`).
+- [ ] **Pagamento errado descoberto depois de 24 h** (ou com pagamento posterior): sem caminho na tela; hoje só correção manual. Decidir com o dono (ex.: ajuste com motivo).
+- [ ] **Compra lançada com deslocamento para uma fatura passada já paga** (Nova compra → Fatura −1…−3): o banco aceita e a fatura volta a "Fechada"; decidir se recusa também.
+- [ ] **Saldo de referência e troca de dias** (`card_set_start`, `set_card_cycle`): não passam pela trava; conferir se podem mudar o pago de fatura antiga.
+- [ ] **"Anular" de pagamento sem fatura (adiantamento)** continua na tela; se ele quitou uma fatura travada, o banco recusa com a mensagem (a tela não sabe qual fatura ele quitou).
+- [ ] **Screenshot da fatura paga em 820px**: não feito nesta PR (o app precisa de login; sem harness de tela com dados de teste).
+
 ### Achados da análise da aba Cartões (05/11/2026), ainda abertos
 - [ ] **Assinaturas previstas na fatura atual**: assinatura (recorrente no cartão) que ainda não foi gerada não entra no valor da fatura atual nem no da aberta.
 - [ ] **Pagamento com data futura**: "Pagar fatura" aceita data futura; decidir se bloqueia, avisa ou agenda como planejado.
