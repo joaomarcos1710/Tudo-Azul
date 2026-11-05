@@ -988,7 +988,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Selecao rotulo="Pagar com a conta" valor={contaId} aoMudar={setContaId} opcoes={ativas.map((c) => [c.id, c.nome])} todos="Escolha…" />
         <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
-        <Field rotulo="Data do pagamento" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+        <Field rotulo="Data do pagamento" type="date" value={data} max={hojeSP()} onChange={(e) => setData(e.target.value)} />
         <p className="text-sm text-slate-600 md:col-span-2">
           {cartao.divida > 0 && fatura ? <>Quita a fatura de <strong>{formatMonth(fatura.mes)}</strong>. </> : null}
           {adiantado && cartao.divida > 0 && <>O que passar da fatura fechada ({formatBRL(cartao.divida)}) <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}

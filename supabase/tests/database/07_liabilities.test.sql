@@ -3,6 +3,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select * from no_plan();
 
+-- Migration 058: pagamento de CARTÃO com data futura é recusado. Este cenário paga o cartão em datas fixas (nov/2026 a
+-- mar/2027) que, conforme o dia em que roda, ainda são futuras. Fixa "hoje" depois de todas elas só nesta transação
+-- (o rollback do fim desfaz), para o teste não depender do relógio. A regra em si é testada em 58_card_value_fixes.
+create or replace function private.today_sp() returns date
+language sql stable set search_path = '' as $f$ select date '2027-06-30' $f$;
+
 -- ---- auxiliares de teste (temporários; somem no rollback) ----
 create temp table fixture (k text primary key, v uuid, t text);
 grant all on fixture to public;
