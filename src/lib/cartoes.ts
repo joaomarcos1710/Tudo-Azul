@@ -559,6 +559,48 @@ export interface MovimentoCartao {
   valor: Cents
   /** Pagamento ligado a uma fatura (vira "fatura paga" nela). */
   ligadoAFatura: boolean
+  /** Fatura a que o pagamento está ligado (debt_events.invoice_id); null = sem fatura (adiantamento). */
+  faturaId: string | null
+  /** Quando foi lançado (created_at): a exceção da trava (migration 064) vale só para o último, lançado há menos de 24 h. */
+  criadoEm: string
+}
+
+/** Fatura fechada e paga fica travada (migration 064): mesma regra de situacaoFatura, sobre os números do banco. */
+export function faturaTravada(f: Fatura, hoje: string): boolean {
+  return situacaoFatura(f, hoje) === 'paga'
+}
+
+/**
+ * Pagamento de fatura travada que a tela ainda oferece anular (correção de pagamento lançado errado): só o último lançado
+ * do cartão e há menos de 24 h. É só para mostrar o botão; quem decide é o banco (debt_void, migration 064).
+ */
+export function podeAnularPagamentoTravado(m: MovimentoCartao, todos: MovimentoCartao[], agora: Date = new Date()): boolean {
+  if (m.tipo === 'devolucao') return false
+  const ultimo = todos.filter((x) => x.tipo !== 'devolucao').every((x) => x.criadoEm <= m.criadoEm)
+  return ultimo && agora.getTime() - new Date(m.criadoEm).getTime() < 24 * 60 * 60 * 1000
+}
+
+/** Um pagamento ligado a uma fatura (debt_events payment/extra_principal), do banco. */
+export interface PagamentoFatura {
+  id: string
+  data: string
+  valor: Cents
+}
+
+/** Pagamentos ligados a uma fatura, do mais antigo ao mais novo. Só lista: o "Valor pago" vem de card_months. */
+export async function listarPagamentosDaFatura(cartaoId: string, faturaId: string): Promise<PagamentoFatura[]> {
+  const { data, error } = await cliente()
+    .from('debt_events')
+    .select('id, date, amount, created_at')
+    .eq('debt_id', cartaoId)
+    .eq('invoice_id', faturaId)
+    .in('kind', ['payment', 'extra_principal'])
+    .is('voided_at', null)
+    .order('date', { ascending: true })
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return ((data ?? []) as { id: string; date: string; amount: number | string }[])
+    .map((e) => ({ id: e.id, data: e.date, valor: centsFromDb(e.amount) }))
 }
 
 export async function listarMovimentosDoCartao(cartaoId: string): Promise<MovimentoCartao[]> {
@@ -579,6 +621,8 @@ export async function listarMovimentosDoCartao(cartaoId: string): Promise<Movime
     tipo: tipos[e.kind],
     valor: centsFromDb(e.amount),
     ligadoAFatura: e.invoice_id != null,
+    faturaId: e.invoice_id ?? null,
+    criadoEm: e.created_at,
   }))
 }
 

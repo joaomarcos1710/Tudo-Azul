@@ -6,8 +6,13 @@ select * from no_plan();
 -- Migration 058: pagamento de CARTÃO com data futura é recusado. Este cenário paga o cartão em datas fixas (nov/2026 a
 -- mar/2027) que, conforme o dia em que roda, ainda são futuras. Fixa "hoje" depois de todas elas só nesta transação
 -- (o rollback do fim desfaz), para o teste não depender do relógio. A regra em si é testada em 58_card_value_fixes.
+-- Migration 064: fatura FECHADA (até hoje) e PAGA fica travada. Para a trava ver o "hoje" de cada passo da história, o
+-- dia pode ser marcado antes de um bloco (pg_temp.dia); sem marca, vale 2027-06-30.
 create or replace function private.today_sp() returns date
-language sql stable set search_path = '' as $f$ select date '2027-06-30' $f$;
+language sql stable set search_path = '' as $f$
+  select coalesce(nullif(current_setting('teste.hoje', true), '')::date, date '2027-06-30') $f$;
+create function pg_temp.dia(p_d date) returns void language sql as $f$ select set_config('teste.hoje', p_d::text, true) $f$;
+grant execute on function pg_temp.dia(date) to public;
 
 -- ---- auxiliares de teste (temporários; somem no rollback) ----
 create temp table fixture (k text primary key, v uuid, t text);
@@ -103,27 +108,35 @@ select public.debt_anticipate(pg_temp.fx('card'), '2026-12-01', pg_temp.fx('bank
 select is(pg_temp.obl_at('2026-12-01'), 440.00::numeric, 'L5 antecipação: obrigação cai para 440 (147 pagos + 13 de desconto)');
 select is((select planned_remaining from public.debt_balances(pg_temp.fx('h'), '2026-12-01') where name = 'Cartão'), 440.00::numeric, 'L5 compromisso restante 440');
 select public.debt_bill(pg_temp.inst(7), '2026-12-10', pg_temp.fx('inv_dez'));
-select public.debt_refund(pg_temp.inst(6), '2026-12-11', 30.00, pg_temp.fx('inv_dez'));
-select is(pg_temp.obl_at('2026-12-11'), 410.00::numeric, 'L6 estorno parcial de 30 abate a fatura aberta: 410');
+-- Em 11/12 a fatura de novembro está fechada e paga (60 + 40): travada (064). O estorno de compra dela é recusado; o
+-- estorno parcial de 30 vai para uma parcela ainda não cobrada (janeiro), que é cancelada em parte.
+select pg_temp.dia('2026-12-12');
+select is(pg_temp.sqlstate_of($$select public.debt_refund(pg_temp.inst(6), '2026-12-11', 30.00, pg_temp.fx('inv_dez'))$$), '55000',
+          'L6 estorno de parcela da fatura de novembro (paga): recusado — fatura travada');
+select public.debt_refund(pg_temp.inst(8), '2026-12-11', 30.00);
+select is(pg_temp.obl_at('2026-12-11'), 410.00::numeric, 'L6 estorno parcial de 30 (parcela de janeiro, ainda não cobrada): 410');
 select public.debt_pay(pg_temp.fx('card'), '2026-12-12', pg_temp.fx('bank'), 70.00, pg_temp.fx('inv_dez'));
-select is(pg_temp.obl_at('2026-12-12'), 340.00::numeric, 'L7 paga a fatura de dezembro líquida: 340');
+select is(pg_temp.obl_at('2026-12-12'), 340.00::numeric, 'L7 paga 70 da fatura de dezembro: 340');
 
--- estorno integral do restante da compra
-select public.debt_refund(pg_temp.inst(6), '2026-12-20', 70.00,  pg_temp.fx('inv_dez'));
-select public.debt_refund(pg_temp.inst(7), '2026-12-20', 100.00, pg_temp.fx('inv_dez'));
-select public.debt_refund(pg_temp.inst(8), '2026-12-20', 100.00);
+-- estorno do restante da compra, em 20/12: novembro e dezembro já estão pagos (travados, 064); estornam-se as parcelas
+-- das faturas que ainda não fecharam (janeiro a maio)
+select pg_temp.dia('2026-12-20');
+select is(pg_temp.sqlstate_of($$select public.debt_refund(pg_temp.inst(7), '2026-12-20', 100.00, pg_temp.fx('inv_dez'))$$), '55000',
+          'L8 estorno de parcela da fatura de dezembro (paga): recusado — fatura travada');
+select public.debt_refund(pg_temp.inst(8), '2026-12-20', 70.00);
 select public.debt_refund(pg_temp.inst(9), '2026-12-20', 100.00);
 select public.debt_refund(pg_temp.inst(10), '2026-12-20', 100.00);
 select public.debt_refund(pg_temp.inst(11), '2026-12-20', 92.00, pg_temp.fx('inv_dez'));
 select public.debt_refund(pg_temp.inst(12), '2026-12-20', 95.00, pg_temp.fx('inv_dez'));
-select is(pg_temp.obl_at('2026-12-20'), -317.00::numeric, 'L8 estorno integral: obrigação −317 (crédito a receber 317)');
-select is((select credit_receivable from public.debt_balances(pg_temp.fx('h'), '2026-12-20') where name = 'Cartão'), 317.00::numeric, 'L8 crédito a receber 317, separado da dívida');
+select is(pg_temp.obl_at('2026-12-20'), -117.00::numeric, 'L8 estorno do restante: obrigação −117 (crédito a receber 117)');
+select is((select credit_receivable from public.debt_balances(pg_temp.fx('h'), '2026-12-20') where name = 'Cartão'), 117.00::numeric, 'L8 crédito a receber 117, separado da dívida');
 select is((select debt from public.debt_balances(pg_temp.fx('h'), '2026-12-20') where name = 'Cartão'), 0::numeric, 'L8 dívida do cartão = 0 (não é somada com sinal)');
 select is((select planned_remaining from public.debt_balances(pg_temp.fx('h'), '2026-12-20') where name = 'Cartão'), 0::numeric, 'L8 parcelas futuras canceladas: compromisso 0');
 -- devolução parcial e em data posterior
 select public.debt_return(pg_temp.fx('card'), '2026-12-28', pg_temp.fx('bank'), 100.00);
-select is((select credit_receivable from public.debt_balances(pg_temp.fx('h'), '2026-12-28') where name = 'Cartão'), 217.00::numeric, 'L9 devolução parcial de 100: crédito 217');
-select public.debt_return(pg_temp.fx('card'), '2027-01-05', pg_temp.fx('bank'), 217.00);
+select is((select credit_receivable from public.debt_balances(pg_temp.fx('h'), '2026-12-28') where name = 'Cartão'), 17.00::numeric, 'L9 devolução parcial de 100: crédito 17');
+select public.debt_return(pg_temp.fx('card'), '2027-01-05', pg_temp.fx('bank'), 17.00);
+select set_config('teste.hoje', '', true);
 select is((select credit_receivable from public.debt_balances(pg_temp.fx('h'), '2027-01-05') where name = 'Cartão'), 0::numeric, 'L10 devolução posterior zera o crédito');
 
 -- empréstimo e financiamento antigo
@@ -137,7 +150,7 @@ select public.debt_pay(pg_temp.fx('fin'), '2026-11-20', pg_temp.fx('bank'), 500.
 select public.debt_loan_event(pg_temp.fx('fin'), '2026-11-20', 'interest', pg_temp.fx('bank'), 40.00, pg_temp.fx('cfee'));
 
 -- valores finais calculados à mão: disponível 5.884,50; dívida 5.500; patrimônio 384,50
-select is(pg_temp.nw('2027-03-05'), array[5884.50, 5500.00, 0, 384.50, 0]::numeric[], 'L11 final: disponível 5.884,50; dívida 5.500; patrimônio 384,50');
+select is(pg_temp.nw('2027-03-05'), array[5684.50, 5500.00, 0, 184.50, 0]::numeric[], 'L11 final: disponível 5.684,50; dívida 5.500; patrimônio 184,50 (064: 200 de estornos de faturas pagas não entram)');
 -- conservação: patrimônio(t) = patrimônio(abertura) + receitas − despesas + principal amortizado de empréstimo/financiamento.
 -- Desde a migration 046 o principal pago é despesa do mês (decisão do dono: a parcela é gasto do orçamento), mas não
 -- muda o patrimônio (sai da conta e reduz a dívida no mesmo valor). Aqui: 2.000 + 2.000 + 3.000 (empréstimo) + 500 (financiamento).
@@ -149,11 +162,11 @@ select is(
   'L12 conservação do patrimônio: Δ patrimônio = receitas − despesas + principal amortizado');
 select is((select income_paid from public.period_summary(pg_temp.fx('h'), '2026-11-01', '2027-03-05')), 3000.00::numeric,
   'L13 estorno NÃO vira receita: receita do período = só o salário');
-select is((select expense_paid from public.period_summary(pg_temp.fx('h'), '2026-11-01', '2027-03-05')), 8015.50::numeric,
-  'L13 despesa líquida 8.015,50 = 200 mercado + 347 cobranças + 5,50 tarifa/juros + 310 juros de dívida − 347 estornos + 7.500 de principal de empréstimo/financiamento (migration 046)');
+select is((select expense_paid from public.period_summary(pg_temp.fx('h'), '2026-11-01', '2027-03-05')), 8215.50::numeric,
+  'L13 despesa líquida 8.215,50 = 200 mercado + 347 cobranças + 5,50 tarifa/juros + 310 juros de dívida − 147 estornos + 7.500 de principal de empréstimo/financiamento (migration 046)');
 select is((select spent from public.budget_usage(pg_temp.fx('h'), '2026-11-01')), 100.00::numeric, 'L14 orçamento de novembro: cobrança de 100 em Compras pessoais');
-select is((select spent from public.budget_usage(pg_temp.fx('h'), '2026-12-01')), -100.00::numeric, 'L14 orçamento de dezembro: 247 de cobranças − 347 de estornos = −100 (estorno abate a categoria)');
-select is((select total from public.balance_totals(pg_temp.fx('h'), '2027-03-05')), 5884.50::numeric, 'L15 balance_totals = só dinheiro disponível (dívida fora)');
+select is((select spent from public.budget_usage(pg_temp.fx('h'), '2026-12-01')), 100.00::numeric, 'L14 orçamento de dezembro: 247 de cobranças − 147 de estornos = 100 (estorno abate a categoria)');
+select is((select total from public.balance_totals(pg_temp.fx('h'), '2027-03-05')), 5684.50::numeric, 'L15 balance_totals = só dinheiro disponível (dívida fora)');
 
 -- ---- regras: o que deve ser recusado ----
 -- Regra mudou em 24/10/2026 (migration 010): pagamento COMUM de cartão acima da dívida vira crédito no cartão (ver 17_card_prepayment).
@@ -161,7 +174,7 @@ select is((select total from public.balance_totals(pg_temp.fx('h'), '2027-03-05'
 select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('card'), '2027-03-01', pg_temp.fx('bank'), 50.00, null, true)$$), '23514', 'R1 amortização extra do cartão acima do saldo devedor recusada');
 select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('loan'), '2027-03-05', pg_temp.fx('bank'), 5000.00)$$), '23514', 'R2 pagamento de 5.000 sobre saldo 3.000 recusado');
 select is(pg_temp.sqlstate_of($$select public.debt_return(pg_temp.fx('card'), '2027-03-01', pg_temp.fx('bank'), 1.00)$$), '23514', 'R3 devolução acima do crédito recusada');
-select is(pg_temp.sqlstate_of($$select public.debt_refund(pg_temp.inst(6), '2027-03-01', 1.00)$$), '23514', 'R4 estorno acima do cobrado (estorno fantasma) recusado');
+select is(pg_temp.sqlstate_of($$select public.debt_refund(pg_temp.inst(9), '2027-03-01', 1.00)$$), '23514', 'R4 estorno acima do cobrado (estorno fantasma) recusado');
 select is(pg_temp.sqlstate_of($$select public.debt_bill(pg_temp.inst(6), '2027-03-01')$$), '55000', 'R5 parcela totalmente cobrada/cancelada: nada a cobrar');
 select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('loan'), '2026-10-31', pg_temp.fx('bank'), 1.00)$$), '23514', 'R6 evento anterior à data de referência recusado');
 -- No empréstimo (a regra de saldo não mudou): 3.500 em 01/12 deixaria o saldo negativo em 05/02/2027, quando já houve a amortização de 3.000
@@ -182,9 +195,11 @@ select is(pg_temp.sqlstate_of($$insert into public.transactions (household_id, a
 select is(pg_temp.sqlstate_of($$select public.debt_void((select id from public.debt_events where debt_id = pg_temp.fx('loan') and kind = 'disbursement'), 'engano de teste')$$), '23514', 'V1 anular o desembolso deixaria pagamentos sem saldo: recusado');
 select is(public.debt_void((select id from public.debt_events where debt_id = pg_temp.fx('loan') and kind = 'interest' and date = '2026-12-05'), 'lançado em duplicidade'), 1, 'V2 anula 1 evento avulso (juros)');
 select is(pg_temp.sqlstate_of($$select public.debt_void((select id from public.debt_events where debt_id = pg_temp.fx('loan') and kind = 'interest' and date = '2026-12-05'), 'de novo')$$), '55000', 'V3 anular duas vezes recusado');
+select pg_temp.dia('2026-12-20');
 select is(pg_temp.sqlstate_of($$select public.debt_void((select id from public.debt_events where debt_id = pg_temp.fx('card') and op_id is not null and kind = 'payment' order by date limit 1), 'tentativa')$$),
           '23514', 'V4 anular a antecipação do cartão é recusado: os estornos posteriores dependem das cobranças');
--- anulação de uma operação inteira, numa dívida sem dependências
+-- anulação de uma operação inteira, numa dívida sem dependências (em 10/03/2027, antes de a fatura de abril fechar)
+select pg_temp.dia('2027-03-10');
 insert into fixture select 'card2', public.create_debt('Cartão 2', 'card', '2026-11-01', 0), null;
 select public.create_debt_installments(pg_temp.fx('card2'), 'y', '2027-04-10', 2, 50.00, pg_temp.fx('cmerc'));
 select public.debt_anticipate(pg_temp.fx('card2'), '2027-03-10', pg_temp.fx('bank'),

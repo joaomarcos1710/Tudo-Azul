@@ -224,7 +224,16 @@ select is(pg_temp.sqlstate_of(format($$select public.card_credit_income(%L, '202
 -- ---------------------------------------------------------------------------
 -- Anular desfaz tudo
 -- ---------------------------------------------------------------------------
+-- Migration 064: agosto está fechada e PAGA (250 de 250), então fica travada: o crédito dela não se anula direto. O
+-- caminho é a exceção do pagamento recém-lançado (o último do cartão, há menos de 24 h): anula o pagamento, anula o
+-- crédito e paga de novo. As conferências seguintes (CI57 em diante) continuam as mesmas.
+select is(pg_temp.sqlstate_of(format($$select public.debt_void(%L, 'lançado por engano')$$, pg_temp.fx('c1'))), '55000',
+          'CI56a fatura de agosto paga e travada: anular o crédito dela é recusado (064)');
+select is(public.debt_void((select id from public.debt_events where debt_id = pg_temp.fx('a') and kind = 'payment' and voided_at is null),
+                           'pagamento lançado antes da correção'), 1, 'CI56b o último pagamento, recém-lançado, pode ser anulado (exceção da 064)');
 select is(public.debt_void(pg_temp.fx('c1'), 'lançado por engano'), 1, 'CI56 anular o crédito de agosto');
+select public.debt_pay(pg_temp.fx('a'), '2026-08-25', pg_temp.fx('bank'), 250.00,
+                       (select id from public.debt_invoices where debt_id = pg_temp.fx('a') and label = '2026-08'));
 select is(pg_temp.fatura(pg_temp.fx('a'), '2026-08'), '300.00|0.00|300.00|250.00|0.00', 'CI57 a fatura de agosto volta a 300,00 (faltam 50,00)');
 select is(pg_temp.resumo('2026-08-01', '2026-08-31'), '0.00|300.00|0.00|0.00', 'CI58 a receita de agosto some');
 select is(pg_temp.saldo(pg_temp.fx('a'), '2026-08-31'), '50.00|0.00', 'CI59 a dívida de agosto volta: 300 − 250 = 50,00');
