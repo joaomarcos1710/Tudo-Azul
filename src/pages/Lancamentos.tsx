@@ -22,12 +22,13 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, parseBRL, primeiraMaiuscula, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDeCartao, listarCreditosDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
+  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDaFatura, listarComprasDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
+  listarMovimentosDeDivida, marcarComoPago,
   moverParaLixeira, restaurarDaLixeira, resumoDoMes, resumoPorMoeda, somarMeses, valoresDasParcelas,
 } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
-import type { CreditoDeCartao, Filtros, Lancamento, MovimentoDivida, ParcelaDeCartao, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { CompraDaFatura, CreditoDeCartao, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { criarRecorrencia, frequencias } from '../lib/recorrencias'
@@ -64,12 +65,13 @@ export default function Lancamentos() {
   const [movimentosDivida, setMovimentosDivida] = useState<MovimentoDivida[]>([])
   // parcelas do contrato (empréstimo/financiamento) ainda planejadas no mês: só mostram, não entram em total nenhum
   const [parcelasContrato, setParcelasContrato] = useState<ParcelaDivida[]>([])
-  const [compras, setCompras] = useState<ParcelaDeCartao[]>([])
+  // fatura do cartão: uma linha por fatura no dia do vencimento (total do banco); com filtro de categoria, as compras soltas
+  const [faturas, setFaturas] = useState<FaturaDoMes[]>([])
+  const [comprasCategoria, setComprasCategoria] = useState<CompraDaFatura[]>([])
   // crédito avulso no cartão (receita, migration 052): só mostra; o valor já está nos totais do mês
   const [creditosCartao, setCreditosCartao] = useState<CreditoDeCartao[]>([])
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [comprasFalharam, setComprasFalharam] = useState(false)
-  const [semDataNoBanco, setSemDataNoBanco] = useState(0)
   const [resumo, setResumo] = useState<ResumoMes | null>(null)
   // receitas e despesas pagas em outras moedas (multimoeda F2): à parte, nunca somadas ao resumo em reais
   const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
@@ -147,10 +149,12 @@ export default function Lancamentos() {
     if (!familiaId || !automaticosProntos) return
     const meu = ++pedido.current
     try {
-      // pagamento de fatura, juros e tarifa moram em outra tabela, mas mexem na conta: entram no extrato
-      const semFiltroDeConta = !filtros.contaId && !filtros.categoriaId && !filtros.tipo
-      // compras no cartão carregam à parte: se falharem, a lista de conta continua e só este bloco avisa
-      const compras = semFiltroDeConta ? listarComprasDeCartao(familiaId, mes).catch(() => null) : Promise.resolve(null)
+      // faturas do cartão carregam à parte: se falharem, a lista de conta continua e só este bloco avisa.
+      // Com filtro de categoria, as compras daquela categoria saem uma a uma (o total da fatura mistura categorias).
+      const categoria = filtros.categoriaId
+      const cartao = listarFaturasDoMes(familiaId, mes, filtros, hojeSP())
+        .then(async (fs) => (categoria ? { faturas: [], compras: await listarComprasDasFaturas(fs, categoria) } : { faturas: fs, compras: [] }))
+        .catch(() => null)
       // parcela de contrato não tem categoria nem é receita/transferência; com filtro de conta, só as debitadas nela
       const [deMes, ateMes] = limitesDoMes(mes)
       const parcelas = filtros.categoriaId || (filtros.tipo && filtros.tipo !== 'expense')
@@ -162,7 +166,7 @@ export default function Lancamentos() {
       // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
       const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(() => [] as ResumoPorMoeda[])
       const [l, r, md, cc, pc, cr, pm] = await Promise.all([
-        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), compras, parcelas,
+        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), cartao, parcelas,
         creditos, porMoedaDoMes,
       ])
       if (meu !== pedido.current) return
@@ -170,9 +174,9 @@ export default function Lancamentos() {
       setMovimentosDivida(md)
       setParcelasContrato(pc)
       setCreditosCartao(cr)
-      setCompras(cc?.parcelas ?? [])
-      setComprasFalharam(semFiltroDeConta && cc === null)
-      setSemDataNoBanco(cc?.semData ?? 0)
+      setFaturas(cc?.faturas ?? [])
+      setComprasCategoria(cc?.compras ?? [])
+      setComprasFalharam(cc === null)
       setResumo(r)
       setPorMoeda(pm)
       setErro('')
@@ -205,12 +209,13 @@ export default function Lancamentos() {
   if (!familiaId) return null
 
   // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
-  type Item = { origem: 'lancamento'; l: Lancamento } | { origem: 'divida'; m: MovimentoDivida } | { origem: 'cartao'; c: ParcelaDeCartao }
-    | { origem: 'contrato'; p: ParcelaDivida } | { origem: 'credito'; k: CreditoDeCartao }
+  type Item = { origem: 'lancamento'; l: Lancamento } | { origem: 'divida'; m: MovimentoDivida } | { origem: 'fatura'; f: FaturaDoMes }
+    | { origem: 'cartao'; c: CompraDaFatura } | { origem: 'contrato'; p: ParcelaDivida } | { origem: 'credito'; k: CreditoDeCartao }
   const itens: (Item & { data: string })[] = [
     ...(lancamentos ?? []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
     ...movimentosDivida.map((m) => ({ origem: 'divida' as const, m, data: m.data })),
-    ...compras.map((c) => ({ origem: 'cartao' as const, c, data: c.data })),
+    ...faturas.map((f) => ({ origem: 'fatura' as const, f, data: f.vencimento })),
+    ...comprasCategoria.map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
     ...parcelasContrato.map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
     ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.data })),
   ].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
@@ -325,15 +330,18 @@ export default function Lancamentos() {
       {lancamentos === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
       {comprasFalharam && (
-        <div className="mb-4"><Aviso tipo="info">Não foi possível carregar as compras no cartão agora. Elas continuam em Cartões.</Aviso></div>
+        <div className="mb-4"><Aviso tipo="info">Não foi possível carregar as faturas dos cartões agora. Elas continuam em Cartões.</Aviso></div>
       )}
-      {semDataNoBanco > 0 && (
-        <div className="mb-4"><Aviso tipo="info">
-          {semDataNoBanco === 1 ? '1 parcela de cartão' : `${semDataNoBanco} parcelas de cartão`} sem data de compra não aparece{semDataNoBanco === 1 ? '' : 'm'} aqui. Veja em <Link to="/cartoes" className="font-semibold underline">Cartões</Link>.
-        </Aviso></div>
+      {(faturas.length > 0 || comprasCategoria.length > 0) && (
+        <p className="mb-4 text-xs text-slate-500">
+          A <strong>fatura</strong> do cartão aparece no dia do vencimento, com o total calculado pelo banco; as compras ficam em "Ver compras".
+          {' '}Nos totais e relatórios, a compra conta como despesa no <strong>fechamento</strong> da fatura.
+          {' '}<strong>Pagamento da fatura</strong> é o dinheiro saindo da conta: não é outra despesa.
+        </p>
       )}
 
-      {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && creditosCartao.length === 0 && editando === null && contas.length > 0 && (
+      {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && creditosCartao.length === 0 && faturas.length === 0
+        && comprasCategoria.length === 0 && editando === null && contas.length > 0 && (
         <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
           acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
       )}
@@ -345,7 +353,11 @@ export default function Lancamentos() {
             <Card semPadding>
               <ul className="divide-y divide-slate-100">
                 {itens.map((item) => {
+                  if (item.origem === 'fatura') {
+                    return <LinhaFatura key={`fatura-${item.f.cartaoId}-${item.f.mes}`} fatura={item.f} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />
+                  }
                   if (item.origem === 'cartao') {
+                    // só com filtro de categoria: a compra solta, no dia do vencimento da fatura em que está
                     const c = item.c
                     return (
                       <li key={`cartao-${c.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
@@ -358,15 +370,15 @@ export default function Lancamentos() {
                             <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">No cartão</span>
                           </p>
                           <p className="text-sm text-slate-500">
-                            {c.cartaoNome}
-                            {c.compra !== c.data ? ` · compra de ${formatDate(c.compra)}` : ''}
-                            {` · a despesa conta em ${formatDate(c.fechaEm)} (fechamento da fatura)`}
+                            {nomeCategoria.get(c.categoriaId ?? '') ?? 'Sem categoria'} · fatura {c.cartaoNome}
+                            {c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''}
+                            {` · a despesa conta em ${formatDate(c.fechamento)} (fechamento da fatura)`}
                           </p>
                         </div>
                           <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatBRL(c.valor)}</span>
                         </div>
                         <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
-                          <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
+                          <Link to={`/cartoes?cartao=${c.cartaoId}`} className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
                         </div>
                       </li>
                     )
@@ -481,6 +493,90 @@ export default function Lancamentos() {
         ))}
       </div>
     </>
+  )
+}
+
+const rotuloSituacaoFatura: Record<FaturaDoMes['situacao'], { texto: string; estilo: string }> = {
+  aberta: { texto: 'Aberta', estilo: 'bg-planejado-fundo text-planejado' },
+  fechada: { texto: 'Fechada', estilo: 'bg-red-50 text-negativo' },
+  vencida: { texto: 'Vencida', estilo: 'bg-red-50 text-negativo' },
+  paga: { texto: 'Paga', estilo: 'bg-pago-fundo text-pago' },
+}
+
+/**
+ * Uma fatura de cartão na lista: total e situação vindos do banco (card_months); "Ver compras" abre as parcelas da fatura
+ * (card_items, carregadas só ao abrir). Só leitura: não é dinheiro saindo da conta (isso é o "Pagamento da fatura").
+ */
+function LinhaFatura({ fatura: f, categoriaPorId, nomeCategoria }: {
+  fatura: FaturaDoMes; categoriaPorId: Map<string, Categoria>; nomeCategoria: Map<string, string>
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [compras, setCompras] = useState<CompraDaFatura[] | null>(null)
+  const [erro, setErro] = useState(false)
+  const idLista = `compras-${f.cartaoId}-${f.mes}`
+  const s = rotuloSituacaoFatura[f.situacao]
+
+  function alternar() {
+    const abrir = !aberto
+    setAberto(abrir)
+    if (abrir && (compras === null || erro)) {
+      setErro(false)
+      listarComprasDaFatura(f).then(setCompras).catch(() => setErro(true))
+    }
+  }
+
+  return (
+    <li className="px-4 py-3 sm:px-5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+          <IconeCategoria fixo="cartao" />
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">
+              Fatura {f.cartaoNome}
+              <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${s.estilo}`}>{s.texto}</span>
+            </p>
+            <p className="text-sm text-slate-500">
+              Fecha em {formatDate(f.fechamento)} · vence em {formatDate(f.vencimento)} · {f.itens === 1 ? '1 compra' : `${f.itens} compras`}
+              {f.pago > 0 && f.situacao !== 'paga' ? ` · pago ${formatBRL(f.pago)}` : ''}
+            </p>
+          </div>
+          <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatBRL(f.total)}</span>
+        </div>
+        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
+          <Button variante="fantasma" compacto onClick={alternar} aria-expanded={aberto} aria-controls={idLista}>
+            {aberto ? 'Esconder compras' : 'Ver compras'}
+          </Button>
+          <Link to={`/cartoes?cartao=${f.cartaoId}`} aria-label={`Ver fatura ${f.cartaoNome} em Cartões`}
+            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
+        </div>
+      </div>
+      {aberto && (
+        <div id={idLista} className="mt-2 rounded-lg bg-slate-50 px-3 py-2">
+          {erro && <p className="text-sm text-negativo" role="alert">Não foi possível carregar as compras. Veja em Cartões.</p>}
+          {!erro && compras === null && <p className="text-sm text-slate-600" role="status">Carregando compras…</p>}
+          {!erro && compras?.length === 0 && <p className="text-sm text-slate-500">Nenhuma compra nesta fatura.</p>}
+          {!erro && compras && compras.length > 0 && (
+            <ul aria-label={`Compras da fatura ${f.cartaoNome}`} className="divide-y divide-slate-200">
+              {compras.map((c) => (
+                <li key={c.id} className="flex items-start justify-between gap-3 py-2">
+                  <IconeCategoria visual={visualPorId(c.categoriaId, categoriaPorId, 'expense')} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">
+                      {c.descricao}
+                      {c.deParcelas > 1 && <span className="ml-2 text-xs text-slate-500">parcela {c.parcela}/{c.deParcelas}</span>}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {nomeCategoria.get(c.categoriaId ?? '') ?? 'Sem categoria'}{c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''}
+                    </p>
+                  </div>
+                  <span className="shrink-0 tabular-nums text-sm font-semibold text-slate-700">{formatBRL(c.valor)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </li>
   )
 }
 

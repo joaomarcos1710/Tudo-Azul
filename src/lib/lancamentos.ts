@@ -1,5 +1,7 @@
 import { centsFromDb, centsToDecimal } from './format'
 import type { Cents } from './format'
+import { listarFaturas, listarItens, situacaoFatura } from './cartoes'
+import type { Fatura } from './cartoes'
 import { supabase } from './supabase'
 
 export type TipoLancamento = 'income' | 'expense' | 'transfer'
@@ -169,120 +171,93 @@ export async function listarMovimentosDeDivida(familiaId: string, mes: string, f
 }
 
 /**
- * Uma parcela de compra no cartão. Cada parcela aparece UM mês só: a parcela k de uma compra feita no dia D aparece
- * no dia D do mês da compra + (k − 1) (dia 31 em mês curto vira o último dia). Assim uma compra em 10x não lota o
- * dia da compra: vira uma linha por mês. Só leitura: a despesa entra no mês em que a fatura fecha (cobrança da
- * parcela), e o total do mês vem do banco (period_summary). Compra cancelada não aparece.
+ * Fatura de cartão na lista do mês (pedido do dono, 05/11/2026, como no Organizze): UMA linha por fatura, no dia do
+ * VENCIMENTO, com o total que o banco calcula (card_months, a mesma fonte da tela Cartões). As compras ficam dentro
+ * ("Ver compras", card_items). Só apresentação: nos totais e relatórios a compra continua sendo despesa no mês do
+ * FECHAMENTO da fatura (period_summary), então uma fatura que fecha num mês e vence no seguinte conta como despesa no
+ * primeiro e aparece na lista do segundo.
  */
-export interface ParcelaDeCartao {
-  id: string
-  /** Dia em que a parcela aparece na lista (ver acima). */
-  data: string
-  /** Dia em que a compra foi lançada. */
-  compra: string
-  /** Data em que a fatura fecha e a despesa passa a contar (pode ser no mês seguinte ao da linha). */
-  fechaEm: string
-  descricao: string
+export interface FaturaDoMes {
+  cartaoId: string
   cartaoNome: string
-  /** Dia do fechamento da fatura do cartão, para explicar quando a despesa conta. Nulo se o cartão não tem ciclo. */
-  fechamento: number | null
+  /** AAAA-MM do fechamento (o "label" da fatura no banco). */
+  mes: string
+  fechamento: string
+  vencimento: string
+  /** Total da fatura calculado no banco (card_months.total); a tela não soma parcelas. */
+  total: Cents
+  pago: Cents
+  /** Quantidade de parcelas na fatura (contagem, não dinheiro). */
+  itens: number
+  situacao: SituacaoDaFatura
+  contaPagamentoId: string | null
+}
+
+/** A regra da tela Cartões (situacaoFatura) mais "vencida": fechada, não paga e com o vencimento antes de hoje. */
+export type SituacaoDaFatura = 'aberta' | 'fechada' | 'paga' | 'vencida'
+
+export function situacaoDaFatura(f: Fatura, hoje: string): SituacaoDaFatura {
+  const s = situacaoFatura(f, hoje)
+  return s === 'fechada' && f.vencimento !== null && f.vencimento < hoje ? 'vencida' : s
+}
+
+/**
+ * Faturas de todos os cartões que VENCEM no mês. Receita e transferência não têm fatura. Com filtro de conta, só as dos
+ * cartões cuja conta de pagamento é aquela (a mesma regra do saldo projetado e da parcela de contrato planejada); cartão
+ * sem conta de pagamento não aparece. A categoria não filtra aqui: quem filtra é listarComprasDasFaturas.
+ */
+export async function listarFaturasDoMes(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<FaturaDoMes[]> {
+  if (f.tipo === 'income' || f.tipo === 'transfer') return []
+  const [de, ate] = limitesDoMes(mes)
+  const { data, error } = await cliente().from('debts').select('id, name, pay_account_id').eq('household_id', familiaId).eq('kind', 'card')
+  if (error) throw error
+  const cartoes = ((data ?? []) as { id: string; name: string; pay_account_id: string | null }[])
+    .filter((c) => !f.contaId || c.pay_account_id === f.contaId)
+  // atalho: uma chamada de card_months por cartão (todo o histórico do cartão, para filtrar o mês aqui); ok com poucos
+  // cartões, melhorar com uma função do banco por família e período se a lista ficar lenta com muitos cartões ou anos.
+  const porCartao = await Promise.all(cartoes.map(async (c) => (await listarFaturas(c.id))
+    .filter((x): x is Fatura & { vencimento: string } => x.vencimento !== null && x.vencimento >= de && x.vencimento <= ate)
+    // fatura só de crédito avulso (sem compra e sem valor) não vira linha: o crédito já aparece à parte
+    .filter((x) => x.itens > 0 || x.total > 0)
+    .map((x) => ({
+      cartaoId: c.id, cartaoNome: c.name, mes: x.mes, fechamento: x.fechamento, vencimento: x.vencimento, total: x.total,
+      pago: x.pago, itens: x.itens, situacao: situacaoDaFatura(x, hoje), contaPagamentoId: c.pay_account_id ?? null,
+    }))))
+  return porCartao.flat().sort((x, y) => (x.vencimento < y.vencimento ? -1 : x.vencimento > y.vencimento ? 1 : x.cartaoNome.localeCompare(y.cartaoNome)))
+}
+
+/** Uma compra (parcela) de uma fatura do mês, como a tela Cartões mostra (card_items). */
+export interface CompraDaFatura {
+  id: string
+  cartaoId: string
+  cartaoNome: string
+  /** Vencimento da fatura em que a compra está: é o dia em que ela aparece com filtro de categoria. */
+  vencimento: string
+  fechamento: string
+  descricao: string
+  dataCompra: string | null
   parcela: number
   deParcelas: number
+  /** Valor da parcela (card_items.face), o mesmo da tela Cartões. */
   valor: Cents
-  /** Categoria da compra (para o ícone na lista). */
   categoriaId: string | null
 }
 
-export interface ComprasDeCartao {
-  parcelas: ParcelaDeCartao[]
-  /** Parcelas sem data de compra (criadas antes do ciclo de cartão): não aparecem aqui, ficam em Cartões. */
-  semData: number
+export async function listarComprasDaFatura(fatura: FaturaDoMes): Promise<CompraDaFatura[]> {
+  return (await listarItens(fatura.cartaoId, fatura.mes)).map((i) => ({
+    id: i.parcelaId, cartaoId: fatura.cartaoId, cartaoNome: fatura.cartaoNome, vencimento: fatura.vencimento,
+    fechamento: fatura.fechamento, descricao: i.descricao, dataCompra: i.dataCompra, parcela: i.parcela,
+    deParcelas: i.deParcelas, valor: i.valor, categoriaId: i.categoriaId ?? null,
+  }))
 }
 
-/** Dia da compra repetido no mês p_mes (AAAA-MM); dia 31 em mês curto vira o último dia. */
-function diaNoMes(compra: string, mes: string): string {
-  const [a, m] = mes.split('-').map(Number)
-  const ultimo = new Date(Date.UTC(a, m, 0)).getUTCDate()
-  return `${mes}-${String(Math.min(Number(compra.slice(8, 10)), ultimo)).padStart(2, '0')}`
-}
-
-export async function listarComprasDeCartao(familiaId: string, mes: string): Promise<ComprasDeCartao> {
-  const db = cliente()
-  // a parcela k cai na fatura que fecha no mês da compra + (k − 1) ou no seguinte; a data de fechamento fica guardada na
-  // parcela (due_date). Por isso basta olhar o fechamento deste mês e do próximo, e conferir o mês de exibição abaixo.
-  const de = limitesDoMes(mes)[0]
-  const ate = limitesDoMes(somarMeses(mes, 1))[1]
-  type Linha = { id: string; debt_id: string; plan: string; seq: number; description: string | null; purchase_date: string | null; due_date: string; face: number | string; category_id: string | null }
-  const candidatas: Linha[] = []
-  const pagina = 1000
-  for (let inicio = 0; ; inicio += pagina) {
-    const { data, error } = await db.from('debt_installments')
-      .select('id, debt_id, plan, seq, description, purchase_date, due_date, face, category_id')
-      .eq('household_id', familiaId).gte('due_date', de).lte('due_date', ate)
-      .order('due_date', { ascending: false }).order('id')
-      .range(inicio, inicio + pagina - 1)
-    if (error) throw error
-    candidatas.push(...((data ?? []) as Linha[]))
-    if (!data || data.length < pagina) break
-  }
-  const parcelas = candidatas.flatMap((p) => {
-    if (!p.purchase_date) return []
-    const exibe = diaNoMes(p.purchase_date, somarMeses(p.purchase_date.slice(0, 7), p.seq - 1))
-    return exibe.slice(0, 7) === mes ? [{ ...p, purchase_date: p.purchase_date, exibe }] : []
-  })
-  if (parcelas.length === 0) return { parcelas: [], semData: await contarSemData(familiaId) }
-
-  // total de parcelas de cada compra (contagem, não dinheiro): o plano inteiro, mesmo as canceladas
-  const planos = [...new Set(parcelas.map((p) => p.plan))]
-  const totalPorPlano = new Map<string, number>()
-  for (let i = 0; i < planos.length; i += 100) {
-    for (let inicio = 0; ; inicio += pagina) {
-      const { data, error } = await db.from('debt_installments').select('debt_id, plan')
-        .eq('household_id', familiaId).in('plan', planos.slice(i, i + 100)).order('id').range(inicio, inicio + pagina - 1)
-      if (error) throw error
-      for (const r of data ?? []) totalPorPlano.set(`${r.debt_id}|${r.plan}`, (totalPorPlano.get(`${r.debt_id}|${r.plan}`) ?? 0) + 1)
-      if (!data || data.length < pagina) break
-    }
-  }
-
-  // cancelamentos (compra excluída ou desconto/estorno parcial): o que sobra de cada parcela é face − cancelado
-  const ids = parcelas.map((p) => p.id)
-  const cancelado = new Map<string, Cents>()
-  for (let i = 0; i < ids.length; i += 100) {
-    const { data, error } = await db.from('debt_events').select('installment_id, amount')
-      .eq('household_id', familiaId).eq('kind', 'cancel').is('voided_at', null).in('installment_id', ids.slice(i, i + 100))
-    if (error) throw error
-    for (const e of data ?? []) {
-      const id = e.installment_id as string
-      cancelado.set(id, ((cancelado.get(id) ?? 0) + centsFromDb(e.amount)) as Cents)
-    }
-  }
-
-  const dividas = await db.from('debts').select('id, name, closing_day').eq('household_id', familiaId).eq('kind', 'card')
-  if (dividas.error) throw dividas.error
-  const cartao = new Map((dividas.data ?? []).map((d) => [d.id, d]))
-
-  const lista = parcelas.flatMap((p) => {
-    const c = cartao.get(p.debt_id)
-    const face = centsFromDb(p.face)
-    const sobra = (face - (cancelado.get(p.id) ?? 0)) as Cents
-    if (!c || sobra <= 0) return []
-    return [{
-      id: p.id,
-      data: p.exibe,
-      compra: p.purchase_date,
-      fechaEm: p.due_date,
-      descricao: p.description || 'Compra no cartão',
-      cartaoNome: c.name,
-      fechamento: c.closing_day ?? null,
-      parcela: p.seq,
-      deParcelas: totalPorPlano.get(`${p.debt_id}|${p.plan}`) ?? 1,
-      valor: sobra,
-      categoriaId: p.category_id ?? null,
-    }]
-  })
-  lista.sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : x.parcela - y.parcela))
-  return { parcelas: lista, semData: await contarSemData(familiaId) }
+/**
+ * Com filtro de categoria, agrupar não faz sentido (o total da fatura mistura categorias): as compras daquela categoria,
+ * das mesmas faturas do mês, aparecem uma a uma no dia do vencimento. Assim tirar o filtro só reagrupa as mesmas linhas.
+ */
+export async function listarComprasDasFaturas(faturas: FaturaDoMes[], categoriaId: string): Promise<CompraDaFatura[]> {
+  const todas = await Promise.all(faturas.map(listarComprasDaFatura))
+  return todas.flat().filter((c) => c.categoriaId === categoriaId)
 }
 
 /**
@@ -334,13 +309,6 @@ export async function listarCreditosDeCartao(familiaId: string, mes: string, f: 
     valor: centsFromDb(e.amount),
     planejado: e.date > hoje,
   }))
-}
-
-async function contarSemData(familiaId: string): Promise<number> {
-  const { count, error } = await cliente().from('debt_installments').select('id', { count: 'exact', head: true })
-    .eq('household_id', familiaId).is('purchase_date', null)
-  if (error) throw error
-  return count ?? 0
 }
 
 export async function resumoDoMes(familiaId: string, mes: string): Promise<ResumoMes> {
