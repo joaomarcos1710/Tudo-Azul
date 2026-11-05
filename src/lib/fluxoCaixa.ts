@@ -1,7 +1,6 @@
 import { supabase } from './supabase'
 import type { Cents } from './format'
 import { centsFromDb } from './format'
-import { limitesDoMes, somarMeses } from './lancamentos'
 
 export type Passo = 'day' | 'week' | 'month'
 
@@ -30,15 +29,6 @@ export interface FiltrosFluxo {
   incluirNaoPagos?: boolean
 }
 
-/**
- * Período do relatório: dia e semana mostram o mês escolhido; mês mostra os 12 meses que terminam nele.
- * O banco aceita no máximo 366 dias no passo diário e 10 anos nos demais.
- */
-export function periodoDoFluxo(mes: string, passo: Passo): [string, string] {
-  const fim = limitesDoMes(mes)[1]
-  return passo === 'month' ? [limitesDoMes(somarMeses(mes, -11))[0], fim] : [limitesDoMes(mes)[0], fim]
-}
-
 /** Entradas x Saídas (cash_flow_report). Todo valor, saldo, acumulado e total vem do banco. */
 export async function fluxoDeCaixa(familiaId: string, de: string, ate: string, passo: Passo, filtros: FiltrosFluxo = {}): Promise<FluxoCaixa> {
   if (!supabase) throw new Error('Supabase não configurado')
@@ -63,16 +53,51 @@ export async function fluxoDeCaixa(familiaId: string, de: string, ate: string, p
   }
 }
 
+/** Uma linha do relatório Entradas x Saídas do período escolhido (cash_flow_series, migration 066). */
+export interface LinhaSerie {
+  /** O balde inteiro, só para o rótulo (a 1ª e a última semana podem passar do período; os valores, não). */
+  inicio: string
+  fim: string
+  entradas: Cents
+  saidas: Cents
+  resultado: Cents
+  /** Saldo total em reais no último dia da linha (cortado no fim do período); null com filtro de conta ou de quem lançou. */
+  saldo: Cents | null
+}
+
+export interface SerieFluxo {
+  linhas: LinhaSerie[]
+  /** Do período inteiro, calculados no banco (o front não soma dinheiro de relatório). */
+  totalEntradas: Cents
+  totalSaidas: Cents
+  totalResultado: Cents
+}
+
 /**
- * Último dia de cada balde do relatório (só datas, nenhum dinheiro): o próprio dia; o domingo da semana; o último
- * dia do mês. Nunca passa do fim do período pedido (a última semana pode atravessar o mês).
+ * Entradas x Saídas SÓ do período [de, até], fatiado por dia, semana, mês ou numa linha (total = acumulado), com o saldo
+ * no fim de cada linha: uma chamada só (antes, uma de balance_totals_projected por linha). Todo valor vem do banco.
  */
-export function fimDoBalde(inicio: string, passo: Passo, ate: string): string {
-  let fim = inicio
-  if (passo === 'month') fim = limitesDoMes(inicio.slice(0, 7))[1]
-  if (passo === 'week') {
-    const [a, m, d] = inicio.split('-').map(Number)
-    fim = new Date(Date.UTC(a, m - 1, d + 6)).toISOString().slice(0, 10)
+export async function serieFluxo(familiaId: string, de: string, ate: string, divisao: Passo | 'total', filtros: FiltrosFluxo = {}): Promise<SerieFluxo> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const { data, error } = await supabase.rpc('cash_flow_series', {
+    p_household: familiaId, p_from: de, p_to: ate, p_step: divisao,
+    p_accounts: filtros.contas && filtros.contas.length > 0 ? filtros.contas : null,
+    p_member: filtros.membro || null,
+    p_include_planned: filtros.incluirNaoPagos === true,
+  })
+  if (error) throw error
+  const linhas = ((data ?? []) as Record<string, string | number | null>[])
+  return {
+    linhas: linhas.map((r) => ({
+      inicio: r.period_start as string,
+      fim: r.period_end as string,
+      entradas: centsFromDb(r.income ?? 0),
+      saidas: centsFromDb(r.expense ?? 0),
+      resultado: centsFromDb(r.result ?? 0),
+      saldo: r.closing_balance === null || r.closing_balance === undefined ? null : centsFromDb(r.closing_balance),
+    })),
+    totalEntradas: centsFromDb(linhas[0]?.total_income ?? 0),
+    totalSaidas: centsFromDb(linhas[0]?.total_expense ?? 0),
+    totalResultado: centsFromDb(linhas[0]?.total_result ?? 0),
   }
-  return fim < ate ? fim : ate
 }

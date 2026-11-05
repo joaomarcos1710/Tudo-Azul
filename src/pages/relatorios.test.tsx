@@ -17,8 +17,17 @@ vi.mock('../lib/csv', async (o) => ({
   baixarArquivo: mock.baixarArquivo, exportacaoCompleta: mock.exportacaoCompleta, lancamentosParaExportar: mock.lancamentosParaExportar, primeiraDataDeLancamento: mock.primeiraDataDeLancamento,
 }))
 
-// o bloco Entradas x Saídas tem teste próprio (components/entradasSaidas.test.tsx); aqui só importa a exportação
-vi.mock('../components/EntradasSaidas', () => ({ EntradasSaidas: () => null }))
+// o bloco Entradas x Saídas tem teste próprio (components/entradasSaidas.test.tsx); aqui só importa a exportação,
+// e o falso só avisa o período escolhido (como o de verdade faz ao abrir e a cada troca)
+vi.mock('../components/EntradasSaidas', async () => {
+  const { useEffect } = await import('react')
+  return {
+    EntradasSaidas: ({ aoMudarPeriodo }: { aoMudarPeriodo?: (p: { tipo: string; de: string; ate: string }) => void }) => {
+      useEffect(() => { aoMudarPeriodo?.({ tipo: 'livre', de: '2026-01-01', ate: '2026-03-31' }) }, [aoMudarPeriodo])
+      return null
+    },
+  }
+})
 
 import Relatorios from './Relatorios'
 
@@ -69,6 +78,16 @@ describe('Relatórios', () => {
     const exportar = screen.getByRole('button', { name: /Exportar de 14\/03\/2025 a/ })
     await u.click(exportar)
     expect(mock.lancamentosParaExportar).toHaveBeenCalledWith('h1', expect.objectContaining({ de: '2025-03-14' }))
+  })
+
+  it('o CSV começa no período do relatório Entradas x Saídas (#179)', async () => {
+    mock.lancamentosParaExportar.mockResolvedValue([])
+    const u = userEvent.setup()
+    render(<Relatorios />)
+    expect((screen.getByLabelText('De') as HTMLInputElement).value).toBe('2026-01-01')
+    expect((screen.getByLabelText('Até') as HTMLInputElement).value).toBe('2026-03-31')
+    await u.click(screen.getByRole('button', { name: 'Exportar de 01/01/2026 a 31/03/2026' }))
+    expect(mock.lancamentosParaExportar).toHaveBeenCalledWith('h1', { de: '2026-01-01', ate: '2026-03-31' })
   })
 
   it('período invertido não exporta', async () => {
