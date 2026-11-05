@@ -43,7 +43,7 @@ export function AvisoDiario({ userId, familiaId, email }: { userId: string; fami
     <Card>
       <CardTitle>Aviso diário por e-mail</CardTitle>
       <p className="mb-3 text-sm text-slate-600">
-        Um e-mail curto de manhã com vencidos, o que vence hoje, faturas dos próximos 3 dias e o saldo previsto.
+        Um e-mail curto de manhã com vencidos, o que vence hoje, faturas dos próximos 3 dias e o saldo previsto (com as assinaturas e os lançamentos fixos).
         Se não houver nada, o e-mail não sai.{email && <> Vai para <strong>{email}</strong>.</>}
       </p>
       {!carregado ? <p className="text-sm text-slate-500" role="status">Carregando…</p> : (

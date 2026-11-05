@@ -50,12 +50,21 @@ atualizado: 2026-10-28
 ### Relatórios › Contas e previstos (#184, migration 068)
 - [x] **Aba Contas** (saldo inicial, entradas, saídas, saldo final por conta ativa em reais; total sem as transferências; aviso de outra moeda) e **abas** com um período só.
 - [x] **Assinaturas de cartão previstas** no vencimento e **lançamentos fixos ainda não gerados** em Entradas x Saídas (e Contas) com "não pagos"; o saldo anda junto.
-- [ ] **Aplicar a migration 068** (você dá o "pode"; depende da 067, que vai antes): até lá, a aba Contas mostra o aviso de erro e Entradas x Saídas segue sem os previstos.
+- [x] **Aplicar a migration 068** (aplicada, segundo o dono em 05/11/2026; a execução não está anotada aqui).
 - [ ] **Conferir com o Organizze** (você): novembro com "Pagos e não pagos" deve dar a diferença de R$ 1.120,69 a mais de saída em 28/11; e a aba Contas contra Relatório › Contas.
-- [ ] **Saldo previsto do Calendário/Contas/aviso diário** (`balance_totals_projected`) ainda não conta as assinaturas previstas nem os fixos além do horizonte: decidir se passa a contar (migration nova, conferindo Calendário, `saldoProjetado`, `daily_digest`, `cash_flow_series`).
+- [x] **Saldo previsto do Calendário/Contas/aviso diário** passa a contar as assinaturas previstas e os fixos não gerados (#185, migration 069; ver a seção abaixo).
 - [ ] **atalho**: as condições de conta dos fixos previstos (`private.account_recurrence_pending`) repetem as de `recurrence_materialize`; quando a geração mudar, fazê-la chamar a função.
 - [ ] **Filtros e divisão de Entradas x Saídas voltam ao padrão** ao trocar de aba (só o período é compartilhado). Guardar na página se o dono quiser.
 - [ ] **Próximas abas** do Organizze (ex.: Categorias).
+
+### Previsto alinhado com os Relatórios (#185, migration 069)
+- [x] **Calendário, "Saldo hoje e previsto" do Início e aviso diário** com as assinaturas de cartão previstas e os lançamentos fixos ainda não gerados (`balance_totals_projected` e `account_balances_projected`); o previsto no fim do período = saldo final de Entradas x Saídas (total) e do Relatório › Contas (por conta). Relatórios com os mesmos números.
+- [ ] **Aplicar a migration 069** (você dá o "pode"; depende da 068): simular → ler o log → aplicar. Antes, a conferência em produção numa transação desfeita: novembro com não pagos, o Calendário em 30/11 deve dar o mesmo saldo final dos Relatórios (−R$ 261,74, se nada mudou), e os Relatórios os mesmos números de antes.
+- [ ] **Conferir no app** (você): Calendário em 30/11 com "Efetuados + planejados" e o "Previsto em 30/11" do Início, contra Relatórios › Entradas x Saídas de novembro com "Pagos e não pagos".
+- [ ] **Desempenho em produção**: no volume de teste, o saldo previsto com planejados ficou ~0,1 s mais lento (mediana 0,61 → 0,71 s em 30/11; 0,57 → 0,83 s em 31/12/2027); os Relatórios ficaram mais rápidos. Medir na simulação; se apertar, `balance_totals_projected` pode ler as assinaturas uma vez só (hoje lê em `account_balances_projected` e de novo para o total).
+- [ ] **Conta em outra moeda**: o fixo previsto dela não entra no previsto por conta (como nos Relatórios, só reais). Decidir junto da multimoeda F3/F4.
+- [ ] **Só efetuados lê as faturas à toa**: `account_balances_projected` calcula `card_months` por cartão mesmo sem planejados (vem de antes, ~0,15 s no volume de teste). Melhorar numa migration de desempenho, se precisar.
+- [ ] **Avisos do Início (`home_alerts`)**: a fatura dos próximos 7 dias mostra o que já está na fatura; assinatura prevista que ainda não virou compra e vence nesses 7 dias (fatura que fecha depois de hoje) não entra. Raro (fecha 7 dias ou menos antes do vencimento); decidir se entra.
 
 ### Fatura paga travada (#174, migration 064)
 - [x] **Botão "Pagar fatura" diz qual fatura** (destaque) e a aba de fatura paga não tem ação de pagar nem de mudar; mostra "Paga em dd/mm" e "Fatura paga — travada".

@@ -3,7 +3,8 @@ import type { Cents } from './format'
 import { supabase } from './supabase'
 
 /**
- * Saldo em qualquer data. Toda soma é do banco: a tela só mostra os números.
+ * Saldo em qualquer data. Toda soma é do banco: a tela só mostra os números. Com os planejados, desde a migration 069
+ * o banco também conta as assinaturas de cartão previstas e os lançamentos fixos ainda não gerados (como os Relatórios).
  * Parcelas com débito automático reduzem a conta contratual; boleto/manual sem conta reduzem só o total;
  * consignado aparece como compromisso, sem duplicar a saída de um salário já registrado líquido.
  */
