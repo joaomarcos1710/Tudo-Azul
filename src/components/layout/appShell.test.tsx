@@ -24,7 +24,7 @@ describe('menu em grupos', () => {
   it('toda tela do app está no menu (inclui Recorrentes, que antes não aparecia) e sem caminhos repetidos', () => {
     const caminhos = itensNavegacao.map((i) => i.caminho)
     expect(new Set(caminhos).size).toBe(caminhos.length)
-    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/relatorios', '/familia']) {
+    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/relatorios', '/familia', '/exportar']) {
       expect(caminhos).toContain(c)
     }
   })
@@ -125,7 +125,7 @@ describe('menu em grupos', () => {
 
   it('Análises fica no grupo Visão geral, logo depois do Início, e leva a /analises', () => {
     const visao = gruposNavegacao.find((g) => g.titulo === 'Visão geral')!
-    expect(visao.itens.map((i) => i.rotulo)).toEqual(['Início', 'Análises', 'Relatórios e exportação'])
+    expect(visao.itens.map((i) => i.rotulo)).toEqual(['Início', 'Análises', 'Relatórios'])
     expect(visao.itens.find((i) => i.rotulo === 'Análises')?.caminho).toBe('/analises')
   })
   it('em /analises o item ativo é Análises, e não Início', () => {

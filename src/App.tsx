@@ -21,6 +21,7 @@ const Categorias = carregarTela(() => import('./pages/Categorias'))
 const Orcamentos = carregarTela(() => import('./pages/Orcamentos'))
 const Relatorios = carregarTela(() => import('./pages/Relatorios'))
 const Familia = carregarTela(() => import('./pages/Familia'))
+const Exportar = carregarTela(() => import('./pages/Exportar'))
 const Cadastro = carregarTela(() => import('./pages/auth/Cadastro'))
 const RecuperarSenha = carregarTela(() => import('./pages/auth/RecuperarSenha'))
 const NovaSenha = carregarTela(() => import('./pages/auth/NovaSenha'))
@@ -53,6 +54,7 @@ export default function App() {
           <Route path="categorias" element={<Categorias />} />
           <Route path="orcamentos" element={<Orcamentos />} />
           <Route path="relatorios" element={<Relatorios />} />
+          <Route path="exportar" element={<Exportar />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
