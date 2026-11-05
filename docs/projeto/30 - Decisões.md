@@ -287,3 +287,7 @@ Pedidos do dono, com base no Relatório do Organizze: "notei que no Tudo Azul o 
 ## 05/11/2026 — Exportação em Conta, Relatórios só com relatórios (#180)
 - Pedido do dono: a exportação ocupava metade da tela de Relatórios sem ser relatório. Vai para **Conta › Exportar dados** (`/exportar`), junto de Família, porque é cuidado com os dados da conta (arquivo, conferência), não análise. O espaço liberado em Relatórios fica para relatórios novos (ex.: Categorias e Contas, como as abas do Organizze).
 - O CSV de lançamentos passa a começar no **mês de hoje** (antes seguia o período escolhido no relatório, que não está mais na mesma tela).
+
+## 05/11/2026 — Saldo dos relatórios: uma chamada só (#182, migration 067)
+- Função de relatório não chama `balance_totals_projected` (ou outra função de saldo) uma vez por linha: com os dados reais, cada chamada custa ~0,3 s e o banco corta em 8 s. Regra: saldo de abertura uma vez + resultado acumulado no SQL. Teste de guarda no pgTAP (67).
+- Os testes locais não pegaram porque o banco de teste tem poucos dados: antes de aplicar função de relatório nova, medir o tempo em produção numa transação desfeita (como foi feito aqui).
