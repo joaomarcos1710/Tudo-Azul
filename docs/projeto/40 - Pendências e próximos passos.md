@@ -20,6 +20,9 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+- [x] **Cartões: destaque da fatura atual e menu "Mais opções"** (#163, 05/11/2026): pedido do dono (zero em destaque e botões demais).
+- [ ] **Unificar os menus**: "+ Lançamento" (`MenuNovo` em `Lancamentos.tsx`) passar a usar `MenuAcoes` (hoje são dois menus com o mesmo comportamento; o de Lançamentos não anda com as setas).
+- [ ] **Início, bloco Cartões**: avaliar o mesmo destaque "Fatura atual" de Cartões (#163 não mexeu no Início).
 - [x] **Multimoeda F1 — moeda na conta e saldos por moeda** (migration 055, #160): merge `8e62600`; **aplicada em 04/11/2026** (execução 41912792280, simulação 41912680166).
 - [ ] **Multimoeda F2 — receita e despesa em moeda estrangeira e relatórios por moeda** (migration 056, #161): código pronto; marcar feito ao **aplicar a 056** em produção (workflow: simular → ler o log → aplicar, com o "pode"). Provento continua só em reais.
 - [ ] **Multimoeda F3**: transferência entre moedas (`destination_amount`); libera transferência e pagamento de cartão/dívida a partir de conta estrangeira, se fizer sentido.
