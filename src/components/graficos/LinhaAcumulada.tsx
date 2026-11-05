@@ -3,7 +3,7 @@ import type { PointerEvent } from 'react'
 import { formatBRL, formatDate } from '../../lib/format'
 import { MASCARA, valoresOcultos } from '../../lib/privacidade'
 import type { Cents } from '../../lib/format'
-import { COR_LINHA } from './cores'
+import { COR_CONTORNO, COR_EIXO, COR_GRADE, COR_LINHA } from './cores'
 
 export interface PontoDia {
   dia: string
@@ -63,7 +63,7 @@ export function LinhaAcumulada({ pontos, ate }: { pontos: PontoDia[]; ate: strin
         </defs>
         {linhasGrade.map((v) => (
           <g key={v}>
-            <line x1={esq} x2={L - dir} y1={y(v)} y2={y(v)} stroke="#e2e8f0" strokeWidth="1" />
+            <line x1={esq} x2={L - dir} y1={y(v)} y2={y(v)} stroke={COR_GRADE} strokeWidth="1" />
             <text x={esq - 8} y={y(v) + 4} textAnchor="end" fontSize="11" className="fill-slate-500">{brlCompacto(v)}</text>
           </g>
         ))}
@@ -74,8 +74,8 @@ export function LinhaAcumulada({ pontos, ate }: { pontos: PontoDia[]; ate: strin
         {caminho && <path d={caminho} fill="none" stroke={COR_LINHA} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
         {p && ativo !== null && (
           <g>
-            <line x1={x(ativo)} x2={x(ativo)} y1={topo} y2={y(0)} stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 3" />
-            <circle cx={x(ativo)} cy={y(p.acumulado)} r="5" fill={COR_LINHA} stroke="#fff" strokeWidth="2" />
+            <line x1={x(ativo)} x2={x(ativo)} y1={topo} y2={y(0)} stroke={COR_EIXO} strokeWidth="1" strokeDasharray="3 3" />
+            <circle cx={x(ativo)} cy={y(p.acumulado)} r="5" fill={COR_LINHA} stroke={COR_CONTORNO} strokeWidth="2" />
           </g>
         )}
         <rect x={esq} y={topo} width={L - esq - dir} height={A - topo - base} fill="transparent"

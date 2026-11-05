@@ -139,7 +139,7 @@ export default function Orcamentos() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-slate-500">Gasto no mês</p>
-                  <p className={`tabular-nums text-lg font-semibold ${o.gasto > o.limite ? 'text-negativo' : ''}`}>{formatBRL(o.gasto)}</p>
+                  <p className={`tabular-nums text-lg font-semibold ${o.gasto > o.limite ? 'text-prejuizo' : ''}`}>{formatBRL(o.gasto)}</p>
                 </div>
               </div>
               <Barra gasto={o.gasto} limite={o.limite} />
@@ -180,7 +180,7 @@ function Barra({ gasto, limite }: { gasto: Cents; limite: Cents }) {
   return (
     <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100" role="img"
       aria-label={`Gasto ${formatBRL(gasto)} de ${formatBRL(limite)}`}>
-      <div className={`h-full rounded-full ${passou ? 'bg-negativo' : pct >= 80 ? 'bg-planejado' : 'bg-azul'}`} style={{ width: `${pct}%` }} />
+      <div className={`h-full rounded-full ${passou ? 'bg-prejuizo-marca' : pct >= 80 ? 'bg-atencao-marca' : 'bg-lucro-marca'}`} style={{ width: `${pct}%` }} />
     </div>
   )
 }
@@ -188,12 +188,12 @@ function Barra({ gasto, limite }: { gasto: Cents; limite: Cents }) {
 /** Texto da situação. Valores da projeção vêm do banco (budget_projection); o app não soma dinheiro. */
 function Situacao({ o, emAndamento }: { o: OrcamentoMes; emAndamento: boolean }) {
   if (o.gasto > o.limite) {
-    return <p className="mt-2 text-sm font-medium text-negativo">Já passou do limite em {formatBRL(-o.restante as Cents)}.</p>
+    return <p className="mt-2 text-sm font-medium text-prejuizo">Já passou do limite em {formatBRL(-o.restante as Cents)}.</p>
   }
   if (!emAndamento) {
     // mês passado ou futuro: sem ritmo; "sobra" já desconta o que está previsto (ex.: parcela de cartão que ainda vai fechar)
     if (o.sobra !== null && o.sobra < 0) {
-      return <p className="mt-2 text-sm text-planejado">Com o que já está previsto, passa do limite em {formatBRL(-o.sobra as Cents)}.</p>
+      return <p className="mt-2 text-sm text-atencao">Atenção: com o que já está previsto, passa do limite em {formatBRL(-o.sobra as Cents)}.</p>
     }
     return <p className="mt-2 text-sm text-slate-600">Ainda dentro do limite: sobram {formatBRL((o.sobra ?? o.restante) as Cents)}.</p>
   }
@@ -202,11 +202,11 @@ function Situacao({ o, emAndamento }: { o: OrcamentoMes; emAndamento: boolean })
   }
   const detalhe = `Gasto ${formatBRL(o.gasto)} + previsto ${formatBRL(o.previsto ?? (0 as Cents))} + ritmo do mês ${formatBRL(o.ritmo ?? (0 as Cents))}`
   return o.sobra < 0 ? (
-    <p className="mt-2 text-sm text-planejado">
+    <p className="mt-2 text-sm text-atencao">
       <strong>No ritmo atual vai passar do limite em {formatBRL(-o.sobra as Cents)}</strong> (projeção {formatBRL(o.projetado)}). <span className="text-slate-500">{detalhe}.</span>
     </p>
   ) : (
-    <p className="mt-2 text-sm text-positivo">
+    <p className="mt-2 text-sm text-lucro">
       No ritmo: projeção {formatBRL(o.projetado)}, sobram {formatBRL(o.sobra)}. <span className="text-slate-500">{detalhe}.</span>
     </p>
   )

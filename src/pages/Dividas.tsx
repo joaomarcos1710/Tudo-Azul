@@ -631,7 +631,7 @@ function ConfirmarArquivarExcluir({ tipo, divida, aoFechar, aoConcluir }: {
     } finally { setEnviando(false) }
   }
   return (
-    <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label={excluir ? `Excluir ${divida.nome}` : `Arquivar ${divida.nome}`}>
+    <div className="mt-3 rounded-lg border border-negativo-borda bg-negativo-fundo p-4" role="group" aria-label={excluir ? `Excluir ${divida.nome}` : `Arquivar ${divida.nome}`}>
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
       {excluir ? (
         <p className="text-sm">
@@ -703,7 +703,7 @@ function AgendaDaDivida({ nome, parcelas, aoBaixar }: { nome: string; parcelas: 
           <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
             <div className="min-w-0">
               <p className="font-medium">Parcela {p.numero}</p>
-              <p className="text-xs text-slate-500">{p.vencimento < hoje && <span className="mr-1 font-semibold text-negativo">Vencida ·</span>}Vencimento {p.vencimento.split('-').reverse().join('/')} · {p.formaPagamento === 'account_debit' ? 'Débito em conta' : p.formaPagamento === 'boleto' ? 'Boleto' : p.formaPagamento === 'payroll' ? 'Consignado' : 'Manual'}</p>
+              <p className="text-xs text-slate-500">{p.vencimento < hoje && <span className="mr-1 font-semibold text-prejuizo">Vencida ·</span>}Vencimento {p.vencimento.split('-').reverse().join('/')} · {p.formaPagamento === 'account_debit' ? 'Débito em conta' : p.formaPagamento === 'boleto' ? 'Boleto' : p.formaPagamento === 'payroll' ? 'Consignado' : 'Manual'}</p>
             </div>
             <div className="flex items-center gap-3">
               <strong className="tabular-nums">{formatBRL(p.valor)}</strong>

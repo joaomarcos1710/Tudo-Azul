@@ -70,6 +70,11 @@ async function escolherNoMenu(u: ReturnType<typeof userEvent.setup>, acao: strin
   await u.click(await screen.findByRole('button', { name: `Mais opções do cartão ${cartao}` }))
   await u.click(within(screen.getByRole('menu', { name: `Mais opções do cartão ${cartao}` })).getByRole('menuitem', { name: acao }))
 }
+/** Ações de uma compra ou crédito da fatura (#183): ficam no ⋯ da linha ("Ações de TV", "Ações do crédito Cashback"). */
+async function acaoDaLinha(u: ReturnType<typeof userEvent.setup>, menu: string, acao: string) {
+  await u.click(await screen.findByRole('button', { name: menu }))
+  await u.click(within(screen.getByRole('menu', { name: menu })).getByRole('menuitem', { name: acao }))
+}
 /** O "Ver fatura" do próprio cartão (#181; o resumo tem outro igual para a próxima fatura). */
 async function botaoVerFatura(cartao = 'Nubank') {
   const li = (await screen.findByRole('heading', { name: new RegExp(`^${cartao}`) })).closest('li')!
@@ -150,7 +155,9 @@ describe('Cartões', () => {
     expect(ver.className.split(' ')).toEqual(expect.arrayContaining(['rounded-full', 'bg-azul-claro', 'text-azul']))
     expect(screen.queryByRole('button', { name: /^Pagar fatura/ })).toBeNull() // pagar só dentro da fatura
     expect(screen.getByRole('button', { name: 'Nova compra' }).className.split(' ')).not.toContain('bg-azul')
-    expect(screen.getByText('R$ 133,34').className).toContain('text-negativo')
+    // #183: "Fatura fechada a pagar" ainda no prazo é atenção (âmbar); vermelho só quando vence
+    expect(screen.getByText('R$ 133,34').className).toContain('text-atencao')
+    expect(screen.getByText('R$ 133,34').className).not.toContain('text-prejuizo')
     unmount()
 
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }])
@@ -393,6 +400,8 @@ describe('Cartões', () => {
     expect((await screen.findAllByText('R$ 180,00')).length).toBe(2)
     expect(await screen.findByText('2/3')).toBeTruthy()
     expect(screen.getAllByText('Aberta').length).toBe(2) // selo da aba e do cabeçalho da fatura
+    // #183: fatura aberta (a pagar no futuro) = agendado, verde
+    for (const selo of screen.getAllByText('Aberta')) expect(selo.className).toContain('bg-agendado-fundo text-agendado')
     expect(mock.listarItens).toHaveBeenCalledWith('k1', '2099-04')
   })
 
@@ -440,7 +449,7 @@ describe('Cartões', () => {
   it('edita o valor de uma parcela (só ela)', async () => {
     const u = userEvent.setup()
     await abrirFatura(u)
-    await u.click(screen.getByRole('button', { name: 'Editar valor de TV' }))
+    await acaoDaLinha(u, 'Ações de TV', 'Editar valor')
     const campo = screen.getByLabelText('Valor da parcela (R$)')
     await u.clear(campo)
     await u.type(campo, '100,01')
@@ -455,7 +464,7 @@ describe('Cartões', () => {
       { tipo: 'cancel', data: '2099-05-17', valor: c(20000), contaId: null, fatura: null },
     ])
     await abrirFatura(u)
-    await u.click(screen.getByRole('button', { name: 'Excluir compra TV' }))
+    await acaoDaLinha(u, 'Ações de TV', 'Excluir compra')
     expect(await screen.findByText(/o dinheiro volta para/)).toBeTruthy()
     expect(screen.getByText('Itaú')).toBeTruthy()
     expect(mock.excluirCompra).not.toHaveBeenCalled()
@@ -510,7 +519,7 @@ describe('Cartões', () => {
     expect(mock.lancarCreditoNoCartao).toHaveBeenCalledWith('k1', expect.objectContaining({ fechamento: '2026-11-17', valor: 1000 }), expect.any(String))
   })
 
-  it('o crédito aparece na fatura em verde, com sinal +, e pode ser anulado', async () => {
+  it('o crédito aparece na fatura em azul, com sinal +, e pode ser anulado', async () => {
     const u = userEvent.setup()
     mock.listarCreditosDaFatura.mockResolvedValue([
       { id: 'ev9', descricao: 'Reembolso do plano', dataCredito: '2099-04-02', fechamento: '2099-04-17', valor: c(5000), categoriaId: 'g2' },
@@ -521,10 +530,10 @@ describe('Cartões', () => {
     expect(mock.listarCreditosDaFatura).toHaveBeenCalledWith('k1', '2099-04')
     const linha = (await screen.findByText('Reembolso do plano')).closest('li')!
     const valor = within(linha).getByText(/^\+R\$\s?50,00$/)
-    expect(valor.className).toContain('text-positivo')
+    expect(valor.className).toContain('text-lucro')
     expect(within(linha).getByText(/Salário · receita/)).toBeTruthy()
     expect(screen.getByText(/Créditos e reembolsos nesta fatura.*R\$\s?50,00/)).toBeTruthy()
-    await u.click(within(linha).getByRole('button', { name: 'Anular crédito Reembolso do plano' }))
+    await acaoDaLinha(u, 'Ações do crédito Reembolso do plano', 'Anular crédito')
     expect(mock.anularMovimentoCartao).toHaveBeenCalledWith('ev9', expect.any(String))
   })
 
@@ -1111,7 +1120,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     render(<Cartoes />)
     const proxima = await screen.findByTestId('proxima-fatura')
     expect(proxima.textContent).toBe('Fatura vencida desde25/10/2026Cartão NubankVer fatura')
-    expect(within(proxima).getByText('25/10/2026').className).toContain('text-negativo')
+    expect(within(proxima).getByText('25/10/2026').className).toContain('text-prejuizo')
   })
 
   it('3. sem fatura no mês, ou se a leitura falhar, a faixa não aparece e os cartões seguem', async () => {
@@ -1148,6 +1157,8 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     expect(screen.queryByText('Vencida')).toBeNull()
     await u.click(await botaoVerFatura())
     expect((await screen.findByRole('tab')).textContent).toBe('Outubro de 2026R$ 133,34Fechada')
+    // #183: o selo "Fechada" (a pagar) é de atenção, não vermelho
+    expect(within(screen.getByRole('tab')).getByText('Fechada').className).toContain('bg-atencao-fundo text-atencao')
   })
 
   it('5. "Parcelas futuras" virou "A cobrar (atual + futuras)", com a dica', async () => {
@@ -1166,7 +1177,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     ])
     render(<Cartoes />)
     await u.click(await botaoVerFatura())
-    await u.click(await screen.findByRole('button', { name: 'Estornar TV' }))
+    await acaoDaLinha(u, 'Ações de TV', 'Estornar')
     const form = screen.getByRole('form', { name: 'Estornar TV' })
     expect(form.closest('li')!.textContent).toContain('TV') // abre na linha da compra
     expect(document.activeElement).toBe(form)
@@ -1192,7 +1203,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     mock.estornarParcela.mockRejectedValue({ code: '22023', message: 'valor do estorno inválido' })
     render(<Cartoes />)
     await u.click(await botaoVerFatura())
-    await u.click(await screen.findByRole('button', { name: 'Estornar TV' }))
+    await acaoDaLinha(u, 'Ações de TV', 'Estornar')
     await u.type(screen.getByLabelText('Valor do estorno (R$)'), '10,00')
     await u.click(screen.getByRole('button', { name: 'Estornar' }))
     expect(await screen.findByText('Valor do estorno inválido.')).toBeTruthy()
@@ -1268,8 +1279,13 @@ describe('Fatura paga travada (migration 064)', () => {
     const u = userEvent.setup()
     await abrirSetembro(u)
     const painel = screen.getByRole('tabpanel')
-    for (const nome of [/Reabrir/, /Estornar/, /Editar/, /Excluir compra/, /Anular/, /^Pagar/]) {
+    for (const nome of [/Reabrir/, /Estornar/, /Editar/, /Excluir compra/, /Anular/, /^Pagar/, /^Ações d/]) {
       expect(within(painel).queryByRole('button', { name: nome })).toBeNull()
+    }
+    // #183: nem o ⋯ aparece na compra nem no crédito da fatura paga (a linha continua com o valor)
+    for (const linha of [...within(painel).getAllByTestId('compra-fatura'), ...within(painel).getAllByTestId('credito-fatura')]) {
+      expect(within(linha).queryByRole('button')).toBeNull()
+      expect(linha.querySelector('[data-valor]')).not.toBeNull()
     }
     const trava = within(painel).getByTestId('fatura-travada')
     expect(trava.textContent).toContain('Paga em 25/09')
@@ -1305,8 +1321,55 @@ describe('Fatura paga travada (migration 064)', () => {
     await u.click(await screen.findByRole('tab', { name: /Setembro/ }))
     await screen.findByText('TV')
     expect(screen.queryByTestId('fatura-travada')).toBeNull()
-    for (const nome of ['Estornar TV', 'Editar valor de TV', 'Excluir compra TV', 'Anular crédito Cashback', 'Reabrir fatura']) {
-      expect(screen.getByRole('button', { name: nome })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Reabrir fatura' })).toBeTruthy()
+    // #183: Estornar · Editar · Excluir num menu ⋯ (não mais três botões de texto ocupando a linha)
+    expect(screen.queryByRole('button', { name: 'Estornar TV' })).toBeNull()
+    await u.click(screen.getByRole('button', { name: 'Ações de TV' }))
+    const menu = screen.getByRole('menu', { name: 'Ações de TV' })
+    const itens = within(menu).getAllByRole('menuitem')
+    expect(itens.map((i) => i.textContent)).toEqual(['Estornar', 'Editar valor', 'Excluir compra'])
+    expect(itens[2].className).toContain('text-negativo') // destrutiva, por último e separada
+    expect(within(menu).getByRole('separator')).toBeTruthy()
+    await u.keyboard('{Escape}')
+    await u.click(screen.getByRole('button', { name: 'Ações do crédito Cashback' }))
+    expect(within(screen.getByRole('menu', { name: 'Ações do crédito Cashback' })).getAllByRole('menuitem').map((i) => i.textContent))
+      .toEqual(['Anular crédito'])
+  })
+
+  it('#183: na lista de compras o valor tem coluna própria (nunca por cima do nome), o título corta em 2 linhas e a categoria fica embaixo', async () => {
+    const u = userEvent.setup()
+    fixarHoje('2026-11-05')
+    const longa = { ...tv, parcelaId: 'p10', descricao: 'Supermercado do bairro com nome comprido de verdade', valor: c(53456), parcela: 2, deParcelas: 10 }
+    mock.listarFaturas.mockResolvedValue([{ ...setembro, pago: c(10000) }, novembro])
+    mock.listarItens.mockResolvedValue([longa])
+    mock.listarCreditosDaFatura.mockResolvedValue([])
+    render(<Cartoes />)
+    await u.click(await botaoVerFatura())
+    await u.click(await screen.findByRole('tab', { name: /Setembro/ }))
+    const titulo = await screen.findByText(longa.descricao)
+    const linha = titulo.closest('[data-testid="compra-fatura"]') as HTMLElement
+    const grade = linha.firstElementChild as HTMLElement
+    expect(grade.className).toContain('grid-cols-[auto_minmax(0,1fr)_auto]')
+    expect(grade.children).toHaveLength(3) // ícone | texto | valor + ⋯
+    expect(titulo.className).toContain('line-clamp-2')
+    const valor = within(linha).getByText(/^−R\$\s?534,56$/)
+    expect(valor.className.split(' ')).toEqual(expect.arrayContaining(['whitespace-nowrap', 'tabular-nums', 'text-prejuizo']))
+    // o valor não está no mesmo bloco do texto: fica na terceira coluna, junto do ⋯
+    expect(grade.children[1].contains(valor)).toBe(false)
+    expect(grade.children[2].contains(valor)).toBe(true)
+    expect(within(grade.children[2] as HTMLElement).getByRole('button', { name: `Ações de ${longa.descricao}` })).toBeTruthy()
+    // categoria e parcela embaixo do título, no bloco do texto
+    expect(within(grade.children[1] as HTMLElement).getByText('2/10')).toBeTruthy()
+  })
+
+  it('#183: no resumo da fatura (saldo anterior, gasto do mês, valor pago) os valores não quebram e empilham quando falta espaço', async () => {
+    const u = userEvent.setup()
+    await abrirSetembro(u)
+    const resumo = screen.getByLabelText('Resumo da fatura')
+    expect(resumo.className.split(' ')).toEqual(expect.arrayContaining(['grid-cols-1', 'sm:grid-cols-3', 'md:grid-cols-1', 'xl:grid-cols-3']))
+    for (const rotulo of ['Saldo anterior', 'Gasto do mês', 'Valor pago']) {
+      const dd = within(resumo).getByText(rotulo).nextElementSibling as HTMLElement
+      expect(dd.className.split(' ')).toEqual(expect.arrayContaining(['whitespace-nowrap', 'tabular-nums']))
     }
   })
 
@@ -1485,6 +1548,9 @@ describe('Visual do resumo e dos botões de fatura (#181, pedido do dono)', () =
     // o desenho muda em cada situação (cadeado aberto, fechado, com ✓, com !)
     const desenhos = ['CARTÃO INFINITO', 'Cartão B', 'Cartão C', 'Cartão D'].map((n) => cadeado(n).innerHTML)
     expect(new Set(desenhos).size).toBe(4)
+    // #183: aberta = agendado (verde), fechada = atenção (âmbar), paga = tudo certo (azul), vencida = prejuízo (vermelho)
+    expect(['CARTÃO INFINITO', 'Cartão B', 'Cartão C', 'Cartão D'].map((n) => cadeado(n).className.match(/text-(agendado|atencao|lucro|prejuizo)\b/)?.[0]))
+      .toEqual(['text-agendado', 'text-atencao', 'text-lucro', 'text-prejuizo'])
     // o selo de texto saiu
     for (const selo of ['Aberta', 'Fechada', 'Paga', 'Vencida']) expect(within(bloco).queryByText(selo)).toBeNull()
     // e o botão da linha diz a situação em texto para o leitor de tela

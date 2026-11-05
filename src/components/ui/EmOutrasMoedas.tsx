@@ -41,8 +41,8 @@ export function ResultadoEmOutrasMoedas({ porMoeda, className = '' }: { porMoeda
     moeda: m.moeda,
     conteudo: (
       <span className="flex flex-wrap gap-x-1.5">
-        <span className="whitespace-nowrap text-positivo">+{formatMoeda(m.receitas, m.moeda)}</span>
-        <span className="whitespace-nowrap text-negativo">−{formatMoeda(m.despesas, m.moeda)}</span>
+        <span className="whitespace-nowrap text-lucro">+{formatMoeda(m.receitas, m.moeda)}</span>
+        <span className="whitespace-nowrap text-prejuizo">−{formatMoeda(m.despesas, m.moeda)}</span>
         <span className="whitespace-nowrap">= {formatMoeda(m.resultado, m.moeda)}</span>
       </span>
     ),

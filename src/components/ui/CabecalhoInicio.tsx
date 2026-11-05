@@ -27,12 +27,12 @@ export function CabecalhoInicio({ nome, receitas, despesas, aReceber = null, aPa
         <div className="mt-3 flex items-start gap-6">
           <div>
             <p className="text-xs text-slate-500">Receita mensal</p>
-            <p className="tabular-nums text-lg font-bold text-positivo">{receitas === null ? '—' : formatBRL(receitas)}</p>
+            <p className="tabular-nums text-lg font-bold text-lucro">{receitas === null ? '—' : formatBRL(receitas)}</p>
             {aReceber !== null && aReceber > 0 && <p className="tabular-nums text-xs text-slate-500">a receber {formatBRL(aReceber)}</p>}
           </div>
           <div>
             <p className="text-xs text-slate-500">Despesa mensal</p>
-            <p className="tabular-nums text-lg font-bold text-negativo">{despesas === null ? '—' : formatBRL(despesas)}</p>
+            <p className="tabular-nums text-lg font-bold text-prejuizo">{despesas === null ? '—' : formatBRL(despesas)}</p>
             {aPagar !== null && aPagar > 0 && <p className="tabular-nums text-xs text-slate-500">a pagar {formatBRL(aPagar)}</p>}
           </div>
           <Link to="/analises" aria-label="Ver análises do mês"
@@ -42,8 +42,8 @@ export function CabecalhoInicio({ nome, receitas, despesas, aReceber = null, aPa
         </div>
       </div>
       <nav aria-label="Ações rápidas" className="flex flex-wrap gap-2">
-        <Link to="/lancamentos?novo=despesa" className={atalho}><span className="text-negativo"><IconeSubtrair /></span>Despesa</Link>
-        <Link to="/lancamentos?novo=receita" className={atalho}><span className="text-positivo"><IconeSomar /></span>Receita</Link>
+        <Link to="/lancamentos?novo=despesa" className={atalho}><span className="text-prejuizo"><IconeSubtrair /></span>Despesa</Link>
+        <Link to="/lancamentos?novo=receita" className={atalho}><span className="text-lucro"><IconeSomar /></span>Receita</Link>
         <Link to="/lancamentos?novo=transferencia" className={atalho}><span className="text-slate-600"><IconeTransferir /></span>Transferência</Link>
         <Link to="/lancamentos?novo=cartao" className={atalho}><span className="text-azul"><IconeCartoes /></span>Compra no cartão</Link>
       </nav>

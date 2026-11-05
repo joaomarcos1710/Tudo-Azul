@@ -37,6 +37,7 @@ import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { ComprasDaFatura, NomeCategoria, TabelaLancamentos, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, useTelaGrande, valorComSinal } from './LancamentosTabela'
 import type { ItemLista } from './LancamentosTabela'
 import { criarRecorrencia, frequencias } from '../lib/recorrencias'
+import { SELO, corDoValor } from '../lib/cores'
 
 const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
 const totalRotulo = 'shrink-0 text-sm text-slate-500'
@@ -254,15 +255,15 @@ export default function Lancamentos() {
       {resumo && (
         <div className="mb-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
           {/* celular: uma linha por total (rótulo à esquerda, valor à direita); a partir de sm: três painéis */}
-          <Card semPadding className={totalCard}><p className={totalRotulo}>Receitas pagas</p><p className={`${totalValor} text-positivo`}>+{formatBRL(resumo.receitas)}</p></Card>
-          <Card semPadding className={totalCard}><p className={totalRotulo}>Despesas pagas</p><p className={`${totalValor} text-negativo`}>−{formatBRL(resumo.despesas)}</p></Card>
+          <Card semPadding className={totalCard}><p className={totalRotulo}>Receitas pagas</p><p className={`${totalValor} text-lucro`}>+{formatBRL(resumo.receitas)}</p></Card>
+          <Card semPadding className={totalCard}><p className={totalRotulo}>Despesas pagas</p><p className={`${totalValor} text-prejuizo`}>−{formatBRL(resumo.despesas)}</p></Card>
           <Card semPadding className={totalCard}>
             <p className={totalRotulo}>Resultado do mês</p>
             <div className="min-w-0 text-right sm:text-left">
-              <p className={`${totalValor} ${resumo.resultado < 0 ? 'text-negativo' : ''}`}>{formatBRL(resumo.resultado)}</p>
+              <p className={`${totalValor} ${corDoValor(resumo.resultado)}`}>{formatBRL(resumo.resultado)}</p>
               {(resumo.receitasPrevistas > 0 || resumo.despesasPrevistas > 0) && (
                 // cada valor é indivisível (nowrap) e a linha quebra entre eles: no celular o valor nunca fica cortado
-                <p className="mt-1 flex flex-wrap justify-end gap-x-1.5 text-xs text-planejado sm:justify-start">
+                <p className="mt-1 flex flex-wrap justify-end gap-x-1.5 text-xs text-agendado sm:justify-start">
                   <span>Planejado:</span>
                   <span className="whitespace-nowrap">+{formatBRL(resumo.receitasPrevistas)}</span>
                   <span aria-hidden="true">/</span>
@@ -380,7 +381,7 @@ export default function Lancamentos() {
                         categoria={<NomeCategoria id={c.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
                         etiquetas={[<Etiqueta key="c" estilo="bg-azul-claro text-marinho">No cartão</Etiqueta>]}
                         detalhe={`fatura ${c.cartaoNome}${c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''} · a despesa conta em ${formatDate(c.fechamento)} (fechamento da fatura)`}
-                        valor={formatBRL(c.valor)} corValor="text-slate-700"
+                        valor={formatBRL(c.valor)} corValor="text-neutro"
                         acoes={<Link to={`/cartoes?cartao=${c.cartaoId}`} aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
@@ -393,10 +394,10 @@ export default function Lancamentos() {
                         categoria={<NomeCategoria id={k.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
                         etiquetas={[
                           <Etiqueta key="c" estilo="bg-azul-claro text-marinho">Crédito no cartão</Etiqueta>,
-                          ...(k.planejado ? [<Etiqueta key="p" estilo="bg-planejado-fundo text-planejado">Planejado</Etiqueta>] : []),
+                          ...(k.planejado ? [<Etiqueta key="p" estilo={SELO.planejado}>Planejado</Etiqueta>] : []),
                         ]}
                         detalhe={`${k.vencimento ? 'fatura ' : ''}${k.cartaoNome}${k.dataCredito !== k.data ? ` · crédito de ${formatDate(k.dataCredito)}` : ''} · a receita conta em ${formatDate(k.data)} (fechamento da fatura)`}
-                        valor={`+${formatBRL(k.valor)}`} corValor="text-positivo"
+                        valor={`+${formatBRL(k.valor)}`} corValor="text-lucro"
                         acoes={<Link to="/cartoes" aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
@@ -405,9 +406,9 @@ export default function Lancamentos() {
                     return (
                       <LinhaLista key={`contrato-${p.id}`} icone={<IconeCategoria fixo="cartao" />}
                         titulo={`${p.nomeDivida} · parcela ${p.numero}`}
-                        etiquetas={[<Etiqueta key="p" estilo="bg-planejado-fundo text-planejado">Planejado · contrato</Etiqueta>]}
+                        etiquetas={[<Etiqueta key="p" estilo={SELO.planejado}>Planejado · contrato</Etiqueta>]}
                         detalhe={`${p.formaPagamento === 'account_debit' ? `Débito em ${nomeConta.get(p.contaPagamentoId ?? '') ?? 'conta'}` : p.formaPagamento === 'payroll' ? 'Desconto em folha' : p.formaPagamento === 'boleto' ? 'Boleto' : 'Pagamento manual'} · só entra no saldo e nas despesas quando você der baixa`}
-                        valor={`−${formatBRL(p.valor)}`} corValor="text-slate-700"
+                        valor={`−${formatBRL(p.valor)}`} corValor="text-neutro"
                         acoes={<Link to={`/dividas?baixar=${p.id}`} aria-label={`Baixar parcela ${p.numero} de ${p.nomeDivida}`} className={linkCompacto}>Baixar</Link>} />
                     )
                   }
@@ -417,7 +418,7 @@ export default function Lancamentos() {
                       <LinhaLista key={`divida-${m.id}`} icone={<IconeCategoria fixo="cartao" />} titulo={m.descricao}
                         categoria={<span>{nomeConta.get(m.contaId) ?? '?'}</span>}
                         etiquetas={[<Etiqueta key="d" estilo="bg-slate-100 text-slate-600">{m.jaEmDespesas ? 'Cartão/dívida · já em despesas' : 'Cartão/dívida'}</Etiqueta>]}
-                        valor={`${m.valor < 0 ? '−' : '+'}${formatBRL(Math.abs(m.valor) as Cents)}`} corValor={m.valor < 0 ? 'text-slate-700' : 'text-positivo'}
+                        valor={`${m.valor < 0 ? '−' : '+'}${formatBRL(Math.abs(m.valor) as Cents)}`} corValor={m.valor < 0 ? 'text-neutro' : 'text-lucro'}
                         acoes={<Link to="/cartoes" aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
@@ -439,7 +440,7 @@ export default function Lancamentos() {
                         ? <span>{`${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`}</span>
                         : <NomeCategoria id={l.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
                       etiquetas={[
-                        ...(l.status === 'planned' ? [<Etiqueta key="p" estilo="bg-planejado-fundo text-planejado">Planejado</Etiqueta>] : []),
+                        ...(l.status === 'planned' ? [<Etiqueta key="p" estilo={SELO.planejado}>Planejado</Etiqueta>] : []),
                         ...(l.recorrente ? [<span key="r" className="shrink-0" title="Gerado por um recorrente"><span aria-hidden="true">↻</span><span className="sr-only">recorrente</span></span>] : []),
                       ]}
                       valor={v.texto} corValor={v.cor}
@@ -447,7 +448,7 @@ export default function Lancamentos() {
                         {l.status === 'planned' && (
                           <button type="button" aria-label="Marcar pago" title={`Marcar pago: ${nome}`} disabled={pagando !== null}
                             onClick={() => { setEditando(null); setPagando(l) }}
-                            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-lg font-bold text-pago hover:bg-pago-fundo disabled:cursor-not-allowed disabled:opacity-50">
+                            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-lg font-bold text-lucro hover:bg-lucro-fundo disabled:cursor-not-allowed disabled:opacity-50">
                             <span aria-hidden="true">✓</span>
                           </button>
                         )}
@@ -544,7 +545,7 @@ function LinhaFatura({ fatura: f, categoriaPorId, nomeCategoria }: {
         <IconeCategoria fixo="cartao" />
         <Corpo titulo={`Fatura ${f.cartaoNome}`} etiquetas={[<Etiqueta key="s" estilo={s.estilo}>{s.texto}</Etiqueta>]} detalhe={resumoDaFatura(f)} />
         <span className="flex shrink-0 items-start gap-1">
-          <span data-valor className="whitespace-nowrap tabular-nums font-semibold text-slate-700">{formatBRL(f.total)}</span>
+          <span data-valor className="whitespace-nowrap tabular-nums font-semibold text-neutro">{formatBRL(f.total)}</span>
           <span aria-hidden="true" className="w-4 text-center text-slate-500">{aberto ? '▾' : '▸'}</span>
           <span className="sr-only">{aberto ? 'Esconder compras' : 'Ver compras'}</span>
         </span>
@@ -630,7 +631,7 @@ const rotuloAcao: Record<TipoLancamento | 'cartao', string> = {
   expense: 'Registrar despesa', income: 'Registrar receita', transfer: 'Registrar transferência', cartao: 'Registrar compra',
 }
 const corAba: Record<TipoLancamento | 'cartao', string> = {
-  expense: 'bg-negativo text-white', income: 'bg-positivo text-white', transfer: 'bg-marinho text-white', cartao: 'bg-azul text-white',
+  expense: 'bg-prejuizo text-white', income: 'bg-lucro text-white', transfer: 'bg-transferencia text-white', cartao: 'bg-azul text-white',
 }
 
 /** Linha do formulário: ícone, nome do campo e o controle à direita (select/data nativos: no iPhone abrem a roda de opções). */
@@ -801,7 +802,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   ]
   const porId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
   const sinal = aba === 'income' ? '+' : aba === 'transfer' ? '' : '−'
-  const corValor = aba === 'income' ? 'text-positivo' : aba === 'transfer' ? 'text-marinho' : 'text-negativo'
+  const corValor = aba === 'income' ? 'text-lucro' : aba === 'transfer' ? 'text-transferencia' : 'text-prejuizo'
 
   return (
     <Card className="!shadow-none">
@@ -812,7 +813,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
       </div>
       <form onSubmit={salvar} className="mx-auto flex max-w-xl flex-col gap-4" noValidate>
         {erro && <Aviso tipo="erro">{erro}</Aviso>}
-        {registrado && <p role="status" className="rounded-lg bg-pago-fundo px-3 py-2 text-sm font-medium text-pago">{registrado} Pode lançar o próximo.</p>}
+        {registrado && <p role="status" className="rounded-lg bg-lucro-fundo px-3 py-2 text-sm font-medium text-lucro">{registrado} Pode lançar o próximo.</p>}
 
         <div role="radiogroup" aria-label="Tipo do lançamento" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:flex">
           {abas.map(([a, rotulo, nome]) => (
@@ -975,7 +976,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
               <label key={s} className="relative">
                 <input type="radio" name="status" checked={statusEfetivo === s} onChange={() => setStatus(s)} className="peer sr-only" />
                 <span className={`inline-flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm font-semibold peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-azul ${
-                  statusEfetivo === s ? (s === 'paid' ? 'border-pago bg-pago-fundo text-pago' : 'border-planejado bg-planejado-fundo text-planejado') : 'border-slate-300 text-slate-600'}`}>
+                  statusEfetivo === s ? (s === 'paid' ? `border-lucro ${SELO.pago}` : `border-agendado ${SELO.planejado}`) : 'border-slate-300 text-slate-600'}`}>
                   {s === 'paid' ? (aba === 'income' ? 'Recebido' : 'Pago') : 'Planejado'}
                 </span>
               </label>

@@ -3,8 +3,9 @@ import type { ReactNode } from 'react'
 type Tipo = 'info' | 'erro' | 'sucesso'
 const estilos: Record<Tipo, string> = {
   info: 'bg-azul-claro text-marinho',
-  erro: 'bg-red-50 text-negativo',
-  sucesso: 'bg-green-50 text-positivo',
+  erro: 'bg-negativo-fundo text-negativo',
+  // sucesso = "está tudo certo": azul (#183); verde no app é só agendado
+  sucesso: 'bg-lucro-fundo text-lucro',
 }
 
 /** Mensagem de estado (erro/sucesso/info). Erros usam role="alert". */

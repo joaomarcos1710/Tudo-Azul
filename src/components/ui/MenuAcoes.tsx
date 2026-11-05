@@ -60,7 +60,7 @@ export function MenuAcoes({ rotulo, acoes, desabilitado = false }: { rotulo: str
               <button type="button" role="menuitem" disabled={a.desabilitado}
                 onClick={() => { setAberto(false); botao.current?.focus(); a.aoEscolher() }}
                 className={`flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
-                  a.perigo ? 'text-negativo hover:bg-red-50' : 'text-marinho hover:bg-azul-claro'}`}>
+                  a.perigo ? 'text-negativo hover:bg-negativo-fundo' : 'text-marinho hover:bg-azul-claro'}`}>
                 {a.rotulo}
               </button>
             </div>

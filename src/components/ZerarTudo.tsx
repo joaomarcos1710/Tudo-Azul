@@ -56,7 +56,7 @@ export function ZerarTudo() {
   const fraseCerta = frase.trim().toLowerCase() === FRASE_ZERAR
 
   return (
-    <Card className="border border-red-200">
+    <Card className="border border-negativo-borda">
       <CardTitle>Zona de perigo · Zerar tudo</CardTitle>
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
       {feito && (

@@ -16,6 +16,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { corDoValor } from '../lib/cores'
 
 /** Saldo na moeda da conta (BRL continua com formatBRL). */
 function textoSaldo(c: Conta): string {
@@ -143,7 +144,7 @@ export default function Contas() {
             <EmOutrasMoedas porMoeda={porMoeda} className="mt-3 border-t border-slate-200 pt-3" />
           </Card>
           {excluindo && (
-            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label="Excluir conta">
+            <div className="mb-4 rounded-lg border border-negativo-borda bg-negativo-fundo p-4" role="group" aria-label="Excluir conta">
               <p className="text-sm">
                 Excluir a conta <strong>{excluindo.nome}</strong> de vez. Só é possível se ela nunca teve lançamento, transferência
                 nem recorrente; se tiver, o app avisa e você pode <strong>arquivar</strong> em vez de excluir. Não dá para desfazer.
@@ -174,7 +175,7 @@ export default function Contas() {
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
+                        <span className={`tabular-nums text-lg font-semibold ${c.saldo === null ? '' : corDoValor(c.saldo)}`}>
                           {textoSaldo(c)}
                         </span>
                         <Button variante="fantasma" onClick={() => setEditando(c)}>Editar</Button>
@@ -204,7 +205,7 @@ export default function Contas() {
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`tabular-nums text-lg font-semibold ${c.saldo !== null && c.saldo < 0 ? 'text-negativo' : ''}`}>
+                        <span className={`tabular-nums text-lg font-semibold ${c.saldo === null ? '' : corDoValor(c.saldo)}`}>
                           {textoSaldo(c)}
                         </span>
                         <Button variante="secundario" onClick={() => alternarAtiva(c)}>Reativar</Button>

@@ -31,6 +31,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { asCents, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { SELO_FATURA } from '../lib/cores'
 
 type Painel =
   | { tipo: 'novo' }
@@ -114,7 +115,7 @@ function ResumoCartoes({ cartoes, faturasDe, faturasMes, visao, mes, aoMudarMes,
         <div className="flex items-center justify-between gap-3 rounded-lg bg-fundo p-3" data-testid="proxima-fatura">
           <div className="min-w-0">
             <p className="text-sm text-slate-500">{vencida ? 'Fatura vencida desde' : 'Próxima fatura vence em'}</p>
-            <p className={`tabular-nums whitespace-nowrap text-2xl font-bold tracking-tight ${vencida ? 'text-negativo' : ''}`}>{formatDate(proxima.data)}</p>
+            <p className={`tabular-nums whitespace-nowrap text-2xl font-bold tracking-tight ${vencida ? 'text-prejuizo' : ''}`}>{formatDate(proxima.data)}</p>
             <p className="truncate text-xs text-slate-500" title={comCartao(proxima.cartao.nome)}>{comCartao(proxima.cartao.nome)}</p>
           </div>
           <Button variante="pilula" compacto className="shrink-0" aria-label={rotuloVerFatura(proxima.cartao.nome, proxima.mes)}
@@ -147,10 +148,11 @@ type SituacaoVisual = 'aberta' | 'fechada' | 'paga' | 'vencida'
 
 /** Situação da fatura em cadeado (#181): a forma muda em cada uma (não depende só da cor); a cor reforça. */
 const cadeados: Record<SituacaoVisual, { rotulo: string; cor: string; Icone: (p: { tamanho?: number }) => ReactNode }> = {
-  aberta: { rotulo: 'Fatura aberta', cor: 'text-slate-500', Icone: IconeCadeadoAberto },
-  fechada: { rotulo: 'Fatura fechada', cor: 'text-planejado', Icone: IconeCadeadoFechado },
-  paga: { rotulo: 'Fatura paga', cor: 'text-pago', Icone: IconeCadeadoPago },
-  vencida: { rotulo: 'Fatura vencida', cor: 'text-negativo', Icone: IconeCadeadoVencido },
+  // #183: aberta = agendado (verde, a pagar no futuro); fechada = atenção; paga = tudo certo (azul); vencida = prejuízo
+  aberta: { rotulo: 'Fatura aberta', cor: 'text-agendado', Icone: IconeCadeadoAberto },
+  fechada: { rotulo: 'Fatura fechada', cor: 'text-atencao', Icone: IconeCadeadoFechado },
+  paga: { rotulo: 'Fatura paga', cor: 'text-lucro', Icone: IconeCadeadoPago },
+  vencida: { rotulo: 'Fatura vencida', cor: 'text-prejuizo', Icone: IconeCadeadoVencido },
 }
 
 function CadeadoFatura({ situacao }: { situacao: SituacaoVisual }) {
@@ -434,7 +436,7 @@ export default function Cartoes() {
                       {c.contaPagamentoId && nomeConta.get(c.contaPagamentoId) && <> · paga com {nomeConta.get(c.contaPagamentoId)}</>}
                     </p>
                   ) : (
-                    <p className="text-sm text-planejado">Defina o dia de fechamento e de vencimento para lançar compras.</p>
+                    <p className="text-sm text-atencao">Defina o dia de fechamento e de vencimento para lançar compras.</p>
                   )}
                   {melhorDiaDeCompra(hoje, c.fechamento, c.cicloAnterior) !== null && (
                     <p className="text-sm text-slate-500">Melhor dia de compra: {String(melhorDiaDeCompra(hoje, c.fechamento, c.cicloAnterior)).padStart(2, '0')}</p>
@@ -453,7 +455,7 @@ export default function Cartoes() {
               <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
                 <div className="flex gap-2">
                   <dt className="text-slate-500">A cobrar (atual + futuras)</dt>
-                  <dd className="tabular-nums font-semibold text-planejado">{formatBRL(c.compromissos)}</dd>
+                  <dd className="tabular-nums font-semibold text-agendado">{formatBRL(c.compromissos)}</dd>
                 </div>
                 <div className="basis-full text-xs text-slate-500">
                   Inclui as compras da fatura atual, que ainda não fechou, e as parcelas dos próximos meses.
@@ -461,7 +463,7 @@ export default function Cartoes() {
                 {c.credito > 0 && (
                   <div className="flex gap-2">
                     <dt className="text-slate-500">Crédito a receber</dt>
-                    <dd className="tabular-nums font-semibold text-positivo">{formatBRL(c.credito)}</dd>
+                    <dd className="tabular-nums font-semibold text-lucro">{formatBRL(c.credito)}</dd>
                   </div>
                 )}
               </dl>
@@ -580,9 +582,9 @@ function DestaqueFatura({ cartao: c, faturas, hoje }: { cartao: Cartao; faturas:
       <dl>
         <dt className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
           {vencida && venc ? `Fatura fechada a pagar (venceu ${diaMes(venc)})` : `Fatura fechada a pagar${vence(venc)}`}
-          {vencida && <span className="rounded-full bg-negativo px-2 text-xs font-semibold text-white">Vencida</span>}
+          {vencida && <span className="rounded-full bg-prejuizo px-2 text-xs font-semibold text-white">Vencida</span>}
         </dt>
-        <dd className="tabular-nums text-3xl font-bold tracking-tight text-negativo">{formatBRL(c.divida)}</dd>
+        <dd className={`tabular-nums text-3xl font-bold tracking-tight ${vencida ? 'text-prejuizo' : 'text-atencao'}`} data-testid={`fechada-a-pagar-${c.id}`}>{formatBRL(c.divida)}</dd>
         {ciclo && (
           <dd className="mt-1 text-sm text-slate-600" data-testid={`atual-${c.id}`}>
             Fatura atual (aberta{ciclo.vencimento ? `, vence ${diaMes(ciclo.vencimento)}` : ''}):{' '}
@@ -631,7 +633,7 @@ function Previstas({ cartaoId, faturas, comoParagrafo = false }: { cartaoId: str
   const Tag = comoParagrafo ? 'p' : 'dd'
   return (
     <Tag className="mt-1 text-sm text-slate-600" data-testid={`previstas-${cartaoId}`}>
-      Prevista até o fechamento: <strong className="tabular-nums whitespace-nowrap text-planejado">{formatBRL(com)}</strong>
+      Prevista até o fechamento: <strong className="tabular-nums whitespace-nowrap text-agendado">{formatBRL(com)}</strong>
       {' '}— inclui <span className="tabular-nums whitespace-nowrap">{formatBRL(x)}</span> de assinaturas previstas
     </Tag>
   )
@@ -644,7 +646,7 @@ function PainelRemoverCartao({ tipo, cartao, aoConcluir, aoFechar }: {
   const { erro, enviando, enviar } = useEnvio(aoConcluir)
   const excluir = tipo === 'excluir'
   return (
-    <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label={excluir ? 'Excluir cartão' : 'Arquivar cartão'}>
+    <div className="mb-6 rounded-lg border border-negativo-borda bg-negativo-fundo p-4" role="group" aria-label={excluir ? 'Excluir cartão' : 'Arquivar cartão'}>
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
       {excluir ? (
         <p className="text-sm">
@@ -678,13 +680,13 @@ function Limite({ limite, comprometido, disponivel, titulo = 'Limite', nota }: {
     <div className="mt-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 text-sm">
         <span className="whitespace-nowrap tabular-nums text-slate-500">{`${titulo} ${formatBRL(limite)}`}</span>
-        <span className={`whitespace-nowrap tabular-nums font-semibold ${passou ? 'text-negativo' : ''}`}>
+        <span className={`whitespace-nowrap tabular-nums font-semibold ${passou ? 'text-prejuizo' : ''}`}>
           {passou ? `Passou do limite em ${formatBRL(-disponivel as Cents)}` : `Disponível ${formatBRL(disponivel)}`}
         </span>
       </div>
       <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100" role="img"
         aria-label={`Comprometido ${formatBRL(comprometido)} de ${formatBRL(limite)}`}>
-        <div className={`h-full rounded-full ${passou ? 'bg-negativo' : 'bg-azul'}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full rounded-full ${passou ? 'bg-prejuizo-marca' : 'bg-azul'}`} style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-1 text-xs text-slate-500">
         {nota ?? <>Comprometido {formatBRL(comprometido)}: faturas a pagar + a cobrar (atual + futuras) − crédito no cartão. É só acompanhamento: o app não bloqueia compras.</>}
@@ -695,10 +697,40 @@ function Limite({ limite, comprometido, disponivel, titulo = 'Limite', nota }: {
 
 const c0 = 0 as Cents
 
-const rotuloSituacao = {
-  aberta: { texto: 'Aberta', estilo: 'bg-planejado-fundo text-planejado' },
-  fechada: { texto: 'Fechada', estilo: 'bg-red-50 text-negativo' },
-  paga: { texto: 'Paga', estilo: 'bg-pago-fundo text-pago' },
+const rotuloSituacao = { aberta: SELO_FATURA.aberta, fechada: SELO_FATURA.fechada, paga: SELO_FATURA.paga }
+
+// resumo da fatura (#183): empilhado = linha "nome … valor"; em 3 colunas = nome em cima do valor
+const itemResumo = 'flex items-baseline justify-between gap-3 sm:block md:flex xl:block'
+const valorResumo = 'whitespace-nowrap tabular-nums font-semibold'
+
+/**
+ * Uma compra ou um crédito da fatura (#183, como a lista de Lançamentos depois da #172), em grade:
+ * ícone | título (até 2 linhas, reticências) e a categoria embaixo | valor numa coluna própria (nowrap, tabular), nunca
+ * por cima do texto, com o ⋯ embaixo dele. Sem `acoes` (fatura paga, travada) não há ⋯. O painel abre na linha toda.
+ */
+function LinhaDaFatura({ testId, icone, titulo, detalhe, parcela = null, valor, corValor, acoes, painel }: {
+  testId: string; icone: ReactNode; titulo: string; detalhe: string; parcela?: string | null
+  valor: string; corValor: string; acoes: ReactNode; painel?: ReactNode
+}) {
+  return (
+    <li className="py-3" data-testid={testId}>
+      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3">
+        {icone}
+        <div className="min-w-0">
+          <p className="line-clamp-2 break-words font-medium" title={titulo}>{titulo}</p>
+          <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-slate-500">
+            <span className="min-w-0 truncate" title={detalhe}>{detalhe}</span>
+            {parcela && <span className="shrink-0 whitespace-nowrap rounded bg-neutro-fundo px-1.5 text-xs font-medium text-neutro">{parcela}</span>}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end">
+          <span data-valor className={`whitespace-nowrap tabular-nums font-semibold ${corValor}`}>{valor}</span>
+          {acoes && <div className="-mr-2 flex items-center gap-1">{acoes}</div>}
+        </div>
+      </div>
+      {painel}
+    </li>
+  )
 }
 
 type Acao =
@@ -755,7 +787,7 @@ function MovimentosCartao({ cartaoId, versao, aoAlterar }: { cartaoId: string; v
               {m.ligadoAFatura ? ' (fatura)' : ' (sem fatura: adiantado)'} · <span className="tabular-nums font-semibold">{formatBRL(m.valor)}</span>
             </span>
             {m.faturaId && travadas.has(m.faturaId) && !podeAnularPagamentoTravado(m, movs) ? (
-              <span className="text-xs font-medium text-pago">Fatura paga — travada</span>
+              <span className="text-xs font-medium text-lucro">Fatura paga — travada</span>
             ) : (
               <Button variante="perigo" carregando={anulando === m.id} disabled={anulando !== null} onClick={() => void anular(m)}>
                 Anular
@@ -956,7 +988,7 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
       )}
       <div ref={abas} className="flex gap-2 overflow-x-auto pb-2" role="tablist" aria-label="Faturas">
         {visiveis.map((f, i) => {
-          const s = faturaVencida(f, hoje) ? { texto: 'Vencida', estilo: 'bg-negativo text-white' } : rotuloSituacao[situacaoFatura(f, hoje)]
+          const s = faturaVencida(f, hoje) ? { texto: 'Vencida', estilo: 'bg-prejuizo text-white' } : rotuloSituacao[situacaoFatura(f, hoje)]
           const escolhida = mes === f.mes
           return (
             <button key={f.mes} id={idAba(f.mes)} type="button" role="tab" aria-selected={escolhida} aria-controls={escolhida ? idPainel : undefined}
@@ -973,7 +1005,7 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
         const f = faturas.find((x) => x.mes === mes)!
         // fatura fechada e paga: só leitura (migration 064; o banco também recusa)
         const travada = faturaTravada(f, hoje)
-        const sit = faturaVencida(f, hoje) ? { texto: 'Vencida', estilo: 'bg-negativo text-white' } : rotuloSituacao[situacaoFatura(f, hoje)]
+        const sit = faturaVencida(f, hoje) ? { texto: 'Vencida', estilo: 'bg-prejuizo text-white' } : rotuloSituacao[situacaoFatura(f, hoje)]
         const fechou = f.fechamento <= hoje
         const venceu = f.vencimento !== null && f.vencimento < hoje
         const ultimoPagamento = pagamentos.length > 0 ? pagamentos[pagamentos.length - 1] : null
@@ -998,7 +1030,7 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
                 )}
                 {travada && (
                   <div className="mt-2 text-sm" data-testid="fatura-travada">
-                    <p className="font-semibold text-pago">
+                    <p className="font-semibold text-lucro">
                       {ultimoPagamento ? `Paga em ${diaMes(ultimoPagamento.data)}` : 'Paga'} · Fatura paga — travada
                     </p>
                     <p className="text-xs text-slate-600">
@@ -1007,20 +1039,22 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
                   </div>
                 )}
               </div>
-              <dl className="grid grid-cols-3 gap-2 rounded-lg bg-fundo p-3 text-sm" aria-label="Resumo da fatura">
-                <div>
+              {/* #183: o valor nunca quebra (nowrap). Três colunas só com largura de sobra (sm sozinho na linha; xl lado a
+                  lado com a fatura); no resto, empilha: nome à esquerda, valor à direita */}
+              <dl className="grid grid-cols-1 gap-x-4 gap-y-1 rounded-lg bg-fundo p-3 text-sm sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3" aria-label="Resumo da fatura">
+                <div className={itemResumo}>
                   <dt className="text-xs text-slate-500">Saldo anterior</dt>
-                  <dd className={`tabular-nums font-semibold ${f.saldoAnterior > 0 ? 'text-negativo' : f.adiantamentoEntrada > 0 ? 'text-positivo' : ''}`}>
+                  <dd className={`${valorResumo} ${f.saldoAnterior > 0 ? 'text-prejuizo' : f.adiantamentoEntrada > 0 ? 'text-lucro' : ''}`}>
                     {f.saldoAnterior > 0 ? formatBRL(f.saldoAnterior) : f.adiantamentoEntrada > 0 ? `crédito ${formatBRL(f.adiantamentoEntrada)}` : formatBRL(c0)}
                   </dd>
                 </div>
-                <div>
+                <div className={itemResumo}>
                   <dt className="text-xs text-slate-500">Gasto do mês</dt>
-                  <dd className="tabular-nums font-semibold">{formatBRL(f.total)}</dd>
+                  <dd className={valorResumo}>{formatBRL(f.total)}</dd>
                 </div>
-                <div>
+                <div className={itemResumo}>
                   <dt className="text-xs text-slate-500">Valor pago</dt>
-                  <dd className="tabular-nums font-semibold text-pago">{formatBRL(f.pago)}</dd>
+                  <dd className={`${valorResumo} ${f.pago > 0 ? 'text-lucro' : ''}`}>{formatBRL(f.pago)}</dd>
                 </div>
               </dl>
             </div>
@@ -1031,17 +1065,17 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
                 {pagamentos.map((p) => (
                   <li key={p.id} className="flex justify-between gap-2 rounded border border-slate-100 px-3 py-1.5">
                     <span>Pagamento recebido em {formatDate(p.data)}</span>
-                    <span className="tabular-nums font-semibold text-pago">{formatBRL(p.valor)}</span>
+                    <span className="tabular-nums font-semibold text-lucro">{formatBRL(p.valor)}</span>
                   </li>
                 ))}
               </ul>
             )}
             {f.aCobrar > 0 && f.cobrado > 0 && (
-              <p className="text-xs text-planejado">Ainda vai entrar nesta fatura: {formatBRL(f.aCobrar)}</p>
+              <p className="text-xs text-agendado">Ainda vai entrar nesta fatura: {formatBRL(f.aCobrar)}</p>
             )}
-            {f.creditos > 0 && <p className="text-xs text-positivo">Créditos e reembolsos nesta fatura (contam como receita): {formatBRL(f.creditos)}</p>}
-            {f.adiantamentoEntrada > 0 && <p className="text-xs text-positivo">Adiantamento usado nesta fatura: até {formatBRL(f.adiantamentoEntrada)}</p>}
-            {f.adiantamentoSaida > 0 && <p className="text-xs text-positivo">Sobra de adiantamento para as próximas: {formatBRL(f.adiantamentoSaida)}</p>}
+            {f.creditos > 0 && <p className="text-xs text-lucro">Créditos e reembolsos nesta fatura (contam como receita): {formatBRL(f.creditos)}</p>}
+            {f.adiantamentoEntrada > 0 && <p className="text-xs text-lucro">Adiantamento usado nesta fatura: até {formatBRL(f.adiantamentoEntrada)}</p>}
+            {f.adiantamentoSaida > 0 && <p className="text-xs text-lucro">Sobra de adiantamento para as próximas: {formatBRL(f.adiantamentoSaida)}</p>}
             {f.pago > 0 && f.faturaId && !acao && !travada && (
               <div className="mt-2">
                 <Button variante="fantasma" onClick={() => setAcao({ tipo: 'reabrir', fatura: f })}>Reabrir fatura</Button>
@@ -1063,24 +1097,16 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
                 <h4 className="mb-1 text-sm font-semibold text-slate-500">Créditos e reembolsos</h4>
                 <ul className="divide-y divide-slate-100">
                   {creditos.map((cr) => (
-                    <li key={cr.id} className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:gap-3">
-                      <div className="flex min-w-0 flex-1 items-start gap-3">
-                        <IconeCategoria visual={visualPorId(cr.categoriaId, categoriaPorId, 'income')} tamanho="pequeno" />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">{cr.descricao}</p>
-                          <p className="text-sm text-slate-500">
-                            {formatDate(cr.dataCredito)} · {nomeCategoria.get(cr.categoriaId) ?? 'Sem categoria'} · receita
-                          </p>
-                        </div>
-                        <span className="shrink-0 whitespace-nowrap tabular-nums font-semibold text-positivo">+{formatBRL(cr.valor)}</span>
-                      </div>
-                      {!travada && (
-                        <div className="ml-7 flex items-center gap-1 sm:ml-0 sm:shrink-0">
-                          <Button variante="discreto" compacto carregando={anulando === cr.id} disabled={anulando !== null || acao !== null}
-                            aria-label={`Anular crédito ${cr.descricao}`} onClick={() => void anularCredito(cr)}>Anular</Button>
-                        </div>
-                      )}
-                    </li>
+                    <LinhaDaFatura key={cr.id} testId="credito-fatura"
+                      icone={<IconeCategoria visual={visualPorId(cr.categoriaId, categoriaPorId, 'income')} tamanho="pequeno" />}
+                      titulo={cr.descricao}
+                      detalhe={`${formatDate(cr.dataCredito)} · ${nomeCategoria.get(cr.categoriaId) ?? 'Sem categoria'} · receita`}
+                      valor={`+${formatBRL(cr.valor)}`} corValor="text-lucro"
+                      acoes={travada ? null : <>
+                        {anulando === cr.id && <span role="status" className="text-xs text-slate-500">Anulando…</span>}
+                        <MenuAcoes rotulo={`Ações do crédito ${cr.descricao}`} desabilitado={anulando !== null || acao !== null}
+                          acoes={[{ rotulo: 'Anular crédito', aoEscolher: () => void anularCredito(cr), perigo: true }]} />
+                      </>} />
                   ))}
                 </ul>
               </div>
@@ -1092,38 +1118,26 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
                     <h4 className="mb-1 text-sm font-semibold text-slate-500">{dia ? formatDate(dia) : 'Sem data da compra'}</h4>
                     <ul className="divide-y divide-slate-100">
                       {doDia.map((i) => (
-                        <li key={i.parcelaId} className="flex flex-col gap-1 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-                          <div className="flex min-w-0 flex-1 items-start gap-3">
-                            <IconeCategoria visual={visualPorId(i.categoriaId, categoriaPorId, 'expense')} tamanho="pequeno" />
-                            <div className="min-w-0 flex-1">
-                              <p className="font-medium">
-                                {i.descricao}
-                                {i.deParcelas > 1 && <span className="ml-2 whitespace-nowrap rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{i.parcela}/{i.deParcelas}</span>}
-                              </p>
-                              <p className="text-sm text-slate-500">
-                                {nomeCategoria.get(i.categoriaId) ?? 'Sem categoria'}
-                                {i.falta > 0 && ' · a cobrar no fechamento'}
-                              </p>
-                            </div>
-                            <span className="shrink-0 whitespace-nowrap tabular-nums font-semibold text-negativo">−{formatBRL(i.valor)}</span>
-                          </div>
-                          {!travada && (
-                            <div className="ml-7 flex items-center gap-1 sm:ml-0 sm:shrink-0">
-                              <Button variante="fantasma" compacto disabled={acao !== null} aria-label={`Estornar ${i.descricao}`}
-                                onClick={() => setAcao({ tipo: 'estornar', item: i, faturaId: f.faturaId })}>Estornar</Button>
-                              <Button variante="fantasma" compacto disabled={acao !== null} aria-label={`Editar valor de ${i.descricao}`}
-                                onClick={() => setAcao({ tipo: 'editar', item: i })}>Editar</Button>
-                              <Button variante="discreto" compacto disabled={acao !== null} aria-label={`Excluir compra ${i.descricao}`}
-                                onClick={() => setAcao({ tipo: 'excluir', item: i })}>Excluir</Button>
-                            </div>
+                        <LinhaDaFatura key={i.parcelaId} testId="compra-fatura"
+                          icone={<IconeCategoria visual={visualPorId(i.categoriaId, categoriaPorId, 'expense')} tamanho="pequeno" />}
+                          titulo={i.descricao}
+                          detalhe={`${nomeCategoria.get(i.categoriaId) ?? 'Sem categoria'}${i.falta > 0 ? ' · a cobrar no fechamento' : ''}`}
+                          parcela={i.deParcelas > 1 ? `${i.parcela}/${i.deParcelas}` : null}
+                          valor={`−${formatBRL(i.valor)}`} corValor="text-prejuizo"
+                          // fatura paga (travada, migration 064): sem ⋯; o banco também recusa
+                          acoes={travada ? null : (
+                            <MenuAcoes rotulo={`Ações de ${i.descricao}`} desabilitado={acao !== null} acoes={[
+                              { rotulo: 'Estornar', aoEscolher: () => setAcao({ tipo: 'estornar', item: i, faturaId: f.faturaId }) },
+                              { rotulo: 'Editar valor', aoEscolher: () => setAcao({ tipo: 'editar', item: i }) },
+                              { rotulo: 'Excluir compra', aoEscolher: () => setAcao({ tipo: 'excluir', item: i }), perigo: true },
+                            ]} />
                           )}
-                          {acao?.tipo === 'estornar' && acao.item.parcelaId === i.parcelaId && (
-                            <PainelJunto className="w-full sm:basis-full">
+                          painel={acao?.tipo === 'estornar' && acao.item.parcelaId === i.parcelaId && (
+                            <PainelJunto className="mt-2 w-full">
                               <PainelEstornar item={acao.item} faturaId={acao.faturaId} aoFechar={() => setAcao(null)}
                                 aoConcluir={async () => { setAcao(null); await aoAlterar() }} />
                             </PainelJunto>
-                          )}
-                        </li>
+                          )} />
                       ))}
                     </ul>
                   </div>
@@ -1680,7 +1694,7 @@ function PainelExcluir({ cartaoId, item, contas, aoFechar, aoConcluir }: {
   }, [cartaoId, item.compra])
 
   return (
-    <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-4" role="group" aria-label="Excluir compra">
+    <div className="mt-3 rounded-lg border border-negativo-borda bg-negativo-fundo p-4" role="group" aria-label="Excluir compra">
       {(erro || erroPrevia) && <div className="mb-3"><Aviso tipo="erro">{erro || erroPrevia}</Aviso></div>}
       <p className="text-sm">
         Excluir a compra <strong>{item.descricao}</strong> inteira (todas as parcelas). Isto será desfeito:
