@@ -35,13 +35,29 @@ export const MOEDAS_CONTA = [
   ['EUR', 'Euro (€)'],
 ] as const
 
-/**
- * Multimoeda F1 (migration 055): por enquanto só conta em reais aceita lançamento, recorrente, pagamento de cartão ou
- * de dívida e provento (o banco recusa nas outras). Os formulários usam isto para nem oferecer a conta estrangeira.
- * atalho: bloqueio provisório, liberado na F2 (receita/despesa) e F3 (transferência entre moedas).
- */
-export function aceitaLancamento(c: { moeda?: string }): boolean {
+/** Para que a conta vai ser usada: lançamento (receita, despesa, parcelado, recorrente e transferência) ou cartão/dívida/provento. */
+export type UsoConta = 'lancamento' | 'cartao_divida_provento'
+
+/** Conta em reais (sem moeda conhecida = BRL, o padrão do banco). */
+export function ehReais(c: { moeda?: string }): boolean {
   return (c.moeda ?? 'BRL') === 'BRL'
+}
+
+/**
+ * Multimoeda F2 (migration 056): receita e despesa (avulsa, parcelada e recorrente) e transferência aceitam conta em
+ * qualquer moeda; cartão (conta de pagamento), dívida (evento e conta de pagamento) e provento seguem só em reais (o
+ * banco recusa nas outras). Os formulários usam isto para nem oferecer a conta que o banco recusaria.
+ * Transferência: além disto, destino só na mesma moeda da origem (`mesmaMoeda`).
+ * atalho: transferência entre moedas diferentes fica para a F3 (com a cotação); cartão, dívida e provento em outra
+ * moeda não têm fase prevista.
+ */
+export function aceitaLancamento(c: { moeda?: string }, uso: UsoConta): boolean {
+  return uso === 'lancamento' || ehReais(c)
+}
+
+/** Duas contas na mesma moeda: a única transferência aceita até a F3. */
+export function mesmaMoeda(a: { moeda?: string }, b: { moeda?: string }): boolean {
+  return (a.moeda ?? 'BRL') === (b.moeda ?? 'BRL')
 }
 
 export interface DadosConta {

@@ -19,6 +19,7 @@ const mock = vi.hoisted(() => ({
   resumoDosCartoes: vi.fn(),
   totalFaturasDoMes: vi.fn(),
   resumoDoPeriodo: vi.fn(),
+  resumoPorMoeda: vi.fn(),
   listarLancamentos: vi.fn(),
   listarCategorias: vi.fn(),
   saldosProjetados: vi.fn(),
@@ -39,7 +40,7 @@ vi.mock('../lib/painel', () => ({
 }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1', user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
-vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos }))
+vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos, resumoPorMoeda: mock.resumoPorMoeda }))
 const cobrar = vi.hoisted(() => vi.fn())
 const gerar = vi.hoisted(() => vi.fn())
 vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar, resumoDosCartoes: mock.resumoDosCartoes, totalFaturasDoMes: mock.totalFaturasDoMes }))
@@ -57,6 +58,7 @@ const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(<MemoryRouter
 beforeEach(() => {
   window.localStorage.clear()
   mock.totaisPorMoeda.mockResolvedValue([])
+  mock.resumoPorMoeda.mockResolvedValue([])
   cobrar.mockResolvedValue(0)
   gerar.mockResolvedValue(0)
   mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), bens: c(0), patrimonio: c(1087560), compromissos: c(482000) })
@@ -565,6 +567,38 @@ describe('Visão geral', () => {
     expect(within(card).getByText(/US\$\s*250,50/)).toBeTruthy()
     const bloco = screen.getByRole('group', { name: 'Em outras moedas' })
     expect(bloco.textContent).toMatch(/US\$\s*250,50/)
+  })
+
+  it('multimoeda F2: Início mostra receitas e despesas do mês em dólar à parte (period_summary_by_currency) e o lançamento na moeda da conta', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [
+        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1282030), moeda: 'BRL' },
+        { id: 'u1', nome: 'Conta em dólar', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(25050), moeda: 'USD' },
+      ],
+      total: c(1282030),
+    })
+    mock.listarLancamentos.mockResolvedValue([
+      { id: 't9', tipo: 'expense', contaId: 'u1', destinoId: null, categoriaId: null, descricao: 'Café em NY', valor: c(4025), data: hojeSP(), status: 'paid', notas: '' },
+    ])
+    mock.resumoPorMoeda.mockResolvedValue([{ moeda: 'USD', receitas: c(100000), despesas: c(4025), resultado: c(95975) }])
+    montar()
+    const linha = (await screen.findByText('Café em NY')).closest('li') as HTMLElement
+    expect(linha.textContent).toMatch(/−US\$\s*40,25/)
+    expect(linha.textContent).not.toMatch(/R\$/)
+    const blocos = screen.getAllByRole('group', { name: 'Em outras moedas' })
+    expect(blocos.some((b) => /\+US\$\s*1\.000,00/.test(b.textContent ?? '') && /=\s*US\$\s*959,75/.test(b.textContent ?? ''))).toBe(true)
+    // o cabeçalho continua com a receita em reais do banco (period_summary), sem o dólar
+    expect(within(screen.getByRole('banner')).getByText('R$ 12.150,00')).toBeTruthy()
+    const [de, ate] = [`${hojeSP().slice(0, 7)}-01`, expect.stringMatching(new RegExp(`^${hojeSP().slice(0, 7)}-\\d{2}$`))]
+    expect(mock.resumoPorMoeda).toHaveBeenCalledWith('h1', de, ate)
+  })
+
+  it('multimoeda F2: Análises também mostra o resultado do mês em outras moedas', async () => {
+    mock.resumoPorMoeda.mockResolvedValue([{ moeda: 'EUR', receitas: c(0), despesas: c(990), resultado: c(-990) }])
+    montar('analises')
+    const bloco = await screen.findByRole('group', { name: 'Em outras moedas' })
+    expect(bloco.textContent).toMatch(/−€\s*9,90/)
+    expect(bloco.textContent).not.toMatch(/R\$/)
   })
 
   it('multimoeda F1: Análises mostra "Em outras moedas" junto do patrimônio, do banco (balance_totals_by_currency)', async () => {

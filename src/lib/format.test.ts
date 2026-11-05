@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   asCents, centsFromDb, centsToDecimal, currentMonth, formatBRL, formatDate, formatMonth,
-  MAX_CENTS, primeiraMaiuscula, parseBRL, type Cents,
+  MAX_CENTS, primeiraMaiuscula, parseBRL, simboloMoeda, type Cents,
 } from './format'
 
 const c = (n: number) => n as Cents
@@ -144,5 +144,14 @@ describe('primeiraMaiuscula', () => {
     expect(primeiraMaiuscula('em março de 2027')).toBe('Em março de 2027')
     expect(primeiraMaiuscula('últimos 12 meses')).toBe('Últimos 12 meses')
     expect(primeiraMaiuscula('')).toBe('')
+  })
+})
+
+describe('simboloMoeda (rótulo do campo de valor, multimoeda F2)', () => {
+  it('BRL, USD e EUR com o símbolo; outra moeda com o código', () => {
+    expect(simboloMoeda('BRL')).toBe('R$')
+    expect(simboloMoeda('USD')).toBe('US$')
+    expect(simboloMoeda('EUR')).toBe('€')
+    expect(simboloMoeda('GBP')).toBe('GBP')
   })
 })

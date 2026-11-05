@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({
   listarLancamentos: vi.fn(),
   listarMovimentosDeDivida: vi.fn(),
   resumoDoMes: vi.fn(),
+  resumoPorMoeda: vi.fn(),
   listarContas: vi.fn(),
   listarCategorias: vi.fn(),
   atualizarAutomaticos: vi.fn(),
@@ -25,6 +26,7 @@ vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/conta
 vi.mock('../lib/lancamentos', async (o) => ({
   ...(await o<typeof import('../lib/lancamentos')>()),
   listarLancamentos: mock.listarLancamentos, listarMovimentosDeDivida: mock.listarMovimentosDeDivida, resumoDoMes: mock.resumoDoMes,
+  resumoPorMoeda: mock.resumoPorMoeda,
 }))
 
 import Calendario from './Calendario'
@@ -66,6 +68,7 @@ beforeEach(() => {
   })
   mock.listarCategorias.mockResolvedValue([{ id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false }])
   mock.resumoDoMes.mockResolvedValue({ receitas: c(800000), despesas: c(18740), resultado: c(781260), receitasPrevistas: c(0), despesasPrevistas: c(12000) })
+  mock.resumoPorMoeda.mockResolvedValue([])
 })
 afterEach(() => {
   cleanup()
@@ -251,6 +254,41 @@ describe('Calendário: faturas e saldo projetado', () => {
     const linha = (await screen.findByText('Conta em dólar')).closest('li') as HTMLElement
     expect(linha.textContent).toMatch(/US\$\s*250,50/)
     expect(linha.textContent).not.toMatch(/R\$/)
+  })
+
+  it('multimoeda F2: lançamento em conta USD aparece na moeda dela, o dia avisa e o resultado em dólar fica à parte', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [
+        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+        { id: 'u1', nome: 'Conta em dólar', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'USD' },
+      ],
+      total: c(0),
+    })
+    mock.listarLancamentos.mockResolvedValue([
+      lanc('l2', '2026-10-16', 'expense', 18740, 'paid', 'Conta de luz'),
+      { ...lanc('l9', '2026-10-16', 'expense', 4025, 'paid', 'Café em NY'), contaId: 'u1' },
+    ])
+    mock.resumoPorMoeda.mockResolvedValue([{ moeda: 'USD', receitas: c(0), despesas: c(4025), resultado: c(-4025) }])
+    montar()
+    const cafe = (await screen.findByText('Café em NY')).closest('li') as HTMLElement
+    expect(cafe.textContent).toMatch(/−US\$\s*40,25/)
+    expect(cafe.textContent).not.toMatch(/R\$/)
+    const luz = screen.getByText('Conta de luz').closest('li') as HTMLElement
+    expect(luz.textContent).toMatch(/−R\$\s*187,40/)
+    expect(screen.getByTestId('dia-outras-moedas').textContent).toMatch(/USD.*não entram nos totais em reais/)
+    // totais do mês continuam os do banco em reais; o dólar vem à parte, de period_summary_by_currency
+    const totais = screen.getByRole('region', { name: 'Totais do mês' })
+    expect(within(totais).getByText('−R$ 187,40')).toBeTruthy()
+    const bloco = screen.getByRole('group', { name: 'Em outras moedas' })
+    expect(bloco.textContent).toMatch(/US\$\s*40,25/)
+    expect(mock.resumoPorMoeda).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31')
+  })
+
+  it('multimoeda F2: sem movimento em outra moeda, nem o aviso do dia nem o bloco aparecem', async () => {
+    montar()
+    await screen.findByRole('region', { name: 'Totais do mês' })
+    expect(screen.queryByTestId('dia-outras-moedas')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
   })
 
   it('em outro mês o saldo vai até o fim dele', async () => {

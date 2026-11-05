@@ -13,6 +13,7 @@ const mock = vi.hoisted(() => ({
   listarCartoes: vi.fn(),
   registrarCompra: vi.fn(),
   resumoDoMes: vi.fn(),
+  resumoPorMoeda: vi.fn(),
   criarLancamento: vi.fn(),
   criarRecorrencia: vi.fn(),
   criarParcelado: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
   listarComprasDeCartao: mock.listarComprasDeCartao,
   listarCreditosDeCartao: mock.listarCreditosDeCartao,
   resumoDoMes: mock.resumoDoMes,
+  resumoPorMoeda: mock.resumoPorMoeda,
   criarLancamento: mock.criarLancamento,
   editarLancamento: mock.editarLancamento,
   marcarComoPago: mock.marcarComoPago,
@@ -99,6 +101,7 @@ beforeEach(() => {
   ])
   mock.registrarCompra.mockResolvedValue(undefined)
   mock.resumoDoMes.mockResolvedValue({ receitas: c(0), despesas: c(25050), resultado: c(-25050), receitasPrevistas: c(800000), despesasPrevistas: c(0) })
+  mock.resumoPorMoeda.mockResolvedValue([])
   for (const f of [mock.criarLancamento, mock.editarLancamento, mock.marcarComoPago, mock.moverParaLixeira, mock.restaurarDaLixeira]) f.mockResolvedValue(undefined)
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
@@ -841,17 +844,70 @@ describe('lançamento parcelado fora do cartão', () => {
 
 })
 
-describe('multimoeda F1 (migration 055)', () => {
-  it('conta em outra moeda não aparece como conta do lançamento (o banco também recusa)', async () => {
-    mock.listarContas.mockResolvedValue({
-      contas: [...contas, { id: 'a3', nome: 'Conta em dólar', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0), moeda: 'USD' }],
-      total: c(0),
-    })
+describe('multimoeda F2 (migration 056)', () => {
+  const dolar = { id: 'a3', nome: 'Conta em dólar', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0), moeda: 'USD' }
+  const dolar2 = { ...dolar, id: 'a4', nome: 'Reserva em dólar' }
+  const euro = { ...dolar, id: 'a5', nome: 'Conta em euro', moeda: 'EUR' }
+  /** "US$ 40,25" com o espaço do Intl (NBSP ou espaço comum, conforme o ambiente). */
+  const usd = (texto: string) => new RegExp(`^${texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(' ', '[\\s\\u00a0]')}$`)
+
+  it('conta em dólar aparece como conta do lançamento, o valor mostra US$ e grava na conta escolhida', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [...contas, dolar], total: c(0) })
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await abrirNovo(u)
     const opcoes = Array.from((screen.getByLabelText('Conta') as HTMLSelectElement).options).map((o) => o.textContent)
-    expect(opcoes).toContain('Itaú')
-    expect(opcoes).not.toContain('Conta em dólar')
+    expect(opcoes).toEqual(['Itaú', 'Nubank', 'Conta em dólar'])
+    await u.selectOptions(screen.getByLabelText('Conta'), 'a3')
+    await u.type(screen.getByLabelText('Valor (US$)'), '40,25')
+    await u.type(screen.getByLabelText('Descrição'), 'Café')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
+    expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({ tipo: 'expense', contaId: 'a3', valor: 4025 }))
+  })
+
+  it('transferência: o destino só oferece contas da moeda da origem; trocar a origem limpa o destino de outra moeda', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [...contas, dolar, dolar2, euro], total: c(0) })
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    await u.click(screen.getByRole('radio', { name: 'Transferência' }))
+    const destinos = () => Array.from((screen.getByLabelText('Para a conta') as HTMLSelectElement).options).map((o) => o.textContent)
+    expect(destinos()).toEqual(['Escolher', 'Nubank'])
+    await u.selectOptions(screen.getByLabelText('Da conta'), 'a3')
+    expect(destinos()).toEqual(['Escolher', 'Reserva em dólar'])
+    await u.selectOptions(screen.getByLabelText('Para a conta'), 'a4')
+    await u.selectOptions(screen.getByLabelText('Da conta'), 'a1')
+    expect((screen.getByLabelText('Para a conta') as HTMLSelectElement).value).toBe('')
+    await u.selectOptions(screen.getByLabelText('Da conta'), 'a3')
+    await u.selectOptions(screen.getByLabelText('Para a conta'), 'a4')
+    await u.type(screen.getByLabelText('Valor (US$)'), '50')
+    await u.click(screen.getByRole('button', { name: 'Registrar transferência' }))
+    expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({ tipo: 'transfer', contaId: 'a3', destinoId: 'a4', valor: 5000 }))
+  })
+
+  it('a lista mostra o valor na moeda da conta e o bloco "Em outras moedas" vem do banco, fora dos totais em reais', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [...contas, dolar], total: c(0) })
+    mock.listarLancamentos.mockResolvedValue([
+      ...lancs,
+      { id: 't9', tipo: 'expense', contaId: 'a3', destinoId: null, categoriaId: 'mer', descricao: 'Café em NY', valor: c(4025), data: '2026-10-16', status: 'paid', notas: '' },
+    ])
+    mock.resumoPorMoeda.mockResolvedValue([{ moeda: 'USD', receitas: c(100000), despesas: c(4025), resultado: c(95975) }])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const linha = (await screen.findByText('Café em NY')).closest('li') as HTMLElement
+    expect(within(linha).getByText(usd('−US$ 40,25'))).toBeTruthy()
+    // o total em reais continua o do banco (period_summary), sem o dólar
+    expect(screen.getAllByText('−R$ 250,50').length).toBe(2)
+    const bloco = screen.getByRole('group', { name: 'Em outras moedas' })
+    expect(within(bloco).getByText(usd('+US$ 1.000,00'))).toBeTruthy()
+    expect(within(bloco).getByText(usd('−US$ 40,25'))).toBeTruthy()
+    expect(within(bloco).getByText(usd('= US$ 959,75'))).toBeTruthy()
+    expect(mock.resumoPorMoeda).toHaveBeenCalledWith('h1', expect.any(String), expect.any(String))
+  })
+
+  it('sem movimento em outra moeda, o bloco não aparece', async () => {
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
   })
 })

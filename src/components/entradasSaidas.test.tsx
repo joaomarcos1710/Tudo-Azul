@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   fluxoDeCaixa: vi.fn(),
   listarContas: vi.fn(),
   listarMembros: vi.fn(),
+  resumoPorMoeda: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -14,6 +15,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/fluxoCaixa', async (o) => ({ ...(await o<typeof import('../lib/fluxoCaixa')>()), fluxoDeCaixa: mock.fluxoDeCaixa }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/familia', async (o) => ({ ...(await o<typeof import('../lib/familia')>()), listarMembros: mock.listarMembros }))
+vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoPorMoeda: mock.resumoPorMoeda }))
 
 import { EntradasSaidas } from './EntradasSaidas'
 import { periodoDoFluxo } from '../lib/fluxoCaixa'
@@ -37,6 +39,7 @@ beforeEach(() => {
     { id: 'a1', nome: 'Banco', ativa: true }, { id: 'a2', nome: 'Carteira', ativa: false },
   ], total: c(0) })
   mock.listarMembros.mockResolvedValue([{ userId: 'u1', nome: 'João', papel: 'owner' }, { userId: 'u2', nome: 'Ana', papel: 'member' }])
+  mock.resumoPorMoeda.mockResolvedValue([])
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
@@ -135,5 +138,31 @@ describe('Entradas x Saídas', () => {
     expect(lista.className).toMatch(/sm:hidden/)
     expect(within(lista).getAllByRole('listitem')).toHaveLength(3) // 2 períodos + total
     expect(screen.getByRole('table').closest('div')!.className).toMatch(/hidden.*sm:block/)
+  })
+})
+
+describe('Entradas x Saídas: multimoeda F2 (migration 056)', () => {
+  it('o filtro de contas só oferece contas em reais (o relatório é em reais)', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'Banco', ativa: true, moeda: 'BRL' }, { id: 'u1', nome: 'Conta em dólar', ativa: true, moeda: 'USD' },
+    ], total: c(0) })
+    render(<EntradasSaidas />)
+    expect(await screen.findByRole('checkbox', { name: 'Banco' })).toBeTruthy()
+    expect(screen.queryByRole('checkbox', { name: 'Conta em dólar' })).toBeNull()
+  })
+
+  it('mostra as outras moedas à parte, do banco, no mesmo período; com filtro de conta o bloco some', async () => {
+    mock.resumoPorMoeda.mockResolvedValue([{ moeda: 'USD', receitas: c(100000), despesas: c(4025), resultado: c(95975) }])
+    const u = userEvent.setup()
+    render(<EntradasSaidas />)
+    const bloco = await screen.findByRole('group', { name: 'Em outras moedas' })
+    expect(bloco.textContent).toMatch(/\+US\$\s*1\.000,00/)
+    expect(bloco.textContent).toMatch(/=\s*US\$\s*959,75/)
+    const [de, ate] = ultimaChamada().slice(1, 3)
+    expect(mock.resumoPorMoeda).toHaveBeenLastCalledWith('h1', de, ate)
+    // os totais em reais continuam os do banco (cash_flow_report), sem o dólar
+    expect(within(screen.getByRole('table')).getByText('Total do período').closest('tr')!.textContent).toMatch(/1\.500,00/)
+    await u.click(await screen.findByRole('checkbox', { name: 'Banco' }))
+    expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
   })
 })

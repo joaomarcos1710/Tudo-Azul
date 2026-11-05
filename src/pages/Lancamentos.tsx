@@ -16,28 +16,29 @@ import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeTransferir } from '../components/layout/icons'
 import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
-import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
+import { aceitaLancamento, hojeSP, listarContas, mesmaMoeda } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
+import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, parseBRL, primeiraMaiuscula, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
   criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDeCartao, listarCreditosDeCartao, listarLancamentos, listarMovimentosDeDivida, marcarComoPago,
-  moverParaLixeira, restaurarDaLixeira, resumoDoMes, somarMeses, valoresDasParcelas,
+  moverParaLixeira, restaurarDaLixeira, resumoDoMes, resumoPorMoeda, somarMeses, valoresDasParcelas,
 } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
-import type { CreditoDeCartao, Filtros, Lancamento, MovimentoDivida, ParcelaDeCartao, ResumoMes, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { CreditoDeCartao, Filtros, Lancamento, MovimentoDivida, ParcelaDeCartao, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { criarRecorrencia, frequencias } from '../lib/recorrencias'
 
 const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', income: 'Receita', transfer: 'Transferência' }
 
-/** Sinal e cor por tipo: receita "+", despesa "−", transferência "⇄" sem sinal (design system). */
-function valorComSinal(l: Lancamento) {
-  if (l.tipo === 'income') return { texto: `+${formatBRL(l.valor)}`, cor: 'text-positivo' }
-  if (l.tipo === 'expense') return { texto: `−${formatBRL(l.valor)}`, cor: 'text-negativo' }
-  return { texto: `⇄ ${formatBRL(l.valor)}`, cor: 'text-slate-600' }
+/** Sinal e cor por tipo: receita "+", despesa "−", transferência "⇄" sem sinal (design system). Valor na moeda da conta. */
+function valorComSinal(l: Lancamento, moeda: string) {
+  if (l.tipo === 'income') return { texto: `+${formatMoeda(l.valor, moeda)}`, cor: 'text-positivo' }
+  if (l.tipo === 'expense') return { texto: `−${formatMoeda(l.valor, moeda)}`, cor: 'text-negativo' }
+  return { texto: `⇄ ${formatMoeda(l.valor, moeda)}`, cor: 'text-slate-600' }
 }
 
 const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
@@ -66,6 +67,8 @@ export default function Lancamentos() {
   const [comprasFalharam, setComprasFalharam] = useState(false)
   const [semDataNoBanco, setSemDataNoBanco] = useState(0)
   const [resumo, setResumo] = useState<ResumoMes | null>(null)
+  // receitas e despesas pagas em outras moedas (multimoeda F2): à parte, nunca somadas ao resumo em reais
+  const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
   const [contas, setContas] = useState<Conta[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
@@ -152,9 +155,11 @@ export default function Lancamentos() {
             .then((ps) => (filtros.contaId ? ps.filter((p) => p.contaPagamentoId === filtros.contaId) : ps))
       // falha nos créditos do cartão não derruba a lista
       const creditos = listarCreditosDeCartao(familiaId, mes, filtros, hojeSP()).catch(() => [] as CreditoDeCartao[])
-      const [l, r, md, cc, pc, cr] = await Promise.all([
+      // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
+      const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(() => [] as ResumoPorMoeda[])
+      const [l, r, md, cc, pc, cr, pm] = await Promise.all([
         listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), compras, parcelas,
-        creditos,
+        creditos, porMoedaDoMes,
       ])
       if (meu !== pedido.current) return
       setLancamentos(l)
@@ -165,6 +170,7 @@ export default function Lancamentos() {
       setComprasFalharam(semFiltroDeConta && cc === null)
       setSemDataNoBanco(cc?.semData ?? 0)
       setResumo(r)
+      setPorMoeda(pm)
       setErro('')
     } catch (err) {
       if (meu === pedido.current) setErro(mensagemErroBanco(err))
@@ -174,6 +180,7 @@ export default function Lancamentos() {
   useEffect(() => { void carregar() }, [carregar])
 
   const nomeConta = useMemo(() => new Map(contas.map((c) => [c.id, c.nome])), [contas])
+  const moedaConta = useMemo(() => new Map(contas.map((c) => [c.id, c.moeda ?? 'BRL'])), [contas])
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
   const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
 
@@ -187,7 +194,7 @@ export default function Lancamentos() {
   }
 
   async function excluir(l: Lancamento) {
-    if (!window.confirm(`Enviar "${l.descricao || rotuloTipo[l.tipo]}" de ${formatBRL(l.valor)} para a lixeira?`)) return
+    if (!window.confirm(`Enviar "${l.descricao || rotuloTipo[l.tipo]}" de ${formatMoeda(l.valor, moedaConta.get(l.contaId) ?? 'BRL')} para a lixeira?`)) return
     await agir(async () => { await moverParaLixeira(l.id); setNaLixeira(l) })
   }
 
@@ -249,6 +256,7 @@ export default function Lancamentos() {
           </Card>
         </div>
       )}
+      <ResultadoEmOutrasMoedas porMoeda={porMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
 
       {movimentosDivida.length > 0 && (
         <p className="mb-4 text-xs text-slate-500">
@@ -304,6 +312,7 @@ export default function Lancamentos() {
         <PainelPagar
           lancamento={pagando}
           nomeConta={nomeConta.get(pagando.contaId) ?? '?'}
+          moeda={moedaConta.get(pagando.contaId) ?? 'BRL'}
           aoConfirmar={async () => { setPagando(null); await carregar() }}
           aoCancelar={() => setPagando(null)}
         />
@@ -435,7 +444,7 @@ export default function Lancamentos() {
                     )
                   }
                   const l = item.l
-                  const v = valorComSinal(l)
+                  const v = valorComSinal(l, moedaConta.get(l.contaId) ?? 'BRL')
                   // só a categoria; a transferência não tem categoria, então mostra de qual conta para qual
                   const subtitulo = l.tipo === 'transfer'
                     ? `${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`
@@ -472,8 +481,8 @@ export default function Lancamentos() {
 }
 
 /** Marcar pago: a pessoa confirma a data e o valor reais; o planejado é só a sugestão. */
-function PainelPagar({ lancamento: l, nomeConta, aoConfirmar, aoCancelar }: {
-  lancamento: Lancamento; nomeConta: string; aoConfirmar: () => Promise<void>; aoCancelar: () => void
+function PainelPagar({ lancamento: l, nomeConta, moeda, aoConfirmar, aoCancelar }: {
+  lancamento: Lancamento; nomeConta: string; moeda: string; aoConfirmar: () => Promise<void>; aoCancelar: () => void
 }) {
   const [data, setData] = useState(hojeSP())
   const [valorTexto, setValorTexto] = useState(formatBRLCampo(l.valor))
@@ -505,13 +514,13 @@ function PainelPagar({ lancamento: l, nomeConta, aoConfirmar, aoCancelar }: {
     <Card className="mb-4">
       <h2 className="mb-1 text-lg font-semibold">Marcar como pago · {l.descricao || rotuloTipo[l.tipo]}</h2>
       <p className="mb-4 text-sm text-slate-600">
-        Planejado: {formatDate(l.data)} · {formatBRL(l.valor)} · {nomeConta}. Informe {entrada ? 'quando e quanto entrou' : 'quando e quanto saiu'} de
+        Planejado: {formatDate(l.data)} · {formatMoeda(l.valor, moeda)} · {nomeConta}. Informe {entrada ? 'quando e quanto entrou' : 'quando e quanto saiu'} de
         verdade: o saldo da conta e o extrato usam esta data e este valor.
       </p>
       <form onSubmit={confirmar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo={entrada ? 'Data do recebimento' : 'Data do pagamento'} type="date" value={data} onChange={(e) => setData(e.target.value)} erro={erroData} />
-        <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+        <Field rotulo={`Valor (${simboloMoeda(moeda)})`} inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando}>Confirmar pagamento</Button>
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
@@ -566,8 +575,9 @@ const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</sp
 
 function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
   const hoje = hojeSP()
-  // conta em outra moeda ainda não aceita lançamento (multimoeda F1, o banco também recusa)
-  const ativas = contas.filter((c) => aceitaLancamento(c) && (c.ativa || c.id === l?.contaId || c.id === l?.destinoId))
+  // multimoeda F2: receita, despesa e transferência aceitam conta em qualquer moeda (o destino da transferência, só na
+  // mesma moeda da origem: ver `destinos`)
+  const ativas = contas.filter((c) => aceitaLancamento(c, 'lancamento') && (c.ativa || c.id === l?.contaId || c.id === l?.destinoId))
   const [tipo, setTipo] = useState<TipoLancamento>(l?.tipo ?? (inicial && inicial !== 'cartao' ? inicial : 'expense'))
   const [valorTexto, setValorTexto] = useState(l ? formatBRLCampo(l.valor) : '')
   const [data, setData] = useState(l?.data ?? hoje)
@@ -617,6 +627,9 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const transferencia = tipo === 'transfer'
   const categoriasDoTipo = categorias.filter((c) => c.tipo === tipo && (c.ativa || c.id === l?.categoriaId))
   const conta = contas.find((c) => c.id === contaId)
+  const moeda = cartaoMode ? 'BRL' : conta?.moeda ?? 'BRL'
+  // transferência entre moedas diferentes só na F3 (o banco recusa): o destino lista só contas da moeda da origem
+  const destinos = ativas.filter((c) => c.id !== contaId && (!conta || mesmaMoeda(c, conta)))
 
   const erros = {
     valor: valor === null || valor <= 0 ? 'Informe um valor maior que zero. Exemplo: 1.250,50.' : undefined,
@@ -624,7 +637,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     cartao: cartaoMode && !cartaoId ? 'Escolha o cartão.' : undefined,
     parcelas: cartaoMode && !(Number.isInteger(parcelas) && parcelas >= 1 && parcelas <= 72) ? 'De 1 a 72 parcelas.' : undefined,
     descricao: cartaoMode && !descricao.trim() ? 'Descreva a compra (ex.: Fone, Mercado).' : undefined,
-    destino: transferencia && (!destinoId || destinoId === contaId) ? 'Escolha uma conta de destino diferente da origem.' : undefined,
+    destino: transferencia && (!destinoId || destinoId === contaId) ? 'Escolha uma conta de destino diferente da origem.'
+      : transferencia && !destinos.some((c) => c.id === destinoId) ? 'Transferência só entre contas da mesma moeda.' : undefined,
     categoria: !transferencia && !categoriaId ? 'Escolha a categoria.' : undefined,
     data: !data ? 'Informe a data.' : undefined,
     repetir: fixo && !descricao.trim() ? 'Dê um nome ao lançamento fixo (ex.: Aluguel, Internet).'
@@ -746,8 +760,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
           </div>
           {tentou && erros.descricao && <p className="mt-1 text-sm text-negativo" role="alert">{erros.descricao}</p>}
           <div className={`mt-2 flex items-baseline gap-1 ${corValor}`}>
-            <span aria-hidden="true" className="text-xl font-semibold">{sinal}R$</span>
-            <label htmlFor="lanc-valor" className="sr-only">Valor (R$)</label>
+            <span aria-hidden="true" className="text-xl font-semibold">{sinal}{simboloMoeda(moeda)}</span>
+            <label htmlFor="lanc-valor" className="sr-only">Valor ({simboloMoeda(moeda)})</label>
             <input id="lanc-valor" inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)}
               aria-invalid={tentou && !!erros.valor}
               className="min-h-14 w-full min-w-0 rounded-md bg-transparent px-1 text-4xl font-bold tabular-nums tracking-tight placeholder:text-current placeholder:opacity-40 focus:outline focus:outline-2 focus:outline-azul" />
@@ -775,7 +789,13 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             </>
           ) : (
             <Linha icone={<IconeContas />} rotulo={transferencia ? 'Da conta' : 'Conta'} htmlFor="lanc-conta">
-              <select id="lanc-conta" value={contaId} onChange={(e) => setContaId(e.target.value)} className={controleLinha}>
+              <select id="lanc-conta" value={contaId} onChange={(e) => {
+                setContaId(e.target.value)
+                // o destino de outra moeda deixa de valer ao trocar a origem
+                const nova = contas.find((c) => c.id === e.target.value)
+                const destino = contas.find((c) => c.id === destinoId)
+                if (nova && destino && !mesmaMoeda(nova, destino)) setDestinoId('')
+              }} className={controleLinha}>
                 {!contaId && <option value="">Escolher</option>}
                 {ativas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>{seta}
@@ -785,7 +805,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             <Linha icone={<IconeTransferir />} rotulo="Para a conta" htmlFor="lanc-destino">
               <select id="lanc-destino" value={destinoId} onChange={(e) => setDestinoId(e.target.value)} className={controleLinha}>
                 <option value="">Escolher</option>
-                {ativas.filter((c) => c.id !== contaId).map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                {destinos.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>{seta}
             </Linha>
           ) : (
@@ -857,8 +877,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
                     const v = valoresDasParcelas(valor as Cents, nParcelas)
                     return (
                       <p className="rounded-lg bg-slate-50 p-3 text-sm" data-testid="previa-parcelas">
-                        Serão lançadas {nParcelas} parcelas de <strong className="tabular-nums">{formatBRL(v[1])}</strong>
-                        {v[0] !== v[1] && <> (a primeira de <strong className="tabular-nums">{formatBRL(v[0])}</strong>, com a sobra dos centavos)</>}.
+                        Serão lançadas {nParcelas} parcelas de <strong className="tabular-nums">{formatMoeda(v[1], moeda)}</strong>
+                        {v[0] !== v[1] && <> (a primeira de <strong className="tabular-nums">{formatMoeda(v[0], moeda)}</strong>, com a sobra dos centavos)</>}.
                         <span className="block text-xs text-slate-500">A primeira segue a situação escolhida abaixo; as outras entram como planejadas.</span>
                       </p>
                     )

@@ -5,7 +5,7 @@ import type { Cents } from './format'
 
 const l = (extra: Partial<LinhaExportada>): LinhaExportada => ({
   data: '2026-10-15', tipo: 'expense', descricao: 'Mercado', categoria: 'Mercado', conta: 'Itaú', contaDestino: '',
-  valor: 125050 as Cents, situacao: 'paid', notas: '', ...extra,
+  valor: 125050 as Cents, moeda: 'BRL', situacao: 'paid', notas: '', ...extra,
 })
 
 describe('gerarCsv', () => {
@@ -13,13 +13,17 @@ describe('gerarCsv', () => {
     const csv = gerarCsv([l({}), l({ tipo: 'income', descricao: 'Salário', valor: 800000 as Cents, situacao: 'planned' })])
     const linhas = csv.split('\r\n')
     expect(csv.startsWith('﻿')).toBe(true)
-    expect(linhas[0]).toBe('﻿Data;Tipo;Descrição;Categoria;Conta;Conta destino;Valor;Situação;Observações')
-    expect(linhas[1]).toBe('15/10/2026;Despesa;Mercado;Mercado;Itaú;;-1250,50;Pago;')
-    expect(linhas[2]).toBe('15/10/2026;Receita;Salário;Mercado;Itaú;;8000,00;Planejado;')
+    expect(linhas[0]).toBe('﻿Data;Tipo;Descrição;Categoria;Conta;Conta destino;Valor;Moeda;Situação;Observações')
+    expect(linhas[1]).toBe('15/10/2026;Despesa;Mercado;Mercado;Itaú;;-1250,50;BRL;Pago;')
+    expect(linhas[2]).toBe('15/10/2026;Receita;Salário;Mercado;Itaú;;8000,00;BRL;Planejado;')
   })
   it('transferência leva as duas contas e valor positivo', () => {
     const csv = gerarCsv([l({ tipo: 'transfer', categoria: '', contaDestino: 'Nubank', valor: 5 as Cents })])
-    expect(csv.split('\r\n')[1]).toBe('15/10/2026;Transferência;Mercado;;Itaú;Nubank;0,05;Pago;')
+    expect(csv.split('\r\n')[1]).toBe('15/10/2026;Transferência;Mercado;;Itaú;Nubank;0,05;BRL;Pago;')
+  })
+  it('multimoeda F2: a coluna Moeda leva a moeda da conta (o valor fica nela, sem conversão)', () => {
+    const csv = gerarCsv([l({ conta: 'Conta em dólar', valor: 4025 as Cents, moeda: 'USD' })])
+    expect(csv.split('\r\n')[1]).toBe('15/10/2026;Despesa;Mercado;Mercado;Conta em dólar;;-40,25;USD;Pago;')
   })
   it('protege ";", aspas, quebras de linha e fórmulas', () => {
     const csv = gerarCsv([l({ descricao: 'Pão; leite "integral"', notas: 'linha 1\nlinha 2', categoria: '=SOMA(A1)' })])
@@ -131,7 +135,7 @@ describe('exportacaoCompleta', () => {
       '\uFEFFDívida;Credor;Contrato;Parcela;Vencimento;Valor;Situação;Data do pagamento;Forma de pagamento;Conta de pagamento;Operação',
     ])
     // compra no cartão não vira lançamento de conta; lançamentos continua só com transactions
-    expect(ARQ(arqs, 'lancamentos').slice(1)).toEqual(['05/10/2026;Despesa;Mercado;Mercado;Itaú;;-250,40;Pago;'])
+    expect(ARQ(arqs, 'lancamentos').slice(1)).toEqual(['05/10/2026;Despesa;Mercado;Mercado;Itaú;;-250,40;BRL;Pago;'])
   })
 
   it('pagina as leituras longas com ordem total (não perde nem repete linhas além de 1.000)', async () => {
@@ -262,7 +266,22 @@ describe('lancamentosParaExportar: parcelas de dívida (migration 046)', () => {
       ['2026-10-05', 'Parcela de Imóvel (juros)', 'Impostos e taxas', 'Itaú', 20000, 'paid'],
       ['2026-11-05', 'Parcela 2 de Imóvel', 'Financiamento', 'Itaú', 100000, 'planned'],
     ])
-    expect(gerarCsv(linhas).split('\r\n')[2]).toBe('05/10/2026;Despesa;Parcela de Imóvel (principal);Financiamento;Itaú;;-800,00;Pago;Parcela de dívida')
+    expect(gerarCsv(linhas).split('\r\n')[2]).toBe('05/10/2026;Despesa;Parcela de Imóvel (principal);Financiamento;Itaú;;-800,00;BRL;Pago;Parcela de dívida')
+  })
+
+  it('multimoeda F2: lançamento em conta USD sai com a moeda da conta; conta sem moeda gravada, BRL', async () => {
+    fake.tabelas.accounts = [{ id: 'a1', name: 'Itaú' }, { id: 'u1', name: 'Conta em dólar', currency_code: 'USD' }]
+    fake.tabelas.categories = [{ id: 'mer', name: 'Mercado' }]
+    fake.tabelas.transactions = [
+      { id: 't1', type: 'expense', account_id: 'u1', destination_account_id: null, category_id: 'mer', description: 'Café', amount: 40.25, date: '2026-10-03', status: 'paid', notes: null },
+      { id: 't2', type: 'expense', account_id: 'a1', destination_account_id: null, category_id: 'mer', description: 'Pão', amount: 10, date: '2026-10-04', status: 'paid', notes: null },
+    ]
+    fake.tabelas.debts = []
+    fake.tabelas.debt_events = []
+    fake.tabelas.debt_payment_schedule = []
+    const linhas = await lancamentosParaExportar('h1')
+    expect(linhas.map((x) => [x.descricao, x.moeda])).toEqual([['Café', 'USD'], ['Pão', 'BRL']])
+    expect(gerarCsv(linhas).split('\r\n')[1]).toBe('03/10/2026;Despesa;Café;Mercado;Conta em dólar;;-40,25;USD;Pago;')
   })
 
   it('sem categoria escolhida na dívida, o principal sai como "Sem categoria"', async () => {

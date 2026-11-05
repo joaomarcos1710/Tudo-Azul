@@ -377,6 +377,24 @@ export async function resumoDoPeriodo(familiaId: string, de: string, ate: string
   }
 }
 
+/**
+ * Receita, despesa e resultado PAGOS do período em cada moeda que não é BRL, sem conversão (period_summary_by_currency,
+ * migration 056). O BRL é o resumoDoPeriodo; nunca somar os dois. Banco sem a migration 056: lista vazia.
+ */
+export interface ResumoPorMoeda { moeda: string; receitas: Cents; despesas: Cents; resultado: Cents }
+
+const FUNCAO_INEXISTENTE = ['PGRST202', '42883']
+
+export async function resumoPorMoeda(familiaId: string, de: string, ate: string): Promise<ResumoPorMoeda[]> {
+  const { data, error } = await cliente().rpc('period_summary_by_currency', { p_household: familiaId, p_from: de, p_to: ate })
+  if (error) {
+    if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return []
+    throw error
+  }
+  return ((data ?? []) as { currency_code: string; income: number | string; expense: number | string; result: number | string }[])
+    .map((m) => ({ moeda: m.currency_code, receitas: centsFromDb(m.income), despesas: centsFromDb(m.expense), resultado: centsFromDb(m.result) }))
+}
+
 function linha(d: DadosLancamento) {
   const transferencia = d.tipo === 'transfer'
   return {

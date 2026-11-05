@@ -12,10 +12,10 @@ import { listarCartoes } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
-import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
+import { aceitaLancamento, hojeSP, listarContas, mesmaMoeda } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { formatBRL, formatBRLCampo, formatDate, parseBRL } from '../lib/format'
+import { formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
 import {
   criarRecorrencia, diaDaSemana, editarRecorrencia, excluirRecorrencia, frequencias, listarRecorrencias, MAX_CADA,
   proximasOcorrencias, rotuloFrequencia, rotuloTipoRecorrencia,
@@ -55,6 +55,8 @@ export default function Recorrentes() {
   useEffect(() => { void carregar() }, [carregar])
 
   const nomeConta = useMemo(() => new Map(contas.map((c) => [c.id, c.nome])), [contas])
+  // valor na moeda da conta (multimoeda F2); cartão é sempre em reais
+  const moedaConta = useMemo(() => new Map(contas.map((c) => [c.id, c.moeda ?? 'BRL'])), [contas])
   const nomeCartao = useMemo(() => new Map(cartoes.map((c) => [c.id, c.nome])), [cartoes])
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
 
@@ -129,7 +131,7 @@ export default function Recorrentes() {
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
                   <span className={`tabular-nums font-semibold ${r.tipo === 'income' ? 'text-positivo' : r.tipo === 'transfer' ? 'text-slate-600' : 'text-negativo'}`}>
-                    {r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}{formatBRL(r.valor)}
+                    {r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}{formatMoeda(r.valor, r.tipo === 'card' ? 'BRL' : moedaConta.get(r.contaId ?? '') ?? 'BRL')}
                   </span>
                   <Button variante="fantasma" onClick={() => setEditando(r)} disabled={editando !== null}>Editar</Button>
                   <Button variante="discreto" onClick={() => excluir(r)}>Excluir</Button>
@@ -155,8 +157,8 @@ interface PropsForm {
 
 function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar, aoCancelar }: PropsForm) {
   const editando = r !== null
-  // conta em outra moeda ainda não aceita recorrente (multimoeda F1, o banco também recusa)
-  const contasAtivas = contas.filter((c) => c.ativa && aceitaLancamento(c))
+  // multimoeda F2: receita, despesa e transferência em qualquer moeda; o destino da transferência só na moeda da origem
+  const contasAtivas = contas.filter((c) => c.ativa && aceitaLancamento(c, 'lancamento'))
   const cartoesComCiclo = cartoes.filter((c) => c.ativo && c.fechamento !== null)
   const [tipo, setTipo] = useState<TipoRecorrencia>(r?.tipo ?? 'expense')
   const [descricao, setDescricao] = useState(r?.descricao ?? '')
@@ -190,6 +192,10 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
   const tipoCategoria = tipo === 'income' ? 'income' : 'expense'
   const categoriasDoTipo = categorias.filter((c) => c.tipo === tipoCategoria && (c.ativa || c.id === r?.categoriaId))
   const precisaCategoria = tipo !== 'transfer'
+  const conta = contas.find((c) => c.id === contaId)
+  const moeda = tipo === 'card' ? 'BRL' : conta?.moeda ?? 'BRL'
+  // transferência entre moedas diferentes só na F3 (o banco recusa)
+  const destinos = contasAtivas.filter((c) => c.id !== contaId && (!conta || mesmaMoeda(c, conta)))
 
   const problemas = {
     descricao: !descricao.trim() ? 'Informe a descrição.' : undefined,
@@ -200,7 +206,8 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
     fim: !editando && fim && inicio && fim < inicio ? 'A data final não pode ser antes do início.' : undefined,
     categoria: precisaCategoria && !categoriaId ? 'Escolha a categoria.' : undefined,
     conta: !editando && tipo !== 'card' && !contaId ? 'Escolha a conta.' : undefined,
-    destino: !editando && tipo === 'transfer' && (!destinoId || destinoId === contaId) ? 'Escolha uma conta de destino diferente.' : undefined,
+    destino: !editando && tipo === 'transfer' && (!destinoId || destinoId === contaId) ? 'Escolha uma conta de destino diferente.'
+      : !editando && tipo === 'transfer' && !destinos.some((c) => c.id === destinoId) ? 'Transferência só entre contas da mesma moeda.' : undefined,
     cartao: !editando && tipo === 'card' && !cartaoId ? 'Escolha o cartão.' : undefined,
   }
 
@@ -243,7 +250,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         )}
         <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: Conta de luz" value={descricao}
           onChange={(e) => setDescricao(e.target.value)} erro={erroDe('descricao')} />
-        <Field rotulo={tipo === 'card' ? 'Valor (R$)' : 'Valor estimado (R$)'} inputMode="decimal" value={valorTexto}
+        <Field rotulo={tipo === 'card' ? 'Valor (R$)' : `Valor estimado (${simboloMoeda(moeda)})`} inputMode="decimal" value={valorTexto}
           onChange={(e) => setValorTexto(e.target.value)} erro={erroDe('valor')} />
         {!editando && (
           <>
@@ -273,7 +280,13 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
               </>
             ) : (
               <>
-                <Selecao rotulo={tipo === 'transfer' ? 'Da conta' : 'Conta'} valor={contaId} aoMudar={setContaId}
+                <Selecao rotulo={tipo === 'transfer' ? 'Da conta' : 'Conta'} valor={contaId} aoMudar={(v) => {
+                  setContaId(v)
+                  // o destino de outra moeda deixa de valer ao trocar a origem
+                  const nova = contas.find((c) => c.id === v)
+                  const destino = contas.find((c) => c.id === destinoId)
+                  if (nova && destino && !mesmaMoeda(nova, destino)) setDestinoId('')
+                }}
                   opcoes={contasAtivas.map((c) => [c.id, c.nome])} todos="Escolha…" />
                 {erroDe('conta') && <p role="alert" className="text-sm text-negativo">{erroDe('conta')}</p>}
               </>
@@ -281,7 +294,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
             {tipo === 'transfer' && (
               <>
                 <Selecao rotulo="Para a conta" valor={destinoId} aoMudar={setDestinoId}
-                  opcoes={contasAtivas.filter((c) => c.id !== contaId).map((c) => [c.id, c.nome])} todos="Escolha…" />
+                  opcoes={destinos.map((c) => [c.id, c.nome])} todos="Escolha…" />
                 {erroDe('destino') && <p role="alert" className="text-sm text-negativo">{erroDe('destino')}</p>}
               </>
             )}
