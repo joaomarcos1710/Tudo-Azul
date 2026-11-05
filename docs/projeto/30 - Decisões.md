@@ -149,3 +149,11 @@ O plano gratuito da Vercel permite 100 deploys por dia, e cada push gerava um pr
 - **Exportação completa:** o arquivo 2 (movimentos por conta) perde a coluna **"Conferido"**, que só fazia sentido com a função; `account_movements` continua devolvendo `reconciled` e o app ignora.
 - **Zerar tudo:** a contagem de conferências continua vindo do banco, mas só aparece ("conferências antigas") se sobrou alguma; com 0, a tela não fala mais em conferência.
 - **O que se perde:** a trava de períodos conferidos (editar ou excluir lançamento antigo volta a mudar saldos já batidos com o banco, sem aviso) e o diagnóstico de divergência com o extrato (saldo do app × extrato numa data, com a lista de movimentos). Para bater saldo à mão, a exportação completa (movimentos por conta) continua.
+
+## Avisos no topo do Início (05/11/2026, #162)
+Pedido e "pode" do dono, a partir dos cartões de aviso do Organizze.
+- **Função nova (`home_alerts`, migration 057) em vez de mudar o `daily_digest`:** o aviso diário só olha vencidos e o dia, soma só as saídas e não traz o cartão da fatura; mudar o retorno dele quebraria a Edge Function do e-mail. A regra dos planejados é a mesma dele (lançamentos planejados de contas em reais e parcelas de dívida), e a fatura reaproveita `card_invoices_due` (fonte `card_months`, a mesma da tela de Cartões).
+- **Fatura pelo que falta pagar** (`remaining`), como o aviso diário: uma fatura já paga em parte avisa só o saldo; paga inteira, some.
+- **Janela de 7 dias inclusive** (de hoje até hoje + 7). **Vencidos separados em "a pagar" e "a receber"**: um total misturando entrada e saída não diz nada. Transferência planejada não entra nos avisos (não é a pagar nem a receber) e continua no card de Vencidos, que fica como estava (o aviso de vencidos leva até ele).
+- **Só contas em reais** (regra da multimoeda F1/F2); conta em outra moeda fica para quando o Início tiver bloco por moeda.
+- **Minhas contas só com saldo** (pedido do dono): conta ativa com saldo zero sai do bloco do Início; a lista completa fica na aba Contas ("Ver todas as contas"). Conta que ainda não abriu (sem saldo) continua aparecendo, com a data de abertura.
