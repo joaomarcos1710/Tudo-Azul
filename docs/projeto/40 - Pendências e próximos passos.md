@@ -32,7 +32,7 @@ atualizado: 2026-10-28
 - [ ] **Conferir no iPad em retrato** (você): folha de filtros, carrossel de mês, gráfico e tabela sem rolar para o lado.
 - [ ] **Saldo com filtro de conta**: hoje a coluna some quando há conta (ou pessoa) escolhida, porque `balance_totals_projected` não filtra. Precisa de uma função do banco com `p_accounts` (migration nova), nunca soma na tela.
 - [ ] **Saldo em uma chamada só**: hoje é uma chamada de `balance_totals_projected` por período (até 31 no diário). Uma função do banco que devolva a série de saldos (como a de patrimônio do PR de desempenho) evita as idas e vindas.
-- [ ] **Unificar painéis**: `PainelLancamento` (Lançamentos) passar a usar `ui/Folha` (que prende o foco e devolve ao botão).
+- [ ] **Unificar painéis**: `PainelLancamento` (Lançamentos) passar a usar `ui/Folha` (que prende o foco e devolve ao botão). O de **Marcar pago** já usa (#176); falta o do formulário.
 - [ ] **Eixo do gráfico de linha com negativo** usa hífen ("R$ -20 mil", `brlCompacto`); trocar pelo "−" tipográfico em todos os gráficos.
 
 ### Fatura paga travada (#174, migration 064)

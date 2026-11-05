@@ -317,7 +317,8 @@ describe('Lançamentos no computador: tabela', () => {
     await u.click(screen.getByRole('button', { name: 'Ações de Luz' }))
     expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Marcar pago', 'Editar', 'Excluir'])
     await u.click(screen.getByRole('menuitem', { name: 'Marcar pago' }))
-    expect(screen.getByRole('heading', { name: /Marcar como pago · Luz/ })).toBeTruthy()
+    // abre por cima da tela (diálogo), não no topo da página fora da vista de quem rolou a tabela
+    expect(screen.getByRole('dialog', { name: /Marcar como pago · Luz/ })).toBeTruthy()
   })
 
   it('coluna Categoria mostra só a folha; o caminho inteiro fica no title e no leitor de tela', async () => {
