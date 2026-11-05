@@ -181,6 +181,15 @@ Aprovadas pelo dono ("pode") a partir da análise da aba Cartões, sem migration
 - **Ordem dos cartões:** pelo próximo vencimento — o da fatura fechada a pagar (vencida primeiro); sem ela, o da fatura atual; sem ciclo, no fim. Empate pelo nome. Só ordem: nenhuma soma.
 - **Resumo da aba** (referência do Mobills enviada pelo dono): "Próxima fatura vence em" é uma **data** (a mais próxima entre os cartões com algo a pagar) e "Faturas que vencem em <mês>" é o total do banco (`card_invoices_month`, mesmo componente do Início). **Limite disponível total** e **valor total** ficaram de fora: são somas de dinheiro e o front não soma; virão da `card_overview` no banco. Visual do app, não o do Mobills.
 - **Estorno na linha da compra** usa `debt_refund` (já existia): abate a despesa da compra (não é receita, como o crédito avulso da 052). A tela limita cada estorno ao valor da parcela; o resto é regra do banco.
+
+## Lançamentos: tabela no computador e edição em lote (05/11/2026, #167)
+"Pode" do dono, inspirado no Mobills.
+- **Tabela só a partir de `lg` (1024px); celular e tablet ficam com a lista por dia.** Motivo: a tabela com 8 colunas não cabe em tela pequena, e a lista do celular já foi ajustada ao uso com o dedo.
+- **Edição em lote numa função do banco, tudo ou nada**, em vez de N chamadas da tela: uma falha no meio deixaria metade alterada. As funções são SECURITY INVOKER e só fazem o UPDATE que a tela já fazia, para que as guardas existentes (período, conta, moeda, tipo da categoria) valham sem cópia. Limite de 500 por chamada (um mês tem bem menos).
+- **A confirmação mostra só a quantidade**, não o total em reais: o front não soma dinheiro, e pedir o total ao banco para uma confirmação não compensava uma função a mais.
+- **Marcar pago em lote não pede valor**: com vários itens não há como informar o valor real de cada um; quem pagou outro valor usa o "Marcar pago" daquele lançamento.
+- **Desfazer por 10 segundos.** Para isso entraram duas funções além das três pedidas: `transactions_bulk_mark_planned` (volta a planejado na data de cada um, numa chamada só) e `transactions_bulk_restore` (restaura da lixeira numa chamada só). O desfazer de categoria usa a mesma `transactions_bulk_set_category`, uma chamada por categoria antiga (atalho: não é uma operação só; se uma falhar, o aviso mostra o erro e dá para tentar de novo).
+- **Fatura, compra de cartão, crédito, contrato e pagamento de cartão/dívida ficam fora da seleção**: não são `transactions`; cada um tem a sua tela.
 ## 05/11/2026 — Análises em barras, "Fim do mês" por conta e Calendário enxuto (#168)
 Com o "pode" do dono, inspirado no painel do Mobills.
 - **Barras horizontais em vez de rosca** para despesas por categoria: comparar tamanhos é o trabalho do gráfico, e comprimento numa base comum se lê com precisão; ângulo e área de fatia, não. Com 7 linhas (6 maiores + "Outros"), o nome e o valor cabem ao lado de cada barra e o gráfico não precisa de legenda. Uma cor só (uma série; quem identifica é o nome). "Outros" vem do banco (`expenses_by_category` já tinha `p_top`): sem migration.
