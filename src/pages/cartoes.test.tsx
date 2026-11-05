@@ -70,6 +70,16 @@ async function escolherNoMenu(u: ReturnType<typeof userEvent.setup>, acao: strin
   await u.click(await screen.findByRole('button', { name: `Mais opções do cartão ${cartao}` }))
   await u.click(within(screen.getByRole('menu', { name: `Mais opções do cartão ${cartao}` })).getByRole('menuitem', { name: acao }))
 }
+/** O "Ver fatura" do próprio cartão (#181; o resumo tem outro igual para a próxima fatura). */
+async function botaoVerFatura(cartao = 'Nubank') {
+  const li = (await screen.findByRole('heading', { name: new RegExp(`^${cartao}`) })).closest('li')!
+  return within(li).getByRole('button', { name: /^Ver fatura/ })
+}
+/** Pagar fatura (#181): "Ver fatura" no cartão e, dentro da fatura, "Pagar fatura". */
+async function abrirPagar(u: ReturnType<typeof userEvent.setup>, cartao = 'Nubank') {
+  await u.click(await botaoVerFatura(cartao))
+  await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+}
 const nubank = { id: 'k1', nome: 'Nubank', emissor: null, bandeira: null, fechamento: 17, vencimento: 25, ativo: true, divida: c(13334), credito: c(0), compromissos: c(39666), limite: null, limiteComprometido: null, limiteDisponivel: null }
 const fatura = (f: Partial<Fatura>): Fatura => ({
   mes: '2026-03', fechamento: '2026-03-17', vencimento: '2026-03-25', cobrado: c(0), aCobrar: c(0), total: c(0), pago: c(0), itens: 1, faturaId: null,
@@ -132,10 +142,13 @@ describe('Cartões', () => {
     expect(screen.getByText('R$ 396,66')).toBeTruthy()
   })
 
-  it('a ação principal segue a fatura: com fatura a pagar é "Pagar fatura" (valor em vermelho); sem ela, "Nova compra"', async () => {
+  it('no cartão, "Ver fatura" em pílula azul no lugar do "Pagar fatura de <mês> (vence …)"; sem dívida, "Nova compra" é a principal', async () => {
     const { unmount } = render(<Cartoes />)
     await screen.findByText('Nubank')
-    expect(screen.getByRole('button', { name: /^Pagar fatura/ }).className.split(' ')).toContain('bg-azul')
+    const ver = await botaoVerFatura()
+    expect(ver.textContent).toBe('Ver fatura')
+    expect(ver.className.split(' ')).toEqual(expect.arrayContaining(['rounded-full', 'bg-azul-claro', 'text-azul']))
+    expect(screen.queryByRole('button', { name: /^Pagar fatura/ })).toBeNull() // pagar só dentro da fatura
     expect(screen.getByRole('button', { name: 'Nova compra' }).className.split(' ')).not.toContain('bg-azul')
     expect(screen.getByText('R$ 133,34').className).toContain('text-negativo')
     unmount()
@@ -144,7 +157,7 @@ describe('Cartões', () => {
     render(<Cartoes />)
     await screen.findByText('Nubank')
     expect(screen.getByRole('button', { name: 'Nova compra' }).className.split(' ')).toContain('bg-azul')
-    expect(screen.getByRole('button', { name: /^Pagar fatura/ }).className.split(' ')).not.toContain('bg-azul')
+    expect((await botaoVerFatura()).className.split(' ')).not.toContain('bg-azul')
     expect(screen.queryByText('R$ 0,00')).toBeNull() // sem fatura fechada, o zero não vai para o destaque (#163)
   })
 
@@ -163,7 +176,8 @@ describe('Cartões', () => {
   it('sem ?cartao=, as faturas começam fechadas', async () => {
     render(<Cartoes />)
     await screen.findByText('Nubank')
-    expect(screen.getByRole('button', { name: 'Ver faturas' }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('button', { name: 'Ocultar faturas' })).toBeNull()
+    expect(screen.queryByRole('tablist')).toBeNull()
   })
 
   it('sem cartões, convida a cadastrar', async () => {
@@ -312,7 +326,7 @@ describe('Cartões', () => {
       fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(100), total: c(100) }),
     ])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: /^Pagar fatura/ }))
+    await abrirPagar(u)
     expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('133,34')
     expect(await screen.findByText(/Quita a fatura de/)).toBeTruthy()
     await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
@@ -325,7 +339,8 @@ describe('Cartões', () => {
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(20000) }])
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(10000), total: c(10000) })])
     render(<Cartoes />)
-    const botao = (await screen.findByRole('button', { name: /^Pagar fatura/ })) as HTMLButtonElement
+    await u.click(await botaoVerFatura())
+    const botao = (await screen.findByRole('button', { name: 'Pagar fatura' })) as HTMLButtonElement
     expect(botao.disabled).toBe(false)
     // o parágrafo fixo saiu do cartão (#163): a explicação aparece no diálogo de pagamento, antes de digitar o valor
     expect(screen.queryByText(/Não há fatura fechada/)).toBeNull()
@@ -343,7 +358,7 @@ describe('Cartões', () => {
     const u = userEvent.setup()
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(13334), total: c(13334), faturaId: 'f3' })])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: /^Pagar fatura/ }))
+    await abrirPagar(u)
     const valor = screen.getByLabelText('Valor (R$)')
     await u.clear(valor)
     await u.type(valor, '200,00') // fatura 133,34; passa da fatura, mas cabe nas parcelas futuras (396,66)
@@ -360,7 +375,7 @@ describe('Cartões', () => {
     const u = userEvent.setup()
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(20000), credito: c(12000) }])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: /^Pagar fatura/ }))
+    await abrirPagar(u)
     await u.type(screen.getByLabelText('Valor (R$)'), '100,00') // 100 > 200 − 120 = 80 que ainda falta cobrir
     expect(await screen.findByText(/mais do que tudo o que este cartão tem a pagar/)).toBeTruthy()
   })
@@ -372,7 +387,7 @@ describe('Cartões', () => {
       { parcelaId: 'p1', compra: 'x', parcela: 2, deParcelas: 3, descricao: 'TV', dataCompra: '2099-03-15', valor: c(10000), falta: c(10000), categoriaId: 'g1' },
     ])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     // a fatura de 2099 não é a do ciclo atual: aparece só na lista de faturas (o destaque mostra a atual, sem compras)
     // na aba e no "Gasto do mês" do resumo da fatura escolhida
     expect((await screen.findAllByText('R$ 180,00')).length).toBe(2)
@@ -390,7 +405,7 @@ describe('Cartões', () => {
       { parcelaId: 'p3', compra: 'c', parcela: 3, deParcelas: 3, descricao: 'Antiga', dataCompra: null, valor: c(1000), falta: c(0), categoriaId: 'g1' },
     ])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     await screen.findByText('Viagem para Floripa com a família')
     const dias = screen.getAllByRole('group').filter((g) => /\d{2}\/\d{2}\/\d{4}|Sem data/.test(g.getAttribute('aria-label') ?? ''))
     expect(dias.map((g) => g.getAttribute('aria-label'))).toEqual(['28/03/2099', '24/03/2099', 'Sem data da compra'])
@@ -408,7 +423,7 @@ describe('Cartões', () => {
       { parcelaId: 'p1', compra: 'x', parcela: 1, deParcelas: 10, descricao: 'Viagem', dataCompra: '2099-03-24', valor: c(10000), falta: c(10000), categoriaId: 'g1' },
     ])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     const linha = (await screen.findByText('Viagem')).closest('li')!
     expect(linha.querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('sacola') // g1 = Compras pessoais
   })
@@ -418,7 +433,7 @@ describe('Cartões', () => {
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(10000), total: c(10000), itens: 1, ...f })])
     mock.listarItens.mockResolvedValue([item])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     await screen.findByText('2/3')
   }
 
@@ -537,7 +552,7 @@ describe('Cartões', () => {
     mock.anularMovimentoCartao.mockResolvedValue(undefined)
     const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     await u.click(await screen.findByRole('button', { name: 'Anular' }))
     expect(confirmar).toHaveBeenCalled()
     expect(mock.anularMovimentoCartao).not.toHaveBeenCalled()
@@ -718,7 +733,7 @@ describe('Conta de pagamento do cartão', () => {
     ], total: c(600000) })
     mock.listarCartoes.mockResolvedValue([{ ...nubank, contaPagamentoId: 'a2' }])
     render(<Cartoes />)
-    await userEvent.setup().click(await screen.findByRole('button', { name: /^Pagar fatura/ }))
+    await abrirPagar(userEvent.setup())
     expect((screen.getByLabelText('Pagar com a conta') as HTMLSelectElement).value).toBe('a2')
   })
 
@@ -729,7 +744,7 @@ describe('Conta de pagamento do cartão', () => {
     ], total: c(500000) })
     mock.listarCartoes.mockResolvedValue([{ ...nubank, contaPagamentoId: 'a2' }])
     render(<Cartoes />)
-    await userEvent.setup().click(await screen.findByRole('button', { name: /^Pagar fatura/ }))
+    await abrirPagar(userEvent.setup())
     expect((screen.getByLabelText('Pagar com a conta') as HTMLSelectElement).value).toBe('a1')
   })
 
@@ -746,7 +761,7 @@ describe('Conta de pagamento do cartão', () => {
     expect(opcoes('Conta que paga a fatura')).toContain('Itaú')
     expect(opcoes('Conta que paga a fatura')).not.toContain('Conta em dólar')
     await u.click(screen.getByRole('button', { name: 'Cancelar' }))
-    await u.click(screen.getByRole('button', { name: /^Pagar fatura/ }))
+    await abrirPagar(u)
     expect(opcoes('Pagar com a conta')).toContain('Itaú')
     expect(opcoes('Pagar com a conta')).not.toContain('Conta em dólar')
   })
@@ -853,7 +868,7 @@ describe('Destaque da fatura (fatura atual)', () => {
     render(<Cartoes />)
     expect(await screen.findByText('Não foi possível ler a fatura atual agora.')).toBeTruthy()
     expect(screen.queryByText('Sem fatura em aberto')).toBeNull()
-    expect(screen.getByRole('button', { name: /^Pagar fatura/ })).toBeTruthy()
+    expect(await botaoVerFatura()).toBeTruthy()
   })
 
   it('erro ao carregar os itens de uma fatura aparece só ali: as abas de fatura continuam na tela', async () => {
@@ -861,7 +876,7 @@ describe('Destaque da fatura (fatura atual)', () => {
     mock.listarItens.mockRejectedValue(new Error('rede'))
     const u = userEvent.setup()
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     expect(await screen.findByRole('alert')).toBeTruthy()
     expect(screen.getAllByRole('tab').length).toBeGreaterThan(0)
   })
@@ -870,12 +885,12 @@ describe('Destaque da fatura (fatura atual)', () => {
 describe('Menos botões: ações secundárias no menu "Mais opções"', () => {
   const OITO = ['Crédito / reembolso', 'Alterar dias', 'Definir limite', 'Banco e bandeira', 'Conta de pagamento', 'Renomear', 'Arquivar', 'Excluir']
 
-  it('no cartão ficam só Pagar fatura, Nova compra, Ver faturas e o botão "⋯"', async () => {
+  it('no cartão ficam só Ver fatura, Nova compra e o botão "⋯" (#181: "Pagar fatura" mora dentro da fatura)', async () => {
     render(<Cartoes />)
     const cartao = (await screen.findByRole('heading', { name: /Nubank/ })).closest('li')!
     expect(within(cartao).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
-      // com dívida e sem fatura fechada listada (só o saldo de referência), o botão diz "fatura fechada"
-      'Pagar fatura fechada', 'Nova compra', 'Ver faturas', 'Mais opções do cartão Nubank',
+      // o nome acessível diz o mês da fatura (a atual: sem fatura fechada listada, só o saldo de referência)
+      expect.stringMatching(/^Ver fatura de \p{L}+, Nubank$/u), 'Nova compra', 'Mais opções do cartão Nubank',
     ])
     expect(within(cartao).queryByRole('menu')).toBeNull()
   })
@@ -976,7 +991,8 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     mock.listarCartoes.mockResolvedValue([nubank, { ...nubank, id: 'k2', nome: 'Inter' }])
     render(<Cartoes />)
     const cartaoNubank = (await screen.findByRole('heading', { name: /^Nubank/ })).closest('li')!
-    const pagar = within(cartaoNubank).getByRole('button', { name: /^Pagar fatura/ })
+    await u.click(within(cartaoNubank).getByRole('button', { name: /^Ver fatura/ }))
+    const pagar = await within(cartaoNubank).findByRole('button', { name: 'Pagar fatura' })
     await u.click(pagar)
     const titulo = screen.getByRole('heading', { name: 'Pagar fatura · Nubank' })
     expect(cartaoNubank.contains(titulo)).toBe(true) // e não no topo da página
@@ -1005,7 +1021,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }])
     mock.listarFaturas.mockResolvedValue(historico())
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     const abas = await screen.findAllByRole('tab')
     expect(abas.map((a) => a.querySelector('span')!.textContent)).toEqual([
       'Maio de 2026', 'Junho de 2026', 'Julho de 2026', 'Agosto de 2026', 'Setembro de 2026', 'Outubro de 2026', 'Novembro de 2026', 'Dezembro de 2026',
@@ -1030,7 +1046,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }])
     mock.listarFaturas.mockResolvedValue(historico())
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     const atual = await screen.findByRole('tab', { selected: true })
     atual.focus()
     await u.keyboard('{ArrowRight}')
@@ -1054,9 +1070,10 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     fs[0] = { ...fs[0], pago: c(0) } // jan/2025 ficou sem pagar
     mock.listarFaturas.mockResolvedValue(fs)
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     expect(await screen.findAllByRole('tab')).toHaveLength(24)
-    expect(screen.getByRole('tab', { selected: true }).textContent).toContain('Novembro de 2026')
+    // #181: "Ver fatura" abre na fatura a pagar (a de jan/2025), a que o "Pagar fatura" dela quita
+    expect(screen.getByRole('tab', { selected: true }).textContent).toContain('Janeiro de 2025')
   })
 
   it('3. resumo: "Faturas que vencem em <mês>" com o total do banco (card_invoices_month), antes dos cartões', async () => {
@@ -1084,16 +1101,17 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
       : []))
     render(<Cartoes />)
     const proxima = await screen.findByTestId('proxima-fatura')
-    expect(proxima.textContent).toBe('Próxima fatura vence em20/11/2026Cartão Bradesco')
+    expect(proxima.textContent).toBe('Próxima fatura vence em20/11/2026Cartão BradescoVer fatura')
     expect(within(proxima).queryByText('Vencida')).toBeNull()
   })
 
-  it('3. resumo com fatura vencida: mostra "vencida desde" e o selo', async () => {
+  it('3. resumo com fatura vencida: mostra "vencida desde" em vermelho (sem o selo repetido, #181)', async () => {
     fixarHoje('2026-11-05')
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', cobrado: c(13334), total: c(13334) })])
     render(<Cartoes />)
     const proxima = await screen.findByTestId('proxima-fatura')
-    expect(proxima.textContent).toBe('Fatura vencida desdeVencida25/10/2026Cartão Nubank')
+    expect(proxima.textContent).toBe('Fatura vencida desde25/10/2026Cartão NubankVer fatura')
+    expect(within(proxima).getByText('25/10/2026').className).toContain('text-negativo')
   })
 
   it('3. sem fatura no mês, ou se a leitura falhar, a faixa não aparece e os cartões seguem', async () => {
@@ -1114,7 +1132,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     // o vencimento mostrado é o da mais antiga não paga (25/09)
     const destaque = await screen.findByText('Fatura fechada a pagar (venceu 25/09)')
     expect(within(destaque).getByText('Vencida')).toBeTruthy()
-    await u.click(screen.getByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     const abas = await screen.findAllByRole('tab')
     expect(abas.map((a) => a.textContent)).toEqual(['Setembro de 2026R$ 50,00Vencida', 'Outubro de 2026R$ 83,34Vencida'])
   })
@@ -1128,7 +1146,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     render(<Cartoes />)
     expect(await screen.findByText('Fatura fechada a pagar (vence 25/10)')).toBeTruthy()
     expect(screen.queryByText('Vencida')).toBeNull()
-    await u.click(screen.getByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     expect((await screen.findByRole('tab')).textContent).toBe('Outubro de 2026R$ 133,34Fechada')
   })
 
@@ -1147,7 +1165,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
       { parcelaId: 'p1', compra: 'x', parcela: 1, deParcelas: 1, descricao: 'TV', dataCompra: '2026-11-01', valor: c(10000), falta: c(10000), categoriaId: 'g1' },
     ])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     await u.click(await screen.findByRole('button', { name: 'Estornar TV' }))
     const form = screen.getByRole('form', { name: 'Estornar TV' })
     expect(form.closest('li')!.textContent).toContain('TV') // abre na linha da compra
@@ -1173,7 +1191,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     ])
     mock.estornarParcela.mockRejectedValue({ code: '22023', message: 'valor do estorno inválido' })
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     await u.click(await screen.findByRole('button', { name: 'Estornar TV' }))
     await u.type(screen.getByLabelText('Valor do estorno (R$)'), '10,00')
     await u.click(screen.getByRole('button', { name: 'Estornar' }))
@@ -1241,7 +1259,7 @@ describe('Fatura paga travada (migration 064)', () => {
       { id: 'pg2', data: '2026-09-25', valor: c(10000) },
     ])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     await u.click(await screen.findByRole('tab', { name: /Setembro/ }))
     await screen.findByText('TV')
   }
@@ -1283,7 +1301,7 @@ describe('Fatura paga travada (migration 064)', () => {
       { id: 'cr9', descricao: 'Cashback', dataCredito: '2026-09-03', fechamento: '2026-09-17', valor: c(1000), categoriaId: 'g2' },
     ])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     await u.click(await screen.findByRole('tab', { name: /Setembro/ }))
     await screen.findByText('TV')
     expect(screen.queryByTestId('fatura-travada')).toBeNull()
@@ -1292,20 +1310,23 @@ describe('Fatura paga travada (migration 064)', () => {
     }
   })
 
-  it('o botão do destaque diz a qual fatura se refere: a fechada a pagar ou, sem dívida, a atual', async () => {
+  it('"Ver fatura" do destaque abre a fatura a que se refere: a fechada a pagar ou, sem dívida, a atual', async () => {
     fixarHoje('2026-11-05')
     mock.listarFaturas.mockResolvedValue([
       fatura({ mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', cobrado: c(13334), total: c(13334), faturaId: 'f3' }),
       novembro,
     ])
     render(<Cartoes />)
-    expect(await screen.findByRole('button', { name: 'Pagar fatura de outubro (vence 25/10)' })).toBeTruthy()
+    const u = userEvent.setup()
+    await u.click(within((await screen.findByRole('heading', { name: /^Nubank/ })).closest('li')!).getByRole('button', { name: 'Ver fatura de outubro, Nubank' }))
+    expect((await screen.findByRole('tab', { selected: true })).textContent).toMatch(/^Outubro de 2026/)
     cleanup()
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }])
     mock.listarFaturas.mockResolvedValue([setembro, novembro])
     render(<Cartoes />)
-    // setembro está paga; o botão é da fatura atual (novembro), não da escolhida nas abas
-    expect(await screen.findByRole('button', { name: 'Pagar fatura de novembro (vence 25/11)' })).toBeTruthy()
+    // setembro está paga; o botão é da fatura atual (novembro)
+    await u.click(within((await screen.findByRole('heading', { name: /^Nubank/ })).closest('li')!).getByRole('button', { name: 'Ver fatura de novembro, Nubank' }))
+    expect((await screen.findByRole('tab', { selected: true })).textContent).toMatch(/^Novembro de 2026/)
   })
 
   it('pagamento de fatura travada: sem "Anular" (só o último, lançado há menos de 24 h, mantém o botão)', async () => {
@@ -1318,7 +1339,7 @@ describe('Fatura paga travada (migration 064)', () => {
       { id: 'm1', data: '2026-09-25', tipo: 'pagamento', valor: c(30000), ligadoAFatura: true, faturaId: 'f9', criadoEm: '2026-09-25T12:00:00Z' },
     ])
     render(<Cartoes />)
-    await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
+    await u.click(await botaoVerFatura())
     const antiga = (await screen.findByText(/25\/09\/2026 · Pagamento/)).closest('li')!
     expect(within(antiga).queryByRole('button', { name: 'Anular' })).toBeNull()
     expect(within(antiga).getByText('Fatura paga — travada')).toBeTruthy()
@@ -1367,17 +1388,20 @@ describe('Resumo de todos os cartões numa chamada (card_overview, migration 065
     render(<Cartoes />)
     const resumo = await screen.findByTestId('resumo-do-mes')
     // 999,99 é o total do banco; a soma das linhas daria 250,00
-    expect(within(resumo).getByText('Faturas de novembro')).toBeTruthy()
+    expect(within(resumo).getByText('Faturas que fecham em novembro')).toBeTruthy()
     expect(within(resumo).getByTestId('total-faturas-mes').textContent).toBe('R$ 999,99')
     expect(within(resumo).queryByText('R$ 250,00')).toBeNull()
     const limite = within(resumo).getByTestId('limite-total')
     expect(within(limite).getByText('Limite total R$ 8.000,00')).toBeTruthy()
     expect(within(limite).getByText('Disponível R$ 6.000,00')).toBeTruthy()
     expect(within(limite).getByRole('img', { name: 'Comprometido R$ 2.000,00 de R$ 8.000,00' })).toBeTruthy()
-    expect(limite.textContent).toContain('Usado R$ 2.000,00 de R$ 8.000,00')
-    // a fatura de cada cartão no mês, com a situação
-    expect(within(resumo).getByText('Nubank').closest('li')!.textContent).toBe('Nubank AbertaR$ 200,00')
-    expect(within(resumo).getByText('Itaú').closest('li')!.textContent).toBe('Itaú AbertaR$ 50,00')
+    // #181: a nota não repete o limite total (já no título da barra)
+    expect(limite.textContent).toContain('Usado R$ 2.000,00 · soma dos cartões com limite, hoje.')
+    expect(limite.textContent).not.toContain('de R$ 8.000,00')
+    // a fatura de cada cartão no mês, com a situação no cadeado (sem selo de texto)
+    expect(within(resumo).getByText('Nubank').closest('li')!.textContent).toBe('NubankR$ 200,00')
+    expect(within(resumo).getByText('Itaú').closest('li')!.textContent).toBe('ItaúR$ 50,00')
+    expect(within(resumo).getAllByRole('img', { name: 'Fatura aberta' })).toHaveLength(2)
   })
 
   it('seletor de mês: "‹ Novembro de 2026 ›"; trocar o mês faz uma chamada só e muda só o resumo', async () => {
@@ -1385,17 +1409,17 @@ describe('Resumo de todos os cartões numa chamada (card_overview, migration 065
     render(<Cartoes />)
     const grupo = await screen.findByRole('group', { name: 'Mês do resumo dos cartões' })
     expect(within(grupo).getByText('Novembro de 2026')).toBeTruthy()
-    await u.click(within(grupo).getByRole('button', { name: 'Próximo mês' }))
+    await u.click(within(grupo).getByRole('button', { name: 'Próximo mês (dezembro de 2026)' }))
     expect(within(grupo).getByText('Dezembro de 2026')).toBeTruthy()
     expect(mock.visaoDosCartoes).toHaveBeenLastCalledWith('h1', '2026-12')
     expect(mock.visaoDosCartoes).toHaveBeenCalledTimes(2)
     expect((await screen.findByText('R$ 777,77')).getAttribute('data-testid')).toBe('total-faturas-mes')
-    expect(screen.getByText('Faturas de dezembro')).toBeTruthy()
+    expect(screen.getByText('Faturas que fecham em dezembro')).toBeTruthy()
     // nada mais é recarregado (nem as automações, nem card_months)
     expect(mock.cobrarFaturasFechadas).toHaveBeenCalledTimes(1)
     expect(mock.listarFaturas).not.toHaveBeenCalled()
-    await u.click(within(grupo).getByRole('button', { name: 'Mês anterior' }))
-    await u.click(within(grupo).getByRole('button', { name: 'Mês anterior' }))
+    await u.click(within(grupo).getByRole('button', { name: /^Mês anterior/ }))
+    await u.click(within(grupo).getByRole('button', { name: /^Mês anterior/ }))
     expect(mock.visaoDosCartoes).toHaveBeenLastCalledWith('h1', '2026-10')
   })
 
@@ -1411,7 +1435,7 @@ describe('Resumo de todos os cartões numa chamada (card_overview, migration 065
     render(<Cartoes />)
     await screen.findByTestId('resumo-do-mes')
     expect(screen.getByText('Fatura fechada a pagar (venceu 25/10)')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Pagar fatura de outubro (vence 25/10)' })).toBeTruthy()
+    expect(within(screen.getByRole('heading', { name: /^Nubank/ }).closest('li')!).getByRole('button', { name: 'Ver fatura de outubro, Nubank' })).toBeTruthy()
     expect(screen.getByTestId('previstas-k1').textContent).toContain('inclui R$ 39,90 de assinaturas previstas')
   })
 
@@ -1422,5 +1446,145 @@ describe('Resumo de todos os cartões numa chamada (card_overview, migration 065
     expect(await screen.findByTestId('faturas-do-mes')).toBeTruthy()
     expect(mock.listarFaturas).toHaveBeenCalledTimes(2)
     expect(screen.queryByTestId('resumo-do-mes')).toBeNull()
+  })
+})
+
+describe('Visual do resumo e dos botões de fatura (#181, pedido do dono)', () => {
+  const linha = (id: string, nome: string, situacao: 'aberta' | 'fechada' | 'paga', vencimento: string, total: number) => ({
+    id, nome,
+    doMes: { mes: '2026-11', fechamento: '2026-11-03', vencimento, total: c(total), pago: c(situacao === 'paga' ? total : 0), situacao },
+    atual: { mes: '2026-11', vencimento, total: c(total) },
+    assinaturasPrevistas: c(0), atualComAssinaturas: c(total), fechadaMes: null, fechadaVencimento: null,
+  })
+  /** Quatro cartões inventados, um por situação (vencida = fechada com vencimento passado). */
+  const visao: VisaoCartoes = {
+    mes: '2026-11',
+    cartoes: [
+      linha('k1', 'CARTÃO INFINITO', 'aberta', '2026-11-28', 20000),
+      linha('k2', 'Cartão B', 'fechada', '2026-11-10', 5000),
+      linha('k3', 'Cartão C', 'paga', '2026-11-09', 3000),
+      linha('k4', 'Cartão D', 'fechada', '2026-11-01', 1000),
+    ],
+    totais: { faturasDoMes: c(29000), pagoDoMes: c(3000), assinaturasPrevistas: c(0), limite: null, limiteUsado: null, limiteDisponivel: null },
+  }
+  const caixa = { ...nubank, id: 'k1', nome: 'CARTÃO INFINITO', divida: c(0), fechamento: 20, vencimento: 28 }
+  beforeEach(() => {
+    fixarHoje('2026-11-05')
+    mock.listarCartoes.mockResolvedValue([caixa])
+    mock.visaoDosCartoes.mockResolvedValue(visao)
+  })
+
+  it('cada fatura do resumo tem um cadeado com o rótulo da situação: aberta, fechada, paga e vencida (forma diferente, não só cor)', async () => {
+    render(<Cartoes />)
+    const bloco = await screen.findByTestId('bloco-faturas-mes')
+    const cadeado = (nome: string) => within(within(bloco).getByText(nome).closest('li')!).getByRole('img')
+    expect(cadeado('CARTÃO INFINITO').getAttribute('aria-label')).toBe('Fatura aberta')
+    expect(cadeado('Cartão B').getAttribute('aria-label')).toBe('Fatura fechada')
+    expect(cadeado('Cartão C').getAttribute('aria-label')).toBe('Fatura paga')
+    expect(cadeado('Cartão D').getAttribute('aria-label')).toBe('Fatura vencida')
+    // o desenho muda em cada situação (cadeado aberto, fechado, com ✓, com !)
+    const desenhos = ['CARTÃO INFINITO', 'Cartão B', 'Cartão C', 'Cartão D'].map((n) => cadeado(n).innerHTML)
+    expect(new Set(desenhos).size).toBe(4)
+    // o selo de texto saiu
+    for (const selo of ['Aberta', 'Fechada', 'Paga', 'Vencida']) expect(within(bloco).queryByText(selo)).toBeNull()
+    // e o botão da linha diz a situação em texto para o leitor de tela
+    expect(within(bloco).getByRole('button', { name: 'Ver fatura de novembro, Cartão D: fatura vencida, R$ 10,00' })).toBeTruthy()
+  })
+
+  it('sem o selo, o nome do cartão fica inteiro ("CARTÃO INFINITO", nome inventado do tamanho do do print), sozinho no espaço que sobra e com o nome completo no title', async () => {
+    render(<Cartoes />)
+    const nome = await screen.findByTestId('nome-resumo-k1')
+    expect(nome.textContent).toBe('CARTÃO INFINITO')
+    expect(nome.getAttribute('title')).toBe('CARTÃO INFINITO')
+    // o nome ocupa o espaço livre (flex-1) e só corta se não couber; o valor não quebra
+    expect(nome.className.split(' ')).toEqual(expect.arrayContaining(['flex-1', 'min-w-0', 'truncate']))
+    expect(nome.closest('li')!.textContent).toBe('CARTÃO INFINITOR$ 200,00')
+  })
+
+  it('o seletor de mês fica dentro do bloco do resumo, compacto: "‹ Novembro de 2026 ›", sem "Out"/"Dez", setas de 44px', async () => {
+    render(<Cartoes />)
+    const bloco = await screen.findByTestId('bloco-faturas-mes')
+    const grupo = within(bloco).getByRole('group', { name: 'Mês do resumo dos cartões' })
+    expect(grupo.textContent).toBe('‹Novembro de 2026›')
+    const setas = within(grupo).getAllByRole('button')
+    expect(setas.map((b) => b.getAttribute('aria-label'))).toEqual(['Mês anterior (outubro de 2026)', 'Próximo mês (dezembro de 2026)'])
+    for (const b of setas) expect(b.className.split(' ')).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']))
+    expect(screen.queryByRole('button', { name: /^Ir para/ })).toBeNull()
+  })
+
+  it('"Ver fatura" no resumo abre as faturas daquele cartão na fatura do mês e leva o foco até ela', async () => {
+    const rolou = vi.fn()
+    Element.prototype.scrollIntoView = rolou
+    try {
+      mock.listarFaturas.mockResolvedValue([
+        fatura({ mes: '2026-10', fechamento: '2026-10-20', vencimento: '2026-10-28', cobrado: c(4000), total: c(4000), pago: c(4000), faturaId: 'f10' }),
+        fatura({ mes: '2026-11', fechamento: '2026-11-20', vencimento: '2026-11-28', aCobrar: c(20000), total: c(20000) }),
+        fatura({ mes: '2026-12', fechamento: '2026-12-20', vencimento: '2026-12-28', aCobrar: c(900), total: c(900) }),
+      ])
+      const u = userEvent.setup()
+      render(<Cartoes />)
+      const bloco = await screen.findByTestId('bloco-faturas-mes')
+      expect(screen.queryByRole('tablist')).toBeNull()
+      await u.click(within(bloco).getByRole('button', { name: /^Ver fatura de novembro, CARTÃO INFINITO/ }))
+      const painel = await screen.findByRole('tabpanel', { name: /^Novembro de 2026/ })
+      expect(document.getElementById('cartao-k1')!.contains(painel)).toBe(true)
+      expect(screen.getByRole('tab', { selected: true }).textContent).toMatch(/^Novembro de 2026/)
+      expect(document.activeElement).toBe(painel)
+      expect(rolou).toHaveBeenCalled()
+    } finally {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+    }
+  })
+
+  it('"Pagar fatura" só dentro da fatura não paga (pílula azul); fatura paga fica com "Paga em dd/mm · travada"', async () => {
+    const u = userEvent.setup()
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-10', fechamento: '2026-10-20', vencimento: '2026-10-28', cobrado: c(4000), total: c(4000), pago: c(4000), faturaId: 'f10' }),
+      fatura({ mes: '2026-11', fechamento: '2026-11-20', vencimento: '2026-11-28', aCobrar: c(20000), total: c(20000) }),
+    ])
+    mock.listarPagamentosDaFatura.mockResolvedValue([{ id: 'pg1', data: '2026-10-27', valor: c(4000) }])
+    render(<Cartoes />)
+    await screen.findByTestId('bloco-faturas-mes')
+    expect(screen.queryByRole('button', { name: /^Pagar fatura/ })).toBeNull() // fora da fatura, não há
+    const li = document.getElementById('cartao-k1')!
+    await u.click(within(li).getByRole('button', { name: /^Ver fatura/ }))
+    const painel = await screen.findByRole('tabpanel', { name: /^Novembro de 2026/ })
+    const pagar = within(painel).getByRole('button', { name: 'Pagar fatura' })
+    expect(pagar.className.split(' ')).toEqual(expect.arrayContaining(['rounded-full', 'bg-azul-claro', 'text-azul']))
+    // o vencimento continua na fatura, não no botão
+    expect(within(painel).getByText(/Vence em 28\/11/)).toBeTruthy()
+    await u.click(screen.getByRole('tab', { name: /Outubro/ }))
+    const paga = await screen.findByRole('tabpanel', { name: /^Outubro de 2026/ })
+    expect(within(paga).queryByRole('button', { name: /Pagar/ })).toBeNull()
+    expect((await within(paga).findByTestId('fatura-travada')).textContent).toContain('Paga em 27/10 · Fatura paga — travada')
+    // o formulário abre dentro da fatura
+    await u.click(screen.getByRole('tab', { name: /Novembro/ }))
+    await u.click(within(await screen.findByRole('tabpanel', { name: /^Novembro de 2026/ })).getByRole('button', { name: 'Pagar fatura' }))
+    expect(within(screen.getByRole('tabpanel')).getByRole('heading', { name: 'Pagar fatura · CARTÃO INFINITO' })).toBeTruthy()
+  })
+
+  it('com fatura fechada a pagar, só ela tem "Pagar fatura"; a aberta diz para abrir a fechada (o pagamento quita a mais antiga)', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...caixa, divida: c(4000) }])
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-10', fechamento: '2026-10-20', vencimento: '2026-10-28', cobrado: c(4000), total: c(4000), faturaId: 'f10' }),
+      fatura({ mes: '2026-11', fechamento: '2026-11-20', vencimento: '2026-11-28', aCobrar: c(20000), total: c(20000) }),
+    ])
+    mock.visaoDosCartoes.mockResolvedValue(null)
+    render(<Cartoes />)
+    await u.click(await botaoVerFatura('CARTÃO INFINITO'))
+    const fechada = await screen.findByRole('tabpanel', { name: /^Outubro de 2026/ })
+    expect(within(fechada).getByRole('button', { name: 'Pagar fatura' })).toBeTruthy()
+    await u.click(screen.getByRole('tab', { name: /Novembro/ }))
+    const aberta = await screen.findByRole('tabpanel', { name: /^Novembro de 2026/ })
+    expect(within(aberta).queryByRole('button', { name: 'Pagar fatura' })).toBeNull()
+    expect(within(aberta).getByText(/Para pagar, abra a fatura de outubro de 2026/)).toBeTruthy()
+  })
+  it('"Próxima fatura vence em" não repete "Cartão" quando o nome já começa com ele', async () => {
+    mock.listarCartoes.mockResolvedValue([{ ...caixa, nome: 'Cartão Verde', divida: c(4000) }])
+    mock.visaoDosCartoes.mockResolvedValue(null)
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-11', fechamento: '2026-11-03', vencimento: '2026-11-10', cobrado: c(4000), total: c(4000) })])
+    render(<Cartoes />)
+    expect((await screen.findByTestId('proxima-fatura')).textContent).toBe('Próxima fatura vence em10/11/2026Cartão VerdeVer fatura')
   })
 })

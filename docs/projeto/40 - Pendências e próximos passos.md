@@ -47,6 +47,13 @@ atualizado: 2026-10-28
 - [ ] **"Anular" de pagamento sem fatura (adiantamento)** continua na tela; se ele quitou uma fatura travada, o banco recusa com a mensagem (a tela não sabe qual fatura ele quitou).
 - [ ] **Screenshot da fatura paga em 820px**: não feito nesta PR (o app precisa de login; sem harness de tela com dados de teste).
 
+### Visual de Cartões (#181)
+- [x] Cadeado por situação no resumo (aberta, fechada, paga, vencida), nome inteiro, mês dentro do bloco ("‹ Novembro de 2026 ›"), "Ver fatura" no cartão e no resumo, "Pagar fatura" dentro da fatura não paga.
+- [ ] **Conferir no iPad em retrato** (você), com os seus cartões: cadeados, nome inteiro e o "Ver fatura" rolando até a fatura.
+- [ ] **Abas da fatura ainda com selo de texto** (Aberta/Fechada/Vencida/Paga): decidir se ganham o cadeado também.
+- [ ] **Lista de compras da fatura entre 640 e 1024px** (visto no screenshot de 820px, já era assim antes da #181): o valor encosta na descrição longa ("Supermercado do bairro") porque os botões Estornar/Editar/Excluir ficam na mesma linha; e "Gasto do mês" quebra o valor no resumo da fatura. Arrumar numa PR própria.
+- [ ] **Sem "Pagar fatura" se a leitura das faturas falhar** (#181): antes o botão do cartão abria o pagamento mesmo assim (com dívida, o formulário já bloqueava). Avaliar se vale um caminho de pagar adiantado nesse caso.
+
 ### Resumo dos cartões (#175, migration 065)
 - [x] **`card_overview`** (migration 065): uma chamada por família com fatura do mês, atual, fechada a pagar, limite, assinaturas previstas e os totais. Teste `65_card_overview` (31).
 - [x] **Resumo de todos os cartões** no topo de Cartões: carrossel de mês, "Faturas de <mês>" (total do banco e a fatura de cada cartão), limite total, disponível total e barra do usado com texto.
@@ -54,7 +61,7 @@ atualizado: 2026-10-28
 - [ ] **Atalho: caminho antigo sem a 065** (`Cartoes.tsx`, `carregar`): com o banco sem `card_overview` (ou se ela falhar), a tela lê `card_months` por cartão e `card_invoices_month`. Remover depois que a 065 estiver aplicada.
 - [ ] **Início ainda é N+1**: `resumoDosCartoes` (bloco Cartões do Início) chama `card_months` por cartão; passar a usar `card_overview` (mesmos números) numa PR própria.
 - [ ] **Dois "meses" de fatura no app**: Cartões agrupa pelo mês do fechamento (como as abas); o Início ("Faturas que vencem em") e Lançamentos pelo do vencimento. Decidir com o dono se unifica.
-- [ ] **"Cartão Cartão Roxo"** no "Próxima fatura vence em" quando o nome do cartão já começa com "Cartão" (texto antigo da #166, só apresentação).
+- [x] **"Cartão Cartão Roxo"** no "Próxima fatura vence em": desde a #181 não repete "Cartão" quando o nome já começa com ele.
 - [ ] **Conferir no celular e no iPad** (você): resumo no topo, carrossel e a linha das assinaturas previstas com os seus cartões.
 
 ### Achados da análise da aba Cartões (05/11/2026), ainda abertos

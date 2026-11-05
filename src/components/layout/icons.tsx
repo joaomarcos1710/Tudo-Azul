@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 
-function Icone({ children }: { children: ReactNode }) {
+function Icone({ children, tamanho = 22 }: { children: ReactNode; tamanho?: number }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg width={tamanho} height={tamanho} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       {children}
     </svg>
@@ -32,3 +32,12 @@ export const IconeDividas = () => <Icone><path d="M4 5.5h16M4 12h16M4 18.5h10" /
 export const IconeInvestimentos = () => <Icone><path d="M3 19h18M5 16l4-5 3 3 6-8" /><path d="M15 6h3v3" /></Icone>
 
 export const IconeBens = () => <Icone><path d="M3 10.5 12 3l9 7.5V21H3Z" /><path d="M9 21v-7h6v7M3 10.5h18" /></Icone>
+
+/**
+ * Cadeados da situação da fatura (#181, pedido do dono): aberto = fatura aberta; fechado = fechada; fechado com ✓ = paga;
+ * fechado com ! = vencida. A forma muda em cada um (não depende só da cor); o rótulo acessível fica em quem usa.
+ */
+export const IconeCadeadoAberto = ({ tamanho }: { tamanho?: number }) => <Icone tamanho={tamanho}><rect x="4.5" y="11" width="15" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.7-1.5" /></Icone>
+export const IconeCadeadoFechado = ({ tamanho }: { tamanho?: number }) => <Icone tamanho={tamanho}><rect x="4.5" y="11" width="15" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><path d="M12 15v2" /></Icone>
+export const IconeCadeadoPago = ({ tamanho }: { tamanho?: number }) => <Icone tamanho={tamanho}><rect x="4.5" y="11" width="15" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><path d="m9 16 2 2 4-4" /></Icone>
+export const IconeCadeadoVencido = ({ tamanho }: { tamanho?: number }) => <Icone tamanho={tamanho}><rect x="4.5" y="11" width="15" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><path d="M12 13.5v3" /><path d="M12 18.6v.01" /></Icone>
