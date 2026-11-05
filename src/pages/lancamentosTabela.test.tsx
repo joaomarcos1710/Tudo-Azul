@@ -148,7 +148,7 @@ describe('Lançamentos no computador: tabela', () => {
     expect(within(linhaLuz).getByText('Vencido')).toBeTruthy() // planejado com data antes de hoje
     expect(within(screen.getByText('Feira').closest('tr') as HTMLElement).getByText('Planejado')).toBeTruthy()
     expect(within(screen.getByText('Supermercado').closest('tr') as HTMLElement).getByText('Pago')).toBeTruthy()
-    // #184: o ícone da situação leva a cor da regra (planejado verde, pago azul, vencido vermelho) e o nome em texto
+    // #183: o ícone da situação leva a cor da regra (planejado verde, pago azul, vencido vermelho) e o nome em texto
     const icone = (descricao: string) => within(screen.getByText(descricao).closest('tr') as HTMLElement).getByTitle(/^(Planejado|Pago|Vencido)$/)
     expect(icone('Feira').className).toContain('bg-agendado-fundo text-agendado')
     expect(icone('Supermercado').className).toContain('bg-lucro-fundo text-lucro')

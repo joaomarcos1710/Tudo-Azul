@@ -1,5 +1,5 @@
 /**
- * Sistema de cores do app (#184, pedido do dono): uma fonte só, lida pelo tailwind.config.js (classes `text-lucro`,
+ * Sistema de cores do app (#183, pedido do dono): uma fonte só, lida pelo tailwind.config.js (classes `text-lucro`,
  * `bg-agendado-fundo`, …) e pelos gráficos em SVG (components/graficos/cores.ts). Nenhuma tela escreve hex solto.
  *
  * "azul para a gente fica como padrão de perfeito, lucro / vermelho prejuízo / amarelo atenção / verde para agendado"

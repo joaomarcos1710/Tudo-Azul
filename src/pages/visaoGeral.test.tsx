@@ -538,7 +538,7 @@ describe('Visão geral', () => {
     const nubank = screen.getByText('Nubank').closest('li') as HTMLElement
     expect(within(nubank).getByText('R$ 1.333,34')).toBeTruthy()
     expect(nubank.textContent).toContain('Fatura fechada a pagar R$ 1.333,34 · vence em 25/12')
-    // #184: fechada a pagar (ainda no prazo) é atenção (âmbar); só a vencida é vermelha
+    // #183: fechada a pagar (ainda no prazo) é atenção (âmbar); só a vencida é vermelha
     expect(within(nubank).getByText(/Fatura fechada a pagar/).className).toMatch(/text-atencao/)
     expect(within(nubank).getByText('R$ 5.270,00')).toBeTruthy() // limite disponível
     const inter = screen.getByText('Inter').closest('li') as HTMLElement

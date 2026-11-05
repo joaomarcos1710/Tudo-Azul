@@ -144,7 +144,7 @@ describe('Lançamentos', () => {
     expect(screen.getByText('Mercado')).toBeTruthy()
     expect(screen.queryByText('Mercado · Itaú')).toBeNull()
     expect(screen.getByText('Planejado')).toBeTruthy()
-    // #184 (regra de cores do dono): selo "Planejado" verde (agendado), receita azul (lucro), despesa vermelha (prejuízo)
+    // #183 (regra de cores do dono): selo "Planejado" verde (agendado), receita azul (lucro), despesa vermelha (prejuízo)
     expect(screen.getByText('Planejado').className).toContain('bg-agendado-fundo text-agendado')
     const linha = (texto: string) => screen.getByText(texto).closest('li') as HTMLElement
     expect(within(linha('Supermercado')).getByText('−R$ 250,50').className).toContain('text-prejuizo')

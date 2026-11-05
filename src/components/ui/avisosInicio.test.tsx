@@ -31,7 +31,7 @@ describe('Avisos do topo do Início', () => {
     expect(within(l).getByText('Contas a receber')).toBeTruthy()
   })
 
-  it('#184: o ícone de cada aviso segue a regra de cores (vencido vermelho; fatura, a pagar e atrasado atenção; a receber verde)', () => {
+  it('#183: o ícone de cada aviso segue a regra de cores (vencido vermelho; fatura, a pagar e atrasado atenção; a receber verde)', () => {
     montar([aviso({ tipo: 'overdue_payable' }), aviso({ tipo: 'overdue_receivable' }), aviso({ tipo: 'invoice', cartaoNome: 'Cartão X' }),
       aviso({ tipo: 'payable' }), aviso({ tipo: 'receivable' })])
     const corDoIcone = (titulo: string) => (within(screen.getByRole('region', { name: 'Avisos' })).getByText(titulo).closest('a') as HTMLElement)

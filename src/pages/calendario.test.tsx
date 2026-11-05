@@ -111,7 +111,7 @@ describe('Calendário', () => {
     expect(within(lista).getByText('Conta de luz')).toBeTruthy()
     expect(within(lista).getByText('−R$ 187,40')).toBeTruthy()
     expect(within(lista).getAllByText('Moradia · Itaú')).toHaveLength(2)
-    // #184: entrada azul, saída vermelha e "Pago" azul ("está tudo certo")
+    // #183: entrada azul, saída vermelha e "Pago" azul ("está tudo certo")
     expect(within(lista).getByText('+R$ 8.000,00').className).toContain('text-lucro')
     expect(within(lista).getByText('−R$ 187,40').className).toContain('text-prejuizo')
     for (const pago of within(lista).getAllByText('Pago')) expect(pago.className).toContain('text-lucro')
@@ -120,11 +120,11 @@ describe('Calendário', () => {
     expect(within(lista25).getByText('Internet')).toBeTruthy()
     expect(within(lista25).getByText('Planejado')).toBeTruthy()
     expect(within(lista25).queryByText('Pago')).toBeNull()
-    // #184: "Planejado" verde (agendado)
+    // #183: "Planejado" verde (agendado)
     expect(within(lista25).getByText('Planejado').className).toContain('text-agendado')
   })
 
-  it('#184: legenda e marcas do dia na regra de cores: Entrou azul, Saiu vermelho, Planejado verde (com o texto dizendo que ainda não aconteceu)', async () => {
+  it('#183: legenda e marcas do dia na regra de cores: Entrou azul, Saiu vermelho, Planejado verde (com o texto dizendo que ainda não aconteceu)', async () => {
     montar()
     const dia5 = await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' })
     const marca = (rotulo: string) => (screen.getByText(rotulo, { exact: false }).closest('span') as HTMLElement).querySelector('span') as HTMLElement

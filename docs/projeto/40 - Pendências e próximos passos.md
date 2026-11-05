@@ -41,7 +41,7 @@ atualizado: 2026-10-28
 - [x] **Azul para entrada/positivo, vermelho para saída/negativo, cinza para zero**; saldo como área ao fundo do gráfico.
 - [ ] **Aplicar a migration 066** (você dá o "pode"): até lá, a tela de Relatórios mostra o aviso de erro no lugar do relatório (não há caminho antigo de reserva, porque o antigo era por competência).
 - [ ] **Conferir com o Organizze** (você): um mês com fatura paga (ex.: 28/11 com a saída da fatura) e um com fatura em aberto, com "Pagos e não pagos".
-- [x] **Decidir as cores no resto do app**: decidido pelo dono e feito na #184 (receitas azul em todo o app; despesa do Balanço vermelha).
+- [x] **Decidir as cores no resto do app**: decidido pelo dono e feito na #183 (receitas azul em todo o app; despesa do Balanço vermelha).
 - [ ] **Exportar a tabela de Entradas x Saídas** (CSV com as linhas e o saldo, do banco): hoje só o CSV de lançamentos acompanha o período.
 - [ ] **Explicação com (i)** existe em três telas (Lançamentos, Recorrentes, Relatórios): unificar num `ui/` quando houver a quarta.
 - [ ] **Unificar painéis**: `PainelLancamento` (Lançamentos) passar a usar `ui/Folha` (que prende o foco e devolve ao botão). O de **Marcar pago** já usa (#176); falta o do formulário.
@@ -62,18 +62,18 @@ atualizado: 2026-10-28
 - [x] Cadeado por situação no resumo (aberta, fechada, paga, vencida), nome inteiro, mês dentro do bloco ("‹ Novembro de 2026 ›"), "Ver fatura" no cartão e no resumo, "Pagar fatura" dentro da fatura não paga.
 - [ ] **Conferir no iPad em retrato** (você), com os seus cartões: cadeados, nome inteiro e o "Ver fatura" rolando até a fatura.
 - [ ] **Abas da fatura ainda com selo de texto** (Aberta/Fechada/Vencida/Paga): decidir se ganham o cadeado também.
-- [x] **Lista de compras da fatura entre 640 e 1024px**: feito na #184 (grade com valor em coluna própria, ações no ⋯, resumo empilha sem quebrar valor).
+- [x] **Lista de compras da fatura entre 640 e 1024px**: feito na #183 (grade com valor em coluna própria, ações no ⋯, resumo empilha sem quebrar valor).
 - [ ] **Sem "Pagar fatura" se a leitura das faturas falhar** (#181): antes o botão do cartão abria o pagamento mesmo assim (com dívida, o formulário já bloqueava). Avaliar se vale um caminho de pagar adiantado nesse caso.
 
-### Cores do app (#184)
+### Cores do app (#183)
 - [x] Tokens `lucro`, `prejuizo`, `atencao`, `agendado`, `neutro`, `transferencia` em `src/lib/cores.ts`, aplicados nas telas e nos gráficos; contraste medido em teste; laranja do Balanço → vermelho.
 - [ ] **Conferir no aparelho** (você): o verde de "Planejado" lido como "agendado" e não como "entrou" (o oposto do Organizze). Se confundir, trocar só o tom de `agendado` em `src/lib/cores.ts`.
 - [ ] **Relatórios ainda usam os nomes antigos** (`text-azul`, `text-negativo`, hex do gráfico pelos nomes `COR_RECEITA`/`COR_SAIDA`): mesmos tons, ficaram de fora porque outra PR mexia lá; trocar por `text-lucro`/`text-prejuizo`/`corDoValor` quando ela entrar.
 - [ ] **"Próximos planejados" do Início** mostra o valor com a cor do tipo e sem selo "Planejado" (o título do card já diz); avaliar o selo verde por linha.
 - [ ] **Fundo âmbar dos avisos** (`#FFFBEB`) é bem claro: o ícone passa no contraste, mas o círculo quase não aparece. Avaliar `#FEF3C7` (o texto âmbar sobre ele fica em 4,51:1, no limite).
 - [ ] **Saldo/resultado positivo agora azul** em Contas, Início e Calendário (antes sem cor): conferir se não pesou visualmente.
-- [ ] **Cabeçalho do Início no 820px**: "Receita mensal R$ 12.150,00" quebra o valor em duas linhas (já era assim antes; visto no screenshot da #184). Arrumar com `whitespace-nowrap` numa PR própria.
-- [ ] **Screenshots sem o menu lateral**: os da #184 vieram do HTML dos testes com o CSS do app (o app precisa de login); com o menu lateral do md, a área útil em 820px é menor. Conferir no iPad.
+- [ ] **Cabeçalho do Início no 820px**: "Receita mensal R$ 12.150,00" quebra o valor em duas linhas (já era assim antes; visto no screenshot da #183). Arrumar com `whitespace-nowrap` numa PR própria.
+- [ ] **Screenshots sem o menu lateral**: os da #183 vieram do HTML dos testes com o CSS do app (o app precisa de login); com o menu lateral do md, a área útil em 820px é menor. Conferir no iPad.
 
 ### Resumo dos cartões (#175, migration 065)
 - [x] **`card_overview`** (migration 065): uma chamada por família com fatura do mês, atual, fechada a pagar, limite, assinaturas previstas e os totais. Teste `65_card_overview` (31).

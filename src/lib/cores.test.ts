@@ -17,7 +17,7 @@ function contraste(a: string, b: string): number {
 
 const PAPEIS = ['lucro', 'prejuizo', 'atencao', 'agendado', 'neutro', 'transferencia'] as const
 
-describe('sistema de cores (#184)', () => {
+describe('sistema de cores (#183)', () => {
   it('cada tom tem o papel que o dono pediu: azul lucro, vermelho prejuízo, âmbar atenção, verde agendado, cinza neutro, marinho transferência', () => {
     // matiz dominante de cada texto, para ninguém trocar "verde" por outro azul sem perceber
     const canal = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
@@ -71,7 +71,7 @@ describe('sistema de cores (#184)', () => {
   })
 })
 
-describe('nenhuma tela usa cor solta (#184)', () => {
+describe('nenhuma tela usa cor solta (#183)', () => {
   const raiz = join(__dirname, '..')
   const arquivos = (dir: string): string[] => readdirSync(dir).flatMap((n) => {
     const p = join(dir, n)

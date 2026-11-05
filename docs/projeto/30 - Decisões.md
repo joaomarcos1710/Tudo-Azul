@@ -288,7 +288,7 @@ Pedidos do dono, com base no Relatório do Organizze: "notei que no Tudo Azul o 
 - Pedido do dono: a exportação ocupava metade da tela de Relatórios sem ser relatório. Vai para **Conta › Exportar dados** (`/exportar`), junto de Família, porque é cuidado com os dados da conta (arquivo, conferência), não análise. O espaço liberado em Relatórios fica para relatórios novos (ex.: Categorias e Contas, como as abas do Organizze).
 - O CSV de lançamentos passa a começar no **mês de hoje** (antes seguia o período escolhido no relatório, que não está mais na mesma tela).
 
-## 05/11/2026 — Sistema de cores do app (#184)
+## 05/11/2026 — Sistema de cores do app (#183)
 - **Pedido do dono, nas palavras dele:** "azul para a gente fica como padrão de perfeito, lucro / vermelho prejuízo / amarelo atenção / verde para agendado / outras cores?". Substitui a decisão da #179 de "não trocar o token `positivo`".
 - **Regra:** azul (`lucro`) = positivo, lucro, entrada, receita, saldo positivo, pago, "está tudo certo"; vermelho (`prejuizo`) = negativo, prejuízo, saída, despesa, saldo negativo, vencida; âmbar (`atencao`) = atenção (fatura fechada a pagar, prazo perto, orçamento estourando, recebimento atrasado); verde (`agendado`) = agendado/planejado (selo "Planejado", próxima ocorrência do recorrente, fatura aberta a pagar no futuro, contas a receber).
 - **Resposta ao "outras cores?" (proposta, adotada nesta PR):** cinza (`neutro`) = zero, neutro, inativo, arquivado, valor que não mexe no saldo agora (compra no cartão listada em Lançamentos); marinho (`transferencia`) = transferência entre contas, que não é ganho nem perda (já era a cor da marca; antes a transferência aparecia em cinza em algumas telas).
@@ -298,6 +298,6 @@ Pedidos do dono, com base no Relatório do Organizze: "notei que no Tudo Azul o 
 - **Uma fonte só:** `src/lib/cores.ts` (o `tailwind.config.js` importa dela, os gráficos também). Cada tom tem `DEFAULT` (texto, ≥ 4,5:1 no branco, no fundo do app e no fundo do selo), `fundo` (selo) e `marca` (barra, ponto, ícone sem texto, ≥ 3:1). Verde e âmbar claros reprovam em texto, então ficam só como fundo de selo; o texto usa os escuros (emerald-700 `#047857`, amber-700 `#B45309`). O teste `cores.test.ts` mede os contrastes e recusa token antigo, paleta crua do Tailwind e hex solto nas telas.
 - **Não depende só da cor:** "−" e "+", "⇄" na transferência, rótulos ("Planejado", "Vencida", "Atenção: …"), ícones e cadeados com forma diferente continuam.
 
-## 05/11/2026 — Lista de compras da fatura em grade (#184)
+## 05/11/2026 — Lista de compras da fatura em grade (#183)
 - Mesmo desenho da lista de Lançamentos depois da #172: ícone | título (2 linhas) e categoria | valor numa coluna própria; ações no ⋯ (`MenuAcoes`). Motivo: em 640–1024px os três botões de texto (Estornar · Editar · Excluir) dividiam a linha com o valor, que encostava na descrição ("Supermercad−R$ 534,56"). Fatura paga (064) continua sem ação nenhuma, nem o ⋯.
 - Resumo da fatura: empilhar (nome à esquerda, valor à direita) quando 3 colunas não cabem, em vez de deixar o valor quebrar. Sem container query (Tailwind 3 sem plugin), os pontos de troca seguem a largura da tela: 3 colunas em `sm` (fatura sozinha na linha) e em `xl` (ao lado do cabeçalho); empilhado no resto.

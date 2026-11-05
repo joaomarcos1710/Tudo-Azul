@@ -3,14 +3,14 @@
  * faixa de luminosidade, croma, separação para daltonismo ΔE 24,7 e visão normal ΔE 33,6, contraste ≥ 3:1).
  * O app ainda não tem modo escuro; quando tiver, os passos escuros precisam ser escolhidos e validados à parte.
  * A cor nunca é a única informação: todo gráfico mostra o nome (legenda ou rótulo) e o valor em texto.
- * Desde a #184 os tons vêm de src/lib/cores.ts (a mesma fonte das classes do Tailwind): nada de hex solto aqui.
+ * Desde a #183 os tons vêm de src/lib/cores.ts (a mesma fonte das classes do Tailwind): nada de hex solto aqui.
  */
 import { CORES, GRAFICO } from '../../lib/cores'
 
 /** Série única (linha, barras de categoria): azul. */
 export const COR_LINHA = CORES.lucro.marca
 /**
- * Balanço mês a mês: receita azul × despesa vermelha. Até a #184 a despesa do Início era laranja (#eb6834) e a saída
+ * Balanço mês a mês: receita azul × despesa vermelha. Até a #183 a despesa do Início era laranja (#eb6834) e a saída
  * dos Relatórios vermelha: dois tons para a mesma coisa. Unificado no vermelho do prejuízo (pedido do dono).
  */
 export const COR_RECEITA = CORES.lucro.marca
@@ -19,7 +19,7 @@ export const COR_DESPESA = CORES.prejuizo.marca
  * Relatórios, Entradas x Saídas (#179, pedido do dono: "o verde do Organizze, no Tudo Azul azul; vermelho para negativo").
  * Entrada azul (a mesma COR_RECEITA) e saída vermelha (Tailwind red-600, 4,8:1 no branco, acima de 3:1 para barra).
  * Azul × vermelho separam bem também para daltonismo (protan/deutan confundem verde e vermelho, não azul e vermelho).
- * Desde a #184 é a mesma COR_DESPESA do Início (o laranja saiu).
+ * Desde a #183 é a mesma COR_DESPESA do Início (o laranja saiu).
  */
 export const COR_SAIDA = COR_DESPESA
 /**

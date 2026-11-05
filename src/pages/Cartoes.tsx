@@ -148,7 +148,7 @@ type SituacaoVisual = 'aberta' | 'fechada' | 'paga' | 'vencida'
 
 /** Situação da fatura em cadeado (#181): a forma muda em cada uma (não depende só da cor); a cor reforça. */
 const cadeados: Record<SituacaoVisual, { rotulo: string; cor: string; Icone: (p: { tamanho?: number }) => ReactNode }> = {
-  // #184: aberta = agendado (verde, a pagar no futuro); fechada = atenção; paga = tudo certo (azul); vencida = prejuízo
+  // #183: aberta = agendado (verde, a pagar no futuro); fechada = atenção; paga = tudo certo (azul); vencida = prejuízo
   aberta: { rotulo: 'Fatura aberta', cor: 'text-agendado', Icone: IconeCadeadoAberto },
   fechada: { rotulo: 'Fatura fechada', cor: 'text-atencao', Icone: IconeCadeadoFechado },
   paga: { rotulo: 'Fatura paga', cor: 'text-lucro', Icone: IconeCadeadoPago },
@@ -699,12 +699,12 @@ const c0 = 0 as Cents
 
 const rotuloSituacao = { aberta: SELO_FATURA.aberta, fechada: SELO_FATURA.fechada, paga: SELO_FATURA.paga }
 
-// resumo da fatura (#184): empilhado = linha "nome … valor"; em 3 colunas = nome em cima do valor
+// resumo da fatura (#183): empilhado = linha "nome … valor"; em 3 colunas = nome em cima do valor
 const itemResumo = 'flex items-baseline justify-between gap-3 sm:block md:flex xl:block'
 const valorResumo = 'whitespace-nowrap tabular-nums font-semibold'
 
 /**
- * Uma compra ou um crédito da fatura (#184, como a lista de Lançamentos depois da #172), em grade:
+ * Uma compra ou um crédito da fatura (#183, como a lista de Lançamentos depois da #172), em grade:
  * ícone | título (até 2 linhas, reticências) e a categoria embaixo | valor numa coluna própria (nowrap, tabular), nunca
  * por cima do texto, com o ⋯ embaixo dele. Sem `acoes` (fatura paga, travada) não há ⋯. O painel abre na linha toda.
  */
@@ -1039,7 +1039,7 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
                   </div>
                 )}
               </div>
-              {/* #184: o valor nunca quebra (nowrap). Três colunas só com largura de sobra (sm sozinho na linha; xl lado a
+              {/* #183: o valor nunca quebra (nowrap). Três colunas só com largura de sobra (sm sozinho na linha; xl lado a
                   lado com a fatura); no resto, empilha: nome à esquerda, valor à direita */}
               <dl className="grid grid-cols-1 gap-x-4 gap-y-1 rounded-lg bg-fundo p-3 text-sm sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3" aria-label="Resumo da fatura">
                 <div className={itemResumo}>
