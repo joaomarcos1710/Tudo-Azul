@@ -1,6 +1,7 @@
 import { centsFromDb } from './format'
 import type { Cents } from './format'
 import { supabase } from './supabase'
+import type { BaseGastosCartao } from './baseGastosCartao'
 
 /** Patrimônio do modelo B (net_worth): disponível + crédito a receber − dívida. */
 export interface Patrimonio {
@@ -116,8 +117,14 @@ export interface DespesaDia {
   acumulado: Cents
 }
 
-export async function despesasPorCategoria(familiaId: string, de: string, ate: string, top = 4): Promise<DespesaCategoria[]> {
-  const { data, error } = await cliente().rpc('expenses_by_category', { p_household: familiaId, p_from: de, p_to: ate, p_top: top })
+/**
+ * Despesas por categoria com a base dos gastos de cartão (migration 062). Na base da fatura (padrão) chama
+ * expenses_by_category, como sempre: o gráfico continua funcionando mesmo antes de a 062 ser aplicada no banco.
+ */
+export async function despesasPorCategoria(familiaId: string, de: string, ate: string, top = 4, base: BaseGastosCartao = 'invoice'): Promise<DespesaCategoria[]> {
+  const { data, error } = base === 'invoice'
+    ? await cliente().rpc('expenses_by_category', { p_household: familiaId, p_from: de, p_to: ate, p_top: top })
+    : await cliente().rpc('expenses_by_category_basis', { p_household: familiaId, p_from: de, p_to: ate, p_basis: base, p_top: top })
   if (error) throw error
   return ((data ?? []) as Record<string, string | number | null>[]).map((r) => ({
     categoriaId: (r.category_id as string | null) ?? null,

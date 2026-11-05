@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   listarCreditosDeCartao: vi.fn(),
   listarCartoes: vi.fn(),
   listarItens: vi.fn(),
+  listarCreditosDaFatura: vi.fn(),
   registrarCompra: vi.fn(),
   resumoDoMes: vi.fn(),
   resumoPorMoeda: vi.fn(),
@@ -58,6 +59,7 @@ vi.mock('../lib/cartoes', async (original) => ({
   ...(await original<typeof import('../lib/cartoes')>()),
   listarCartoes: mock.listarCartoes,
   listarItens: mock.listarItens,
+  listarCreditosDaFatura: mock.listarCreditosDaFatura,
   registrarCompra: mock.registrarCompra,
 }))
 vi.mock('../lib/dividas', async (original) => ({
@@ -98,6 +100,7 @@ beforeEach(() => {
   mock.listarParcelasDivida.mockResolvedValue([])
   mock.listarFaturasDoMes.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
+  mock.listarCreditosDaFatura.mockResolvedValue([])
   mock.listarCreditosDeCartao.mockResolvedValue([])
   mock.listarCartoes.mockResolvedValue([
     { id: 'k1', nome: 'Nubank', fechamento: 17, vencimento: 25, ativo: true, divida: c(0), credito: c(0), compromissos: c(0) },
@@ -297,7 +300,8 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     const item = (await screen.findByText('Supermercado')).closest('li')!
-    await u.click(within(item).getByRole('button', { name: 'Excluir' }))
+    await u.click(within(item).getByRole('button', { name: 'Ações de Supermercado' }))
+    await u.click(within(item).getByRole('menuitem', { name: 'Excluir' }))
     expect(window.confirm).toHaveBeenCalled()
     expect(mock.moverParaLixeira).toHaveBeenCalledWith('t1')
     await u.click(await screen.findByRole('button', { name: 'Desfazer' }))
@@ -381,7 +385,7 @@ describe('Lançamentos', () => {
     // total do banco (card_months) de propósito DIFERENTE da soma das compras abaixo (100 + 200): a tela não soma
     const fatura = () => ({
       cartaoId: 'k1', cartaoNome: 'Nubank', mes: mesAtual(), fechamento: `${mesAtual()}-20`, vencimento: `${mesAtual()}-28`,
-      total: c(45678), pago: c(0), itens: 2, situacao: 'fechada', contaPagamentoId: 'a1',
+      total: c(45678), pago: c(0), itens: 2, creditos: c(0), situacao: 'fechada', contaPagamentoId: 'a1',
     })
     const comprasDaFatura = [
       { parcelaId: 'p1', compra: 'pl1', parcela: 2, deParcelas: 3, descricao: 'Fone', dataCompra: '2026-01-02', valor: c(10000), falta: c(0), categoriaId: 'mer' },
@@ -397,10 +401,16 @@ describe('Lançamentos', () => {
       expect(dia.getAttribute('aria-label')).toBe(`28/${mesAtual().slice(5, 7)}/${mesAtual().slice(0, 4)}`)
       expect(within(item).getByText('R$ 456,78')).toBeTruthy()
       expect(within(item).getByText('Fechada')).toBeTruthy()
-      expect(within(item).getByText(/Fecha em 20\/.* · vence em 28\/.* · 2 compras/)).toBeTruthy()
+      // metadados curtos (pedido do dono): situação + a data que importa, sem o ano e sem "N compras"
+      expect(within(item).getByText(`vence 28/${mesAtual().slice(5, 7)}`)).toBeTruthy()
+      expect(item.textContent).not.toMatch(/\d+ compras?/)
+      expect(item.textContent).not.toContain(mesAtual().slice(0, 4))
       // as compras não aparecem soltas na lista: só dentro da fatura
       expect(screen.queryByText('Fone')).toBeNull()
       expect(screen.queryByText('Livro')).toBeNull()
+      // "Ver em Cartões" fica dentro da área aberta: nada de botões lado a lado espremendo o texto
+      expect(within(item).queryByRole('link', { name: 'Ver fatura Nubank em Cartões' })).toBeNull()
+      await userEvent.setup().click(within(item).getByRole('button', { name: /Ver compras/ }))
       expect(within(item).getByRole('link', { name: 'Ver fatura Nubank em Cartões' }).getAttribute('href')).toBe('/cartoes?cartao=k1')
       expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
       expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
@@ -413,7 +423,9 @@ describe('Lançamentos', () => {
       const u = userEvent.setup()
       render(<MemoryRouter><Lancamentos /></MemoryRouter>)
       const item = (await screen.findByText('Fatura Nubank')).closest('li') as HTMLElement
-      const botao = within(item).getByRole('button', { name: 'Ver compras' })
+      // a própria linha é o botão que abre (chevron ▸/▾), com aria-expanded
+      const botao = within(item).getByRole('button', { name: /Ver compras/ })
+      expect(botao.textContent).toContain('▸')
       expect(botao.getAttribute('aria-expanded')).toBe('false')
       await u.click(botao)
       expect(botao.getAttribute('aria-expanded')).toBe('true')
@@ -422,14 +434,15 @@ describe('Lançamentos', () => {
       expect(mock.listarItens).toHaveBeenCalledWith('k1', mesAtual())
       const fone = within(lista).getByText('Fone').closest('li') as HTMLElement
       expect(within(fone).getByText(/parcela 2\/3/)).toBeTruthy()
-      expect(within(fone).getByText('Mercado · compra de 02/01/2026')).toBeTruthy()
+      expect(within(fone).getByText(/· compra de 02\/01\/2026/).textContent).toBe('Mercado · compra de 02/01/2026')
       expect(within(fone).getByText('R$ 100,00')).toBeTruthy()
       expect(fone.querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
       expect(within(lista).getByText('Livro')).toBeTruthy()
       // a soma das compras seria R$ 300,00: a linha mostra o total do banco
       expect(within(item).getByText('R$ 456,78')).toBeTruthy()
       expect(within(item).queryByText('R$ 300,00')).toBeNull()
-      await u.click(within(item).getByRole('button', { name: 'Esconder compras' }))
+      expect(botao.textContent).toContain('▾')
+      await u.click(within(item).getByRole('button', { name: /Esconder compras/ }))
       expect(within(item).queryByRole('list', { name: 'Compras da fatura Nubank' })).toBeNull()
     })
 
@@ -471,7 +484,8 @@ describe('Lançamentos', () => {
       expect(screen.queryByText('Fatura Nubank')).toBeNull()
       expect(screen.queryByText('Livro')).toBeNull() // outra categoria
       expect(within(fone).getByText('No cartão')).toBeTruthy()
-      expect(within(fone).getByText(/Mercado · fatura Nubank · compra de 02\/01\/2026 · a despesa conta em 20\/.* \(fechamento da fatura\)/)).toBeTruthy()
+      expect(within(fone).getByText('Mercado')).toBeTruthy()
+      expect(within(fone).getByText(/fatura Nubank · compra de 02\/01\/2026 · a despesa conta em 20\/.* \(fechamento da fatura\)/)).toBeTruthy()
       expect(within(fone).getByText('R$ 100,00')).toBeTruthy()
       expect((fone.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/^28\//)
       expect(mock.listarFaturasDoMes).toHaveBeenLastCalledWith('h1', mesAtual(), { categoriaId: 'mer' }, hojeSP())
@@ -490,26 +504,152 @@ describe('Lançamentos', () => {
       const u = userEvent.setup()
       render(<MemoryRouter><Lancamentos /></MemoryRouter>)
       const item = (await screen.findByText('Fatura Nubank')).closest('li') as HTMLElement
-      await u.click(within(item).getByRole('button', { name: 'Ver compras' }))
+      await u.click(within(item).getByRole('button', { name: /Ver compras/ }))
       expect((await within(item).findByRole('alert')).textContent).toMatch(/Não foi possível carregar as compras/)
     })
   })
 
-  it('crédito avulso no cartão aparece como receita (+, verde) no dia do fechamento, só leitura', async () => {
-    const fecha = `${hojeSP().slice(0, 8)}17`
-    mock.listarCreditosDeCartao.mockResolvedValue([
-      { id: 'cr1', data: fecha, dataCredito: `${hojeSP().slice(0, 8)}03`, descricao: 'Estorno de IOF', cartaoNome: 'Nubank', categoriaId: 'sal', valor: c(5000), planejado: true },
-    ])
-    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    const item = (await screen.findByText('Estorno de IOF')).closest('li') as HTMLElement
-    expect(within(item).getByText('Crédito no cartão')).toBeTruthy()
-    expect(within(item).getByText('Planejado')).toBeTruthy()
-    expect(within(item).getByText(new RegExp(`Salário · Nubank · crédito de 03/.* · a receita conta em 17/`))).toBeTruthy()
-    const valor = within(item).getByText(/^\+R\$\s?50,00$/)
-    expect(valor.className).toContain('text-positivo')
-    expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
-    expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
-    expect(mock.listarCreditosDeCartao).toHaveBeenCalledWith('h1', expect.stringMatching(/^\d{4}-\d{2}$/), {}, hojeSP())
+  describe('créditos do cartão (decisão do dono, 05/11/2026)', () => {
+    const mesAtual = () => hojeSP().slice(0, 7)
+    // total do banco (card_months, já líquido dos créditos) DIFERENTE de compras − créditos: a tela não soma
+    const faturaComCredito = () => ({
+      cartaoId: 'k1', cartaoNome: 'CAIXA INFINITE', mes: mesAtual(), fechamento: `${mesAtual()}-18`, vencimento: `${mesAtual()}-28`,
+      total: c(97691), pago: c(0), itens: 1, creditos: c(2315), situacao: 'aberta', contaPagamentoId: 'a1',
+    })
+    const creditosDaFatura = [
+      { id: 'cr1', descricao: 'IOF', dataCredito: `${mesAtual()}-03`, fechamento: `${mesAtual()}-18`, valor: c(2309), categoriaId: 'sal' },
+      { id: 'cr2', descricao: 'Ajuste de Crédito', dataCredito: `${mesAtual()}-04`, fechamento: `${mesAtual()}-18`, valor: c(6), categoriaId: 'sal' },
+    ]
+    const solto = {
+      id: 'cr1', data: `${mesAtual()}-18`, dataCredito: `${mesAtual()}-03`, descricao: 'IOF', cartaoNome: 'CAIXA INFINITE', categoriaId: 'sal',
+      valor: c(2309), planejado: true, vencimento: null,
+    }
+
+    it('sem filtro: os créditos ficam DENTRO da fatura, em "Créditos e reembolsos" (verde, +), e não soltos', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([faturaComCredito()])
+      mock.listarItens.mockResolvedValue([
+        { parcelaId: 'p1', compra: 'pl1', parcela: 1, deParcelas: 1, descricao: 'Mercado do mês', dataCompra: `${mesAtual()}-02`, valor: c(100000), falta: c(0), categoriaId: 'mer' },
+      ])
+      mock.listarCreditosDaFatura.mockResolvedValue(creditosDaFatura)
+      // mesmo que o lib devolvesse créditos soltos, sem filtro a tela nem pede (não duplica)
+      mock.listarCreditosDeCartao.mockResolvedValue([solto])
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      const item = (await screen.findByText('Fatura CAIXA INFINITE')).closest('li') as HTMLElement
+      expect(screen.queryByText('IOF')).toBeNull()
+      expect(screen.queryByText('Ajuste de Crédito')).toBeNull()
+      expect(mock.listarCreditosDeCartao).not.toHaveBeenCalled()
+      // total do banco, já líquido; nem 1.000,00 (compras) nem 976,85 (compras − créditos somados na tela)
+      expect(within(item).getByText('R$ 976,91')).toBeTruthy()
+      await u.click(within(item).getByRole('button', { name: /Ver compras/ }))
+      const lista = await within(item).findByRole('list', { name: 'Créditos e reembolsos da fatura CAIXA INFINITE' })
+      expect(within(item).getByRole('heading', { name: 'Créditos e reembolsos' })).toBeTruthy()
+      expect(mock.listarCreditosDaFatura).toHaveBeenCalledWith('k1', mesAtual())
+      const iof = within(lista).getByText('IOF').closest('li') as HTMLElement
+      const valor = within(iof).getByText('+R$ 23,09')
+      expect(valor.className).toContain('text-positivo')
+      expect(valor.className).toContain('whitespace-nowrap')
+      expect(within(lista).getByText('+R$ 0,06')).toBeTruthy()
+      expect(within(item).queryByText(/976,85/)).toBeNull()
+    })
+
+    it('fatura sem créditos (segundo o banco) não pede créditos ao abrir', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([{ ...faturaComCredito(), creditos: c(0) }])
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      const item = (await screen.findByText('Fatura CAIXA INFINITE')).closest('li') as HTMLElement
+      await u.click(within(item).getByRole('button', { name: /Ver compras/ }))
+      await within(item).findByText('Nenhuma compra nesta fatura.')
+      expect(mock.listarCreditosDaFatura).not.toHaveBeenCalled()
+      expect(within(item).queryByText('Créditos e reembolsos')).toBeNull()
+    })
+
+    it('filtro tipo Receita: o crédito aparece solto no dia do fechamento (a fatura não aparece em Receita)', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([]) // o lib não devolve fatura com filtro de receita
+      mock.listarCreditosDeCartao.mockResolvedValue([solto])
+      render(<MemoryRouter initialEntries={[`/lancamentos?mes=${mesAtual()}&tipo=receita`]}><Lancamentos /></MemoryRouter>)
+      const item = (await screen.findByText('IOF')).closest('li') as HTMLElement
+      expect(mock.listarCreditosDeCartao).toHaveBeenCalledWith('h1', mesAtual(), { tipo: 'income' }, hojeSP())
+      expect((item.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/^18\//)
+      expect(within(item).getByText('Crédito no cartão')).toBeTruthy()
+      expect(within(item).getByText('Planejado')).toBeTruthy()
+      expect(within(item).getByText(/CAIXA INFINITE · crédito de 03\/.* · a receita conta em 18\//)).toBeTruthy()
+      expect(within(item).getByText(/^\+R\$\s?23,09$/).className).toContain('text-positivo')
+      expect(within(item).queryByRole('button', { name: /Ações de/ })).toBeNull() // só leitura
+      expect(screen.queryByText('Fatura CAIXA INFINITE')).toBeNull()
+    })
+
+    it('filtro de categoria de receita: os créditos daquela categoria saem soltos no vencimento, como as compras', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([faturaComCredito()])
+      mock.listarCreditosDaFatura.mockResolvedValue([...creditosDaFatura, { ...creditosDaFatura[1], id: 'cr3', descricao: 'Cashback', categoriaId: 'outra' }])
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Fatura CAIXA INFINITE')
+      await u.selectOptions(screen.getByLabelText('Filtrar por categoria'), 'sal')
+      const item = (await screen.findByText('IOF')).closest('li') as HTMLElement
+      expect(screen.queryByText('Fatura CAIXA INFINITE')).toBeNull()
+      expect(screen.getByText('Ajuste de Crédito')).toBeTruthy()
+      expect(screen.queryByText('Cashback')).toBeNull() // outra categoria
+      expect((item.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/^28\//)
+      expect(within(item).getByText(/fatura CAIXA INFINITE · crédito de 03\/.* · a receita conta em 18\//)).toBeTruthy()
+      // sem filtro de tipo, a lista solta de "Receita" não é pedida: não duplica
+      expect(mock.listarCreditosDeCartao).not.toHaveBeenCalled()
+    })
+
+    it('os totais do topo não mudam: vêm do banco (period_summary)', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([faturaComCredito()])
+      mock.listarCreditosDaFatura.mockResolvedValue(creditosDaFatura)
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Fatura CAIXA INFINITE')
+      const receitas = screen.getByText('Receitas pagas').closest('div') as HTMLElement
+      expect(within(receitas).getByText('+R$ 0,00')).toBeTruthy()
+      expect(mock.resumoDoMes).toHaveBeenCalledWith('h1', mesAtual())
+    })
+  })
+
+  describe('layout da linha na lista (abaixo de 1024px)', () => {
+    it('valor em elemento próprio, sem quebra, fora do bloco do título; ações no menu ⋯ e "Marcar pago" em 1 toque', async () => {
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      const titulo = await screen.findByText('Salário', { selector: '.line-clamp-2' })
+      const item = titulo.closest('li') as HTMLElement
+      const valor = within(item).getByText('+R$ 8.000,00')
+      expect(valor.className).toMatch(/whitespace-nowrap/)
+      expect(valor.className).toMatch(/tabular-nums/)
+      // o valor não está dentro do bloco do título/metadados (coluna própria da grade)
+      expect(titulo.parentElement!.contains(valor)).toBe(false)
+      expect(item.className).toContain('grid-cols-[auto_minmax(0,1fr)_auto]')
+      // etiqueta e categoria na MESMA linha de metadados
+      const meta = item.querySelector('[data-metadados]') as HTMLElement
+      expect(meta.className).toMatch(/whitespace-nowrap/)
+      expect(within(meta).getByText('Planejado')).toBeTruthy()
+      expect(within(meta).getByText('Salário')).toBeTruthy()
+      // sem os três botões lado a lado: Editar/Excluir só no menu ⋯
+      expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
+      expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
+      expect(within(item).getByRole('button', { name: 'Marcar pago' }).textContent).toBe('✓')
+      await u.click(within(item).getByRole('button', { name: 'Ações de Salário' }))
+      expect(within(item).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Marcar pago', 'Editar', 'Excluir'])
+      // pago não oferece "Marcar pago"
+      const pago = screen.getByText('Supermercado').closest('li') as HTMLElement
+      expect(within(pago).queryByRole('button', { name: 'Marcar pago' })).toBeNull()
+    })
+
+    it('a explicação das faturas é uma linha curta com (i); o texto completo abre ao tocar', async () => {
+      const mes = hojeSP().slice(0, 7)
+      mock.listarFaturasDoMes.mockResolvedValue([{
+        cartaoId: 'k1', cartaoNome: 'Nubank', mes, fechamento: `${mes}-20`, vencimento: `${mes}-28`, total: c(100), pago: c(0), itens: 1,
+        creditos: c(0), situacao: 'aberta', contaPagamentoId: 'a1',
+      }])
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      const resumo = await screen.findByText('Fatura no vencimento, com compras e créditos dentro.')
+      const detalhes = resumo.closest('details') as HTMLDetailsElement
+      expect(detalhes.open).toBe(false)
+      await u.click(resumo)
+      expect(detalhes.open).toBe(true)
+      expect(within(detalhes).getByText(/Pagamento da fatura/, { selector: 'strong' })).toBeTruthy()
+    })
   })
 
   it('se os créditos do cartão falharem, a lista continua', async () => {
@@ -710,7 +850,8 @@ describe('Formulário de lançamento (novo visual)', () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const item = (await screen.findByText('Supermercado')).closest('li') as HTMLElement
-    await u.click(within(item).getByRole('button', { name: 'Editar' }))
+    await u.click(within(item).getByRole('button', { name: 'Ações de Supermercado' }))
+    await u.click(within(item).getByRole('menuitem', { name: 'Editar' }))
     const abas = screen.getByRole('radiogroup', { name: 'Tipo do lançamento' })
     expect(within(abas).getAllByRole('radio')).toHaveLength(3)
     expect(screen.getByRole('button', { name: 'Salvar alterações' })).toBeTruthy()
@@ -772,14 +913,20 @@ describe('Subcategoria na ordem e no nome', () => {
     expect(opcoes).toEqual(['Escolher', 'Outras receitas', 'Rendimentos', 'Royalty', '↳ Reembolso'])
   })
 
-  it('na lista, o lançamento de uma subcategoria mostra "Principal › Sub"', async () => {
+  it('na lista, a subcategoria mostra só a folha; o caminho "Principal › Sub" fica no title e no texto do leitor de tela', async () => {
     mock.listarCategorias.mockResolvedValue(cats)
     mock.listarLancamentos.mockResolvedValue([
       { id: 'r1', tipo: 'income', contaId: 'a1', destinoId: null, categoriaId: 'reem', descricao: 'Devolução', valor: c(16800), data: '2026-10-05', status: 'paid', notas: '' },
     ])
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    expect(await screen.findByText('Royalty › Reembolso')).toBeTruthy()
-    expect(screen.queryByText('Royalty › Reembolso · Itaú')).toBeNull()
+    const folha = await screen.findByText('Reembolso')
+    expect(folha.getAttribute('aria-hidden')).toBe('true')
+    const nome = folha.parentElement as HTMLElement
+    expect(nome.getAttribute('title')).toBe('Royalty › Reembolso')
+    expect(within(nome).getByText('Royalty › Reembolso').className).toContain('sr-only')
+    // texto visível (sem o sr-only) é só a folha
+    const visivel = [...nome.childNodes].filter((n) => !(n as HTMLElement).classList?.contains('sr-only')).map((n) => n.textContent).join('')
+    expect(visivel).toBe('Reembolso')
   })
 
   it('no filtro por categoria, a subcategoria também fica sob a principal', async () => {

@@ -51,7 +51,9 @@ vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/conta
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
 import Cartoes from './Cartoes'
-import { fechamentoDaCompra, melhorDiaDeCompra, ontemSP, proximaFatura, situacaoFatura } from '../lib/cartoes'
+import { fechamentoDaCompra, inicioDaTroca, melhorDiaDeCompra, ontemSP, proximaFatura, situacaoFatura } from '../lib/cartoes'
+import { hojeSP } from '../lib/contas'
+import { formatDate } from '../lib/format'
 import type { Fatura } from '../lib/cartoes'
 
 const c = (n: number) => n as Cents
@@ -918,6 +920,17 @@ describe('Menos botões: ações secundárias no menu "Mais opções"', () => {
     await escolherNoMenu(u, acao)
     expect(dialogo()).toBeTruthy()
     expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('Alterar dias avisa a partir de que fatura os dias novos valem (migration 061), só quando muda algo', async () => {
+    const u = userEvent.setup()
+    render(<Cartoes />)
+    await escolherNoMenu(u, 'Alterar dias')
+    expect(screen.queryByText(/A mudança vale a partir da fatura que fecha em/)).toBeNull()
+    await u.selectOptions(screen.getByLabelText('Dia do fechamento'), '5')
+    const desde = inicioDaTroca(hojeSP(), { fechamento: 17, vencimento: 25 }, 5, 25)
+    expect(desde).not.toBeNull()
+    expect(screen.getByText(`A mudança vale a partir da fatura que fecha em ${formatDate(desde as string)}.`)).toBeTruthy()
   })
 
   it('com um diálogo aberto, o menu fica desabilitado (como os botões eram)', async () => {

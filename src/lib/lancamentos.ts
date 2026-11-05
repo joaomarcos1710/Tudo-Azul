@@ -1,6 +1,6 @@
 import { centsFromDb, centsToDecimal } from './format'
 import type { Cents } from './format'
-import { listarFaturas, listarItens, situacaoFatura } from './cartoes'
+import { listarCreditosDaFatura, listarFaturas, listarItens, situacaoFatura } from './cartoes'
 import type { Fatura } from './cartoes'
 import { supabase } from './supabase'
 
@@ -189,6 +189,8 @@ export interface FaturaDoMes {
   pago: Cents
   /** Quantidade de parcelas na fatura (contagem, não dinheiro). */
   itens: number
+  /** Créditos avulsos da fatura (card_months.credits, migration 052), já descontados de `total` pelo banco. */
+  creditos: Cents
   situacao: SituacaoDaFatura
   contaPagamentoId: string | null
 }
@@ -217,11 +219,11 @@ export async function listarFaturasDoMes(familiaId: string, mes: string, f: Filt
   // cartões, melhorar com uma função do banco por família e período se a lista ficar lenta com muitos cartões ou anos.
   const porCartao = await Promise.all(cartoes.map(async (c) => (await listarFaturas(c.id))
     .filter((x): x is Fatura & { vencimento: string } => x.vencimento !== null && x.vencimento >= de && x.vencimento <= ate)
-    // fatura só de crédito avulso (sem compra e sem valor) não vira linha: o crédito já aparece à parte
-    .filter((x) => x.itens > 0 || x.total > 0)
+    // fatura vazia não vira linha; a que só tem crédito avulso vira (desde 05/11/2026 o crédito aparece DENTRO da fatura)
+    .filter((x) => x.itens > 0 || x.total > 0 || x.creditos > 0)
     .map((x) => ({
       cartaoId: c.id, cartaoNome: c.name, mes: x.mes, fechamento: x.fechamento, vencimento: x.vencimento, total: x.total,
-      pago: x.pago, itens: x.itens, situacao: situacaoDaFatura(x, hoje), contaPagamentoId: c.pay_account_id ?? null,
+      pago: x.pago, itens: x.itens, creditos: x.creditos, situacao: situacaoDaFatura(x, hoje), contaPagamentoId: c.pay_account_id ?? null,
     }))))
   return porCartao.flat().sort((x, y) => (x.vencimento < y.vencimento ? -1 : x.vencimento > y.vencimento ? 1 : x.cartaoNome.localeCompare(y.cartaoNome)))
 }
@@ -278,6 +280,11 @@ export interface CreditoDeCartao {
   valor: Cents
   /** A fatura ainda não fechou: receita planejada. */
   planejado: boolean
+  /**
+   * Vencimento da fatura, quando o crédito veio das faturas do mês (filtro de categoria): é o dia em que ele aparece
+   * solto, como as compras. null quando veio de listarCreditosDeCartao (filtro Receita): aparece no fechamento.
+   */
+  vencimento: string | null
 }
 
 const COLUNA_INEXISTENTE = '42703'
@@ -308,7 +315,30 @@ export async function listarCreditosDeCartao(familiaId: string, mes: string, f: 
     categoriaId: e.category_id,
     valor: centsFromDb(e.amount),
     planejado: e.date > hoje,
+    vencimento: null,
   }))
+}
+
+/**
+ * Créditos avulsos de UMA fatura do mês (decisão do dono, 05/11/2026): ficam DENTRO da linha "Fatura <cartão>", em
+ * "Ver compras", e não soltos no fechamento. Só lista: o total da fatura (card_months) já os desconta.
+ */
+export async function listarCreditosDaFaturaDoMes(fatura: FaturaDoMes, hoje: string): Promise<CreditoDeCartao[]> {
+  if (fatura.creditos <= 0) return []
+  return (await listarCreditosDaFatura(fatura.cartaoId, fatura.mes)).map((k) => ({
+    id: k.id, data: k.fechamento, dataCredito: k.dataCredito, descricao: k.descricao || 'Crédito no cartão',
+    cartaoNome: fatura.cartaoNome, categoriaId: k.categoriaId ?? null, valor: k.valor, planejado: k.fechamento > hoje,
+    vencimento: fatura.vencimento,
+  }))
+}
+
+/**
+ * Com filtro de categoria (sem filtro de tipo): os créditos daquela categoria, das MESMAS faturas do mês, saem soltos no
+ * dia do vencimento, como as compras (listarComprasDasFaturas). Tirar o filtro só os devolve para dentro da fatura.
+ */
+export async function listarCreditosDasFaturas(faturas: FaturaDoMes[], categoriaId: string, hoje: string): Promise<CreditoDeCartao[]> {
+  const todos = await Promise.all(faturas.map((f) => listarCreditosDaFaturaDoMes(f, hoje)))
+  return todos.flat().filter((k) => k.categoriaId === categoriaId)
 }
 
 export async function resumoDoMes(familiaId: string, mes: string): Promise<ResumoMes> {

@@ -48,7 +48,7 @@ describe('listarCreditosDeCartao', () => {
     const r = await listarCreditosDeCartao('h1', '2026-11', {}, '2026-11-04')
     expect(r).toEqual([{
       id: 'e1', data: '2026-11-17', dataCredito: '2026-11-03', descricao: 'Estorno de IOF', cartaoNome: 'Nubank',
-      categoriaId: 'sal', valor: 5000, planejado: true,
+      categoriaId: 'sal', valor: 5000, planejado: true, vencimento: null,
     }])
   })
 

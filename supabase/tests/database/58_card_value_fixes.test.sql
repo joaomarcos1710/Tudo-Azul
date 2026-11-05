@@ -1,7 +1,7 @@
 -- 58_card_value_fixes: migration 058. (1) assinaturas de cartão previstas na fatura aberta (card_pending_subscriptions);
 -- (2) pagamento de cartão com data futura recusado; (3) itens da fatura líquidos (estorno/cancelamento) e "n de N" só
--- com parcelas vivas. Mais os casos de calendário pedidos na análise: compra em 28/02 com fechamento 30/31, 29/02/2028
--- e troca de ciclo que põe dois fechamentos no mesmo mês. Datas fixas (passadas ou bem futuras) e, onde a regra
+-- com parcelas vivas. Mais os casos de calendário pedidos na análise: compra em 28/02 com fechamento 30/31 e 29/02/2028
+-- (a troca de ciclo está no teste 59). Datas fixas (passadas ou bem futuras) e, onde a regra
 -- depende de hoje, datas relativas a hoje em São Paulo, para o teste não depender do dia em que roda.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -188,24 +188,9 @@ select is(pg_temp.fecha(pg_temp.fx('f30'), 'Bissexto 29'), array['2028-03-30'::d
 select is(pg_temp.fatura(pg_temp.fx('f30'), '2028-02'), '2028-02-29|2028-03-05|15.00|1', 'CA11 fatura de fevereiro/2028: fecha 29/02, vence 05/03');
 select is(pg_temp.fatura(pg_temp.fx('f30'), '2028-03'), '2028-03-30|2028-04-05|55.00|2', 'CA12 fatura de março/2028: 15 + 40');
 
--- Troca de ciclo no meio do mês: fechava dia 5 (vence 15), passa a fechar dia 25 (vence 5). A compra de 01/12 fica na
--- fatura de 05/12 (ciclo antigo, gravado na parcela) e a de 10/12 cai na de 25/12 (ciclo novo): dois fechamentos no
--- mesmo mês. Nenhum valor se perde (as duas parcelas mantêm o próprio fechamento), mas a fatura é por mês (rótulo
--- AAAA-MM): card_months mostra UMA fatura "2026-12" com as duas compras e fechamento = o primeiro (05/12). O vencimento
--- dela, antes de a fatura existir, sai do maior dia de fechamento e do maior dia de vencimento das parcelas tomados
--- separadamente (25 e 15 => 15/01/2027, que não é de nenhum dos dois ciclos: 15/12 no antigo, 05/01 no novo); por isso
--- o vencimento não é afirmado aqui. Limite conhecido, anotado em 40 - Pendências (corrigir exige separar a fatura por
--- fechamento, não é correção pequena).
-insert into fixture select 'cy', public.create_debt('Cartão Ciclo', 'card', '2026-01-01', 0);
-select public.set_card_cycle(pg_temp.fx('cy'), 5, 15);
-select public.card_purchase(pg_temp.fx('cy'), '2026-12-01', 100.00, 1, pg_temp.fx('cat'), 'Antes');
-select public.set_card_cycle(pg_temp.fx('cy'), 25, 5);
-select public.card_purchase(pg_temp.fx('cy'), '2026-12-10', 40.00, 1, pg_temp.fx('cat'), 'Depois');
-select is(pg_temp.fecha(pg_temp.fx('cy'), 'Antes') || pg_temp.fecha(pg_temp.fx('cy'), 'Depois'), array['2026-12-05', '2026-12-25']::date[],
-          'CY1 cada compra fecha no próprio ciclo: 05/12 (antigo) e 25/12 (novo)');
-select is((select count(*) from public.card_months(pg_temp.fx('cy'))), 1::bigint, 'CY2 limite conhecido: os dois fechamentos viram UMA fatura de dezembro');
-select is((select closing_date || '|' || total::numeric(14,2) || '|' || items from public.card_months(pg_temp.fx('cy'))),
-          '2026-12-05|140.00|2', 'CY3 nada se perde: 140,00 em 2 itens, fechamento = o primeiro (05/12)');
+-- Troca de ciclo que punha dois fechamentos no mesmo mês: era um limite conhecido aqui (CY1–CY3 afirmavam a fatura
+-- fundida). A migration 061 mudou a regra (a troca vale a partir do ciclo seguinte ao da fatura aberta hoje) e o caso
+-- passou para o teste 59_card_cycle_change, com datas relativas a hoje (a regra depende do dia da troca).
 
 select * from finish();
 rollback;
