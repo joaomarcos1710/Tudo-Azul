@@ -15,6 +15,7 @@ import type { GrupoOrcamento, LinhaRegra } from '../lib/regra503020'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { CORES, ICONES, IconeCategoria, sugerirVisual, visualDaCategoria } from '../lib/visualCategoria'
 import type { ChaveIcone } from '../lib/visualCategoria'
+import { SELO } from '../lib/cores'
 
 const abas: { tipo: TipoCategoria; rotulo: string }[] = [
   { tipo: 'expense', rotulo: 'Despesas' },
@@ -177,7 +178,7 @@ function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, herdaEve
         {c.sistema && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">padrão</span>}
         {c.grupo && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(c.grupo)}</span>}
         {!c.grupo && grupoHerdado && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(grupoHerdado)} (da principal)</span>}
-        {(c.eventual || herdaEventual) && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">eventual{herdaEventual && !c.eventual ? ' (da principal)' : ''}</span>}
+        {(c.eventual || herdaEventual) && <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${SELO.neutro}`}>eventual{herdaEventual && !c.eventual ? ' (da principal)' : ''}</span>}
         </span>
       </span>
       {!c.sistema && (

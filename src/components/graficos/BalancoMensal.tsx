@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { formatBRL, formatMonth, primeiraMaiuscula } from '../../lib/format'
 import type { Cents } from '../../lib/format'
 import { MASCARA, valoresOcultos } from '../../lib/privacidade'
-import { COR_DESPESA, COR_RECEITA, COR_SALDO_AREA, COR_SALDO_BORDA } from './cores'
+import { COR_DESPESA, COR_EIXO, COR_FOCO, COR_FOCO_SOBRE_AREA, COR_GRADE, COR_RECEITA, COR_SALDO_AREA, COR_SALDO_BORDA } from './cores'
 import { useLargura } from './useLargura'
 import { brlCompacto, topoRedondo } from './LinhaAcumulada'
 
@@ -99,7 +99,7 @@ export function BalancoMensal({ meses, termos = TERMOS_PADRAO, tabelaAbaixo = fa
           aria-label={`${entradas} e ${saidas.toLowerCase()} de cada ${periodo}, com o resultado. Os valores também estão na tabela abaixo.`}>
           {grade.map((v) => (
             <g key={v} aria-hidden="true">
-              <line x1={esq} x2={L - dir} y1={y(v)} y2={y(v)} stroke={v === 0 ? '#94a3b8' : '#e2e8f0'} strokeWidth="1" />
+              <line x1={esq} x2={L - dir} y1={y(v)} y2={y(v)} stroke={v === 0 ? COR_EIXO : COR_GRADE} strokeWidth="1" />
               <text x={esq - 8} y={y(v) + 4} textAnchor="end" fontSize="12" className="fill-slate-500">{brlCompacto(v)}</text>
             </g>
           ))}
@@ -118,12 +118,12 @@ export function BalancoMensal({ meses, termos = TERMOS_PADRAO, tabelaAbaixo = fa
                 onFocus={() => setAtivo(i)} onBlur={() => setAtivo(null)} className="cursor-default outline-none">
                 {/* alvo do toque/hover maior que as barras: a coluna inteira do mês */}
                 <rect x={esq + largGrupo * i} y={topo - 24} width={largGrupo} height={A - topo - base + 24}
-                  fill={ativo === i ? (areaSaldo ? 'rgba(37,99,235,0.08)' : '#eaf2ff') : 'transparent'} rx="6" />
+                  fill={ativo === i ? (areaSaldo ? COR_FOCO_SOBRE_AREA : COR_FOCO) : 'transparent'} rx="6" />
                 <path d={barra(xr, y(x.receitas), larg, y(0) - y(x.receitas))} fill={corEntradas} />
                 <path d={barra(xd, y(x.despesas), larg, y(0) - y(x.despesas))} fill={corSaidas} />
                 {resultadoVisivel && (
                   <text x={c} y={topoPar - 8} textAnchor="middle" fontSize="12" fontWeight="600"
-                    className={x.resultado < 0 ? 'fill-negativo' : 'fill-marinho'}>{resultadoCompacto(x.resultado)}</text>
+                    className={x.resultado < 0 ? 'fill-prejuizo' : 'fill-marinho'}>{resultadoCompacto(x.resultado)}</text>
                 )}
                 {(meses.length - 1 - i) % saltoEixo === 0 && (
                   <text x={c} y={A - 8} textAnchor="middle" fontSize="12" className="fill-slate-500">{x.rotulo ?? mesCurto(x.mes)}</text>
@@ -138,8 +138,8 @@ export function BalancoMensal({ meses, termos = TERMOS_PADRAO, tabelaAbaixo = fa
             <p className="font-semibold text-marinho">{longo(m)}</p>
             <p className="whitespace-nowrap tabular-nums text-slate-700">{entradas}: {formatBRL(m.receitas)}</p>
             <p className="whitespace-nowrap tabular-nums text-slate-700">{saidas}: {formatBRL(m.despesas)}</p>
-            <p className={`whitespace-nowrap tabular-nums font-semibold ${m.resultado < 0 ? 'text-negativo' : 'text-marinho'}`}>Resultado: {formatBRL(m.resultado)}</p>
-            {valoresSaldo && <p className={`whitespace-nowrap tabular-nums ${valoresSaldo[ativo] < 0 ? 'text-negativo' : 'text-slate-700'}`}>{saldo!.rotulo}: {formatBRL(valoresSaldo[ativo])}</p>}
+            <p className={`whitespace-nowrap tabular-nums font-semibold ${m.resultado < 0 ? 'text-prejuizo' : 'text-marinho'}`}>Resultado: {formatBRL(m.resultado)}</p>
+            {valoresSaldo && <p className={`whitespace-nowrap tabular-nums ${valoresSaldo[ativo] < 0 ? 'text-prejuizo' : 'text-slate-700'}`}>{saldo!.rotulo}: {formatBRL(valoresSaldo[ativo])}</p>}
           </div>
         )}
       </div>
@@ -159,7 +159,7 @@ export function BalancoMensal({ meses, termos = TERMOS_PADRAO, tabelaAbaixo = fa
                 <td className="py-1">{primeiraMaiuscula(formatMonth(x.mes))}</td>
                 <td className="py-1 text-right tabular-nums">{formatBRL(x.receitas)}</td>
                 <td className="py-1 text-right tabular-nums">{formatBRL(x.despesas)}</td>
-                <td className={`py-1 text-right tabular-nums ${x.resultado < 0 ? 'text-negativo' : ''}`}>{formatBRL(x.resultado)}</td>
+                <td className={`py-1 text-right tabular-nums ${x.resultado < 0 ? 'text-prejuizo' : ''}`}>{formatBRL(x.resultado)}</td>
               </tr>
             ))}
           </tbody>

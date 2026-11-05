@@ -7,6 +7,7 @@ tags: [tudo-azul, regras, dinheiro]
 2. **O front não soma dinheiro de relatório.** Totais vêm de funções do banco (`period_summary`, `budget_usage`, `net_worth`, `debt_balances`, `card_limits`, `month_projection`…). Diferença linha a linha de dois valores é permitida.
 3. **Entrada estrita:** `parseBRL` recusa formato ambíguo (`"1 2"`); nunca "adivinha" um valor.
 4. **Banco** usa `numeric` com guarda de casas decimais (erro 22003 se passar de 2).
+5. **Cores do dinheiro (#183, regra do dono)**: azul = lucro/entrada/receita/saldo positivo/pago; vermelho = prejuízo/saída/despesa/saldo negativo/vencida; âmbar = atenção; verde = agendado/planejado (nunca "entrou"); cinza = zero/neutro; marinho = transferência. Toda tela nova usa os tokens de `src/lib/cores.ts` (`text-lucro`, `SELO.planejado`, `corDoValor`, `corDoTipo`…), nunca hex nem `green-`/`amber-`/`red-` soltos (o teste `cores.test.ts` recusa); a cor nunca é a única informação (sinal "−", rótulo, ícone).
 
 ## Cartão de crédito
 - A parcela é **cobrada no fechamento da fatura** (data de vencimento da parcela).

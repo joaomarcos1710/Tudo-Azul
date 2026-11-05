@@ -16,6 +16,8 @@ import { formatBRL, formatDate, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
+import { corDoValor } from '../lib/cores'
+import { COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../components/graficos/cores'
 import {
   MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirSubclasseAtivo, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
@@ -246,7 +248,7 @@ export default function Investimentos() {
                   <dt className="text-slate-500">Custo de aquisição</dt>
                   <dd className="m-0 text-right font-bold tabular-nums">{moeda(t.custoTotal, t.moeda)}</dd>
                   <dt className="text-slate-500">Resultado não realizado</dt>
-                  <dd className="m-0 text-right font-bold tabular-nums">{moeda(t.resultado, t.moeda)}</dd>
+                  <dd className={`m-0 text-right font-bold tabular-nums ${corDoValor(t.resultado)}`}>{moeda(t.resultado, t.moeda)}</dd>
                 </dl>
               </Card>
             ))}
@@ -513,7 +515,7 @@ function ExtratoAtivo({ familiaId, ativo, aoMudar, aoFechar }: {
                       <p className="text-xs text-slate-600">Preço {preco(l.precoUnitario, ativo.moeda)}{l.fonte ? ` · ${l.fonte}` : ''}</p>
                     )}
                     {l.tipo === 'distribution' && (
-                      <p className="text-xs text-slate-600">{TIPOS_PROVENTO.find((t) => t.chave === l.tipoProvento)?.rotulo ?? 'Provento'} · {l.statusProvento === 'planned' ? 'Planejado' : 'Recebido'}</p>
+                      <p className="text-xs text-slate-600">{TIPOS_PROVENTO.find((t) => t.chave === l.tipoProvento)?.rotulo ?? 'Provento'} · {l.statusProvento === 'planned' ? <span className="font-medium text-agendado">Planejado</span> : 'Recebido'}</p>
                     )}
                   </div>
                   <div className="text-right">
@@ -617,13 +619,13 @@ function GraficoHistorico({ moedaCodigo, pontos }: { moedaCodigo: MoedaInvestime
     <svg viewBox={`0 0 ${largura} ${altura}`} className="h-auto w-full" role="img"
       aria-label={`Gráfico de evolução do investimento em ${moedaCodigo}`}>
       {[0, 0.5, 1].map((f) => <g key={f}>
-        <line x1={esquerda} x2={largura - direita} y1={y(maximo * f)} y2={y(maximo * f)} stroke="#e2e8f0" />
-        <text x={esquerda - 7} y={y(maximo * f) + 4} textAnchor="end" fontSize="10" fill="#64748b">{rotulo(maximo * f)}</text>
+        <line x1={esquerda} x2={largura - direita} y1={y(maximo * f)} y2={y(maximo * f)} stroke={COR_GRADE} />
+        <text x={esquerda - 7} y={y(maximo * f) + 4} textAnchor="end" fontSize="10" fill={COR_TEXTO_EIXO}>{rotulo(maximo * f)}</text>
       </g>)}
-      {caminho && <path d={caminho} fill="none" stroke="#1476d4" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+      {caminho && <path d={caminho} fill="none" stroke={COR_LINHA} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
       {pontos.map((p, i) => <g key={p.mes}>
-        <circle cx={x(i)} cy={y(p.valorAtual)} r="3.5" fill="#1476d4" />
-        {(i === 0 || i === pontos.length - 1 || i % 3 === 0) && <text x={x(i)} y={altura - 8} textAnchor="middle" fontSize="10" fill="#64748b">
+        <circle cx={x(i)} cy={y(p.valorAtual)} r="3.5" fill={COR_LINHA} />
+        {(i === 0 || i === pontos.length - 1 || i % 3 === 0) && <text x={x(i)} y={altura - 8} textAnchor="middle" fontSize="10" fill={COR_TEXTO_EIXO}>
           {new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(new Date(`${p.mes}T12:00:00Z`))}
         </text>}
       </g>)}
@@ -643,7 +645,7 @@ function Posicao({ p }: { p: PosicaoInvestimento }) {
         <div><p className="text-xs text-slate-500">Quantidade</p><p className="font-semibold tabular-nums">{quantidade(p.quantidade)}</p></div>
         <div><p className="text-xs text-slate-500">Custo médio por unidade</p><p className="font-semibold tabular-nums">{preco(p.custoMedio, p.moeda)}</p></div>
         <div><p className="text-xs text-slate-500">Preço de referência</p><p className="font-semibold tabular-nums">{preco(p.precoAtual, p.moeda)}</p></div>
-        <div><p className="text-xs text-slate-500">Resultado não realizado</p><p className="font-semibold tabular-nums">{moeda(p.resultado, p.moeda)}</p></div>
+        <div><p className="text-xs text-slate-500">Resultado não realizado</p><p className={`font-semibold tabular-nums ${corDoValor(p.resultado)}`}>{moeda(p.resultado, p.moeda)}</p></div>
       </div>
       <p className="mt-3 text-xs text-slate-500">
         {p.dataAvaliacao

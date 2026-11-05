@@ -21,26 +21,22 @@ import {
 import type { CompraDaFatura, CreditoDeCartao, FaturaDoMes, Lancamento, MovimentoDivida, TipoLancamento } from '../lib/lancamentos'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { hojeSP } from '../lib/contas'
+import { SELO, SELO_FATURA, corDoTipo } from '../lib/cores'
 
 export const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', income: 'Receita', transfer: 'Transferência' }
 
 /** Sinal e cor por tipo: receita "+", despesa "−", transferência "⇄" sem sinal (design system). Valor na moeda da conta. */
 export function valorComSinal(l: Lancamento, moeda: string) {
-  if (l.tipo === 'income') return { texto: `+${formatMoeda(l.valor, moeda)}`, cor: 'text-positivo' }
-  if (l.tipo === 'expense') return { texto: `−${formatMoeda(l.valor, moeda)}`, cor: 'text-negativo' }
-  return { texto: `⇄ ${formatMoeda(l.valor, moeda)}`, cor: 'text-slate-600' }
+  if (l.tipo === 'income') return { texto: `+${formatMoeda(l.valor, moeda)}`, cor: corDoTipo('income') }
+  if (l.tipo === 'expense') return { texto: `−${formatMoeda(l.valor, moeda)}`, cor: corDoTipo('expense') }
+  return { texto: `⇄ ${formatMoeda(l.valor, moeda)}`, cor: corDoTipo('transfer') }
 }
 
 /** Um item da lista do mês: lançamento comum ou uma das linhas só de leitura (cartão, dívida, contrato, crédito). */
 export type ItemLista = ({ origem: 'lancamento'; l: Lancamento } | { origem: 'divida'; m: MovimentoDivida } | { origem: 'fatura'; f: FaturaDoMes }
   | { origem: 'cartao'; c: CompraDaFatura } | { origem: 'contrato'; p: ParcelaDivida } | { origem: 'credito'; k: CreditoDeCartao }) & { data: string }
 
-export const rotuloSituacaoFatura: Record<FaturaDoMes['situacao'], { texto: string; estilo: string }> = {
-  aberta: { texto: 'Aberta', estilo: 'bg-planejado-fundo text-planejado' },
-  fechada: { texto: 'Fechada', estilo: 'bg-red-50 text-negativo' },
-  vencida: { texto: 'Vencida', estilo: 'bg-red-50 text-negativo' },
-  paga: { texto: 'Paga', estilo: 'bg-pago-fundo text-pago' },
-}
+export const rotuloSituacaoFatura: Record<FaturaDoMes['situacao'], { texto: string; estilo: string }> = SELO_FATURA
 
 /** A data que importa agora na fatura, curta e sem o ano (pedido do dono, 05/11/2026); paga não precisa de data. */
 export function resumoDaFatura(f: FaturaDoMes): string | undefined {
@@ -113,7 +109,7 @@ export function ComprasDaFatura({ f, compras, creditos = [], erro, idLista, cate
                   {c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''}
                 </p>
               </div>
-              <span className="shrink-0 whitespace-nowrap tabular-nums text-sm font-semibold text-slate-700">{formatBRL(c.valor)}</span>
+              <span className="shrink-0 whitespace-nowrap tabular-nums text-sm font-semibold text-neutro">{formatBRL(c.valor)}</span>
             </li>
           ))}
         </ul>
@@ -121,7 +117,7 @@ export function ComprasDaFatura({ f, compras, creditos = [], erro, idLista, cate
       {/* créditos avulsos da fatura (estorno de IOF, cashback, reembolso): receita, já descontada do total da fatura pelo banco */}
       {!erro && compras !== null && creditos && creditos.length > 0 && (
         <>
-          <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-positivo">Créditos e reembolsos</h3>
+          <h3 className="mt-3 text-xs font-semibold uppercase tracking-wide text-lucro">Créditos e reembolsos</h3>
           <ul aria-label={`Créditos e reembolsos da fatura ${f.cartaoNome}`} className="divide-y divide-slate-200">
             {creditos.map((k) => (
               <li key={k.id} className="flex items-start justify-between gap-3 py-2">
@@ -129,14 +125,14 @@ export function ComprasDaFatura({ f, compras, creditos = [], erro, idLista, cate
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">
                     {k.descricao}
-                    {k.planejado && <span className="ml-2 rounded bg-planejado-fundo px-1.5 py-0.5 text-xs font-medium text-planejado">Planejado</span>}
+                    {k.planejado && <span className={`ml-2 rounded px-1.5 py-0.5 text-xs font-medium ${SELO.planejado}`}>Planejado</span>}
                   </p>
                   <p className="truncate text-xs text-slate-500">
                     <NomeCategoria id={k.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />
                     {` · crédito de ${formatDate(k.dataCredito)}`}
                   </p>
                 </div>
-                <span className="shrink-0 whitespace-nowrap tabular-nums text-sm font-semibold text-positivo">+{formatBRL(k.valor)}</span>
+                <span className="shrink-0 whitespace-nowrap tabular-nums text-sm font-semibold text-lucro">+{formatBRL(k.valor)}</span>
               </li>
             ))}
           </ul>
@@ -161,11 +157,13 @@ export function useTelaGrande(consulta = '(min-width: 1024px)'): boolean {
   return grande
 }
 
-type Situacao = 'pago' | 'planejado' | 'vencido'
+type Situacao = 'pago' | 'planejado' | 'atencao' | 'vencido'
+// cada situação tem ícone e nome (leitor de tela e title), não só a cor
 const visualSituacao: Record<Situacao, { icone: string; texto: string; cor: string }> = {
-  pago: { icone: '✓', texto: 'Pago', cor: 'bg-pago-fundo text-pago' },
-  planejado: { icone: '◷', texto: 'Planejado', cor: 'bg-planejado-fundo text-planejado' },
-  vencido: { icone: '!', texto: 'Vencido', cor: 'bg-red-50 text-negativo' },
+  pago: { icone: '✓', texto: 'Pago', cor: SELO.pago },
+  planejado: { icone: '◷', texto: 'Planejado', cor: SELO.planejado },
+  atencao: { icone: '◔', texto: 'A pagar', cor: SELO.atencao },
+  vencido: { icone: '!', texto: 'Vencido', cor: SELO.vencido },
 }
 
 function IconeSituacao({ s, texto }: { s: Situacao; texto?: string }) {
@@ -549,7 +547,7 @@ function LinhaSoLeitura({ it, p }: { it: Exclude<ItemLista, { origem: 'lancament
     categoria = <CelulaCategoria icone={<IconeCategoria visual={visualPorId(c.categoriaId, p.categoriaPorId, 'expense')} tamanho="pequeno" />}
       nome={<NomeCategoria id={c.categoriaId} categoriaPorId={p.categoriaPorId} nomeCategoria={p.nomeCategoria} />} />
     conta = `Fatura ${c.cartaoNome}`
-    valor = { texto: formatBRL(c.valor), cor: 'text-slate-700' }
+    valor = { texto: formatBRL(c.valor), cor: 'text-neutro' }
     acao = <Link to={`/cartoes?cartao=${c.cartaoId}`} className={linkAcao}>Ver em Cartões</Link>
   } else if (it.origem === 'credito') {
     const k = it.k
@@ -558,7 +556,7 @@ function LinhaSoLeitura({ it, p }: { it: Exclude<ItemLista, { origem: 'lancament
     categoria = <CelulaCategoria icone={<IconeCategoria visual={visualPorId(k.categoriaId, p.categoriaPorId, 'income')} tamanho="pequeno" />}
       nome={<NomeCategoria id={k.categoriaId} categoriaPorId={p.categoriaPorId} nomeCategoria={p.nomeCategoria} />} />
     conta = k.cartaoNome
-    valor = { texto: `+${formatBRL(k.valor)}`, cor: 'text-positivo' }
+    valor = { texto: `+${formatBRL(k.valor)}`, cor: corDoTipo('income') }
     acao = <Link to="/cartoes" className={linkAcao}>Ver em Cartões</Link>
   } else if (it.origem === 'contrato') {
     const c = it.p
@@ -566,7 +564,7 @@ function LinhaSoLeitura({ it, p }: { it: Exclude<ItemLista, { origem: 'lancament
     descricao = <>{c.nomeDivida} · parcela {c.numero}<span className="block text-xs text-slate-500">Contrato · só entra no saldo quando você der baixa</span></>
     categoria = <CelulaCategoria icone={<IconeCategoria fixo="cartao" tamanho="pequeno" />} nome="Contrato" />
     conta = c.formaPagamento === 'account_debit' ? p.nomeConta.get(c.contaPagamentoId ?? '') ?? 'conta' : '—'
-    valor = { texto: `−${formatBRL(c.valor)}`, cor: 'text-slate-700' }
+    valor = { texto: `−${formatBRL(c.valor)}`, cor: 'text-neutro' }
     acao = <Link to={`/dividas?baixar=${c.id}`} aria-label={`Baixar parcela ${c.numero} de ${c.nomeDivida}`} className={linkAcao}>Baixar</Link>
   } else {
     const m = it.m
@@ -574,7 +572,7 @@ function LinhaSoLeitura({ it, p }: { it: Exclude<ItemLista, { origem: 'lancament
     descricao = <>{m.descricao}<span className="block text-xs text-slate-500">{m.jaEmDespesas ? 'Cartão/dívida · já em despesas' : 'Cartão/dívida'}</span></>
     categoria = <CelulaCategoria icone={<IconeCategoria fixo="cartao" tamanho="pequeno" />} nome="Cartão/dívida" />
     conta = p.nomeConta.get(m.contaId) ?? '?'
-    valor = { texto: `${m.valor < 0 ? '−' : '+'}${formatBRL(Math.abs(m.valor) as Cents)}`, cor: m.valor < 0 ? 'text-slate-700' : 'text-positivo' }
+    valor = { texto: `${m.valor < 0 ? '−' : '+'}${formatBRL(Math.abs(m.valor) as Cents)}`, cor: m.valor < 0 ? 'text-neutro' : 'text-lucro' }
     acao = <Link to="/cartoes" className={linkAcao}>Ver em Cartões</Link>
   }
   return (
@@ -591,7 +589,7 @@ function LinhaSoLeitura({ it, p }: { it: Exclude<ItemLista, { origem: 'lancament
   )
 }
 
-const situacaoDaFaturaNaTabela: Record<FaturaDoMes['situacao'], Situacao> = { aberta: 'planejado', fechada: 'planejado', vencida: 'vencido', paga: 'pago' }
+const situacaoDaFaturaNaTabela: Record<FaturaDoMes['situacao'], Situacao> = { aberta: 'planejado', fechada: 'atencao', vencida: 'vencido', paga: 'pago' }
 
 /** A linha "Fatura <cartão>" (PR #164): total e situação do banco, sem seleção; "Ver compras" abre as parcelas embaixo. */
 function LinhaFaturaTabela({ f, categoriaPorId, nomeCategoria }: { f: FaturaDoMes; categoriaPorId: Map<string, Categoria>; nomeCategoria: Map<string, string> }) {
@@ -615,7 +613,7 @@ function LinhaFaturaTabela({ f, categoriaPorId, nomeCategoria }: { f: FaturaDoMe
         </td>
         <td className={td}><CelulaCategoria icone={<IconeCategoria fixo="cartao" tamanho="pequeno" />} nome="Cartão de crédito" /></td>
         <td className={td}>{f.cartaoNome}</td>
-        <td className={`${td} whitespace-nowrap text-right tabular-nums font-semibold text-slate-700`}>{formatBRL(f.total)}</td>
+        <td className={`${td} whitespace-nowrap text-right tabular-nums font-semibold text-neutro`}>{formatBRL(f.total)}</td>
         <td className={`${td} whitespace-nowrap text-right`}>
           <Button variante="fantasma" compacto onClick={alternar} aria-expanded={aberto} aria-controls={idLista}>
             {aberto ? 'Esconder compras' : 'Ver compras'}

@@ -111,11 +111,32 @@ describe('Calendário', () => {
     expect(within(lista).getByText('Conta de luz')).toBeTruthy()
     expect(within(lista).getByText('−R$ 187,40')).toBeTruthy()
     expect(within(lista).getAllByText('Moradia · Itaú')).toHaveLength(2)
+    // #183: entrada azul, saída vermelha e "Pago" azul ("está tudo certo")
+    expect(within(lista).getByText('+R$ 8.000,00').className).toContain('text-lucro')
+    expect(within(lista).getByText('−R$ 187,40').className).toContain('text-prejuizo')
+    for (const pago of within(lista).getAllByText('Pago')) expect(pago.className).toContain('text-lucro')
     await u.click(screen.getByRole('button', { name: '25 de outubro de 2026: 1 lançamento, 1 planejado' }))
     const lista25 = screen.getByText('25/10/2026').closest('div')!.parentElement!.querySelector('ul')!
     expect(within(lista25).getByText('Internet')).toBeTruthy()
     expect(within(lista25).getByText('Planejado')).toBeTruthy()
     expect(within(lista25).queryByText('Pago')).toBeNull()
+    // #183: "Planejado" verde (agendado)
+    expect(within(lista25).getByText('Planejado').className).toContain('text-agendado')
+  })
+
+  it('#183: legenda e marcas do dia na regra de cores: Entrou azul, Saiu vermelho, Planejado verde (com o texto dizendo que ainda não aconteceu)', async () => {
+    montar()
+    const dia5 = await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' })
+    const marca = (rotulo: string) => (screen.getByText(rotulo, { exact: false }).closest('span') as HTMLElement).querySelector('span') as HTMLElement
+    expect(marca('Entrou').className).toContain('bg-lucro-marca')
+    expect(marca('Saiu').className).toContain('bg-prejuizo-marca')
+    expect(marca('Planejado (ainda não aconteceu)').className).toContain('bg-agendado-marca')
+    expect(dia5.querySelector('.bg-lucro-marca')).not.toBeNull()
+    expect(dia5.querySelector('.bg-prejuizo-marca')).not.toBeNull()
+    const dia25 = screen.getByRole('button', { name: '25 de outubro de 2026: 1 lançamento, 1 planejado' })
+    expect(dia25.querySelector('.bg-agendado-marca')).not.toBeNull()
+    // nenhuma marca usa mais o verde para "entrou"
+    expect(document.querySelector('.bg-positivo, .bg-planejado')).toBeNull()
   })
 
   it('pagamento de fatura aparece como saída da conta no dia; transferência aparece sem sinal de receita ou despesa', async () => {

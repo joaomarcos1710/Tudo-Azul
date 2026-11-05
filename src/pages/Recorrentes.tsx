@@ -26,6 +26,7 @@ import type {
   FrequenciaResumo, LinhaResumoRecorrencia, Recorrencia, TipoRecorrencia, UnidadeFrequencia,
 } from '../lib/recorrencias'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { corDoTipo } from '../lib/cores'
 
 const dias: [string, string][] = Array.from({ length: 31 }, (_, i) => [String(i + 1), `Dia ${i + 1}`])
 const toda = (diaSemana: string) => `${diaSemana === 'sábado' || diaSemana === 'domingo' ? 'todo' : 'toda'} ${diaSemana}`
@@ -167,14 +168,14 @@ export default function Recorrentes() {
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-3">
             <p className="min-w-0 flex-1 truncate font-medium" title={r.descricao}>{r.descricao}</p>
-            <span className={`shrink-0 whitespace-nowrap text-right font-semibold tabular-nums ${r.tipo === 'income' ? 'text-positivo' : r.tipo === 'transfer' ? 'text-slate-600' : 'text-negativo'}`}>
+            <span className={`shrink-0 whitespace-nowrap text-right font-semibold tabular-nums ${corDoTipo(r.tipo === 'card' ? 'expense' : r.tipo)}`}>
               {r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}{formatMoeda(r.valor, moeda)}
             </span>
           </div>
           <p className="truncate text-xs text-slate-500" title={completo} data-testid="meta-recorrente">
             {quando(r)} · {onde(r)}
             {curta && <> · <span aria-hidden="true">{curta}</span><span className="sr-only">{caminho}</span></>}
-            {prox && <> · próxima {dataCurta(prox, hoje)}</>}
+            {prox && <> · <span className="text-agendado">próxima {dataCurta(prox, hoje)}</span></>}
             {fimTexto && <> · {fimTexto}</>}
           </p>
         </div>
@@ -243,11 +244,11 @@ export default function Recorrentes() {
         <section aria-labelledby="resumo-recorrentes" className="mb-4">
           <h2 id="resumo-recorrentes" className="sr-only">Resumo por mês</h2>
           <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-            <CartaoResumo titulo="No cartão, por mês" linha={linha('medium', 'card', 'expense')} unidade="assinatura" />
-            <CartaoResumo titulo="Na conta, por mês — saídas" linha={linha('medium', 'account', 'expense')} unidade="despesa" />
-            <CartaoResumo titulo="Na conta, por mês — entradas" linha={linha('medium', 'account', 'income')} unidade="receita" positivo />
+            <CartaoResumo titulo="No cartão, por mês" linha={linha('medium', 'card', 'expense')} unidade="assinatura" tipo="expense" />
+            <CartaoResumo titulo="Na conta, por mês — saídas" linha={linha('medium', 'account', 'expense')} unidade="despesa" tipo="expense" />
+            <CartaoResumo titulo="Na conta, por mês — entradas" linha={linha('medium', 'account', 'income')} unidade="receita" tipo="income" />
             {linha('medium', 'account', 'transfer') && (
-              <CartaoResumo titulo="Transferências, por mês" linha={linha('medium', 'account', 'transfer')} unidade="transferência"
+              <CartaoResumo titulo="Transferências, por mês" linha={linha('medium', 'account', 'transfer')} unidade="transferência" tipo="transfer"
                 nota="à parte, fora dos gastos" />
             )}
           </div>
@@ -320,14 +321,14 @@ export default function Recorrentes() {
 }
 
 /** Cartão do topo: equivalente por mês (grande) e o total por ocorrência (pequeno), os dois do banco. */
-function CartaoResumo({ titulo, linha, unidade, positivo = false, nota }: {
-  titulo: string; linha: LinhaResumoRecorrencia | undefined; unidade: string; positivo?: boolean; nota?: string
+function CartaoResumo({ titulo, linha, unidade, tipo, nota }: {
+  titulo: string; linha: LinhaResumoRecorrencia | undefined; unidade: string; tipo: 'income' | 'expense' | 'transfer'; nota?: string
 }) {
   const qtde = linha?.qtde ?? 0
   return (
     <Card semPadding className="p-3 sm:p-4">
       <h3 className="text-xs font-semibold text-slate-600 sm:text-sm">{titulo}</h3>
-      <p className={`mt-1 whitespace-nowrap text-lg font-bold tabular-nums sm:text-2xl ${positivo ? 'text-positivo' : 'text-marinho'}`}>
+      <p className={`mt-1 whitespace-nowrap text-lg font-bold tabular-nums sm:text-2xl ${corDoTipo(tipo)}`}>
         {formatBRL(linha?.porMes ?? (0 as Cents))}
       </p>
       <p className="text-xs text-slate-500">

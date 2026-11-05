@@ -91,7 +91,8 @@ describe('Orçamentos', () => {
     render(<Orcamentos />)
     await screen.findByText('Mercado')
     await u.click(screen.getByRole('button', { name: 'Próximo mês' }))
-    expect(await screen.findByText(/Com o que já está previsto, passa do limite em R\$ 100,00/)).toBeTruthy()
+    const aviso = await screen.findByText(/Atenção: com o que já está previsto, passa do limite em R\$ 100,00/)
+    expect(aviso.className).toMatch(/text-atencao/)
     expect(screen.queryByText(/sobram/)).toBeNull()
   })
 
