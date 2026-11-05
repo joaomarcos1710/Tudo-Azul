@@ -20,7 +20,7 @@ export function brlCompacto(c: number): string {
 }
 
 /** Escala "redonda" para o eixo: 1, 2 ou 5 × 10^n acima do máximo. */
-function topoRedondo(max: number): number {
+export function topoRedondo(max: number): number {
   if (max <= 0) return 10000
   const pot = 10 ** Math.floor(Math.log10(max))
   for (const m of [1, 2, 2.5, 5, 10]) if (m * pot >= max) return m * pot

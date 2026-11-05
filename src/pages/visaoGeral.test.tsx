@@ -26,6 +26,7 @@ const mock = vi.hoisted(() => ({
   evolucaoPatrimonio: vi.fn(),
   listarOrcamentos: vi.fn(),
   avisosDoInicio: vi.fn(),
+  fluxoDeCaixa: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -48,6 +49,7 @@ vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar, resumoDosCarto
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: gerar }))
 vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados }))
 vi.mock('../lib/orcamentos', () => ({ listarOrcamentos: mock.listarOrcamentos }))
+vi.mock('../lib/fluxoCaixa', async (o) => ({ ...(await o<typeof import('../lib/fluxoCaixa')>()), fluxoDeCaixa: mock.fluxoDeCaixa }))
 vi.mock('../lib/avisosInicio', async (o) => ({ ...(await o<typeof import('../lib/avisosInicio')>()), avisosDoInicio: mock.avisosDoInicio }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas, totaisPorMoeda: mock.totaisPorMoeda }))
 
@@ -91,6 +93,7 @@ beforeEach(() => {
   mock.saldosProjetados.mockResolvedValue({ contas: [], total: null })
   mock.listarOrcamentos.mockResolvedValue([])
   mock.avisosDoInicio.mockResolvedValue([])
+  mock.fluxoDeCaixa.mockResolvedValue({ linhas: [], totalEntradas: c(0), totalSaidas: c(0) })
   mock.evolucaoPatrimonio.mockResolvedValue([])
   mock.resumoDosCartoes.mockResolvedValue([])
   mock.totalFaturasDoMes.mockResolvedValue(null)
@@ -134,9 +137,9 @@ describe('Visão geral', () => {
   })
   it('gráfico de categorias com valores e % do banco (Análises)', async () => {
     montar('analises')
-    expect(await screen.findByText('57,7%')).toBeTruthy()
+    expect((await screen.findAllByText('57,7%')).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Moradia').length).toBeGreaterThan(0)
-    expect(screen.getByText('Outros')).toBeTruthy()
+    expect(screen.getAllByText('Outros').length).toBeGreaterThan(0)
     expect(screen.getByRole('img', { name: /Despesa acumulada no mês: R\$ 8\.667,26/ })).toBeTruthy()
   })
   it('últimos lançamentos: só pagos, com categoria', async () => {
@@ -885,14 +888,203 @@ describe('Análises: falha isolada derruba só o bloco dela', () => {
     expect(screen.queryByText('Patrimônio líquido')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
-  it('resumo do mês falhou: patrimônio e os outros blocos seguem; o gráfico que depende do total fica indisponível', async () => {
+  it('resumo do mês falhou: patrimônio, as barras de categoria e os outros blocos seguem', async () => {
     mock.resumoDoMes.mockRejectedValue(new Error('rede'))
     montar('analises')
     expect(await screen.findByText('Resumo do mês indisponível agora. O restante da tela continua.')).toBeTruthy()
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.queryByText('Despesas do mês')).toBeNull()
-    expect(screen.getByText('Gráfico indisponível agora.')).toBeTruthy()
+    // as barras de categoria não dependem do total do mês (o % vem do próprio expenses_by_category)
+    expect(screen.getByRole('list', { name: /Despesas por categoria/ })).toBeTruthy()
     expect(screen.getByText('Renda regular × despesas')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+describe('Análises: despesas por categoria em barras (PR #167)', () => {
+  const sete = [
+    { categoriaId: 'g1', nome: 'Moradia', valor: c(500000), percentual: 40 },
+    { categoriaId: 'g2', nome: 'Mercado', valor: c(250000), percentual: 20 },
+    { categoriaId: 'g3', nome: 'Transporte', valor: c(125000), percentual: 10 },
+    { categoriaId: 'g4', nome: 'Saúde', valor: c(100000), percentual: 8 },
+    { categoriaId: 'g5', nome: 'Lazer', valor: c(75000), percentual: 6 },
+    { categoriaId: 'g6', nome: 'Educação', valor: c(50000), percentual: 4 },
+    { categoriaId: null, nome: 'Outros', valor: c(150000), percentual: 12 },
+  ]
+  it('pede ao banco as 6 maiores + "Outros" e desenha barras com nome, valor e % (sem rosca)', async () => {
+    mock.despesasPorCategoria.mockResolvedValue(sete)
+    montar('analises')
+    const lista = await screen.findByRole('list', { name: /Despesas por categoria/ })
+    const [fam, de, ate, top] = mock.despesasPorCategoria.mock.calls[0]
+    expect([fam, top]).toEqual(['h1', 6])
+    expect(de.slice(8)).toBe('01')
+    expect(ate.slice(0, 7)).toBe(de.slice(0, 7))
+    const linhas = within(lista).getAllByRole('listitem')
+    expect(linhas).toHaveLength(7)
+    expect(linhas[0].textContent).toContain('Moradia')
+    expect(linhas[0].textContent).toContain('R$ 5.000,00')
+    expect(linhas[0].textContent).toContain('40%')
+    // "Outros" vem pronto do banco, no fim (nada somado no front)
+    expect(linhas[6].textContent).toContain('Outros')
+    expect(linhas[6].textContent).toContain('R$ 1.500,00')
+    // largura = razão com a maior barra
+    const barras = within(lista).getAllByTestId('barra-categoria')
+    expect(barras[0].style.width).toBe('100%')
+    expect(barras[1].style.width).toBe('50%')
+    expect(screen.queryByRole('img', { name: /Despesas por categoria:/ })).toBeNull()
+  })
+  it('cada barra leva aos lançamentos de despesa do mês', async () => {
+    mock.despesasPorCategoria.mockResolvedValue(sete)
+    montar('analises')
+    const lista = await screen.findByRole('list', { name: /Despesas por categoria/ })
+    const mes = (mock.despesasPorCategoria.mock.calls[0][1] as string).slice(0, 7)
+    const link = within(lista).getByRole('link', { name: /^Mercado: R\$ 2\.500,00, 20% das despesas/ })
+    expect(link.getAttribute('href')).toBe(`/lancamentos?mes=${mes}&tipo=despesa`)
+  })
+  it('tem a tabela alternativa ("Ver como tabela") com os mesmos valores do banco', async () => {
+    mock.despesasPorCategoria.mockResolvedValue(sete)
+    montar('analises')
+    const card = (await screen.findByRole('list', { name: /Despesas por categoria/ })).parentElement as HTMLElement
+    expect(within(card).getByText('Ver como tabela')).toBeTruthy()
+    const tabela = within(card).getByRole('table')
+    expect(within(tabela).getAllByRole('row')).toHaveLength(8) // cabeçalho + 7
+    expect(within(tabela).getByText('R$ 1.250,00')).toBeTruthy()
+  })
+  it('valores ocultos: barras e tabela mostram a máscara', async () => {
+    mock.despesasPorCategoria.mockResolvedValue(sete)
+    const { definirValoresOcultos } = await import('../lib/privacidade')
+    definirValoresOcultos(true)
+    try {
+      montar('analises')
+      const card = (await screen.findByRole('list', { name: /Despesas por categoria/ })).parentElement as HTMLElement
+      expect(card.textContent).not.toMatch(/5\.000,00|1\.500,00/)
+      expect(within(card).getAllByText('R$ ••••').length).toBeGreaterThan(0)
+    } finally {
+      definirValoresOcultos(false)
+    }
+  })
+})
+
+describe('Análises: balanço dos últimos 6 meses (PR #167)', () => {
+  const linhas = [
+    ['2026-06-01', 800000, 600000, 200000], ['2026-07-01', 800000, 900000, -100000], ['2026-08-01', 810000, 700000, 110000],
+    ['2026-09-01', 820000, 750000, 70000], ['2026-10-01', 830000, 500000, 330000], ['2026-11-01', 100000, 50000, 50000],
+  ].map(([inicio, e, s, b]) => ({ inicio: inicio as string, entradas: c(e as number), saidas: c(s as number), saldo: c(b as number), acumulado: c(0) }))
+  it('pede ao banco um balde por mês (cash_flow_report, 6 meses) e mostra o resultado do banco acima de cada par', async () => {
+    mock.fluxoDeCaixa.mockResolvedValue({ linhas, totalEntradas: c(0), totalSaidas: c(0) })
+    montar('analises')
+    const pares = await screen.findAllByTestId('par-balanco')
+    expect(pares).toHaveLength(6)
+    const [fam, de, ate, passo, filtros] = mock.fluxoDeCaixa.mock.calls[0]
+    expect([fam, passo, filtros]).toEqual(['h1', 'month', undefined])
+    expect(de.slice(8)).toBe('01')
+    // de = 1º dia de 5 meses antes do mês de "ate"
+    const [a1, m1] = de.split('-').map(Number), [a2, m2] = ate.split('-').map(Number)
+    expect((a2 * 12 + m2) - (a1 * 12 + m1)).toBe(5)
+    expect(pares[1].getAttribute('aria-label')).toBe('Julho de 2026: receitas R$ 8.000,00, despesas R$ 9.000,00, resultado -R$ 1.000,00')
+    // sinal em texto, nunca só na cor
+    expect(pares[1].textContent).toContain('−R$ 1 mil')
+    expect(pares[0].textContent).toContain('+R$ 2 mil')
+  })
+  it('o resultado mostrado é o do banco, não receita − despesa feita na tela', async () => {
+    mock.fluxoDeCaixa.mockResolvedValue({ linhas: [{ inicio: '2026-11-01', entradas: c(100000), saidas: c(40000), saldo: c(12345), acumulado: c(0) }], totalEntradas: c(0), totalSaidas: c(0) })
+    montar('analises')
+    const [par] = await screen.findAllByTestId('par-balanco')
+    expect(par.getAttribute('aria-label')).toContain('resultado R$ 123,45')
+  })
+  it('eixo começa no zero, legenda com os dois nomes, foco mostra o tooltip e há tabela alternativa', async () => {
+    mock.fluxoDeCaixa.mockResolvedValue({ linhas, totalEntradas: c(0), totalSaidas: c(0) })
+    montar('analises')
+    const pares = await screen.findAllByTestId('par-balanco')
+    const card = pares[0].closest('div.rounded-card') as HTMLElement
+    expect(within(card).getAllByText('Receitas').length).toBe(2) // legenda e tabela
+    expect(within(card).getAllByText('Despesas').length).toBe(2)
+    expect(within(card).getByText('R$ 0')).toBeTruthy() // marca do zero no eixo
+    fireEvent.focus(pares[4])
+    const dica = within(card).getByRole('status')
+    expect(dica.textContent).toContain('Outubro de 2026')
+    expect(dica.textContent).toContain('Resultado: R$ 3.300,00')
+    const tabela = within(card).getByRole('table')
+    expect(within(tabela).getAllByRole('row')).toHaveLength(7)
+    expect(within(tabela).getByText('-R$ 1.000,00')).toBeTruthy()
+  })
+  it('se o relatório falhar, só o balanço fica indisponível', async () => {
+    mock.fluxoDeCaixa.mockRejectedValue(new Error('rede'))
+    montar('analises')
+    const card = (await screen.findByRole('heading', { name: 'Balanço dos últimos 6 meses' })).closest('div.rounded-card') as HTMLElement
+    expect(within(card).getByText('Gráfico indisponível agora.')).toBeTruthy()
+    expect(screen.getByRole('list', { name: /Despesas por categoria/ })).toBeTruthy()
+  })
+  it('com conta em outra moeda, avisa que ela fica fora do gráfico (só reais)', async () => {
+    mock.fluxoDeCaixa.mockResolvedValue({ linhas, totalEntradas: c(0), totalSaidas: c(0) })
+    mock.totaisPorMoeda.mockResolvedValue([{ moeda: 'BRL', total: c(100), totalAtivas: c(100) }, { moeda: 'USD', total: c(5000), totalAtivas: c(5000) }])
+    montar('analises')
+    const card = (await screen.findByRole('heading', { name: 'Balanço dos últimos 6 meses' })).closest('div.rounded-card') as HTMLElement
+    expect(card.textContent).toContain('Contas em outras moedas ficam fora deste gráfico.')
+  })
+  it('o Início não consulta o balanço', async () => {
+    montar()
+    await screen.findByText('Minhas contas')
+    expect(mock.fluxoDeCaixa).not.toHaveBeenCalled()
+  })
+})
+
+describe('Início: Minhas contas com "Hoje · Fim do mês" (PR #167)', () => {
+  const contas = [
+    { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1282030) },
+    { id: 'a3', nome: 'Só no fim', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
+    { id: 'a5', nome: 'Zerada', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
+  ]
+  const projetado = {
+    contas: [
+      { id: 'a1', nome: 'Itaú', ativa: true, moeda: 'BRL', efetuado: c(1282030), planejado: c(-100000), faturas: c(0), saldo: c(1182030) },
+      { id: 'a3', nome: 'Só no fim', ativa: true, moeda: 'BRL', efetuado: c(0), planejado: c(-20000), faturas: c(0), saldo: c(-20000) },
+      { id: 'a5', nome: 'Zerada', ativa: true, moeda: 'BRL', efetuado: c(0), planejado: c(0), faturas: c(0), saldo: c(0) },
+    ],
+    total: { efetuado: c(1282030), planejado: c(-120000), faturas: c(0), faturasSemConta: c(0), saldo: c(1162030) },
+  }
+  it('cada conta mostra o saldo de hoje e o previsto no fim do mês, os dois do banco', async () => {
+    mock.listarContas.mockResolvedValue({ contas, total: c(1282030) })
+    mock.saldosProjetados.mockResolvedValue(projetado)
+    montar()
+    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
+    const itau = within(card).getByText('Itaú').closest('li') as HTMLElement
+    expect(within(itau).getByTestId('saldos-da-conta').textContent).toBe('Hoje R$ 12.820,30· Fim do mês R$ 11.820,30')
+    // mesma consulta do "Saldo hoje e previsto": até o último dia do mês, com planejados
+    const [, ate, incluir] = mock.saldosProjetados.mock.calls[0]
+    expect(incluir).toBe(true)
+    expect(ate).toMatch(/-(28|29|30|31)$/)
+  })
+  it('conta zerada hoje mas com previsto diferente de zero aparece; zerada nos dois continua escondida', async () => {
+    mock.listarContas.mockResolvedValue({ contas, total: c(1282030) })
+    mock.saldosProjetados.mockResolvedValue(projetado)
+    montar()
+    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
+    const fim = within(card).getByText('Só no fim').closest('li') as HTMLElement
+    expect(fim.textContent).toContain('Fim do mês -R$ 200,00')
+    expect(within(card).queryByText('Zerada')).toBeNull()
+  })
+  it('se o saldo previsto falhar, a conta mostra só o de hoje', async () => {
+    mock.listarContas.mockResolvedValue({ contas, total: c(1282030) })
+    mock.saldosProjetados.mockRejectedValue(new Error('rede'))
+    montar()
+    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
+    const itau = within(card).getByText('Itaú').closest('li') as HTMLElement
+    expect(within(itau).getByTestId('saldos-da-conta').textContent).toBe('Hoje R$ 12.820,30')
+    expect(within(card).queryByText('Só no fim')).toBeNull()
+  })
+  it('valores ocultos: hoje e fim do mês viram máscara', async () => {
+    mock.listarContas.mockResolvedValue({ contas, total: c(1282030) })
+    mock.saldosProjetados.mockResolvedValue(projetado)
+    const { definirValoresOcultos } = await import('../lib/privacidade')
+    definirValoresOcultos(true)
+    try {
+      montar()
+      const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
+      const itau = within(card).getByText('Itaú').closest('li') as HTMLElement
+      expect(within(itau).getByTestId('saldos-da-conta').textContent).toBe('Hoje R$ ••••· Fim do mês R$ ••••')
+    } finally {
+      definirValoresOcultos(false)
+    }
   })
 })
