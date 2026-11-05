@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  asCents, centsFromDb, centsToDecimal, currentMonth, formatBRL, formatDate, formatMonth,
+  asCents, centsFromDb, centsToDecimal, currentMonth, formatBRL, formatBRLSinal, formatDate, formatMonth,
   MAX_CENTS, primeiraMaiuscula, parseBRL, simboloMoeda, type Cents,
 } from './format'
 
@@ -153,5 +153,13 @@ describe('simboloMoeda (rótulo do campo de valor, multimoeda F2)', () => {
     expect(simboloMoeda('USD')).toBe('US$')
     expect(simboloMoeda('EUR')).toBe('€')
     expect(simboloMoeda('GBP')).toBe('GBP')
+  })
+})
+
+describe('formatBRLSinal (tabelas de relatório)', () => {
+  it('negativo com o sinal tipográfico de menos (U+2212), colado no R$', () => {
+    expect(formatBRLSinal(c(-20000))).toBe('−R$ 200,00')
+    expect(formatBRLSinal(c(123456))).toBe('R$ 1.234,56')
+    expect(formatBRLSinal(c(0))).toBe('R$ 0,00')
   })
 })

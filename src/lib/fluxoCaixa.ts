@@ -62,3 +62,17 @@ export async function fluxoDeCaixa(familiaId: string, de: string, ate: string, p
     totalSaidas: centsFromDb(linhas[0]?.total_expense ?? 0),
   }
 }
+
+/**
+ * Último dia de cada balde do relatório (só datas, nenhum dinheiro): o próprio dia; o domingo da semana; o último
+ * dia do mês. Nunca passa do fim do período pedido (a última semana pode atravessar o mês).
+ */
+export function fimDoBalde(inicio: string, passo: Passo, ate: string): string {
+  let fim = inicio
+  if (passo === 'month') fim = limitesDoMes(inicio.slice(0, 7))[1]
+  if (passo === 'week') {
+    const [a, m, d] = inicio.split('-').map(Number)
+    fim = new Date(Date.UTC(a, m - 1, d + 6)).toISOString().slice(0, 10)
+  }
+  return fim < ate ? fim : ate
+}
