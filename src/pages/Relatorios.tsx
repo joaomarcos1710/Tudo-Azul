@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { EntradasSaidas } from '../components/EntradasSaidas'
 import { ExportacaoCompleta } from '../components/ExportacaoCompleta'
 import { Aviso } from '../components/ui/Aviso'
@@ -7,9 +7,10 @@ import { Card, CardTitle } from '../components/ui/Card'
 import { useFamilia } from '../lib/FamiliaContext'
 import { baixarArquivo, gerarCsv, lancamentosParaExportar, primeiraDataDeLancamento } from '../lib/csv'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatDate } from '../lib/format'
+import { formatDate } from '../lib/format'
 import { hojeSP } from '../lib/contas'
-import { limitesDoMes } from '../lib/lancamentos'
+import { periodoDoMes } from '../lib/periodoRelatorio'
+import type { Periodo } from '../lib/periodoRelatorio'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 
 export default function Relatorios() {
@@ -17,10 +18,11 @@ export default function Relatorios() {
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState('')
   const [exportando, setExportando] = useState(false)
-  const mes = currentMonth()
-  // período do CSV: começa no mês atual; "Desde o primeiro lançamento" vai até o primeiro dia de uso
-  const [de, setDe] = useState(() => limitesDoMes(mes)[0])
-  const [ate, setAte] = useState(() => hojeSP())
+  // período do CSV: acompanha o período do relatório Entradas x Saídas (#179) e pode ser mudado à mão;
+  // "Desde o primeiro lançamento" vai até o primeiro dia de uso
+  const [de, setDe] = useState(() => periodoDoMes(hojeSP().slice(0, 7)).de)
+  const [ate, setAte] = useState(() => periodoDoMes(hojeSP().slice(0, 7)).ate)
+  const seguirRelatorio = useCallback((p: Periodo) => { setDe(p.de); setAte(p.ate) }, [])
   const periodoOk = !!de && !!ate && de <= ate
 
   async function desdeOInicio() {
@@ -58,13 +60,13 @@ export default function Relatorios() {
       <CabecalhoPagina titulo="Relatórios e exportação" descricao="Quanto entrou e saiu em cada período, e seus dados em planilha." />
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {ok && <div className="mb-4"><Aviso tipo="sucesso">{ok}</Aviso></div>}
-      <EntradasSaidas />
+      <EntradasSaidas aoMudarPeriodo={seguirRelatorio} />
       <h2 className="mb-3 mt-8 text-lg font-bold tracking-tight">Exportar</h2>
       <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
         <Card>
           <CardTitle>Exportar lançamentos (CSV)</CardTitle>
           <p className="mb-4 text-sm text-slate-600">
-            Para Excel ou Google Planilhas; despesas saem negativas e a lixeira fica de fora. Compras no cartão: veja a{' '}
+            Começa no período do relatório acima. Para Excel ou Google Planilhas; despesas saem negativas e a lixeira fica de fora. Compras no cartão: veja a{' '}
             <a href="#exportacao-completa" className="font-semibold text-azul underline">exportação completa</a>.
           </p>
           <div className="mb-3 grid grid-cols-2 gap-3">

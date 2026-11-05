@@ -32,7 +32,17 @@ atualizado: 2026-10-28
 - [x] **Relatórios e exportação redesenhados** (#171): filtros numa folha, contas arquivadas escondidas, gráfico, tabela compacta com Saldo, Acumulado opcional, exportação num card compacto.
 - [ ] **Conferir no iPad em retrato** (você): folha de filtros, carrossel de mês, gráfico e tabela sem rolar para o lado.
 - [ ] **Saldo com filtro de conta**: hoje a coluna some quando há conta (ou pessoa) escolhida, porque `balance_totals_projected` não filtra. Precisa de uma função do banco com `p_accounts` (migration nova), nunca soma na tela.
-- [ ] **Saldo em uma chamada só**: hoje é uma chamada de `balance_totals_projected` por período (até 31 no diário). Uma função do banco que devolva a série de saldos (como a de patrimônio do PR de desempenho) evita as idas e vindas.
+- [x] **Saldo em uma chamada só** (#179, migration 066): `cash_flow_series` devolve valores e saldo de cada linha numa chamada.
+
+### Relatórios: período escolhido e regime de caixa (#179, migration 066)
+- [x] **Só o período escolhido** (seletor com setas e atalhos, "Escolher período", anos), divisões Diário · Semanal · Mensal · Acumulado com as que não cabem apagadas.
+- [x] **Fatura do cartão no pagamento** (paga) **ou no vencimento** (a pagar), nunca no fechamento, só em Entradas x Saídas.
+- [x] **Azul para entrada/positivo, vermelho para saída/negativo, cinza para zero**; saldo como área ao fundo do gráfico.
+- [ ] **Aplicar a migration 066** (você dá o "pode"): até lá, a tela de Relatórios mostra o aviso de erro no lugar do relatório (não há caminho antigo de reserva, porque o antigo era por competência).
+- [ ] **Conferir com o Organizze** (você): um mês com fatura paga (ex.: 28/11 com a saída da fatura) e um com fatura em aberto, com "Pagos e não pagos".
+- [ ] **Decidir as cores no resto do app**: receitas em azul também em Lançamentos/Início (hoje `text-positivo` verde) e a barra de despesa do Balanço do Início (laranja) em vermelho, como nos Relatórios.
+- [ ] **Exportar a tabela de Entradas x Saídas** (CSV com as linhas e o saldo, do banco): hoje só o CSV de lançamentos acompanha o período.
+- [ ] **Explicação com (i)** existe em três telas (Lançamentos, Recorrentes, Relatórios): unificar num `ui/` quando houver a quarta.
 - [ ] **Unificar painéis**: `PainelLancamento` (Lançamentos) passar a usar `ui/Folha` (que prende o foco e devolve ao botão). O de **Marcar pago** já usa (#176); falta o do formulário.
 - [ ] **Eixo do gráfico de linha com negativo** usa hífen ("R$ -20 mil", `brlCompacto`); trocar pelo "−" tipográfico em todos os gráficos.
 

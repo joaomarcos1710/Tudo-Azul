@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { formatBRL, formatMonth, primeiraMaiuscula } from '../../lib/format'
 import type { Cents } from '../../lib/format'
 import { MASCARA, valoresOcultos } from '../../lib/privacidade'
-import { COR_DESPESA, COR_RECEITA } from './cores'
+import { COR_DESPESA, COR_RECEITA, COR_SALDO_AREA, COR_SALDO_BORDA } from './cores'
 import { useLargura } from './useLargura'
 import { brlCompacto, topoRedondo } from './LinhaAcumulada'
 
@@ -48,11 +48,18 @@ function barra(x: number, y: number, w: number, h: number): string {
  * Balanço mês a mês: barras agrupadas receita × despesa e, acima de cada par, o resultado do mês (do banco).
  * Eixo começa no zero (barra mede tamanho). Nada é somado aqui: o front só desenha os números do banco.
  */
-export function BalancoMensal({ meses, termos = TERMOS_PADRAO, tabelaAbaixo = false }: {
+export function BalancoMensal({ meses, termos = TERMOS_PADRAO, tabelaAbaixo = false, cores, saldo }: {
   meses: MesBalanco[]
   termos?: TermosBalanco
   /** A tela já mostra a tabela logo abaixo do gráfico: não repete o "Ver como tabela". */
   tabelaAbaixo?: boolean
+  /** Cores das barras (Relatórios: entrada azul, saída vermelha, #179). Sem elas: a paleta do Início. */
+  cores?: { entradas: string; saidas: string }
+  /**
+   * Saldo das contas no fim de cada período, como área clara ao fundo (Relatórios, #179, como no Organizze). Tem escala
+   * própria, sem eixo (o eixo é o das barras): o valor está no toque/tooltip e na tabela logo abaixo.
+   */
+  saldo?: { valores: Cents[]; rotulo: string }
 }) {
   const [ativo, setAtivo] = useState<number | null>(null)
   const [caixa, L] = useLargura<HTMLDivElement>()
@@ -70,13 +77,22 @@ export function BalancoMensal({ meses, termos = TERMOS_PADRAO, tabelaAbaixo = fa
   const saltoEixo = Math.max(1, Math.ceil(46 / largGrupo))
   const longo = (x: MesBalanco) => x.rotuloLongo ?? primeiraMaiuscula(formatMonth(x.mes))
   const { entradas, saidas, periodo } = termos
+  const corEntradas = cores?.entradas ?? COR_RECEITA, corSaidas = cores?.saidas ?? COR_DESPESA
+  // área do saldo: escala própria entre o menor e o maior valor (com o zero dentro); só com 2 ou mais pontos
+  const valoresSaldo = saldo && saldo.valores.length === meses.length && meses.length > 1 ? saldo.valores : null
+  const sMin = Math.min(0, ...(valoresSaldo ?? [0])), sMax = Math.max(0, ...(valoresSaldo ?? [0]))
+  const ys = (v: number) => topo + ((sMax - v) / (sMax - sMin || 1)) * (A - topo - base)
+  const areaSaldo = valoresSaldo && sMax !== sMin
+    ? `M${centro(0)},${ys(0)} ${valoresSaldo.map((v, i) => `L${centro(i)},${ys(v)}`).join(' ')} L${centro(valoresSaldo.length - 1)},${ys(0)} Z`
+    : ''
 
   return (
     <div>
       <p className="mb-2 flex flex-wrap gap-4 text-xs text-slate-600" aria-hidden="true">
-        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ background: COR_RECEITA }} />{entradas}</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ background: COR_DESPESA }} />{saidas}</span>
-        <span className="inline-flex items-center gap-1.5"><span className="font-semibold text-marinho">±</span>{resultadoVisivel ? `Resultado do ${periodo}, acima de cada par` : `Toque numa barra para ver o resultado do ${periodo}`}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ background: corEntradas }} />{entradas}</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ background: corSaidas }} />{saidas}</span>
+        {areaSaldo && <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border" style={{ background: COR_SALDO_AREA, borderColor: COR_SALDO_BORDA }} />{saldo!.rotulo}</span>}
+        <span className="inline-flex items-center gap-1.5"><span className="font-semibold text-marinho">±</span>{resultadoVisivel ? `Resultado de cada ${periodo}, acima do par` : 'Toque numa barra para ver o resultado'}</span>
       </p>
       <div className="relative" ref={caixa}>
         <svg viewBox={`0 0 ${L} ${A}`} className="h-auto w-full" role="group"
@@ -87,20 +103,24 @@ export function BalancoMensal({ meses, termos = TERMOS_PADRAO, tabelaAbaixo = fa
               <text x={esq - 8} y={y(v) + 4} textAnchor="end" fontSize="12" className="fill-slate-500">{brlCompacto(v)}</text>
             </g>
           ))}
+          {areaSaldo && (
+            <path d={areaSaldo} fill={COR_SALDO_AREA} stroke={COR_SALDO_BORDA} strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true" data-testid="area-saldo" />
+          )}
           {meses.map((x, i) => {
             const c = centro(i)
             const xr = c - larg - 1, xd = c + 1 // 2px de fundo entre as duas barras do par
             const topoPar = y(Math.max(x.receitas, x.despesas))
             const rotulo = `${longo(x)}: ${entradas.toLowerCase()} ${formatBRL(x.receitas)}, ${saidas.toLowerCase()} ${formatBRL(x.despesas)}, resultado ${formatBRL(x.resultado)}`
+              + (valoresSaldo ? `, ${saldo!.rotulo.toLowerCase()} ${formatBRL(valoresSaldo[i])}` : '')
             return (
               <g key={x.mes} tabIndex={0} role="img" aria-label={rotulo} data-testid="par-balanco"
                 onPointerEnter={() => setAtivo(i)} onPointerLeave={() => setAtivo(null)} onPointerDown={() => setAtivo(i)}
                 onFocus={() => setAtivo(i)} onBlur={() => setAtivo(null)} className="cursor-default outline-none">
                 {/* alvo do toque/hover maior que as barras: a coluna inteira do mês */}
                 <rect x={esq + largGrupo * i} y={topo - 24} width={largGrupo} height={A - topo - base + 24}
-                  fill={ativo === i ? '#eaf2ff' : 'transparent'} rx="6" />
-                <path d={barra(xr, y(x.receitas), larg, y(0) - y(x.receitas))} fill={COR_RECEITA} />
-                <path d={barra(xd, y(x.despesas), larg, y(0) - y(x.despesas))} fill={COR_DESPESA} />
+                  fill={ativo === i ? (areaSaldo ? 'rgba(37,99,235,0.08)' : '#eaf2ff') : 'transparent'} rx="6" />
+                <path d={barra(xr, y(x.receitas), larg, y(0) - y(x.receitas))} fill={corEntradas} />
+                <path d={barra(xd, y(x.despesas), larg, y(0) - y(x.despesas))} fill={corSaidas} />
                 {resultadoVisivel && (
                   <text x={c} y={topoPar - 8} textAnchor="middle" fontSize="12" fontWeight="600"
                     className={x.resultado < 0 ? 'fill-negativo' : 'fill-marinho'}>{resultadoCompacto(x.resultado)}</text>
@@ -119,6 +139,7 @@ export function BalancoMensal({ meses, termos = TERMOS_PADRAO, tabelaAbaixo = fa
             <p className="whitespace-nowrap tabular-nums text-slate-700">{entradas}: {formatBRL(m.receitas)}</p>
             <p className="whitespace-nowrap tabular-nums text-slate-700">{saidas}: {formatBRL(m.despesas)}</p>
             <p className={`whitespace-nowrap tabular-nums font-semibold ${m.resultado < 0 ? 'text-negativo' : 'text-marinho'}`}>Resultado: {formatBRL(m.resultado)}</p>
+            {valoresSaldo && <p className={`whitespace-nowrap tabular-nums ${valoresSaldo[ativo] < 0 ? 'text-negativo' : 'text-slate-700'}`}>{saldo!.rotulo}: {formatBRL(valoresSaldo[ativo])}</p>}
           </div>
         )}
       </div>

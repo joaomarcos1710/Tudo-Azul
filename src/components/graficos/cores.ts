@@ -10,9 +10,16 @@ export const COR_LINHA = '#2a78d6'
 export const COR_RECEITA = '#2a78d6'
 export const COR_DESPESA = '#eb6834'
 /**
- * Saldo das contas no fim de cada período (Relatórios): aqua, 3º passo da paleta categórica, num gráfico à parte
- * (nunca no mesmo eixo das barras). Validado junto com receita e despesa em "todos os pares" (ΔE daltonismo 9,2;
- * visão normal 24,0). Contraste 2,82:1 no branco (abaixo de 3:1): por isso o último valor vai escrito na ponta da
- * linha e a tabela com todos os saldos fica logo abaixo (regra de alívio do validador).
+ * Relatórios, Entradas x Saídas (#179, pedido do dono: "o verde do Organizze, no Tudo Azul azul; vermelho para negativo").
+ * Entrada azul (a mesma COR_RECEITA) e saída vermelha (Tailwind red-600, 4,8:1 no branco, acima de 3:1 para barra).
+ * Azul × vermelho separam bem também para daltonismo (protan/deutan confundem verde e vermelho, não azul e vermelho).
+ * O laranja do Início (COR_DESPESA) continua lá até o dono decidir (pendência em "40 - Pendências").
  */
-export const COR_SALDO = '#1baf7a'
+export const COR_SAIDA = '#dc2626'
+/**
+ * Saldo das contas como área clara ao fundo das barras (Relatórios, #179, como no Organizze): escala própria, sem eixo.
+ * A área é contexto (contraste baixo de propósito, para não competir com as barras): o valor de cada saldo está no
+ * toque/tooltip e na tabela logo abaixo (regra de alívio do validador), e a borda mostra a forma.
+ */
+export const COR_SALDO_AREA = '#dbeafe'
+export const COR_SALDO_BORDA = '#93c5fd'
