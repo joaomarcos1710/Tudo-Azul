@@ -82,7 +82,6 @@ interface Dados {
   /** Saldo das contas até o fim do mês, com planejados e faturas (do banco); null = não carregou. */
   saldoPrevisto: SaldoTotal | null
   /** Início: saldo previsto no fim do mês de cada conta, na moeda dela (account_balances_projected); null = não carregou. */
-  previstoPorConta: Map<string, Cents> | null
   /** Análises: receitas, despesas e resultado pagos dos últimos 6 meses, em reais (cash_flow_report por mês); null = não carregou. */
   balanco: MesBalanco[] | null
   /** Análises: patrimônio e saldo no fim de cada um dos últimos 12 meses (do banco); null = não carregou. */
@@ -235,13 +234,12 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
             opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))), comparar(),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
-            // e o previsto de cada conta (Minhas contas: "Hoje · Fim do mês"), da mesma consulta
             opcional(saldosProjetados(familiaId, ate, true)), opcional(listarOrcamentos(familiaId, mes, hoje)),
             opcional(resumoPorMoeda(familiaId, de, ate)), opcional(avisosDoInicio(familiaId, hoje)),
           ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes,
-            saldoPrevisto: projetado?.total ?? null, previstoPorConta: projetado ? new Map(projetado.contas.map((x) => [x.id, x.saldo])) : null, balanco: null,
+            saldoPrevisto: projetado?.total ?? null, balanco: null,
             orcamentos, avisos, evolucao: null,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
@@ -272,7 +270,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             })))),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, evolucao, porMoeda, mesPorMoeda, balanco]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, previstoPorConta: null, balanco, orcamentos: null, avisos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => { if (ativo) setDados(d) })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
@@ -305,8 +303,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const moedaDe = (contaId: string | null) => dados.todasContas.find((c) => c.id === contaId)?.moeda ?? 'BRL'
   // "Minhas contas" do Início: só as ativas com saldo de hoje OU previsto no fim do mês (os dois do banco) diferente de
   // zero; a lista completa fica na aba Contas. Conta que ainda não abriu (saldo null) continua aparecendo, com a data de abertura.
-  const previstoDe = (id: string) => dados.previstoPorConta?.get(id) ?? null
-  const contasComSaldo = dados.contas.filter((c) => c.saldo !== 0 || (previstoDe(c.id) ?? 0) !== 0)
+  const contasComSaldo = dados.contas.filter((c) => c.saldo !== 0)
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   const comparadoAteHoje = `${mesAnteriorCurto} até dia ${Number(mesmoDiaMesAnterior(hoje).slice(8))}`
   const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
@@ -733,26 +730,20 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <p className="text-sm text-slate-500">Todas as contas estão zeradas.</p>
           ) : (
             <ul className="divide-y divide-slate-100">
-              {contasComSaldo.map((c) => {
-                const previsto = previstoDe(c.id)
-                return (
-                  <li key={c.id} className="flex flex-wrap items-center justify-between gap-x-3 py-2 text-sm">
-                    <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="pequeno" />{c.nome}</span>
-                    {c.saldo === null ? (
-                      <span className="tabular-nums font-semibold">abre em {formatDate(c.abertura)}</span>
-                    ) : (
-                      // hoje e o previsto no fim do mês (planejados e faturas): os dois do banco, na moeda da conta
-                      <span className="ml-auto flex flex-wrap justify-end gap-x-1 text-right" data-testid="saldos-da-conta">
-                        <span className="whitespace-nowrap"><span className="text-xs text-slate-500">Hoje </span>
-                          <span className={`tabular-nums font-semibold ${c.saldo < 0 ? 'text-negativo' : ''}`}>{formatMoeda(c.saldo, c.moeda ?? 'BRL')}</span></span>
-                        {previsto !== null && <span className="whitespace-nowrap"><span className="text-xs text-slate-500" aria-hidden="true">· </span>
-                          <span className="text-xs text-slate-500">Fim do mês </span>
-                          <span className={`tabular-nums font-semibold ${previsto < 0 ? 'text-negativo' : 'text-slate-600'}`}>{formatMoeda(previsto, c.moeda ?? 'BRL')}</span></span>}
-                      </span>
-                    )}
-                  </li>
-                )
-              })}
+              {contasComSaldo.map((c) => (
+                // só o saldo de hoje, numa linha (pedido do dono, 05/11/2026: "Hoje · Fim do mês" por conta ficava poluído);
+                // o previsto do mês continua no total ("posso gastar?") e no Calendário
+                <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="pequeno" />
+                    <span className="truncate">{c.nome}</span></span>
+                  {c.saldo === null ? (
+                    <span className="shrink-0 tabular-nums font-semibold">abre em {formatDate(c.abertura)}</span>
+                  ) : (
+                    <span data-testid="saldos-da-conta" className={`shrink-0 whitespace-nowrap tabular-nums font-semibold ${c.saldo < 0 ? 'text-negativo' : ''}`}>
+                      {formatMoeda(c.saldo, c.moeda ?? 'BRL')}</span>
+                  )}
+                </li>
+              ))}
             </ul>
           )}
           {dados.contas.length > 0 && (

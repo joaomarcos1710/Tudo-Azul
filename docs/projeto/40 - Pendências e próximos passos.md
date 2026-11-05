@@ -7,6 +7,7 @@ atualizado: 2026-10-28
 ## Decisões suas
 - [x] Versão **2026.2** (feito).
 - [x] Commit na versão: **só na tela Família** (#56).
+- [ ] **Saldo previsto por conta** (fim do mês): saiu do Início na #178. Decidir se volta em Contas (ex.: "previsto fim do mês" abaixo do saldo) ou fica só o total no Calendário.
 - [ ] Alerta de vencimento por **push**? (iPhone/Android? você usa iPad, celular e site; hoje o card "Vencidos" cobre)
 
 ## Conferências suas (no app)
