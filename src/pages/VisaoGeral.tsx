@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LinhaAcumulada } from '../components/graficos/LinhaAcumulada'
@@ -27,6 +27,9 @@ import type { Lancamento, ResumoMes, ResumoPorMoeda } from '../lib/lancamentos'
 import { carregarPatrimonio, carregarResumoInvestimentos, evolucaoPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
 import type { DespesaCategoria, DespesaDia, Patrimonio, PontoPatrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { SeletorBaseCartao } from '../components/SeletorBaseCartao'
+import { guardarBaseGastosCartao, lerBaseGastosCartao } from '../lib/baseGastosCartao'
+import type { BaseGastosCartao } from '../lib/baseGastosCartao'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
 import { AvisosInicio } from '../components/ui/AvisosInicio'
 import { avisosDoInicio } from '../lib/avisosInicio'
@@ -148,6 +151,12 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const [erro, setErro] = useState('')
   const [cobrancaFalhou, setCobrancaFalhou] = useState(false)
   const [recorrentesFalhou, setRecorrentesFalhou] = useState(false)
+  // Análises: base dos gastos de cartão SÓ no gráfico por categoria (migration 062); guardada neste aparelho.
+  // Trocar a base recarrega só o gráfico; a ref deixa a carga da tela usar a base atual sem depender dela.
+  const [baseCartao, setBaseCartao] = useState<BaseGastosCartao>(lerBaseGastosCartao)
+  const baseCartaoRef = useRef(baseCartao)
+  const trocaBaseRef = useRef(0)
+  const [categoriasCarregando, setCategoriasCarregando] = useState(false)
   const hoje = hojeSP()
   const mes = currentMonth()
   // até dois nomes ("João Marcos"), como no cabeçalho do Organizze
@@ -243,7 +252,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
             opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
             // as 6 maiores categorias + "Outros" (somado no banco)
-            opcional(despesasPorCategoria(familiaId, de, ate, 6)), opcional(despesasPorDia(familiaId, de, ate)),
+            opcional(despesasPorCategoria(familiaId, de, ate, 6, baseCartaoRef.current)), opcional(despesasPorDia(familiaId, de, ate)),
             opcional(Promise.all([
               regularidadeRenda(familiaId, de, ate),
               regularidadeRenda(familiaId, limitesDoMes(somarMeses(mes, -11))[0], ate),
@@ -269,6 +278,22 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
     return () => { ativo = false }
   }, [familiaId, hoje, mes, noInicio])
+
+  function trocarBaseCartao(base: BaseGastosCartao) {
+    if (!familiaId || base === baseCartao) return
+    setBaseCartao(base)
+    baseCartaoRef.current = base
+    guardarBaseGastosCartao(base)
+    // troca rápida: só a resposta da última escolha vale
+    const vez = ++trocaBaseRef.current
+    const [de, ate] = limitesDoMes(mes)
+    setCategoriasCarregando(true)
+    despesasPorCategoria(familiaId, de, ate, 6, base).catch(() => null).then((categorias) => {
+      if (trocaBaseRef.current !== vez) return
+      setCategoriasCarregando(false)
+      setDados((d) => (d ? { ...d, categorias } : d))
+    })
+  }
 
   if (!familiaId) return null
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>
@@ -533,13 +558,16 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {!noInicio && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <CardTitle>Despesas por categoria</CardTitle>
-          {dados.categorias === null ? (
+          <SeletorBaseCartao valor={baseCartao} onChange={trocarBaseCartao} />
+          {categoriasCarregando ? (
+            <p className="text-sm text-slate-500" role="status">Carregando…</p>
+          ) : dados.categorias === null ? (
             <p className="text-sm text-slate-500" role="status">Gráfico indisponível agora.</p>
           ) : dados.categorias.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
           ) : (
             <>
-              <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · só o que já foi pago, em reais. Toque numa categoria para ver as despesas do mês.</p>
+              <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida'}. Toque numa categoria para ver as despesas do mês.</p>
               <BarrasCategorias barras={dados.categorias} mes={mes} />
             </>
           )}

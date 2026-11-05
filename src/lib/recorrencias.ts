@@ -208,3 +208,51 @@ export async function gerarOcorrencias(): Promise<number> {
   if (error) throw error
   return (data as number) ?? 0
 }
+
+/**
+ * Frequência normalizada (mesma regra de public.recurrence_summary, migration 063): dia → 'daily', semana → 'weekly',
+ * mês 1/2/3/6/12 → mensal/bimestral/trimestral/semestral/anual, outro "a cada N meses" → 'custom'. Só classifica (agrupa a
+ * lista); os totais de cada grupo vêm do banco.
+ */
+export type FrequenciaResumo = 'daily' | 'weekly' | 'monthly' | 'bimonthly' | 'quarterly' | 'semiannual' | 'yearly' | 'custom'
+export const ordemFrequencias: FrequenciaResumo[] = ['daily', 'weekly', 'monthly', 'bimonthly', 'quarterly', 'semiannual', 'yearly', 'custom']
+export const rotuloGrupoFrequencia: Record<FrequenciaResumo, string> = {
+  daily: 'Diários / a cada N dias', weekly: 'Semanais / quinzenais', monthly: 'Mensais', bimonthly: 'Bimestrais',
+  quarterly: 'Trimestrais', semiannual: 'Semestrais', yearly: 'Anuais', custom: 'Personalizados',
+}
+const porMeses: Record<number, FrequenciaResumo> = { 1: 'monthly', 2: 'bimonthly', 3: 'quarterly', 6: 'semiannual', 12: 'yearly' }
+export function frequenciaResumo(r: Pick<Recorrencia, 'unidade' | 'cada'>): FrequenciaResumo {
+  if (r.unidade === 'day') return 'daily'
+  if (r.unidade === 'week') return 'weekly'
+  return porMeses[r.cada] ?? 'custom'
+}
+
+/** Uma linha de public.recurrence_summary (migration 063). Meio nulo = conta + cartão (nível 'frequency_all'). */
+export interface LinhaResumoRecorrencia {
+  nivel: 'detail' | 'target' | 'frequency' | 'medium' | 'frequency_all'
+  meio: 'account' | 'card' | null
+  alvoId: string | null
+  alvoNome: string | null
+  tipo: 'expense' | 'income' | 'transfer'
+  frequencia: FrequenciaResumo | null
+  qtde: number
+  /** Soma dos valores de uma ocorrência de cada regra. */
+  porOcorrencia: Cents
+  /** Equivalente por mês: round(x, 2) por regra no banco, depois a soma. */
+  porMes: Cents
+}
+
+/** Totais dos recorrentes ativos em reais, por meio, conta/cartão, tipo e frequência. Tudo somado no banco (a tela não soma). */
+export async function resumoRecorrencias(familiaId: string): Promise<LinhaResumoRecorrencia[]> {
+  const { data, error } = await cliente().rpc('recurrence_summary', { p_household: familiaId })
+  if (error) throw error
+  return ((data ?? []) as {
+    grouping_level: LinhaResumoRecorrencia['nivel']; medium: LinhaResumoRecorrencia['meio']; target_id: string | null
+    target_name: string | null; kind: LinhaResumoRecorrencia['tipo']; frequency: FrequenciaResumo | null; item_count: number
+    total_per_occurrence: number | string; total_monthly: number | string
+  }[]).map((l) => ({
+    nivel: l.grouping_level, meio: l.medium, alvoId: l.target_id, alvoNome: l.target_name, tipo: l.kind,
+    frequencia: l.frequency, qtde: l.item_count,
+    porOcorrencia: centsFromDb(l.total_per_occurrence), porMes: centsFromDb(l.total_monthly),
+  }))
+}

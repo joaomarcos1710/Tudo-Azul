@@ -204,6 +204,43 @@ O dono mandou corrigir o limite achado no teste 58 (troca de dias com dois fecha
 - **Escolhida (b): a troca vale a partir do ciclo seguinte ao da fatura aberta hoje**, e o banco recusa, com mensagem clara e as datas, a troca que ainda assim deixaria dois fechamentos no mesmo mês (ex.: parcelas de uma compra parcelada no ciclo atual). Faturas, parcelas e créditos já gravados não mudam.
 - **Descartada (a): identificar a fatura por (cartão, data de fechamento)** em vez de (cartão, mês). Mexeria em `card_months`, `card_bill_due`, `debt_invoices` (rótulo e chave única de faturas já gravadas), `card_items`, pagamento de fatura, `card_invoices_*` e na tela, para um caso raro (o dono troca os dias poucas vezes na vida do cartão).
 - **Custo aceito:** cartão com compra parcelada em andamento só troca os dias depois que a última parcela do ciclo atual estiver na fatura aberta (a mensagem diz a data).
+## 05/11/2026 — Base dos gastos de cartão só nos relatórios por categoria (#170)
+Com o "pode" do dono, inspirado no Organizze ("Gastos de cartão com base na: data da fatura / data da compra / data da parcela").
+- **O seletor fica só no relatório por categoria** (hoje, o gráfico de Análises; Relatórios não tem relatório por categoria). Motivo: totais do mês, orçamento, saldo e resultado precisam fechar com a fatura que sai da conta; se mudassem de base, o resultado do mês e o orçamento deixariam de bater com o extrato e com a tela Cartões. A base só muda a pergunta "em que mês essa compra pesou nesta categoria".
+- **Padrão fatura** (a regra de sempre); a escolha fica no aparelho (como os widgets do Início), não na família: é preferência de leitura, não regra de dinheiro.
+- **Compra e parcela contam a parcela mesmo com a fatura aberta** (a compra já foi feita); a fatura conta só o cobrado. É o comportamento esperado de "data da compra"; no mês corrente as bases podem somar valores diferentes.
+- **Assinatura de cartão fica pela fatura nas três bases**: cada cobrança é uma "compra" do mês; mover para a data da ocorrência só trocaria o dia, não o mês, e confundiria com a projeção.
+- **Função nova, sem mexer na antiga**: `expenses_by_category` continua igual (outras telas e o gráfico na base da fatura a chamam), e o front só chama a nova nas bases compra/parcela — assim o gráfico não quebra se o front sair antes da 062 ser aplicada.
+
+## 05/11/2026 — Relatórios e exportação redesenhados (#171)
+A pedido do dono ("muito feia e muito ruim", prints do iPad em retrato), com a referência do Balanço do Organizze.
+- **Filtros numa folha com "Aplicar"**, e na tela só a linha-resumo: o muro de 21 caixas de conta empurrava a tabela para baixo. Mudar vários filtros e aplicar uma vez também evita uma consulta ao banco a cada toque.
+- **Contas arquivadas escondidas por padrão** (atrás de "Mostrar arquivadas"): quase nunca são filtro do relatório e eram metade da lista. Arquivada já escolhida continua à vista.
+- **Acumulado vira opção** ("Mostrar acumulado", com o rótulo "soma dos resultados desde <primeiro período>. Não é saldo"): somava desde o começo da janela de 12 meses e parecia saldo. No lugar, a coluna **Saldo** = saldo total das contas em reais no último dia de cada período, de `balance_totals_projected` (uma chamada por período: 5 a 31; com "Todos", inclui planejados e faturas a pagar, como no Calendário). O front não soma nada.
+- **Saldo só sem filtro de conta e de autor**: a função do banco não filtra por conta, e somar o saldo das contas escolhidas na tela quebraria a regra do dinheiro; a tela explica numa linha. Filtrar o saldo por conta fica para uma função nova do banco (Pendências).
+- **Saldo num gráfico de linha à parte, reto, abaixo das barras** (o Organizze sobrepõe uma curva suavizada): dois eixos no mesmo gráfico misturam escalas, e a curva inventa valores entre os períodos. Cor aqua (3º passo da paleta, validada com azul e laranja em todos os pares); como o contraste dela no branco é 2,82:1, o último valor vai escrito na ponta e a tabela fica logo abaixo.
+- **Gráficos na largura real da tela** (`useLargura`, também no Balanço de Análises): com a largura fixa de 640, no iPad em retrato o texto do gráfico encolhia para ~8px.
+- **Folha nova (`ui/Folha`) em vez de reaproveitar o painel de Lançamentos**: aquele é local de `Lancamentos.tsx` e não prende o foco; unificar os dois fica em Pendências.
+
+## 05/11/2026 — Créditos do cartão dentro da fatura e linha da lista em 2 linhas (#172)
+Pedido do dono (prints do iPad em retrato, ~820px).
+- **Crédito avulso do cartão fica dentro da linha "Fatura <cartão>"**, no grupo "Créditos e reembolsos" de "Ver compras", e não solto no fechamento. Motivo: desde a #164 a compra fica dentro da fatura; o crédito solto, num dia (fechamento) diferente do da fatura (vencimento), parecia outra receita. O total da linha é o do banco (`card_months.total`, que já desconta `credits`); a tela não soma. A fatura que só tem crédito (sem compra, total zero) passa a virar linha, senão o crédito sumiria.
+- **Filtros**: sem filtro, só dentro da fatura. **Tipo Receita**: a fatura não aparece em Receita, então o crédito aparece solto no dia do **fechamento** (o dia em que conta como receita nos totais) — sem duplicar. **Categoria** (sem tipo): os créditos daquela categoria, das **mesmas faturas** do mês, saem soltos no dia do **vencimento**, como as compras por categoria (#164): tirar o filtro só os devolve para dentro da fatura. Receita + categoria segue a regra da Receita (fechamento). Conta: a fatura segue a conta de pagamento do cartão; o crédito vai junto (dentro dela ou solto por categoria). Totais do topo não mudam (`period_summary`).
+- **Lista (abaixo de 1024px) em grade**: ícone | texto | valor numa coluna própria (`whitespace-nowrap`, `tabular-nums`), nunca por cima do texto. No máximo 2 linhas de texto: título (até 2 linhas, com reticências) e metadados numa linha (categoria · etiquetas · detalhe, cortando o detalhe primeiro).
+- **Categoria mostra só a folha** ("Habitação"): o ícone e a cor já dizem o grupo; o caminho inteiro fica no `title` e no texto do leitor de tela (lista e tabela). O formulário e o filtro continuam com a árvore.
+- **Ações**: Marcar pago, Editar e Excluir no menu ⋯ (`MenuAcoes`); a ação principal, **Marcar pago**, fica também num botão ✓ de 44×44 ao lado do ⋯, embaixo do valor. Motivo: é a ação do dia a dia (pagar a conta do mês) e cabe sem tirar largura do texto (a coluna já tem a largura do valor). Linhas só de leitura têm um link curto ("Cartões", "Baixar") com o nome inteiro no rótulo acessível.
+- **Fatura na lista**: a própria linha abre e fecha (▸/▾, `aria-expanded`); metadados "Aberta · fecha dd/mm" (fechada → "vence", vencida → "venceu", paga → só o selo), sem ano e sem "N compras"; "Ver em Cartões" fica dentro da área aberta.
+- **Explicações acima da lista**: uma linha com (i) e o texto inteiro num `<details>` (teclado e leitor de tela sem código extra).
+
+## 05/11/2026 — Recorrentes agrupados e equivalente mensal (#173)
+Pedido do dono (print da tela Recorrentes no iPad): separar por frequência e por meio, e saber quanto sai por mês no cartão e na conta.
+- **Equivalente mensal com arredondamento por regra** (`round(x, 2)` e depois soma): o total do grupo bate com a soma do que cada recorrente mostraria sozinho; arredondar só no fim daria R$ 100,00 para três trimestrais de R$ 100,00, mas cada um "vale" R$ 33,33. Diferença de no máximo meio centavo por regra, aceita.
+- **"Por ocorrência" sempre ao lado** do equivalente mensal: o IPVA anual de R$ 1.800 vira R$ 150 no mensal, e mostrar só isso surpreenderia.
+- **Uma função só, em níveis (`GROUPING SETS`)**, em vez de várias: os totais do topo, por cartão/conta e por grupo saem da mesma base, e a tela não soma nada (regra do dinheiro).
+- **Frequências**: semanal e quinzenal juntas em "Semanais / quinzenais"; diária e a cada N dias juntas em "Diários"; a cada 4, 5, 7–11 meses em "Personalizados".
+- **Outra moeda fora dos totais**, não convertida (a lista mostra o item com o valor na moeda dele e um aviso). **Transferência à parte**, fora dos gastos. **Data final passada fora** (aparece em "Já terminaram", só para excluir).
+- **Item compacto como em Lançamentos**: valor em coluna própria, só a subcategoria visível (caminho completo no `title` e para leitor de tela), Editar e Excluir no menu ⋯. A explicação longa foi para trás de um (i).
+
 
 
 ## 05/11/2026 — Fatura de cartão paga fica travada (migration 064, #174)

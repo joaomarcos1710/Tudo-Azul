@@ -27,6 +27,14 @@ atualizado: 2026-10-28
 - [x] **Cartões: "Fatura atual" do ciclo de hoje** (#163): antes era a primeira fatura aberta com linha em `card_months` (podia ser a de 1–2 meses à frente).
 - [x] **Cartões: fatura fechada não cobrada não é "Paga"** (#163): `situacaoFatura` usa o `total`.
 
+### Relatórios (#171, 05/11/2026)
+- [x] **Relatórios e exportação redesenhados** (#171): filtros numa folha, contas arquivadas escondidas, gráfico, tabela compacta com Saldo, Acumulado opcional, exportação num card compacto.
+- [ ] **Conferir no iPad em retrato** (você): folha de filtros, carrossel de mês, gráfico e tabela sem rolar para o lado.
+- [ ] **Saldo com filtro de conta**: hoje a coluna some quando há conta (ou pessoa) escolhida, porque `balance_totals_projected` não filtra. Precisa de uma função do banco com `p_accounts` (migration nova), nunca soma na tela.
+- [ ] **Saldo em uma chamada só**: hoje é uma chamada de `balance_totals_projected` por período (até 31 no diário). Uma função do banco que devolva a série de saldos (como a de patrimônio do PR de desempenho) evita as idas e vindas.
+- [ ] **Unificar painéis**: `PainelLancamento` (Lançamentos) passar a usar `ui/Folha` (que prende o foco e devolve ao botão).
+- [ ] **Eixo do gráfico de linha com negativo** usa hífen ("R$ -20 mil", `brlCompacto`); trocar pelo "−" tipográfico em todos os gráficos.
+
 ### Fatura paga travada (#174, migration 064)
 - [x] **Botão "Pagar fatura" diz qual fatura** (destaque) e a aba de fatura paga não tem ação de pagar nem de mudar; mostra "Paga em dd/mm" e "Fatura paga — travada".
 - [x] **Detalhes da fatura** (referência do Organizze): cabeçalho com situação, "Fechou/Fecha em" e "Venceu/Vence em"; resumo Saldo anterior, Gasto do mês e Valor pago (do banco); lista "Pagamento recebido em dd/mm/aaaa"; lado a lado a partir de 768px, empilhados no celular.
@@ -58,12 +66,19 @@ atualizado: 2026-10-28
 - [x] **Avisos no topo do Início** (migration 057, #162): a receber e a pagar em 7 dias, fatura que vence em 7 dias e vencidos, do banco (`home_alerts`); Minhas contas só com as contas com saldo. merge `404500a`; **aplicada em 05/11/2026** (execução 41944777617, simulação 41944718863).
 - [x] **Lançamentos: fatura do cartão numa linha no vencimento** (#164, pedido do dono de 05/11/2026): merge `d9727eb`, sem migration. Falta você: abrir um mês com cartão e conferir o total da linha "Fatura" com a tela Cartões.
 - [x] **Lançamentos: tabela no computador e edição em lote** (#167, 05/11/2026, "pode" do dono): feito, com a migration 060 (**não aplicada**). Falta você: dar o "pode" para o merge e para aplicar a 060 pelo workflow (simular → ler o log → aplicar); conferir no computador a seleção, as três ações e o Desfazer.
+- [x] **Lançamentos: créditos do cartão dentro da fatura e lista em 2 linhas** (#172, 05/11/2026, pedido do dono): feito, sem migration. Falta você: abrir no iPad em retrato um mês com crédito no cartão e conferir que o crédito está em "Ver compras" da fatura, que nada se sobrepõe e que o ✓/⋯ funcionam.
+- [ ] **#172: abrir a fatura com créditos faz 2 consultas** (compras e créditos, só quando o banco diz que há créditos). Junto da função por família da #164, se ficar lento.
+- [ ] **#172: crédito com filtro de categoria × Receita**: com categoria, o crédito aparece no **vencimento** da fatura (como as compras); com Receita, no **fechamento**. Quando fechamento e vencimento caem em meses diferentes, o crédito muda de mês conforme o filtro (mesma questão da #164 com as compras).
+- [ ] **#172: tabela (≥1024px)**: a linha da fatura ainda tem "Ver compras" e "Cartões" lado a lado; em 1024px a descrição quebra em 2 linhas. Trocar pelo mesmo ▸/▾ da lista se incomodar.
 - [ ] **Atalho da #167: desfazer de categoria em várias chamadas** (`TabelaLancamentos` em `src/pages/LancamentosTabela.tsx`): uma chamada de `transactions_bulk_set_category` por categoria antiga; se a 2ª falhar, a 1ª já voltou. Melhorar com uma função de pares (id, categoria) no banco se acontecer.
 - [ ] **#167: seleção de vários no celular** (fora do pedido): hoje só no computador.
 - [ ] **#167: ordenação por valor mistura moedas** (só exibição): conta em dólar e em reais são ordenadas pelo número, sem conversão.
 - [ ] **Atalho da #164: `card_months` por cartão** (`listarFaturasDoMes` em `src/lib/lancamentos.ts`): a lista chama a função uma vez por cartão, com o histórico inteiro, e escolhe o mês na tela. Melhorar com uma função do banco por família e período (como `card_invoices_due`, mas com fechamento e situação) se ficar lento.
 - [x] **#164: valor da compra em "Ver compras"** — resolvido pela 058 (#165): `card_items.face` passa a ser o valor líquido. Era o valor da parcela (`card_items.face`), igual à tela Cartões: um desconto parcial (cancelamento de parte da parcela) não aparece descontado na linha da compra, só no total da fatura. Antes da #164 a lista mostrava o valor já descontado. Corrigir junto, em Cartões e Lançamentos, se o dono quiser.
-- [ ] **#164: filtro de categoria × relatórios**: com o filtro, a lista mostra as compras das faturas que **vencem** no mês; os relatórios por categoria contam pelo **fechamento**. Quando os dois caem em meses diferentes, os números não batem. Decidir com o dono se o filtro de categoria deve seguir o mês do fechamento.
+- [ ] **#164: filtro de categoria × relatórios**: com o filtro, a lista mostra as compras das faturas que **vencem** no mês; os relatórios por categoria contam pelo **fechamento**. Quando os dois caem em meses diferentes, os números não batem. Decidir com o dono se o filtro de categoria deve seguir o mês do fechamento. **A #170 não resolve**: o seletor de base (fatura/compra/parcela) muda só o relatório, e nenhuma das três bases é o mês do **vencimento**, que é o que a lista usa; continua aberto (decidir se Lançamentos também ganha a base, ou se o filtro segue o fechamento).
+- [x] **Base dos gastos de cartão no relatório por categoria** (migration 062, #170): seletor em Análises (fatura · compra · parcela), banco `expenses_by_category_basis`. **Falta aplicar a 062** em produção (workflow: simular → ler o log → aplicar, com o "pode"); até lá, as bases compra e parcela mostram "Gráfico indisponível agora" e a fatura funciona.
+- [ ] **Base do cartão em outros relatórios por categoria**: se surgirem (exportação por categoria, comparação entre meses), usar `expenses_by_category_basis`. O gráfico de despesas por dia continua pela fatura.
+- [ ] **Conferir no app (você):** em Análises, um mês com compra parcelada; trocar a base e ver a compra inteira no mês dela (compra) e a parcela no mês dela (parcela); os totais do topo não mudam.
 - [x] **Consertos de valor da aba Cartões** (migration 058, #165): pagamento de cartão com data futura recusado (e `max` de hoje no campo da data); itens da fatura líquidos e "n de N" só com parcelas vivas; função das assinaturas previstas na fatura aberta. **Falta aplicar a 058** em produção (workflow: simular → ler o log → aplicar, com o "pode").
 - [ ] **Cartões: mostrar "inclui R$ X de assinaturas previstas"** abaixo do valor da fatura atual, lendo `card_pending_subscriptions` (058). Ficou de fora da #165 porque o bloco do destaque da fatura estava sendo mudado em outra PR. Avaliar também no total de faturas do Início (`card_invoices_month` não soma a previsão).
 - [x] **Cartão: troca de ciclo com dois fechamentos no mesmo mês** (migration 061, #169): a troca dos dias vale a partir do ciclo seguinte ao da fatura aberta; o banco recusa a que ainda deixaria dois fechamentos no mesmo mês; a tela Alterar dias diz "A mudança vale a partir da fatura que fecha em dd/mm/aaaa". **Falta aplicar a 061** em produção (workflow: simular → ler o log → aplicar, com o "pode").
@@ -113,6 +128,10 @@ atualizado: 2026-10-28
 - [x] **App**: PR #66 mesclado depois da 016 aplicada.
 - [ ] Conferir no app, depois dos dois merges: cadastrar uma quinzenal e a PLR anual de teste e ver os planejados em Lançamentos e no Calendário.
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
+- [x] **Recorrentes agrupados por frequência e totais por mês no cartão/na conta** (#173): migration 063 (`recurrence_summary`) **não aplicada** — aplicar pelo workflow (simular → log → `APLICAR`) com o seu "pode" **antes** de publicar o front (sem ela a tela Recorrentes mostra erro ao carregar).
+- [ ] Conferir no iPad/celular: os cartões do topo, as abas Conta/Cartão e os totais de cada grupo com os seus recorrentes reais.
+- [ ] Recorrentes em outra moeda ficam fora dos totais (só um aviso com a quantidade). Se quiser, um total por moeda depois.
+- [ ] O equivalente mensal de cada item (≈ R$ x/mês) não aparece na linha do item, só nos totais; dá para trazer do banco (nível `detail` por regra) se fizer falta.
 
 ## Menu e formulário de lançamento
 - [x] **Projeção errada depois de excluir recorrente** (#86, mesclado em 29/10; **migration 019 aplicada em produção em 29/10/2026**). Já pode excluir recorrente com lançamento pago no mês corrente.

@@ -10,12 +10,16 @@ const fake = vi.hoisted(() => {
     const b: Record<string, unknown> = {}
     b.select = () => b
     b.eq = (c: string, v: unknown) => { filtros.push((r) => r[c] === v); return b }
+    b.is = (c: string, v: null) => { filtros.push((r) => (r[c] ?? null) === v); return b }
+    b.gte = (c: string, v: string) => { filtros.push((r) => String(r[c]) >= v); return b }
+    b.lte = (c: string, v: string) => { filtros.push((r) => String(r[c]) <= v); return b }
+    b.order = () => b
     b.then = (ok: (r: unknown) => unknown) =>
       Promise.resolve(ok({ data: (tabelas[tabela] ?? []).filter((r) => filtros.every((f) => f(r))), error: null }))
     return b
   }
   const supabase = {
-    from: (t: string) => consulta(t),
+    from: (t: string) => { chamadas.push([`from:${t}`, {}]); return consulta(t) },
     rpc: (nome: string, args: Record<string, unknown>) => {
       chamadas.push([nome, args])
       return Promise.resolve({ data: rpcs[nome]?.(args) ?? [], error: null })
@@ -25,7 +29,7 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { listarComprasDasFaturas, listarFaturasDoMes, mesmoDiaAnoPassado, situacaoDaFatura } from './lancamentos'
+import { listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDaFaturaDoMes, listarFaturasDoMes, mesmoDiaAnoPassado, situacaoDaFatura } from './lancamentos'
 import type { Fatura } from './cartoes'
 import type { Cents } from './format'
 
@@ -75,8 +79,15 @@ describe('listarFaturasDoMes', () => {
     expect((await listarFaturasDoMes('h1', '2026-10', {}, '2026-11-10')).map((f) => f.mes)).toEqual([])
   })
 
-  it('fatura só de crédito avulso (sem compra e sem valor) não vira linha', async () => {
-    expect((await listarFaturasDoMes('h1', '2026-12', {}, '2026-11-10')).map((f) => [f.cartaoNome, f.mes])).toEqual([['Nubank', '2026-11']])
+  it('fatura só de crédito avulso (sem compra e sem valor) vira linha: o crédito agora aparece DENTRO dela', async () => {
+    expect((await listarFaturasDoMes('h1', '2026-12', {}, '2026-11-10')).map((f) => [f.cartaoNome, f.mes, f.total, f.creditos])).toEqual([
+      ['Nubank', '2026-11', 8000, 0], ['Itaú', '2026-12', 0, 5000],
+    ])
+  })
+
+  it('traz os créditos da fatura que o banco calculou (card_months.credits), sem somar nada', async () => {
+    const [, itau] = await listarFaturasDoMes('h1', '2026-12', {}, '2026-11-10')
+    expect(itau.creditos).toBe(5000)
   })
 
   it('receita e transferência não têm fatura; despesa tem', async () => {
@@ -122,5 +133,46 @@ describe('mesmoDiaAnoPassado', () => {
     expect(mesmoDiaAnoPassado('2026-10-25')).toBe('2025-10-25')
     expect(mesmoDiaAnoPassado('2028-02-29')).toBe('2027-02-28')
     expect(mesmoDiaAnoPassado('2026-01-01')).toBe('2025-01-01')
+  })
+})
+
+describe('créditos avulsos dentro da fatura (05/11/2026)', () => {
+  const evento = (extra: Record<string, unknown>) => ({
+    id: 'k1', household_id: 'h1', debt_id: 'it', kind: 'income_credit', date: '2026-11-20', credit_date: '2026-10-24',
+    amount: '23.09', category_id: 'sal', note: 'IOF', voided_at: null, ...extra,
+  })
+  beforeEach(() => {
+    fake.rpcs.card_months = () => [
+      mesBanco('2026-11', '2026-11-20', '2026-11-28', { charged: '976.91', total: '976.91', items: 3, credits: '23.15' }),
+    ]
+    fake.tabelas.debt_events = [
+      evento({}),
+      evento({ id: 'k2', amount: '0.06', category_id: 'out', note: 'Ajuste de Crédito' }),
+      evento({ id: 'k3', date: '2026-10-20', note: 'Outra fatura' }),
+      evento({ id: 'k4', voided_at: '2026-11-01T00:00:00Z', note: 'Anulado' }),
+    ]
+  })
+
+  it('lista os créditos da fatura com o vencimento dela; o total da fatura é o do banco (já líquido)', async () => {
+    const [f] = (await listarFaturasDoMes('h1', '2026-11', {}, '2026-11-10')).filter((x) => x.cartaoId === 'it')
+    expect([f.total, f.creditos]).toEqual([97691, 2315])
+    const ks = await listarCreditosDaFaturaDoMes(f, '2026-11-10')
+    expect(ks.map((k) => [k.id, k.descricao, k.valor, k.data, k.dataCredito, k.vencimento, k.planejado, k.cartaoNome])).toEqual([
+      ['k1', 'IOF', 2309, '2026-11-20', '2026-10-24', '2026-11-28', true, 'Itaú'],
+      ['k2', 'Ajuste de Crédito', 6, '2026-11-20', '2026-10-24', '2026-11-28', true, 'Itaú'],
+    ])
+  })
+
+  it('fatura sem créditos (segundo o banco) nem consulta os eventos', async () => {
+    const [f] = (await listarFaturasDoMes('h1', '2026-11', {}, '2026-11-10')).filter((x) => x.cartaoId === 'it')
+    fake.chamadas.length = 0
+    expect(await listarCreditosDaFaturaDoMes({ ...f, creditos: 0 as Cents }, '2026-11-10')).toEqual([])
+    expect(fake.chamadas.filter(([n]) => n === 'from:debt_events')).toEqual([])
+  })
+
+  it('com filtro de categoria: só os créditos daquela categoria, das mesmas faturas', async () => {
+    const fs = await listarFaturasDoMes('h1', '2026-11', { categoriaId: 'sal' }, '2026-11-10')
+    expect((await listarCreditosDasFaturas(fs, 'sal', '2026-11-10')).map((k) => k.id)).toEqual(['k1'])
+    expect((await listarCreditosDasFaturas(fs, 'mer', '2026-11-10'))).toEqual([])
   })
 })
