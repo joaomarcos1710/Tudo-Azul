@@ -22,7 +22,22 @@ atualizado: 2026-10-28
 ## Próximos PRs sugeridos
 - [x] **Cartões: destaque da fatura atual e menu "Mais opções"** (#163, 05/11/2026): pedido do dono (zero em destaque e botões demais).
 - [ ] **Unificar os menus**: "+ Lançamento" (`MenuNovo` em `Lancamentos.tsx`) passar a usar `MenuAcoes` (hoje são dois menus com o mesmo comportamento; o de Lançamentos não anda com as setas).
-- [ ] **Início, bloco Cartões**: avaliar o mesmo destaque "Fatura atual" de Cartões (#163 não mexeu no Início).
+- [ ] **Início, bloco Cartões**: avaliar o mesmo destaque "Fatura atual" de Cartões (#163 não mexeu no Início; só passou a mostrar a fatura do ciclo de hoje, com R$ 0,00 quando não há compra).
+- [x] **Cartões: seletor de fatura com fechamento 29–31** (#163): usa o dia ajustado ao mês, como o banco (`card_day_in_month`).
+- [x] **Cartões: "Fatura atual" do ciclo de hoje** (#163): antes era a primeira fatura aberta com linha em `card_months` (podia ser a de 1–2 meses à frente).
+- [x] **Cartões: fatura fechada não cobrada não é "Paga"** (#163): `situacaoFatura` usa o `total`.
+
+### Achados da análise da aba Cartões (05/11/2026), ainda abertos
+- [ ] **Assinaturas previstas na fatura atual**: assinatura (recorrente no cartão) que ainda não foi gerada não entra no valor da fatura atual nem no da aberta.
+- [ ] **Pagamento com data futura**: "Pagar fatura" aceita data futura; decidir se bloqueia, avisa ou agenda como planejado.
+- [ ] **`card_items` líquido de estorno/cancelamento**: a linha da compra mostra o valor de face; estorno ou cancelamento parcial não aparece descontado nela.
+- [ ] **Painel abrir junto do cartão no celular**: os painéis (Nova compra, Pagar fatura…) abrem no topo da página, longe do cartão tocado.
+- [ ] **Abas de fatura começarem na atual**: hoje a primeira aba é a fatura mais antiga não paga; avaliar abrir na atual.
+- [ ] **Total das faturas do mês no topo de Cartões** (como no Início, `card_invoices_month`).
+- [ ] **Selo "Vencida"** na fatura fechada que passou do vencimento sem pagamento.
+- [ ] **Renomear "Parcelas futuras"** (inclui a fatura atual; o nome confunde ao lado de "Fatura atual").
+- [ ] **Estorno parcial na linha da compra** (ver o valor estornado e o que resta).
+- [ ] **Desempenho**: uma chamada `card_overview` por família em vez de `card_months` por cartão ao abrir a tela (hoje N+1 consultas).
 - [x] **Multimoeda F1 — moeda na conta e saldos por moeda** (migration 055, #160): merge `8e62600`; **aplicada em 04/11/2026** (execução 41912792280, simulação 41912680166).
 - [x] **Multimoeda F2 — receita e despesa em moeda estrangeira e relatórios por moeda** (migration 056, #161): merge `5c70512`; **aplicada em 05/11/2026** (execução 41942726578, simulação 41942648839). Provento continua só em reais.
 - [x] **Avisos no topo do Início** (migration 057, #162): a receber e a pagar em 7 dias, fatura que vence em 7 dias e vencidos, do banco (`home_alerts`); Minhas contas só com as contas com saldo. **Falta aplicar a 057** em produção (workflow: simular → ler o log → aplicar, com o "pode"); até lá a faixa não aparece (a consulta falha em silêncio e o resto do Início segue).

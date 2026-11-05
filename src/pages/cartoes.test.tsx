@@ -52,6 +52,11 @@ import { ontemSP, proximaFatura, situacaoFatura } from '../lib/cartoes'
 import type { Fatura } from '../lib/cartoes'
 
 const c = (n: number) => n as Cents
+/** Fixa só o relógio (Date): "hoje" em São Paulo = `dia`, ao meio-dia. Timers continuam reais (Testing Library e userEvent). */
+function fixarHoje(dia: string) {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(`${dia}T15:00:00Z`))
+}
 /** Abre o menu "⋯" do cartão e escolhe a ação (as ações secundárias ficam lá desde a #163). */
 async function escolherNoMenu(u: ReturnType<typeof userEvent.setup>, acao: string, cartao = 'Nubank') {
   await u.click(await screen.findByRole('button', { name: `Mais opções do cartão ${cartao}` }))
@@ -80,6 +85,7 @@ beforeEach(() => {
   for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.definirContaPagamento, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
+  vi.useRealTimers()
   cleanup()
   vi.clearAllMocks()
 })
@@ -91,8 +97,14 @@ describe('regras auxiliares', () => {
   })
   it('situação da fatura', () => {
     expect(situacaoFatura(fatura({ fechamento: '2026-10-20' }), '2026-10-17')).toBe('aberta')
-    expect(situacaoFatura(fatura({ cobrado: c(100), pago: c(0) }), '2026-10-17')).toBe('fechada')
-    expect(situacaoFatura(fatura({ cobrado: c(100), pago: c(100) }), '2026-10-17')).toBe('paga')
+    expect(situacaoFatura(fatura({ cobrado: c(100), total: c(100), pago: c(0) }), '2026-10-17')).toBe('fechada')
+    expect(situacaoFatura(fatura({ cobrado: c(100), total: c(100), pago: c(100) }), '2026-10-17')).toBe('paga')
+    expect(situacaoFatura(fatura({ total: c(0) }), '2026-10-17')).toBe('paga') // fatura sem nada
+  })
+  it('situação: fechada ainda não cobrada (card_bill_due falhou) não aparece como "Paga"', () => {
+    // depois do fechamento, cobrado 0 e total > 0: falta cobrar, então é "fechada" (antes saía "paga" pelo cobrado 0)
+    expect(situacaoFatura(fatura({ fechamento: '2026-03-17', cobrado: c(0), aCobrar: c(5000), total: c(5000), pago: c(0) }), '2026-03-20')).toBe('fechada')
+    expect(situacaoFatura(fatura({ fechamento: '2026-03-17', cobrado: c(0), aCobrar: c(5000), total: c(5000), pago: c(5000) }), '2026-03-20')).toBe('paga')
   })
 })
 
@@ -348,8 +360,8 @@ describe('Cartões', () => {
     ])
     render(<Cartoes />)
     await u.click(await screen.findByRole('button', { name: 'Ver faturas' }))
-    // o total da fatura aberta aparece na "Fatura atual" do cartão e na lista de faturas
-    expect((await screen.findAllByText('R$ 180,00')).length).toBe(2)
+    // a fatura de 2099 não é a do ciclo atual: aparece só na lista de faturas (o destaque mostra a atual, sem compras)
+    expect((await screen.findAllByText('R$ 180,00')).length).toBe(1)
     expect(await screen.findByText('2/3')).toBeTruthy()
     expect(screen.getByText('Aberta')).toBeTruthy()
     expect(mock.listarItens).toHaveBeenCalledWith('k1', '2099-04')
@@ -726,7 +738,7 @@ describe('Conta de pagamento do cartão', () => {
 })
 
 describe('Destaque da fatura (fatura atual)', () => {
-  it('escolhe a aberta que fecha primeiro e ignora fechada e paga', () => {
+  it('cartão sem ciclo: escolhe a aberta que fecha primeiro e ignora fechada e paga', () => {
     const hoje = '2026-10-30'
     const fs = [
       fatura({ mes: '2026-09', fechamento: '2026-09-18', vencimento: '2026-09-28', cobrado: c(5000), pago: c(5000), total: c(5000) }), // paga
@@ -739,12 +751,29 @@ describe('Destaque da fatura (fatura atual)', () => {
     expect(proximaFatura([], hoje)).toBeNull()
   })
 
+  it('a fatura atual é a do ciclo de hoje, pela regra do banco: sem compra nele, R$ 0,00 com a data certa (não a do mês seguinte)', () => {
+    const ciclo = { fechamento: 18, vencimento: 28 }
+    // hoje 05/11, fecha dia 18: ciclo atual fecha 18/11 e vence 28/11; só há compra na fatura de dezembro
+    const fs = [fatura({ mes: '2026-12', fechamento: '2026-12-18', vencimento: '2026-12-28', aCobrar: c(43897), total: c(43897) })]
+    expect(proximaFatura(fs, '2026-11-05', ciclo)).toEqual({ mes: '2026-11', vencimento: '2026-11-28', total: c(0) })
+    // com linha do ciclo atual, o valor e o vencimento são os do banco
+    const comAtual = [fatura({ mes: '2026-11', fechamento: '2026-11-18', vencimento: '2026-11-30', aCobrar: c(100), total: c(100) }), ...fs]
+    expect(proximaFatura(comAtual, '2026-11-05', ciclo)).toEqual({ mes: '2026-11', vencimento: '2026-11-30', total: c(100) })
+    // no dia do fechamento a compra já vai para a seguinte; fecha 28 e vence 5: vencimento no mês seguinte
+    expect(proximaFatura([], '2026-11-18', ciclo)).toEqual({ mes: '2026-12', vencimento: '2026-12-28', total: c(0) })
+    expect(proximaFatura([], '2026-12-20', { fechamento: 28, vencimento: 5 })).toEqual({ mes: '2026-12', vencimento: '2027-01-05', total: c(0) })
+    // fecha dia 31 em fevereiro: fecha 28/02 (como o banco); no dia 28 já é março
+    expect(proximaFatura([], '2026-02-27', { fechamento: 31, vencimento: 10 })).toEqual({ mes: '2026-02', vencimento: '2026-03-10', total: c(0) })
+    expect(proximaFatura([], '2026-02-28', { fechamento: 31, vencimento: 10 })).toEqual({ mes: '2026-03', vencimento: '2026-04-10', total: c(0) })
+  })
+
   it('sem fatura fechada, o destaque é a "Fatura atual" (aberta) com o valor do banco; nada de "R$ 0,00" em destaque', async () => {
-    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }])
-    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-11', fechamento: '2099-11-18', vencimento: '2099-11-28', aCobrar: c(1183405), total: c(1183405) })])
+    fixarHoje('2026-11-05')
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), fechamento: 18, vencimento: 28 }])
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-11', fechamento: '2026-11-18', vencimento: '2026-11-28', aCobrar: c(1183405), total: c(1183405) })])
     render(<Cartoes />)
     const rotulo = await screen.findByText(/^Fatura atual \(vence 28\/11\)/)
-    expect(rotulo.textContent).toContain('aberta — fecha dia 17')
+    expect(rotulo.textContent).toContain('aberta — fecha dia 18')
     const valor = screen.getByText('R$ 11.834,05')
     expect(valor.className).toContain('text-3xl')
     expect(screen.queryByText('R$ 0,00')).toBeNull()
@@ -752,24 +781,48 @@ describe('Destaque da fatura (fatura atual)', () => {
   })
 
   it('com fatura fechada e não paga, ela é o destaque (com o vencimento) e a atual aparece embaixo, menor', async () => {
+    fixarHoje('2026-11-05')
     mock.listarFaturas.mockResolvedValue([
-      fatura({ mes: '2026-03', fechamento: '2026-03-17', vencimento: '2026-03-25', cobrado: c(13334), total: c(13334), faturaId: 'f3' }),
-      fatura({ mes: '2099-12', fechamento: '2099-12-18', vencimento: '2099-12-28', aCobrar: c(43897), total: c(43897) }),
+      fatura({ mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', cobrado: c(13334), total: c(13334), faturaId: 'f3' }),
+      fatura({ mes: '2026-11', fechamento: '2026-11-17', vencimento: '2026-11-25', aCobrar: c(43897), total: c(43897) }),
     ])
     render(<Cartoes />)
-    expect(await screen.findByText('Fatura fechada a pagar (vence 25/03)')).toBeTruthy()
+    expect(await screen.findByText('Fatura fechada a pagar (vence 25/10)')).toBeTruthy()
     expect(screen.getByText('R$ 133,34').className).toContain('text-3xl')
     const linha = await screen.findByTestId('atual-k1')
-    expect(linha.textContent).toBe('Fatura atual (aberta, vence 28/12): R$ 438,97')
+    expect(linha.textContent).toBe('Fatura atual (aberta, vence 25/11): R$ 438,97')
     expect(linha.className).not.toContain('text-3xl')
   })
 
-  it('sem fatura fechada e com a aberta zerada (ou sem aberta): "Sem fatura em aberto"', async () => {
-    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(0) }])
-    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-11', fechamento: '2099-11-18', vencimento: '2099-11-28', total: c(0) })])
+  it('ciclo atual sem compra e compra só no mês seguinte: a fatura atual é a deste ciclo, sem compras (não a de dezembro)', async () => {
+    fixarHoje('2026-11-05')
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), fechamento: 18, vencimento: 28 }])
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-12', fechamento: '2026-12-18', vencimento: '2026-12-28', aCobrar: c(43897), total: c(43897) })])
     render(<Cartoes />)
     expect(await screen.findByText('Sem fatura em aberto')).toBeTruthy()
-    expect(screen.queryByText(/Fatura atual/)).toBeNull()
+    expect(screen.getByTestId('atual-k1').textContent).toBe('Fatura atual (vence 28/11): sem compras ainda')
+    expect(screen.queryByText('R$ 438,97')).toBeNull()
+  })
+
+  it('fecha dia 31: a ajuda de Nova compra e de Crédito diz que em mês curto fecha no último dia', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, fechamento: 31, vencimento: 10 }])
+    render(<Cartoes />)
+    await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
+    expect(screen.getByText(/Compra antes do fechamento \(dia 31 ou o último dia do mês, se for mais curto\)/)).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await escolherNoMenu(u, 'Crédito / reembolso')
+    expect(screen.getByText(/Crédito antes do fechamento \(dia 31 ou o último dia do mês, se for mais curto\)/)).toBeTruthy()
+  })
+
+  it('sem fatura fechada e com a atual zerada (ou sem nenhuma fatura): "Sem fatura em aberto"', async () => {
+    fixarHoje('2026-11-05')
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), compromissos: c(0) }])
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-11', fechamento: '2026-11-17', vencimento: '2026-11-25', total: c(0) })])
+    render(<Cartoes />)
+    expect(await screen.findByText('Sem fatura em aberto')).toBeTruthy()
+    expect(screen.getByTestId('atual-k1').textContent).toBe('Fatura atual (vence 25/11): sem compras ainda')
+    expect(screen.queryByText(/^Fatura atual \(vence/, { selector: 'dt' })).toBeNull() // nada de valor zero em destaque
     cleanup()
     mock.listarFaturas.mockResolvedValue([])
     render(<Cartoes />)

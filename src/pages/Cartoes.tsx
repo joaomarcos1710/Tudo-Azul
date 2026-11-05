@@ -13,7 +13,7 @@ import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
   arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, proximaFatura, reativarCartao, renomearCartao,
-  novaChave, opcoesDeFatura, pagarFatura, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
+  novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao,
 } from '../lib/cartoes'
 import type { Cartao, CreditoFatura, Fatura, ItemFatura, ItemPrevia, MovimentoCartao, ProximaFatura } from '../lib/cartoes'
@@ -84,7 +84,7 @@ export default function Cartoes() {
         try {
           const fs = await listarFaturas(x.id)
           // só escolhe linhas que o banco já calculou (card_months): a fechada mais antiga não paga e a aberta que fecha primeiro
-          return [x.id, { atual: proximaFatura(fs, hoje), vencimentoFechada: fs.find((f) => situacaoFatura(f, hoje) === 'fechada')?.vencimento ?? null }]
+          return [x.id, { atual: proximaFatura(fs, hoje, x), vencimentoFechada: fs.find((f) => situacaoFatura(f, hoje) === 'fechada')?.vencimento ?? null }]
         } catch { return [x.id, null] }
       }))
       // cartões e faturas juntos: sem o intervalo em que o cartão apareceria como "Sem fatura em aberto" antes de ler as faturas
@@ -264,7 +264,7 @@ export default function Cartoes() {
 }
 
 interface FaturasDoCartao {
-  /** A fatura aberta que fecha primeiro (card_months); null se não há. */
+  /** A fatura do ciclo atual (proximaFatura; R$ 0,00 se o ciclo ainda não tem compra); null só em cartão sem ciclo e sem aberta. */
   atual: ProximaFatura | null
   /** Vencimento da fatura fechada mais antiga ainda não paga; null se não há (ou se a dívida é só o saldo de referência). */
   vencimentoFechada: string | null
@@ -277,17 +277,18 @@ const diaMes = (data: string) => formatDate(data).slice(0, 5)
  * `total` da fatura aberta (card_months). Com fatura fechada, ela vem primeiro e a atual fica embaixo, menor.
  */
 function DestaqueFatura({ cartao: c, faturas }: { cartao: Cartao; faturas: FaturasDoCartao | null | undefined }) {
-  const atual = faturas?.atual && faturas.atual.total > 0 ? faturas.atual : null
+  const ciclo = faturas?.atual ?? null
+  const atual = ciclo && ciclo.total > 0 ? ciclo : null
   const vence = (data: string | null | undefined) => (data ? ` (vence ${diaMes(data)})` : '')
   if (c.divida > 0) {
     return (
       <dl>
         <dt className="text-sm text-slate-500">Fatura fechada a pagar{vence(faturas?.vencimentoFechada)}</dt>
         <dd className="tabular-nums text-3xl font-bold tracking-tight text-negativo">{formatBRL(c.divida)}</dd>
-        {atual && (
+        {ciclo && (
           <dd className="mt-1 text-sm text-slate-600" data-testid={`atual-${c.id}`}>
-            Fatura atual (aberta{atual.vencimento ? `, vence ${diaMes(atual.vencimento)}` : ''}):{' '}
-            <strong className="tabular-nums text-marinho">{formatBRL(atual.total)}</strong>
+            Fatura atual (aberta{ciclo.vencimento ? `, vence ${diaMes(ciclo.vencimento)}` : ''}):{' '}
+            <strong className="tabular-nums text-marinho">{formatBRL(ciclo.total)}</strong>
           </dd>
         )}
       </dl>
@@ -308,7 +309,14 @@ function DestaqueFatura({ cartao: c, faturas }: { cartao: Cartao; faturas: Fatur
   }
   // leitura das faturas falhou: não afirma "sem fatura" sem saber
   if (faturas === null) return <p className="text-sm text-slate-600">Não foi possível ler a fatura atual agora.</p>
-  return <p className="text-lg font-semibold text-marinho">Sem fatura em aberto</p>
+  return (
+    <div>
+      <p className="text-lg font-semibold text-marinho">Sem fatura em aberto</p>
+      {ciclo?.vencimento && (
+        <p className="mt-1 text-sm text-slate-600" data-testid={`atual-${c.id}`}>Fatura atual{vence(ciclo.vencimento)}: sem compras ainda</p>
+      )}
+    </div>
+  )
 }
 
 /** Confirmação de arquivar ou excluir o cartão; o banco é quem decide se pode (saldo, parcelas, recorrente, histórico). */
@@ -897,7 +905,7 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
         <p className="text-sm text-slate-600 md:col-span-2">
           {andamento
             ? 'As parcelas restantes entram a partir da fatura aberta, uma por mês.'
-            : `Compra antes do dia ${cartao.fechamento} entra na fatura deste mês; no dia do fechamento ou depois, na seguinte. Cada parcela vira despesa no mês da fatura. Se o banco lançou em outra fatura, escolha-a acima (até 3 antes ou 3 depois).`}
+            : `Compra antes do fechamento (${textoDiaFechamento(cartao.fechamento ?? 0)}) entra na fatura deste mês; no dia do fechamento ou depois, na seguinte. Cada parcela vira despesa no mês da fatura. Se o banco lançou em outra fatura, escolha-a acima (até 3 antes ou 3 depois).`}
           {total !== null && parcelasOk && parcelas > 1 && <> Total: <strong className="tabular-nums">{formatBRL(total)}</strong>.</>}
         </p>
         <Botoes rotulo="Lançar compra" enviando={enviando} aoCancelar={aoCancelar} />
@@ -962,7 +970,7 @@ function FormCredito({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & {
           opcoes={posteriores.map((f) => [f.fechamento, `${primeiraMaiuscula(formatMonth(f.mes))} (fecha ${formatDate(f.fechamento)})`])} />
         <p className="text-sm text-slate-600 md:col-span-2">
           O crédito abate a fatura e conta como <strong>receita</strong> no mês do fechamento dela (o mesmo mês em que as compras
-          dessa fatura viram despesa). Crédito antes do dia {cartao.fechamento} entra na fatura deste mês; no dia do fechamento ou
+          dessa fatura viram despesa). Crédito antes do fechamento ({cartao.fechamento !== null && textoDiaFechamento(cartao.fechamento)}) entra na fatura deste mês; no dia do fechamento ou
           depois, na seguinte. Para estorno de uma compra específica, exclua ou edite a compra.
         </p>
         <Botoes rotulo="Lançar crédito" enviando={enviando} aoCancelar={aoCancelar} />
