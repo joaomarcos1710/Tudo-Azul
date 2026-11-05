@@ -22,7 +22,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, parseBRL, primeiraMaiuscula, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDaFatura, listarComprasDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
+  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
   listarMovimentosDeDivida, marcarComoPago,
   moverParaLixeira, restaurarDaLixeira, resumoDoMes, resumoPorMoeda, somarMeses, valoresDasParcelas,
 } from '../lib/lancamentos'
@@ -31,16 +31,9 @@ import type { ParcelaDivida } from '../lib/dividas'
 import type { CompraDaFatura, CreditoDeCartao, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { ComprasDaFatura, TabelaLancamentos, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, useTelaGrande, valorComSinal } from './LancamentosTabela'
+import type { ItemLista } from './LancamentosTabela'
 import { criarRecorrencia, frequencias } from '../lib/recorrencias'
-
-const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', income: 'Receita', transfer: 'Transferência' }
-
-/** Sinal e cor por tipo: receita "+", despesa "−", transferência "⇄" sem sinal (design system). Valor na moeda da conta. */
-function valorComSinal(l: Lancamento, moeda: string) {
-  if (l.tipo === 'income') return { texto: `+${formatMoeda(l.valor, moeda)}`, cor: 'text-positivo' }
-  if (l.tipo === 'expense') return { texto: `−${formatMoeda(l.valor, moeda)}`, cor: 'text-negativo' }
-  return { texto: `⇄ ${formatMoeda(l.valor, moeda)}`, cor: 'text-slate-600' }
-}
 
 const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
 const totalRotulo = 'shrink-0 text-sm text-slate-500'
@@ -191,6 +184,8 @@ export default function Lancamentos() {
   const moedaConta = useMemo(() => new Map(contas.map((c) => [c.id, c.moeda ?? 'BRL'])), [contas])
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
   const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
+  // computador (lg): tabela com seleção de vários; celular: a lista por dia de sempre
+  const telaGrande = useTelaGrande()
 
   async function agir(acao: () => Promise<void>) {
     try {
@@ -209,9 +204,8 @@ export default function Lancamentos() {
   if (!familiaId) return null
 
   // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
-  type Item = { origem: 'lancamento'; l: Lancamento } | { origem: 'divida'; m: MovimentoDivida } | { origem: 'fatura'; f: FaturaDoMes }
-    | { origem: 'cartao'; c: CompraDaFatura } | { origem: 'contrato'; p: ParcelaDivida } | { origem: 'credito'; k: CreditoDeCartao }
-  const itens: (Item & { data: string })[] = [
+  type Item = ItemLista
+  const itens: ItemLista[] = [
     ...(lancamentos ?? []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
     ...movimentosDivida.map((m) => ({ origem: 'divida' as const, m, data: m.data })),
     ...faturas.map((f) => ({ origem: 'fatura' as const, f, data: f.vencimento })),
@@ -346,6 +340,12 @@ export default function Lancamentos() {
           acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
       )}
 
+      {telaGrande ? (
+        <TabelaLancamentos itens={itens} hoje={hojeSP()} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
+          categorias={categorias} nomeConta={nomeConta} moedaConta={moedaConta} nomeCategoria={nomeCategoria} categoriaPorId={categoriaPorId}
+          ocupado={pagando !== null} aoEditar={(l) => { setPagando(null); setEditando(l) }} aoPagar={(l) => { setEditando(null); setPagando(l) }}
+          aoExcluir={excluir} aoAlterar={carregar} />
+      ) : (
       <div className="flex flex-col gap-4">
         {porDia.map(([data, itens]) => (
           <section key={data} aria-label={formatDate(data)}>
@@ -492,15 +492,9 @@ export default function Lancamentos() {
           </section>
         ))}
       </div>
+      )}
     </>
   )
-}
-
-const rotuloSituacaoFatura: Record<FaturaDoMes['situacao'], { texto: string; estilo: string }> = {
-  aberta: { texto: 'Aberta', estilo: 'bg-planejado-fundo text-planejado' },
-  fechada: { texto: 'Fechada', estilo: 'bg-red-50 text-negativo' },
-  vencida: { texto: 'Vencida', estilo: 'bg-red-50 text-negativo' },
-  paga: { texto: 'Paga', estilo: 'bg-pago-fundo text-pago' },
 }
 
 /**
@@ -510,20 +504,8 @@ const rotuloSituacaoFatura: Record<FaturaDoMes['situacao'], { texto: string; est
 function LinhaFatura({ fatura: f, categoriaPorId, nomeCategoria }: {
   fatura: FaturaDoMes; categoriaPorId: Map<string, Categoria>; nomeCategoria: Map<string, string>
 }) {
-  const [aberto, setAberto] = useState(false)
-  const [compras, setCompras] = useState<CompraDaFatura[] | null>(null)
-  const [erro, setErro] = useState(false)
-  const idLista = `compras-${f.cartaoId}-${f.mes}`
+  const { aberto, compras, erro, alternar, idLista } = useComprasDaFatura(f)
   const s = rotuloSituacaoFatura[f.situacao]
-
-  function alternar() {
-    const abrir = !aberto
-    setAberto(abrir)
-    if (abrir && (compras === null || erro)) {
-      setErro(false)
-      listarComprasDaFatura(f).then(setCompras).catch(() => setErro(true))
-    }
-  }
 
   return (
     <li className="px-4 py-3 sm:px-5">
@@ -550,32 +532,7 @@ function LinhaFatura({ fatura: f, categoriaPorId, nomeCategoria }: {
             className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
         </div>
       </div>
-      {aberto && (
-        <div id={idLista} className="mt-2 rounded-lg bg-slate-50 px-3 py-2">
-          {erro && <p className="text-sm text-negativo" role="alert">Não foi possível carregar as compras. Veja em Cartões.</p>}
-          {!erro && compras === null && <p className="text-sm text-slate-600" role="status">Carregando compras…</p>}
-          {!erro && compras?.length === 0 && <p className="text-sm text-slate-500">Nenhuma compra nesta fatura.</p>}
-          {!erro && compras && compras.length > 0 && (
-            <ul aria-label={`Compras da fatura ${f.cartaoNome}`} className="divide-y divide-slate-200">
-              {compras.map((c) => (
-                <li key={c.id} className="flex items-start justify-between gap-3 py-2">
-                  <IconeCategoria visual={visualPorId(c.categoriaId, categoriaPorId, 'expense')} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">
-                      {c.descricao}
-                      {c.deParcelas > 1 && <span className="ml-2 text-xs text-slate-500">parcela {c.parcela}/{c.deParcelas}</span>}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {nomeCategoria.get(c.categoriaId ?? '') ?? 'Sem categoria'}{c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''}
-                    </p>
-                  </div>
-                  <span className="shrink-0 tabular-nums text-sm font-semibold text-slate-700">{formatBRL(c.valor)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      {aberto && <ComprasDaFatura f={f} compras={compras} erro={erro} idLista={idLista} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
     </li>
   )
 }
