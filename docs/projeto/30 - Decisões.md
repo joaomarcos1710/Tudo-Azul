@@ -182,7 +182,7 @@ Aprovadas pelo dono ("pode") a partir da análise da aba Cartões, sem migration
 - **Resumo da aba** (referência do Mobills enviada pelo dono): "Próxima fatura vence em" é uma **data** (a mais próxima entre os cartões com algo a pagar) e "Faturas que vencem em <mês>" é o total do banco (`card_invoices_month`, mesmo componente do Início). **Limite disponível total** e **valor total** ficaram de fora: são somas de dinheiro e o front não soma; virão da `card_overview` no banco. Visual do app, não o do Mobills.
 - **Estorno na linha da compra** usa `debt_refund` (já existia): abate a despesa da compra (não é receita, como o crédito avulso da 052). A tela limita cada estorno ao valor da parcela; o resto é regra do banco.
 
-## Lançamentos: tabela no computador e edição em lote (05/11/2026, #168)
+## Lançamentos: tabela no computador e edição em lote (05/11/2026, #167)
 "Pode" do dono, inspirado no Mobills.
 - **Tabela só a partir de `lg` (1024px); celular e tablet ficam com a lista por dia.** Motivo: a tabela com 8 colunas não cabe em tela pequena, e a lista do celular já foi ajustada ao uso com o dedo.
 - **Edição em lote numa função do banco, tudo ou nada**, em vez de N chamadas da tela: uma falha no meio deixaria metade alterada. As funções são SECURITY INVOKER e só fazem o UPDATE que a tela já fazia, para que as guardas existentes (período, conta, moeda, tipo da categoria) valham sem cópia. Limite de 500 por chamada (um mês tem bem menos).
