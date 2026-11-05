@@ -173,3 +173,12 @@ Pedido do dono: "Nos lançamentos, ao invés do dia 28 ter a soma do cartão, vo
 - **Filtro de conta:** a fatura aparece na **conta de pagamento** do cartão (`debts.pay_account_id`), a mesma regra do saldo projetado e da parcela de contrato planejada (que aparece na conta de débito). Cartão sem conta de pagamento não aparece com filtro de conta. A fatura não é movimento da conta; o que mexe no saldo é o "Pagamento da fatura", que continua aparecendo na conta de onde saiu o dinheiro.
 - **Tipo:** Despesa mostra as faturas; Receita e Transferência, não.
 - **Sem migration:** `card_months` e `card_items` já existem; a lista chama `card_months` uma vez por cartão (a família tem poucos cartões).
+
+## Lançamentos: tabela no computador e edição em lote (05/11/2026, #168)
+"Pode" do dono, inspirado no Mobills.
+- **Tabela só a partir de `lg` (1024px); celular e tablet ficam com a lista por dia.** Motivo: a tabela com 8 colunas não cabe em tela pequena, e a lista do celular já foi ajustada ao uso com o dedo.
+- **Edição em lote numa função do banco, tudo ou nada**, em vez de N chamadas da tela: uma falha no meio deixaria metade alterada. As funções são SECURITY INVOKER e só fazem o UPDATE que a tela já fazia, para que as guardas existentes (período, conta, moeda, tipo da categoria) valham sem cópia. Limite de 500 por chamada (um mês tem bem menos).
+- **A confirmação mostra só a quantidade**, não o total em reais: o front não soma dinheiro, e pedir o total ao banco para uma confirmação não compensava uma função a mais.
+- **Marcar pago em lote não pede valor**: com vários itens não há como informar o valor real de cada um; quem pagou outro valor usa o "Marcar pago" daquele lançamento.
+- **Desfazer por 10 segundos.** Para isso entraram duas funções além das três pedidas: `transactions_bulk_mark_planned` (volta a planejado na data de cada um, numa chamada só) e `transactions_bulk_restore` (restaura da lixeira numa chamada só). O desfazer de categoria usa a mesma `transactions_bulk_set_category`, uma chamada por categoria antiga (atalho: não é uma operação só; se uma falhar, o aviso mostra o erro e dá para tentar de novo).
+- **Fatura, compra de cartão, crédito, contrato e pagamento de cartão/dívida ficam fora da seleção**: não são `transactions`; cada um tem a sua tela.

@@ -28,6 +28,13 @@ tags: [tudo-azul, regras, dinheiro]
 - Período **conferido** com o extrato trava: não edita, não manda para a lixeira, não restaura. *Dormente desde 04/11/2026 (#159): a conferência saiu do app; a trava continua no banco, mas sem conferência nova nunca dispara.*
 - Transferência nunca é receita nem despesa.
 
+## Edição em lote (Lançamentos no computador, migration 060)
+- **Uma operação só no banco, tudo ou nada**: mudar categoria, marcar como pago e lixeira em vários lançamentos são uma chamada (`transactions_bulk_*`); se um item é recusado, nenhum muda.
+- **As mesmas guardas do lançamento de um só**: é o mesmo UPDATE, então valem os gatilhos de sempre (período conferido, conta desativada ao restaurar, abertura da conta, moeda da transferência) e a categoria do tipo certo (receita só com categoria de receita; transferência não tem categoria). SECURITY INVOKER: a RLS decide; todos os ids da mesma família e visíveis para quem chama; no máximo 500 por vez.
+- **Marcar pago em lote não muda o valor**: só a situação e a data escolhida. Se o valor real foi outro, use o "Marcar pago" do lançamento (que pede data e valor).
+- **A tela não soma o que está selecionado**: a confirmação mostra a quantidade; os totais do mês continuam vindo do banco depois de recarregar.
+- Só lançamentos (`transactions`): fatura, compra de cartão, contrato e crédito no cartão não entram na seleção.
+
 ## Receita
 - **Regular × eventual** (categoria marcada como eventual): a renda regular é a base para a cobertura das despesas.
 
