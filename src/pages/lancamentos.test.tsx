@@ -8,9 +8,10 @@ import type { Cents } from '../lib/format'
 const mock = vi.hoisted(() => ({
   listarLancamentos: vi.fn(),
   listarMovimentosDeDivida: vi.fn(),
-  listarComprasDeCartao: vi.fn(),
+  listarFaturasDoMes: vi.fn(),
   listarCreditosDeCartao: vi.fn(),
   listarCartoes: vi.fn(),
+  listarItens: vi.fn(),
   registrarCompra: vi.fn(),
   resumoDoMes: vi.fn(),
   resumoPorMoeda: vi.fn(),
@@ -39,7 +40,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
   listarLancamentos: mock.listarLancamentos,
   criarParcelado: mock.criarParcelado,
   listarMovimentosDeDivida: mock.listarMovimentosDeDivida,
-  listarComprasDeCartao: mock.listarComprasDeCartao,
+  listarFaturasDoMes: mock.listarFaturasDoMes,
   listarCreditosDeCartao: mock.listarCreditosDeCartao,
   resumoDoMes: mock.resumoDoMes,
   resumoPorMoeda: mock.resumoPorMoeda,
@@ -56,6 +57,7 @@ vi.mock('../lib/contas', async (original) => ({
 vi.mock('../lib/cartoes', async (original) => ({
   ...(await original<typeof import('../lib/cartoes')>()),
   listarCartoes: mock.listarCartoes,
+  listarItens: mock.listarItens,
   registrarCompra: mock.registrarCompra,
 }))
 vi.mock('../lib/dividas', async (original) => ({
@@ -94,7 +96,8 @@ beforeEach(() => {
   mock.listarLancamentos.mockResolvedValue(lancs)
   mock.listarMovimentosDeDivida.mockResolvedValue([])
   mock.listarParcelasDivida.mockResolvedValue([])
-  mock.listarComprasDeCartao.mockResolvedValue({ parcelas: [], semData: 0 })
+  mock.listarFaturasDoMes.mockResolvedValue([])
+  mock.listarItens.mockResolvedValue([])
   mock.listarCreditosDeCartao.mockResolvedValue([])
   mock.listarCartoes.mockResolvedValue([
     { id: 'k1', nome: 'Nubank', fechamento: 17, vencimento: 25, ativo: true, divida: c(0), credito: c(0), compromissos: c(0) },
@@ -373,27 +376,123 @@ describe('Lançamentos', () => {
     expect(mock.registrarCompra).not.toHaveBeenCalled()
   })
 
-  it('compra no cartão aparece na lista do mês com o cartão, sem editar nem excluir aqui', async () => {
-    mock.listarComprasDeCartao.mockResolvedValue({ semData: 0, parcelas: [
-      { id: 'p2', data: `${hojeSP().slice(0, 8)}02`, compra: '2026-01-02', fechaEm: '2026-03-17', descricao: 'Fone', cartaoNome: 'Nubank', fechamento: 17, parcela: 2, deParcelas: 3, valor: c(10000) },
-    ] })
-    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    const item = (await screen.findByText('Fone')).closest('li') as HTMLElement
-    expect(within(item).getByText('No cartão')).toBeTruthy()
-    expect(within(item).getByText(/parcela 2\/3/)).toBeTruthy()
-    expect(within(item).getByText(/Nubank · compra de 02\/01\/2026 · a despesa conta em 17\/03\/2026 \(fechamento da fatura\)/)).toBeTruthy()
-    expect(within(item).getByText('R$ 100,00')).toBeTruthy()
-    expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
-    expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
-  })
+  describe('fatura do cartão (pedido do dono, 05/11/2026)', () => {
+    const mesAtual = () => hojeSP().slice(0, 7)
+    // total do banco (card_months) de propósito DIFERENTE da soma das compras abaixo (100 + 200): a tela não soma
+    const fatura = () => ({
+      cartaoId: 'k1', cartaoNome: 'Nubank', mes: mesAtual(), fechamento: `${mesAtual()}-20`, vencimento: `${mesAtual()}-28`,
+      total: c(45678), pago: c(0), itens: 2, situacao: 'fechada', contaPagamentoId: 'a1',
+    })
+    const comprasDaFatura = [
+      { parcelaId: 'p1', compra: 'pl1', parcela: 2, deParcelas: 3, descricao: 'Fone', dataCompra: '2026-01-02', valor: c(10000), falta: c(0), categoriaId: 'mer' },
+      { parcelaId: 'p2', compra: 'pl2', parcela: 1, deParcelas: 1, descricao: 'Livro', dataCompra: '2026-01-05', valor: c(20000), falta: c(0), categoriaId: 'outra' },
+    ]
 
-  it('compra no cartão mostra o ícone da categoria da compra', async () => {
-    mock.listarComprasDeCartao.mockResolvedValue({ semData: 0, parcelas: [
-      { id: 'p2', data: `${hojeSP().slice(0, 8)}02`, compra: '2026-01-02', fechaEm: '2026-03-17', descricao: 'Fone', cartaoNome: 'Nubank', fechamento: 17, parcela: 2, deParcelas: 3, valor: c(10000), categoriaId: 'mer' },
-    ] })
-    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    const item = (await screen.findByText('Fone')).closest('li') as HTMLElement
-    expect(item.querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
+    it('as compras viram UMA linha "Fatura <cartão>" no dia do vencimento, com o total do banco e a situação', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([fatura()])
+      mock.listarItens.mockResolvedValue(comprasDaFatura)
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      const item = (await screen.findByText('Fatura Nubank')).closest('li') as HTMLElement
+      const dia = item.closest('section') as HTMLElement
+      expect(dia.getAttribute('aria-label')).toBe(`28/${mesAtual().slice(5, 7)}/${mesAtual().slice(0, 4)}`)
+      expect(within(item).getByText('R$ 456,78')).toBeTruthy()
+      expect(within(item).getByText('Fechada')).toBeTruthy()
+      expect(within(item).getByText(/Fecha em 20\/.* · vence em 28\/.* · 2 compras/)).toBeTruthy()
+      // as compras não aparecem soltas na lista: só dentro da fatura
+      expect(screen.queryByText('Fone')).toBeNull()
+      expect(screen.queryByText('Livro')).toBeNull()
+      expect(within(item).getByRole('link', { name: 'Ver fatura Nubank em Cartões' }).getAttribute('href')).toBe('/cartoes?cartao=k1')
+      expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
+      expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
+      expect(mock.listarFaturasDoMes).toHaveBeenCalledWith('h1', mesAtual(), {}, hojeSP())
+    })
+
+    it('"Ver compras" abre as compras da fatura com categoria e ícone; o total continua o do banco', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([fatura()])
+      mock.listarItens.mockResolvedValue(comprasDaFatura)
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      const item = (await screen.findByText('Fatura Nubank')).closest('li') as HTMLElement
+      const botao = within(item).getByRole('button', { name: 'Ver compras' })
+      expect(botao.getAttribute('aria-expanded')).toBe('false')
+      await u.click(botao)
+      expect(botao.getAttribute('aria-expanded')).toBe('true')
+      const lista = await within(item).findByRole('list', { name: 'Compras da fatura Nubank' })
+      expect(document.getElementById(botao.getAttribute('aria-controls')!)?.contains(lista)).toBe(true)
+      expect(mock.listarItens).toHaveBeenCalledWith('k1', mesAtual())
+      const fone = within(lista).getByText('Fone').closest('li') as HTMLElement
+      expect(within(fone).getByText(/parcela 2\/3/)).toBeTruthy()
+      expect(within(fone).getByText('Mercado · compra de 02/01/2026')).toBeTruthy()
+      expect(within(fone).getByText('R$ 100,00')).toBeTruthy()
+      expect(fone.querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
+      expect(within(lista).getByText('Livro')).toBeTruthy()
+      // a soma das compras seria R$ 300,00: a linha mostra o total do banco
+      expect(within(item).getByText('R$ 456,78')).toBeTruthy()
+      expect(within(item).queryByText('R$ 300,00')).toBeNull()
+      await u.click(within(item).getByRole('button', { name: 'Esconder compras' }))
+      expect(within(item).queryByRole('list', { name: 'Compras da fatura Nubank' })).toBeNull()
+    })
+
+    it('situação vencida e paga aparecem no selo; o pagamento da fatura fica numa linha à parte, com outro rótulo', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([{ ...fatura(), situacao: 'vencida' }, { ...fatura(), cartaoId: 'k2', cartaoNome: 'Itaú', situacao: 'paga', pago: c(45678) }])
+      mock.listarMovimentosDeDivida.mockResolvedValue([
+        { id: 'e1', data: `${mesAtual()}-28`, contaId: 'a1', descricao: 'Pagamento da fatura · Itaú', valor: c(-45678), jaEmDespesas: false },
+      ])
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      const nubank = (await screen.findByText('Fatura Nubank')).closest('li') as HTMLElement
+      expect(within(nubank).getByText('Vencida')).toBeTruthy()
+      const itau = screen.getByText('Fatura Itaú').closest('li') as HTMLElement
+      expect(within(itau).getByText('Paga')).toBeTruthy()
+      const pagamento = screen.getByText('Pagamento da fatura · Itaú').closest('li') as HTMLElement
+      expect(pagamento).not.toBe(itau)
+      expect(within(pagamento).getByText('−R$ 456,78')).toBeTruthy()
+      expect(screen.getByText(/Pagamento da fatura/, { selector: 'strong' })).toBeTruthy()
+    })
+
+    it('os totais do topo continuam os do banco (period_summary): a fatura não é somada em nada', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([fatura()])
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Fatura Nubank')
+      const despesas = screen.getByText('Despesas pagas').closest('div') as HTMLElement
+      expect(within(despesas).getByText('−R$ 250,50')).toBeTruthy()
+      const resultado = screen.getByText('Resultado do mês').closest('div') as HTMLElement
+      expect(within(resultado).getByText(/R\$\s?250,50/)).toBeTruthy()
+      expect(mock.resumoDoMes).toHaveBeenCalledWith('h1', mesAtual())
+    })
+
+    it('com filtro de categoria, as compras daquela categoria aparecem uma a uma (sem a linha da fatura)', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([fatura()])
+      mock.listarItens.mockResolvedValue(comprasDaFatura)
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Fatura Nubank')
+      await u.selectOptions(screen.getByLabelText('Filtrar por categoria'), 'mer')
+      const fone = (await screen.findByText('Fone')).closest('li') as HTMLElement
+      expect(screen.queryByText('Fatura Nubank')).toBeNull()
+      expect(screen.queryByText('Livro')).toBeNull() // outra categoria
+      expect(within(fone).getByText('No cartão')).toBeTruthy()
+      expect(within(fone).getByText(/Mercado · fatura Nubank · compra de 02\/01\/2026 · a despesa conta em 20\/.* \(fechamento da fatura\)/)).toBeTruthy()
+      expect(within(fone).getByText('R$ 100,00')).toBeTruthy()
+      expect((fone.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/^28\//)
+      expect(mock.listarFaturasDoMes).toHaveBeenLastCalledWith('h1', mesAtual(), { categoriaId: 'mer' }, hojeSP())
+    })
+
+    it('se as faturas falharem, a lista de conta continua e só o bloco avisa', async () => {
+      mock.listarFaturasDoMes.mockRejectedValue(new Error('falhou'))
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      expect(await screen.findByText('Supermercado')).toBeTruthy()
+      expect(screen.getByText(/Não foi possível carregar as faturas dos cartões/)).toBeTruthy()
+    })
+
+    it('se as compras da fatura falharem ao abrir, avisa dentro da fatura', async () => {
+      mock.listarFaturasDoMes.mockResolvedValue([fatura()])
+      mock.listarItens.mockRejectedValue(new Error('falhou'))
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      const item = (await screen.findByText('Fatura Nubank')).closest('li') as HTMLElement
+      await u.click(within(item).getByRole('button', { name: 'Ver compras' }))
+      expect((await within(item).findByRole('alert')).textContent).toMatch(/Não foi possível carregar as compras/)
+    })
   })
 
   it('crédito avulso no cartão aparece como receita (+, verde) no dia do fechamento, só leitura', async () => {
@@ -419,24 +518,11 @@ describe('Lançamentos', () => {
     expect(await screen.findByText('Supermercado')).toBeTruthy()
   })
 
-  it('se as compras no cartão falharem, a lista de conta continua e só o bloco avisa', async () => {
-    mock.listarComprasDeCartao.mockRejectedValue(new Error('falhou'))
-    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    expect(await screen.findByText('Supermercado')).toBeTruthy()
-    expect(screen.getByText(/Não foi possível carregar as compras no cartão/)).toBeTruthy()
-  })
-
   it('se os cartões falharem, contas e lançamentos continuam na tela', async () => {
     mock.listarCartoes.mockRejectedValue(new Error('falhou'))
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     expect(await screen.findByText('Supermercado')).toBeTruthy()
     expect(screen.getByRole('button', { name: '+ Lançamento' })).toBeTruthy()
-  })
-
-  it('avisa quando há parcelas antigas sem data de compra', async () => {
-    mock.listarComprasDeCartao.mockResolvedValue({ parcelas: [], semData: 2 })
-    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    expect(await screen.findByText(/2 parcelas de cartão sem data de compra não aparecem aqui/)).toBeTruthy()
   })
 
   it('reenvio do mesmo cartão com outro valor usa outra chave (não grava 100 quando o usuário corrigiu para 120)', async () => {
