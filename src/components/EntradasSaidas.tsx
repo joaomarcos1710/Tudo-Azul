@@ -63,15 +63,18 @@ export function aparenciaValor(v: Cents, tipo: TipoValor): { texto: string; cor:
  * a fatura do cartão sai no dia do pagamento (ou no vencimento, se a pagar). Valores, resultados, saldos e totais vêm do
  * banco numa chamada só (cash_flow_series, migration 066). O front não soma nada.
  */
-export function EntradasSaidas({ aoMudarPeriodo }: {
-  /** Avisa a página do período escolhido (a exportação CSV acompanha). */
+export function EntradasSaidas({ periodo: periodoDaPagina, aoMudarPeriodo }: {
+  /** Período controlado pela página (Relatórios: o mesmo em todas as abas); sem ele, o mês atual. */
+  periodo?: Periodo
   aoMudarPeriodo?: (p: Periodo) => void
 }) {
   const { familia } = useFamilia()
   const familiaId = familia?.id
   const hoje = hojeSP()
-  const [periodo, setPeriodo] = useState<Periodo>(() => periodoDoMes(hoje.slice(0, 7)))
-  const [divisao, setDivisao] = useState<Divisao>('day')
+  const [periodoProprio, setPeriodoProprio] = useState<Periodo>(() => periodoDoMes(hoje.slice(0, 7)))
+  const periodo = periodoDaPagina ?? periodoProprio
+  // período que veio de outra aba: a divisão começa numa que vale nele
+  const [divisao, setDivisao] = useState<Divisao>(() => ajustarDivisao('day', periodo))
   const [motivo, setMotivo] = useState('')
   const [filtros, setFiltros] = useState<Filtros>(FILTROS_PADRAO)
   const [folhaAberta, setFolhaAberta] = useState(false)
@@ -94,8 +97,6 @@ export function EntradasSaidas({ aoMudarPeriodo }: {
     return () => { vivo = false }
   }, [familiaId])
 
-  useEffect(() => { aoMudarPeriodo?.(periodo) }, [periodo, aoMudarPeriodo])
-
   useEffect(() => {
     if (!familiaId) return
     let vivo = true
@@ -114,7 +115,8 @@ export function EntradasSaidas({ aoMudarPeriodo }: {
   }, [familiaId, periodo, divisao, contasEscolhidas, membro, naoPagos])
 
   function mudarPeriodo(p: Periodo) {
-    setPeriodo(p)
+    setPeriodoProprio(p)
+    aoMudarPeriodo?.(p)
     setDivisao((d) => ajustarDivisao(d, p))
     setMotivo('')
   }
@@ -227,16 +229,17 @@ function ExplicacaoCartao() {
       </summary>
       <p className="mt-1">
         Este relatório mostra o dinheiro saindo da conta. A compra no cartão não é saída no fechamento: a fatura paga entra
-        na data do pagamento; a fatura a pagar entra no vencimento (só com &quot;Pagos e não pagos&quot;); paga em parte, o que
-        foi pago entra na data do pagamento e o que falta, no vencimento. Estornos e créditos já estão no valor da fatura.
+        na data do pagamento; a fatura a pagar entra no vencimento (só com &quot;Pagos e não pagos&quot;), já com as assinaturas
+        previstas que ainda não viraram compra (cada uma conta uma vez só); paga em parte, o que foi pago entra na data do
+        pagamento e o que falta, no vencimento. Estornos e créditos já estão no valor da fatura.
         Os totais do mês, o orçamento e as despesas por categoria continuam pela data da fatura.
       </p>
     </details>
   )
 }
 
-/** Valor de uma célula: uma linha só (nowrap), algarismos alinhados, com a cor e o sinal do tipo. */
-function Valor({ v, tipo }: { v: Cents; tipo: TipoValor }) {
+/** Valor de uma célula: uma linha só (nowrap), algarismos alinhados, com a cor e o sinal do tipo (também na aba Contas). */
+export function Valor({ v, tipo }: { v: Cents; tipo: TipoValor }) {
   const { texto, cor } = aparenciaValor(v, tipo)
   const classe = `whitespace-nowrap tabular-nums ${cor}`
   // no celular, sem o "R$" (a tabela diz "Valores em R$"): assim as 5 colunas cabem em 375px sem rolar para o lado
@@ -329,7 +332,7 @@ function FolhaFiltros({ atuais, contas, membros, aoAplicar, aoFechar }: {
             <button type="button" aria-pressed={!f.naoPagos} onClick={() => mudar({ naoPagos: false })} className={pilula(!f.naoPagos)}>Pagos</button>
             <button type="button" aria-pressed={f.naoPagos} onClick={() => mudar({ naoPagos: true })} className={pilula(f.naoPagos)}>Todos</button>
           </div>
-          <p className="mt-1 text-xs text-slate-500">Todos = pagos e não pagos (planejados e parcelas de cartão a vencer).</p>
+          <p className="mt-1 text-xs text-slate-500">Todos = pagos e não pagos (planejados, lançamentos fixos ainda não gerados e faturas a pagar com as assinaturas previstas).</p>
         </div>
 
         {membros.length > 1 && (
