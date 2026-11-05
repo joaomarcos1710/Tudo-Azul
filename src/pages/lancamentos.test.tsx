@@ -141,6 +141,21 @@ describe('Lançamentos', () => {
     expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
   })
 
+  it('?tipo=receita|despesa (avisos do Início) abre já filtrado pelo tipo, no mês pedido', async () => {
+    render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=receita']}><Lancamentos /></MemoryRouter>)
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10', { tipo: 'income' }))
+    expect((screen.getByLabelText('Filtrar por tipo') as HTMLSelectElement).value).toBe('income')
+    cleanup()
+    mock.listarLancamentos.mockClear()
+    render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=despesa']}><Lancamentos /></MemoryRouter>)
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10', { tipo: 'expense' }))
+    cleanup()
+    mock.listarLancamentos.mockClear()
+    // valor desconhecido não filtra nada
+    render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=xyz']}><Lancamentos /></MemoryRouter>)
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10', {}))
+  })
+
   it('o planejado do resultado: cada valor é indivisível e a linha pode quebrar entre eles, para não cortar no celular', async () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findAllByText('+R$ 8.000,00')

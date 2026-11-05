@@ -134,3 +134,33 @@ Lista de 8 tipos (dinheiro, corrente, poupança, cartão, investimento, emprést
 - **Multimoeda** (campo `BRL/USD/EUR`): dinheiro em centavos de uma moeda só e todos os relatórios somam no banco; misturar exige câmbio por data e regra de arredondamento. Já está no roteiro de dez–jan, com o alerta de não cadastrar ativo estrangeiro como BRL.
 - **Tipo "Investimento" como conta**: o saldo entraria como dinheiro disponível, sem cotação nem rentabilidade. Fica para o módulo de investimentos (fev–abr/2027).
 
+## financial-planner (dflippojr/financial-planner, MIT) — comparação em 05/11/2026
+
+Fonte: o README do projeto (o código **não foi lido**). Licença MIT, mas daqui só se tiram ideias.
+
+**O que ele tem e o Tudo Azul já tem:** família com convites; dinheiro em centavos inteiros; transferência e pagamento de fatura fora de receita/despesa; planejados e recorrentes; projeção separada do realizado; exportação completa.
+
+**Ideias a aproveitar, nesta ordem:**
+1. **Importar CSV/extrato com prévia** (cada linha marcada como nova, duplicada ou inválida antes de gravar) e **desfazer a importação inteira** de uma vez. Resolve a F5 da Nomad (relançar pelo extrato) e o "importar extrato" que está em [[40 - Pendências e próximos passos]].
+2. **Regras de categorização automática** ("descrição contém X → categoria Y"), com histórico reversível do que cada regra mudou.
+3. **Detectar assinaturas/recorrências no histórico** (mesmo valor e descrição todo mês), com o custo mensal e anual de cada uma.
+4. **Metas de poupança com plano datado** (quanto guardar por mês para chegar no valor na data).
+5. **Patrimônio mês a mês por snapshots** (fotografia gravada no fim de cada mês) — é o item 4c da lista "Melhoria 1" (evolução de investimentos e dívidas).
+6. **Aviso de lacuna**: "conta sem lançamento desde dd/mm" (esquecimento de lançar ou de importar).
+
+**Não aproveitar agora:**
+- **SimpleFIN e perfis de bancos dos EUA**: no Brasil o equivalente seria Open Finance por um agregador pago; fora do escopo.
+- **Rentabilidade Modified Dietz**: o módulo de investimentos ainda não separa aporte de rendimento com a precisão que o método pede.
+- **Contas privadas por pessoa**: a ideia "de quem é o gasto" foi adiada pelo dono em 04/11/2026. Guardar o desenho para quando voltar: **uma única camada de visibilidade por onde passa toda consulta** (nunca um filtro espalhado em cada tela ou função).
+
+**Recomendação registrada:** depois da multimoeda, fazer (1) importar extrato e (2) regras de categorização **juntos** — a importação é onde as regras mais ajudam.
+
+## financeiro-familia (LovanGoulart/financeiro-familia) — comparação em 05/11/2026
+
+Fonte: o README (o código **não foi lido**). Flask + SQLite, 37 commits, **sem licença declarada**: só ideias, nada de código.
+
+**O que ele tem e o Tudo Azul já cobre:** despesas com categoria; fixas/recorrentes e parceladas; filtros por mês, tipo e categoria; painel com gráficos e previsão do próximo mês; relatórios; uso no celular.
+
+**Ideia central que o Tudo Azul não tem:** despesa marcada como **individual ou compartilhada** e o **rateio do mês** (quanto cada pessoa devia pagar × quanto pagou; saldo a pagar/receber entre as pessoas). É a mesma linha da ideia "de quem é o gasto", adiada pelo dono em 04/11/2026. Se for retomada, incluir o **acerto de contas** com histórico (registrar o pagamento entre os dois e zerar o saldo).
+
+**Outra:** lista de compras compartilhada (item, quantidade, categoria, quem pediu, marcar comprado). Fora do núcleo financeiro; avaliar só se o dono pedir.

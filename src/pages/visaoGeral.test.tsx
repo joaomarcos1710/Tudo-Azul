@@ -25,6 +25,7 @@ const mock = vi.hoisted(() => ({
   saldosProjetados: vi.fn(),
   evolucaoPatrimonio: vi.fn(),
   listarOrcamentos: vi.fn(),
+  avisosDoInicio: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -47,6 +48,7 @@ vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar, resumoDosCarto
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: gerar }))
 vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados }))
 vi.mock('../lib/orcamentos', () => ({ listarOrcamentos: mock.listarOrcamentos }))
+vi.mock('../lib/avisosInicio', async (o) => ({ ...(await o<typeof import('../lib/avisosInicio')>()), avisosDoInicio: mock.avisosDoInicio }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas, totaisPorMoeda: mock.totaisPorMoeda }))
 
 import { hojeSP } from '../lib/contas'
@@ -88,6 +90,7 @@ beforeEach(() => {
   mock.vencidosPlanejados.mockResolvedValue({ itens: [], total: 0 })
   mock.saldosProjetados.mockResolvedValue({ contas: [], total: null })
   mock.listarOrcamentos.mockResolvedValue([])
+  mock.avisosDoInicio.mockResolvedValue([])
   mock.evolucaoPatrimonio.mockResolvedValue([])
   mock.resumoDosCartoes.mockResolvedValue([])
   mock.totalFaturasDoMes.mockResolvedValue(null)
@@ -549,6 +552,74 @@ describe('Visão geral', () => {
     expect(within(card).queryByText('Antiga')).toBeNull()
     // só contas em reais: nada de "Em outras moedas"
     expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
+  })
+
+  it('Minhas contas: só as ativas com saldo diferente de zero, com o link para a aba Contas', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [
+        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1282030) },
+        { id: 'a3', nome: 'Zerada', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
+        { id: 'a4', nome: 'No vermelho', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(-5000) },
+      ],
+      total: c(1277030),
+    })
+    montar()
+    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
+    expect(within(card).getByText('Itaú')).toBeTruthy()
+    expect(within(card).getByText('No vermelho')).toBeTruthy()
+    expect(within(card).queryByText('Zerada')).toBeNull()
+    expect(within(card).getByRole('link', { name: 'Ver todas as contas' }).getAttribute('href')).toBe('/contas')
+    // o total continua o do banco, com todas as contas
+    expect(within(card).getByText('R$ 12.770,30')).toBeTruthy()
+  })
+
+  it('Minhas contas: todas zeradas mostra uma linha curta e o link', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [{ id: 'a3', nome: 'Zerada', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) }],
+      total: c(0),
+    })
+    montar()
+    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
+    expect(within(card).getByText('Todas as contas estão zeradas.')).toBeTruthy()
+    expect(within(card).queryByText('Zerada')).toBeNull()
+    expect(within(card).getByRole('link', { name: 'Ver todas as contas' })).toBeTruthy()
+  })
+
+  it('avisos do topo: sem aviso do banco, a faixa não aparece', async () => {
+    montar()
+    await screen.findByRole('heading', { name: 'João Marcos!' })
+    expect(mock.avisosDoInicio).toHaveBeenCalledWith('h1', hojeSP())
+    expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
+  })
+
+  it('avisos do topo: com avisos do banco, a faixa aparece no Início (e não em Análises); falha da consulta não derruba a tela', async () => {
+    mock.avisosDoInicio.mockResolvedValue([
+      { tipo: 'receivable', quantidade: 1, total: c(20000), data: '2026-10-23', cartaoId: null, cartaoNome: null },
+    ])
+    montar()
+    const faixa = await screen.findByRole('region', { name: 'Avisos' })
+    expect(within(faixa).getByRole('link', { name: /Você tem 1 conta a receber no total de R\$ 200,00/ }).getAttribute('href'))
+      .toBe('/lancamentos?mes=2026-10&tipo=receita')
+    cleanup()
+    montar('analises')
+    await screen.findByRole('heading', { name: 'Análises' })
+    expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
+    cleanup()
+    mock.avisosDoInicio.mockRejectedValue(new Error('sem a migration 057'))
+    montar()
+    expect(await screen.findByRole('heading', { name: 'João Marcos!' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
+  })
+
+  it('avisos do topo: o de vencidos leva ao card de vencidos da própria tela', async () => {
+    mock.avisosDoInicio.mockResolvedValue([
+      { tipo: 'overdue_payable', quantidade: 2, total: c(13000), data: '2026-10-01', cartaoId: null, cartaoNome: null },
+    ])
+    mock.vencidosPlanejados.mockResolvedValue({ itens: [{ id: 't5', tipo: 'expense', descricao: 'Luz', valor: c(13000), data: '2026-10-01', categoriaId: null, contaId: 'a1', destinoId: null }], total: 2 })
+    montar()
+    const link = await screen.findByRole('link', { name: /Você tem 2 contas a pagar já vencidas no total de R\$ 130,00/ })
+    expect(link.getAttribute('href')).toBe('#vencidos')
+    expect(document.getElementById('vencidos')?.textContent).toMatch(/Vencidos e precisam de atenção/)
   })
 
   it('multimoeda F1: conta em dólar no Início fica na moeda dela e em "Em outras moedas", fora do saldo em reais', async () => {

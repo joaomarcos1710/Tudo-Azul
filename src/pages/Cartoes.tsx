@@ -59,7 +59,10 @@ export default function Cartoes() {
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [painel, setPainel] = useState<Painel | null>(null)
-  const [aberto, setAberto] = useState<string | null>(null)
+  // ?cartao=<id> (aviso de fatura do Início): abre as faturas desse cartão. Lido do endereço sem depender do roteador.
+  const [aberto, setAberto] = useState<string | null>(() => {
+    try { return new URLSearchParams(window.location.search).get('cartao') } catch { return null }
+  })
   // muda a cada gravação para as faturas abertas recarregarem
   const [versao, setVersao] = useState(0)
 
@@ -91,6 +94,14 @@ export default function Cartoes() {
   }, [familiaId])
 
   useEffect(() => { void carregar() }, [carregar])
+
+  // veio do aviso do Início: leva a tela até o cartão aberto quando a lista chega (uma vez)
+  const [rolouAte, setRolouAte] = useState(false)
+  useEffect(() => {
+    if (rolouAte || !aberto || !cartoes) return
+    document.getElementById(`cartao-${aberto}`)?.scrollIntoView?.({ block: 'start' })
+    setRolouAte(true)
+  }, [rolouAte, aberto, cartoes])
 
   async function aoSalvar() {
     setPainel(null)
@@ -158,7 +169,7 @@ export default function Cartoes() {
 
       <ul className="flex flex-col gap-4">
         {ativos.map((c) => (
-          <li key={c.id}>
+          <li key={c.id} id={`cartao-${c.id}`} className="scroll-mt-4">
             <Card>
               <div className="flex items-start gap-3">
                 <IconeEmissor nome={c.nome} emissor={c.emissor} />

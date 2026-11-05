@@ -55,7 +55,11 @@ export default function Lancamentos() {
     return m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
   })
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
-  const [filtros, setFiltros] = useState<Filtros>({})
+  // ?tipo=receita|despesa (avisos do Início): abre já filtrado pelo tipo; o filtro continua editável na tela
+  const [filtros, setFiltros] = useState<Filtros>(() => {
+    const tipo = ({ receita: 'income', despesa: 'expense' } as Record<string, TipoLancamento>)[params.get('tipo') ?? '']
+    return tipo ? { tipo } : {}
+  })
   const [lancamentos, setLancamentos] = useState<Lancamento[] | null>(null)
   const [movimentosDivida, setMovimentosDivida] = useState<MovimentoDivida[]>([])
   // parcelas do contrato (empréstimo/financiamento) ainda planejadas no mês: só mostram, não entram em total nenhum

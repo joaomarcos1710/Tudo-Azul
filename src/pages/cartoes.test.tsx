@@ -118,6 +118,24 @@ describe('Cartões', () => {
     expect(screen.getByText('R$ 0,00').className).not.toContain('text-negativo')
   })
 
+  it('?cartao=<id> (aviso de fatura do Início) abre as faturas daquele cartão', async () => {
+    window.history.pushState({}, '', '/cartoes?cartao=k1')
+    try {
+      render(<Cartoes />)
+      await screen.findByText('Nubank')
+      expect(screen.getByRole('button', { name: 'Ocultar faturas' }).getAttribute('aria-expanded')).toBe('true')
+      expect(document.getElementById('cartao-k1')).toBeTruthy()
+    } finally {
+      window.history.pushState({}, '', '/')
+    }
+  })
+
+  it('sem ?cartao=, as faturas começam fechadas', async () => {
+    render(<Cartoes />)
+    await screen.findByText('Nubank')
+    expect(screen.getByRole('button', { name: 'Ver faturas' }).getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('sem cartões, convida a cadastrar', async () => {
     mock.listarCartoes.mockResolvedValue([])
     render(<Cartoes />)
