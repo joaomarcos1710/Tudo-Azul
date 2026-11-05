@@ -1,137 +1,119 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// banco de mentira com os filtros que listarComprasDeCartao usa de verdade
+// banco de mentira: a tabela debts (com os filtros que listarFaturasDoMes usa) e as funções card_months / card_items
 const fake = vi.hoisted(() => {
   const tabelas: Record<string, Record<string, unknown>[]> = {}
+  const rpcs: Record<string, (args: Record<string, unknown>) => unknown[]> = {}
+  const chamadas: [string, Record<string, unknown>][] = []
   function consulta(tabela: string) {
     const filtros: ((r: Record<string, unknown>) => boolean)[] = []
-    let faixa: [number, number] | null = null
-    let contar = false
     const b: Record<string, unknown> = {}
-    const linhas = () => (tabelas[tabela] ?? []).filter((r) => filtros.every((f) => f(r)))
-    for (const m of ['select', 'order']) b[m] = (_a?: unknown, opts?: { count?: string; head?: boolean }) => {
-      if (m === 'select' && opts?.count) contar = true
-      return b
-    }
+    b.select = () => b
     b.eq = (c: string, v: unknown) => { filtros.push((r) => r[c] === v); return b }
-    b.gte = (c: string, v: string) => { filtros.push((r) => String(r[c]) >= v); return b }
-    b.lte = (c: string, v: string) => { filtros.push((r) => String(r[c]) <= v); return b }
-    b.is = (c: string, v: null) => { filtros.push((r) => (r[c] ?? null) === v); return b }
-    b.in = (c: string, vs: unknown[]) => { filtros.push((r) => vs.includes(r[c])); return b }
-    b.range = (de: number, ate: number) => { faixa = [de, ate]; return b }
-    b.then = (ok: (r: unknown) => unknown) => {
-      const todas = linhas()
-      if (contar) return Promise.resolve(ok({ count: todas.length, data: null, error: null }))
-      return Promise.resolve(ok({ data: faixa ? todas.slice(faixa[0], faixa[1] + 1) : todas, error: null }))
-    }
+    b.then = (ok: (r: unknown) => unknown) =>
+      Promise.resolve(ok({ data: (tabelas[tabela] ?? []).filter((r) => filtros.every((f) => f(r))), error: null }))
     return b
   }
-  return { tabelas, supabase: { from: (t: string) => consulta(t) } }
+  const supabase = {
+    from: (t: string) => consulta(t),
+    rpc: (nome: string, args: Record<string, unknown>) => {
+      chamadas.push([nome, args])
+      return Promise.resolve({ data: rpcs[nome]?.(args) ?? [], error: null })
+    },
+  }
+  return { tabelas, rpcs, chamadas, supabase }
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { listarComprasDeCartao, mesmoDiaAnoPassado } from './lancamentos'
+import { listarComprasDasFaturas, listarFaturasDoMes, mesmoDiaAnoPassado, situacaoDaFatura } from './lancamentos'
+import type { Fatura } from './cartoes'
+import type { Cents } from './format'
 
-// compra de 20/10 em 3x, cartão que fecha dia 17: fechamentos em 17/11, 17/12 e 17/01 (due_date de cada parcela)
-const parcela = (extra: Record<string, unknown>) => ({
-  household_id: 'h1', debt_id: 'd1', plan: 'p1', seq: 1, description: 'Fone', purchase_date: '2026-10-20', face: '100.00', id: 'i1',
-  due_date: '2026-11-17', ...extra,
+// Nubank fecha dia 28 e vence dia 5 do mês seguinte; Itaú fecha dia 20 e vence dia 28 do mesmo mês
+const mesBanco = (label: string, closing: string, due: string, extra: Record<string, unknown> = {}) => ({
+  label, closing_date: closing, due_date: due, charged: '0', pending: '0', total: '0', paid: '0', items: 0, invoice_id: null,
+  previous_open: '0', advance_in: '0', advance_out: '0', credits: '0', ...extra,
 })
 
 beforeEach(() => {
-  fake.tabelas.debts = [{ id: 'd1', name: 'Nubank', kind: 'card', closing_day: 17, household_id: 'h1' }]
-  fake.tabelas.debt_installments = [
-    parcela({ id: 'i1', seq: 1, due_date: '2026-11-17' }), parcela({ id: 'i2', seq: 2, due_date: '2026-12-17' }),
-    parcela({ id: 'i3', seq: 3, due_date: '2027-01-17' }),
+  fake.chamadas.length = 0
+  fake.tabelas.debts = [
+    { id: 'nu', name: 'Nubank', kind: 'card', household_id: 'h1', pay_account_id: 'a1' },
+    { id: 'it', name: 'Itaú', kind: 'card', household_id: 'h1', pay_account_id: null },
+    { id: 'emp', name: 'Empréstimo', kind: 'loan', household_id: 'h1', pay_account_id: 'a1' },
   ]
-  fake.tabelas.debt_events = []
+  fake.rpcs.card_months = ({ p_debt }) => (p_debt === 'nu'
+    ? [
+        // fecha em outubro e vence em novembro: só aparece na lista de novembro
+        mesBanco('2026-10', '2026-10-28', '2026-11-05', { charged: '350.00', total: '350.00', items: 2 }),
+        mesBanco('2026-11', '2026-11-28', '2026-12-05', { pending: '80.00', total: '80.00', items: 1 }),
+      ]
+    : [
+        mesBanco('2026-11', '2026-11-20', '2026-11-28', { charged: '1234.56', total: '1234.56', paid: '1234.56', items: 3 }),
+        // fatura só com crédito avulso (sem compra, total zero): não vira linha
+        mesBanco('2026-12', '2026-12-20', '2026-12-28', { charged: '-50.00', credits: '50.00' }),
+      ])
+  fake.rpcs.card_items = ({ p_debt, p_label }) => (p_debt === 'nu' && p_label === '2026-10'
+    ? [
+        { installment_id: 'i1', plan: 'p1', seq: 1, plan_count: 1, description: 'Mercado do mês', purchase_date: '2026-10-03', face: '200.00', remaining: '0', category_id: 'mer' },
+        { installment_id: 'i2', plan: 'p2', seq: 2, plan_count: 3, description: 'Fone', purchase_date: '2026-09-10', face: '150.00', remaining: '0', category_id: 'ele' },
+      ]
+    : [])
 })
 
-describe('listarComprasDeCartao', () => {
-  it('cada parcela aparece só no mês dela, no dia da compra, com o N do plano inteiro', async () => {
-    const out = await listarComprasDeCartao('h1', '2026-10')
-    expect(out.parcelas.map((p) => [p.id, p.data, p.compra, p.parcela, p.deParcelas, p.valor, p.fechamento, p.cartaoNome])).toEqual([
-      ['i1', '2026-10-20', '2026-10-20', 1, 3, 10000, 17, 'Nubank'],
+describe('listarFaturasDoMes', () => {
+  it('uma linha por fatura que VENCE no mês, com o total do banco e a situação', async () => {
+    const nov = await listarFaturasDoMes('h1', '2026-11', {}, '2026-11-10')
+    expect(nov.map((f) => [f.cartaoNome, f.mes, f.fechamento, f.vencimento, f.total, f.pago, f.itens, f.situacao])).toEqual([
+      // venceu em 05/11 e não foi paga
+      ['Nubank', '2026-10', '2026-10-28', '2026-11-05', 35000, 0, 2, 'vencida'],
+      ['Itaú', '2026-11', '2026-11-20', '2026-11-28', 123456, 123456, 3, 'aberta'],
     ])
-    expect(out.semData).toBe(0)
-    const nov = await listarComprasDeCartao('h1', '2026-11')
-    expect(nov.parcelas.map((p) => [p.id, p.data, p.compra, p.parcela, p.deParcelas])).toEqual([['i2', '2026-11-20', '2026-10-20', 2, 3]])
-    const dez = await listarComprasDeCartao('h1', '2026-12')
-    expect(dez.parcelas.map((p) => [p.id, p.data, p.parcela])).toEqual([['i3', '2026-12-20', 3]])
+    // empréstimo não é cartão: não chama card_months para ele
+    expect(fake.chamadas.filter(([n]) => n === 'card_months').map(([, a]) => a.p_debt).sort()).toEqual(['it', 'nu'])
+    // a fatura que fecha em outubro não aparece em outubro (aparece no vencimento)
+    expect((await listarFaturasDoMes('h1', '2026-10', {}, '2026-11-10')).map((f) => f.mes)).toEqual([])
   })
 
-  it('depois da última parcela, o mês fica sem a compra', async () => {
-    expect((await listarComprasDeCartao('h1', '2027-01')).parcelas).toEqual([])
-    expect((await listarComprasDeCartao('h1', '2026-09')).parcelas).toEqual([])
+  it('fatura só de crédito avulso (sem compra e sem valor) não vira linha', async () => {
+    expect((await listarFaturasDoMes('h1', '2026-12', {}, '2026-11-10')).map((f) => [f.cartaoNome, f.mes])).toEqual([['Nubank', '2026-11']])
   })
 
-  it('compra no dia 31: em mês curto a parcela cai no último dia do mês', async () => {
-    fake.tabelas.debt_installments = [
-      parcela({ id: 'a1', plan: 'p2', seq: 1, purchase_date: '2026-01-31', due_date: '2026-02-17' }),
-      parcela({ id: 'a2', plan: 'p2', seq: 2, purchase_date: '2026-01-31', due_date: '2026-03-17' }),
-    ]
-    const fev = await listarComprasDeCartao('h1', '2026-02')
-    expect(fev.parcelas.map((p) => [p.id, p.data, p.compra])).toEqual([['a2', '2026-02-28', '2026-01-31']])
-    const jan = await listarComprasDeCartao('h1', '2026-01')
-    expect(jan.parcelas.map((p) => [p.id, p.data])).toEqual([['a1', '2026-01-31']])
+  it('receita e transferência não têm fatura; despesa tem', async () => {
+    expect(await listarFaturasDoMes('h1', '2026-11', { tipo: 'income' }, '2026-11-10')).toEqual([])
+    expect(await listarFaturasDoMes('h1', '2026-11', { tipo: 'transfer' }, '2026-11-10')).toEqual([])
+    expect(fake.chamadas).toEqual([])
+    expect((await listarFaturasDoMes('h1', '2026-11', { tipo: 'expense' }, '2026-11-10'))).toHaveLength(2)
   })
 
-  it('compra no dia do fechamento: aparece no mês da compra e avisa que a despesa conta só no mês seguinte', async () => {
-    // fecha dia 17, compra em 17/10: a parcela 1 vai para a fatura que fecha em 17/11
-    fake.tabelas.debt_installments = [parcela({ id: 'c1', plan: 'p4', seq: 1, purchase_date: '2026-10-17', due_date: '2026-11-17' })]
-    const out = await listarComprasDeCartao('h1', '2026-10')
-    expect(out.parcelas.map((p) => [p.data, p.compra, p.fechaEm])).toEqual([['2026-10-17', '2026-10-17', '2026-11-17']])
+  it('filtro de conta: só a fatura do cartão cuja conta de pagamento é aquela; cartão sem conta some', async () => {
+    expect((await listarFaturasDoMes('h1', '2026-11', { contaId: 'a1' }, '2026-11-10')).map((f) => f.cartaoNome)).toEqual(['Nubank'])
+    expect(await listarFaturasDoMes('h1', '2026-11', { contaId: 'a2' }, '2026-11-10')).toEqual([])
   })
+})
 
-  it('cartão que fecha dia 31: o fechamento de fevereiro é 28 e a parcela não some', async () => {
-    fake.tabelas.debt_installments = [
-      parcela({ id: 'd1', plan: 'p5', seq: 1, purchase_date: '2026-01-10', due_date: '2026-01-31' }),
-      parcela({ id: 'd2', plan: 'p5', seq: 2, purchase_date: '2026-01-10', due_date: '2026-02-28' }),
-      parcela({ id: 'd3', plan: 'p5', seq: 3, purchase_date: '2026-01-10', due_date: '2026-03-31' }),
-    ]
-    expect((await listarComprasDeCartao('h1', '2026-02')).parcelas.map((p) => [p.id, p.data, p.fechaEm])).toEqual([['d2', '2026-02-10', '2026-02-28']])
-    expect((await listarComprasDeCartao('h1', '2026-03')).parcelas.map((p) => [p.id, p.data])).toEqual([['d3', '2026-03-10']])
+describe('listarComprasDasFaturas (filtro de categoria)', () => {
+  it('as compras daquela categoria, uma a uma, no vencimento da fatura em que estão', async () => {
+    const faturas = await listarFaturasDoMes('h1', '2026-11', { categoriaId: 'mer' }, '2026-11-10')
+    const compras = await listarComprasDasFaturas(faturas, 'mer')
+    expect(compras.map((c) => [c.id, c.descricao, c.cartaoNome, c.vencimento, c.fechamento, c.valor, c.categoriaId])).toEqual([
+      ['i1', 'Mercado do mês', 'Nubank', '2026-11-05', '2026-10-28', 20000, 'mer'],
+    ])
+    expect(await listarComprasDasFaturas(faturas, 'outra')).toEqual([])
   })
+})
 
-  it('mais de 1000 parcelas no mês e mais de 100 planos: pagina e conta o N de cada plano', async () => {
-    fake.tabelas.debt_installments = Array.from({ length: 1101 }, (_, i) =>
-      parcela({ id: `m${i}`, plan: `pl${i}`, seq: 1, purchase_date: '2026-10-05', due_date: '2026-11-17' }))
-    const out = await listarComprasDeCartao('h1', '2026-10')
-    expect(out.parcelas).toHaveLength(1101)
-    expect(out.parcelas.every((p) => p.deParcelas === 1)).toBe(true)
+describe('situacaoDaFatura', () => {
+  const f = (x: Partial<Fatura>): Fatura => ({
+    mes: '2026-10', fechamento: '2026-10-28', vencimento: '2026-11-05', cobrado: 35000 as Cents, aCobrar: 0 as Cents, total: 35000 as Cents,
+    pago: 0 as Cents, itens: 2, faturaId: null, saldoAnterior: 0 as Cents, adiantamentoEntrada: 0 as Cents, adiantamentoSaida: 0 as Cents,
+    creditos: 0 as Cents, ...x,
   })
-
-  it('virada de ano: a parcela de janeiro mostra a compra de dezembro', async () => {
-    fake.tabelas.debt_installments = [
-      parcela({ id: 'b2', plan: 'p3', seq: 2, purchase_date: '2026-12-05', due_date: '2027-01-17' }),
-    ]
-    const jan = await listarComprasDeCartao('h1', '2027-01')
-    expect(jan.parcelas.map((p) => [p.data, p.compra, p.parcela])).toEqual([['2027-01-05', '2026-12-05', 2]])
-  })
-
-  it('compra excluída (cancelamento total) não aparece, mas o N continua sendo o plano inteiro', async () => {
-    fake.tabelas.debt_events = [{ id: 'e1', household_id: 'h1', kind: 'cancel', installment_id: 'i2', amount: '100.00', voided_at: null }]
-    expect((await listarComprasDeCartao('h1', '2026-11')).parcelas).toEqual([])
-    const out = await listarComprasDeCartao('h1', '2026-10')
-    expect(out.parcelas.map((p) => [p.id, p.deParcelas])).toEqual([['i1', 3]])
-  })
-
-  it('desconto parcial (cancelamento de parte da parcela) mostra só o que sobrou', async () => {
-    fake.tabelas.debt_events = [{ id: 'e1', household_id: 'h1', kind: 'cancel', installment_id: 'i1', amount: '10.00', voided_at: null }]
-    const out = await listarComprasDeCartao('h1', '2026-10')
-    expect(out.parcelas.find((p) => p.id === 'i1')?.valor).toBe(9000)
-  })
-
-  it('cancelamento anulado não conta (a parcela volta)', async () => {
-    fake.tabelas.debt_events = [{ id: 'e1', household_id: 'h1', kind: 'cancel', installment_id: 'i2', amount: '100.00', voided_at: '2026-10-21T10:00:00Z' }]
-    expect((await listarComprasDeCartao('h1', '2026-11')).parcelas.map((p) => p.id)).toEqual(['i2'])
-  })
-
-  it('parcelas sem data de compra não aparecem e são contadas para avisar', async () => {
-    fake.tabelas.debt_installments.push(parcela({ id: 'antiga', plan: 'p9', purchase_date: null, due_date: '2026-10-17' }))
-    const out = await listarComprasDeCartao('h1', '2026-10')
-    expect(out.parcelas.map((p) => p.id)).not.toContain('antiga')
-    expect(out.semData).toBe(1)
+  it('aberta antes do fechamento; fechada até o vencimento; vencida depois; paga quando pagou', () => {
+    expect(situacaoDaFatura(f({}), '2026-10-27')).toBe('aberta')
+    expect(situacaoDaFatura(f({}), '2026-11-05')).toBe('fechada')
+    expect(situacaoDaFatura(f({}), '2026-11-06')).toBe('vencida')
+    expect(situacaoDaFatura(f({ pago: 35000 as Cents }), '2026-11-06')).toBe('paga')
   })
 })
 
