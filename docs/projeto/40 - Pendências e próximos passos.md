@@ -31,12 +31,16 @@ atualizado: 2026-10-28
 - [ ] **Assinaturas previstas na fatura atual**: assinatura (recorrente no cartão) que ainda não foi gerada não entra no valor da fatura atual nem no da aberta.
 - [ ] **Pagamento com data futura**: "Pagar fatura" aceita data futura; decidir se bloqueia, avisa ou agenda como planejado.
 - [ ] **`card_items` líquido de estorno/cancelamento**: a linha da compra mostra o valor de face; estorno ou cancelamento parcial não aparece descontado nela.
-- [ ] **Painel abrir junto do cartão no celular**: os painéis (Nova compra, Pagar fatura…) abrem no topo da página, longe do cartão tocado.
-- [ ] **Abas de fatura começarem na atual**: hoje a primeira aba é a fatura mais antiga não paga; avaliar abrir na atual.
-- [ ] **Total das faturas do mês no topo de Cartões** (como no Início, `card_invoices_month`).
-- [ ] **Selo "Vencida"** na fatura fechada que passou do vencimento sem pagamento.
-- [ ] **Renomear "Parcelas futuras"** (inclui a fatura atual; o nome confunde ao lado de "Fatura atual").
-- [ ] **Estorno parcial na linha da compra** (ver o valor estornado e o que resta).
+- [x] **Painel abrir junto do cartão no celular** (#166): o painel abre dentro do cartão clicado, com foco no título; ao fechar, o foco volta ao botão (ou ao "⋯").
+- [x] **Abas de fatura começarem na atual** (#166): abrem na fatura do ciclo de hoje, roladas até ela; mostram as 6 anteriores e as próximas ("Ver mais antigas" mostra o resto; fechada não paga nunca fica escondida); setas, Home e End.
+- [x] **Total das faturas do mês no topo de Cartões** (#166): resumo com "Faturas que vencem em <mês>" (`card_invoices_month`, o mesmo componente do Início) e "Próxima fatura vence em <data>"; no computador, ao lado dos cartões em 2 colunas.
+- [x] **Selo "Vencida"** (#166): no destaque (com o vencimento da mais antiga, "venceu dd/mm") e nas abas; mesma regra do Início.
+- [x] **Renomear "Parcelas futuras"** (#166): "A cobrar (atual + futuras)", com a dica embaixo.
+- [x] **Estorno parcial na linha da compra** (#166): botão "Estornar" (valor até o da parcela e data; `debt_refund`). Falta você: estornar uma compra de teste e conferir a fatura e o resultado do mês. Ver também o item do `card_items` líquido acima: a linha continua mostrando o valor de face até a migration 058.
+- [ ] **#166: limite disponível total e valor total no resumo de Cartões** (referência do Mobills): são somas de dinheiro, ficam para a `card_overview` no banco (PR de desempenho), nunca somadas na tela.
+- [ ] **#166: seletor de mês no resumo de Cartões** (referência do Mobills, "NOVEMBRO ▾"): o resumo mostra só o mês de hoje; o mês das abas é por cartão e não serve. Fazer junto da `card_overview`, se o dono quiser.
+- [ ] **#166: estorno sem chave de repetição**: `debt_refund` não tem `p_idem`; o botão fica travado enquanto envia, mas rede ruim com nova tentativa pode gravar duas vezes. O banco também não confere se a soma dos estornos passa do valor da parcela (a tela só limita cada estorno ao valor da parcela). Corrigir numa migration (idempotência e teto), se o dono quiser.
+- [ ] **#166: os painéis de Editar/Excluir/Reabrir na fatura** continuam no topo da fatura escolhida (só o de Estornar abre na linha); levar para a linha se incomodar no celular.
 - [ ] **Desempenho**: uma chamada `card_overview` por família em vez de `card_months` por cartão ao abrir a tela (hoje N+1 consultas).
 - [x] **Multimoeda F1 — moeda na conta e saldos por moeda** (migration 055, #160): merge `8e62600`; **aplicada em 04/11/2026** (execução 41912792280, simulação 41912680166).
 - [x] **Multimoeda F2 — receita e despesa em moeda estrangeira e relatórios por moeda** (migration 056, #161): merge `5c70512`; **aplicada em 05/11/2026** (execução 41942726578, simulação 41942648839). Provento continua só em reais.

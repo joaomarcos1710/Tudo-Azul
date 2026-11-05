@@ -9,7 +9,8 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { opcoesDeFatura, registrarCompra } from './cartoes'
+import { estornarParcela, faturaVencida, opcoesDeFatura, registrarCompra } from './cartoes'
+import type { Fatura } from './cartoes'
 import type { Cents } from './format'
 
 beforeEach(() => { fake.estado.rpcs = [] })
@@ -53,5 +54,25 @@ describe('escolher a fatura da compra (migration 051)', () => {
       { nome: 'card_purchase_at', args: { p_debt: 'k1', p_date: '2026-07-10', p_total: '300.00', p_count: 3, p_category: 'g1', p_description: 'TV', p_invoice_offset: 0, p_idem: 'c1' } },
       { nome: 'card_purchase_at', args: { p_debt: 'k1', p_date: '2026-07-10', p_total: '1.00', p_count: 1, p_category: 'g1', p_description: 'TV', p_invoice_offset: -2 } },
     ])
+  })
+})
+
+describe('estorno de parcela e fatura vencida (#166)', () => {
+  it('estornarParcela chama debt_refund com o valor exato (centavos → decimal), a data e a fatura', async () => {
+    await estornarParcela('p1', { data: '2026-11-05', valor: 4001 as Cents, faturaId: 'f9' })
+    expect(fake.estado.rpcs).toEqual([{ nome: 'debt_refund', args: { p_installment: 'p1', p_date: '2026-11-05', p_amount: '40.01', p_invoice: 'f9' } }])
+  })
+
+  it('faturaVencida: fechada, não paga e vencimento já passado (a mesma regra do aviso do Início)', () => {
+    const f = (x: Partial<Fatura>): Fatura => ({
+      mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', cobrado: 100 as Cents, aCobrar: 0 as Cents, total: 100 as Cents,
+      pago: 0 as Cents, itens: 1, faturaId: null, saldoAnterior: 0 as Cents, adiantamentoEntrada: 0 as Cents, adiantamentoSaida: 0 as Cents,
+      creditos: 0 as Cents, ...x,
+    })
+    expect(faturaVencida(f({}), '2026-10-26')).toBe(true)
+    expect(faturaVencida(f({}), '2026-10-25')).toBe(false) // no dia do vencimento ainda não venceu
+    expect(faturaVencida(f({ pago: 100 as Cents }), '2026-11-05')).toBe(false)
+    expect(faturaVencida(f({ vencimento: null }), '2026-11-05')).toBe(false)
+    expect(faturaVencida(f({ fechamento: '2026-11-17', vencimento: '2026-11-25' }), '2026-11-05')).toBe(false) // aberta
   })
 })

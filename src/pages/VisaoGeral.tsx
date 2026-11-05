@@ -10,6 +10,7 @@ import { useAuth } from '../lib/auth'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { resumoDosCartoes, totalFaturasDoMes } from '../lib/cartoes'
+import { FaturasDoMes } from '../components/ui/FaturasDoMes'
 import type { ResumoCartao, TotalFaturasMes } from '../lib/cartoes'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
@@ -425,16 +426,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <CardTitle>Cartões</CardTitle>
             <Link to="/cartoes" className="mb-3 text-sm font-semibold text-azul hover:underline">Ver cartões</Link>
           </div>
-          {dados.faturasDoMes && dados.faturasDoMes.faturas > 0 && (
-            <div className="mb-3 rounded-lg bg-fundo p-3" data-testid="faturas-do-mes">
-              <p className="text-sm text-slate-500">Faturas que vencem em {formatMonth(mes).replace(/ de \d{4}$/, '')}</p>
-              <p className="tabular-nums text-2xl font-bold tracking-tight">{formatBRL(dados.faturasDoMes.total)}</p>
-              <p className="text-xs text-slate-500">
-                {dados.faturasDoMes.faturas === 1 ? '1 fatura' : `${dados.faturasDoMes.faturas} faturas`}
-                {dados.faturasDoMes.pago > 0 && <> · já pago {formatBRL(dados.faturasDoMes.pago)} · falta {formatBRL(dados.faturasDoMes.falta)}</>}
-              </p>
-            </div>
-          )}
+          <FaturasDoMes mes={mes} dados={dados.faturasDoMes} className="mb-3" />
           <ul className="space-y-3">
             {dados.cartoes.map((c) => (
               <li key={c.id} className="rounded-lg border border-slate-100 p-3 text-sm">
