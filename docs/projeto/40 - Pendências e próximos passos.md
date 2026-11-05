@@ -27,6 +27,14 @@ atualizado: 2026-10-28
 - [x] **Cartões: "Fatura atual" do ciclo de hoje** (#163): antes era a primeira fatura aberta com linha em `card_months` (podia ser a de 1–2 meses à frente).
 - [x] **Cartões: fatura fechada não cobrada não é "Paga"** (#163): `situacaoFatura` usa o `total`.
 
+### Relatórios (#171, 05/11/2026)
+- [x] **Relatórios e exportação redesenhados** (#171): filtros numa folha, contas arquivadas escondidas, gráfico, tabela compacta com Saldo, Acumulado opcional, exportação num card compacto.
+- [ ] **Conferir no iPad em retrato** (você): folha de filtros, carrossel de mês, gráfico e tabela sem rolar para o lado.
+- [ ] **Saldo com filtro de conta**: hoje a coluna some quando há conta (ou pessoa) escolhida, porque `balance_totals_projected` não filtra. Precisa de uma função do banco com `p_accounts` (migration nova), nunca soma na tela.
+- [ ] **Saldo em uma chamada só**: hoje é uma chamada de `balance_totals_projected` por período (até 31 no diário). Uma função do banco que devolva a série de saldos (como a de patrimônio do PR de desempenho) evita as idas e vindas.
+- [ ] **Unificar painéis**: `PainelLancamento` (Lançamentos) passar a usar `ui/Folha` (que prende o foco e devolve ao botão).
+- [ ] **Eixo do gráfico de linha com negativo** usa hífen ("R$ -20 mil", `brlCompacto`); trocar pelo "−" tipográfico em todos os gráficos.
+
 ### Achados da análise da aba Cartões (05/11/2026), ainda abertos
 - [ ] **Assinaturas previstas na fatura atual**: assinatura (recorrente no cartão) que ainda não foi gerada não entra no valor da fatura atual nem no da aberta.
 - [ ] **Pagamento com data futura**: "Pagar fatura" aceita data futura; decidir se bloqueia, avisa ou agenda como planejado.

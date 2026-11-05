@@ -78,4 +78,15 @@ describe('Relatórios', () => {
     const botao = screen.getByRole('button', { name: 'Escolha o período' }) as HTMLButtonElement
     expect(botao.disabled).toBe(true)
   })
+
+  it('exportação de lançamentos: card compacto de uma linha, e a frase do cartão leva à exportação completa', async () => {
+    render(<Relatorios />)
+    expect(screen.getByText('Exportar lançamentos (CSV)')).toBeTruthy()
+    expect(screen.queryByText(/Compras no cartão não estão aqui/)).toBeNull()
+    const link = screen.getByRole('link', { name: 'exportação completa' })
+    expect(link.closest('p')!.textContent).toMatch(/Compras no cartão: veja a exportação completa\./)
+    expect(link.getAttribute('href')).toBe('#exportacao-completa')
+    expect(document.getElementById('exportacao-completa')!.textContent).toMatch(/Exportação completa \(8 arquivos CSV\)/)
+    expect(screen.getByRole('button', { name: 'Preparar exportação completa' })).toBeTruthy()
+  })
 })
