@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
 import type { Cents } from './format'
-import { formatBRL, formatBRLCampo, parseBRL } from './format'
+import { formatBRL, formatBRLCampo, formatBRLSinal, parseBRL } from './format'
 import { MASCARA, definirValoresOcultos, valoresOcultos } from './privacidade'
 import { brlCompacto } from '../components/graficos/LinhaAcumulada'
 import { AppShell } from '../components/layout/AppShell'
@@ -30,6 +30,12 @@ describe('ocultar valores', () => {
     // o que preenche um campo de edição lê de volta o mesmo valor, com ou sem máscara
     expect(parseBRL(formatBRLCampo(c(125050)))).toBe(125050)
     expect(parseBRL(formatBRLCampo(c(-3000)))).toBe(-3000)
+  })
+
+  it('formatBRLSinal também devolve só a máscara, sem revelar o sinal', () => {
+    definirValoresOcultos(true)
+    expect(formatBRLSinal(c(-3000))).toBe(MASCARA)
+    expect(formatBRLSinal(c(3000))).toBe(MASCARA)
   })
 
   it('o rótulo compacto do gráfico também some', () => {

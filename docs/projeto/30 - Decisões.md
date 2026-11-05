@@ -211,3 +211,13 @@ Com o "pode" do dono, inspirado no Organizze ("Gastos de cartão com base na: da
 - **Compra e parcela contam a parcela mesmo com a fatura aberta** (a compra já foi feita); a fatura conta só o cobrado. É o comportamento esperado de "data da compra"; no mês corrente as bases podem somar valores diferentes.
 - **Assinatura de cartão fica pela fatura nas três bases**: cada cobrança é uma "compra" do mês; mover para a data da ocorrência só trocaria o dia, não o mês, e confundiria com a projeção.
 - **Função nova, sem mexer na antiga**: `expenses_by_category` continua igual (outras telas e o gráfico na base da fatura a chamam), e o front só chama a nova nas bases compra/parcela — assim o gráfico não quebra se o front sair antes da 062 ser aplicada.
+
+## 05/11/2026 — Relatórios e exportação redesenhados (#171)
+A pedido do dono ("muito feia e muito ruim", prints do iPad em retrato), com a referência do Balanço do Organizze.
+- **Filtros numa folha com "Aplicar"**, e na tela só a linha-resumo: o muro de 21 caixas de conta empurrava a tabela para baixo. Mudar vários filtros e aplicar uma vez também evita uma consulta ao banco a cada toque.
+- **Contas arquivadas escondidas por padrão** (atrás de "Mostrar arquivadas"): quase nunca são filtro do relatório e eram metade da lista. Arquivada já escolhida continua à vista.
+- **Acumulado vira opção** ("Mostrar acumulado", com o rótulo "soma dos resultados desde <primeiro período>. Não é saldo"): somava desde o começo da janela de 12 meses e parecia saldo. No lugar, a coluna **Saldo** = saldo total das contas em reais no último dia de cada período, de `balance_totals_projected` (uma chamada por período: 5 a 31; com "Todos", inclui planejados e faturas a pagar, como no Calendário). O front não soma nada.
+- **Saldo só sem filtro de conta e de autor**: a função do banco não filtra por conta, e somar o saldo das contas escolhidas na tela quebraria a regra do dinheiro; a tela explica numa linha. Filtrar o saldo por conta fica para uma função nova do banco (Pendências).
+- **Saldo num gráfico de linha à parte, reto, abaixo das barras** (o Organizze sobrepõe uma curva suavizada): dois eixos no mesmo gráfico misturam escalas, e a curva inventa valores entre os períodos. Cor aqua (3º passo da paleta, validada com azul e laranja em todos os pares); como o contraste dela no branco é 2,82:1, o último valor vai escrito na ponta e a tabela fica logo abaixo.
+- **Gráficos na largura real da tela** (`useLargura`, também no Balanço de Análises): com a largura fixa de 640, no iPad em retrato o texto do gráfico encolhia para ~8px.
+- **Folha nova (`ui/Folha`) em vez de reaproveitar o painel de Lançamentos**: aquele é local de `Lancamentos.tsx` e não prende o foco; unificar os dois fica em Pendências.

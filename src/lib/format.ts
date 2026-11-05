@@ -34,6 +34,15 @@ export function formatBRL(cents: Cents): string {
   return valoresOcultos() ? MASCARA : brlReal(cents)
 }
 
+/**
+ * Como `formatBRL`, mas o negativo sai com o sinal tipográfico de menos ("−R$ 200,00", U+2212), que não se separa
+ * do número nem parece hífen. Para tabelas de relatório. Com "ocultar valores", só a máscara (sem revelar o sinal).
+ */
+export function formatBRLSinal(cents: Cents): string {
+  if (valoresOcultos()) return MASCARA
+  return cents < 0 ? `−${brlReal(Math.abs(cents) as Cents)}` : brlReal(cents)
+}
+
 /** Valor em centavos numa moeda (BRL, USD, EUR...), respeitando "ocultar valores" como o formatBRL. */
 export function formatMoeda(cents: Cents, moeda: string): string {
   if (moeda === 'BRL') return formatBRL(cents)
