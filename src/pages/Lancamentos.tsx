@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
@@ -6,6 +6,8 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
+import { MenuAcoes } from '../components/ui/MenuAcoes'
+import type { AcaoMenu } from '../components/ui/MenuAcoes'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
@@ -22,7 +24,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, parseBRL, primeiraMaiuscula, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
+  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
   listarMovimentosDeDivida, marcarComoPago,
   moverParaLixeira, restaurarDaLixeira, resumoDoMes, resumoPorMoeda, somarMeses, valoresDasParcelas,
 } from '../lib/lancamentos'
@@ -31,7 +33,7 @@ import type { ParcelaDivida } from '../lib/dividas'
 import type { CompraDaFatura, CreditoDeCartao, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
-import { ComprasDaFatura, TabelaLancamentos, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, useTelaGrande, valorComSinal } from './LancamentosTabela'
+import { ComprasDaFatura, NomeCategoria, TabelaLancamentos, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, useTelaGrande, valorComSinal } from './LancamentosTabela'
 import type { ItemLista } from './LancamentosTabela'
 import { criarRecorrencia, frequencias } from '../lib/recorrencias'
 
@@ -143,10 +145,17 @@ export default function Lancamentos() {
     const meu = ++pedido.current
     try {
       // faturas do cartão carregam à parte: se falharem, a lista de conta continua e só este bloco avisa.
-      // Com filtro de categoria, as compras daquela categoria saem uma a uma (o total da fatura mistura categorias).
+      // Com filtro de categoria, as compras e os créditos daquela categoria saem um a um (o total da fatura mistura categorias).
       const categoria = filtros.categoriaId
-      const cartao = listarFaturasDoMes(familiaId, mes, filtros, hojeSP())
-        .then(async (fs) => (categoria ? { faturas: [], compras: await listarComprasDasFaturas(fs, categoria) } : { faturas: fs, compras: [] }))
+      const hoje = hojeSP()
+      const cartao = listarFaturasDoMes(familiaId, mes, filtros, hoje)
+        .then(async (fs) => (categoria
+          ? {
+              faturas: [], compras: await listarComprasDasFaturas(fs, categoria),
+              // falha nos créditos não tira as compras da tela
+              creditos: await listarCreditosDasFaturas(fs, categoria, hoje).catch(() => [] as CreditoDeCartao[]),
+            }
+          : { faturas: fs, compras: [], creditos: [] as CreditoDeCartao[] }))
         .catch(() => null)
       // parcela de contrato não tem categoria nem é receita/transferência; com filtro de conta, só as debitadas nela
       const [deMes, ateMes] = limitesDoMes(mes)
@@ -154,8 +163,12 @@ export default function Lancamentos() {
         ? Promise.resolve([] as ParcelaDivida[])
         : listarParcelasDivida(familiaId, deMes, ateMes).catch(() => [] as ParcelaDivida[])
             .then((ps) => (filtros.contaId ? ps.filter((p) => p.contaPagamentoId === filtros.contaId) : ps))
-      // falha nos créditos do cartão não derruba a lista
-      const creditos = listarCreditosDeCartao(familiaId, mes, filtros, hojeSP()).catch(() => [] as CreditoDeCartao[])
+      // créditos do cartão (decisão do dono, 05/11/2026): sem filtro ficam DENTRO da fatura; soltos só com filtro de Receita
+      // (no fechamento, o dia em que contam; a fatura não aparece em Receita, então não duplica) ou de categoria (acima).
+      // Falha nos créditos não derruba a lista.
+      const creditos = filtros.tipo === 'income'
+        ? listarCreditosDeCartao(familiaId, mes, filtros, hoje).catch(() => [] as CreditoDeCartao[])
+        : Promise.resolve([] as CreditoDeCartao[])
       // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
       const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(() => [] as ResumoPorMoeda[])
       const [l, r, md, cc, pc, cr, pm] = await Promise.all([
@@ -166,7 +179,7 @@ export default function Lancamentos() {
       setLancamentos(l)
       setMovimentosDivida(md)
       setParcelasContrato(pc)
-      setCreditosCartao(cr)
+      setCreditosCartao([...cr, ...(cc?.creditos ?? [])])
       setFaturas(cc?.faturas ?? [])
       setComprasCategoria(cc?.compras ?? [])
       setComprasFalharam(cc === null)
@@ -211,7 +224,7 @@ export default function Lancamentos() {
     ...faturas.map((f) => ({ origem: 'fatura' as const, f, data: f.vencimento })),
     ...comprasCategoria.map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
     ...parcelasContrato.map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
-    ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.data })),
+    ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
   ].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
   const porDia: [string, Item[]][] = []
   for (const it of itens) {
@@ -262,11 +275,11 @@ export default function Lancamentos() {
       <ResultadoEmOutrasMoedas porMoeda={porMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
 
       {movimentosDivida.length > 0 && (
-        <p className="mb-4 text-xs text-slate-500">
+        <Explicacao resumo="Cartão/dívida: está aqui para o extrato bater com o banco.">
           Itens <strong>Cartão/dívida</strong> mexem no saldo da conta, então aparecem aqui para o extrato bater com o banco.
           <strong> Pagamento de fatura e amortização não são despesa</strong>: a compra já contou no mês da fatura.
           {' '}<strong>Juros e tarifa são despesa</strong> e já estão em "Despesas pagas", na categoria deles.
-        </p>
+        </Explicacao>
       )}
 
 
@@ -327,11 +340,12 @@ export default function Lancamentos() {
         <div className="mb-4"><Aviso tipo="info">Não foi possível carregar as faturas dos cartões agora. Elas continuam em Cartões.</Aviso></div>
       )}
       {(faturas.length > 0 || comprasCategoria.length > 0) && (
-        <p className="mb-4 text-xs text-slate-500">
-          A <strong>fatura</strong> do cartão aparece no dia do vencimento, com o total calculado pelo banco; as compras ficam em "Ver compras".
-          {' '}Nos totais e relatórios, a compra conta como despesa no <strong>fechamento</strong> da fatura.
+        <Explicacao resumo="Fatura no vencimento, com compras e créditos dentro.">
+          A <strong>fatura</strong> do cartão aparece no dia do vencimento, com o total calculado pelo banco (já descontados os
+          créditos); toque nela para ver as compras e os <strong>créditos e reembolsos</strong>.
+          {' '}Nos totais e relatórios, a compra conta como despesa e o crédito como receita no <strong>fechamento</strong> da fatura.
           {' '}<strong>Pagamento da fatura</strong> é o dinheiro saindo da conta: não é outra despesa.
-        </p>
+        </Explicacao>
       )}
 
       {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && creditosCartao.length === 0 && faturas.length === 0
@@ -360,131 +374,84 @@ export default function Lancamentos() {
                     // só com filtro de categoria: a compra solta, no dia do vencimento da fatura em que está
                     const c = item.c
                     return (
-                      <li key={`cartao-${c.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
-                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                        <IconeCategoria visual={visualPorId(c.categoriaId, categoriaPorId, 'expense')} />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">
-                            {c.descricao}
-                            {c.deParcelas > 1 && <span className="ml-2 text-xs text-slate-500">parcela {c.parcela}/{c.deParcelas}</span>}
-                            <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">No cartão</span>
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            {nomeCategoria.get(c.categoriaId ?? '') ?? 'Sem categoria'} · fatura {c.cartaoNome}
-                            {c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''}
-                            {` · a despesa conta em ${formatDate(c.fechamento)} (fechamento da fatura)`}
-                          </p>
-                        </div>
-                          <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatBRL(c.valor)}</span>
-                        </div>
-                        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
-                          <Link to={`/cartoes?cartao=${c.cartaoId}`} className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
-                        </div>
-                      </li>
+                      <LinhaLista key={`cartao-${c.id}`} icone={<IconeCategoria visual={visualPorId(c.categoriaId, categoriaPorId, 'expense')} />}
+                        titulo={<>{c.descricao}{c.deParcelas > 1 && <span className="ml-2 text-xs font-normal text-slate-500">parcela {c.parcela}/{c.deParcelas}</span>}</>}
+                        categoria={<NomeCategoria id={c.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
+                        etiquetas={[<Etiqueta key="c" estilo="bg-azul-claro text-marinho">No cartão</Etiqueta>]}
+                        detalhe={`fatura ${c.cartaoNome}${c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''} · a despesa conta em ${formatDate(c.fechamento)} (fechamento da fatura)`}
+                        valor={formatBRL(c.valor)} corValor="text-slate-700"
+                        acoes={<Link to={`/cartoes?cartao=${c.cartaoId}`} aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
                   if (item.origem === 'credito') {
+                    // solto só com filtro de categoria (no vencimento, como as compras) ou de Receita (no fechamento)
                     const k = item.k
                     return (
-                      <li key={`credito-${k.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
-                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                        <IconeCategoria visual={visualPorId(k.categoriaId, categoriaPorId, 'income')} />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">
-                            {k.descricao}
-                            <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">Crédito no cartão</span>
-                            {k.planejado && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado</span>}
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            {nomeCategoria.get(k.categoriaId ?? '') ?? 'Sem categoria'} · {k.cartaoNome}
-                            {k.dataCredito !== k.data ? ` · crédito de ${formatDate(k.dataCredito)}` : ''}
-                            {` · a receita conta em ${formatDate(k.data)} (fechamento da fatura)`}
-                          </p>
-                        </div>
-                          <span className="shrink-0 tabular-nums font-semibold text-positivo">+{formatBRL(k.valor)}</span>
-                        </div>
-                        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
-                          <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
-                        </div>
-                      </li>
+                      <LinhaLista key={`credito-${k.id}`} icone={<IconeCategoria visual={visualPorId(k.categoriaId, categoriaPorId, 'income')} />}
+                        titulo={k.descricao}
+                        categoria={<NomeCategoria id={k.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
+                        etiquetas={[
+                          <Etiqueta key="c" estilo="bg-azul-claro text-marinho">Crédito no cartão</Etiqueta>,
+                          ...(k.planejado ? [<Etiqueta key="p" estilo="bg-planejado-fundo text-planejado">Planejado</Etiqueta>] : []),
+                        ]}
+                        detalhe={`${k.vencimento ? 'fatura ' : ''}${k.cartaoNome}${k.dataCredito !== k.data ? ` · crédito de ${formatDate(k.dataCredito)}` : ''} · a receita conta em ${formatDate(k.data)} (fechamento da fatura)`}
+                        valor={`+${formatBRL(k.valor)}`} corValor="text-positivo"
+                        acoes={<Link to="/cartoes" aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
                   if (item.origem === 'contrato') {
                     const p = item.p
                     return (
-                      <li key={`contrato-${p.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
-                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                        <IconeCategoria fixo="cartao" />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">
-                            {p.nomeDivida} · parcela {p.numero}
-                            <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado · contrato</span>
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            {p.formaPagamento === 'account_debit' ? `Débito em ${nomeConta.get(p.contaPagamentoId ?? '') ?? 'conta'}` : p.formaPagamento === 'payroll' ? 'Desconto em folha' : p.formaPagamento === 'boleto' ? 'Boleto' : 'Pagamento manual'}
-                            {' · só entra no saldo e nas despesas quando você der baixa'}
-                          </p>
-                        </div>
-                          <span className="shrink-0 tabular-nums font-semibold text-slate-700">−{formatBRL(p.valor)}</span>
-                        </div>
-                        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
-                          <Link to={`/dividas?baixar=${p.id}`} aria-label={`Baixar parcela ${p.numero} de ${p.nomeDivida}`}
-                            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Baixar parcela</Link>
-                        </div>
-                      </li>
+                      <LinhaLista key={`contrato-${p.id}`} icone={<IconeCategoria fixo="cartao" />}
+                        titulo={`${p.nomeDivida} · parcela ${p.numero}`}
+                        etiquetas={[<Etiqueta key="p" estilo="bg-planejado-fundo text-planejado">Planejado · contrato</Etiqueta>]}
+                        detalhe={`${p.formaPagamento === 'account_debit' ? `Débito em ${nomeConta.get(p.contaPagamentoId ?? '') ?? 'conta'}` : p.formaPagamento === 'payroll' ? 'Desconto em folha' : p.formaPagamento === 'boleto' ? 'Boleto' : 'Pagamento manual'} · só entra no saldo e nas despesas quando você der baixa`}
+                        valor={`−${formatBRL(p.valor)}`} corValor="text-slate-700"
+                        acoes={<Link to={`/dividas?baixar=${p.id}`} aria-label={`Baixar parcela ${p.numero} de ${p.nomeDivida}`} className={linkCompacto}>Baixar</Link>} />
                     )
                   }
                   if (item.origem === 'divida') {
                     const m = item.m
                     return (
-                      <li key={`divida-${m.id}`} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
-                        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                        <IconeCategoria fixo="cartao" />
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium">
-                            {m.descricao}
-                            <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                              {m.jaEmDespesas ? 'Cartão/dívida · já em despesas' : 'Cartão/dívida'}
-                            </span>
-                          </p>
-                          <p className="text-sm text-slate-500">{nomeConta.get(m.contaId) ?? '?'}</p>
-                        </div>
-                          <span className={`shrink-0 tabular-nums font-semibold ${m.valor < 0 ? 'text-slate-700' : 'text-positivo'}`}>
-                            {m.valor < 0 ? '−' : '+'}{formatBRL(Math.abs(m.valor) as Cents)}
-                          </span>
-                        </div>
-                        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
-                          <Link to="/cartoes" className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
-                        </div>
-                      </li>
+                      <LinhaLista key={`divida-${m.id}`} icone={<IconeCategoria fixo="cartao" />} titulo={m.descricao}
+                        categoria={<span>{nomeConta.get(m.contaId) ?? '?'}</span>}
+                        etiquetas={[<Etiqueta key="d" estilo="bg-slate-100 text-slate-600">{m.jaEmDespesas ? 'Cartão/dívida · já em despesas' : 'Cartão/dívida'}</Etiqueta>]}
+                        valor={`${m.valor < 0 ? '−' : '+'}${formatBRL(Math.abs(m.valor) as Cents)}`} corValor={m.valor < 0 ? 'text-slate-700' : 'text-positivo'}
+                        acoes={<Link to="/cartoes" aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
                   const l = item.l
                   const v = valorComSinal(l, moedaConta.get(l.contaId) ?? 'BRL')
-                  // só a categoria; a transferência não tem categoria, então mostra de qual conta para qual
-                  const subtitulo = l.tipo === 'transfer'
-                    ? `${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`
-                    : nomeCategoria.get(l.categoriaId ?? '') ?? 'Sem categoria'
+                  const nome = l.descricao || rotuloTipo[l.tipo]
+                  // abaixo de 1024px: a ação principal (marcar pago) num botão compacto de 1 toque; tudo também no menu ⋯
+                  const acoes: AcaoMenu[] = [
+                    ...(l.status === 'planned' ? [{ rotulo: 'Marcar pago', aoEscolher: () => { setEditando(null); setPagando(l) }, desabilitado: pagando !== null }] : []),
+                    { rotulo: 'Editar', aoEscolher: () => setEditando(l) },
+                    { rotulo: 'Excluir', aoEscolher: () => { void excluir(l) }, perigo: true },
+                  ]
                   return (
-                    <li key={l.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-5">
-                      <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-                      {l.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" /> : <IconeCategoria visual={visualPorId(l.categoriaId, categoriaPorId, l.tipo)} />}
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium">
-                          {l.descricao || rotuloTipo[l.tipo]}
-                          {l.status === 'planned' && <span className="ml-2 rounded bg-planejado-fundo px-2 py-0.5 text-xs font-medium text-planejado">Planejado</span>}
-                          {l.recorrente && <span className="ml-2 text-xs text-slate-500" title="Gerado por um recorrente">↻ recorrente</span>}
-                        </p>
-                        <p className="text-sm text-slate-500">{subtitulo}</p>
-                      </div>
-                        <span className={`shrink-0 tabular-nums font-semibold ${v.cor}`}>{v.texto}</span>
-                      </div>
-                      <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
-                        {l.status === 'planned' && <Button variante="fantasma" compacto onClick={() => { setEditando(null); setPagando(l) }} disabled={pagando !== null}>Marcar pago</Button>}
-                        <Button variante="fantasma" compacto onClick={() => setEditando(l)}>Editar</Button>
-                        <Button variante="discreto" compacto onClick={() => excluir(l)}>Excluir</Button>
-                      </div>
-                    </li>
+                    <LinhaLista key={l.id}
+                      icone={l.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" /> : <IconeCategoria visual={visualPorId(l.categoriaId, categoriaPorId, l.tipo)} />}
+                      titulo={nome}
+                      // só a categoria (a folha); a transferência não tem categoria, então mostra de qual conta para qual
+                      categoria={l.tipo === 'transfer'
+                        ? <span>{`${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`}</span>
+                        : <NomeCategoria id={l.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
+                      etiquetas={[
+                        ...(l.status === 'planned' ? [<Etiqueta key="p" estilo="bg-planejado-fundo text-planejado">Planejado</Etiqueta>] : []),
+                        ...(l.recorrente ? [<span key="r" className="shrink-0" title="Gerado por um recorrente"><span aria-hidden="true">↻</span><span className="sr-only">recorrente</span></span>] : []),
+                      ]}
+                      valor={v.texto} corValor={v.cor}
+                      acoes={<>
+                        {l.status === 'planned' && (
+                          <button type="button" aria-label="Marcar pago" title={`Marcar pago: ${nome}`} disabled={pagando !== null}
+                            onClick={() => { setEditando(null); setPagando(l) }}
+                            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-lg font-bold text-pago hover:bg-pago-fundo disabled:cursor-not-allowed disabled:opacity-50">
+                            <span aria-hidden="true">✓</span>
+                          </button>
+                        )}
+                        <MenuAcoes rotulo={`Ações de ${nome}`} acoes={acoes} />
+                      </>} />
                   )
                 })}
               </ul>
@@ -497,42 +464,96 @@ export default function Lancamentos() {
   )
 }
 
+const linkCompacto = 'inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-azul hover:bg-azul-claro'
+
+function Etiqueta({ estilo, children }: { estilo: string; children: ReactNode }) {
+  return <span className={`shrink-0 whitespace-nowrap rounded px-1 py-0.5 text-xs font-medium sm:px-1.5 ${estilo}`}>{children}</span>
+}
+
+/** Uma linha curta com (i): a explicação inteira abre embaixo (details/summary: teclado e leitor de tela de graça). */
+function Explicacao({ resumo, children }: { resumo: string; children: ReactNode }) {
+  return (
+    <details className="mb-4 text-xs text-slate-500">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-400 font-bold">i</span>
+        <span className="min-w-0 truncate">{resumo}</span>
+        <span className="sr-only">(mostrar explicação)</span>
+      </summary>
+      <p className="mt-1">{children}</p>
+    </details>
+  )
+}
+
 /**
- * Uma fatura de cartão na lista: total e situação vindos do banco (card_months); "Ver compras" abre as parcelas da fatura
- * (card_items, carregadas só ao abrir). Só leitura: não é dinheiro saindo da conta (isso é o "Pagamento da fatura").
+ * Uma linha da lista (celular e tablet, abaixo de 1024px), no máximo 2 linhas de texto: título (até 2 linhas, corta com
+ * reticências) e metadados numa linha só (categoria · etiquetas · detalhe, cortando o que não couber; o detalhe inteiro
+ * fica no `title`). O valor tem coluna própria à direita (nowrap, tabular), nunca por cima do texto; as ações, embaixo dele.
+ */
+function LinhaLista({ icone, titulo, categoria, etiquetas = [], detalhe, valor, corValor, acoes }: {
+  icone: ReactNode; titulo: ReactNode; categoria?: ReactNode; etiquetas?: ReactNode[]; detalhe?: string
+  valor: string; corValor: string; acoes?: ReactNode
+}) {
+  return (
+    <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-3 sm:px-5">
+      {icone}
+      <Corpo titulo={titulo} categoria={categoria} etiquetas={etiquetas} detalhe={detalhe} />
+      <div className="flex shrink-0 flex-col items-end">
+        <span data-valor className={`whitespace-nowrap tabular-nums font-semibold ${corValor}`}>{valor}</span>
+        {acoes && <div className="-mr-2 flex items-center">{acoes}</div>}
+      </div>
+    </li>
+  )
+}
+
+function Corpo({ titulo, categoria, etiquetas = [], detalhe }: { titulo: ReactNode; categoria?: ReactNode; etiquetas?: ReactNode[]; detalhe?: string }) {
+  const partes: ReactNode[] = [
+    // a categoria tem prioridade (até 65% da linha); o detalhe é o primeiro a ser cortado
+    ...(categoria ? [<span key="cat" className="max-w-[65%] shrink-0 truncate">{categoria}</span>] : []),
+    ...etiquetas,
+    ...(detalhe ? [<span key="det" className="min-w-0 flex-1 truncate" title={detalhe}>{detalhe}</span>] : []),
+  ]
+  return (
+    <span className="block min-w-0">
+      <span className="line-clamp-2 break-words font-medium">{titulo}</span>
+      {partes.length > 0 && (
+        <span data-metadados className="mt-0.5 flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-xs text-slate-500 sm:gap-1.5 sm:text-sm">
+          {partes.map((p, i) => (
+            <Fragment key={i}>{i > 0 && <span aria-hidden="true" className="shrink-0">·</span>}{p}</Fragment>
+          ))}
+        </span>
+      )}
+    </span>
+  )
+}
+
+/**
+ * Uma fatura de cartão na lista: total e situação vindos do banco (card_months, que já desconta os créditos). A linha
+ * inteira abre e fecha as compras e os créditos da fatura (carregados só ao abrir); "Ver em Cartões" fica lá dentro.
+ * Só leitura: não é dinheiro saindo da conta (isso é o "Pagamento da fatura").
  */
 function LinhaFatura({ fatura: f, categoriaPorId, nomeCategoria }: {
   fatura: FaturaDoMes; categoriaPorId: Map<string, Categoria>; nomeCategoria: Map<string, string>
 }) {
-  const { aberto, compras, erro, alternar, idLista } = useComprasDaFatura(f)
+  const { aberto, compras, creditos, erro, alternar, idLista } = useComprasDaFatura(f)
   const s = rotuloSituacaoFatura[f.situacao]
-
   return (
-    <li className="px-4 py-3 sm:px-5">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-        <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
-          <IconeCategoria fixo="cartao" />
-          <div className="min-w-0 flex-1">
-            <p className="font-medium">
-              Fatura {f.cartaoNome}
-              <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${s.estilo}`}>{s.texto}</span>
-            </p>
-            <p className="text-sm text-slate-500">
-              Fecha em {formatDate(f.fechamento)} · vence em {formatDate(f.vencimento)} · {f.itens === 1 ? '1 compra' : `${f.itens} compras`}
-              {f.pago > 0 && f.situacao !== 'paga' ? ` · pago ${formatBRL(f.pago)}` : ''}
-            </p>
-          </div>
-          <span className="shrink-0 tabular-nums font-semibold text-slate-700">{formatBRL(f.total)}</span>
+    <li>
+      <button type="button" onClick={alternar} aria-expanded={aberto} aria-controls={idLista}
+        className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-3 text-left hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-azul sm:px-5">
+        <IconeCategoria fixo="cartao" />
+        <Corpo titulo={`Fatura ${f.cartaoNome}`} etiquetas={[<Etiqueta key="s" estilo={s.estilo}>{s.texto}</Etiqueta>]} detalhe={resumoDaFatura(f)} />
+        <span className="flex shrink-0 items-start gap-1">
+          <span data-valor className="whitespace-nowrap tabular-nums font-semibold text-slate-700">{formatBRL(f.total)}</span>
+          <span aria-hidden="true" className="w-4 text-center text-slate-500">{aberto ? '▾' : '▸'}</span>
+          <span className="sr-only">{aberto ? 'Esconder compras' : 'Ver compras'}</span>
+        </span>
+      </button>
+      {aberto && (
+        <div className="px-4 pb-3 sm:px-5">
+          <ComprasDaFatura f={f} compras={compras} creditos={creditos} erro={erro} idLista={idLista} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />
+          <Link to={`/cartoes?cartao=${f.cartaoId}`} aria-label={`Ver fatura ${f.cartaoNome} em Cartões`} className={linkCompacto}>Ver em Cartões</Link>
         </div>
-        <div className="-ml-3 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
-          <Button variante="fantasma" compacto onClick={alternar} aria-expanded={aberto} aria-controls={idLista}>
-            {aberto ? 'Esconder compras' : 'Ver compras'}
-          </Button>
-          <Link to={`/cartoes?cartao=${f.cartaoId}`} aria-label={`Ver fatura ${f.cartaoNome} em Cartões`}
-            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">Ver em Cartões</Link>
-        </div>
-      </div>
-      {aberto && <ComprasDaFatura f={f} compras={compras} erro={erro} idLista={idLista} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
+      )}
     </li>
   )
 }

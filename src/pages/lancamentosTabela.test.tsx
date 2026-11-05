@@ -11,6 +11,7 @@ const mock = vi.hoisted(() => ({
   listarFaturasDoMes: vi.fn(),
   listarCreditosDeCartao: vi.fn(),
   listarComprasDaFatura: vi.fn(),
+  listarCreditosDaFaturaDoMes: vi.fn(),
   listarCartoes: vi.fn(),
   resumoDoMes: vi.fn(),
   resumoPorMoeda: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
   listarFaturasDoMes: mock.listarFaturasDoMes,
   listarCreditosDeCartao: mock.listarCreditosDeCartao,
   listarComprasDaFatura: mock.listarComprasDaFatura,
+  listarCreditosDaFaturaDoMes: mock.listarCreditosDaFaturaDoMes,
   resumoDoMes: mock.resumoDoMes,
   resumoPorMoeda: mock.resumoPorMoeda,
   moverParaLixeira: mock.moverParaLixeira,
@@ -84,7 +86,7 @@ const lancs = [
 ]
 const fatura = {
   cartaoId: 'k1', cartaoNome: 'Nubank', mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', total: c(45000), pago: c(0),
-  itens: 2, situacao: 'fechada', contaPagamentoId: 'a1',
+  itens: 2, creditos: c(0), situacao: 'fechada', contaPagamentoId: 'a1',
 }
 
 /** Simula a largura da tela: matchMedia('(min-width: 1024px)') responde `grande`. */
@@ -107,6 +109,7 @@ beforeEach(() => {
     { id: 'p1', cartaoId: 'k1', cartaoNome: 'Nubank', vencimento: '2026-10-25', fechamento: '2026-10-17', descricao: 'Fone', dataCompra: '2026-10-02', parcela: 1, deParcelas: 1, valor: c(45000), categoriaId: 'mer' },
   ])
   mock.listarCreditosDeCartao.mockResolvedValue([])
+  mock.listarCreditosDaFaturaDoMes.mockResolvedValue([])
   mock.listarCartoes.mockResolvedValue([])
   mock.resumoDoMes.mockResolvedValue({ receitas: c(0), despesas: c(25050), resultado: c(-25050), receitasPrevistas: c(800000), despesasPrevistas: c(0) })
   mock.resumoPorMoeda.mockResolvedValue([])
@@ -315,5 +318,35 @@ describe('Lançamentos no computador: tabela', () => {
     expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Marcar pago', 'Editar', 'Excluir'])
     await u.click(screen.getByRole('menuitem', { name: 'Marcar pago' }))
     expect(screen.getByRole('heading', { name: /Marcar como pago · Luz/ })).toBeTruthy()
+  })
+
+  it('coluna Categoria mostra só a folha; o caminho inteiro fica no title e no leitor de tela', async () => {
+    mock.listarCategorias.mockResolvedValue([...categorias, { id: 'cond', nome: 'Condomínio', tipo: 'expense', paiId: 'casa', sistema: false, ativa: true }])
+    mock.listarLancamentos.mockResolvedValue([
+      { id: 't9', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'cond', descricao: 'Taxa do prédio', valor: c(6000), data: '2026-10-12', status: 'planned', notas: '' },
+    ])
+    await abrir()
+    const linha = screen.getByText('Taxa do prédio').closest('tr') as HTMLElement
+    const celula = within(linha).getAllByRole('cell')[4]
+    const folha = within(celula).getByText('Condomínio')
+    expect(folha.getAttribute('aria-hidden')).toBe('true')
+    expect(folha.parentElement!.getAttribute('title')).toBe('Casa › Condomínio')
+    expect(within(celula).getByText('Casa › Condomínio').className).toContain('sr-only')
+  })
+
+  it('fatura com créditos: ao abrir, "Créditos e reembolsos" (+, verde) dentro dela; o total é o do banco', async () => {
+    mock.listarFaturasDoMes.mockResolvedValue([{ ...fatura, total: c(44000), creditos: c(1000), situacao: 'aberta' }])
+    mock.listarCreditosDaFaturaDoMes.mockResolvedValue([
+      { id: 'k1', data: '2026-10-17', dataCredito: '2026-10-03', descricao: 'Estorno de IOF', cartaoNome: 'Nubank', categoriaId: 'sal', valor: c(1000), planejado: false, vencimento: '2026-10-25' },
+    ])
+    const u = userEvent.setup()
+    await abrir()
+    const linhaFatura = screen.getByText('Fatura Nubank').closest('tr') as HTMLElement
+    expect(within(linhaFatura).getByText('R$ 440,00')).toBeTruthy()
+    expect(within(linhaFatura).getByText('fecha 17/10')).toBeTruthy()
+    expect(screen.queryByText('Estorno de IOF')).toBeNull()
+    await u.click(within(linhaFatura).getByRole('button', { name: 'Ver compras' }))
+    const lista = await screen.findByRole('list', { name: 'Créditos e reembolsos da fatura Nubank' })
+    expect(within(lista).getByText('+R$ 10,00').className).toContain('text-positivo')
   })
 })
