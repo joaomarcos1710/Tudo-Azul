@@ -82,7 +82,7 @@ describe('serieFluxo (cash_flow_series, migration 066)', () => {
   })
 })
 
-describe('relatorioContas (account_flow_report, migration 067)', () => {
+describe('relatorioContas (account_flow_report, migration 068)', () => {
   it('uma chamada, com os nomes certos e os não pagos', async () => {
     await relatorioContas('h1', '2026-11-01', '2026-11-30', true)
     expect(fake.estado.chamadas).toEqual([{ nome: 'account_flow_report', args: {

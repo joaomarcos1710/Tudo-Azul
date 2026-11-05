@@ -102,7 +102,7 @@ export async function serieFluxo(familiaId: string, de: string, ate: string, div
   }
 }
 
-/** Uma conta do Relatório › Contas (account_flow_report, migration 067). Tudo em centavos, calculado no banco. */
+/** Uma conta do Relatório › Contas (account_flow_report, migration 068). Tudo em centavos, calculado no banco. */
 export interface LinhaConta {
   contaId: string
   nome: string

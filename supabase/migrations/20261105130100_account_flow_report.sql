@@ -1,10 +1,10 @@
--- Tudo Azul — migration 067: assinaturas e lançamentos fixos previstos em Entradas x Saídas, e o relatório de Contas
+-- Tudo Azul — migration 068: assinaturas e lançamentos fixos previstos em Entradas x Saídas, e o relatório de Contas
 -- (public.account_flow_report)
 --
 -- Pedidos do dono (05/11/2026, #182):
 --   1. "sim — lançamentos fixos mensais": em Entradas x Saídas com "não pagos", novembro deu R$ 14.774,72 em 28/11 e o
 --      Organizze 15.895,41. A diferença (1.120,69) eram as assinaturas de cartão que ainda não viraram compra
---      (card_pending_subscriptions): a 066 punha no vencimento só o total − pago de card_months, e a assinatura só vira
+--      (card_pending_subscriptions): a 066/067 punha no vencimento só o total − pago de card_months, e a assinatura só vira
 --      parcela no dia da cobrança (recurrence_materialize gera a de cartão até HOJE). Pelo mesmo motivo, os
 --      lançamentos fixos de conta (recorrentes de receita/despesa) só existem como planejados até o horizonte de
 --      recurrence_materialize (fim do mês daqui a 12 meses, sem data final) e só depois que ela roda: um relatório
@@ -26,19 +26,22 @@
 --      recurrence_materialize (061): regra ativa, conta (e destino) ativa e aberta na data. p_from nulo = desde o início.
 --      atalho: as condições de conta estão escritas aqui e em recurrence_materialize; quando a geração mudar, trocar
 --      lá para chamar esta função (pendência em 40).
---   c. public.cash_flow_series (create or replace do corpo da 066, mesma assinatura e colunas). Com "não pagos":
+--   c. public.cash_flow_series (create or replace do corpo da 067 (a versão rápida da 066), mesma assinatura e colunas). Com "não pagos":
 --        * as assinaturas previstas de cada fatura saem no VENCIMENTO dela (com a conta de pagamento do cartão no
 --          filtro de conta; sem autor, como a fatura a pagar);
 --        * os lançamentos fixos ainda não gerados entram como planejados na data da ocorrência (receita e despesa de
 --          conta em reais; transferência fora, como os lançamentos; o autor é quem criou a regra, o mesmo que a geração
 --          grava em created_by);
---        * o saldo de cada linha anda junto: balance_totals_projected no fim da linha − as assinaturas previstas que
---          vencem até ali + o saldo (receita − despesa) dos fixos ainda não gerados até ali. balance_totals_projected
---          em si NÃO muda (decisão em 30: quem a chama — Calendário, saldo previsto de Contas, Início/aviso diário
---          (daily_digest) — continua igual; pendência para alinhar).
+--        * o saldo de cada linha anda junto, no padrão da 067 (UMA chamada de balance_totals_projected, em p_from − 1,
+--          + o resultado acumulado): o saldo de abertura desconta as assinaturas previstas que venceram antes de p_from
+--          e soma (receita − despesa) os fixos não gerados antes de p_from; dentro do período eles já estão no
+--          resultado de cada linha, então entram no acumulado sem chamada extra. balance_totals_projected em si NÃO
+--          muda (decisão em 30: quem a chama — Calendário, saldo previsto de Contas, Início/aviso diário (daily_digest)
+--          — continua igual; pendência para alinhar).
 --      Só pagos: nada muda.
---   d. public.account_flow_report(p_household, p_from, p_to, p_include_planned): ver o cabeçalho da função.
--- Teste: 67_account_flow_report (falha sem esta migration).
+--   d. public.account_flow_report(p_household, p_from, p_to, p_include_planned): ver o cabeçalho da função. UMA chamada
+--      de account_balances_projected (em p_from − 1); o saldo final de cada conta é o inicial + entradas − saídas.
+-- Teste: 68_account_flow_report (falha sem esta migration).
 
 -- ---------------------------------------------------------------------------
 -- a. Assinaturas previstas por fatura, no vencimento
@@ -88,7 +91,7 @@ grant execute on function private.card_pending_by_due(uuid, date, date),
   private.account_recurrence_pending(uuid, date, date) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- c. Entradas x Saídas (corpo da 066 + os previstos acima)
+-- c. Entradas x Saídas (corpo da 067 + os previstos acima)
 -- ---------------------------------------------------------------------------
 create or replace function public.cash_flow_series(
   p_household uuid, p_from date, p_to date, p_step text default 'day',
@@ -145,13 +148,13 @@ begin
        and m.due_date between p_from and p_to and m.total > m.paid
        and (p_accounts is null or d.pay_account_id = any(p_accounts))
     union all
-    -- não pagos (067): as assinaturas previstas de cada fatura (ainda sem parcela), no vencimento dela
+    -- não pagos (068): as assinaturas previstas de cada fatura (ainda sem parcela), no vencimento dela
     select pc.due_date, 'expense', pc.amount
       from private.card_pending_by_due(p_household, p_from, p_to) pc
      where p_include_planned and p_member is null
        and (p_accounts is null or pc.pay_account_id = any(p_accounts))
     union all
-    -- não pagos (067): lançamentos fixos de conta em reais ainda não gerados, na data da ocorrência
+    -- não pagos (068): lançamentos fixos de conta em reais ainda não gerados, na data da ocorrência
     select pr.occurrence_date, pr.kind, pr.amount
       from private.account_recurrence_pending(p_household, p_from, p_to) pr
      where p_include_planned and pr.kind in ('income', 'expense')
@@ -171,18 +174,6 @@ begin
       from private.loan_schedule_planned(p_household, p_from, p_to) s
      where p_include_planned and p_member is null
        and (p_accounts is null or s.account_id = any(p_accounts))
-  ), prev_saldo as (
-    -- (067) o que o saldo previsto ainda não desconta: assinaturas previstas (−, no vencimento) e fixos ainda não
-    -- gerados (receita +, despesa −; transferência entre contas em reais não muda o total), desde sempre até p_to
-    select pc.due_date as dia, -pc.amount as delta
-      from private.card_pending_by_due(p_household, null, p_to) pc
-     where p_include_planned and p_accounts is null and p_member is null
-    union all
-    select pr.occurrence_date, case pr.kind when 'income' then pr.amount else -pr.amount end
-      from private.account_recurrence_pending(p_household, null, p_to) pr
-     where p_include_planned and p_accounts is null and p_member is null and pr.kind in ('income', 'expense')
-       and exists (select 1 from public.accounts ac where ac.household_id = p_household and ac.id = pr.account_id
-                     and ac.currency_code = 'BRL')
   ), baldes as (
     select distinct (case p_step when 'day' then g::date when 'week' then date_trunc('week', g)::date
                                  when 'month' then date_trunc('month', g)::date else p_from end) as ini
@@ -197,12 +188,24 @@ begin
       left join itens x on (case p_step when 'day' then x.dia when 'week' then date_trunc('week', x.dia)::date
                                         when 'month' then date_trunc('month', x.dia)::date else p_from end) = b.ini
      group by b.ini
+  ), inicio as (
+    -- saldo de abertura (padrão da 067): UMA chamada de balance_totals_projected, em p_from − 1. Com não pagos (068),
+    -- menos as assinaturas previstas que venceram antes de p_from e mais (receita − despesa) dos fixos ainda não gerados
+    -- antes de p_from (transferência entre contas em reais não muda o total). Os do período já estão no resultado de cada
+    -- linha (itens acima), então entram no acumulado.
+    select case when p_accounts is null and p_member is null then
+             (select bt.total from public.balance_totals_projected(p_household, p_from - 1, p_include_planned) bt)
+             - coalesce((select sum(pc.amount) from private.card_pending_by_due(p_household, null, p_from - 1) pc
+                          where p_include_planned), 0)
+             + coalesce((select sum(case pr.kind when 'income' then pr.amount else -pr.amount end)
+                           from private.account_recurrence_pending(p_household, null, p_from - 1) pr
+                          where p_include_planned and pr.kind in ('income', 'expense')
+                            and exists (select 1 from public.accounts ac where ac.household_id = p_household
+                                          and ac.id = pr.account_id and ac.currency_code = 'BRL')), 0)
+           end as saldo
   )
   select l.ini, l.fim, l.ent, l.sai, l.ent - l.sai,
-         case when p_accounts is null and p_member is null then
-           (select bt.total from public.balance_totals_projected(p_household, least(l.fim, p_to), p_include_planned) bt)
-           + coalesce((select sum(ps.delta) from prev_saldo ps where ps.dia <= least(l.fim, p_to)), 0)
-         end,
+         (select i.saldo from inicio i) + sum(l.ent - l.sai) over (order by l.ini rows between unbounded preceding and current row),
          sum(l.ent) over (), sum(l.sai) over (), sum(l.ent - l.sai) over ()
     from linhas l
    where (select private.is_member(p_household))
@@ -227,8 +230,9 @@ grant execute on function public.cash_flow_series(uuid, date, date, text, uuid[]
 --                     pagamento do cartão) mais as assinaturas previstas (no vencimento) e os fixos ainda não gerados.
 --                     Transferência entre contas entra como entrada numa e saída na outra.
 --   transfer_in/out : a parte de income/expense que é transferência entre contas.
---   closing_balance : saldo no fim de p_to, pela mesma conta do opening_balance. Por construção (e testado):
---                     opening + income − expense = closing.
+--   closing_balance : opening + income − expense (por construção; testado contra account_balances_projected em p_to).
+-- Desempenho (padrão da 067): UMA chamada de account_balances_projected (em p_from − 1), nenhum saldo por conta em
+-- laço; os previstos de (a) e (b) são lidos uma vez cada.
 --   total_*         : repetidos em toda linha (o front não soma). total_income/total_expense SEM as transferências
 --                     (saem de uma conta e entram em outra: não inflam o total da família); total_transfers = entradas
 --                     − saídas por transferência das contas listadas (zero quando as duas pontas estão na lista).
@@ -255,22 +259,21 @@ begin
      where a.household_id = p_household and a.active and a.currency_code = 'BRL' and a.opening_date <= p_to
   ), saldo_ini as (
     select b.account_id, b.balance from public.account_balances_projected(p_household, p_from - 1, p_include_planned) b
-  ), saldo_fim as (
-    select b.account_id, b.balance from public.account_balances_projected(p_household, p_to, p_include_planned) b
+  ), rec as (
+    select pr.* from private.account_recurrence_pending(p_household, null, p_to) pr where p_include_planned
   ), prev as (
-    -- previstos que o saldo projetado ainda não desconta (067), desde sempre até p_to, por conta (sinal do saldo)
+    -- previstos que o saldo projetado ainda não desconta (068), desde sempre até p_to, por conta (sinal do saldo)
     select pc.pay_account_id as conta, pc.due_date as dia, -pc.amount as delta, false as transf
       from private.card_pending_by_due(p_household, null, p_to) pc
      where p_include_planned and pc.pay_account_id is not null
     union all
     select pr.account_id, pr.occurrence_date, case pr.kind when 'income' then pr.amount else -pr.amount end,
            pr.kind = 'transfer'
-      from private.account_recurrence_pending(p_household, null, p_to) pr
-     where p_include_planned
+      from rec pr
     union all
     select pr.destination_account_id, pr.occurrence_date, pr.amount, true
-      from private.account_recurrence_pending(p_household, null, p_to) pr
-     where p_include_planned and pr.kind = 'transfer'
+      from rec pr
+     where pr.kind = 'transfer'
   ), movs as (
     -- realizados: o extrato da conta (account_movements), só o período, sem a linha do saldo inicial
     select c.id as conta, m.amount as delta, coalesce(t.type = 'transfer', false) as transf
@@ -307,23 +310,28 @@ begin
        and m.due_date between p_from and p_to and m.total > m.paid
     union all
     select p.conta, p.delta, p.transf from prev p where p.dia between p_from and p_to
+  ), fluxo as (
+    select x.conta,
+           coalesce(sum(x.delta) filter (where x.delta > 0), 0) as ent,
+           coalesce(-sum(x.delta) filter (where x.delta < 0), 0) as sai,
+           coalesce(sum(x.delta) filter (where x.delta > 0 and x.transf), 0) as t_ent,
+           coalesce(-sum(x.delta) filter (where x.delta < 0 and x.transf), 0) as t_sai
+      from movs x group by x.conta
+  ), antes as (
+    select p.conta, sum(p.delta) as delta from prev p where p.dia < p_from group by p.conta
   ), linhas as (
     select c.id, c.name, c.type,
-           case when c.opening_date < p_from
-                then coalesce(si.balance, 0) + coalesce((select sum(p.delta) from prev p where p.conta = c.id and p.dia < p_from), 0)
+           case when c.opening_date < p_from then coalesce(si.balance, 0) + coalesce(ab.delta, 0)
                 else c.initial_balance end as ini,
-           coalesce((select sum(x.delta) from movs x where x.conta = c.id and x.delta > 0), 0) as ent,
-           coalesce((select -sum(x.delta) from movs x where x.conta = c.id and x.delta < 0), 0) as sai,
-           coalesce((select sum(x.delta) from movs x where x.conta = c.id and x.delta > 0 and x.transf), 0) as t_ent,
-           coalesce((select -sum(x.delta) from movs x where x.conta = c.id and x.delta < 0 and x.transf), 0) as t_sai,
-           coalesce(sf.balance, 0) + coalesce((select sum(p.delta) from prev p where p.conta = c.id), 0) as fim
+           coalesce(f.ent, 0) as ent, coalesce(f.sai, 0) as sai, coalesce(f.t_ent, 0) as t_ent, coalesce(f.t_sai, 0) as t_sai
       from contas c
       left join saldo_ini si on si.account_id = c.id
-      left join saldo_fim sf on sf.account_id = c.id
+      left join antes ab on ab.conta = c.id
+      left join fluxo f on f.conta = c.id
   )
-  select l.id, l.name, l.type, l.ini, l.ent, l.sai, l.t_ent, l.t_sai, l.fim,
+  select l.id, l.name, l.type, l.ini, l.ent, l.sai, l.t_ent, l.t_sai, l.ini + l.ent - l.sai,
          sum(l.ini) over (), sum(l.ent - l.t_ent) over (), sum(l.sai - l.t_sai) over (),
-         sum(l.t_ent - l.t_sai) over (), sum(l.fim) over ()
+         sum(l.t_ent - l.t_sai) over (), sum(l.ini + l.ent - l.sai) over ()
     from linhas l
    where (select private.is_member(p_household))
    order by l.name, l.id;

@@ -26,11 +26,11 @@ export function avisoOutraMoeda(n: number): string {
 }
 
 /**
- * Relatório › Contas (#182, como no Organizze): uma linha por conta ativa em reais, com o saldo no início, as entradas,
+ * Relatório › Contas (#184, como no Organizze): uma linha por conta ativa em reais, com o saldo no início, as entradas,
  * as saídas e o saldo no fim do período, e o total. Regime de caixa, como o extrato da conta: o cartão sai no dia do
  * pagamento da fatura (com "Todos", a que falta pagar sai no vencimento, com as assinaturas previstas); transferência
  * entre contas é entrada numa e saída na outra, e fica fora do total. Tudo vem do banco numa chamada
- * (account_flow_report, migration 067); o front não soma.
+ * (account_flow_report, migration 068); o front não soma.
  */
 export function RelatorioContas({ periodo, aoMudarPeriodo }: { periodo: Periodo; aoMudarPeriodo: (p: Periodo) => void }) {
   const { familia } = useFamilia()

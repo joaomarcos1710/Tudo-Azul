@@ -47,10 +47,10 @@ atualizado: 2026-10-28
 - [ ] **Unificar painéis**: `PainelLancamento` (Lançamentos) passar a usar `ui/Folha` (que prende o foco e devolve ao botão). O de **Marcar pago** já usa (#176); falta o do formulário.
 - [ ] **Eixo do gráfico de linha com negativo** usa hífen ("R$ -20 mil", `brlCompacto`); trocar pelo "−" tipográfico em todos os gráficos.
 
-### Relatórios › Contas e previstos (#182, migration 067)
+### Relatórios › Contas e previstos (#184, migration 068)
 - [x] **Aba Contas** (saldo inicial, entradas, saídas, saldo final por conta ativa em reais; total sem as transferências; aviso de outra moeda) e **abas** com um período só.
 - [x] **Assinaturas de cartão previstas** no vencimento e **lançamentos fixos ainda não gerados** em Entradas x Saídas (e Contas) com "não pagos"; o saldo anda junto.
-- [ ] **Aplicar a migration 067** (você dá o "pode"): até lá, a aba Contas mostra o aviso de erro e Entradas x Saídas segue sem os previstos.
+- [ ] **Aplicar a migration 068** (você dá o "pode"): até lá, a aba Contas mostra o aviso de erro e Entradas x Saídas segue sem os previstos.
 - [ ] **Conferir com o Organizze** (você): novembro com "Pagos e não pagos" deve dar a diferença de R$ 1.120,69 a mais de saída em 28/11; e a aba Contas contra Relatório › Contas.
 - [ ] **Saldo previsto do Calendário/Contas/aviso diário** (`balance_totals_projected`) ainda não conta as assinaturas previstas nem os fixos além do horizonte: decidir se passa a contar (migration nova, conferindo Calendário, `saldoProjetado`, `daily_digest`, `cash_flow_series`).
 - [ ] **atalho**: as condições de conta dos fixos previstos (`private.account_recurrence_pending`) repetem as de `recurrence_materialize`; quando a geração mudar, fazê-la chamar a função.

@@ -1,4 +1,4 @@
--- 67_account_flow_report: migration 067. (1) Entradas x Saídas com "não pagos": as assinaturas de cartão previstas saem
+-- 68_account_flow_report: migration 068. (1) Entradas x Saídas com "não pagos": as assinaturas de cartão previstas saem
 -- no VENCIMENTO da fatura (uma vez só) e os lançamentos fixos (recorrentes de conta) ainda não gerados entram como
 -- planejados; o saldo anda junto. (2) Relatório › Contas (account_flow_report): saldo no início, entradas, saídas e saldo
 -- no fim por conta ativa em reais, e o total sem inflar com as transferências.
@@ -32,18 +32,27 @@ create function pg_temp.totais(p_de date, p_ate date, p_plan boolean default fal
   select total_opening::numeric(14,2) || '/' || total_income::numeric(14,2) || '/' || total_expense::numeric(14,2) || '/'
          || total_transfers::numeric(14,2) || '/' || total_closing::numeric(14,2)
     from public.account_flow_report(pg_temp.fx('h'), p_de, p_ate, p_plan) limit 1 $f$;
--- contas cuja linha NÃO fecha (inicial + entradas − saídas ≠ final); null = todas fecham
+-- contas cuja linha NÃO fecha: o saldo final (inicial + entradas − saídas, uma chamada de saldo só) tem de bater com o
+-- saldo calculado à parte no fim do período (account_balances_projected em p_ate, menos as assinaturas previstas que
+-- vencem até ali pela conta e mais os fixos não gerados até ali); null = todas fecham
 create function pg_temp.nao_fecham(p_de date, p_ate date, p_plan boolean) returns text language sql as $f$
-  select string_agg(name, ',') from public.account_flow_report(pg_temp.fx('h'), p_de, p_ate, p_plan)
-   where opening_balance + income - expense <> closing_balance $f$;
+  select string_agg(r.name, ',') from public.account_flow_report(pg_temp.fx('h'), p_de, p_ate, p_plan) r
+   where r.opening_balance + r.income - r.expense <> r.closing_balance
+      or r.closing_balance <> (select b.balance from public.account_balances_projected(pg_temp.fx('h'), p_ate, p_plan) b where b.account_id = r.account_id)
+           - case when p_plan then coalesce((select sum(pc.amount) from private.card_pending_by_due(pg_temp.fx('h'), null, p_ate) pc
+                                              where pc.pay_account_id = r.account_id), 0) else 0 end
+           + case when p_plan then coalesce((select sum(case when pr.destination_account_id = r.account_id then pr.amount
+                                                             when pr.kind = 'income' then pr.amount else -pr.amount end)
+                                               from private.account_recurrence_pending(pg_temp.fx('h'), null, p_ate) pr
+                                              where r.account_id in (pr.account_id, pr.destination_account_id)), 0) else 0 end $f$;
 grant execute on function pg_temp.fx(text), pg_temp.login(uuid), pg_temp.sqlstate_of(text), pg_temp.saidas(date, date, boolean),
   pg_temp.contas(date, date, boolean), pg_temp.totais(date, date, boolean), pg_temp.nao_fecham(date, date, boolean) to public;
 
 insert into auth.users (id, email) values
-  ('00000000-0000-0000-0000-0000000067a1', 'c1@teste.com'),
-  ('00000000-0000-0000-0000-0000000067a2', 'c2@teste.com');
+  ('00000000-0000-0000-0000-0000000068a1', 'c1@teste.com'),
+  ('00000000-0000-0000-0000-0000000068a2', 'c2@teste.com');
 
-select pg_temp.login('00000000-0000-0000-0000-0000000067a1');
+select pg_temp.login('00000000-0000-0000-0000-0000000068a1');
 insert into fixture select 'h', public.create_household('Casa Contas');
 insert into fixture select 'sal', id from public.categories where household_id = pg_temp.fx('h') and name = 'Salário';
 insert into fixture select 'comp', id from public.categories where household_id = pg_temp.fx('h') and name = 'Compras pessoais';
@@ -94,8 +103,8 @@ insert into fixture select 'r_alug', public.recurrence_create('expense', 'Alugue
 reset role;
 insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status, recurrence_id, occurrence_date, created_by)
 values (pg_temp.fx('h'), pg_temp.fx('bank'), pg_temp.fx('comp'), 'expense', 'Aluguel', 1000.00, '2030-01-15', 'planned',
-        pg_temp.fx('r_alug'), '2030-01-15', '00000000-0000-0000-0000-0000000067a1');
-select pg_temp.login('00000000-0000-0000-0000-0000000067a1');
+        pg_temp.fx('r_alug'), '2030-01-15', '00000000-0000-0000-0000-0000000068a1');
+select pg_temp.login('00000000-0000-0000-0000-0000000068a1');
 -- transferência fixa de 100 do Banco para a Poupança todo dia 20 desde 20/01/2030, nada gerado (não é entrada nem saída da família)
 insert into fixture select 'r_transf', public.recurrence_create('transfer', 'Reserva', 100.00, 20, '2030-01-20', pg_temp.fx('bank'), pg_temp.fx('poup'));
 -- e um salário fixo de 4.000 todo dia 5 desde 05/03/2030, nada gerado
@@ -127,6 +136,12 @@ select is((select string_agg(period_start::text, ',') from (
 select is((select closing_balance from public.cash_flow_series(pg_temp.fx('h'), '2030-02-05', '2030-02-05', 'day', null, null, true))
           - (select total from public.balance_totals_projected(pg_temp.fx('h'), '2030-02-05', true)),
           -30.00::numeric, 'P2.1 em 05/02 o saldo = balance_totals_projected − a assinatura prevista que venceu ali (30); a de 10/02 vence só em 05/03');
+select is((select string_agg(period_start::text, ',') from public.cash_flow_series(pg_temp.fx('h'), '2030-03-01', '2030-06-30', 'month', null, null, true) s
+            where s.closing_balance <> (select bt.total from public.balance_totals_projected(pg_temp.fx('h'), s.period_end, true) bt)
+                    - coalesce((select sum(pc.amount) from private.card_pending_by_due(pg_temp.fx('h'), null, s.period_end) pc), 0)
+                    + coalesce((select sum(case pr.kind when 'income' then pr.amount else -pr.amount end)
+                                  from private.account_recurrence_pending(pg_temp.fx('h'), null, s.period_end) pr where pr.kind <> 'transfer'), 0)),
+          null, 'P2.2 de mar a jun/2030: abertura (uma chamada em 28/02, menos a assinatura de 05/02 e o aluguel de 15/02 ainda previstos) + acumulado = saldo calculado à parte no fim de cada mês');
 
 -- P3 a assinatura vira compra (simula recurrence_materialize no dia 10/01): já está no total da fatura e sai da previsão
 reset role;
@@ -134,7 +149,7 @@ insert into public.debt_installments (household_id, debt_id, plan, seq, due_date
                                       purchase_date, closing_day, due_day, recurrence_id, occurrence_date)
 values (pg_temp.fx('h'), pg_temp.fx('inter'), gen_random_uuid()::text, 1, '2030-01-25', 30.00, pg_temp.fx('comp'), 'Streaming',
         '2030-01-10', 25, 5, pg_temp.fx('r_card'), '2030-01-10');
-select pg_temp.login('00000000-0000-0000-0000-0000000067a1');
+select pg_temp.login('00000000-0000-0000-0000-0000000068a1');
 select is((select string_agg(due_date || '=' || total::numeric(14,2), ' ' order by due_date) from public.card_months(pg_temp.fx('inter'))),
           '2030-02-05=130.00', 'P3 fixture: a fatura de janeiro agora tem a compra + a assinatura gerada (130)');
 select is(pg_temp.saidas('2030-01-01', '2030-02-28'), '2030-01-15:1000.00 2030-02-05:130.00 2030-02-15:1000.00',
@@ -156,28 +171,28 @@ select is((select string_agg(to_char(period_start, 'YYYY-MM') || ':' || income::
 reset role;
 insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status, recurrence_id, occurrence_date, created_by, deleted_at)
 values (pg_temp.fx('h'), pg_temp.fx('bank'), pg_temp.fx('comp'), 'expense', 'Aluguel', 1000.00, '2030-02-15', 'paid',
-        pg_temp.fx('r_alug'), '2030-02-15', '00000000-0000-0000-0000-0000000067a1', null),
+        pg_temp.fx('r_alug'), '2030-02-15', '00000000-0000-0000-0000-0000000068a1', null),
        (pg_temp.fx('h'), pg_temp.fx('bank'), pg_temp.fx('comp'), 'expense', 'Aluguel', 1000.00, '2030-03-15', 'planned',
-        pg_temp.fx('r_alug'), '2030-03-15', '00000000-0000-0000-0000-0000000067a1', null);
+        pg_temp.fx('r_alug'), '2030-03-15', '00000000-0000-0000-0000-0000000068a1', null);
 update public.transactions set deleted_at = now() where recurrence_id = pg_temp.fx('r_alug') and occurrence_date = '2030-03-15';
-select pg_temp.login('00000000-0000-0000-0000-0000000067a1');
+select pg_temp.login('00000000-0000-0000-0000-0000000068a1');
 select is((select string_agg(to_char(period_start, 'YYYY-MM') || ':' || expense::numeric(14,2), ' ' order by period_start)
              from public.cash_flow_series(pg_temp.fx('h'), '2030-02-01', '2030-04-30', 'month', null, null, true)),
           '2030-02:1130.00 2030-03:30.00 2030-04:1030.00',
           'P4.2 fev gerado e pago: 1x; mar gerado e excluído: não volta como previsto; abr ainda previsto');
-select is((select sum(expense)::numeric(14,2) from public.cash_flow_series(pg_temp.fx('h'), '2030-02-01', '2030-02-28', 'total', null, '00000000-0000-0000-0000-0000000067a2', true)),
+select is((select sum(expense)::numeric(14,2) from public.cash_flow_series(pg_temp.fx('h'), '2030-02-01', '2030-02-28', 'total', null, '00000000-0000-0000-0000-0000000068a2', true)),
           0.00::numeric, 'P4.3 filtro de quem lançou: o fixo previsto é de quem criou a regra (outro autor: nada)');
-select is((select sum(income)::numeric(14,2) from public.cash_flow_series(pg_temp.fx('h'), '2030-03-01', '2030-03-31', 'total', null, '00000000-0000-0000-0000-0000000067a1', true)),
+select is((select sum(income)::numeric(14,2) from public.cash_flow_series(pg_temp.fx('h'), '2030-03-01', '2030-03-31', 'total', null, '00000000-0000-0000-0000-0000000068a1', true)),
           4000.00::numeric, 'P4.4 ... e de quem criou: entra');
 -- regra desativada: deixa de prever
 reset role;
 update public.recurrences set active = false where id = pg_temp.fx('r_sal');
-select pg_temp.login('00000000-0000-0000-0000-0000000067a1');
+select pg_temp.login('00000000-0000-0000-0000-0000000068a1');
 select is((select sum(income)::numeric(14,2) from public.cash_flow_series(pg_temp.fx('h'), '2030-03-01', '2030-04-30', 'total', null, null, true)),
           0.00::numeric, 'P4.5 recorrente desativado: nada previsto');
 reset role;
 update public.recurrences set active = true where id = pg_temp.fx('r_sal');
-select pg_temp.login('00000000-0000-0000-0000-0000000067a1');
+select pg_temp.login('00000000-0000-0000-0000-0000000068a1');
 
 -- ===========================================================================================================
 -- Parte 2: Relatório › Contas
@@ -234,7 +249,7 @@ select is(pg_temp.sqlstate_of($$select * from public.account_flow_report(pg_temp
 select is(pg_temp.sqlstate_of($$select * from public.account_flow_report(pg_temp.fx('h'), null, '2026-12-31')$$), '22023', 'C6.2 início nulo');
 
 -- C7 outra família e anon
-select pg_temp.login('00000000-0000-0000-0000-0000000067a2');
+select pg_temp.login('00000000-0000-0000-0000-0000000068a2');
 insert into fixture select 'h2', public.create_household('Casa Outra');
 select is((select count(*) from public.account_flow_report(pg_temp.fx('h'), '2026-09-01', '2026-09-30', true)), 0::bigint, 'C7 quem não é da família: zero linhas');
 select is((select count(*) from public.cash_flow_series(pg_temp.fx('h'), '2030-01-01', '2030-02-28', 'day', null, null, true) where expense <> 0), 0::bigint,

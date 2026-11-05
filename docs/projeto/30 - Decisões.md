@@ -284,7 +284,7 @@ Pedidos do dono, com base no Relatório do Organizze: "notei que no Tudo Azul o 
 - **Celular sem "R$" nas células** ("Valores em R$." acima): é o jeito de as 5 colunas caberem em 375px sem rolar para o lado; do `sm` para cima o "R$" volta.
 - **O CSV de lançamentos começa no período do relatório** (e pode ser mudado à mão); a tabela em si ainda não tem exportação própria.
 
-## 05/11/2026 — Relatórios › Contas e previstos em Entradas x Saídas (migration 067, #182)
+## 05/11/2026 — Relatórios › Contas e previstos em Entradas x Saídas (migration 068, #184)
 Pedidos do dono: a aba "Contas" do Organizze como primeira aba nova; e, sobre a diferença de R$ 1.120,69 em 28/11 (14.774,72 no Tudo Azul × 15.895,41 no Organizze, as assinaturas do cartão ainda não geradas): "sim — lançamentos fixos mensais".
 - **Assinatura prevista no vencimento da fatura, uma vez só.** Reaproveita `private.card_recurrence_pending` (a regra de que ocorrência ainda não virou parcela e em que fatura cai fica nela); depois de gerada, a assinatura sai da previsão e já está no total da fatura (`card_months`).
 - **Lançamentos fixos de conta também.** `recurrence_materialize` gera os de conta só até o fim do mês daqui a 12 meses (e só quando roda); um relatório mais à frente não os via. Agora os não gerados entram como planejados (só com "não pagos"), sem duplicar o gerado, o pago nem o excluído. As condições de conta repetem as de `recurrence_materialize` (atalho anotado em Pendências).
