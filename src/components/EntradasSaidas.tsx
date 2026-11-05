@@ -18,9 +18,10 @@ import { fimDoBalde, fluxoDeCaixa, periodoDoFluxo } from '../lib/fluxoCaixa'
 import type { FluxoCaixa, Passo } from '../lib/fluxoCaixa'
 import { asCents, currentMonth, formatBRLSinal, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
-import { resumoPorMoeda, somarMeses } from '../lib/lancamentos'
+import { resumoPorMoeda } from '../lib/lancamentos'
 import type { ResumoPorMoeda } from '../lib/lancamentos'
 import { saldosNasDatas } from '../lib/saldoProjetado'
+import { SeletorMes } from './ui/SeletorMes'
 
 const PASSOS: { chave: Passo; rotulo: string; periodo: string }[] = [
   { chave: 'day', rotulo: 'Diário', periodo: 'dia' },
@@ -211,28 +212,6 @@ export function EntradasSaidas() {
         )}
       </Card>
     </section>
-  )
-}
-
-/** Carrossel de mês: "‹ Set · [Outubro de 2026] · Nov ›"; o anterior e o seguinte também são clicáveis. */
-function SeletorMes({ mes, aoMudar }: { mes: string; aoMudar: (m: string) => void }) {
-  const anterior = somarMeses(mes, -1), seguinte = somarMeses(mes, 1)
-  const lado = 'min-h-11 rounded-lg px-2 text-sm text-slate-600 hover:bg-azul-claro'
-  const seta = 'min-h-11 min-w-11 rounded-lg text-lg text-azul hover:bg-azul-claro'
-  return (
-    <div className="flex items-center justify-between gap-1 lg:justify-start" role="group" aria-label="Mês do relatório">
-      <button type="button" aria-label="Mês anterior" onClick={() => aoMudar(anterior)} className={seta}>‹</button>
-      <button type="button" aria-label={`Ir para ${formatMonth(anterior)}`} onClick={() => aoMudar(anterior)} className={lado}>
-        {primeiraMaiuscula(formatMonth(anterior).slice(0, 3))}
-      </button>
-      <span className="whitespace-nowrap rounded-lg bg-azul-claro px-3 py-2 text-sm font-semibold text-marinho" aria-live="polite">
-        {primeiraMaiuscula(formatMonth(mes))}
-      </span>
-      <button type="button" aria-label={`Ir para ${formatMonth(seguinte)}`} onClick={() => aoMudar(seguinte)} className={lado}>
-        {primeiraMaiuscula(formatMonth(seguinte).slice(0, 3))}
-      </button>
-      <button type="button" aria-label="Próximo mês" onClick={() => aoMudar(seguinte)} className={seta}>›</button>
-    </div>
   )
 }
 

@@ -657,6 +657,96 @@ export async function totalFaturasDoMes(familiaId: string, mes: string): Promise
   }
 }
 
+/** Fatura de um cartão no resumo (card_overview, migration 065): os números são os de card_months, lidos no banco. */
+export interface FaturaResumo {
+  /** AAAA-MM do fechamento. */
+  mes: string
+  fechamento: string
+  vencimento: string | null
+  total: Cents
+  pago: Cents
+  situacao: 'aberta' | 'fechada' | 'paga'
+}
+
+/** Um cartão ativo no resumo (card_overview). */
+export interface CartaoNoResumo {
+  id: string
+  nome: string
+  /** Fatura do mês escolhido no resumo; null em cartão sem dias definidos. */
+  doMes: FaturaResumo | null
+  /** Fatura atual (a do ciclo de hoje), qualquer que seja o mês escolhido; null em cartão sem dias. */
+  atual: ProximaFatura | null
+  /** Assinaturas previstas na fatura atual (card_pending_subscriptions) e a atual com elas, as duas somadas no banco. */
+  assinaturasPrevistas: Cents
+  atualComAssinaturas: Cents
+  /** Fatura fechada a pagar mais antiga (fechamento até hoje e pago < total); null se não há. */
+  fechadaMes: string | null
+  fechadaVencimento: string | null
+}
+
+/** Somas da família (linha 'total' de card_overview): nada é somado na tela. Limites nulos se nenhum cartão tem limite. */
+export interface TotaisCartoes {
+  faturasDoMes: Cents
+  pagoDoMes: Cents
+  assinaturasPrevistas: Cents
+  limite: Cents | null
+  limiteUsado: Cents | null
+  limiteDisponivel: Cents | null
+}
+
+export interface VisaoCartoes {
+  /** Mês escolhido (AAAA-MM) ou null = a fatura atual de cada cartão. */
+  mes: string | null
+  cartoes: CartaoNoResumo[]
+  totais: TotaisCartoes
+}
+
+const FUNCAO_INEXISTENTE = ['PGRST202', '42883']
+const centsOuNull = (v: unknown) => (v === null || v === undefined ? null : centsFromDb(v as string | number))
+
+/**
+ * Resumo de todos os cartões ativos numa chamada só (card_overview, migration 065): por cartão, a fatura do mês escolhido,
+ * a atual, as assinaturas previstas e a fechada a pagar; e os totais da família (somados no banco). `mes` = AAAA-MM do
+ * fechamento; null = a fatura atual de cada cartão. Devolve null enquanto o banco não tem a função (migration 065 ainda
+ * não aplicada): a tela volta a ler card_months por cartão.
+ */
+export async function visaoDosCartoes(familiaId: string, mes: string | null): Promise<VisaoCartoes | null> {
+  const { data, error } = await cliente().rpc('card_overview', { p_household: familiaId, p_month: mes ? `${mes}-01` : null })
+  if (error && FUNCAO_INEXISTENTE.includes(error.code ?? '')) return null
+  if (error) throw error
+  const linhas = (data ?? []) as Record<string, string | number | null>[]
+  const t = linhas.find((l) => l.row_kind === 'total')
+  return {
+    mes,
+    cartoes: linhas.filter((l) => l.row_kind === 'card').map((l) => ({
+      id: l.debt_id as string,
+      nome: l.name as string,
+      doMes: l.month_label && l.month_closing
+        ? {
+            mes: l.month_label as string, fechamento: l.month_closing as string, vencimento: (l.month_due as string | null) ?? null,
+            total: centsFromDb(l.month_total ?? 0), pago: centsFromDb(l.month_paid ?? 0),
+            situacao: (l.month_status as FaturaResumo['situacao'] | null) ?? 'aberta',
+          }
+        : null,
+      atual: l.current_label
+        ? { mes: l.current_label as string, vencimento: (l.current_due as string | null) ?? null, total: centsFromDb(l.current_total ?? 0) }
+        : null,
+      assinaturasPrevistas: centsFromDb(l.pending_subscriptions ?? 0),
+      atualComAssinaturas: centsFromDb(l.current_with_subscriptions ?? l.current_total ?? 0),
+      fechadaMes: (l.oldest_open_label as string | null) ?? null,
+      fechadaVencimento: (l.oldest_open_due as string | null) ?? null,
+    })),
+    totais: {
+      faturasDoMes: centsFromDb(t?.month_total ?? 0),
+      pagoDoMes: centsFromDb(t?.month_paid ?? 0),
+      assinaturasPrevistas: centsFromDb(t?.pending_subscriptions ?? 0),
+      limite: centsOuNull(t?.credit_limit),
+      limiteUsado: centsOuNull(t?.limit_used),
+      limiteDisponivel: centsOuNull(t?.limit_available),
+    },
+  }
+}
+
 export interface ResumoCartao {
   id: string
   nome: string

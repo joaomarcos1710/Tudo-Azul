@@ -33,6 +33,7 @@ const mock = vi.hoisted(() => ({
   totalFaturasDoMes: vi.fn(),
   estornarParcela: vi.fn(),
   listarPagamentosDaFatura: vi.fn(),
+  visaoDosCartoes: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -46,6 +47,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
+  visaoDosCartoes: mock.visaoDosCartoes,
 }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0) }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
@@ -55,7 +57,7 @@ import Cartoes from './Cartoes'
 import { fechamentoDaCompra, inicioDaTroca, melhorDiaDeCompra, ontemSP, proximaFatura, situacaoFatura } from '../lib/cartoes'
 import { hojeSP } from '../lib/contas'
 import { formatDate } from '../lib/format'
-import type { Fatura } from '../lib/cartoes'
+import type { Fatura, VisaoCartoes } from '../lib/cartoes'
 
 const c = (n: number) => n as Cents
 /** Fixa só o relógio (Date): "hoje" em São Paulo = `dia`, ao meio-dia. Timers continuam reais (Testing Library e userEvent). */
@@ -91,6 +93,8 @@ beforeEach(() => {
   mock.totalFaturasDoMes.mockResolvedValue(null)
   mock.estornarParcela.mockResolvedValue(undefined)
   mock.listarPagamentosDaFatura.mockResolvedValue([])
+  // padrão: banco sem a migration 065 (a tela lê card_months por cartão); os testes da 065 definem o resumo
+  mock.visaoDosCartoes.mockResolvedValue(null)
   for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.definirContaPagamento, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
 })
 afterEach(() => {
@@ -1320,5 +1324,103 @@ describe('Fatura paga travada (migration 064)', () => {
     expect(within(antiga).getByText('Fatura paga — travada')).toBeTruthy()
     const recente = screen.getByText(/05\/11\/2026 · Pagamento/).closest('li')!
     expect(within(recente).getByRole('button', { name: 'Anular' })).toBeTruthy()
+  })
+})
+
+describe('Resumo de todos os cartões numa chamada (card_overview, migration 065, #175)', () => {
+  const itau = { ...nubank, id: 'k2', nome: 'Itaú', divida: c(0), fechamento: 28, vencimento: 5 }
+  /** Resposta do banco: as somas (totais) vêm prontas e de propósito NÃO batem com a soma das linhas (a tela não soma). */
+  const visao = (mes: string | null, total: number): VisaoCartoes => ({
+    mes,
+    cartoes: [
+      {
+        id: 'k1', nome: 'Nubank',
+        doMes: { mes: '2026-11', fechamento: '2026-11-17', vencimento: '2026-11-25', total: c(20000), pago: c(0), situacao: 'aberta' },
+        atual: { mes: '2026-11', vencimento: '2026-11-25', total: c(20000) },
+        assinaturasPrevistas: c(3990), atualComAssinaturas: c(23990), fechadaMes: '2026-10', fechadaVencimento: '2026-10-25',
+      },
+      {
+        id: 'k2', nome: 'Itaú',
+        doMes: { mes: '2026-11', fechamento: '2026-11-28', vencimento: '2026-12-05', total: c(5000), pago: c(0), situacao: 'aberta' },
+        atual: { mes: '2026-11', vencimento: '2026-12-05', total: c(5000) },
+        assinaturasPrevistas: c(0), atualComAssinaturas: c(5000), fechadaMes: null, fechadaVencimento: null,
+      },
+    ],
+    totais: { faturasDoMes: c(total), pagoDoMes: c(0), assinaturasPrevistas: c(3990), limite: c(800000), limiteUsado: c(200000), limiteDisponivel: c(600000) },
+  })
+  beforeEach(() => {
+    fixarHoje('2026-11-05')
+    mock.listarCartoes.mockResolvedValue([nubank, itau])
+    mock.visaoDosCartoes.mockImplementation((_: string, mes: string | null) => Promise.resolve(visao(mes, mes === '2026-12' ? 77777 : 99999)))
+  })
+
+  it('carrega o resumo com UMA chamada para a família, sem card_months por cartão nem card_invoices_month', async () => {
+    render(<Cartoes />)
+    await screen.findByTestId('resumo-do-mes')
+    expect(mock.visaoDosCartoes).toHaveBeenCalledTimes(1)
+    expect(mock.visaoDosCartoes).toHaveBeenCalledWith('h1', '2026-11')
+    expect(mock.listarFaturas).not.toHaveBeenCalled()
+    expect(mock.totalFaturasDoMes).not.toHaveBeenCalled()
+  })
+
+  it('topo: faturas do mês, limite total e disponível vindos do banco, com a barra do limite usado em texto', async () => {
+    render(<Cartoes />)
+    const resumo = await screen.findByTestId('resumo-do-mes')
+    // 999,99 é o total do banco; a soma das linhas daria 250,00
+    expect(within(resumo).getByText('Faturas de novembro')).toBeTruthy()
+    expect(within(resumo).getByTestId('total-faturas-mes').textContent).toBe('R$ 999,99')
+    expect(within(resumo).queryByText('R$ 250,00')).toBeNull()
+    const limite = within(resumo).getByTestId('limite-total')
+    expect(within(limite).getByText('Limite total R$ 8.000,00')).toBeTruthy()
+    expect(within(limite).getByText('Disponível R$ 6.000,00')).toBeTruthy()
+    expect(within(limite).getByRole('img', { name: 'Comprometido R$ 2.000,00 de R$ 8.000,00' })).toBeTruthy()
+    expect(limite.textContent).toContain('Usado R$ 2.000,00 de R$ 8.000,00')
+    // a fatura de cada cartão no mês, com a situação
+    expect(within(resumo).getByText('Nubank').closest('li')!.textContent).toBe('Nubank AbertaR$ 200,00')
+    expect(within(resumo).getByText('Itaú').closest('li')!.textContent).toBe('Itaú AbertaR$ 50,00')
+  })
+
+  it('seletor de mês: "‹ Novembro de 2026 ›"; trocar o mês faz uma chamada só e muda só o resumo', async () => {
+    const u = userEvent.setup()
+    render(<Cartoes />)
+    const grupo = await screen.findByRole('group', { name: 'Mês do resumo dos cartões' })
+    expect(within(grupo).getByText('Novembro de 2026')).toBeTruthy()
+    await u.click(within(grupo).getByRole('button', { name: 'Próximo mês' }))
+    expect(within(grupo).getByText('Dezembro de 2026')).toBeTruthy()
+    expect(mock.visaoDosCartoes).toHaveBeenLastCalledWith('h1', '2026-12')
+    expect(mock.visaoDosCartoes).toHaveBeenCalledTimes(2)
+    expect((await screen.findByText('R$ 777,77')).getAttribute('data-testid')).toBe('total-faturas-mes')
+    expect(screen.getByText('Faturas de dezembro')).toBeTruthy()
+    // nada mais é recarregado (nem as automações, nem card_months)
+    expect(mock.cobrarFaturasFechadas).toHaveBeenCalledTimes(1)
+    expect(mock.listarFaturas).not.toHaveBeenCalled()
+    await u.click(within(grupo).getByRole('button', { name: 'Mês anterior' }))
+    await u.click(within(grupo).getByRole('button', { name: 'Mês anterior' }))
+    expect(mock.visaoDosCartoes).toHaveBeenLastCalledWith('h1', '2026-10')
+  })
+
+  it('destaque: abaixo da fatura atual, "inclui R$ X de assinaturas previstas" (valores do banco); sem previstas, nada', async () => {
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }, itau])
+    render(<Cartoes />)
+    const previstas = await screen.findByTestId('previstas-k1')
+    expect(previstas.textContent).toBe('Prevista até o fechamento: R$ 239,90 — inclui R$ 39,90 de assinaturas previstas')
+    expect(screen.queryByTestId('previstas-k2')).toBeNull()
+  })
+
+  it('destaque com fatura fechada a pagar: o vencimento dela vem do resumo do banco', async () => {
+    render(<Cartoes />)
+    await screen.findByTestId('resumo-do-mes')
+    expect(screen.getByText('Fatura fechada a pagar (venceu 25/10)')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pagar fatura de outubro (vence 25/10)' })).toBeTruthy()
+    expect(screen.getByTestId('previstas-k1').textContent).toContain('inclui R$ 39,90 de assinaturas previstas')
+  })
+
+  it('banco sem a 065 (resumo null): volta a ler card_months por cartão e mostra as faturas que vencem no mês', async () => {
+    mock.visaoDosCartoes.mockResolvedValue(null)
+    mock.totalFaturasDoMes.mockResolvedValue({ faturas: 1, total: c(12300), pago: c(0), falta: c(12300) })
+    render(<Cartoes />)
+    expect(await screen.findByTestId('faturas-do-mes')).toBeTruthy()
+    expect(mock.listarFaturas).toHaveBeenCalledTimes(2)
+    expect(screen.queryByTestId('resumo-do-mes')).toBeNull()
   })
 })
