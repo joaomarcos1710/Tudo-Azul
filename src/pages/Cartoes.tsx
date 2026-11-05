@@ -17,8 +17,10 @@ import {
   inicioDaTroca, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
+  visaoDosCartoes,
 } from '../lib/cartoes'
-import type { Cartao, CreditoFatura, Fatura, ItemFatura, ItemPrevia, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes } from '../lib/cartoes'
+import type { Cartao, CreditoFatura, Fatura, ItemFatura, ItemPrevia, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
+import { SeletorMes } from '../components/ui/SeletorMes'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
@@ -83,12 +85,14 @@ function PainelJunto({ children, className = 'mt-4' }: { children: ReactNode; cl
 }
 
 /**
- * Painel de resumo da aba: a próxima fatura que vence (uma DATA, nada somado) e as faturas que vencem no mês (o total vem
- * do banco, card_invoices_month). O limite disponível somado de todos os cartões fica de fora: é soma de dinheiro e
- * precisa vir do banco (Pendências).
+ * Painel de resumo da aba (referência do Mobills, pedido do dono): a próxima fatura que vence (uma DATA, nada somado) e,
+ * com a migration 065, o resumo de todos os cartões do mês escolhido (card_overview): valor das faturas, limite total,
+ * usado e disponível — todas as somas vêm do banco. Banco ainda sem a 065: as faturas que vencem no mês
+ * (card_invoices_month), como antes.
  */
-function ResumoCartoes({ cartoes, faturasDe, faturasMes, hoje }: {
-  cartoes: Cartao[]; faturasDe: Map<string, FaturasDoCartao | null>; faturasMes: TotalFaturasMes | null; hoje: string
+function ResumoCartoes({ cartoes, faturasDe, faturasMes, visao, mes, aoMudarMes, carregandoMes, hoje }: {
+  cartoes: Cartao[]; faturasDe: Map<string, FaturasDoCartao | null>; faturasMes: TotalFaturasMes | null
+  visao: VisaoCartoes | null; mes: string; aoMudarMes: (m: string) => void; carregandoMes: boolean; hoje: string
 }) {
   // só cartão com algo a pagar (fechada ou atual com valor); a lista já vem na ordem de vencimento
   let proxima: { data: string; nome: string } | null = null
@@ -98,10 +102,11 @@ function ResumoCartoes({ cartoes, faturasDe, faturasMes, hoje }: {
     const data = proximoVencimento(c, f)
     if (data && (!proxima || data < proxima.data)) proxima = { data, nome: c.nome }
   }
-  if (!proxima && !(faturasMes && faturasMes.faturas > 0)) return null
+  if (!visao && !proxima && !(faturasMes && faturasMes.faturas > 0)) return null
   const vencida = proxima !== null && proxima.data < hoje
   return (
     <Card className="flex flex-col gap-3">
+      {visao && <ResumoDoMes visao={visao} mes={mes} aoMudarMes={aoMudarMes} carregando={carregandoMes} />}
       {proxima && (
         <div className="rounded-lg bg-fundo p-3" data-testid="proxima-fatura">
           <p className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
@@ -112,8 +117,49 @@ function ResumoCartoes({ cartoes, faturasDe, faturasMes, hoje }: {
           <p className="text-xs text-slate-500">Cartão {proxima.nome}</p>
         </div>
       )}
-      <FaturasDoMes mes={hoje.slice(0, 7)} dados={faturasMes} />
+      {!visao && <FaturasDoMes mes={hoje.slice(0, 7)} dados={faturasMes} />}
     </Card>
+  )
+}
+
+/**
+ * Resumo de todos os cartões no mês escolhido (card_overview): a fatura de cada cartão que fecha naquele mês (o mês da
+ * fatura, como nas abas), o total delas e o limite total. A tela não soma: total, pago e limites vêm da linha de totais.
+ */
+function ResumoDoMes({ visao, mes, aoMudarMes, carregando }: {
+  visao: VisaoCartoes; mes: string; aoMudarMes: (m: string) => void; carregando: boolean
+}) {
+  const t = visao.totais
+  return (
+    <section aria-labelledby="titulo-resumo-mes" aria-busy={carregando} data-testid="resumo-do-mes">
+      <h2 id="titulo-resumo-mes" className="sr-only">Resumo de todos os cartões</h2>
+      <SeletorMes mes={mes} aoMudar={aoMudarMes} rotulo="Mês do resumo dos cartões" className="" />
+      <div className={`mt-3 rounded-lg bg-fundo p-3 ${carregando ? 'opacity-60' : ''}`}>
+        <p className="text-sm text-slate-500">Faturas de {nomeDoMes(mes)}</p>
+        <p className="tabular-nums whitespace-nowrap text-2xl font-bold tracking-tight" data-testid="total-faturas-mes">{formatBRL(t.faturasDoMes)}</p>
+        {t.pagoDoMes > 0 && <p className="text-xs text-slate-500">já pago <span className="tabular-nums whitespace-nowrap">{formatBRL(t.pagoDoMes)}</span></p>}
+        {visao.cartoes.length > 0 && (
+          <ul className="mt-2 flex flex-col gap-1 text-sm">
+            {visao.cartoes.map((c) => c.doMes && (
+              <li key={c.id} className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate text-slate-600">
+                  {c.nome}{' '}
+                  <span className={`rounded-full px-1.5 text-xs ${rotuloSituacao[c.doMes.situacao].estilo}`}>{rotuloSituacao[c.doMes.situacao].texto}</span>
+                </span>
+                <span className="tabular-nums whitespace-nowrap font-medium">{formatBRL(c.doMes.total)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-slate-500">A fatura de cada cartão que fecha em {nomeDoMes(mes)}.</p>
+      </div>
+      {t.limite !== null && t.limiteUsado !== null && t.limiteDisponivel !== null && (
+        <div className="mt-3 rounded-lg bg-fundo p-3" data-testid="limite-total">
+          <Limite titulo="Limite total" limite={t.limite} comprometido={t.limiteUsado} disponivel={t.limiteDisponivel}
+            nota={<>Usado <span className="tabular-nums whitespace-nowrap">{formatBRL(t.limiteUsado)}</span> de <span className="tabular-nums whitespace-nowrap">{formatBRL(t.limite)}</span>, somando os cartões com limite (hoje).</>} />
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -135,6 +181,12 @@ export default function Cartoes() {
   const [painel, setPainelBruto] = useState<Painel | null>(null)
   // faturas de todos os cartões que vencem neste mês (card_invoices_month); null = sem a função ou a leitura falhou
   const [faturasMes, setFaturasMes] = useState<TotalFaturasMes | null>(null)
+  // resumo de todos os cartões (card_overview, migration 065); null = banco sem a função ou a leitura falhou
+  const [visao, setVisao] = useState<VisaoCartoes | null>(null)
+  // mês do resumo (AAAA-MM do fechamento): começa no de hoje; o ref deixa carregar() ler o mês sem recriar a função
+  const [mesResumo, setMesResumo] = useState(() => hojeSP().slice(0, 7))
+  const mesResumoRef = useRef(mesResumo)
+  const [carregandoMes, setCarregandoMes] = useState(false)
   const lembrarOrigem = useFocoDeVolta(painel !== null)
   const setPainel = useCallback((p: Painel | null) => { if (p) lembrarOrigem(); setPainelBruto(p) }, [lembrarOrigem])
   // ?cartao=<id> (aviso de fatura do Início): abre as faturas desse cartão. Lido do endereço sem depender do roteador.
@@ -155,21 +207,38 @@ export default function Cartoes() {
         : !r.recorrentesOk ? 'Não foi possível lançar as assinaturas de hoje agora; tente de novo em instantes.'
         : '',
       )
-      const [c, cs, cats] = await Promise.all([listarCartoes(familiaId), listarContas(familiaId), listarCategorias(familiaId)])
+      const [c, cs, cats, v] = await Promise.all([
+        listarCartoes(familiaId), listarContas(familiaId), listarCategorias(familiaId),
+        // uma chamada para todos os cartões; se falhar, a tela volta a ler card_months por cartão (abaixo)
+        visaoDosCartoes(familiaId, mesResumoRef.current).catch(() => null),
+      ])
       const hoje = hojeSP()
-      const doMes = totalFaturasDoMes(familiaId, hoje.slice(0, 7)).catch(() => null)
-      const lidas = await Promise.all(c.filter((x) => x.ativo).map(async (x): Promise<[string, FaturasDoCartao | null]> => {
-        try {
-          const fs = await listarFaturas(x.id)
-          // só escolhe linhas que o banco já calculou (card_months): a fechada mais antiga não paga e a aberta que fecha primeiro
-          const fechada = fs.find((f) => situacaoFatura(f, hoje) === 'fechada')
-          return [x.id, { atual: proximaFatura(fs, hoje, x), vencimentoFechada: fechada?.vencimento ?? null, mesFechada: fechada?.mes ?? null }]
-        } catch { return [x.id, null] }
-      }))
+      let lidas: [string, FaturasDoCartao | null][]
+      let doMes: TotalFaturasMes | null = null
+      if (v) {
+        lidas = v.cartoes.map((x) => [x.id, {
+          atual: x.atual, vencimentoFechada: x.fechadaVencimento, mesFechada: x.fechadaMes,
+          assinaturasPrevistas: x.assinaturasPrevistas, atualComAssinaturas: x.atualComAssinaturas,
+        }])
+      } else {
+        // atalho: banco sem a migration 065 (ou card_overview falhou) lê card_months por cartão (N+1), como antes da #175;
+        // remover depois que a 065 estiver aplicada em produção (ver 40 - Pendências)
+        const pedidoMes = totalFaturasDoMes(familiaId, hoje.slice(0, 7)).catch(() => null)
+        lidas = await Promise.all(c.filter((x) => x.ativo).map(async (x): Promise<[string, FaturasDoCartao | null]> => {
+          try {
+            const fs = await listarFaturas(x.id)
+            // só escolhe linhas que o banco já calculou (card_months): a fechada mais antiga não paga e a aberta que fecha primeiro
+            const fechada = fs.find((f) => situacaoFatura(f, hoje) === 'fechada')
+            return [x.id, { atual: proximaFatura(fs, hoje, x), vencimentoFechada: fechada?.vencimento ?? null, mesFechada: fechada?.mes ?? null }]
+          } catch { return [x.id, null] }
+        }))
+        doMes = await pedidoMes
+      }
       // cartões e faturas juntos: sem o intervalo em que o cartão apareceria como "Sem fatura em aberto" antes de ler as faturas
       setCartoes(c)
       setFaturasDe(new Map(lidas))
-      setFaturasMes(await doMes)
+      setVisao(v)
+      setFaturasMes(doMes)
       setContas(cs.contas)
       setCategorias(cats)
       setErro('')
@@ -180,6 +249,23 @@ export default function Cartoes() {
   }, [familiaId])
 
   useEffect(() => { void carregar() }, [carregar])
+
+  // troca o mês do resumo: uma chamada de card_overview; só o resumo muda (o destaque de cada cartão é a fatura atual)
+  async function mudarMesResumo(m: string) {
+    if (!familiaId) return
+    mesResumoRef.current = m
+    setMesResumo(m)
+    setCarregandoMes(true)
+    try {
+      const v = await visaoDosCartoes(familiaId, m)
+      // resposta atrasada de um mês que já não é o escolhido: descarta
+      if (mesResumoRef.current === m && v) setVisao(v)
+    } catch (err) {
+      if (mesResumoRef.current === m) setErro(mensagemErroBanco(err))
+    } finally {
+      if (mesResumoRef.current === m) setCarregandoMes(false)
+    }
+  }
 
   // veio do aviso do Início: leva a tela até o cartão aberto quando a lista chega (uma vez)
   const [rolouAte, setRolouAte] = useState(false)
@@ -249,7 +335,8 @@ export default function Cartoes() {
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-6">
       {ativos.length > 0 && (
         <aside className="mb-4 lg:sticky lg:top-4 lg:order-2 lg:mb-0" aria-label="Resumo dos cartões">
-          <ResumoCartoes cartoes={ativos} faturasDe={faturasDe} faturasMes={faturasMes} hoje={hoje} />
+          <ResumoCartoes cartoes={ativos} faturasDe={faturasDe} faturasMes={faturasMes} hoje={hoje}
+            visao={visao} mes={mesResumo} aoMudarMes={(m) => void mudarMesResumo(m)} carregandoMes={carregandoMes} />
         </aside>
       )}
       <div className="min-w-0 lg:order-1">
@@ -381,6 +468,9 @@ interface FaturasDoCartao {
   vencimentoFechada: string | null
   /** AAAA-MM dessa fatura fechada (a que "Pagar fatura" quita); null se não há. */
   mesFechada?: string | null
+  /** Assinaturas previstas na fatura atual e a atual com elas (card_overview, somadas no banco); ausentes sem a 065. */
+  assinaturasPrevistas?: Cents
+  atualComAssinaturas?: Cents
 }
 
 const diaMes = (data: string) => formatDate(data).slice(0, 5)
@@ -420,9 +510,10 @@ function DestaqueFatura({ cartao: c, faturas, hoje }: { cartao: Cartao; faturas:
         {ciclo && (
           <dd className="mt-1 text-sm text-slate-600" data-testid={`atual-${c.id}`}>
             Fatura atual (aberta{ciclo.vencimento ? `, vence ${diaMes(ciclo.vencimento)}` : ''}):{' '}
-            <strong className="tabular-nums text-marinho">{formatBRL(ciclo.total)}</strong>
+            <strong className="tabular-nums whitespace-nowrap text-marinho">{formatBRL(ciclo.total)}</strong>
           </dd>
         )}
+        {ciclo && <Previstas cartaoId={c.id} faturas={faturas} />}
       </dl>
     )
   }
@@ -436,6 +527,7 @@ function DestaqueFatura({ cartao: c, faturas, hoje }: { cartao: Cartao; faturas:
           )}
         </dt>
         <dd className="tabular-nums text-3xl font-bold tracking-tight text-marinho">{formatBRL(atual.total)}</dd>
+        <Previstas cartaoId={c.id} faturas={faturas} />
       </dl>
     )
   }
@@ -447,7 +539,25 @@ function DestaqueFatura({ cartao: c, faturas, hoje }: { cartao: Cartao; faturas:
       {ciclo?.vencimento && (
         <p className="mt-1 text-sm text-slate-600" data-testid={`atual-${c.id}`}>Fatura atual{vence(ciclo.vencimento)}: sem compras ainda</p>
       )}
+      <Previstas cartaoId={c.id} faturas={faturas} comoParagrafo />
     </div>
+  )
+}
+
+/**
+ * "inclui R$ X de assinaturas previstas": as assinaturas só viram parcela no dia da cobrança (migration 058), então a
+ * fatura atual ainda não as tem. Os dois valores vêm somados do banco (card_overview); nada aparece sem previstas.
+ */
+function Previstas({ cartaoId, faturas, comoParagrafo = false }: { cartaoId: string; faturas: FaturasDoCartao | null | undefined; comoParagrafo?: boolean }) {
+  const x = faturas?.assinaturasPrevistas
+  const com = faturas?.atualComAssinaturas
+  if (!x || x <= 0 || com === undefined) return null
+  const Tag = comoParagrafo ? 'p' : 'dd'
+  return (
+    <Tag className="mt-1 text-sm text-slate-600" data-testid={`previstas-${cartaoId}`}>
+      Prevista até o fechamento: <strong className="tabular-nums whitespace-nowrap text-planejado">{formatBRL(com)}</strong>
+      {' '}— inclui <span className="tabular-nums whitespace-nowrap">{formatBRL(x)}</span> de assinaturas previstas
+    </Tag>
   )
 }
 
@@ -483,13 +593,15 @@ function PainelRemoverCartao({ tipo, cartao, aoConcluir, aoFechar }: {
 }
 
 /** Barra do limite: a proporção é só apresentação; os três valores vêm calculados do banco (card_limits). */
-function Limite({ limite, comprometido, disponivel }: { limite: Cents; comprometido: Cents; disponivel: Cents }) {
+function Limite({ limite, comprometido, disponivel, titulo = 'Limite', nota }: {
+  limite: Cents; comprometido: Cents; disponivel: Cents; titulo?: string; nota?: ReactNode
+}) {
   const passou = disponivel < 0
   const pct = Math.max(0, Math.min(100, (comprometido / limite) * 100))
   return (
     <div className="mt-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 text-sm">
-        <span className="text-slate-500">Limite {formatBRL(limite)}</span>
+        <span className="whitespace-nowrap tabular-nums text-slate-500">{`${titulo} ${formatBRL(limite)}`}</span>
         <span className={`tabular-nums font-semibold ${passou ? 'text-negativo' : ''}`}>
           {passou ? `Passou do limite em ${formatBRL(-disponivel as Cents)}` : `Disponível ${formatBRL(disponivel)}`}
         </span>
@@ -499,7 +611,7 @@ function Limite({ limite, comprometido, disponivel }: { limite: Cents; compromet
         <div className={`h-full rounded-full ${passou ? 'bg-negativo' : 'bg-azul'}`} style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-1 text-xs text-slate-500">
-        Comprometido {formatBRL(comprometido)}: faturas a pagar + a cobrar (atual + futuras) − crédito no cartão. É só acompanhamento: o app não bloqueia compras.
+        {nota ?? <>Comprometido {formatBRL(comprometido)}: faturas a pagar + a cobrar (atual + futuras) − crédito no cartão. É só acompanhamento: o app não bloqueia compras.</>}
       </p>
     </div>
   )

@@ -38,7 +38,7 @@ atualizado: 2026-10-28
 ### Fatura paga travada (#174, migration 064)
 - [x] **Botão "Pagar fatura" diz qual fatura** (destaque) e a aba de fatura paga não tem ação de pagar nem de mudar; mostra "Paga em dd/mm" e "Fatura paga — travada".
 - [x] **Detalhes da fatura** (referência do Organizze): cabeçalho com situação, "Fechou/Fecha em" e "Venceu/Vence em"; resumo Saldo anterior, Gasto do mês e Valor pago (do banco); lista "Pagamento recebido em dd/mm/aaaa"; lado a lado a partir de 768px, empilhados no celular.
-- [ ] **Aplicar a migration 064** em produção (workflow; simular → ler o log → `APLICAR`), com o "pode" do dono.
+- [x] **Aplicar a migration 064** em produção: merge `af82940`, **aplicada em 05/11/2026** (execução 41955144022, simulação 41955082904).
 - [ ] **Estorno de compra de fatura já paga**: hoje só vira crédito avulso (receita) na fatura atual; o estorno da compra (abatendo a despesa da categoria) não é aceito porque `card_months` conta o estorno no mês da parcela, que está travado. Melhorar: estorno "na fatura atual" contado no mês da fatura onde entra (decisão do dono; mexe em `card_months`).
 - [ ] **Pagamento errado descoberto depois de 24 h** (ou com pagamento posterior): sem caminho na tela; hoje só correção manual. Decidir com o dono (ex.: ajuste com motivo).
 - [ ] **Compra lançada com deslocamento para uma fatura passada já paga** (Nova compra → Fatura −1…−3): o banco aceita e a fatura volta a "Fechada"; decidir se recusa também.
@@ -46,8 +46,18 @@ atualizado: 2026-10-28
 - [ ] **"Anular" de pagamento sem fatura (adiantamento)** continua na tela; se ele quitou uma fatura travada, o banco recusa com a mensagem (a tela não sabe qual fatura ele quitou).
 - [ ] **Screenshot da fatura paga em 820px**: não feito nesta PR (o app precisa de login; sem harness de tela com dados de teste).
 
+### Resumo dos cartões (#175, migration 065)
+- [x] **`card_overview`** (migration 065): uma chamada por família com fatura do mês, atual, fechada a pagar, limite, assinaturas previstas e os totais. Teste `65_card_overview` (31).
+- [x] **Resumo de todos os cartões** no topo de Cartões: carrossel de mês, "Faturas de <mês>" (total do banco e a fatura de cada cartão), limite total, disponível total e barra do usado com texto.
+- [ ] **Aplicar a migration 065** em produção (workflow; simular → ler o log → `APLICAR`), com o "pode" do dono.
+- [ ] **Atalho: caminho antigo sem a 065** (`Cartoes.tsx`, `carregar`): com o banco sem `card_overview` (ou se ela falhar), a tela lê `card_months` por cartão e `card_invoices_month`. Remover depois que a 065 estiver aplicada.
+- [ ] **Início ainda é N+1**: `resumoDosCartoes` (bloco Cartões do Início) chama `card_months` por cartão; passar a usar `card_overview` (mesmos números) numa PR própria.
+- [ ] **Dois "meses" de fatura no app**: Cartões agrupa pelo mês do fechamento (como as abas); o Início ("Faturas que vencem em") e Lançamentos pelo do vencimento. Decidir com o dono se unifica.
+- [ ] **"Cartão Cartão Roxo"** no "Próxima fatura vence em" quando o nome do cartão já começa com "Cartão" (texto antigo da #166, só apresentação).
+- [ ] **Conferir no celular e no iPad** (você): resumo no topo, carrossel e a linha das assinaturas previstas com os seus cartões.
+
 ### Achados da análise da aba Cartões (05/11/2026), ainda abertos
-- [ ] **Assinaturas previstas na fatura atual**: assinatura (recorrente no cartão) que ainda não foi gerada não entra no valor da fatura atual nem no da aberta.
+- [x] **Assinaturas previstas na fatura atual**: desde a #175 o destaque mostra "Prevista até o fechamento: R$ Y — inclui R$ X de assinaturas previstas" (`card_overview`). O valor grande continua o da fatura real (sem as previstas), de propósito.
 - [ ] **Pagamento com data futura**: "Pagar fatura" aceita data futura; decidir se bloqueia, avisa ou agenda como planejado.
 - [ ] **`card_items` líquido de estorno/cancelamento**: a linha da compra mostra o valor de face; estorno ou cancelamento parcial não aparece descontado nela.
 - [x] **Painel abrir junto do cartão no celular** (#166): o painel abre dentro do cartão clicado, com foco no título; ao fechar, o foco volta ao botão (ou ao "⋯").
@@ -56,11 +66,11 @@ atualizado: 2026-10-28
 - [x] **Selo "Vencida"** (#166): no destaque (com o vencimento da mais antiga, "venceu dd/mm") e nas abas; mesma regra do Início.
 - [x] **Renomear "Parcelas futuras"** (#166): "A cobrar (atual + futuras)", com a dica embaixo.
 - [x] **Estorno parcial na linha da compra** (#166): botão "Estornar" (valor até o da parcela e data; `debt_refund`). Falta você: estornar uma compra de teste e conferir a fatura e o resultado do mês. Ver também o item do `card_items` líquido acima: a linha continua mostrando o valor de face até a migration 058.
-- [ ] **#166: limite disponível total e valor total no resumo de Cartões** (referência do Mobills): são somas de dinheiro, ficam para a `card_overview` no banco (PR de desempenho), nunca somadas na tela.
-- [ ] **#166: seletor de mês no resumo de Cartões** (referência do Mobills, "NOVEMBRO ▾"): o resumo mostra só o mês de hoje; o mês das abas é por cartão e não serve. Fazer junto da `card_overview`, se o dono quiser.
+- [x] **#166: limite disponível total e valor total no resumo de Cartões** (referência do Mobills): feito na #175 com `card_overview` (migration 065), somas do banco.
+- [x] **#166: seletor de mês no resumo de Cartões** (feito na #175: carrossel "‹ Novembro de 2026 ›", mês da fatura) (referência do Mobills, "NOVEMBRO ▾").
 - [ ] **#166: estorno sem chave de repetição**: `debt_refund` não tem `p_idem`; o botão fica travado enquanto envia, mas rede ruim com nova tentativa pode gravar duas vezes. O banco também não confere se a soma dos estornos passa do valor da parcela (a tela só limita cada estorno ao valor da parcela). Corrigir numa migration (idempotência e teto), se o dono quiser.
 - [ ] **#166: os painéis de Editar/Excluir/Reabrir na fatura** continuam no topo da fatura escolhida (só o de Estornar abre na linha); levar para a linha se incomodar no celular.
-- [ ] **Desempenho**: uma chamada `card_overview` por família em vez de `card_months` por cartão ao abrir a tela (hoje N+1 consultas).
+- [x] **Desempenho**: uma chamada `card_overview` por família em vez de `card_months` por cartão ao abrir a tela (#175, migration 065). As abas de fatura ainda leem `card_months` do cartão ao abrir (de propósito).
 - [x] **Multimoeda F1 — moeda na conta e saldos por moeda** (migration 055, #160): merge `8e62600`; **aplicada em 04/11/2026** (execução 41912792280, simulação 41912680166).
 - [x] **Multimoeda F2 — receita e despesa em moeda estrangeira e relatórios por moeda** (migration 056, #161): merge `5c70512`; **aplicada em 05/11/2026** (execução 41942726578, simulação 41942648839). Provento continua só em reais.
 - [x] **Avisos no topo do Início** (migration 057, #162): a receber e a pagar em 7 dias, fatura que vence em 7 dias e vencidos, do banco (`home_alerts`); Minhas contas só com as contas com saldo. merge `404500a`; **aplicada em 05/11/2026** (execução 41944777617, simulação 41944718863).

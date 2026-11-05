@@ -14,7 +14,7 @@ const fake = vi.hoisted(() => {
 vi.mock('./supabase', () => ({ supabase: { rpc: fake.rpc, from: fake.from } }))
 vi.mock('./contas', () => ({ COLUNA_INEXISTENTE: '42703', hojeSP: () => '2026-10-30' }))
 
-import { criarCartao, lancarCreditoNoCartao, listarCreditosDaFatura } from './cartoes'
+import { criarCartao, lancarCreditoNoCartao, listarCreditosDaFatura, visaoDosCartoes } from './cartoes'
 
 beforeEach(() => {
   fake.rpc.mockReset()
@@ -117,5 +117,58 @@ describe('listarCreditosDaFatura', () => {
   it('outro erro do banco é propagado', async () => {
     fake.consulta.resultado = { data: null, error: { code: '42501', message: 'sem permissão' } }
     await expect(listarCreditosDaFatura('card-1', '2026-02')).rejects.toMatchObject({ code: '42501' })
+  })
+})
+
+describe('visaoDosCartoes (card_overview, migration 065)', () => {
+  const linhaCartao = {
+    row_kind: 'card', debt_id: 'k1', name: 'Nubank',
+    month_label: '2026-11', month_closing: '2026-11-17', month_due: '2026-11-25', month_total: '120.50', month_paid: '0', month_status: 'aberta',
+    current_label: '2026-11', current_closing: '2026-11-17', current_due: '2026-11-25', current_total: '120.50',
+    pending_subscriptions: '39.90', current_with_subscriptions: '160.40',
+    oldest_open_label: '2026-10', oldest_open_due: '2026-10-25', oldest_open_remaining: '50.00',
+    credit_limit: '1000.00', limit_used: '300.00', limit_available: '700.00',
+  }
+  const linhaTotal = {
+    row_kind: 'total', debt_id: null, name: null, month_label: '2026-11', month_total: '999.99', month_paid: '10.00',
+    current_total: '120.50', pending_subscriptions: '39.90', current_with_subscriptions: '160.40', oldest_open_remaining: '50.00',
+    credit_limit: '1000.00', limit_used: '300.00', limit_available: '700.00',
+  }
+
+  it('uma chamada para a família; o mês vai como 1º dia; centavos inteiros; os totais são os do banco (não a soma das linhas)', async () => {
+    fake.rpc.mockResolvedValue({ data: [linhaCartao, linhaTotal], error: null })
+    const v = await visaoDosCartoes('h1', '2026-11')
+    expect(fake.rpc).toHaveBeenCalledTimes(1)
+    expect(fake.rpc).toHaveBeenCalledWith('card_overview', { p_household: 'h1', p_month: '2026-11-01' })
+    expect(v?.cartoes).toEqual([{
+      id: 'k1', nome: 'Nubank',
+      doMes: { mes: '2026-11', fechamento: '2026-11-17', vencimento: '2026-11-25', total: 12050, pago: 0, situacao: 'aberta' },
+      atual: { mes: '2026-11', vencimento: '2026-11-25', total: 12050 },
+      assinaturasPrevistas: 3990, atualComAssinaturas: 16040, fechadaMes: '2026-10', fechadaVencimento: '2026-10-25',
+    }])
+    // 999,99 ≠ 120,50: a tela usa o total do banco, nunca soma as linhas
+    expect(v?.totais).toEqual({ faturasDoMes: 99999, pagoDoMes: 1000, assinaturasPrevistas: 3990, limite: 100000, limiteUsado: 30000, limiteDisponivel: 70000 })
+  })
+
+  it('sem mês: manda null (o banco usa a fatura atual de cada cartão); sem limite em nenhum cartão: limites nulos', async () => {
+    fake.rpc.mockResolvedValue({ data: [{ ...linhaTotal, credit_limit: null, limit_used: null, limit_available: null }], error: null })
+    const v = await visaoDosCartoes('h1', null)
+    expect(fake.rpc).toHaveBeenCalledWith('card_overview', { p_household: 'h1', p_month: null })
+    expect(v?.totais.limite).toBeNull()
+    expect(v?.totais.limiteDisponivel).toBeNull()
+  })
+
+  it('cartão sem dias definidos: sem fatura do mês nem atual', async () => {
+    fake.rpc.mockResolvedValue({ data: [{ ...linhaCartao, month_label: null, month_closing: null, current_label: null }, linhaTotal], error: null })
+    const v = await visaoDosCartoes('h1', null)
+    expect(v?.cartoes[0].doMes).toBeNull()
+    expect(v?.cartoes[0].atual).toBeNull()
+  })
+
+  it('banco ainda sem a migration 065: null (a tela volta a ler por cartão); outro erro é lançado', async () => {
+    fake.rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'função não existe' } })
+    expect(await visaoDosCartoes('h1', null)).toBeNull()
+    fake.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'sem permissão' } })
+    await expect(visaoDosCartoes('h1', null)).rejects.toMatchObject({ code: '42501' })
   })
 })
