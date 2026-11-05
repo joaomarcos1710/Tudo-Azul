@@ -158,6 +158,13 @@ Pedido e "pode" do dono, a partir dos cartões de aviso do Organizze.
 - **Só contas em reais** (regra da multimoeda F1/F2); conta em outra moeda fica para quando o Início tiver bloco por moeda.
 - **Minhas contas só com saldo** (pedido do dono): conta ativa com saldo zero sai do bloco do Início; a lista completa fica na aba Contas ("Ver todas as contas"). Conta que ainda não abriu (sem saldo) continua aparecendo, com a data de abertura.
 
+## 05/11/2026 — Cartões: destaque é a fatura atual e ações secundárias no menu "Mais opções" (#163)
+- **Pedido do dono:** ver "Fatura a pagar R$ 0,00" em destaque parecia errado (no Organizze o destaque é "Fatura atual (Venc. 28/11) R$ X") e havia botões demais em cada cartão.
+- **Destaque:** com fatura fechada e não paga, ela é o destaque ("Fatura fechada a pagar (vence dd/mm)") e a atual fica embaixo, menor; sem fechada, o destaque é a **fatura atual** (a aberta que fecha primeiro), com "aberta — fecha dia N"; sem nada, "Sem fatura em aberto". Os valores são os mesmos de antes, vindos do banco (dívida de `debt_balances`; total da aberta de `card_months`); a tela só escolhe a linha, não soma.
+- **Botões:** visíveis só Nova compra, Pagar fatura e Ver faturas; as outras 8 ações vão para o menu "⋯ Mais opções" (Excluir por último, separado, em vermelho). Mantida a regra de qual botão é o principal (Pagar fatura com fatura fechada; Nova compra sem ela) e a regra do pagamento sugerido.
+- **Texto do crédito antecipado:** o parágrafo fixo "Não há fatura fechada… vira crédito no cartão" saiu do cartão; a explicação aparece no painel "Pagar fatura" sempre que não há fatura fechada, antes de digitar o valor.
+- **Menu novo `MenuAcoes`** (`src/components/ui/MenuAcoes.tsx`), no mesmo jeito do menu "+ Lançamento" (que era local de Lançamentos); unificar os dois fica como pendência.
+
 ## Lançamentos: fatura do cartão agrupada no vencimento (05/11/2026, #164)
 Pedido do dono: "Nos lançamentos, ao invés do dia 28 ter a soma do cartão, você fez todos os lançamentos do cartão no extrato. Apesar de nos gastos do mês ter que entrar os do cartão, seria melhor no dia do vencimento do cartão ter a soma total."
 - **Na lista, uma linha por fatura no dia do vencimento**, com o total do banco (`card_months`, a mesma fonte da tela Cartões) e "Ver compras" para abrir as parcelas (`card_items`). Motivo: pedido do dono, igual ao Organizze; o extrato do mês fica com o que vence, sem dezenas de linhas do cartão.
