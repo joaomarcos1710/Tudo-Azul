@@ -187,12 +187,14 @@ function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, aoNaoCon
 }) {
   const sugestao = c.tipo === 'expense' && !c.sistema && !c.grupo && !grupoHerdado ? sugerirGrupo(c.nome) : null
   return (
-    <div className={`flex flex-wrap items-center justify-between gap-2 px-5 py-3 ${c.ativa ? '' : 'opacity-70'}`}>
-      <span className={`flex min-w-0 items-center gap-3 ${c.paiId ? 'text-sm' : 'font-semibold'}`}>
-        <IconeCategoria visual={visualDaCategoria(c, porId)} tamanho={c.paiId ? 'pequeno' : 'normal'} />
+    // desativada: nome em cinza neutro e ícone sem cor, sem opacidade no texto (a opacidade derrubava o contraste dos
+    // selos e dos botões abaixo de 4,5:1; auditoria 5h)
+    <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3" data-ativa={c.ativa}>
+      <span className={`flex min-w-0 items-center gap-3 ${c.paiId ? 'text-sm' : 'font-semibold'} ${c.ativa ? '' : 'text-neutro'}`}>
+        <span className={`flex shrink-0 ${c.ativa ? '' : 'grayscale'}`}><IconeCategoria visual={visualDaCategoria(c, porId)} tamanho={c.paiId ? 'pequeno' : 'normal'} /></span>
         <span className="min-w-0">
         {c.nome}
-        {!c.ativa && <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">desativada</span>}
+        {!c.ativa && <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${SELO.neutro}`}>desativada</span>}
         {c.sistema && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">padrão</span>}
         {c.grupo && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(c.grupo)}</span>}
         {!c.grupo && grupoHerdado && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(grupoHerdado)} (da principal)</span>}

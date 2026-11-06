@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
+import { useFocoPreso } from '../components/ui/useFocoPreso'
 import { Selecao } from '../components/ui/Selecao'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import type { AcaoMenu } from '../components/ui/MenuAcoes'
@@ -29,6 +30,8 @@ import {
   listarMovimentosDeDivida, marcarComoPago,
   moverParaLixeira, restaurarDaLixeira, resumoDoMes, resumoPorMoeda, somarMeses, valoresDasParcelas,
 } from '../lib/lancamentos'
+// import à parte para não conflitar com outras branches que mexem na lista acima
+import { situacaoDoLancamento } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
 import type { CompraDaFatura, CreditoDeCartao, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
@@ -228,6 +231,7 @@ export default function Lancamentos() {
     ...parcelasContrato.map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
     ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
   ].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
+  const hoje = hojeSP()
   const porDia: [string, Item[]][] = []
   for (const it of itens) {
     const ultimo = porDia[porDia.length - 1]
@@ -238,18 +242,17 @@ export default function Lancamentos() {
   return (
     <>
       <CabecalhoPagina titulo="Lançamentos" descricao="Receitas, despesas e transferências do mês, pagas e planejadas."
-        acoes={<>
-          {editando === null && <MenuNovo desabilitado={contas.length === 0} aoEscolher={(t) => { setInicial(t); setEditando('novo') }} />}
-        </>} />
+        // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
+        acoes={<MenuNovo desabilitado={contas.length === 0} aoEscolher={(t) => { setInicial(t); setEditando('novo') }} />} />
 
       {contas.length === 0 && lancamentos !== null && (
         <div className="mb-4"><Aviso tipo="info">Cadastre uma conta em <strong>Contas</strong> antes do primeiro lançamento.</Aviso></div>
       )}
 
       <div className="mb-4 flex items-center gap-2">
-        <Button variante="secundario" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
+        <Button variante="secundario" className="min-w-11" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
         <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
-        <Button variante="secundario" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
+        <Button variante="secundario" className="min-w-11" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
       </div>
 
       {resumo && (
@@ -357,7 +360,7 @@ export default function Lancamentos() {
       )}
 
       {telaGrande ? (
-        <TabelaLancamentos itens={itens} hoje={hojeSP()} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
+        <TabelaLancamentos itens={itens} hoje={hoje} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
           categorias={categorias} nomeConta={nomeConta} moedaConta={moedaConta} nomeCategoria={nomeCategoria} categoriaPorId={categoriaPorId}
           ocupado={pagando !== null} aoEditar={(l) => { setPagando(null); setEditando(l) }} aoPagar={(l) => { setEditando(null); setPagando(l) }}
           aoExcluir={excluir} aoAlterar={carregar} />
@@ -406,7 +409,9 @@ export default function Lancamentos() {
                     return (
                       <LinhaLista key={`contrato-${p.id}`} icone={<IconeCategoria fixo="cartao" />}
                         titulo={`${p.nomeDivida} · parcela ${p.numero}`}
-                        etiquetas={[<Etiqueta key="p" estilo={SELO.planejado}>Planejado · contrato</Etiqueta>]}
+                        etiquetas={[situacaoDoLancamento(false, p.vencimento, hoje) === 'vencido'
+                          ? <Etiqueta key="p" estilo={SELO.vencido}>Vencido · contrato</Etiqueta>
+                          : <Etiqueta key="p" estilo={SELO.planejado}>Planejado · contrato</Etiqueta>]}
                         detalhe={`${p.formaPagamento === 'account_debit' ? `Débito em ${nomeConta.get(p.contaPagamentoId ?? '') ?? 'conta'}` : p.formaPagamento === 'payroll' ? 'Desconto em folha' : p.formaPagamento === 'boleto' ? 'Boleto' : 'Pagamento manual'} · só entra no saldo e nas despesas quando você der baixa`}
                         valor={`−${formatBRL(p.valor)}`} corValor="text-neutro"
                         acoes={<Link to={`/dividas?baixar=${p.id}`} aria-label={`Baixar parcela ${p.numero} de ${p.nomeDivida}`} className={linkCompacto}>Baixar</Link>} />
@@ -440,7 +445,10 @@ export default function Lancamentos() {
                         ? <span>{`${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`}</span>
                         : <NomeCategoria id={l.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
                       etiquetas={[
-                        ...(l.status === 'planned' ? [<Etiqueta key="p" estilo={SELO.planejado}>Planejado</Etiqueta>] : []),
+                        // planejado com a data já passada é vencido (vermelho), como na tabela do computador e no Início
+                        ...(l.status === 'planned' ? [situacaoDoLancamento(false, l.data, hoje) === 'vencido'
+                          ? <Etiqueta key="p" estilo={SELO.vencido}>Vencido</Etiqueta>
+                          : <Etiqueta key="p" estilo={SELO.planejado}>Planejado</Etiqueta>] : []),
                         ...(l.recorrente ? [<span key="r" className="shrink-0" title="Gerado por um recorrente"><span aria-hidden="true">↻</span><span className="sr-only">recorrente</span></span>] : []),
                       ]}
                       valor={v.texto} corValor={v.cor}
@@ -509,8 +517,9 @@ function LinhaLista({ icone, titulo, categoria, etiquetas = [], detalhe, valor, 
 
 function Corpo({ titulo, categoria, etiquetas = [], detalhe }: { titulo: ReactNode; categoria?: ReactNode; etiquetas?: ReactNode[]; detalhe?: string }) {
   const partes: ReactNode[] = [
-    // a categoria tem prioridade (até 65% da linha); o detalhe é o primeiro a ser cortado
-    ...(categoria ? [<span key="cat" className="max-w-[65%] shrink-0 truncate">{categoria}</span>] : []),
+    // os selos nunca encolhem (shrink-0 na Etiqueta); a categoria (até 65%) corta com reticências antes deles; o detalhe
+    // (flex-1, base 0) é o primeiro a sumir
+    ...(categoria ? [<span key="cat" className="min-w-0 max-w-[65%] truncate">{categoria}</span>] : []),
     ...etiquetas,
     ...(detalhe ? [<span key="det" className="min-w-0 flex-1 truncate" title={detalhe}>{detalhe}</span>] : []),
   ]
@@ -815,15 +824,16 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         {erro && <Aviso tipo="erro">{erro}</Aviso>}
         {registrado && <p role="status" className="rounded-lg bg-lucro-fundo px-3 py-2 text-sm font-medium text-lucro">{registrado} Pode lançar o próximo.</p>}
 
-        <div role="radiogroup" aria-label="Tipo do lançamento" className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 sm:flex">
+        {/* uma linha só também a 390px (auditoria 5h): "Transf." abreviado no celular; o nome inteiro fica no aria-label */}
+        <div role="radiogroup" aria-label="Tipo do lançamento" className="flex gap-1 rounded-xl bg-slate-100 p-1">
           {abas.map(([a, rotulo, nome]) => (
             <button key={a} type="button" role="radio" aria-checked={aba === a} aria-label={nome}
               onClick={() => {
                 if (a === 'cartao') { setOnde('cartao'); setTipo('expense') } else { setOnde('conta'); setTipo(a) }
                 setCategoriaId('')
               }}
-              className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors ${aba === a ? corAba[a] : 'text-slate-600 hover:bg-white'}`}>
-              {rotulo}
+              className={`min-h-11 min-w-0 flex-1 whitespace-nowrap rounded-lg px-1 text-sm font-semibold transition-colors sm:px-3 ${aba === a ? corAba[a] : 'text-slate-600 hover:bg-white'}`}>
+              {a === 'transfer' ? <><span aria-hidden="true" className="sm:hidden">Transf.</span><span className="hidden sm:inline">{rotulo}</span></> : rotulo}
             </button>
           ))}
         </div>
@@ -1054,11 +1064,15 @@ function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscol
     <div className="relative" ref={ref}>
       <Button onClick={() => setAberto((v) => !v)} disabled={desabilitado} aria-haspopup="menu" aria-expanded={aberto}>+ Lançamento</Button>
       {aberto && (
-        <div role="menu" aria-label="Novo lançamento" className="absolute right-0 z-40 mt-2 w-64 rounded-xl bg-marinho p-2 shadow-card">
+        <div role="menu" aria-label="Novo lançamento" className="absolute left-0 z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-marinho p-2 shadow-card sm:left-auto sm:right-0">
           {itens.map(([t, rotulo, tecla]) => (
-            <button key={t} type="button" role="menuitem" onClick={() => { setAberto(false); aoEscolher(t) }}
+            <button key={t} type="button" role="menuitem"
+              // o foco volta ao "+ Lançamento" antes do painel abrir: o painel o guarda como origem e o devolve ao fechar
+              onClick={() => { setAberto(false); ref.current?.querySelector<HTMLButtonElement>('button')?.focus(); aoEscolher(t) }}
               className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm font-semibold text-white hover:bg-white/10">
-              {rotulo}<span className="rounded-full border border-white/30 px-2 text-xs font-normal text-blue-100" aria-label={`atalho: tecla ${tecla}`}>tecla {tecla}</span>
+              {rotulo}
+              {/* atalho de teclado físico: escondido no celular e em telas de toque */}
+              <span className="hidden rounded-full border border-white/30 px-2 text-xs font-normal text-blue-100 sm:inline [@media(pointer:coarse)]:hidden" aria-label={`atalho: tecla ${tecla}`}>tecla {tecla}</span>
             </button>
           ))}
         </div>
@@ -1067,23 +1081,20 @@ function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscol
   )
 }
 
-/** Painel por cima da lista (como no Organizze): fecha no ×, no Esc ou clicando fora; a página de trás não rola. */
+/**
+ * Painel por cima da lista (como no Organizze): fecha no ×, no Esc ou clicando fora; a página de trás não rola; o foco
+ * começa no formulário, o Tab não sai do painel e, ao fechar, volta para o botão que abriu (mesmo hook da Folha).
+ */
 function PainelLancamento({ aoFechar, children }: { aoFechar: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') aoFechar() }
-    document.addEventListener('keydown', esc)
-    const antes = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.removeEventListener('keydown', esc); document.body.style.overflow = antes }
-  }, [aoFechar])
+  const painel = useRef<HTMLDivElement>(null)
+  const prenderTab = useFocoPreso(painel, aoFechar, () => painel.current?.querySelector('form'))
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4"
       onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar() }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="titulo-painel-lancamento"
+      <div ref={painel} role="dialog" aria-modal="true" aria-labelledby="titulo-painel-lancamento" onKeyDown={prenderTab}
         className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-white sm:rounded-2xl">
         {children}
       </div>
     </div>
   )
 }
-

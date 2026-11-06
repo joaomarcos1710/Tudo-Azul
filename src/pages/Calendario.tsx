@@ -11,7 +11,7 @@ import { currentMonth, formatBRL, formatDate, formatMoeda, formatMonth, primeira
 import type { Cents } from '../lib/format'
 import { saldosProjetados, faturasQueVencem } from '../lib/saldoProjetado'
 import type { SaldoTotal } from '../lib/saldoProjetado'
-import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, resumoPorMoeda, somarMeses } from '../lib/lancamentos'
+import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, resumoPorMoeda, situacaoDoLancamento, somarMeses } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ResumoMes, ResumoPorMoeda } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
@@ -204,12 +204,15 @@ export default function Calendario() {
                 const itensDoDia = porDia.get(data) ?? []
                 const entrada = itensDoDia.some((x) => !x.planejado && x.sentido === 'entrada')
                 const saida = itensDoDia.some((x) => !x.planejado && x.sentido === 'saida')
-                const planejados = itensDoDia.filter((x) => x.planejado).length
+                // planejado com a data já passada é vencido (vermelho, prejuízo, #183), como em Lançamentos e no Início
+                const vencidos = itensDoDia.filter((x) => x.planejado && situacaoDoLancamento(false, x.data, hoje) === 'vencido').length
+                const planejados = itensDoDia.filter((x) => x.planejado).length - vencidos
                 const ehHoje = data === hoje
                 const selecionado = data === dia
                 const rotulo = `${n} de ${formatMonth(mes)}${ehHoje ? ', hoje' : ''}: ${
                   itensDoDia.length === 0 ? 'nada' : `${itensDoDia.length} ${itensDoDia.length === 1 ? 'lançamento' : 'lançamentos'}`
-                }${planejados > 0 ? `, ${planejados} ${planejados === 1 ? 'planejado' : 'planejados'}` : ''}`
+                }${planejados > 0 ? `, ${planejados} ${planejados === 1 ? 'planejado' : 'planejados'}` : ''}${
+                  vencidos > 0 ? `, ${vencidos} ${vencidos === 1 ? 'vencido' : 'vencidos'}` : ''}`
                 return (
                   <button key={data} type="button" onClick={() => setDia(data)} aria-label={rotulo} aria-pressed={selecionado}
                     className={`flex min-h-11 flex-col items-start rounded-lg p-1 text-left sm:min-h-16 sm:p-1.5 ${
@@ -220,6 +223,7 @@ export default function Calendario() {
                       {entrada && <span className="h-1 rounded-full bg-lucro-marca" />}
                       {saida && <span className="h-1 rounded-full bg-prejuizo-marca" />}
                       {planejados > 0 && <span className="h-1 rounded-full bg-agendado-marca" />}
+                      {vencidos > 0 && <span data-traco="vencido" className="h-1 rounded-full border border-prejuizo-marca bg-prejuizo-fundo" />}
                     </span>
                   </button>
                 )
@@ -229,6 +233,7 @@ export default function Calendario() {
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-lucro-marca" /> Entrou</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-prejuizo-marca" /> Saiu</span>
               <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-agendado-marca" /> Planejado (ainda não aconteceu)</span>
+              <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full border border-prejuizo-marca bg-prejuizo-fundo" /> Vencido (planejado que passou da data)</span>
             </p>
           </Card>
 
@@ -239,7 +244,7 @@ export default function Calendario() {
               <>
                 <div className="flex items-center justify-between">
                   <CardTitle>{formatDate(dia)}{dia === hoje ? ' · hoje' : ''}</CardTitle>
-                  <Link to={`/lancamentos?mes=${mes}`} className="mb-3 text-sm font-semibold text-azul hover:underline">Ver em Lançamentos</Link>
+                  <Link to={`/lancamentos?mes=${mes}`} className="mb-3 inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-azul hover:bg-azul-claro hover:underline">Ver em Lançamentos</Link>
                 </div>
                 {doDia.length === 0 ? (
                   <p className="text-sm text-slate-500">Nada neste dia.</p>
@@ -255,7 +260,12 @@ export default function Calendario() {
                           <span className={`block tabular-nums font-semibold ${x.sentido === 'entrada' ? 'text-lucro' : x.sentido === 'saida' ? 'text-prejuizo' : 'text-transferencia'}`}>
                             {x.sentido === 'entrada' ? '+' : x.sentido === 'saida' ? '−' : '⇄ '}{formatMoeda(x.valor, x.moeda)}
                           </span>
-                          <span className={`text-[11px] font-medium ${x.planejado ? 'text-agendado' : 'text-lucro'}`}>{x.planejado ? 'Planejado' : 'Pago'}</span>
+                          {(() => {
+                            const s = situacaoDoLancamento(!x.planejado, x.data, hoje)
+                            return <span className={`text-[11px] font-medium ${s === 'vencido' ? 'text-prejuizo' : s === 'planejado' ? 'text-agendado' : 'text-lucro'}`}>
+                              {s === 'vencido' ? 'Vencido' : s === 'planejado' ? 'Planejado' : 'Pago'}
+                            </span>
+                          })()}
                         </span>
                       </li>
                     ))}
@@ -318,9 +328,9 @@ function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; a
         </p>
         <div className="flex gap-1" role="group" aria-label="O que entra no saldo">
           <button type="button" aria-pressed={!incluir} onClick={() => setIncluir(false)}
-            className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${!incluir ? 'bg-azul text-white' : 'bg-fundo text-slate-600'}`}>Só efetuados</button>
+            className={`min-h-11 rounded-lg px-3 text-xs font-semibold ${!incluir ? 'bg-azul text-white' : 'bg-fundo text-slate-600'}`}>Só efetuados</button>
           <button type="button" aria-pressed={incluir} onClick={() => setIncluir(true)}
-            className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${incluir ? 'bg-azul text-white' : 'bg-fundo text-slate-600'}`}>Efetuados + planejados</button>
+            className={`min-h-11 rounded-lg px-3 text-xs font-semibold ${incluir ? 'bg-azul text-white' : 'bg-fundo text-slate-600'}`}>Efetuados + planejados</button>
         </div>
       </div>
       {incluir && !carregando && total && (
