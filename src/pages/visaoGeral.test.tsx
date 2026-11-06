@@ -41,6 +41,8 @@ vi.mock('../lib/painel', () => ({
   vencidosPlanejados: mock.vencidosPlanejados,
   evolucaoPatrimonio: mock.evolucaoPatrimonio,
 }))
+const sentry = vi.hoisted(() => ({ captureException: vi.fn() }))
+vi.mock('@sentry/react', () => sentry)
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1', user_metadata: { name: 'João Marcos' } } }, carregando: false }) }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos, resumoPorMoeda: mock.resumoPorMoeda }))
@@ -109,7 +111,8 @@ beforeEach(() => {
   mock.listarOrcamentos.mockResolvedValue([])
   mock.avisosDoInicio.mockResolvedValue([])
   mock.fluxoDeCaixa.mockResolvedValue({ linhas: [], totalEntradas: c(0), totalSaidas: c(0) })
-  mock.evolucaoPatrimonio.mockResolvedValue([])
+  mock.evolucaoPatrimonio.mockResolvedValue({ pontos: [], falhas: [] })
+  sentry.captureException.mockClear()
   mock.resumoDosCartoes.mockResolvedValue([])
   mock.totalFaturasDoMes.mockResolvedValue(null)
   mock.projecaoDoMes.mockResolvedValue({
@@ -770,13 +773,14 @@ describe('Visão geral', () => {
   })
 
   it('Análises: patrimônio e saldo mês a mês em dois gráficos, com tabela dos valores do banco', async () => {
-    mock.evolucaoPatrimonio.mockResolvedValue([
+    mock.evolucaoPatrimonio.mockResolvedValue({ pontos: [
       { mes: '2026-09', data: '2026-09-30', patrimonio: c(13000000), disponivel: c(-50000) },
       { mes: '2026-10', data: '2026-10-31', patrimonio: c(13500000), disponivel: c(120000) },
       { mes: '2026-11', data: '2026-11-04', patrimonio: c(14056337), disponivel: c(249449) },
-    ])
+    ], falhas: [] })
     montar('analises')
     const secao = await screen.findByRole('region', { name: 'Evolução nos últimos 12 meses' })
+    await within(secao).findByText('Patrimônio líquido mês a mês')
     expect(within(secao).getByText('Patrimônio líquido mês a mês')).toBeTruthy()
     expect(within(secao).getByText('Saldo das contas mês a mês')).toBeTruthy()
     const [pat, saldo] = within(secao).getAllByRole('table')
@@ -789,15 +793,64 @@ describe('Visão geral', () => {
     expect(mock.evolucaoPatrimonio).toHaveBeenCalledWith('h1', hojeSP())
   })
 
-  it('Análises: se a evolução falhar, o resto segue e o bloco some; o Início nem consulta', async () => {
-    mock.evolucaoPatrimonio.mockRejectedValue(new Error('rede'))
+  it('Análises: se a evolução falhar, o resto segue, o bloco avisa e tenta de novo; o Início nem consulta', async () => {
+    mock.evolucaoPatrimonio.mockRejectedValueOnce(new Error('rede'))
     montar('analises')
     expect(await screen.findByText('R$ 10.875,60')).toBeTruthy()
-    expect(screen.queryByRole('region', { name: 'Evolução nos últimos 12 meses' })).toBeNull()
+    const secao = await screen.findByRole('region', { name: 'Evolução nos últimos 12 meses' })
+    await within(secao).findByText(/A evolução não carregou agora/)
+    expect(within(secao).queryByRole('img')).toBeNull()
+    await waitFor(() => expect(sentry.captureException).toHaveBeenCalled())
+    mock.evolucaoPatrimonio.mockResolvedValueOnce({ pontos: [
+      { mes: '2026-10', data: '2026-10-31', patrimonio: c(13500000), disponivel: c(120000) },
+      { mes: '2026-11', data: '2026-11-04', patrimonio: c(14056337), disponivel: c(249449) },
+    ], falhas: [] })
+    fireEvent.click(within(secao).getByRole('button', { name: 'Tentar de novo' }))
+    expect(await within(secao).findByText('Patrimônio líquido mês a mês')).toBeTruthy()
+    expect(mock.evolucaoPatrimonio).toHaveBeenCalledTimes(2)
     cleanup(); mock.evolucaoPatrimonio.mockClear()
     montar()
     await screen.findByText('Próximos planejados')
     expect(mock.evolucaoPatrimonio).not.toHaveBeenCalled()
+  })
+
+  it('Análises: a evolução só é pedida depois das cargas da tela, e mostra "carregando" enquanto isso', async () => {
+    let soltarPatrimonio: (v: unknown) => void = () => undefined
+    mock.carregarPatrimonio.mockReturnValueOnce(new Promise((ok) => { soltarPatrimonio = ok }))
+    let soltarEvolucao: (v: unknown) => void = () => undefined
+    mock.evolucaoPatrimonio.mockReturnValueOnce(new Promise((ok) => { soltarEvolucao = ok }))
+    montar('analises')
+    await waitFor(() => expect(mock.carregarPatrimonio).toHaveBeenCalled())
+    expect(mock.evolucaoPatrimonio).not.toHaveBeenCalled()
+    soltarPatrimonio({ disponivel: c(5065105), creditoAReceber: c(24590), divida: c(4002135), bens: c(0), patrimonio: c(1087560), compromissos: c(482000) })
+    const secao = await screen.findByRole('region', { name: 'Evolução nos últimos 12 meses' })
+    expect(within(secao).getByRole('status').textContent).toBe('Carregando a evolução…')
+    expect(mock.evolucaoPatrimonio).toHaveBeenCalledTimes(1)
+    soltarEvolucao({ pontos: [
+      { mes: '2026-10', data: '2026-10-31', patrimonio: c(13500000), disponivel: c(120000) },
+      { mes: '2026-11', data: '2026-11-04', patrimonio: c(14056337), disponivel: c(249449) },
+    ], falhas: [] })
+    expect(await within(secao).findByText('Patrimônio líquido mês a mês')).toBeTruthy()
+    expect(within(secao).queryByText('Carregando a evolução…')).toBeNull()
+  })
+
+  it('Análises: um mês que falhou não derruba a série: gráfico com os outros, aviso discreto e Sentry', async () => {
+    mock.evolucaoPatrimonio.mockResolvedValue({ pontos: [
+      { mes: '2026-09', data: '2026-09-30', patrimonio: c(13000000), disponivel: c(-50000) },
+      { mes: '2026-11', data: '2026-11-04', patrimonio: c(14056337), disponivel: c(249449) },
+    ], falhas: [{ mes: '2026-10', erro: { code: '57014', message: 'timeout' } }] })
+    montar('analises')
+    const secao = await screen.findByRole('region', { name: 'Evolução nos últimos 12 meses' })
+    expect(await within(secao).findByText(/Alguns meses não carregaram e ficaram de fora: outubro de 2026/)).toBeTruthy()
+    const [pat] = within(secao).getAllByRole('table')
+    // o mês que falhou não aparece (nem como zero)
+    expect(Array.from(pat.querySelectorAll('tbody tr')).map((r) => r.textContent)).toEqual([
+      'setembro de 2026R$ 130.000,00', 'novembro de 2026R$ 140.563,37',
+    ])
+    expect(within(secao).getByRole('button', { name: 'Tentar de novo' })).toBeTruthy()
+    await waitFor(() => expect(sentry.captureException).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({
+      tags: { consulta: 'net_worth_with_assets', codigo: '57014' },
+    })))
   })
 
   it('Análises: card de patrimônio com Disponível, Bens e Dívida em linhas', async () => {

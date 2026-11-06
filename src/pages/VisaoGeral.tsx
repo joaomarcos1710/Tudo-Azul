@@ -45,10 +45,13 @@ import { BARRA_ORCAMENTO, corDoTipo, corDoValor, faixaOrcamento } from '../lib/c
 import { carregarIndicadores } from '../lib/indicadores'
 import type { Indicadores } from '../lib/indicadores'
 import { FaixaIndicadores } from '../components/ui/FaixaIndicadores'
+import { opcional, registrarFalhaConsulta } from '../lib/consultaOpcional'
 
 /**
  * Cada tela carrega só o que mostra. Início: contas, lançamentos e planejados são essenciais (se falharem, a tela
  * avisa o erro); o resto é opcional. Análises: tudo é opcional — cada bloco some sozinho se a consulta dele falhar.
+ * Toda falha de consulta opcional vai ao Sentry (só o nome da consulta e o código do erro). A evolução do patrimônio
+ * carrega depois do resto, em fila, e mostra "carregando", o aviso dos meses que faltaram ou o erro.
  * Campo da outra tela fica vazio (não é consultado).
  */
 interface Dados {
@@ -88,8 +91,6 @@ interface Dados {
   /** Início: saldo previsto no fim do mês de cada conta, na moeda dela (account_balances_projected); null = não carregou. */
   /** Análises: receitas, despesas e resultado pagos dos últimos 6 meses, em reais (cash_flow_report por mês); null = não carregou. */
   balanco: MesBalanco[] | null
-  /** Análises: patrimônio e saldo no fim de cada um dos últimos 12 meses (do banco); null = não carregou. */
-  evolucao: PontoPatrimonio[] | null
   /** Orçamentos do mês (do banco); null = não carregou. */
   orcamentos: OrcamentoMes[] | null
   /** Avisos do topo do Início (home_alerts, do banco); null = não carregou (a faixa some, o resto segue). */
@@ -107,6 +108,28 @@ interface ComparacaoAnual {
   mesAnterior: ResumoMes
   anoAtual: ResumoMes
   anoAnterior: ResumoMes
+}
+
+/** Análises: a evolução do patrimônio tem carga própria, depois do resto da tela. */
+type EstadoEvolucao =
+  | { estado: 'carregando' }
+  | { estado: 'pronto'; pontos: PontoPatrimonio[]; mesesFalhos: string[] }
+  | { estado: 'erro' }
+
+/** Carrega a evolução (12 meses, em fila); falha de mês vai ao Sentry e ao aviso da tela. `vale` descarta carga antiga. */
+function buscarEvolucao(familiaId: string, hoje: string, vale: () => boolean, definir: (e: EstadoEvolucao) => void) {
+  definir({ estado: 'carregando' })
+  evolucaoPatrimonio(familiaId, hoje)
+    .then(({ pontos, falhas }) => {
+      // um aviso por carga (não um por mês), com o código do primeiro erro
+      if (falhas.length) void registrarFalhaConsulta('net_worth_with_assets', falhas[0].erro)
+      if (!vale()) return
+      definir(pontos.length ? { estado: 'pronto', pontos, mesesFalhos: falhas.map((f) => f.mes) } : { estado: 'erro' })
+    })
+    .catch((erro: unknown) => {
+      void registrarFalhaConsulta('evolucaoPatrimonio', erro)
+      if (vale()) definir({ estado: 'erro' })
+    })
 }
 
 /** Dias corridos entre duas datas AAAA-MM-DD (contagem de dias, não dinheiro). */
@@ -144,6 +167,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const baseCartaoRef = useRef(baseCartao)
   const trocaBaseRef = useRef(0)
   const [categoriasCarregando, setCategoriasCarregando] = useState(false)
+  // Análises: a evolução carrega DEPOIS do resto da tela, numa fila (2 chamadas por vez), com estado próprio
+  const [evolucao, setEvolucao] = useState<EstadoEvolucao | null>(null)
+  const evolucaoRef = useRef(0)
   const hoje = hojeSP()
   const mes = currentMonth()
   // até dois nomes ("João Marcos"), como no cabeçalho do Organizze
@@ -152,15 +178,16 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   useEffect(() => {
     if (!familiaId) return
     const [de, ate] = limitesDoMes(mes)
-    const opcional = <T,>(p: Promise<T>) => p.catch(() => null)
     // no dia 3, comparar 3 dias com o mês anterior inteiro engana ("▼ 90%"): os dois lados vão até o mesmo dia
-    const comparar = () => opcional(Promise.all([
+    const comparar = () => opcional('resumoDoPeriodo (comparação)', Promise.all([
       resumoDoPeriodo(familiaId, de, hoje),
       resumoDoPeriodo(familiaId, `${somarMeses(mes, -1)}-01`, mesmoDiaMesAnterior(hoje)),
     ]).then(([atual, anterior]) => ({ atual, anterior })))
     // uma carga antiga (mês, dia ou seção anteriores) que chegue depois da nova é descartada
     let ativo = true
+    const vezEvolucao = ++evolucaoRef.current
     setDados(null)
+    setEvolucao(null)
     setErro('')
     // gera recorrentes e cobra faturas fechadas; se falhar, o painel mostra o que já está gravado, com aviso
     atualizarAutomaticos()
@@ -169,56 +196,67 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         ? Promise.all([
             // essenciais do Início: se falharem, a tela inteira avisa o erro
             listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje), listarLancamentos(familiaId, mes), listarCategorias(familiaId),
-            opcional(vencidosPlanejados(familiaId, hoje, 5)), opcional(resumoDosCartoes(familiaId, hoje)),
-            opcional(totalFaturasDoMes(familiaId, mes)),
+            opcional('vencidosPlanejados', vencidosPlanejados(familiaId, hoje, 5)), opcional('resumoDosCartoes', resumoDosCartoes(familiaId, hoje)),
+            opcional('totalFaturasDoMes', totalFaturasDoMes(familiaId, mes)),
             // a faixa de indicadores do topo (#188): os 7 números numa chamada só, calculados no banco
-            opcional(carregarIndicadores(familiaId, hoje)),
+            opcional('carregarIndicadores', carregarIndicadores(familiaId, hoje)),
             // receita e despesa do mês, com o que ainda vai entrar e sair: só no cabeçalho
-            opcional(resumoDoMes(familiaId, mes)),
+            opcional('resumoDoMes', resumoDoMes(familiaId, mes)),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
-            opcional(saldosProjetados(familiaId, ate, true)), opcional(listarOrcamentos(familiaId, mes, hoje)),
-            opcional(resumoPorMoeda(familiaId, de, ate)), opcional(avisosDoInicio(familiaId, hoje)),
+            opcional('saldosProjetados', saldosProjetados(familiaId, ate, true)), opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)),
+            opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)), opcional('avisosDoInicio', avisosDoInicio(familiaId, hoje)),
           ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, resumo, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
             patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores,
             categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes,
             saldoPrevisto: projetado?.total ?? null, balanco: null,
-            orcamentos, avisos, evolucao: null,
+            orcamentos, avisos,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
           }))
         : Promise.all([
             // Análises: cada consulta é opcional; um bloco que falha some, o resto segue
-            opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
-            opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))),
+            opcional('carregarPatrimonio', carregarPatrimonio(familiaId, hoje)), opcional('carregarResumoInvestimentos', carregarResumoInvestimentos(familiaId, hoje)),
+            opcional('resumoDoMes', resumoDoMes(familiaId, mes)), opcional('resumoDoMes', resumoDoMes(familiaId, somarMeses(mes, -1))),
             // as 6 maiores categorias + "Outros" (somado no banco)
-            opcional(despesasPorCategoria(familiaId, de, ate, 6, baseCartaoRef.current)), opcional(despesasPorDia(familiaId, de, ate)),
-            opcional(Promise.all([
+            opcional('despesasPorCategoria', despesasPorCategoria(familiaId, de, ate, 6, baseCartaoRef.current)), opcional('despesasPorDia', despesasPorDia(familiaId, de, ate)),
+            opcional('regularidadeRenda', Promise.all([
               regularidadeRenda(familiaId, de, ate),
               regularidadeRenda(familiaId, limitesDoMes(somarMeses(mes, -11))[0], ate),
             ])),
             // mesmo recorte de dias nos dois anos: este mês até hoje × o mesmo mês até o mesmo dia do ano passado; o ano até hoje idem
-            opcional(Promise.all([
+            opcional('resumoDoPeriodo (ano passado)', Promise.all([
               resumoDoPeriodo(familiaId, de, hoje),
               resumoDoPeriodo(familiaId, `${somarMeses(mes, -12)}-01`, mesmoDiaAnoPassado(hoje)),
               resumoDoPeriodo(familiaId, `${hoje.slice(0, 4)}-01-01`, hoje),
               resumoDoPeriodo(familiaId, `${Number(hoje.slice(0, 4)) - 1}-01-01`, mesmoDiaAnoPassado(hoje)),
             ]).then(([mesAtual, mesAnterior, anoAtual, anoAnterior]) => ({ mesAtual, mesAnterior, anoAtual, anoAnterior }))),
-            opcional(projecaoDoMes(familiaId, mes, hoje)), comparar(), opcional(evolucaoPatrimonio(familiaId, hoje)),
-            opcional(totaisPorMoeda(familiaId, hoje)), opcional(resumoPorMoeda(familiaId, de, ate)),
+            opcional('projecaoDoMes', projecaoDoMes(familiaId, mes, hoje)), comparar(),
+            opcional('totaisPorMoeda', totaisPorMoeda(familiaId, hoje)), opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)),
             // balanço dos últimos 6 meses: um balde por mês, com o resultado do mês já calculado no banco
-            opcional(fluxoDeCaixa(familiaId, limitesDoMes(somarMeses(mes, -5))[0], ate, 'month').then((f): MesBalanco[] => f.linhas.map((l) => ({
+            opcional('fluxoDeCaixa', fluxoDeCaixa(familiaId, limitesDoMes(somarMeses(mes, -5))[0], ate, 'month').then((f): MesBalanco[] => f.linhas.map((l) => ({
               mes: l.inicio.slice(0, 7), receitas: l.entradas, despesas: l.saidas, resultado: l.saldo,
             })))),
-          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, evolucao, porMoeda, mesPorMoeda, balanco]): Dados => ({
+          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, porMoeda, mesPorMoeda, balanco]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
-      .then((d) => { if (ativo) setDados(d) })
+      .then((d) => {
+        if (!ativo) return
+        setDados(d)
+        // só depois das cargas da tela: as 12 chamadas da evolução não disputam o banco com as outras (#194)
+        if (!noInicio) buscarEvolucao(familiaId, hoje, () => ativo && evolucaoRef.current === vezEvolucao, setEvolucao)
+      })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
     return () => { ativo = false }
   }, [familiaId, hoje, mes, noInicio])
+
+  function recarregarEvolucao() {
+    if (!familiaId) return
+    const vez = ++evolucaoRef.current
+    buscarEvolucao(familiaId, hoje, () => evolucaoRef.current === vez, setEvolucao)
+  }
 
   function trocarBaseCartao(base: BaseGastosCartao) {
     if (!familiaId || base === baseCartao) return
@@ -229,7 +267,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
     const vez = ++trocaBaseRef.current
     const [de, ate] = limitesDoMes(mes)
     setCategoriasCarregando(true)
-    despesasPorCategoria(familiaId, de, ate, 6, base).catch(() => null).then((categorias) => {
+    opcional('despesasPorCategoria', despesasPorCategoria(familiaId, de, ate, 6, base)).then((categorias) => {
       if (trocaBaseRef.current !== vez) return
       setCategoriasCarregando(false)
       setDados((d) => (d ? { ...d, categorias } : d))
@@ -394,18 +432,41 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
       </>}
 
-      {!noInicio && dados.evolucao && dados.evolucao.length > 1 && (
+      {!noInicio && evolucao && (evolucao.estado !== 'pronto' || evolucao.pontos.length > 1 || evolucao.mesesFalhos.length > 0) && (
         // dois gráficos, um por medida: patrimônio (centenas de mil) e saldo (milhares) num eixo só achatariam o saldo
         <section aria-label="Evolução nos últimos 12 meses" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card>
-            <CardTitle>Patrimônio líquido mês a mês</CardTitle>
-            <LinhaMensal titulo="Patrimônio líquido" pontos={dados.evolucao.map((x) => ({ mes: x.mes, valor: x.patrimonio }))} />
-          </Card>
-          <Card>
-            <CardTitle>Saldo das contas mês a mês</CardTitle>
-            <LinhaMensal titulo="Saldo das contas" pontos={dados.evolucao.map((x) => ({ mes: x.mes, valor: x.disponivel }))} />
-          </Card>
-          <p className="text-xs text-slate-500 lg:col-span-2">Cada ponto é o valor no último dia do mês (no mês atual, hoje), com saldo, dívidas e bens como estavam naquela data.</p>
+          {evolucao.estado === 'carregando' && (
+            <Card className="lg:col-span-2">
+              <CardTitle>Patrimônio e saldo mês a mês</CardTitle>
+              <p className="text-sm text-slate-600" role="status">Carregando a evolução…</p>
+            </Card>
+          )}
+          {evolucao.estado === 'erro' && (
+            <Card className="lg:col-span-2">
+              <CardTitle>Patrimônio e saldo mês a mês</CardTitle>
+              <p className="text-sm text-slate-600">A evolução não carregou agora.{' '}
+                <button type="button" onClick={recarregarEvolucao} className="inline-flex min-h-11 items-center font-semibold text-azul underline">Tentar de novo</button>
+              </p>
+            </Card>
+          )}
+          {evolucao.estado === 'pronto' && evolucao.pontos.length > 1 && <>
+            <Card>
+              <CardTitle>Patrimônio líquido mês a mês</CardTitle>
+              <LinhaMensal titulo="Patrimônio líquido" pontos={evolucao.pontos.map((x) => ({ mes: x.mes, valor: x.patrimonio }))} />
+            </Card>
+            <Card>
+              <CardTitle>Saldo das contas mês a mês</CardTitle>
+              <LinhaMensal titulo="Saldo das contas" pontos={evolucao.pontos.map((x) => ({ mes: x.mes, valor: x.disponivel }))} />
+            </Card>
+            <p className="text-xs text-slate-500 lg:col-span-2">Cada ponto é o valor no último dia do mês (no mês atual, hoje), com saldo, dívidas e bens como estavam naquela data.</p>
+          </>}
+          {evolucao.estado === 'pronto' && evolucao.mesesFalhos.length > 0 && (
+            // o mês que falhou fica de fora (nunca vira zero nem é estimado); o aviso diz quais
+            <p className="text-xs text-slate-600 lg:col-span-2">
+              Alguns meses não carregaram e ficaram de fora: {evolucao.mesesFalhos.map(formatMonth).join(', ')}.{' '}
+              <button type="button" onClick={recarregarEvolucao} className="inline-flex min-h-11 items-center font-semibold text-azul underline">Tentar de novo</button>
+            </p>
+          )}
         </section>
       )}
 

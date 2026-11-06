@@ -263,11 +263,41 @@ export interface PontoPatrimonio {
   disponivel: Cents
 }
 
+/** Evolução: os meses que vieram do banco e os que falharam (estes ficam de fora, nunca viram zero). */
+export interface EvolucaoPatrimonio {
+  pontos: PontoPatrimonio[]
+  /** Meses (AAAA-MM) que não carregaram, com o erro de cada um (para o aviso e o Sentry). */
+  falhas: { mes: string; erro: unknown }[]
+}
+
+/** No máximo 2 chamadas de net_worth_with_assets ao mesmo tempo: 12 em paralelo esgotavam o pool do banco (HTTP 500). */
+export const EVOLUCAO_EM_VOO = 2
+
+/** Roda `fn` em cada item com no máximo `limite` em voo; devolve, na ordem dos itens, o resultado ou o erro de cada um. */
+async function emFila<T, R>(itens: T[], limite: number, fn: (item: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const res: PromiseSettledResult<R>[] = new Array(itens.length)
+  let proximo = 0
+  const trabalhador = async () => {
+    while (proximo < itens.length) {
+      const i = proximo++
+      try {
+        res[i] = { status: 'fulfilled', value: await fn(itens[i]) }
+      } catch (reason) {
+        res[i] = { status: 'rejected', reason }
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limite, itens.length) }, trabalhador))
+  return res
+}
+
 /**
  * Evolução dos últimos `meses` meses. Cada ponto é o próprio net_worth_with_assets na data (saldo, dívida e
- * bens como estavam naquele dia): nada é somado aqui. Um ponto que falhe derruba a série toda (sem buracos falsos).
+ * bens como estavam naquele dia): nada é somado aqui. As chamadas vão em fila (EVOLUCAO_EM_VOO por vez).
+ * Um mês que falhe fica de fora e aparece em `falhas` (a tela avisa); nunca vira zero nem é estimado.
+ * atalho: uma chamada por mês (12 ao todo); trocar por uma RPC única de série (net_worth_series) — ver 40 - Pendências.
  */
-export async function evolucaoPatrimonio(familiaId: string, hoje: string, meses = 12): Promise<PontoPatrimonio[]> {
+export async function evolucaoPatrimonio(familiaId: string, hoje: string, meses = 12): Promise<EvolucaoPatrimonio> {
   const atual = hoje.slice(0, 7)
   const datas = Array.from({ length: meses }, (_, i) => {
     const [a, m] = atual.split('-').map(Number)
@@ -277,6 +307,12 @@ export async function evolucaoPatrimonio(familiaId: string, hoje: string, meses 
     const fim = `${mes}-${String(ultimo).padStart(2, '0')}`
     return { mes, data: fim < hoje ? fim : hoje }
   })
-  const valores = await Promise.all(datas.map((d) => carregarPatrimonio(familiaId, d.data)))
-  return datas.map((d, i) => ({ ...d, patrimonio: valores[i].patrimonio, disponivel: valores[i].disponivel }))
+  const resultados = await emFila(datas, EVOLUCAO_EM_VOO, (d) => carregarPatrimonio(familiaId, d.data))
+  const pontos: PontoPatrimonio[] = []
+  const falhas: EvolucaoPatrimonio['falhas'] = []
+  resultados.forEach((r, i) => {
+    if (r.status === 'fulfilled') pontos.push({ ...datas[i], patrimonio: r.value.patrimonio, disponivel: r.value.disponivel })
+    else falhas.push({ mes: datas[i].mes, erro: r.reason })
+  })
+  return { pontos, falhas }
 }
