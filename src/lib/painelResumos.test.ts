@@ -24,7 +24,7 @@ const fake = vi.hoisted(() => {
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
 import { resumoDosCartoes } from './cartoes'
-import { evolucaoPatrimonio, vencidosPlanejados } from './painel'
+import { EVOLUCAO_EM_VOO, evolucaoPatrimonio, vencidosPlanejados } from './painel'
 
 beforeEach(() => {
   fake.e.tabelas = {}
@@ -159,7 +159,8 @@ describe('evolucaoPatrimonio', () => {
       datas.push(d)
       return { data: [{ available: d === '2026-02-28' ? '-10.50' : '100.00', debt: 0, credit_receivable: 0, net_worth: '1000.25', family_assets_brl: 0, planned_commitments: 0 }], error: null }
     }
-    const r = await evolucaoPatrimonio('h1', '2026-03-04', 3)
+    const { pontos: r, falhas } = await evolucaoPatrimonio('h1', '2026-03-04', 3)
+    expect(falhas).toEqual([])
     expect(r.map((p) => [p.mes, p.data])).toEqual([['2026-01', '2026-01-31'], ['2026-02', '2026-02-28'], ['2026-03', '2026-03-04']])
     expect(datas.sort()).toEqual(['2026-01-31', '2026-02-28', '2026-03-04'])
     expect(r[1]).toMatchObject({ disponivel: -1050, patrimonio: 100025 })
@@ -167,15 +168,34 @@ describe('evolucaoPatrimonio', () => {
 
   it('virada de ano: dezembro do ano anterior entra certo', async () => {
     fake.e.rpc.net_worth_with_assets = { data: [{ available: 0, debt: 0, credit_receivable: 0, net_worth: 0, family_assets_brl: 0, planned_commitments: 0 }], error: null }
-    const r = await evolucaoPatrimonio('h1', '2027-01-15', 2)
-    expect(r.map((p) => p.data)).toEqual(['2026-12-31', '2027-01-15'])
+    const { pontos } = await evolucaoPatrimonio('h1', '2027-01-15', 2)
+    expect(pontos.map((p) => p.data)).toEqual(['2026-12-31', '2027-01-15'])
   })
 
-  it('um mês que falha derruba a série (sem buraco falso no gráfico)', async () => {
+  it('nunca mais de 2 chamadas ao banco ao mesmo tempo (12 em paralelo esgotavam o pool: HTTP 500)', async () => {
+    let emVoo = 0
+    let pico = 0
+    let total = 0
+    fake.e.rpc.net_worth_with_assets = (() => {
+      emVoo++; total++
+      pico = Math.max(pico, emVoo)
+      // segura a resposta até a próxima volta do relógio: as chamadas se sobrepõem se forem disparadas juntas
+      return new Promise((ok) => setTimeout(() => { emVoo--; ok({ data: [{ available: '1.00', net_worth: '2.00' }], error: null }) }, 1))
+    }) as unknown as (args: unknown) => { data: unknown; error: unknown }
+    const { pontos } = await evolucaoPatrimonio('h1', '2026-11-06')
+    expect(EVOLUCAO_EM_VOO).toBe(2)
+    expect(total).toBe(12)
+    expect(pico).toBe(2)
+    expect(pontos).toHaveLength(12)
+  })
+
+  it('um mês que falha fica de fora e é avisado; os outros seguem com o valor do banco (nunca zero no lugar)', async () => {
     fake.e.rpc.net_worth_with_assets = (args) => ((args as { p_as_of: string }).p_as_of === '2026-02-28'
-      ? { data: null, error: { message: 'rede' } }
-      : { data: [{ available: 0, debt: 0, credit_receivable: 0, net_worth: 0, family_assets_brl: 0, planned_commitments: 0 }], error: null })
-    await expect(evolucaoPatrimonio('h1', '2026-03-04', 3)).rejects.toMatchObject({ message: 'rede' })
+      ? { data: null, error: { message: 'canceling statement due to statement timeout', code: '57014' } }
+      : { data: [{ available: '5.00', debt: 0, credit_receivable: 0, net_worth: '7.00', family_assets_brl: 0, planned_commitments: 0 }], error: null })
+    const { pontos, falhas } = await evolucaoPatrimonio('h1', '2026-03-04', 3)
+    expect(pontos.map((p) => p.mes)).toEqual(['2026-01', '2026-03'])
+    expect(pontos.every((p) => p.patrimonio === 700 && p.disponivel === 500)).toBe(true)
+    expect(falhas).toEqual([{ mes: '2026-02', erro: expect.objectContaining({ code: '57014' }) }])
   })
 })
-
