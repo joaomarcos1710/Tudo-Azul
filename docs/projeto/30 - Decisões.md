@@ -333,3 +333,8 @@ Pedido do dono: "Alinha o Calendário e o Início com as assinaturas." Em novemb
 - **`other` → `checking`**: o tipo padrão do formulário; "Outra" não existe mais.
 - **`investment` e `other` não são mais aceitos** (nem em conta nova nem na edição): o banco recusa (23514).
 - O tipo **só agrupa**; não muda saldo, relatório nem o que a conta aceita.
+
+## Cor do orçamento por faixa (06/11/2026, #190)
+- Pedido do dono: 50% azul claro, 70% amarelo, 90% vermelho claro, 100% ou mais vermelho; abaixo de 50% fica o azul normal ("tudo certo").
+- Os tons claros (`lucro.claro`, `prejuizo.claro`) ficam abaixo de 3:1 no branco. Motivo para aceitar: a barra sempre vem com o percentual escrito e o texto da situação; a cor não é a única informação.
+- A faixa é calculada com o **gasto pago** (o mesmo da barra), não com o projetado, comparando centavos inteiros (50% = gasto×2 ≥ limite) para não errar por vírgula.

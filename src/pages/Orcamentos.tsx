@@ -17,6 +17,7 @@ import { somarMeses } from '../lib/lancamentos'
 import { copiarDoMesAnterior, definirOrcamento, listarOrcamentos, removerOrcamento } from '../lib/orcamentos'
 import type { OrcamentoMes } from '../lib/orcamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { BARRA_ORCAMENTO, faixaOrcamento } from '../lib/cores'
 
 /** Orçamento mensal por categoria principal, com a projeção até o fim do mês (calculada no banco). */
 export default function Orcamentos() {
@@ -173,14 +174,18 @@ export default function Orcamentos() {
   )
 }
 
-/** A proporção só desenha a barra; gasto e limite vêm do banco. */
+/** A proporção só desenha a barra e o percentual; gasto e limite vêm do banco. A cor segue faixaOrcamento (lib/cores). */
 function Barra({ gasto, limite }: { gasto: Cents; limite: Cents }) {
   const pct = Math.max(0, Math.min(100, (gasto / limite) * 100))
-  const passou = gasto > limite
+  const usado = Math.floor((Math.max(0, gasto) * 100) / limite)
+  const faixa = faixaOrcamento(gasto, limite)
   return (
-    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100" role="img"
-      aria-label={`Gasto ${formatBRL(gasto)} de ${formatBRL(limite)}`}>
-      <div className={`h-full rounded-full ${passou ? 'bg-prejuizo-marca' : pct >= 80 ? 'bg-atencao-marca' : 'bg-lucro-marca'}`} style={{ width: `${pct}%` }} />
+    <div className="mt-3 flex items-center gap-3">
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100" role="img"
+        aria-label={`Gasto ${formatBRL(gasto)} de ${formatBRL(limite)}, ${usado}% do limite`}>
+        <div data-faixa={faixa} className={`h-full rounded-full ${BARRA_ORCAMENTO[faixa]}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span aria-hidden="true" className={`w-12 shrink-0 text-right text-sm font-semibold tabular-nums ${faixa === 'estourou' || faixa === 'perto' ? 'text-prejuizo' : faixa === 'atencao' ? 'text-atencao' : 'text-slate-600'}`}>{usado}%</span>
     </div>
   )
 }

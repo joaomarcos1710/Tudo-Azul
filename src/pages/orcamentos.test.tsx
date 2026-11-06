@@ -190,4 +190,25 @@ describe('Orçamentos', () => {
     render(<Orcamentos />)
     expect(await screen.findByText('Já passou do limite em R$ 250,00.')).toBeTruthy()
   })
+
+  it('cor da barra pela faixa de uso (pedido do dono): 50% azul claro, 70% amarelo, 90% vermelho claro, 100% vermelho', async () => {
+    const casos: [number, string, string][] = [
+      [49999, 'tranquilo', 'bg-lucro-marca'], [50000, 'metade', 'bg-lucro-claro'], [69999, 'metade', 'bg-lucro-claro'],
+      [70000, 'atencao', 'bg-atencao-marca'], [90000, 'perto', 'bg-prejuizo-claro'], [99999, 'perto', 'bg-prejuizo-claro'],
+      [100000, 'estourou', 'bg-prejuizo-marca'], [130000, 'estourou', 'bg-prejuizo-marca'],
+    ]
+    mock.listarOrcamentos.mockResolvedValue(casos.map(([g], i) => orc({ categoriaId: `c${i}`, nome: `Cat ${i}`, gasto: c(g), restante: c(100000 - g) })))
+    const { container } = render(<Orcamentos />)
+    await screen.findByText('Cat 0')
+    const barras = [...container.querySelectorAll('[data-faixa]')]
+    expect(barras.map((b) => b.getAttribute('data-faixa'))).toEqual(casos.map(([, f]) => f))
+    barras.forEach((b, i) => expect(b.className).toContain(casos[i][2]))
+  })
+
+  it('mostra o percentual usado ao lado da barra e no rótulo para leitor de tela', async () => {
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(72550) })])
+    render(<Orcamentos />)
+    expect(await screen.findByText('72%')).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'Gasto R$ 725,50 de R$ 1.000,00, 72% do limite' })).toBeTruthy()
+  })
 })

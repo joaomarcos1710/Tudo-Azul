@@ -201,6 +201,8 @@ atualizado: 2026-10-28
 - [ ] Conferir no iPad/celular os cards por tipo com os seus recorrentes reais (espaçamento, títulos longos, total ao lado do título).
 - [ ] Nos cards por tipo, a **contagem** do título inclui os recorrentes em outra moeda (estão na lista), mas o **total** do banco não (só reais); o aviso do topo já diz quantos ficam fora. Se confundir, mostrar "N (M em reais)" com o `qtde` do banco.
 - [ ] O nível `frequency_all` de `recurrence_summary` deixou de ser usado pela tela (#187); continua no banco e no teste 63. Remover numa migration nova só se ninguém mais usar.
+- [x] **Orçamento com cor por faixa** (#190, 06/11/2026): 50% azul claro, 70% amarelo, 90% vermelho claro, 100% vermelho, com o percentual ao lado.
+- [ ] A faixa usa só o **gasto pago**; parcelas de cartão já previstas não pintam a barra (a projeção avisa no texto). Decidir com o dono se a barra deve considerar o projetado.
 - [ ] O equivalente mensal de cada item (≈ R$ x/mês) não aparece na linha do item, só nos totais; dá para trazer do banco (nível `detail` por regra) se fizer falta.
 
 ## Menu e formulário de lançamento

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { CORES, FUNDOS, SELO, SELO_FATURA, corDoTipo, corDoValor } from './cores'
+import { BARRA_ORCAMENTO, CORES, FUNDOS, SELO, SELO_FATURA, corDoTipo, corDoValor, faixaOrcamento } from './cores'
 import config from '../../tailwind.config.js'
 
 /** Contraste WCAG 2.x entre duas cores #RRGGBB. */
@@ -91,5 +91,30 @@ describe('nenhuma tela usa cor solta (#183)', () => {
     const achados = fontes.filter((f) => !permitidos.includes(f.nome))
       .flatMap((f) => [...f.texto.matchAll(cor)].map((m) => `${f.nome}: ${m[0]}`))
     expect(achados).toEqual([])
+  })
+})
+
+describe('faixa do orçamento (06/11/2026)', () => {
+  it('limites exatos em centavos: 50%, 70%, 90% e 100% já entram na faixa nova', () => {
+    expect(faixaOrcamento(4999, 10000)).toBe('tranquilo')
+    expect(faixaOrcamento(5000, 10000)).toBe('metade')
+    expect(faixaOrcamento(6999, 10000)).toBe('metade')
+    expect(faixaOrcamento(7000, 10000)).toBe('atencao')
+    expect(faixaOrcamento(8999, 10000)).toBe('atencao')
+    expect(faixaOrcamento(9000, 10000)).toBe('perto')
+    expect(faixaOrcamento(9999, 10000)).toBe('perto')
+    expect(faixaOrcamento(10000, 10000)).toBe('estourou')
+    expect(faixaOrcamento(25000, 10000)).toBe('estourou')
+    expect(faixaOrcamento(0, 10000)).toBe('tranquilo')
+    expect(faixaOrcamento(-500, 10000)).toBe('tranquilo') // estorno maior que o gasto
+    // limite que não leva arredondamento: 1/3 e 2/3 sem erro de vírgula
+    expect(faixaOrcamento(1, 3)).toBe('tranquilo')
+    expect(faixaOrcamento(2, 3)).toBe('metade')
+  })
+  it('as classes da barra existem no Tailwind (vêm de CORES)', () => {
+    expect(BARRA_ORCAMENTO.metade).toBe('bg-lucro-claro')
+    expect(BARRA_ORCAMENTO.perto).toBe('bg-prejuizo-claro')
+    expect(CORES.lucro.claro).toBeTruthy()
+    expect(CORES.prejuizo.claro).toBeTruthy()
   })
 })
