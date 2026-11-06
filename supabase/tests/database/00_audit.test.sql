@@ -90,6 +90,8 @@ select ok(not has_column_privilege('authenticated','public.categories','system_k
 select ok(not has_column_privilege('authenticated','public.categories','system_key','UPDATE'),     'categories.system_key imutável');
 select ok(not has_column_privilege('authenticated','public.categories','type','UPDATE'),           'categories.type imutável pelo cliente');
 select ok(not has_column_privilege('authenticated','public.categories','household_id','UPDATE'),   'categories.household_id imutável');
+select ok(not has_column_privilege('authenticated','public.categories','non_consumption','INSERT'), 'categories.non_consumption nasce false (071)');
+select ok(has_column_privilege('authenticated','public.categories','non_consumption','UPDATE'),     'categories.non_consumption editável pela família (071, RLS is_member)');
 select ok(not has_column_privilege('authenticated','public.households','member_limit','UPDATE'),  'households.member_limit só pelo administrador do banco');
 select ok(not has_column_privilege('authenticated','public.invitations','token_hash','SELECT'),    'invitations.token_hash ilegível');
 select ok(not has_column_privilege('authenticated','public.budgets','category_type','INSERT'),     'budgets.category_type não informável');

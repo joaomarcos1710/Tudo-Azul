@@ -61,13 +61,15 @@ import VisaoGeral from './VisaoGeral'
 const c = (n: number) => n as Cents
 // o que home_indicators devolveria (inventado; os números como o banco calcularia)
 const IND = {
-  inicioMes: '2026-11-01', fimMes: '2026-11-30',
+  inicioMes: '2026-11-01', fimMes: '2026-11-30', inicioMesFechado: '2026-10-01', fimMesFechado: '2026-10-31',
   contasAtivas: c(1225000), faturasFechadas: c(30000), disponivel: c(1195000),
   contasTodas: c(1265000), creditoAReceber: c(0), bens: c(5000000), investimentos: c(100000), dividas: c(3530000), compromissos: c(90000),
   patrimonio: c(2835000), receitas: c(600000), despesas: c(400000), resultado: c(200000),
-  taxaPoupanca: 33.3, faixaPoupanca: 'saudavel' as const,
-  reserva: c(300000), despesaMesesFechados: c(300000), mesesFechados: 6, despesaMedia: c(50000), coberturaReserva: 6, faixaReserva: 'saudavel' as const,
-  parcelasDividas: c(100000), rendaRegular: c(500000), comprometimento: 20, faixaComprometimento: 'saudavel' as const,
+  receitasPoupanca: c(600000), despesasPoupanca: c(410000), resultadoPoupanca: c(190000),
+  taxaPoupanca: 31.7, faixaPoupanca: 'saudavel' as const,
+  reserva: c(300000), mesesFechados: 6, despesaTipica: c(50000), coberturaReserva: 6, faixaReserva: 'saudavel' as const,
+  parcelasDividas: c(100000), rendaEsperada: c(0), rendaRecebida: c(500000), rendaRegular: c(500000), fonteRenda: 'recebida' as const,
+  comprometimento: 20, faixaComprometimento: 'saudavel' as const,
 }
 const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(<MemoryRouter><VisaoGeral secao={secao} /></MemoryRouter>)
 
@@ -267,7 +269,7 @@ describe('Visão geral', () => {
       montar()
       const faixa = await screen.findByRole('region', { name: 'Indicadores do mês' })
       expect(faixa.textContent).not.toMatch(/R\$\s*\d/)
-      expect(within(faixa).getByText('33,3%')).toBeTruthy()
+      expect(within(faixa).getByText('31,7%')).toBeTruthy()
     } finally {
       definirValoresOcultos(false)
     }
@@ -291,7 +293,7 @@ describe('Visão geral', () => {
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
     cleanup()
     montar()
-    // #187: no Início os investimentos entram no Patrimônio total (o (i) mostra a parcela); o card à parte saiu
+    // #188: no Início os investimentos entram no Patrimônio total (o (i) mostra a parcela); o card à parte saiu
     await screen.findByRole('region', { name: 'Indicadores do mês' })
     expect(screen.queryByText(/Saldo em USD/)).toBeNull()
     expect(screen.queryByText('Saldo de investimentos')).toBeNull()
@@ -742,7 +744,7 @@ describe('Visão geral', () => {
     expect(within(card).getByRole('link', { name: 'Ver todos' }).getAttribute('href')).toBe('/orcamentos')
   })
 
-  it('a faixa de indicadores fica logo abaixo do cabeçalho, antes dos vencidos (#187); os avisos continuam no alto', async () => {
+  it('a faixa de indicadores fica logo abaixo do cabeçalho, antes dos vencidos (#188); os avisos continuam no alto', async () => {
     mock.vencidosPlanejados.mockResolvedValue({ itens: [{ id: 't9', tipo: 'expense', descricao: 'Luz', valor: c(18000), data: '2026-10-01', categoriaId: null, contaId: null, destinoId: null }], total: 1 })
     montar()
     const vencidos = await screen.findByText('Vencidos e precisam de atenção')
@@ -795,7 +797,7 @@ describe('Visão geral', () => {
   })
 })
 
-describe('Faixa de indicadores do Início (#187, migration 071)', () => {
+describe('Faixa de indicadores do Início (#188, migration 071)', () => {
   const indicador = async (id: string) => {
     const faixa = await screen.findByRole('region', { name: 'Indicadores do mês' })
     return faixa.querySelector(`[data-indicador="${id}"]`) as HTMLElement
@@ -815,13 +817,17 @@ describe('Faixa de indicadores do Início (#187, migration 071)', () => {
     const faixa = await screen.findByRole('region', { name: 'Indicadores do mês' })
     const itens = Array.from(faixa.querySelectorAll('[data-indicador]')) as HTMLElement[]
     // o rótulo pode ter hífen opcional (U+00AD) para quebrar bem no card estreito
-    expect(itens.map((x) => x.querySelector('p')!.textContent!.replace(/\u00AD/g, ''))).toEqual([
+    expect(itens.map((x) => x.querySelector('[data-rotulo]')!.textContent!.replace(/\u00AD/g, ''))).toEqual([
       'Disponível', 'Patrimônio total', 'Resultado do mês', 'Taxa de poupança', 'Cobertura da reserva', 'Comprometimento com dívidas', 'Dívidas totais',
     ])
     expect(itens.map((x) => x.querySelectorAll('p')[1].textContent)).toEqual([
-      'R$ 11.950,00', 'R$ 28.350,00', 'R$ 2.000,00', '33,3%', '6,0 meses', '20,0%', 'R$ 35.300,00',
+      'R$ 11.950,00', 'R$ 28.350,00', 'R$ 2.000,00', '31,7%', '6,0 meses', '20,0%', 'R$ 35.300,00',
     ])
-    expect(itens.map((x) => x.querySelector('span')!.textContent)).toEqual([
+    // de quando é cada número: o resultado é do mês corrente até hoje; poupança e comprometimento, do último mês fechado
+    expect(itens.map((x) => x.querySelector('[data-periodo]')?.textContent ?? null)).toEqual([
+      null, null, 'Até hoje', 'Outubro', null, 'Outubro', null,
+    ])
+    expect(itens.map((x) => x.querySelector('[data-selo]')!.textContent)).toEqual([
       'Positivo', 'Positivo', 'Positivo', 'Saudável', 'Saudável', 'Saudável', 'Em aberto',
     ])
     for (const x of itens) {
@@ -845,7 +851,7 @@ describe('Faixa de indicadores do Início (#187, migration 071)', () => {
     })
     montar()
     const cor = (x: HTMLElement) => x.querySelectorAll('p')[1].className
-    const selo = (x: HTMLElement) => x.querySelector('span')!
+    const selo = (x: HTMLElement) => x.querySelector('[data-selo]')!
     expect(cor(await indicador('disponivel'))).toMatch(/text-prejuizo/)
     expect(selo(await indicador('disponivel')).textContent).toBe('Negativo')
     expect(cor(await indicador('patrimonio'))).toMatch(/text-neutro/)
@@ -864,7 +870,7 @@ describe('Faixa de indicadores do Início (#187, migration 071)', () => {
   it('sem receita, sem despesa ou sem renda: "—" e o motivo, sem cor de alerta', async () => {
     mock.carregarIndicadores.mockResolvedValue({
       ...IND, receitas: c(0), resultado: c(0), taxaPoupanca: null, faixaPoupanca: null,
-      coberturaReserva: null, faixaReserva: null, despesaMedia: null, mesesFechados: 0,
+      coberturaReserva: null, faixaReserva: null, despesaTipica: null, mesesFechados: 0,
       rendaRegular: c(0), comprometimento: null, faixaComprometimento: null, dividas: c(0),
     })
     montar()
@@ -872,9 +878,9 @@ describe('Faixa de indicadores do Início (#187, migration 071)', () => {
       const x = await indicador(id)
       expect(x.querySelectorAll('p')[1].textContent).toBe('—')
       expect(x.querySelectorAll('p')[1].className).toMatch(/text-neutro/)
-      expect(x.querySelector('span')!.textContent).toBe(motivo)
+      expect(x.querySelector('[data-selo]')!.textContent).toBe(motivo)
     }
-    expect((await indicador('dividas')).querySelector('span')!.textContent).toBe('Nenhuma')
+    expect((await indicador('dividas')).querySelector('[data-selo]')!.textContent).toBe('Nenhuma')
   })
 
   it('(i): botão com aria-expanded que abre a conta em uma linha, com os números do banco, e fecha com Esc', async () => {
@@ -902,10 +908,21 @@ describe('Faixa de indicadores do Início (#187, migration 071)', () => {
       return document.getElementById(botao.getAttribute('aria-controls')!)!.textContent
     }
     expect(await texto('patrimonio')).toBe('Contas R$ 12.650,00 + bens R$ 50.000,00 + investimentos R$ 1.000,00 − dívidas R$ 35.300,00. Previdência e FGTS ainda não entram.')
-    expect(await texto('resultado')).toMatch(/^Receitas R\$ 6\.000,00 − despesas R\$ 4\.000,00 .*data da fatura\.$/)
-    expect(await texto('reserva')).toBe('Poupança / reserva R$ 3.000,00 ÷ despesa média R$ 500,00 por mês (6 meses fechados). Azul a partir de 6 meses; vermelho abaixo de 3.')
-    expect(await texto('comprometimento')).toMatch(/R\$ 1\.000,00 ÷ renda regular recebida R\$ 5\.000,00\. Cartão fica fora\./)
+    expect(await texto('resultado')).toMatch(/^Receitas R\$ 6\.000,00 − despesas R\$ 4\.000,00 pagas neste mês até hoje.*data da fatura\.$/)
+    expect(await texto('poupanca')).toBe('Outubro, o último mês fechado: (receitas R$ 6.000,00 − despesas R$ 4.100,00) ÷ receitas, sem as categorias que não contam como consumo. Azul a partir de 10%, vermelho abaixo de 0%.')
+    expect(await texto('reserva')).toBe('Poupança / reserva R$ 3.000,00 ÷ despesa típica de R$ 500,00 por mês (mediana de 6 meses fechados, sem o que não conta como consumo). Azul a partir de 6 meses; vermelho abaixo de 3.')
+    expect(await texto('comprometimento')).toBe('Outubro: parcelas de empréstimo, financiamento e consignado R$ 1.000,00 ÷ renda regular R$ 5.000,00 (a recebida no mês, fora as eventuais). Cartão fica fora. Azul até 30%, vermelho acima de 40%.')
     expect(await texto('dividas')).toMatch(/Parcelas futuras do cartão \(R\$ 900,00\) ainda não entram\./)
+  })
+
+  it('(i) do comprometimento diz quando a renda usada é a esperada pelas recorrentes', async () => {
+    mock.carregarIndicadores.mockResolvedValue({ ...IND, rendaEsperada: c(600000), rendaRegular: c(600000), fonteRenda: 'recorrente', comprometimento: 16.7 })
+    montar()
+    const x = await indicador('comprometimento')
+    const botao = within(x).getByRole('button')
+    fireEvent.click(botao)
+    expect(document.getElementById(botao.getAttribute('aria-controls')!)!.textContent)
+      .toMatch(/÷ renda regular R\$ 6\.000,00 \(a esperada pelas receitas recorrentes\)/)
   })
 
   it('se a consulta falhar, a faixa avisa e o resto do Início segue', async () => {

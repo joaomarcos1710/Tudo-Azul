@@ -171,7 +171,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje), listarLancamentos(familiaId, mes), listarCategorias(familiaId),
             opcional(vencidosPlanejados(familiaId, hoje, 5)), opcional(resumoDosCartoes(familiaId, hoje)),
             opcional(totalFaturasDoMes(familiaId, mes)),
-            // a faixa de indicadores do topo (#187): os 7 números numa chamada só, calculados no banco
+            // a faixa de indicadores do topo (#188): os 7 números numa chamada só, calculados no banco
             opcional(carregarIndicadores(familiaId, hoje)),
             // receita e despesa do mês, com o que ainda vai entrar e sair: só no cabeçalho
             opcional(resumoDoMes(familiaId, mes)),
@@ -257,7 +257,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         ? <CabecalhoInicio nome={nome} receitas={m?.receitas ?? null} despesas={m?.despesas ?? null}
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
         : <CabecalhoPagina titulo="Análises" descricao={`Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />}
-      {/* #187: os 7 indicadores logo abaixo do cabeçalho; substituem os widgets personalizáveis, o card de investimentos e a nota do patrimônio */}
+      {/* #188: os 7 indicadores logo abaixo do cabeçalho; substituem os widgets personalizáveis, o card de investimentos e a nota do patrimônio */}
       {noInicio && <FaixaIndicadores dados={dados.indicadores} />}
       {/* receitas e despesas do mês em outras moedas: à parte, nunca somadas aos totais em reais acima */}
       <ResultadoEmOutrasMoedas porMoeda={dados.mesPorMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
@@ -603,7 +603,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               ))}
             </ul>
           )}
-          {/* #187: o previsto do fim do mês ("posso gastar?") saiu do card "Saldo hoje e previsto" e ficou aqui, uma linha */}
+          {/* #188: o previsto do fim do mês ("posso gastar?") saiu do card "Saldo hoje e previsto" e ficou aqui, uma linha */}
           {dados.saldoPrevisto && dados.contas.length > 0 && (
             <p className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 border-t border-slate-100 pt-2 text-sm">
               <span className="text-slate-500">Previsto em {formatDate(limitesDoMes(mes)[1]).slice(0, 5)}

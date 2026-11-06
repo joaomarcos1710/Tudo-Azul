@@ -13,9 +13,12 @@ export type Faixa = 'saudavel' | 'atencao' | 'critico'
  * Todo valor em reais e toda razão vêm do banco: a tela não soma nem divide dinheiro.
  */
 export interface Indicadores {
-  /** AAAA-MM-DD */
+  /** AAAA-MM-DD: o mês corrente (resultado do mês, até hoje) */
   inicioMes: string
   fimMes: string
+  /** AAAA-MM-DD: o último mês fechado (taxa de poupança e comprometimento) */
+  inicioMesFechado: string
+  fimMesFechado: string
   contasAtivas: Cents
   faturasFechadas: Cents
   disponivel: Cents
@@ -29,19 +32,27 @@ export interface Indicadores {
   receitas: Cents
   despesas: Cents
   resultado: Cents
-  /** % com 1 casa; null = sem receita no mês */
+  /** Último mês fechado, sem as categorias "não conta como consumo". */
+  receitasPoupanca: Cents
+  despesasPoupanca: Cents
+  resultadoPoupanca: Cents
+  /** % com 1 casa; null = sem receita no mês fechado */
   taxaPoupanca: number | null
   faixaPoupanca: Faixa | null
   reserva: Cents
-  despesaMesesFechados: Cents
   mesesFechados: number
-  despesaMedia: Cents | null
-  /** meses com 1 casa; null = sem despesa nos meses fechados */
+  /** Mediana da despesa mensal dos meses fechados (sem o que não é consumo); null = nenhum mês fechado */
+  despesaTipica: Cents | null
+  /** meses com 1 casa; null = sem despesa típica */
   coberturaReserva: number | null
   faixaReserva: Faixa | null
   parcelasDividas: Cents
+  rendaEsperada: Cents
+  rendaRecebida: Cents
+  /** A maior entre a esperada (recorrentes) e a recebida no mês fechado */
   rendaRegular: Cents
-  /** % com 1 casa; null = sem renda regular no mês */
+  fonteRenda: 'recorrente' | 'recebida'
+  /** % com 1 casa; null = sem renda regular no mês fechado */
   comprometimento: number | null
   faixaComprometimento: Faixa | null
 }
@@ -61,15 +72,18 @@ export async function carregarIndicadores(familiaId: string, hoje: string): Prom
   const c = (k: string) => centsFromDb((r[k] ?? 0) as number | string)
   return {
     inicioMes: String(r.month_start), fimMes: String(r.month_end),
+    inicioMesFechado: String(r.closed_month_start), fimMesFechado: String(r.closed_month_end),
     contasAtivas: c('accounts_active'), faturasFechadas: c('card_bills_closed'), disponivel: c('available'),
     contasTodas: c('accounts_total'), creditoAReceber: c('credit_receivable'), bens: c('family_assets'),
     investimentos: c('investments'), dividas: c('debt_total'), compromissos: c('planned_commitments'), patrimonio: c('net_worth'),
     receitas: c('income'), despesas: c('expense'), resultado: c('result'),
+    receitasPoupanca: c('savings_income'), despesasPoupanca: c('savings_expense'), resultadoPoupanca: c('savings_result'),
     taxaPoupanca: numero(r.savings_rate), faixaPoupanca: faixa(r.savings_band),
-    reserva: c('reserve'), despesaMesesFechados: c('expense_closed_months'), mesesFechados: Number(r.closed_months ?? 0),
-    despesaMedia: r.average_expense === null || r.average_expense === undefined ? null : c('average_expense'),
+    reserva: c('reserve'), mesesFechados: Number(r.closed_months ?? 0),
+    despesaTipica: r.typical_expense === null || r.typical_expense === undefined ? null : c('typical_expense'),
     coberturaReserva: numero(r.reserve_months), faixaReserva: faixa(r.reserve_band),
-    parcelasDividas: c('debt_installments'), rendaRegular: c('regular_income'),
+    parcelasDividas: c('debt_installments'), rendaEsperada: c('regular_income_expected'), rendaRecebida: c('regular_income_received'),
+    rendaRegular: c('regular_income'), fonteRenda: r.regular_income_source === 'recurring' ? 'recorrente' : 'recebida',
     comprometimento: numero(r.commitment_pct), faixaComprometimento: faixa(r.commitment_band),
   }
 }

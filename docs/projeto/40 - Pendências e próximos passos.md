@@ -22,10 +22,14 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
-### Faixa de indicadores do Início (#187, migration 071)
+### Faixa de indicadores do Início (#188, migration 071)
 - [ ] **Aplicar a migration 071** em produção (simular → ler o log → aplicar, com o "pode" do dono), depois da 070. Antes, conferir os números em produção numa transação desfeita (`begin; select * from public.home_indicators(<família>, current_date); rollback;`).
 - [ ] **Investimento contado duas vezes**: o Patrimônio total soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; se o mesmo dinheiro estiver nos dois, conta em dobro. Resolver com a ligação conta ↔ ativo (item da #186) ou escolher uma das fontes.
-- [ ] **Comprometimento no começo do mês**: usa a renda regular **recebida** no mês; antes do salário cair mostra "—" ou % alta. Se incomodar, trocar para a média da renda regular dos meses fechados (mudança na função).
+- [x] **Comprometimento e taxa de poupança no começo do mês** enganavam (73,7% e 71,6% em produção): passaram para o último mês fechado; o comprometimento usa a renda esperada (recorrentes) ou a recebida, a maior.
+- [x] **Reserva 0,0** com a média inflada por empréstimo, quitação e repasses: agora é a mediana, sem as categorias "não conta como consumo".
+- [ ] **Marcar as categorias que não são consumo** (dono, em Categorias): receita de empréstimo, quitação, repasses de família. Lembrar que a subcategoria não herda: marcar cada uma que precisar.
+- [ ] **Aplicar a marcação também nos relatórios** (próximo passo): `period_summary`, Relatórios, Análises, orçamento e o Resultado do mês ainda contam as categorias "não conta como consumo". Decidir com o dono onde ela vale (ex.: Entradas x Saídas é caixa e talvez deva continuar contando).
+- [ ] **Renda esperada só com recorrentes ativas**: recorrente encerrada é apagada (`recurrence_end`), então um mês fechado antigo perde a esperada; por isso vale a maior entre esperada e recebida.
 - [ ] **Empréstimo sem contrato** (sem agenda de parcelas) não entra no comprometimento; só os com contrato cadastrado.
 - [ ] **Previdência e FGTS** não existem no app (o (i) do patrimônio avisa).
 - [ ] **Preferência antiga dos widgets** (`tudo-azul:dashboard-widgets:<usuário>`) fica sem uso no aparelho; inofensiva.
