@@ -1228,6 +1228,8 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const fechadaAPagar = fechadaAPagarDe(cartao, faturas, hoje)
   const pagaAqui = pagaNaFatura(cartao, f, fechadaAPagar, hoje)
   const formularioPagar = painel?.tipo === 'pagar' && painel.cartao.id === cartaoId ? <PainelJunto>{painelDoCartao(painel)}</PainelJunto> : null
+  const formularioRapido = painel && ['compra', 'credito'].includes(painel.tipo) && painel.cartao.id === cartaoId
+    ? <PainelJunto>{painelDoCartao(painel)}</PainelJunto> : null
   const seta = 'inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-xl leading-none text-azul hover:bg-azul-claro disabled:cursor-not-allowed disabled:opacity-40'
   const idPagamentos = `${idBase}-pagamentos`, idEntradas = `${idBase}-entradas`, idSaidas = `${idBase}-saidas`
 
@@ -1241,13 +1243,18 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         </span>}
         descricao={<>{fechou ? 'Fechou' : 'Fecha'} em {formatDate(f.fechamento)}{f.vencimento && <> · {venceu ? 'Venceu' : 'Vence'} em {formatDate(f.vencimento)}</>}</>}
         acoes={
-          // setas para a fatura anterior e a seguinte (as que existem no cartão); o nome do mês vizinho vai no rótulo
-          <nav aria-label="Outras faturas" className="flex items-center gap-1">
-            <button type="button" className={seta} disabled={!anterior} aria-label={anterior ? `Fatura anterior (${formatMonth(anterior.mes)})` : 'Fatura anterior (não há)'}
-              onClick={() => anterior && navigate(rotaFatura(cartaoId, anterior.mes))}>‹</button>
-            <button type="button" className={seta} disabled={!seguinte} aria-label={seguinte ? `Fatura seguinte (${formatMonth(seguinte.mes)})` : 'Fatura seguinte (não há)'}
-              onClick={() => seguinte && navigate(rotaFatura(cartaoId, seguinte.mes))}>›</button>
-          </nav>
+          <div className="flex flex-wrap items-center justify-end gap-2 print:hidden">
+            {pagaAqui && <Button variante="pilula" compacto onClick={() => setPainel({ tipo: 'pagar', cartao })} disabled={painel !== null}>Pagar</Button>}
+            {!travada && <Button variante="secundario" compacto onClick={() => setPainel({ tipo: 'compra', cartao })} disabled={painel !== null}>Nova despesa</Button>}
+            {!travada && <Button variante="secundario" compacto onClick={() => setPainel({ tipo: 'credito', cartao })} disabled={painel !== null}>Nova receita</Button>}
+            <Button variante="fantasma" compacto aria-label="Imprimir fatura" title="Imprimir fatura" onClick={() => window.print()}>Imprimir</Button>
+            <nav aria-label="Outras faturas" className="flex items-center gap-1">
+              <button type="button" className={seta} disabled={!anterior} aria-label={anterior ? `Fatura anterior (${formatMonth(anterior.mes)})` : 'Fatura anterior (não há)'}
+                onClick={() => anterior && navigate(rotaFatura(cartaoId, anterior.mes))}>‹</button>
+              <button type="button" className={seta} disabled={!seguinte} aria-label={seguinte ? `Fatura seguinte (${formatMonth(seguinte.mes)})` : 'Fatura seguinte (não há)'}
+                onClick={() => seguinte && navigate(rotaFatura(cartaoId, seguinte.mes))}>›</button>
+            </nav>
+          </div>
         } />
 
       {erroGeral && <div className="mb-4"><Aviso tipo="erro">{erroGeral}</Aviso></div>}
@@ -1257,9 +1264,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="rounded-lg bg-fundo p-3">
             {/* #181: "Pagar fatura" só na fatura que o pagamento quita; paga (travada) não tem */}
-            {pagaAqui && (
-              <Button variante="pilula" onClick={() => setPainel({ tipo: 'pagar', cartao })} disabled={painel !== null}>Pagar fatura</Button>
-            )}
+            {pagaAqui && <p className="text-sm font-medium text-slate-600">Use o botão Pagar no cabeçalho para quitar esta fatura.</p>}
             {!travada && fechadaAPagar !== null && f.mes !== fechadaAPagar && (
               <p className="text-sm text-slate-600">
                 Para pagar, abra a <Link to={rotaFatura(cartaoId, fechadaAPagar)} className="font-semibold text-azul underline">fatura de {formatMonth(fechadaAPagar)}</Link>: o pagamento quita primeiro a mais antiga.
@@ -1305,6 +1310,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
           </dl>
         </div>
         {formularioPagar}
+        {formularioRapido}
         {acao?.tipo === 'reabrir' && acao.fatura.mes === f.mes && (
           <PainelReabrir cartaoId={cartaoId} fatura={f} aoFechar={() => setAcao(null)} aoConcluir={async () => { setAcao(null); await carregar() }} />
         )}
