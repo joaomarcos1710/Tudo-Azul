@@ -50,7 +50,7 @@ atualizado: 2026-10-28
 ### Relatórios › Contas e previstos (#184, migration 068)
 - [x] **Aba Contas** (saldo inicial, entradas, saídas, saldo final por conta ativa em reais; total sem as transferências; aviso de outra moeda) e **abas** com um período só.
 - [x] **Assinaturas de cartão previstas** no vencimento e **lançamentos fixos ainda não gerados** em Entradas x Saídas (e Contas) com "não pagos"; o saldo anda junto.
-- [x] **Aplicar a migration 068** (aplicada, segundo o dono em 05/11/2026; a execução não está anotada aqui).
+- [x] **Aplicar a migration 068** (aplicada em 05/11/2026, execução 42124746064).
 - [ ] **Conferir com o Organizze** (você): novembro com "Pagos e não pagos" deve dar a diferença de R$ 1.120,69 a mais de saída em 28/11; e a aba Contas contra Relatório › Contas.
 - [x] **Saldo previsto do Calendário/Contas/aviso diário** passa a contar as assinaturas previstas e os fixos não gerados (#185, migration 069; ver a seção abaixo).
 - [ ] **atalho**: as condições de conta dos fixos previstos (`private.account_recurrence_pending`) repetem as de `recurrence_materialize`; quando a geração mudar, fazê-la chamar a função.
