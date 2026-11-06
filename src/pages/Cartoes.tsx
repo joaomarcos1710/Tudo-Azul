@@ -1228,7 +1228,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const fechadaAPagar = fechadaAPagarDe(cartao, faturas, hoje)
   const pagaAqui = pagaNaFatura(cartao, f, fechadaAPagar, hoje)
   const formularioPagar = painel?.tipo === 'pagar' && painel.cartao.id === cartaoId ? <PainelJunto>{painelDoCartao(painel)}</PainelJunto> : null
-  const formularioRapido = painel && ['compra', 'credito'].includes(painel.tipo) && painel.cartao.id === cartaoId
+  const formularioRapido = painel && (painel.tipo === 'compra' || painel.tipo === 'credito') && painel.cartao.id === cartaoId
     ? <PainelJunto>{painelDoCartao(painel)}</PainelJunto> : null
   const seta = 'inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-xl leading-none text-azul hover:bg-azul-claro disabled:cursor-not-allowed disabled:opacity-40'
   const idPagamentos = `${idBase}-pagamentos`, idEntradas = `${idBase}-entradas`, idSaidas = `${idBase}-saidas`
