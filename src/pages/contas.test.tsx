@@ -15,6 +15,11 @@ const mock = vi.hoisted(() => ({
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
+// etiquetas (072) têm o próprio teste (contasEtiquetas.test.tsx); aqui o banco ainda não as tem
+vi.mock('../lib/etiquetas', async (original) => ({
+  ...(await original<typeof import('../lib/etiquetas')>()),
+  listarEtiquetas: () => Promise.resolve({ disponivel: false, etiquetas: [], porConta: new Map() }),
+}))
 vi.mock('../lib/contas', async (original) => ({
   ...(await original<typeof import('../lib/contas')>()),
   listarContas: mock.listarContas,
@@ -62,6 +67,7 @@ describe('Contas', () => {
     render(<MemoryRouter><Contas /></MemoryRouter>)
     expect(await screen.findByText('R$ 1.200,50')).toBeTruthy() // total do banco, não somado na tela
     expect(screen.getByText('R$ 1.250,50')).toBeTruthy()
+    await userEvent.click(screen.getByRole('button', { name: 'Arquivadas (1)' }))
     expect(screen.getByText('-R$ 50,00')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Arquivadas' })).toBeTruthy()
     expect(screen.getByText('Carteira').closest('li')).not.toBeNull()
@@ -188,9 +194,34 @@ describe('Contas', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Conta com lançamento planejado em aberto não pode ser desativada.')
   })
 
+  it('arquivadas ficam escondidas por padrão; o botão "Arquivadas (N)" mostra e esconde', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [corrente, { ...corrente, id: 'a2', nome: 'Antiga', ativa: false }], total: c(0) })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const botao = await screen.findByRole('button', { name: 'Arquivadas (1)' })
+    expect(screen.queryByText('Antiga')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Arquivadas' })).toBeNull()
+    expect(screen.queryByText(/Não aparecem nas escolhas de lançamento/)).toBeNull()
+    expect(botao.getAttribute('aria-expanded')).toBe('false')
+    expect(botao.getAttribute('aria-controls')).toBe('secao-contas-arquivadas')
+    await userEvent.click(botao)
+    expect(botao.getAttribute('aria-expanded')).toBe('true')
+    expect(document.getElementById('secao-contas-arquivadas')!.textContent).toMatch(/Antiga/)
+    expect(screen.getByText(/Não aparecem nas escolhas de lançamento/)).toBeTruthy()
+    await userEvent.click(botao)
+    expect(screen.queryByText('Antiga')).toBeNull()
+  })
+
+  it('sem conta arquivada, o botão de arquivadas não aparece', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(125050) })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    await screen.findByText('Itaú')
+    expect(screen.queryByRole('button', { name: /Arquivadas/ })).toBeNull()
+  })
+
   it('conta arquivada fica na seção Arquivadas e reativa', async () => {
     mock.listarContas.mockResolvedValue({ contas: [corrente, { ...corrente, id: 'a2', nome: 'Antiga', ativa: false }], total: c(0) })
     render(<MemoryRouter><Contas /></MemoryRouter>)
+    await userEvent.click(await screen.findByRole('button', { name: 'Arquivadas (1)' }))
     const secao = (await screen.findByRole('heading', { name: 'Arquivadas' })).closest('section')!
     expect(within(secao).getByText('Antiga')).toBeTruthy()
     expect(within(secao).queryByText('Itaú')).toBeNull()

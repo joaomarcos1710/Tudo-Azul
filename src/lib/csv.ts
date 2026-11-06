@@ -220,6 +220,30 @@ function schemaAindaNaoAplicado(erro: unknown): boolean {
   return ['PGRST204', 'PGRST205', '42703', '42P01'].includes(codigo)
 }
 
+/**
+ * Etiquetas de cada conta (migration 072), em ordem alfabética, ", " entre elas. Banco sem a 072: tudo vazio.
+ * Só organização: não muda nenhum valor do arquivo.
+ */
+async function buscarEtiquetasExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Map<unknown, string>> {
+  const [tags, links] = await Promise.all([
+    db.from('account_tags').select('id, name').eq('household_id', familiaId),
+    db.from('account_tag_links').select('account_id, tag_id').eq('household_id', familiaId),
+  ])
+  for (const r of [tags, links]) {
+    if (r.error) {
+      if (schemaAindaNaoAplicado(r.error)) return new Map()
+      throw r.error
+    }
+  }
+  const nome = new Map(((tags.data ?? []) as Registro[]).map((t) => [t.id, texto(t.name)]))
+  const porConta = new Map<unknown, string[]>()
+  for (const l of (links.data ?? []) as Registro[]) {
+    const n = nome.get(l.tag_id)
+    if (n) porConta.set(l.account_id, [...(porConta.get(l.account_id) ?? []), n])
+  }
+  return new Map([...porConta].map(([id, nomes]) => [id, nomes.sort((a, b) => a.localeCompare(b, 'pt-BR')).join(', ')]))
+}
+
 async function buscarDividasExportacao(db: NonNullable<typeof supabase>, familiaId: string): Promise<Registro[]> {
   const atual = await db.from('debts')
     .select('id, name, kind, reference_date, reference_balance, active, creditor, contract_number, payment_method, payment_account_id')
@@ -368,7 +392,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
   // moeda da conta (migration 055); banco ainda sem a coluna: lê sem ela e tudo sai como BRL
   const lerContas = async (colunas: string): Promise<{ data: unknown; error: { code?: string } | null }> =>
     db.from('accounts').select(colunas).eq('household_id', familiaId).order('name')
-  const [contas, categorias, listaDividas, faturas, saldos, saldosDividas] = await Promise.all([
+  const [contas, categorias, listaDividas, faturas, saldos, saldosDividas, etiquetasDaConta] = await Promise.all([
     lerContas('id, name, type, initial_balance, opening_date, active, currency_code')
       .then((r) => (r.error?.code === COLUNA_INEXISTENTE ? lerContas('id, name, type, initial_balance, opening_date, active') : r)),
     db.from('categories').select('id, name').eq('household_id', familiaId),
@@ -376,6 +400,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     db.from('debt_invoices').select('id, label').eq('household_id', familiaId),
     db.rpc('account_balances', { p_household: familiaId, p_as_of: hoje }),
     db.rpc('debt_balances', { p_household: familiaId, p_as_of: hoje }),
+    buscarEtiquetasExportacao(db, familiaId),
   ])
   for (const r of [contas, categorias, faturas, saldos, saldosDividas]) if (r.error) throw r.error
   const listaContas = (contas.data ?? []) as Registro[]
@@ -438,12 +463,13 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     ...listaContas.map((c): Celula[] => [
       'Conta', texto(c.name), rotuloDoTipo(texto(c.type)), dataBR(texto(c.opening_date)),
       centavos(c.initial_balance), moedaDaConta(c), c.active ? 'Sim' : 'Não', talvez(saldoConta.get(c.id)), '',
+      etiquetasDaConta.get(c.id) ?? '',
     ]),
     ...listaDividas.map((d): Celula[] => {
       const s = saldoDivida.get(d.id)
       return [
         rotuloDivida[texto(d.kind)] ?? texto(d.kind), texto(d.name), '', dataBR(texto(d.reference_date)),
-        centavos(d.reference_balance), 'BRL', d.active ? 'Sim' : 'Não', talvez(s?.balance), talvez(s?.planned_remaining),
+        centavos(d.reference_balance), 'BRL', d.active ? 'Sim' : 'Não', talvez(s?.balance), talvez(s?.planned_remaining), '',
       ]
     }),
   ]
@@ -496,7 +522,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     {
       nome: `tudo-azul-${hoje}-3-cadastros.csv`, linhas: cadastros.length,
       conteudo: montarCsv(['Cadastro', 'Nome', 'Tipo', 'Data inicial', 'Valor inicial', 'Moeda', 'Ativo',
-        `Saldo em ${dataBR(hoje)}`, 'Parcelas futuras'], cadastros),
+        `Saldo em ${dataBR(hoje)}`, 'Parcelas futuras', 'Etiquetas'], cadastros),
     },
     {
       nome: `tudo-azul-${hoje}-4-parcelas-cartao.csv`, linhas: linhasParcelas.length,

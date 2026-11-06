@@ -27,7 +27,7 @@ atualizado: 2026-10-28
 - [ ] **Investimento contado duas vezes**: o Patrimônio total soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; se o mesmo dinheiro estiver nos dois, conta em dobro. Resolver com a ligação conta ↔ ativo (item da #186) ou escolher uma das fontes.
 - [x] **Comprometimento e taxa de poupança no começo do mês** enganavam (73,7% e 71,6% em produção): passaram para o último mês fechado; o comprometimento usa a renda esperada (recorrentes) ou a recebida, a maior.
 - [x] **Reserva 0,0** com a média inflada por empréstimo, quitação e repasses: agora é a mediana, sem as categorias "não conta como consumo".
-- [ ] **Marcar as categorias que não são consumo** (dono, em Categorias): receita de empréstimo, quitação, repasses de família. Lembrar que a subcategoria não herda: marcar cada uma que precisar.
+- [x] **Marcar as categorias que não são consumo** (06/11/2026, a pedido do dono, depois da 071 aplicada): receita de empréstimo, os repasses de família (receita e despesa, subcategoria por subcategoria) e a subcategoria nova "Quitação de empréstimo" (em Financiamento e Empréstimos), para onde foram as liquidações de empréstimo. Quitações de anos anteriores ficaram onde estavam (fora da janela de 6 meses).
 - [ ] **Aplicar a marcação também nos relatórios** (próximo passo): `period_summary`, Relatórios, Análises, orçamento e o Resultado do mês ainda contam as categorias "não conta como consumo". Decidir com o dono onde ela vale (ex.: Entradas x Saídas é caixa e talvez deva continuar contando).
 - [ ] **Renda esperada só com recorrentes ativas**: recorrente encerrada é apagada (`recurrence_end`), então um mês fechado antigo perde a esperada; por isso vale a maior entre esperada e recebida.
 - [ ] **Empréstimo sem contrato** (sem agenda de parcelas) não entra no comprometimento; só os com contrato cadastrado.
@@ -35,6 +35,15 @@ atualizado: 2026-10-28
 - [ ] **Preferência antiga dos widgets** (`tudo-azul:dashboard-widgets:<usuário>`) fica sem uso no aparelho; inofensiva.
 - [x] Personalização dos widgets do Início saiu (substituída pela faixa fixa de 7).
 - [x] "Saldo hoje e previsto": o previsto do fim do mês ficou numa linha de Minhas contas.
+### Etiquetas nas contas (#189, migration 072)
+- [x] Etiquetas livres por família: criar, renomear, apagar, marcar até 10 por conta; selos, filtro e seção "Etiquetas" em Contas; coluna na exportação completa (#189).
+- [x] **Contas arquivadas escondidas por padrão** em Contas, atrás do botão "Arquivadas (N)" (pedido do dono, #189). A escolha não é lembrada entre visitas (sempre fechada ao abrir a tela).
+- [ ] Arquivadas escondidas em outras telas (ex.: Dívidas/Cartões ainda mostram a seção "Arquivadas" sempre): avaliar com o dono se segue o mesmo padrão.
+- [ ] **Aplicar a migration 072** em produção (simular → ler o log → aplicar, com o "pode" do dono). Não depende da 070 nem da 071 (só cria tabelas e funções novas), mas segue a ordem dos arquivos.
+- [ ] **Filtrar relatórios por etiqueta** (Relatórios › Contas e Entradas x Saídas, Início): exige função no banco que receba a etiqueta (o front não soma). Nesta PR a etiqueta não entra em nenhum cálculo.
+- [ ] **Cor na etiqueta** (se o dono quiser): hoje selo neutro; categorias já têm o padrão `#RRGGBB` + `CORES`.
+- [ ] **Limites por contagem sem trava** (trigger da 072): duas inserções simultâneas podem passar 1 do limite de 50/10 (comentário `atalho:` na migration). Melhorar com lock só se aparecer abuso.
+- [ ] Etiquetas fora da tela Contas (seletor de conta em Lançamentos, Início › Minhas contas): não pedido; avaliar com o dono.
 
 ### Tipos de conta (#186, migration 070)
 - [ ] **Aplicar a migration 070** em produção (simular → ler o log → aplicar, com o "pode" do dono). Depois da 069 (saldo projetado, outra PR).

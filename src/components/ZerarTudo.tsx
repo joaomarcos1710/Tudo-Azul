@@ -94,7 +94,7 @@ export function ZerarTudo() {
             <li>{plural(previa.bens, 'bem', 'bens')} da família, com {plural(previa.avaliacoesBens, 'avaliação', 'avaliações')}</li>
           </ul>
           <p className="mb-4 text-sm text-slate-700">
-            <strong>Ficam:</strong> a família, os membros e as categorias. <strong>Não tem volta</strong>: a exportação serve para consulta
+            <strong>Ficam:</strong> a família, os membros, as categorias e as etiquetas de conta (sem contas para marcar). <strong>Não tem volta</strong>: a exportação serve para consulta
             e arquivo, o app não consegue restaurar a partir dela.
           </p>
 

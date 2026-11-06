@@ -221,11 +221,13 @@ function linha(d: DadosConta) {
   }
 }
 
-export async function criarConta(familiaId: string, d: DadosConta): Promise<void> {
+/** Cria a conta e devolve o id (as etiquetas da 072 são gravadas depois, na conta já criada). */
+export async function criarConta(familiaId: string, d: DadosConta): Promise<string> {
   // a moeda só vai quando não é BRL (o padrão do banco): criar conta em reais segue funcionando sem a migration 055
   const moeda = d.moeda && d.moeda !== 'BRL' ? { currency_code: d.moeda } : {}
-  const { error } = await cliente().from('accounts').insert({ household_id: familiaId, ...linha(d), ...moeda })
+  const { data, error } = await cliente().from('accounts').insert({ household_id: familiaId, ...linha(d), ...moeda }).select('id').single()
   if (error) throw error
+  return (data as { id: string }).id
 }
 
 /** Edição nunca envia a moeda: ela só se escolhe na criação (o banco também recusa trocar com movimento). */
