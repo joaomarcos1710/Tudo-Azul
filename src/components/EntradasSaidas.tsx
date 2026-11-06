@@ -260,7 +260,9 @@ function TabelaFluxo({ consulta, comSaldo }: { consulta: Consulta; comSaldo: boo
     // a rolagem fica dentro da tabela: o cabeçalho e o total ficam presos enquanto as linhas rolam (31 dias);
     // para o lado só se não couber mesmo, com a coluna Período presa à esquerda.
     // w-0 min-w-full: uma tabela larga não alarga a página, só rola dentro da própria caixa
-    <div className="mt-4 max-h-[70vh] w-0 min-w-full overflow-auto" data-testid="caixa-tabela">
+    // caixa rolável alcançável pelo teclado (axe: scrollable-region-focusable), com nome para o leitor de tela
+    <div className="mt-4 max-h-[70vh] w-0 min-w-full overflow-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-azul" data-testid="caixa-tabela"
+      tabIndex={0} role="region" aria-label={`Tabela de entradas e saídas por ${TERMO[divisao]}`}>
       <p className="mb-1 text-xs text-slate-500 sm:hidden">Valores em R$.</p>
       <table className="w-full text-[11px] tracking-tight sm:text-xs sm:tracking-normal lg:text-sm">
         <caption className="sr-only">Entradas, saídas e resultado de cada {TERMO[divisao]} de {rotuloPeriodo(periodo)}{comSaldo ? ', com o saldo das contas' : ''}</caption>

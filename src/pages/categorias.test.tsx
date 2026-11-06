@@ -102,6 +102,17 @@ describe('Categorias', () => {
     expect(mock.definirCategoriaAtiva).toHaveBeenCalledWith('l', true)
   })
 
+  it('auditoria 5h (contraste): desativada sem opacidade no texto; nome e selo em cinza neutro do sistema', async () => {
+    render(<Categorias />)
+    const nome = await screen.findByText('Lazer')
+    const linha = nome.closest('div')!
+    // nenhuma opacidade fixa (só a de botão desabilitado, `disabled:opacity-*`)
+    const opacos = [linha, ...Array.from(linha.querySelectorAll('*'))].filter((e) => /(^|\s)opacity-/.test(e.getAttribute('class') ?? ''))
+    expect(opacos).toHaveLength(0)
+    expect(within(linha).getByText('desativada').className).toContain('bg-neutro-fundo text-neutro')
+    expect((nome.closest('span.flex') as HTMLElement).className).toContain('text-neutro')
+  })
+
   it('regra do banco aparece em português (ex.: virar subcategoria tendo filhas)', async () => {
     mock.editarCategoria.mockRejectedValue({ code: '23514', message: 'categoria com subcategorias não pode virar subcategoria' })
     render(<Categorias />)

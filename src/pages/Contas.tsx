@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
@@ -146,12 +146,13 @@ export default function Contas() {
   const arquivadas = visiveis.filter((c) => !c.ativa)
   const outras = outrasMoedas(porMoeda)
   // agrupadas pelos 7 tipos (onde o dinheiro está), na ordem de TIPOS_CONTA; o subtotal vem do banco
-  const grupos: { chave: string; titulo: string; contas: Conta[]; subtotal: string | null }[] = TIPOS_CONTA
+  // subtotal: cada valor com a sua cor (negativo vermelho, corDoValor); vários só nas outras moedas, nunca somados
+  const grupos: { chave: string; titulo: string; contas: Conta[]; subtotal: { texto: string; valor: number }[] | null }[] = TIPOS_CONTA
     .map((tipo) => {
       const sub = porTipo.find((t) => t.tipo === tipo)?.totalAtivas
       // com filtro o subtotal do banco (de todas as contas do tipo) não vale para as contas mostradas: some, sem somar no front
       return { chave: tipo, titulo: TITULO_GRUPO[tipo], contas: ativas.filter((c) => c.tipo === tipo),
-        subtotal: sub === undefined || etiquetaFiltro ? null : formatBRL(sub) }
+        subtotal: sub === undefined || etiquetaFiltro ? null : [{ texto: formatBRL(sub), valor: sub }] }
     })
     .filter((g) => g.contas.length > 0)
   // tipo de antes da 070 (front no ar antes da migration): a conta não some; fica num grupo próprio, sem subtotal
@@ -160,7 +161,7 @@ export default function Contas() {
   // subtotal por moeda (do banco, sem conversão), nunca somando moedas diferentes
   if (ativasOutras.length > 0) {
     grupos.push({ chave: 'outras-moedas', titulo: 'Contas em outras moedas', contas: ativasOutras,
-      subtotal: outras.length > 0 && !etiquetaFiltro ? outras.map((m) => formatMoeda(m.totalAtivas, m.moeda)).join(' · ') : null })
+      subtotal: outras.length > 0 && !etiquetaFiltro ? outras.map((m) => ({ texto: formatMoeda(m.totalAtivas, m.moeda), valor: m.totalAtivas })) : null })
   }
 
   if (!familia) return null
@@ -238,7 +239,11 @@ export default function Contas() {
             <section key={g.chave} className="mb-6" aria-labelledby={`titulo-contas-${g.chave}`}>
               <div className="mb-2 flex items-baseline justify-between gap-3">
                 <h2 id={`titulo-contas-${g.chave}`} className="text-lg font-semibold">{g.titulo}</h2>
-                {g.subtotal !== null && <span className="tabular-nums text-sm font-semibold text-slate-600">{g.subtotal}</span>}
+                {g.subtotal !== null && (
+                  <span className="tabular-nums text-sm font-semibold" data-testid={`subtotal-${g.chave}`}>
+                    {g.subtotal.map((v, i) => <Fragment key={i}>{i > 0 && <span className="text-slate-500"> · </span>}<span className={corDoValor(v.valor)}>{v.texto}</span></Fragment>)}
+                  </span>
+                )}
               </div>
               <ul className="flex flex-col gap-3">
                 {g.contas.map((c) => (
@@ -257,9 +262,12 @@ export default function Contas() {
                         <span className={`tabular-nums text-lg font-semibold ${c.saldo === null ? '' : corDoValor(c.saldo)}`}>
                           {textoSaldo(c)}
                         </span>
-                        <Button variante="fantasma" onClick={() => setEditando(c)}>Editar</Button>
-                        <Button variante="fantasma" onClick={() => alternarAtiva(c)}>Arquivar</Button>
-                        <Button variante="fantasma" onClick={() => setExcluindo(c)}>Excluir</Button>
+                        {/* as três ações quebram juntas: o "Excluir" nunca cai sozinho numa linha (auditoria 5h) */}
+                        <div className="flex items-center gap-1" data-acoes-conta>
+                          <Button variante="fantasma" compacto onClick={() => setEditando(c)}>Editar</Button>
+                          <Button variante="fantasma" compacto onClick={() => alternarAtiva(c)}>Arquivar</Button>
+                          <Button variante="perigoTexto" compacto onClick={() => setExcluindo(c)}>Excluir</Button>
+                        </div>
                       </div>
                     </Card>
                   </li>

@@ -565,7 +565,9 @@ describe('Visão geral', () => {
     expect(aviso.textContent).toContain('venceu em 10/01/2020') // vencida mostra o ano
     expect(aviso.className).toMatch(/text-prejuizo/)
     expect(screen.getByText('Crédito no cartão de R$ 100,00')).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Ver cartões' })).toBeTruthy()
+    // auditoria 5h: alvo de toque de 44px nos links "Ver cartões" e "Ver todos" (últimos lançamentos)
+    expect(screen.getByRole('link', { name: 'Ver cartões' }).className).toContain('min-h-11')
+    for (const l of screen.getAllByRole('link', { name: 'Ver todos' })) expect(l.className).toContain('min-h-11')
   })
 
   it('Minhas contas: saldo geral do banco no topo; conta arquivada fica escondida', async () => {
@@ -834,7 +836,8 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
       const valor = x.querySelectorAll('p')[1]
       expect(valor.className).toMatch(/tabular-nums/)
       expect(valor.className).toMatch(/whitespace-nowrap/)
-      expect(within(x).getByRole('button', { name: /^Como é calculado: / })).toBeTruthy()
+      // auditoria 5h: o (i) tem alvo de toque de 44px (era 32px)
+      expect(within(x).getByRole('button', { name: /^Como é calculado: / }).className).toMatch(/(^| )h-11 w-11( |$)/)
     }
   })
 

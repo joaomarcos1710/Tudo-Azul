@@ -366,3 +366,10 @@ Na conferência da `home_indicators` em produção (transação desfeita), Dispo
 - Pedido do dono: 50% azul claro, 70% amarelo, 90% vermelho claro, 100% ou mais vermelho; abaixo de 50% fica o azul normal ("tudo certo").
 - Os tons claros (`lucro.claro`, `prejuizo.claro`) ficam abaixo de 3:1 no branco. Motivo para aceitar: a barra sempre vem com o percentual escrito e o texto da situação; a cor não é a única informação.
 - A faixa é calculada com o **gasto pago** (o mesmo da barra), não com o projetado, comparando centavos inteiros (50% = gasto×2 ≥ limite) para não errar por vírgula.
+
+## Auditoria de design: verde sempre com rótulo (06/11/2026, #193)
+- Em Cartões, "A cobrar (atual + futuras)", "Prevista até o fechamento" e "Ainda vai entrar nesta fatura" estavam em verde sem rótulo. **Decisão: manter o verde e acrescentar o selo "Agendado"** (em vez de trocar para cinza). Motivo: os três são exatamente o que a regra #183 chama de agendado (compra que ainda vai ser cobrada; fatura aberta = verde); trocar para neutro faria o mesmo tipo de valor ter duas cores no app. O selo cumpre a regra "todo verde vem com o rótulo" e evita a leitura de banco ("verde = entrou").
+- **Planejado com data passada é "Vencido" (vermelho) em todas as telas** — tabela, lista do celular, Calendário e Início —, pela mesma função `situacaoDoLancamento` (`src/lib/lancamentos.ts`), com o corte `data < hoje` (hojeSP). No Calendário o vencido tem traço **vazado** vermelho para não ser confundido com "Saiu" (traço cheio).
+- **Foco dos diálogos num hook só** (`src/components/ui/useFocoPreso.ts`), usado pela Folha e pelo painel de Lançamentos. O Esc fecha só o diálogo de cima por uma pilha de diálogos abertos (não pela ordem dos ouvintes no `document`), o que também resolve a Folha aberta por cima do painel.
+- **Ação destrutiva solta** (Excluir conta, Remover orçamento) usa o vermelho do menu ⋯ (`Button` variante `perigoTexto`), com a confirmação depois.
+

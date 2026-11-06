@@ -1,7 +1,6 @@
-import { useEffect, useId, useRef } from 'react'
-import type { KeyboardEvent as KeyboardEventReact, ReactNode } from 'react'
-
-const FOCAVEIS = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+import { useId, useRef } from 'react'
+import type { ReactNode } from 'react'
+import { useFocoPreso } from './useFocoPreso'
 
 /**
  * Folha de opções por cima da tela: no celular e no iPad em retrato sobe de baixo (bottom sheet); no computador
@@ -18,32 +17,8 @@ export function Folha({ titulo, aoFechar, rodape, children }: {
   const painel = useRef<HTMLDivElement>(null)
   const corpo = useRef<HTMLDivElement>(null)
   const idTitulo = useId()
-  const fechar = useRef(aoFechar)
-  fechar.current = aoFechar
-
-  useEffect(() => {
-    const origem = document.activeElement as HTMLElement | null
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); fechar.current() } }
-    document.addEventListener('keydown', esc)
-    const antes = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    // o primeiro controle do conteúdo (não o ×): quem abriu os filtros quer mexer neles
-    ;(corpo.current?.querySelector<HTMLElement>(FOCAVEIS) ?? painel.current?.querySelector<HTMLElement>(FOCAVEIS))?.focus()
-    return () => {
-      document.removeEventListener('keydown', esc)
-      document.body.style.overflow = antes
-      origem?.focus?.()
-    }
-  }, [])
-
-  function prenderTab(e: KeyboardEventReact<HTMLDivElement>) {
-    if (e.key !== 'Tab') return
-    const itens = Array.from(painel.current?.querySelectorAll<HTMLElement>(FOCAVEIS) ?? [])
-    if (itens.length === 0) return
-    const primeiro = itens[0], ultimo = itens[itens.length - 1]
-    if (e.shiftKey && document.activeElement === primeiro) { e.preventDefault(); ultimo.focus() }
-    else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primeiro.focus() }
-  }
+  // o primeiro controle do conteúdo (não o ×): quem abriu os filtros quer mexer neles
+  const prenderTab = useFocoPreso(painel, aoFechar, () => corpo.current)
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 lg:items-center lg:p-4"
