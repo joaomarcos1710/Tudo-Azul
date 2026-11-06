@@ -540,7 +540,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando
-            ? `${rotuloFrequencia(r!)}. Valor e descrição valem para os planejados ainda não pagos de hoje em diante. A categoria vale para todos os meses, inclusive os já pagos e os passados. Em qualquer caso, o que você corrigiu à mão em um mês fica como está. Para mudar a frequência ou o dia, exclua este recorrente e cadastre outro.`
+            ? `${rotuloFrequencia(r!)}. Valor e descrição valem para os planejados ainda não pagos de hoje em diante. A categoria vale para todos os meses, inclusive os já pagos e os passados. Em qualquer caso, o que você corrigiu à mão em um mês fica como está. Para mudar o dia, edite em Lançamentos a ocorrência a partir da qual ele muda e escolha "Este e os próximos" (só recorrente em conta). Para mudar a frequência, exclua este recorrente e cadastre outro.`
             : unidade === 'day'
               ? `Repete a cada ${cadaValido ? cada : 1} dia${cadaValido && cada > 1 ? 's' : ''}, a partir da primeira data.`
               : unidade === 'week'
