@@ -1244,7 +1244,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         descricao={<>{fechou ? 'Fechou' : 'Fecha'} em {formatDate(f.fechamento)}{f.vencimento && <> · {venceu ? 'Venceu' : 'Vence'} em {formatDate(f.vencimento)}</>}</>}
         acoes={
           <div className="flex flex-wrap items-center justify-end gap-2 print:hidden">
-            {pagaAqui && <Button variante="pilula" compacto onClick={() => setPainel({ tipo: 'pagar', cartao })} disabled={painel !== null}>Pagar</Button>}
+            {pagaAqui && <Button variante="pilula" compacto onClick={() => setPainel({ tipo: 'pagar', cartao })} disabled={painel !== null}>Pagar fatura</Button>}
             {!travada && <Button variante="secundario" compacto onClick={() => setPainel({ tipo: 'compra', cartao })} disabled={painel !== null}>Nova despesa</Button>}
             {!travada && <Button variante="secundario" compacto onClick={() => setPainel({ tipo: 'credito', cartao })} disabled={painel !== null}>Nova receita</Button>}
             <Button variante="fantasma" compacto aria-label="Imprimir fatura" title="Imprimir fatura" onClick={() => window.print()}>Imprimir</Button>
