@@ -22,7 +22,7 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
-### Falhas de Análises e Início (#194, 06/11/2026)
+### Falhas de Análises e Início (#193, 06/11/2026)
 - [x] **`net_worth_with_assets` com HTTP 500 em rajada** (auditoria de falhas, logs de 05–06/11: 65 de 125 chamadas): a evolução de 12 meses agora vai em fila (máx. 2 por vez), depois das outras consultas; mês que falha fica de fora com aviso; falha de consulta opcional vai ao Sentry (nome da consulta e código do erro).
 - [ ] **RPC `net_worth_series`** (migration nova): os 12 pontos da evolução numa chamada só, calculados no banco; tira o atalho de uma chamada por mês (`evolucaoPatrimonio`, `src/lib/painel.ts`).
 - [ ] **Escalonar as cargas do Início**: o `Promise.all` do Início ainda dispara ~13 consultas juntas (e Análises ~25); separar o essencial do resto, como na evolução, se os logs mostrarem 500 de novo.

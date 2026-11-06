@@ -245,7 +245,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       .then((d) => {
         if (!ativo) return
         setDados(d)
-        // só depois das cargas da tela: as 12 chamadas da evolução não disputam o banco com as outras (#194)
+        // só depois das cargas da tela: as 12 chamadas da evolução não disputam o banco com as outras (#193)
         if (!noInicio) buscarEvolucao(familiaId, hoje, () => ativo && evolucaoRef.current === vezEvolucao, setEvolucao)
       })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
