@@ -75,7 +75,7 @@ describe('Orçamentos', () => {
     expect(screen.queryByText(/No ritmo/)).toBeNull()
   })
 
-  it('gasto exatamente no limite: "Chegou ao limite." (barra vermelha), nunca "sobram R$ 0,00" (#192)', async () => {
+  it('gasto exatamente no limite: "Chegou ao limite." (barra vermelha), nunca "sobram R$ 0,00" (#191)', async () => {
     // no mês corrente (com projeção) e num mês passado (sem projeção): os centavos do banco são iguais
     mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(100000), restante: c(0), projetado: c(100000), sobra: c(0) })])
     const u = userEvent.setup()

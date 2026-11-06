@@ -22,13 +22,13 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
-### Auditoria de dinheiro (#192, migration 074, 06/11/2026)
-- [x] **C1 (crítico) Saldo de Entradas x Saídas** não contava o crédito de empréstimo na conta nem o saldo inicial de conta aberta no período (ex.: terminava setembro em 0,00 em vez de 7.000): `cash_flow_series` soma essas variações só no Saldo (migration 074). Entradas, saídas e resultado não mudam.
-- [x] **I1 Recorrente em conta arquivada** contava no resumo dos recorrentes e na renda regular esperada do Início (074).
-- [x] **I2 "Resultado do mês — Até hoje"** contava o pago com data futura (074).
+### Auditoria de dinheiro (#191, migration 073, 06/11/2026)
+- [x] **C1 (crítico) Saldo de Entradas x Saídas** não contava o crédito de empréstimo na conta nem o saldo inicial de conta aberta no período (ex.: terminava setembro em 0,00 em vez de 7.000): `cash_flow_series` soma essas variações só no Saldo (migration 073). Entradas, saídas e resultado não mudam.
+- [x] **I1 Recorrente em conta arquivada** contava no resumo dos recorrentes e na renda regular esperada do Início (073).
+- [x] **I2 "Resultado do mês — Até hoje"** contava o pago com data futura (073).
 - [x] **M1 Orçamento exatamente no limite**: "Chegou ao limite." em vez de "sobram R$ 0,00"; a barra do Início usa as faixas de `faixaOrcamento` (sem migration).
-- [ ] **Aplicar a migration 074** em produção (simular → ler o log → aplicar, com o "pode" do dono). Segue a ordem dos arquivos: a 073 (`20261106120100_recurrence_update_from.sql`, outra PR) vem antes se for mesclada primeiro. Antes, conferir numa transação desfeita: Entradas x Saídas de um período com crédito de empréstimo ou conta nova, o Saldo da última linha contra o Calendário no último dia.
-- [ ] **Desempenho da 074 em produção**: `cash_flow_series` ganhou duas leituras pequenas (créditos de empréstimo do período e contas da família); não foi medida no volume de teste nesta PR. Medir no mês de novembro em produção (limite de 8 s).
+- [ ] **Aplicar a migration 073** em produção (simular → ler o log → aplicar, com o "pode" do dono). Entra antes do "este e os próximos" (que passa a ser a 074). Antes, conferir numa transação desfeita: Entradas x Saídas de um período com crédito de empréstimo ou conta nova, o Saldo da última linha contra o Calendário no último dia.
+- [ ] **Desempenho da 073 em produção**: `cash_flow_series` ganhou duas leituras pequenas (créditos de empréstimo do período e contas da família); não foi medida no volume de teste nesta PR. Medir no mês de novembro em produção (limite de 8 s).
 - [ ] **Decisão do dono — crédito de empréstimo**: entra como **entrada** no Relatório › Contas (é extrato) mas **não** em Entradas x Saídas (decisão de 03/11: não é receita). Agora o Saldo das duas telas bate; as colunas Entradas diferem por esse valor. Manter assim ou mostrar uma linha "Movimentos que não são entrada/saída" em Entradas x Saídas?
 - [ ] **Decisão do dono — patrimônio com investimentos em dobro**: o Patrimônio total do Início soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; Análises (`net_worth_with_assets`) não soma os investimentos. Os dois números diferem e o do Início pode contar o mesmo dinheiro duas vezes (ver também a seção da #188).
 - [ ] **Decisão do dono — "Disponível"** inclui as contas Renda fixa, Renda variável e Cripto (os 7 tipos ativos). Dinheiro aplicado não está disponível para gastar no dia; decidir se o Disponível fica só com corrente, poupança/reserva, corretora (saldo a aplicar) e dinheiro.
@@ -60,7 +60,7 @@ atualizado: 2026-10-28
 - [ ] Etiquetas fora da tela Contas (seletor de conta em Lançamentos, Início › Minhas contas): não pedido; avaliar com o dono.
 
 ### Tipos de conta (#186, migration 070)
-- [ ] **Aplicar a migration 070** em produção (simular → ler o log → aplicar, com o "pode" do dono). Depois da 069 (saldo projetado, outra PR).
+- [x] **Aplicar a migration 070** em produção (aplicada em 05/11/2026, execução 42136165202) (simular → ler o log → aplicar, com o "pode" do dono). Depois da 069 (saldo projetado, outra PR).
 - [ ] **Ajustar conta por conta** pelo app (Contas › Editar › Tipo): as que eram Investimento viraram Renda fixa e as Outra viraram Conta corrente; conferir cada uma (ex.: a conta da corretora que não rende → Corretora (saldo a aplicar)).
 - [ ] **Vincular a corretora aos ativos de Investimentos** (custódia): a conta `brokerage` como a corretora dos ativos — ainda não existe ligação entre conta e ativo.
 - [ ] **Início (Minhas contas)** não agrupa por tipo (é a lista de saldos de hoje); só ganhou os ícones por tipo, sem mexer em `VisaoGeral.tsx`. Se o dono quiser os tipos no Início (ex.: subtotal por tipo), é outra PR.

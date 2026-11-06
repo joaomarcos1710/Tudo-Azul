@@ -1,4 +1,4 @@
--- 74_audit_fixes: migration 074 (auditoria de dinheiro de 06/11/2026, #192). Falha sem a migration.
+-- 73_audit_fixes: migration 073 (auditoria de dinheiro de 06/11/2026, #191). Falha sem a migration.
 --   C1  Entradas x Saídas: o Saldo de cada linha = balance_totals_projected no fim da linha, mesmo com crédito de
 --       empréstimo na conta e conta nova aberta no período (antes só somava o resultado). Entradas/saídas não mudam.
 --   I1  Recorrente em conta arquivada (ou transferência para conta arquivada) não entra no resumo dos recorrentes nem

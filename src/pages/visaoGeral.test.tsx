@@ -744,7 +744,7 @@ describe('Visão geral', () => {
     expect(within(card).getByRole('link', { name: 'Ver todos' }).getAttribute('href')).toBe('/orcamentos')
   })
 
-  it('orçamentos do mês: a barra usa as faixas da tela de Orçamentos (100% exato = vermelho, "Chegou ao limite") (#192)', async () => {
+  it('orçamentos do mês: a barra usa as faixas da tela de Orçamentos (100% exato = vermelho, "Chegou ao limite") (#191)', async () => {
     const o = (id: string, nome: string, gasto: number, sobra: number | null) =>
       ({ categoriaId: id, nome, limite: c(100000), gasto: c(gasto), previsto: null, ritmo: null, projetado: null, sobra: sobra === null ? null : c(sobra) })
     mock.listarOrcamentos.mockResolvedValue([

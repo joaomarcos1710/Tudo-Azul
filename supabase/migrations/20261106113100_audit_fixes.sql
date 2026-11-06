@@ -1,4 +1,4 @@
--- Tudo Azul — migration 074: correções da auditoria de dinheiro de 06/11/2026 (#192)
+-- Tudo Azul — migration 073: correções da auditoria de dinheiro de 06/11/2026 (#191)
 --
 -- Três achados, todos reproduzidos no banco local antes da correção (teste 74_audit_fixes falha sem esta migration).
 -- Nenhuma assinatura muda (create or replace; os grants ficam). Cada função parte EXATAMENTE do corpo em vigor:
@@ -123,7 +123,7 @@ begin
      where p_include_planned and p_member is null
        and (p_accounts is null or s.account_id = any(p_accounts))
     union all
-    -- (074) variações SÓ de saldo (tipo 'saldo': não são entrada nem saída, só entram no acumulado do Saldo).
+    -- (073) variações SÓ de saldo (tipo 'saldo': não são entrada nem saída, só entram no acumulado do Saldo).
     -- Crédito de empréstimo/financiamento na conta, como account_balances (conta em reais, já aberta na data).
     select e.date, 'saldo', e.amount
       from public.debt_events e
@@ -134,7 +134,7 @@ begin
        and exists (select 1 from public.accounts ac where ac.household_id = e.household_id and ac.id = e.account_id
                      and ac.currency_code = 'BRL' and ac.opening_date <= e.date)
     union all
-    -- (074) saldo inicial de conta em reais aberta no período, na data de abertura (o saldo em p_from − 1 não a conhece).
+    -- (073) saldo inicial de conta em reais aberta no período, na data de abertura (o saldo em p_from − 1 não a conhece).
     -- O saldo inicial não é de um membro: com p_member não entra (e o Saldo já é nulo com filtro).
     select a.opening_date, 'saldo', a.initial_balance
       from public.accounts a
@@ -160,7 +160,7 @@ begin
   ), inicio as (
     -- saldo de abertura (padrão da 067): UMA chamada de balance_totals_projected, em p_from − 1. Desde a 069 ela já
     -- desconta as assinaturas previstas e soma os fixos não gerados até ali (com não pagos); os do período estão nos
-    -- itens acima e entram no acumulado, com as variações só de saldo (074).
+    -- itens acima e entram no acumulado, com as variações só de saldo (073).
     select case when p_accounts is null and p_member is null then
              (select bt.total from public.balance_totals_projected(p_household, p_from - 1, p_include_planned) bt)
            end as saldo
@@ -207,7 +207,7 @@ language sql stable security invoker set search_path = '' as $$
        and r.active
        and (r.end_date is null or r.end_date >= (now() at time zone 'America/Sao_Paulo')::date)
        and (r.kind = 'card' or a.currency_code = 'BRL')
-       -- (074) conta arquivada (ou destino arquivado da transferência) não gera ocorrência: fica fora, como em
+       -- (073) conta arquivada (ou destino arquivado da transferência) não gera ocorrência: fica fora, como em
        -- recurrence_materialize e account_recurrence_pending
        and (r.kind = 'card' or (a.active and (r.destination_account_id is null or ad.active)))
   ), agregado as (
@@ -278,7 +278,7 @@ language sql stable security invoker set search_path = '' set jit = off as $$
     select round(coalesce(sum(i.market_value) filter (where i.currency_code = 'BRL'), 0), 2) as brl
       from public.investment_totals(p_household, p_as_of) i
   ),
-  -- o mês corrente, ATÉ HOJE: period_summary do 1º dia até p_as_of (074: antes ia até o fim do mês e contava o pago com
+  -- o mês corrente, ATÉ HOJE: period_summary do 1º dia até p_as_of (073: antes ia até o fim do mês e contava o pago com
   -- data futura), sem tirar nada
   mes as materialized (select ps.* from m cross join lateral public.period_summary(p_household, m.ini, least(p_as_of, m.fim)) ps),
   -- despesa de cada mês fechado (até 6), pela regra de sempre (private.expense_items = a despesa de period_summary),
@@ -340,7 +340,7 @@ language sql stable security invoker set search_path = '' set jit = off as $$
     select coalesce(sum(r.amount), 0) as total
       from m
       join public.recurrences r on r.household_id = p_household and r.kind = 'income' and r.active
-      -- (074) só conta ativa: a recorrente em conta arquivada não gera mais
+      -- (073) só conta ativa: a recorrente em conta arquivada não gera mais
       join public.accounts ac on ac.household_id = r.household_id and ac.id = r.account_id and ac.currency_code = 'BRL'
                              and ac.active
       left join public.categories c on c.household_id = r.household_id and c.id = r.category_id
