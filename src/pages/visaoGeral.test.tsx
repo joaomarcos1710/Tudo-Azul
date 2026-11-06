@@ -964,10 +964,21 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
     fireEvent.click(botao)
     expect(botao.getAttribute('aria-expanded')).toBe('true')
     expect(painel.hidden).toBe(false)
-    expect(painel.textContent).toBe('Contas ativas em reais R$ 12.250,00 − faturas de cartão fechadas a pagar R$ 300,00. A fatura aberta só entra quando fechar.')
+    expect(painel.textContent).toBe('Conta corrente, reserva, carteira e saldo na corretora (ativas, em reais) R$ 12.250,00 − faturas de cartão fechadas a pagar R$ 300,00. Renda fixa, renda variável e cripto ficam no Patrimônio: precisam de resgate ou venda. A fatura aberta só entra quando fechar.')
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(botao.getAttribute('aria-expanded')).toBe('false')
     expect(painel.hidden).toBe(true)
+  })
+
+  it('(i) do Disponível diz que só conta o dinheiro de uso no mesmo dia e que renda fixa, variável e cripto ficam no Patrimônio (076)', async () => {
+    montar()
+    const x = await indicador('disponivel')
+    const botao = within(x).getByRole('button', { name: 'Como é calculado: Disponível' })
+    fireEvent.click(botao)
+    const texto = document.getElementById(botao.getAttribute('aria-controls')!)!.textContent!
+    expect(texto).toMatch(/^Conta corrente, reserva, carteira e saldo na corretora \(ativas, em reais\) R\$ 12\.250,00 − faturas de cartão fechadas/)
+    expect(texto).toMatch(/Renda fixa, renda variável e cripto ficam no Patrimônio/)
+    expect(texto).not.toMatch(/^Contas ativas em reais/)
   })
 
   it('(i) de cada indicador explica a regra decidida (patrimônio sem previdência/FGTS, cartão fora do comprometimento, meses fechados)', async () => {
