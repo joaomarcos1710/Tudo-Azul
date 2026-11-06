@@ -408,6 +408,16 @@ export async function lancarCreditoNoCartao(cartaoId: string, d: DadosCredito, c
   return data as string
 }
 
+/**
+ * Troca a categoria de receita de créditos/reembolsos do cartão (migration 077): só a classificação muda; valor, data,
+ * fatura e totais ficam iguais, por isso a fatura paga (travada) não impede. Tudo ou nada; devolve quantos mudaram.
+ */
+export async function trocarCategoriaDoCredito(creditoIds: string[], categoriaId: string): Promise<number> {
+  const { data, error } = await cliente().rpc('card_credit_set_category', { p_events: creditoIds, p_category: categoriaId })
+  if (error) throw error
+  return data as number
+}
+
 /** Último dia do mês AAAA-MM. */
 function fimDoMes(mes: string): string {
   const [a, m] = mes.split('-').map(Number)

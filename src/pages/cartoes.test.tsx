@@ -21,6 +21,7 @@ const mock = vi.hoisted(() => ({
   registrarCompra: vi.fn(),
   lancarCreditoNoCartao: vi.fn(),
   listarCreditosDaFatura: vi.fn(),
+  trocarCategoriaDoCredito: vi.fn(),
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
   pagarFatura: vi.fn(),
@@ -46,7 +47,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
-  totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
+  trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
   visaoDosCartoes: mock.visaoDosCartoes,
 }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0) }))
@@ -99,6 +100,7 @@ beforeEach(() => {
   mock.listarCategorias.mockResolvedValue([
     { id: 'g1', nome: 'Compras pessoais', tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false },
     { id: 'g2', nome: 'Salário', tipo: 'income', paiId: null, sistema: false, ativa: true, eventual: false },
+    { id: 'g3', nome: 'Estorno de IOF', tipo: 'income', paiId: 'g2', sistema: false, ativa: true, eventual: false },
   ])
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
@@ -1288,18 +1290,23 @@ describe('Fatura paga travada (migration 064)', () => {
     await screen.findByText('TV')
   }
 
-  it('aba de fatura paga: sem nenhuma ação de mudar; "Paga em dd/mm" (último pagamento) e "travada" com a dica', async () => {
+  it('aba de fatura paga: sem nenhuma ação de mudar valor; "Paga em dd/mm" (último pagamento) e "travada" com a dica', async () => {
     const u = userEvent.setup()
     await abrirSetembro(u)
     const painel = screen.getByRole('tabpanel')
-    for (const nome of [/Reabrir/, /Estornar/, /Editar/, /Excluir compra/, /Anular/, /^Pagar/, /^Ações d/]) {
+    for (const nome of [/Reabrir/, /Estornar/, /Editar/, /Excluir compra/, /Anular/, /^Pagar/, /^Ações de /]) {
       expect(within(painel).queryByRole('button', { name: nome })).toBeNull()
     }
-    // #183: nem o ⋯ aparece na compra nem no crédito da fatura paga (a linha continua com o valor)
-    for (const linha of [...within(painel).getAllByTestId('compra-fatura'), ...within(painel).getAllByTestId('credito-fatura')]) {
+    // #183: nem o ⋯ aparece na compra da fatura paga (a linha continua com o valor)
+    for (const linha of within(painel).getAllByTestId('compra-fatura')) {
       expect(within(linha).queryByRole('button')).toBeNull()
       expect(linha.querySelector('[data-valor]')).not.toBeNull()
     }
+    // #202 (migration 077): o crédito da fatura paga só troca de categoria (classificação); anular continua fora
+    await u.click(within(painel).getByRole('button', { name: 'Ações do crédito Cashback' }))
+    expect(within(screen.getByRole('menu', { name: 'Ações do crédito Cashback' })).getAllByRole('menuitem').map((i) => i.textContent))
+      .toEqual(['Trocar categoria'])
+    await u.keyboard('{Escape}')
     const trava = within(painel).getByTestId('fatura-travada')
     expect(trava.textContent).toContain('Paga em 25/09')
     expect(trava.textContent).toContain('Fatura paga — travada')
@@ -1346,7 +1353,36 @@ describe('Fatura paga travada (migration 064)', () => {
     await u.keyboard('{Escape}')
     await u.click(screen.getByRole('button', { name: 'Ações do crédito Cashback' }))
     expect(within(screen.getByRole('menu', { name: 'Ações do crédito Cashback' })).getAllByRole('menuitem').map((i) => i.textContent))
-      .toEqual(['Anular crédito'])
+      .toEqual(['Trocar categoria', 'Anular crédito'])
+  })
+
+  it('#202: "Trocar categoria" num crédito de fatura paga abre o painel com a categoria atual e chama a RPC em lote com o id', async () => {
+    const u = userEvent.setup()
+    mock.trocarCategoriaDoCredito.mockResolvedValue(1)
+    await abrirSetembro(u)
+    await acaoDaLinha(u, 'Ações do crédito Cashback', 'Trocar categoria')
+    const form = screen.getByRole('form', { name: 'Trocar categoria do crédito' })
+    const seletor = within(form).getByLabelText('Categoria de receita') as HTMLSelectElement
+    expect(seletor.value).toBe('g2')
+    // só categorias de receita (a de despesa não aparece)
+    expect(Array.from(seletor.options).map((o) => o.value)).toEqual(['g2', 'g3'])
+    await u.selectOptions(seletor, 'g3')
+    await u.click(within(form).getByRole('button', { name: 'Salvar categoria' }))
+    expect(mock.trocarCategoriaDoCredito).toHaveBeenCalledWith(['cr9'], 'g3')
+    expect(mock.listarCreditosDaFatura.mock.calls.length).toBeGreaterThan(1) // recarrega depois de gravar
+    expect(screen.queryByRole('form', { name: 'Trocar categoria do crédito' })).toBeNull()
+  })
+
+  it('#202: o banco recusa a troca (ex.: categoria inativa) e o painel mostra o erro sem fechar', async () => {
+    const u = userEvent.setup()
+    mock.trocarCategoriaDoCredito.mockRejectedValue({ code: '23514', message: 'categoria de receita inválida ou inativa' })
+    await abrirSetembro(u)
+    await acaoDaLinha(u, 'Ações do crédito Cashback', 'Trocar categoria')
+    const form = screen.getByRole('form', { name: 'Trocar categoria do crédito' })
+    await u.selectOptions(within(form).getByLabelText('Categoria de receita'), 'g3')
+    await u.click(within(form).getByRole('button', { name: 'Salvar categoria' }))
+    expect(await within(form).findByRole('alert')).toBeTruthy()
+    expect(screen.getByRole('form', { name: 'Trocar categoria do crédito' })).toBeTruthy()
   })
 
   it('#183/#201: na lista de compras o valor fica na linha do nome, à direita e sem encolher; o título corta em 2 linhas e a categoria fica embaixo', async () => {

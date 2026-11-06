@@ -28,6 +28,12 @@ atualizado: 2026-10-28
 - [ ] **"Pagamentos e devoluções" por fatura**: hoje a lista é do cartão (os 30 mais recentes, `listarMovimentosDoCartao`), por isso fica recolhida. Dá para filtrar pela fatura escolhida usando o `invoice_id` que já chega, mas o adiantamento (sem fatura) e a devolução em dinheiro precisam de lugar próprio; decidir e fazer numa PR à parte (sem migration).
 - [ ] **Mais de 30 pagamentos**: atalho — a tela lê só os 30 mais recentes e diz "Mostrando os 30 mais recentes"; os antigos não aparecem nem para anular. Melhorar com paginação ou com o filtro por fatura acima.
 - [ ] **Abas de fatura**: com 24 faturas a fileira continua longa (rola de lado); avaliar um seletor de mês (‹ mês ›) no celular no lugar das abas.
+
+### Categoria do crédito de cartão (#202, migration 077, 06/11/2026)
+- [x] RPC `card_credit_set_category` (lote, tudo ou nada) + brecha no guard só para `category_id` de `income_credit` com a marca de sessão; "Trocar categoria" no ⋯ do crédito em Cartões (também em fatura paga).
+- [ ] **Aplicar a migration 077 em produção** pelo workflow (simular → ler o log → aplicar), com o "pode" do dono.
+- [ ] **Mover os 31 créditos "IOF"** de "Outras receitas" para "Estorno de IOF": pela tela, um a um (31 cliques), ou numa chamada só da RPC com os 31 ids (a tela ainda não tem seleção em lote de créditos; fazer se o dono quiser).
+- [ ] Depois de mover, conferir no Início que a Taxa de poupança e o Comprometimento (último mês fechado) deixaram de contar esses créditos (categoria "não conta como consumo").
 ### Segurança dos GitHub Actions (#195, 06/11/2026)
 - [x] Segredos de produção só nos passos que usam (workflow de migrations), checkout com `persist-credentials: false`, actions por SHA com a tag no comentário, `setup-cli@v1` (branch) + `latest` trocados por v3.2.0 + CLI 2.122.1 nos testes do banco, Dependabot semanal para as actions.
 - [ ] **Rodar "simular" no workflow de produção depois do merge** (com o "pode" do dono): é a única prova real de que os segredos chegam aos passos certos e de que a setup-cli fixada por SHA funciona ali (o CI do PR não roda esse workflow).

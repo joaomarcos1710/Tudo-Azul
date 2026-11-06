@@ -15,7 +15,7 @@ import { useFamilia } from '../lib/FamiliaContext'
 import {
   arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, proximaFatura, reativarCartao, renomearCartao,
   inicioDaTroca, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
-  anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao,
+  anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
   visaoDosCartoes, LIMITE_MOVIMENTOS,
 } from '../lib/cartoes'
@@ -774,6 +774,7 @@ type Acao =
   | { tipo: 'estornar'; item: ItemFatura; faturaId: string | null }
   | { tipo: 'editar'; item: ItemFatura }
   | { tipo: 'excluir'; item: ItemFatura }
+  | { tipo: 'categoria'; credito: CreditoFatura }
 
 /** Pagamentos e devoluções do cartão, com "Anular" para corrigir lançamento errado (ex.: crédito de teste). */
 function MovimentosCartao({ cartaoId, versao, aoAlterar }: { cartaoId: string; versao: number; aoAlterar: () => Promise<void> }) {
@@ -1168,11 +1169,21 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
                       titulo={cr.descricao}
                       detalhe={`${formatDate(cr.dataCredito)} · ${nomeCategoria.get(cr.categoriaId) ?? 'Sem categoria'} · receita`}
                       valor={`+${formatBRL(cr.valor)}`} corValor="text-lucro"
-                      acoes={travada ? null : <>
+                      // trocar a categoria vale também em fatura paga (migration 077: só a classificação muda); anular, não (064)
+                      acoes={<>
                         {anulando === cr.id && <span role="status" className="text-xs text-slate-500">Anulando…</span>}
                         <MenuAcoes rotulo={`Ações do crédito ${cr.descricao}`} desabilitado={anulando !== null || acao !== null}
-                          acoes={[{ rotulo: 'Anular crédito', aoEscolher: () => void anularCredito(cr), perigo: true }]} />
-                      </>} />
+                          acoes={[
+                            { rotulo: 'Trocar categoria', aoEscolher: () => setAcao({ tipo: 'categoria', credito: cr }) },
+                            ...(travada ? [] : [{ rotulo: 'Anular crédito', aoEscolher: () => void anularCredito(cr), perigo: true }]),
+                          ]} />
+                      </>}
+                      painel={acao?.tipo === 'categoria' && acao.credito.id === cr.id && (
+                        <PainelJunto className="mt-2 w-full">
+                          <PainelCategoriaCredito credito={acao.credito} categorias={categorias} aoFechar={() => setAcao(null)}
+                            aoConcluir={async () => { setAcao(null); await aoAlterar() }} />
+                        </PainelJunto>
+                      )} />
                   )}
                 </ListaRecolhida>
               </div>
@@ -1696,6 +1707,34 @@ function PainelEditar({ item, aoFechar, aoConcluir }: { item: ItemFatura; aoFech
       </p>
       <Field rotulo="Valor da parcela (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
       <Botoes rotulo="Salvar valor" enviando={enviando} aoCancelar={aoFechar} />
+    </form>
+  )
+}
+
+/** Trocar a categoria de receita de um crédito/reembolso (card_credit_set_category, 077): só a classificação muda. */
+function PainelCategoriaCredito({ credito, categorias, aoFechar, aoConcluir }: {
+  credito: CreditoFatura; categorias: Categoria[]; aoFechar: () => void; aoConcluir: () => Promise<void>
+}) {
+  const [categoriaId, setCategoriaId] = useState(credito.categoriaId)
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+  const receitas = categorias.filter((c) => c.tipo === 'income' && c.ativa)
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    if (!categoriaId) return
+    void enviar(async () => { await trocarCategoriaDoCredito([credito.id], categoriaId) })
+  }
+
+  return (
+    <form onSubmit={salvar} noValidate className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-azul-claro p-4 md:grid-cols-2"
+      aria-label="Trocar categoria do crédito">
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <p className="text-sm md:col-span-2">
+        Só a categoria de <strong>{credito.descricao}</strong> muda: valor, data e fatura ficam como estão (vale também em fatura paga).
+      </p>
+      <Selecao rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId}
+        opcoes={opcoesDeCategoria(receitas, categorias).map((o) => [o.id, o.rotulo])} />
+      <Botoes rotulo="Salvar categoria" enviando={enviando} aoCancelar={aoFechar} />
     </form>
   )
 }
