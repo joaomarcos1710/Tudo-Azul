@@ -22,6 +22,11 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Categoria do crédito de cartão (#202, migration 077, 06/11/2026)
+- [x] RPC `card_credit_set_category` (lote, tudo ou nada) + brecha no guard só para `category_id` de `income_credit` com a marca de sessão; "Trocar categoria" no ⋯ do crédito em Cartões (também em fatura paga).
+- [ ] **Aplicar a migration 077 em produção** pelo workflow (simular → ler o log → aplicar), com o "pode" do dono.
+- [ ] **Mover os 31 créditos "IOF"** de "Outras receitas" para "Estorno de IOF": pela tela, um a um (31 cliques), ou numa chamada só da RPC com os 31 ids (a tela ainda não tem seleção em lote de créditos; fazer se o dono quiser).
+- [ ] Depois de mover, conferir no Início que a Taxa de poupança e o Comprometimento (último mês fechado) deixaram de contar esses créditos (categoria "não conta como consumo").
 ### Segurança dos GitHub Actions (#195, 06/11/2026)
 - [x] Segredos de produção só nos passos que usam (workflow de migrations), checkout com `persist-credentials: false`, actions por SHA com a tag no comentário, `setup-cli@v1` (branch) + `latest` trocados por v3.2.0 + CLI 2.122.1 nos testes do banco, Dependabot semanal para as actions.
 - [ ] **Rodar "simular" no workflow de produção depois do merge** (com o "pode" do dono): é a única prova real de que os segredos chegam aos passos certos e de que a setup-cli fixada por SHA funciona ali (o CI do PR não roda esse workflow).
