@@ -211,6 +211,10 @@ atualizado: 2026-10-28
 - [x] **Recorrentes agrupados por frequência e totais por mês no cartão/na conta** (#173): migration 063 (`recurrence_summary`) **não aplicada** — aplicar pelo workflow (simular → log → `APLICAR`) com o seu "pode" **antes** de publicar o front (sem ela a tela Recorrentes mostra erro ao carregar).
 - [ ] Conferir no iPad/celular: os cartões do topo, as abas Conta/Cartão e os totais de cada grupo com os seus recorrentes reais.
 - [ ] Recorrentes em outra moeda ficam fora dos totais (só um aviso com a quantidade). Se quiser, um total por moeda depois.
+- [x] **Recorrentes em cards por tipo** (#187, 06/11/2026): Assinaturas no cartão, Contas fixas, Receitas e Transferências, cada um com o total do banco (`medium`) no título e o total por frequência do tipo (`frequency`). Sem migration (usa a 063).
+- [ ] Conferir no iPad/celular os cards por tipo com os seus recorrentes reais (espaçamento, títulos longos, total ao lado do título).
+- [ ] Nos cards por tipo, a **contagem** do título inclui os recorrentes em outra moeda (estão na lista), mas o **total** do banco não (só reais); o aviso do topo já diz quantos ficam fora. Se confundir, mostrar "N (M em reais)" com o `qtde` do banco.
+- [ ] O nível `frequency_all` de `recurrence_summary` deixou de ser usado pela tela (#187); continua no banco e no teste 63. Remover numa migration nova só se ninguém mais usar.
 - [ ] O equivalente mensal de cada item (≈ R$ x/mês) não aparece na linha do item, só nos totais; dá para trazer do banco (nível `detail` por regra) se fizer falta.
 
 ## Menu e formulário de lançamento

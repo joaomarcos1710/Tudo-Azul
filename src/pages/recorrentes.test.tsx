@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../lib/format'
@@ -372,6 +372,7 @@ describe('Recorrentes', () => {
       l({ nivel: 'frequency', meio: 'card', tipo: 'expense', frequencia: 'monthly', qtde: 1, porOcorrencia: c(5590), porMes: c(5590) }),
       l({ nivel: 'frequency', meio: 'card', tipo: 'expense', frequencia: 'yearly', qtde: 1, porOcorrencia: c(12000), porMes: c(1000) }),
       l({ nivel: 'frequency', meio: 'account', tipo: 'expense', frequencia: 'monthly', qtde: 1, porOcorrencia: c(18000), porMes: c(18000) }),
+      l({ nivel: 'frequency', meio: 'account', tipo: 'expense', frequencia: 'yearly', qtde: 1, porOcorrencia: c(120000), porMes: c(10000) }),
     ]
     const regras = [
       { ...luz, id: 'r1', descricao: 'Condomínio do prédio com nome bem comprido', categoriaId: 'g3', dia: 1 },
@@ -384,6 +385,9 @@ describe('Recorrentes', () => {
       { id: 'g3', nome: 'Condomínio', tipo: 'expense', paiId: 'g1', sistema: false, ativa: true },
     ]
     const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => t !== 'Resumo por mês')
+    /** Faixas de frequência (h3) dentro do card de um tipo. */
+    const faixas = (card: HTMLElement) => within(card).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    const card = (titulo: RegExp) => screen.getByRole('region', { name: titulo })
 
     beforeEach(() => {
       vi.useFakeTimers({ toFake: ['Date'] })
@@ -411,35 +415,91 @@ describe('Recorrentes', () => {
       expect(detalhe.querySelector('li')?.textContent).toBe('Nubank · cartão · 2R$ 65,90/mêsR$ 175,90 por vez')
     })
 
-    it('agrupa por frequência com o total do grupo do banco; dentro do grupo, pela próxima data', async () => {
+    it('um card por tipo presente, na ordem; tipo sem itens não aparece', async () => {
       montar()
       await screen.findByText('Streaming')
-      expect(cabecalhos()).toEqual(['Mensais · 2', 'Anuais · 2'])
-      const mensais = screen.getByRole('heading', { name: 'Mensais · 2' }).closest('section')!
-      expect(mensais.textContent).toContain('saídas R$ 1.111,11/mês')
-      // pela próxima data, não pelo dia: o dia 15 (próxima 15/11) vem antes do dia 1 (próxima 01/12)
-      expect(Array.from(mensais.querySelectorAll('li p:first-child')).map((p) => p.textContent))
-        .toEqual(['Streaming', 'Condomínio do prédio com nome bem comprido'])
-      const anuais = screen.getByRole('heading', { name: 'Anuais · 2' }).closest('section')!
-      expect(anuais.textContent).toContain('saídas R$ 1.320,00 por vez · ≈ R$ 110,00/mês')
+      expect(cabecalhos()).toEqual(['Assinaturas no cartão · 2', 'Contas fixas · 2'])
+      expect(screen.queryByRole('heading', { name: /^Receitas/ })).toBeNull()
+      expect(screen.queryByRole('heading', { name: /^Transferências ·/ })).toBeNull()
+      expect(within(card(/^Assinaturas no cartão/)).queryByText('Seguro')).toBeNull()
+      expect(within(card(/^Contas fixas/)).getByText('Seguro')).toBeTruthy()
     })
 
-    it('abas Conta e Cartão filtram os itens e trocam os totais do grupo', async () => {
+    it('receitas e transferências ganham card próprio; "Já terminaram" é o último card', async () => {
+      mock.listarRecorrencias.mockResolvedValue([...regras,
+        { ...luz, id: 'r5', tipo: 'income' as const, descricao: 'Salário', categoriaId: 'g2', dia: 5 },
+        { ...luz, id: 'r6', tipo: 'transfer' as const, descricao: 'Guardar', categoriaId: null, destinoId: 'a2', dia: 6 },
+        { ...luz, id: 'r7', descricao: 'Academia antiga', fim: '2026-09-30' },
+      ])
+      montar()
+      await screen.findByText('Salário')
+      expect(cabecalhos()).toEqual(['Assinaturas no cartão · 2', 'Contas fixas · 2', 'Receitas · 1', 'Transferências · 1',
+        'Já terminaram · fora dos totais'])
+      // sem linha 'frequency' do banco para receitas: a faixa mostra só a contagem, a tela não soma
+      expect(within(card(/^Receitas/)).getByRole('region', { name: 'Mensais · 1' }).textContent).not.toContain('/mês')
+      expect(screen.getByTestId('total-income').textContent).toBe('R$ 5.000,00/mês')
+      expect(within(card(/^Já terminaram/)).getByText('Academia antiga')).toBeTruthy()
+    })
+
+    it('título de cada card traz o total por mês do banco (nível medium), não a soma dos itens', async () => {
+      montar()
+      await screen.findByText('Streaming')
+      expect(screen.getByTestId('total-card').textContent).toBe('R$ 65,90/mês')
+      expect(screen.getByTestId('total-expense').textContent).toBe('R$ 2.354,16/mês')
+      expect(within(card(/^Assinaturas no cartão/)).getByTestId('total-card')).toBeTruthy()
+    })
+
+    it('dentro do card, faixas por frequência com o total do banco daquele tipo; pela próxima data', async () => {
+      montar()
+      await screen.findByText('Streaming')
+      const cartao = card(/^Assinaturas no cartão/)
+      expect(faixas(cartao)).toEqual(['Mensais · 1', 'Anuais · 1'])
+      expect(within(cartao).getByRole('region', { name: 'Mensais · 1' }).textContent).toContain('R$ 55,90/mês')
+      expect(within(cartao).getByRole('region', { name: 'Anuais · 1' }).textContent).toContain('R$ 120,00 por vez · ≈ R$ 10,00/mês')
+      const fixas = card(/^Contas fixas/)
+      expect(faixas(fixas)).toEqual(['Mensais · 1', 'Anuais · 1'])
+      expect(within(fixas).getByRole('region', { name: 'Mensais · 1' }).textContent).toContain('R$ 180,00/mês')
+      expect(within(fixas).getByRole('region', { name: 'Anuais · 1' }).textContent).toContain('R$ 1.200,00 por vez · ≈ R$ 100,00/mês')
+      // o total que mistura conta e cartão (frequency_all) não aparece mais
+      expect(screen.queryByText(/1\.111,11/)).toBeNull()
+    })
+
+    it('ordem dentro da faixa: pela próxima data, não pelo dia', async () => {
+      mock.listarRecorrencias.mockResolvedValue([...regras, { ...luz, id: 'r8', descricao: 'Internet', dia: 15 }])
+      montar()
+      await screen.findByText('Internet')
+      const mensais = within(card(/^Contas fixas/)).getByRole('region', { name: 'Mensais · 2' })
+      // o dia 15 (próxima 15/11) vem antes do dia 1 (próxima 01/12)
+      expect(Array.from(mensais.querySelectorAll('li p:first-child')).map((p) => p.textContent))
+        .toEqual(['Internet', 'Condomínio do prédio com nome bem comprido'])
+    })
+
+    it('aba Cartão mostra só o card de assinaturas; aba Conta, só os de conta', async () => {
       const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      mock.listarRecorrencias.mockResolvedValue([...regras, { ...luz, id: 'r7', descricao: 'Academia antiga', fim: '2026-09-30' }])
       montar()
       await screen.findByText('Streaming')
       expect(screen.getByRole('button', { name: 'Todos', pressed: true })).toBeTruthy()
       await u.click(screen.getByRole('button', { name: 'Cartão' }))
       expect(screen.getByRole('button', { name: 'Cartão', pressed: true })).toBeTruthy()
+      expect(cabecalhos()).toEqual(['Assinaturas no cartão · 2'])
       expect(screen.queryByText('Seguro')).toBeNull()
+      expect(screen.queryByText('Academia antiga')).toBeNull()
       expect(screen.getByText('Antivírus')).toBeTruthy()
-      expect(cabecalhos()).toEqual(['Mensais · 1', 'Anuais · 1'])
-      expect(screen.getByRole('heading', { name: 'Mensais · 1' }).closest('section')!.textContent).toContain('saídas R$ 55,90/mês')
-      expect(screen.getByRole('heading', { name: 'Anuais · 1' }).closest('section')!.textContent).toContain('R$ 120,00 por vez · ≈ R$ 10,00/mês')
       await u.click(screen.getByRole('button', { name: 'Conta' }))
+      expect(cabecalhos()).toEqual(['Contas fixas · 2'])
       expect(screen.queryByText('Streaming')).toBeNull()
       expect(screen.getByText('Seguro')).toBeTruthy()
-      expect(screen.getByRole('heading', { name: 'Mensais · 1' }).closest('section')!.textContent).toContain('saídas R$ 180,00/mês')
+    })
+
+    it('aba sem nenhum card avisa', async () => {
+      const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      mock.listarRecorrencias.mockResolvedValue(regras.filter((r) => r.tipo !== 'card'))
+      montar()
+      await screen.findByText('Seguro')
+      await u.click(screen.getByRole('button', { name: 'Cartão' }))
+      expect(screen.getByText('Nenhum recorrente no cartão.')).toBeTruthy()
+      expect(cabecalhos()).toEqual([])
     })
 
     it('item compacto: título, valor numa coluna própria, uma linha de metadados e ações no menu ⋯', async () => {
