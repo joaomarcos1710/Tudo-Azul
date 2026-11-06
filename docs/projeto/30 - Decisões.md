@@ -371,3 +371,7 @@ Na conferência da `home_indicators` em produção (transação desfeita), Dispo
 - **Marca por categoria "Não conta como consumo"** (`categories.non_consumption`, padrão false, editável em Categorias com explicação curta; ninguém vem marcado — o dono marca). Com ela, a categoria sai da taxa de poupança, da despesa típica da reserva e da renda/despesa usadas nos indicadores. O tipo (receita/despesa) não muda. **Não muda** `period_summary`, Relatórios, Análises, orçamento nem o Resultado do mês nesta PR (próximo passo em Pendências). "Sem categoria" não pode ser marcada (tiraria tudo o que não foi classificado).
 - **A marca vale só para a categoria marcada; não passa para as subcategorias.** Nas palavras do dono: "numa categoria-mãe pode haver lançamentos de quitação que não são consumo, enquanto as subcategorias dela (parcelas mensais de empréstimo, financiamento) são consumo de verdade". Cada categoria é marcada sozinha, e a tela Categorias diz isso. (Diferente de "eventual", que a subcategoria herda.)
 
+## Cor do orçamento por faixa (06/11/2026, #190)
+- Pedido do dono: 50% azul claro, 70% amarelo, 90% vermelho claro, 100% ou mais vermelho; abaixo de 50% fica o azul normal ("tudo certo").
+- Os tons claros (`lucro.claro`, `prejuizo.claro`) ficam abaixo de 3:1 no branco. Motivo para aceitar: a barra sempre vem com o percentual escrito e o texto da situação; a cor não é a única informação.
+- A faixa é calculada com o **gasto pago** (o mesmo da barra), não com o projetado, comparando centavos inteiros (50% = gasto×2 ≥ limite) para não errar por vírgula.

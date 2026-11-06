@@ -15,8 +15,8 @@
  * A cor nunca é a única informação: o sinal "−", o rótulo ("Planejado", "Vencida") e o ícone continuam.
  */
 export const CORES = {
-  lucro: { DEFAULT: '#2563EB', fundo: '#EAF2FF', marca: '#2a78d6' },
-  prejuizo: { DEFAULT: '#B91C1C', fundo: '#FEF2F2', borda: '#FECACA', marca: '#dc2626', escuro: '#991B1B', 'sobre-escuro': '#FCA5A5' },
+  lucro: { DEFAULT: '#2563EB', fundo: '#EAF2FF', marca: '#2a78d6', claro: '#60A5FA' },
+  prejuizo: { DEFAULT: '#B91C1C', fundo: '#FEF2F2', borda: '#FECACA', marca: '#dc2626', claro: '#F87171', escuro: '#991B1B', 'sobre-escuro': '#FCA5A5' },
   atencao: { DEFAULT: '#B45309', fundo: '#FFFBEB', marca: '#D97706' },
   agendado: { DEFAULT: '#047857', fundo: '#D1FAE5', marca: '#059669' },
   neutro: { DEFAULT: '#475569', fundo: '#F1F5F9', marca: '#64748B' },
@@ -65,3 +65,25 @@ export const SELO_FATURA = {
   vencida: { texto: 'Vencida', estilo: SELO.vencido },
   paga: { texto: 'Paga', estilo: SELO.pago },
 } as const
+
+/**
+ * Faixa de uso do orçamento (pedido do dono, 06/11/2026): até 50% azul (tudo certo), a partir de 50% azul claro,
+ * de 70% amarelo (âmbar), de 90% vermelho claro e de 100% vermelho. Compara centavos inteiros (sem arredondar).
+ * Os tons `claro` ficam abaixo de 3:1 no branco: a barra sempre vem com o percentual e o texto da situação ao lado,
+ * então a cor não é a única informação.
+ */
+export type FaixaOrcamento = 'tranquilo' | 'metade' | 'atencao' | 'perto' | 'estourou'
+export const BARRA_ORCAMENTO: Record<FaixaOrcamento, string> = {
+  tranquilo: 'bg-lucro-marca',
+  metade: 'bg-lucro-claro',
+  atencao: 'bg-atencao-marca',
+  perto: 'bg-prejuizo-claro',
+  estourou: 'bg-prejuizo-marca',
+}
+export function faixaOrcamento(gasto: number, limite: number): FaixaOrcamento {
+  if (limite <= 0 || gasto >= limite) return 'estourou'
+  if (gasto * 10 >= limite * 9) return 'perto'
+  if (gasto * 10 >= limite * 7) return 'atencao'
+  if (gasto * 2 >= limite) return 'metade'
+  return 'tranquilo'
+}
