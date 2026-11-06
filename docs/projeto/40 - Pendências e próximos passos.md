@@ -22,6 +22,16 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Etiquetas nas contas (#189, migration 072)
+- [x] Etiquetas livres por família: criar, renomear, apagar, marcar até 10 por conta; selos, filtro e seção "Etiquetas" em Contas; coluna na exportação completa (#189).
+- [x] **Contas arquivadas escondidas por padrão** em Contas, atrás do botão "Arquivadas (N)" (pedido do dono, #189). A escolha não é lembrada entre visitas (sempre fechada ao abrir a tela).
+- [ ] Arquivadas escondidas em outras telas (ex.: Dívidas/Cartões ainda mostram a seção "Arquivadas" sempre): avaliar com o dono se segue o mesmo padrão.
+- [ ] **Aplicar a migration 072** em produção (simular → ler o log → aplicar, com o "pode" do dono). Não depende da 070 nem da 071 (só cria tabelas e funções novas), mas segue a ordem dos arquivos.
+- [ ] **Filtrar relatórios por etiqueta** (Relatórios › Contas e Entradas x Saídas, Início): exige função no banco que receba a etiqueta (o front não soma). Nesta PR a etiqueta não entra em nenhum cálculo.
+- [ ] **Cor na etiqueta** (se o dono quiser): hoje selo neutro; categorias já têm o padrão `#RRGGBB` + `CORES`.
+- [ ] **Limites por contagem sem trava** (trigger da 072): duas inserções simultâneas podem passar 1 do limite de 50/10 (comentário `atalho:` na migration). Melhorar com lock só se aparecer abuso.
+- [ ] Etiquetas fora da tela Contas (seletor de conta em Lançamentos, Início › Minhas contas): não pedido; avaliar com o dono.
+
 ### Tipos de conta (#186, migration 070)
 - [ ] **Aplicar a migration 070** em produção (simular → ler o log → aplicar, com o "pode" do dono). Depois da 069 (saldo projetado, outra PR).
 - [ ] **Ajustar conta por conta** pelo app (Contas › Editar › Tipo): as que eram Investimento viraram Renda fixa e as Outra viraram Conta corrente; conferir cada uma (ex.: a conta da corretora que não rende → Corretora (saldo a aplicar)).

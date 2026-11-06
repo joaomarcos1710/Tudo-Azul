@@ -48,7 +48,7 @@ describe('Zerar tudo', () => {
     expect(screen.getByText(/6 parcelas da agenda de contratos/)).toBeTruthy()
     expect(screen.getByText(/2 investimentos, com 5 operações, 1 avaliação e 3 proventos/)).toBeTruthy()
     expect(screen.getByText(/1 bem da família, com 2 avaliações/)).toBeTruthy()
-    expect(screen.getByText(/a família, os membros e as categorias/)).toBeTruthy()
+    expect(screen.getByText(/a família, os membros, as categorias e as etiquetas de conta/)).toBeTruthy()
     expect(screen.getByText(/Não tem volta/)).toBeTruthy()
     // conferência com o extrato saiu do app: sem registro antigo, nem é citada
     expect(screen.queryByText(/confer[eê]ncia|concilia/i)).toBeNull()
