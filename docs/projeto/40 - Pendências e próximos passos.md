@@ -43,13 +43,13 @@ atualizado: 2026-10-28
 - [ ] **Desempenho da 073 em produção**: `cash_flow_series` ganhou duas leituras pequenas (créditos de empréstimo do período e contas da família); não foi medida no volume de teste nesta PR. Medir no mês de novembro em produção (limite de 8 s).
 - [ ] **Decisão do dono — crédito de empréstimo**: entra como **entrada** no Relatório › Contas (é extrato) mas **não** em Entradas x Saídas (decisão de 03/11: não é receita). Agora o Saldo das duas telas bate; as colunas Entradas diferem por esse valor. Manter assim ou mostrar uma linha "Movimentos que não são entrada/saída" em Entradas x Saídas?
 - [x] **Decisão do dono — patrimônio com investimentos em dobro**: decidido em 06/11/2026 — o Patrimônio total do Início passa a ser o de Análises (`net_worth_with_assets`), sem somar a carteira (migration 075, #196).
-- [x] **Decisão do dono — "Disponível"**: decidido em 06/11/2026 — o Disponível fica só com corrente, poupança/reserva, corretora (saldo a aplicar) e dinheiro; Renda fixa, Renda variável e Cripto saem dele e continuam no Patrimônio (migration 076, #197).
+- [x] **Decisão do dono — "Disponível"**: decidido em 06/11/2026 — o Disponível fica só com corrente, poupança/reserva, corretora (saldo a aplicar) e dinheiro; Renda fixa, Renda variável e Cripto saem dele e continuam no Patrimônio (migration 076, #200).
 - [ ] **Decisão do dono — Relatório › Contas sem as contas arquivadas**: só contas ativas aparecem, então o total do relatório não fecha com o saldo total (que inclui as arquivadas com saldo). Mostrar as arquivadas com saldo ou movimento no período?
 - [ ] **Desempenho de `account_flow_report`**: chama `account_movements` uma vez por conta (`cross join lateral`); com muitas contas e anos de histórico pode passar do limite de 8 s. Medir e, se preciso, ler os movimentos numa passada só.
 - [ ] **Legado**: compra parcelada em dívida que não é cartão (`charge`/`credit` sem conta) entra no resultado de Entradas x Saídas sem mexer no saldo; desde a migration 008 parcelas só existem em cartão, então não deve haver nenhuma. Conferir em produção (`select count(*) from debt_events e join debts d on d.id = e.debt_id where d.kind <> 'card' and e.kind in ('charge','credit')`).
 
-### Disponível só com o dinheiro de uso no mesmo dia (#197, migration 076)
-- [x] `home_indicators.available` = contas ativas em reais dos tipos checking, savings, cash e brokerage − faturas fechadas; renda fixa, renda variável e cripto fora do Disponível e dentro do Patrimônio (#197).
+### Disponível só com o dinheiro de uso no mesmo dia (#200, migration 076)
+- [x] `home_indicators.available` = contas ativas em reais dos tipos checking, savings, cash e brokerage − faturas fechadas; renda fixa, renda variável e cripto fora do Disponível e dentro do Patrimônio (#200).
 - [ ] **Aplicar a migration 076** em produção (simular → ler o log → aplicar, com o "pode" do dono), junto da publicação do front: antes dela, o (i) novo diz que renda fixa/variável/cripto ficam fora, mas o número do banco ainda as soma.
 - [ ] Conferir em produção (transação desfeita) que `available` caiu exatamente pelo saldo ativo das contas de renda fixa, renda variável e cripto em reais (`balance_totals_by_type`), e que `net_worth` não mudou.
 

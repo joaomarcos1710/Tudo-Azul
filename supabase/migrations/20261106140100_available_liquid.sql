@@ -1,6 +1,6 @@
 -- Tudo Azul — migration 076: o "Disponível" do Início conta só o dinheiro que dá para usar no mesmo dia
 --
--- Decisão do dono (06/11/2026, #197, "sim, pode mudar o Disponível"): o indicador Disponível de public.home_indicators
+-- Decisão do dono (06/11/2026, #200, "sim, pode mudar o Disponível"): o indicador Disponível de public.home_indicators
 -- passa a somar só as contas ATIVAS em reais dos tipos checking (conta corrente), savings (poupança/reserva), cash
 -- (dinheiro/carteira) e brokerage (saldo parado na corretora), menos as faturas de cartão FECHADAS a pagar (como antes).
 -- fixed_income, variable_income e crypto saem do Disponível: esse dinheiro precisa ser vendido/resgatado, leva dias e
