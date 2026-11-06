@@ -9,6 +9,8 @@ tags: [tudo-azul, seguranca]
 - **Funções SECURITY DEFINER**: `search_path` fixo, checagem explícita de dono/membro, EXECUTE só para usuários logados (anon sem acesso a nada).
 - **Ações destrutivas**: "Zerar tudo" só o dono; conta não é apagada (só desativada).
 - **Dependências**: `npm audit --omit=dev` em zero; o CI barra qualquer vulnerabilidade de produção.
+- **GitHub Actions** (#195): os segredos de produção (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`) ficam só no `env:` dos passos que falam com o Supabase, nunca no `env:` do job; checkout com `persist-credentials: false`; toda action fixada por SHA de commit com a tag no comentário, atualizada pelo Dependabot (semanal, 7 dias de espera); a CLI do Supabase com versão fixa nos testes (nunca `latest`). Workflows com `permissions: contents: read`. Para conferir: `actionlint` e `zizmor` rodados fora do projeto (sem dependência nova).
+- **Diagnóstico em produção sem valores**: toda mensagem que sai do banco de produção para um log — `raise exception` numa simulação (transação desfeita), `raise notice`, saída de workflow — leva só **tempos, contagens e booleanos**; nunca valor em dinheiro, descrição, nome, e-mail, data de lançamento nem id. O mesmo vale para o Sentry (#193: só o nome da consulta e o código do erro).
 
 ## Ponto em aberto
 Aceitar convite **sem e-mail confirmado** depende da configuração do Supabase de produção. Conferir em *Authentication → Providers → Email → Confirm email* ([[40 - Pendências e próximos passos]]).
