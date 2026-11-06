@@ -118,9 +118,9 @@ describe('exportacaoCompleta', () => {
     // a conferência saiu do app (04/11/2026): o arquivo não tem mais a coluna "Conferido", mesmo com reconciled=true no banco
     expect(ARQ(arqs, 'movimentos')[0]).toBe('\uFEFFConta;Data;Origem;Descrição;Valor;Moeda')
     expect(ARQ(arqs, 'cadastros')).toEqual([
-      '\uFEFFCadastro;Nome;Tipo;Data inicial;Valor inicial;Moeda;Ativo;Saldo em 31/10/2026;Parcelas futuras',
-      'Conta;Itaú;Conta corrente;01/10/2026;1000,00;BRL;Sim;599,60;',
-      'Cartão;Nubank;;30/09/2026;0,00;BRL;Sim;0,00;150,00',
+      '\uFEFFCadastro;Nome;Tipo;Data inicial;Valor inicial;Moeda;Ativo;Saldo em 31/10/2026;Parcelas futuras;Etiquetas',
+      'Conta;Itaú;Conta corrente;01/10/2026;1000,00;BRL;Sim;599,60;;',
+      'Cartão;Nubank;;30/09/2026;0,00;BRL;Sim;0,00;150,00;',
     ])
     expect(ARQ(arqs, 'parcelas').slice(1)).toEqual([
       'Nubank;Fone;1/2;02/10/2026;17/10/2026;Eletrônicos;150,00;Cobrada',
@@ -217,8 +217,8 @@ describe('exportacaoCompleta, casos de borda', () => {
     const arqs = await exportacaoCompleta('h1', '2026-10-31')
     expect(ARQ(arqs, 'parcelas')[2]).toBe('Nubank;Fone;2/2;02/10/2026;17/11/2026;Eletrônicos;150,00;Com cancelamento (ver eventos)')
     expect(ARQ(arqs, 'cadastros').slice(1)).toEqual([
-      'Conta;Itaú;Conta corrente;01/10/2026;1000,00;BRL;Sim;;',
-      'Cartão;Nubank;;30/09/2026;0,00;BRL;Sim;;',
+      'Conta;Itaú;Conta corrente;01/10/2026;1000,00;BRL;Sim;;;',
+      'Cartão;Nubank;;30/09/2026;0,00;BRL;Sim;;;',
     ])
   })
 
@@ -229,8 +229,22 @@ describe('exportacaoCompleta, casos de borda', () => {
       { source: 'opening', id: 'a1', date: '2026-10-01', description: 'Saldo inicial', amount: '250.50', reconciled: false },
     ]
     const arqs = await exportacaoCompleta('h1', '2026-10-31')
-    expect(ARQ(arqs, 'cadastros')[1]).toBe('Conta;Conta em dólar;Conta corrente;01/10/2026;250,50;USD;Sim;250,50;')
+    expect(ARQ(arqs, 'cadastros')[1]).toBe('Conta;Conta em dólar;Conta corrente;01/10/2026;250,50;USD;Sim;250,50;;')
     expect(ARQ(arqs, 'movimentos').slice(1)).toEqual(['Conta em dólar;01/10/2026;Saldo inicial;Saldo inicial;250,50;USD'])
+  })
+})
+
+describe('exportacaoCompleta: etiquetas das contas (migration 072)', () => {
+  it('o cadastro da conta leva as etiquetas em ordem alfabética; cartão e dívida ficam vazios', async () => {
+    fake.tabelas.account_tags = [{ id: 't1', name: 'Reserva' }, { id: 't2', name: 'Conjunta' }]
+    fake.tabelas.account_tag_links = [{ account_id: 'a1', tag_id: 't1' }, { account_id: 'a1', tag_id: 't2' }]
+    const arqs = await exportacaoCompleta('h1', '2026-10-31')
+    expect(ARQ(arqs, 'cadastros').slice(1)).toEqual([
+      'Conta;Itaú;Conta corrente;01/10/2026;1000,00;BRL;Sim;599,60;;Conjunta, Reserva',
+      'Cartão;Nubank;;30/09/2026;0,00;BRL;Sim;0,00;150,00;',
+    ])
+    delete fake.tabelas.account_tags
+    delete fake.tabelas.account_tag_links
   })
 })
 

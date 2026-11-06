@@ -13,6 +13,8 @@ import { useFamilia } from '../lib/FamiliaContext'
 import { ajudaTipoConta, criarConta, definirAtiva, editarConta, ehReais, ehTipoConta, excluirConta, GRUPOS_TIPO_CONTA, hojeSP, listarContas, MOEDAS_CONTA, outrasMoedas, rotuloDoTipo, rotuloTipoConta, TIPOS_CONTA } from '../lib/contas'
 import type { Conta, TipoConta, TotalPorMoeda, TotalPorTipo } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
+import { apagarEtiqueta, criarEtiqueta, definirEtiquetasDaConta, erroNomeEtiqueta, listarEtiquetas, MAX_ETIQUETAS_CONTA, MAX_ETIQUETAS_FAMILIA, MAX_NOME_ETIQUETA, mesmasEtiquetas, renomearEtiqueta } from '../lib/etiquetas'
+import type { Etiqueta, EtiquetasDaFamilia } from '../lib/etiquetas'
 import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
@@ -33,6 +35,31 @@ function SeloMoeda({ conta }: { conta: Conta }) {
     </span>
   )
 }
+
+/** Etiquetas da conta como selos discretos (só organização: não mexem em nenhum valor). */
+function SelosEtiquetas({ ids, porId }: { ids: string[] | undefined; porId: Map<string, Etiqueta> }) {
+  const nomes = (ids ?? []).map((id) => porId.get(id)?.nome).filter((n): n is string => !!n).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  if (nomes.length === 0) return null
+  return (
+    <ul className="flex flex-wrap gap-1" aria-label="Etiquetas">
+      {nomes.map((n) => (
+        <li key={n} className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-700">{n}</li>
+      ))}
+    </ul>
+  )
+}
+
+/** Linha do tipo, com as etiquetas logo ao lado. */
+function LinhaTipo({ conta, tags, porId }: { conta: Conta; tags: EtiquetasDaFamilia; porId: Map<string, Etiqueta> }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <p className="text-sm text-slate-500">{rotuloDoTipo(conta.tipo)} · desde {formatDate(conta.abertura)}</p>
+      <SelosEtiquetas ids={tags.porConta.get(conta.id)} porId={porId} />
+    </div>
+  )
+}
+
+const SEM_ETIQUETAS: EtiquetasDaFamilia = { disponivel: false, etiquetas: [], porConta: new Map() }
 
 /** Título de cada grupo da lista (um por tipo, na ordem de TIPOS_CONTA). */
 const TITULO_GRUPO: Record<TipoConta, string> = {
@@ -56,20 +83,35 @@ export default function Contas() {
   // null = formulário fechado; 'nova' = criando; Conta = editando
   const [editando, setEditando] = useState<Conta | 'nova' | null>(null)
   const [excluindo, setExcluindo] = useState<Conta | null>(null)
+  const [tags, setTags] = useState<EtiquetasDaFamilia>(SEM_ETIQUETAS)
+  // '' = todas as contas; senão, o id da etiqueta escolhida no filtro
+  const [filtro, setFiltro] = useState('')
+  // arquivadas ficam escondidas atrás do botão "Arquivadas (N)" (pedido do dono, 06/11/2026)
+  const [verArquivadas, setVerArquivadas] = useState(false)
+
+  const carregarEtiquetas = useCallback(async () => {
+    if (!familiaId) return
+    setTags(await listarEtiquetas(familiaId))
+  }, [familiaId])
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
     try {
-      const r = await listarContas(familiaId)
+      // falha nas etiquetas não esconde as contas: avisa e a lista segue sem os selos
+      let falhaEtiquetas = ''
+      const [r] = await Promise.all([
+        listarContas(familiaId),
+        carregarEtiquetas().catch((err: unknown) => { falhaEtiquetas = `As etiquetas não carregaram: ${mensagemErroBanco(err)}` }),
+      ])
       setContas(r.contas)
       setTotal(r.total)
       setPorTipo(r.porTipo ?? [])
       setPorMoeda(r.porMoeda ?? [])
-      setErro('')
+      setErro(falhaEtiquetas)
     } catch (err) {
       setErro(mensagemErroBanco(err))
     }
-  }, [familiaId])
+  }, [familiaId, carregarEtiquetas])
 
   useEffect(() => { void carregar() }, [carregar])
 
@@ -93,16 +135,23 @@ export default function Contas() {
     }
   }
 
+  const etiquetaPorId = new Map(tags.etiquetas.map((e) => [e.id, e]))
+  // filtro por etiqueta: só esconde contas da lista; nenhum valor muda (etiqueta não entra em cálculo)
+  const etiquetaFiltro = filtro ? etiquetaPorId.get(filtro) : undefined
+  const passaFiltro = (c: Conta) => !etiquetaFiltro || (tags.porConta.get(c.id) ?? []).includes(etiquetaFiltro.id)
+  const visiveis = contas?.filter(passaFiltro) ?? []
   // contas em reais agrupadas por tipo (o subtotal do banco só soma BRL); as de outra moeda ficam num grupo à parte
-  const ativas = contas?.filter((c) => c.ativa && ehReais(c)) ?? []
-  const ativasOutras = contas?.filter((c) => c.ativa && !ehReais(c)) ?? []
-  const arquivadas = contas?.filter((c) => !c.ativa) ?? []
+  const ativas = visiveis.filter((c) => c.ativa && ehReais(c))
+  const ativasOutras = visiveis.filter((c) => c.ativa && !ehReais(c))
+  const arquivadas = visiveis.filter((c) => !c.ativa)
   const outras = outrasMoedas(porMoeda)
   // agrupadas pelos 7 tipos (onde o dinheiro está), na ordem de TIPOS_CONTA; o subtotal vem do banco
   const grupos: { chave: string; titulo: string; contas: Conta[]; subtotal: string | null }[] = TIPOS_CONTA
     .map((tipo) => {
       const sub = porTipo.find((t) => t.tipo === tipo)?.totalAtivas
-      return { chave: tipo, titulo: TITULO_GRUPO[tipo], contas: ativas.filter((c) => c.tipo === tipo), subtotal: sub === undefined ? null : formatBRL(sub) }
+      // com filtro o subtotal do banco (de todas as contas do tipo) não vale para as contas mostradas: some, sem somar no front
+      return { chave: tipo, titulo: TITULO_GRUPO[tipo], contas: ativas.filter((c) => c.tipo === tipo),
+        subtotal: sub === undefined || etiquetaFiltro ? null : formatBRL(sub) }
     })
     .filter((g) => g.contas.length > 0)
   // tipo de antes da 070 (front no ar antes da migration): a conta não some; fica num grupo próprio, sem subtotal
@@ -111,7 +160,7 @@ export default function Contas() {
   // subtotal por moeda (do banco, sem conversão), nunca somando moedas diferentes
   if (ativasOutras.length > 0) {
     grupos.push({ chave: 'outras-moedas', titulo: 'Contas em outras moedas', contas: ativasOutras,
-      subtotal: outras.length > 0 ? outras.map((m) => formatMoeda(m.totalAtivas, m.moeda)).join(' · ') : null })
+      subtotal: outras.length > 0 && !etiquetaFiltro ? outras.map((m) => formatMoeda(m.totalAtivas, m.moeda)).join(' · ') : null })
   }
 
   if (!familia) return null
@@ -126,7 +175,13 @@ export default function Contas() {
         <FormConta
           conta={editando === 'nova' ? null : editando}
           familiaId={familia.id}
-          aoSalvar={async () => { setEditando(null); await carregar() }}
+          etiquetas={tags}
+          aoCriarEtiqueta={(e) => setTags((t) => ({ ...t, etiquetas: [...t.etiquetas, e].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')) }))}
+          aoSalvar={async (aviso) => {
+            setEditando(null)
+            await carregar()
+            if (aviso) setErro(aviso)
+          }}
           aoCancelar={() => setEditando(null)}
         />
       )}
@@ -161,6 +216,24 @@ export default function Contas() {
               </div>
             </div>
           )}
+          {tags.disponivel && (
+            <GerenciarEtiquetas
+              familiaId={familia.id}
+              tags={tags}
+              filtro={etiquetaFiltro ? filtro : ''}
+              aoFiltrar={setFiltro}
+              aoMudar={async () => {
+                try { await carregarEtiquetas() } catch (err) { setErro(mensagemErroBanco(err)) }
+              }}
+            />
+          )}
+          {etiquetaFiltro && (
+            <p className="mb-4 text-sm text-slate-600" role="status">
+              {visiveis.length === 0
+                ? `Nenhuma conta com a etiqueta "${etiquetaFiltro.nome}".`
+                : `Mostrando ${visiveis.length} conta${visiveis.length === 1 ? '' : 's'} com a etiqueta "${etiquetaFiltro.nome}". Os subtotais por tipo somem com o filtro; o saldo total continua o da família.`}
+            </p>
+          )}
           {grupos.map((g) => (
             <section key={g.chave} className="mb-6" aria-labelledby={`titulo-contas-${g.chave}`}>
               <div className="mb-2 flex items-baseline justify-between gap-3">
@@ -177,7 +250,7 @@ export default function Contas() {
                           <p className="font-semibold">
                             {c.nome}<SeloMoeda conta={c} />
                           </p>
-                          <p className="text-sm text-slate-500">{rotuloDoTipo(c.tipo)} · desde {formatDate(c.abertura)}</p>
+                          <LinhaTipo conta={c} tags={tags} porId={etiquetaPorId} />
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -196,7 +269,15 @@ export default function Contas() {
           ))}
 
           {arquivadas.length > 0 && (
-            <section className="mt-8" aria-labelledby="titulo-contas-arquivadas">
+            <div className="mt-8">
+              <Button variante="fantasma" aria-expanded={verArquivadas} aria-controls="secao-contas-arquivadas"
+                onClick={() => setVerArquivadas((v) => !v)}>
+                {`Arquivadas (${arquivadas.length})`} <span aria-hidden="true">{verArquivadas ? '▴' : '▾'}</span>
+              </Button>
+            </div>
+          )}
+          {arquivadas.length > 0 && verArquivadas && (
+            <section id="secao-contas-arquivadas" className="mt-3" aria-labelledby="titulo-contas-arquivadas">
               <h2 id="titulo-contas-arquivadas" className="mb-1 text-lg font-semibold">Arquivadas</h2>
               <p className="mb-3 text-sm text-slate-600">Não aparecem nas escolhas de lançamento. O saldo e o histórico continuam valendo.</p>
               <ul className="flex flex-col gap-2">
@@ -207,7 +288,7 @@ export default function Contas() {
                         <IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} />
                         <div className="min-w-0">
                           <p className="font-semibold">{c.nome}<SeloMoeda conta={c} /></p>
-                          <p className="text-sm text-slate-500">{rotuloDoTipo(c.tipo)} · desde {formatDate(c.abertura)}</p>
+                          <LinhaTipo conta={c} tags={tags} porId={etiquetaPorId} />
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -228,14 +309,156 @@ export default function Contas() {
   )
 }
 
+interface PropsGerenciar {
+  familiaId: string
+  tags: EtiquetasDaFamilia
+  filtro: string
+  aoFiltrar: (id: string) => void
+  aoMudar: () => Promise<void>
+}
+
+/**
+ * Filtro por etiqueta e a seção recolhível para criar, renomear e apagar as etiquetas da família.
+ * Apagar só tira a etiqueta das contas: nenhuma conta, saldo ou lançamento muda.
+ */
+function GerenciarEtiquetas({ familiaId, tags, filtro, aoFiltrar, aoMudar }: PropsGerenciar) {
+  const [nova, setNova] = useState('')
+  const [tentouNova, setTentouNova] = useState(false)
+  const [renomeando, setRenomeando] = useState<{ id: string; nome: string } | null>(null)
+  const [apagando, setApagando] = useState<Etiqueta | null>(null)
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const uso = (id: string) => [...tags.porConta.values()].filter((ids) => ids.includes(id)).length
+  const textoUso = (id: string) => {
+    const n = uso(id)
+    return n === 0 ? 'em nenhuma conta' : `em ${n} conta${n === 1 ? '' : 's'}`
+  }
+  const erroNova = tentouNova ? erroNomeEtiqueta(nova, tags.etiquetas) : null
+  const erroRenomear = renomeando ? erroNomeEtiqueta(renomeando.nome, tags.etiquetas, renomeando.id) : null
+  const cheia = tags.etiquetas.length >= MAX_ETIQUETAS_FAMILIA
+
+  async function executar(acao: () => Promise<unknown>): Promise<boolean> {
+    setErro('')
+    setEnviando(true)
+    try {
+      await acao()
+      await aoMudar()
+      return true
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+      return false
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  async function criar(e: FormEvent) {
+    e.preventDefault()
+    setTentouNova(true)
+    if (erroNomeEtiqueta(nova, tags.etiquetas)) return
+    if (await executar(() => criarEtiqueta(familiaId, nova))) { setNova(''); setTentouNova(false) }
+  }
+
+  async function salvarNome(e: FormEvent) {
+    e.preventDefault()
+    if (!renomeando || erroRenomear) return
+    const { id, nome } = renomeando
+    if (await executar(() => renomearEtiqueta(id, nome))) setRenomeando(null)
+  }
+
+  async function confirmarApagar(t: Etiqueta) {
+    if (await executar(() => apagarEtiqueta(t.id))) {
+      setApagando(null)
+      if (filtro === t.id) aoFiltrar('')
+    }
+  }
+
+  return (
+    <div className="mb-4 flex flex-col gap-3">
+      {tags.etiquetas.length > 0 && (
+        <div className="max-w-sm">
+          <Selecao rotulo="Filtrar por etiqueta" valor={filtro} aoMudar={aoFiltrar} todos="Todas as contas"
+            opcoes={tags.etiquetas.map((t) => [t.id, t.nome])} />
+        </div>
+      )}
+      <details className="rounded-lg border border-slate-200 bg-white">
+        <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-marinho">
+          Etiquetas ({tags.etiquetas.length})
+        </summary>
+        <div className="flex flex-col gap-4 border-t border-slate-200 p-4">
+          <p className="text-sm text-slate-600">
+            Organize as contas do seu jeito (ex.: Reserva de emergência, Conjunta, PJ). A etiqueta não muda o tipo da conta
+            nem nenhum valor: os saldos e os indicadores continuam pelo tipo.
+          </p>
+          {erro && <Aviso tipo="erro">{erro}</Aviso>}
+          <form onSubmit={criar} className="flex flex-wrap items-end gap-2" noValidate>
+            <div className="min-w-0 flex-1">
+              <Field rotulo="Nova etiqueta" maxLength={MAX_NOME_ETIQUETA} value={nova} placeholder="Ex.: Viagem 2027"
+                onChange={(e) => setNova(e.target.value)} erro={erroNova ?? undefined} disabled={cheia} />
+            </div>
+            <Button type="submit" variante="secundario" carregando={enviando} disabled={cheia}>Criar etiqueta</Button>
+          </form>
+          {cheia && <p className="text-sm text-slate-600">Limite de {MAX_ETIQUETAS_FAMILIA} etiquetas: apague uma que não usa para criar outra.</p>}
+          {tags.etiquetas.length === 0 && <p className="text-sm text-slate-600">Nenhuma etiqueta ainda.</p>}
+          {tags.etiquetas.length > 0 && (
+            <ul className="flex flex-col divide-y divide-slate-200">
+              {tags.etiquetas.map((t) => (
+                <li key={t.id} className="py-2">
+                  {renomeando?.id === t.id ? (
+                    <form onSubmit={salvarNome} className="flex flex-wrap items-end gap-2" noValidate>
+                      <div className="min-w-0 flex-1">
+                        <Field rotulo={`Novo nome para ${t.nome}`} maxLength={MAX_NOME_ETIQUETA} value={renomeando.nome} autoFocus
+                          onChange={(e) => setRenomeando({ id: t.id, nome: e.target.value })} erro={erroRenomear ?? undefined} />
+                      </div>
+                      <Button type="submit" carregando={enviando}>Salvar nome</Button>
+                      <Button variante="secundario" onClick={() => setRenomeando(null)}>Cancelar</Button>
+                    </form>
+                  ) : apagando?.id === t.id ? (
+                    <div className="rounded-lg border border-negativo-borda bg-negativo-fundo p-3" role="group" aria-label={`Apagar a etiqueta ${t.nome}`}>
+                      <p className="text-sm">
+                        Apagar a etiqueta <strong>{t.nome}</strong>? Ela está {textoUso(t.id)} e só sai delas: as contas, os saldos e os
+                        lançamentos não mudam. Não dá para desfazer.
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <Button variante="perigo" carregando={enviando} onClick={() => void confirmarApagar(t)}>Apagar etiqueta</Button>
+                        <Button variante="secundario" onClick={() => setApagando(null)}>Cancelar</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm">
+                        <span className="font-semibold">{t.nome}</span>
+                        <span className="text-slate-600"> · {textoUso(t.id)}</span>
+                      </p>
+                      <div className="flex gap-1">
+                        <Button variante="fantasma" compacto aria-label={`Renomear ${t.nome}`}
+                          onClick={() => { setApagando(null); setRenomeando({ id: t.id, nome: t.nome }) }}>Renomear</Button>
+                        <Button variante="discreto" compacto aria-label={`Apagar ${t.nome}`}
+                          onClick={() => { setRenomeando(null); setApagando(t) }}>Apagar</Button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </details>
+    </div>
+  )
+}
+
 interface PropsForm {
   conta: Conta | null
   familiaId: string
-  aoSalvar: () => Promise<void>
+  etiquetas: EtiquetasDaFamilia
+  aoCriarEtiqueta: (e: Etiqueta) => void
+  /** `aviso`: a conta foi salva, mas algo secundário (as etiquetas) falhou. */
+  aoSalvar: (aviso?: string) => Promise<void>
   aoCancelar: () => void
 }
 
-function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
+function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoCancelar }: PropsForm) {
   const [nome, setNome] = useState(conta?.nome ?? '')
   const [tipo, setTipo] = useState<TipoConta>(conta?.tipo ?? 'checking')
   const [saldoTexto, setSaldoTexto] = useState(conta ? formatBRLCampo(conta.saldoInicial) : '0,00')
@@ -247,6 +470,34 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [iniciais] = useState<string[]>(() => (conta ? etiquetas.porConta.get(conta.id) ?? [] : []))
+  const [marcadas, setMarcadas] = useState<string[]>(iniciais)
+  const [novaEtiqueta, setNovaEtiqueta] = useState('')
+  const [erroEtiqueta, setErroEtiqueta] = useState('')
+  const [criandoEtiqueta, setCriandoEtiqueta] = useState(false)
+  const contaCheia = marcadas.length >= MAX_ETIQUETAS_CONTA
+
+  function alternarEtiqueta(id: string) {
+    setMarcadas((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]))
+  }
+
+  async function criarEMarcar() {
+    const problema = erroNomeEtiqueta(novaEtiqueta, etiquetas.etiquetas)
+    if (problema) { setErroEtiqueta(problema); return }
+    if (contaCheia) { setErroEtiqueta(`Cada conta tem até ${MAX_ETIQUETAS_CONTA} etiquetas.`); return }
+    setErroEtiqueta('')
+    setCriandoEtiqueta(true)
+    try {
+      const nova = await criarEtiqueta(familiaId, novaEtiqueta)
+      aoCriarEtiqueta(nova)
+      setMarcadas((m) => [...m, nova.id])
+      setNovaEtiqueta('')
+    } catch (err) {
+      setErroEtiqueta(mensagemErroBanco(err))
+    } finally {
+      setCriandoEtiqueta(false)
+    }
+  }
 
   const saldoInicial = parseBRL(saldoTexto)
   const erroNome = tentou && !nome.trim() ? 'Informe o nome da conta.' : undefined
@@ -263,9 +514,15 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
       // só envia o banco quando há o que gravar ou limpar (conta sem banco e sem escolha não toca na coluna)
       const dados = { nome, tipo, saldoInicial, abertura, ...((!tipoSemBanco(tipo) && banco) || conta?.banco ? { banco: tipoSemBanco(tipo) || !banco ? null : banco } : {}),
         ...(conta || moeda === 'BRL' ? {} : { moeda }) }
-      if (conta) await editarConta(conta.id, dados)
-      else await criarConta(familiaId, dados)
-      await aoSalvar()
+      let id: string
+      if (conta) { await editarConta(conta.id, dados); id = conta.id }
+      else id = await criarConta(familiaId, dados)
+      // a conta já está salva: se só as etiquetas falharem, fecha o formulário e avisa (reenviar criaria outra conta)
+      let aviso: string | undefined
+      if (etiquetas.disponivel && !mesmasEtiquetas(marcadas, iniciais)) {
+        try { await definirEtiquetasDaConta(id, marcadas) } catch (err) { aviso = `A conta foi salva, mas as etiquetas não: ${mensagemErroBanco(err)}` }
+      }
+      await aoSalvar(aviso)
     } catch (err) {
       setErro(mensagemErroBanco(err))
     } finally {
@@ -324,6 +581,36 @@ function FormConta({ conta, familiaId, aoSalvar, aoCancelar }: PropsForm) {
         </div>
         <Field rotulo={`Saldo inicial (${simbolo})`} inputMode="decimal" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
         <Field rotulo="Data do saldo inicial" type="date" value={abertura} onChange={(e) => setAbertura(e.target.value)} erro={erroData} />
+        {etiquetas.disponivel && (
+          <fieldset className="flex flex-col gap-2 md:col-span-2" aria-describedby="etiquetas-conta-ajuda">
+            <legend className="text-sm font-medium">Etiquetas (opcional)</legend>
+            <p id="etiquetas-conta-ajuda" className="text-xs text-slate-600">
+              Só organizam a lista: não mudam o tipo nem nenhum valor. Até {MAX_ETIQUETAS_CONTA} por conta.
+            </p>
+            {etiquetas.etiquetas.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {etiquetas.etiquetas.map((t) => {
+                  const marcada = marcadas.includes(t.id)
+                  return (
+                    <label key={t.id} className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border px-3 text-sm focus-within:ring-2 focus-within:ring-azul ${marcada ? 'border-azul bg-azul-claro font-semibold text-marinho' : 'border-slate-300 bg-white text-slate-700'}`}>
+                      <input type="checkbox" checked={marcada} disabled={!marcada && contaCheia} onChange={() => alternarEtiqueta(t.id)} className="h-4 w-4" />
+                      {t.nome}
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="min-w-0 flex-1">
+                <Field rotulo="Criar etiqueta nova" maxLength={MAX_NOME_ETIQUETA} placeholder="Ex.: Conjunta" value={novaEtiqueta}
+                  onChange={(e) => setNovaEtiqueta(e.target.value)} erro={erroEtiqueta || undefined}
+                  // Enter aqui cria a etiqueta, em vez de enviar o formulário da conta
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void criarEMarcar() } }} />
+              </div>
+              <Button variante="secundario" carregando={criandoEtiqueta} onClick={() => void criarEMarcar()}>Criar e marcar</Button>
+            </div>
+          </fieldset>
+        )}
         <p className="text-sm text-slate-600 md:col-span-2">
           O saldo inicial é o valor <strong>no início do dia</strong> escolhido. Lançamentos a partir dessa data mudam o saldo; lançamentos anteriores entram nos relatórios, mas não no saldo.
         </p>

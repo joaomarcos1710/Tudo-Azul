@@ -11,7 +11,10 @@ const fake = vi.hoisted(() => {
   const fim = { eq: () => Promise.resolve({ error: null }) }
   const supabase = {
     from: () => ({
-      insert: (v: Record<string, unknown>) => { e.inseridos.push(v); return Promise.resolve({ error: null }) },
+      insert: (v: Record<string, unknown>) => {
+        e.inseridos.push(v)
+        return { select: () => ({ single: () => Promise.resolve({ data: { id: 'nova' }, error: null }) }) }
+      },
       update: (v: Record<string, unknown>) => { e.atualizados.push(v); return fim },
     }),
     rpc: (nome: string, args: Record<string, unknown>) => { e.rpcs.push([nome, args]); return Promise.resolve(e.porMoeda) },
@@ -38,7 +41,7 @@ describe('moeda da conta', () => {
   it('conta em dólar grava currency_code; em reais não manda a coluna (funciona antes da migration 055)', async () => {
     await criarConta('h1', { ...dados, moeda: 'USD' })
     await criarConta('h1', { ...dados, moeda: 'BRL' })
-    await criarConta('h1', dados)
+    expect(await criarConta('h1', dados)).toBe('nova') // devolve o id para gravar as etiquetas (072)
     expect(fake.e.inseridos[0]).toMatchObject({ currency_code: 'USD', initial_balance: '250.50' })
     expect(fake.e.inseridos[1]).not.toHaveProperty('currency_code')
     expect(fake.e.inseridos[2]).not.toHaveProperty('currency_code')
