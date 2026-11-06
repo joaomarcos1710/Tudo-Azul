@@ -1,7 +1,6 @@
 import { centsFromDb } from './format'
 import type { Cents } from './format'
-import { COLUNA_INEXISTENTE, rotuloTipoConta } from './contas'
-import type { TipoConta } from './contas'
+import { COLUNA_INEXISTENTE, rotuloDoTipo } from './contas'
 import { supabase } from './supabase'
 
 /**
@@ -437,7 +436,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
 
   const cadastros: Celula[][] = [
     ...listaContas.map((c): Celula[] => [
-      'Conta', texto(c.name), rotuloTipoConta[c.type as TipoConta] ?? texto(c.type), dataBR(texto(c.opening_date)),
+      'Conta', texto(c.name), rotuloDoTipo(texto(c.type)), dataBR(texto(c.opening_date)),
       centavos(c.initial_balance), moedaDaConta(c), c.active ? 'Sim' : 'Não', talvez(saldoConta.get(c.id)), '',
     ]),
     ...listaDividas.map((d): Celula[] => {

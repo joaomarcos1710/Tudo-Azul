@@ -57,7 +57,7 @@ reset role;
 select pg_temp.login('00000000-0000-0000-0000-0000000054a1');
 insert into fixture select 'h', public.create_household('Casa 54');
 with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
-           values (pg_temp.fx('h'), 'Corretora', 'investment', 5000, pg_temp.hoje() - 90) returning id)
+           values (pg_temp.fx('h'), 'Corretora', 'brokerage', 5000, pg_temp.hoje() - 90) returning id)
   insert into fixture select 'conta', id from i;
 insert into fixture select 'cat', id from public.categories where household_id = pg_temp.fx('h') and name = 'Impostos e taxas' and type = 'expense';
 insert into fixture select 'fii', public.investment_asset_create(pg_temp.fx('h'), 'FII Teste', 'TSTE11', 'reit', 'BRL');

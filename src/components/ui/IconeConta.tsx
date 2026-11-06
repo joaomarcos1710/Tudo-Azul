@@ -1,7 +1,7 @@
 import { bancoEscolhidoOuDoNome, BANDEIRAS, LOGOS, LOGOS_BANDEIRA } from '../../lib/bancos'
 import type { Banco } from '../../lib/bancos'
 import type { TipoConta } from '../../lib/contas'
-import { IconeCartoes, IconeContas } from '../layout/icons'
+import { IconeCarteira, IconeCartoes, IconeContas, IconeCorretora, IconeCripto, IconeRendaFixa, IconeRendaVariavel, IconeReserva } from '../layout/icons'
 
 type Tamanho = 'mini' | 'pequeno' | 'normal'
 
@@ -12,10 +12,10 @@ const caixa: Record<Tamanho, string> = {
 }
 
 /** Selo de um banco: o logo (se o arquivo existe) ou a sigla sobre a cor dele; sem banco, o ícone neutro dado. */
-function Selo({ banco, tamanho, className, neutro }: { banco: Banco | null; tamanho: Tamanho; className: string; neutro: React.ReactNode }) {
+function Selo({ banco, tamanho, className, neutro, tipo }: { banco: Banco | null; tamanho: Tamanho; className: string; neutro: React.ReactNode; tipo?: string }) {
   const base = `inline-flex shrink-0 items-center justify-center align-middle font-bold leading-none ${caixa[tamanho]} ${className}`
   if (!banco) {
-    return <span aria-hidden="true" data-banco="" className={`${base} bg-slate-100 text-slate-600`}>{neutro}</span>
+    return <span aria-hidden="true" data-banco="" data-tipo={tipo} className={`${base} bg-slate-100 text-slate-600`}>{neutro}</span>
   }
   const logo = LOGOS[banco.chave]
   if (logo) {
@@ -33,15 +33,27 @@ function Selo({ banco, tamanho, className, neutro }: { banco: Banco | null; tama
   )
 }
 
+/** Ícone de cada tipo de conta (migration 070), para a conta sem banco; tipo antigo ou desconhecido usa o de conta. */
+const ICONE_TIPO: Record<TipoConta, () => React.ReactNode> = {
+  checking: IconeContas,
+  savings: IconeReserva,
+  brokerage: IconeCorretora,
+  fixed_income: IconeRendaFixa,
+  variable_income: IconeRendaVariavel,
+  crypto: IconeCripto,
+  cash: IconeCarteira,
+}
+
 /**
- * Selo da conta: o banco escolhido na conta (ou, sem escolha, o citado no nome) ou o ícone neutro de conta.
+ * Selo da conta: o banco escolhido na conta (ou, sem escolha, o citado no nome) ou o ícone do tipo da conta.
  * Decorativo: o nome da conta sempre aparece em texto ao lado. A sigla vem do CSS (`data-sigla`), não é texto da página,
  * então não entra em busca, cópia nem leitor de tela.
  */
 export function IconeConta({ nome, tipo, banco, tamanho = 'normal', className = '' }: {
   nome: string; tipo: TipoConta; banco?: string | null; tamanho?: Tamanho; className?: string
 }) {
-  return <Selo banco={bancoEscolhidoOuDoNome(banco, nome, tipo)} tamanho={tamanho} className={className} neutro={<IconeContas />} />
+  const Neutro = ICONE_TIPO[tipo] ?? IconeContas
+  return <Selo banco={bancoEscolhidoOuDoNome(banco, nome, tipo)} tamanho={tamanho} className={className} neutro={<Neutro />} tipo={tipo} />
 }
 
 /** Selo do emissor do cartão: o banco escolhido, ou o citado no nome do cartão, ou o ícone neutro de cartão. */

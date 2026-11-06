@@ -22,6 +22,14 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Tipos de conta (#186, migration 070)
+- [ ] **Aplicar a migration 070** em produção (simular → ler o log → aplicar, com o "pode" do dono). Depois da 069 (saldo projetado, outra PR).
+- [ ] **Ajustar conta por conta** pelo app (Contas › Editar › Tipo): as que eram Investimento viraram Renda fixa e as Outra viraram Conta corrente; conferir cada uma (ex.: a conta da corretora que não rende → Corretora (saldo a aplicar)).
+- [ ] **Vincular a corretora aos ativos de Investimentos** (custódia): a conta `brokerage` como a corretora dos ativos — ainda não existe ligação entre conta e ativo.
+- [ ] **Início (Minhas contas)** não agrupa por tipo (é a lista de saldos de hoje); só ganhou os ícones por tipo, sem mexer em `VisaoGeral.tsx`. Se o dono quiser os tipos no Início (ex.: subtotal por tipo), é outra PR.
+- [ ] **Patrimônio por tipo** (corrente × reserva × investido) em Análises: hoje só a tela Contas mostra o subtotal por tipo.
+- [x] Formulário e lista de Contas com os 7 tipos; ícone por tipo; `balance_totals_by_type` na ordem nova (#186).
+
 - [x] **Cartões: destaque da fatura atual e menu "Mais opções"** (#163, 05/11/2026): pedido do dono (zero em destaque e botões demais).
 - [ ] **Unificar os menus**: "+ Lançamento" (`MenuNovo` em `Lancamentos.tsx`) passar a usar `MenuAcoes` (hoje são dois menus com o mesmo comportamento; o de Lançamentos não anda com as setas).
 - [ ] **Início, bloco Cartões**: avaliar o mesmo destaque "Fatura atual" de Cartões (#163 não mexeu no Início; só passou a mostrar a fatura do ciclo de hoje, com R$ 0,00 quando não há compra).

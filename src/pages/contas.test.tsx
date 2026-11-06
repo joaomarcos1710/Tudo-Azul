@@ -227,34 +227,83 @@ describe('Contas', () => {
     await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Já existe um registro com esse nome.')
   })
-  it('agrupa as contas ativas em corrente, poupança e investimento, com o subtotal que vem do banco', async () => {
+  it('agrupa as contas ativas pelos 7 tipos (onde o dinheiro está), com o subtotal que vem do banco', async () => {
     mock.listarContas.mockResolvedValue({
       contas: [
+        { ...corrente, id: 'a7', nome: 'Carteira de bolso', tipo: 'cash', saldo: c(2500) },
+        { ...corrente, id: 'a6', nome: 'Moedas digitais', tipo: 'crypto', saldo: c(4000) },
+        { ...corrente, id: 'a5', nome: 'Ações de teste', tipo: 'variable_income', saldo: c(70000) },
+        { ...corrente, id: 'a4', nome: 'Tesouro de teste', tipo: 'fixed_income', saldo: c(227788) },
+        { ...corrente, id: 'a3', nome: 'Saldo parado', tipo: 'brokerage', saldo: c(5000) },
+        { ...corrente, id: 'a2', nome: 'Reserva de teste', tipo: 'savings', saldo: c(30000) },
         corrente,
-        { ...corrente, id: 'a2', nome: 'CDB Caixinha', tipo: 'investment', saldo: c(227788) },
-        { ...corrente, id: 'a3', nome: 'Poupança Caixa', tipo: 'savings', saldo: c(30000) },
       ],
-      total: c(382838),
+      total: c(489338),
       porTipo: [
         { tipo: 'checking', total: c(125050), totalAtivas: c(125050) },
         { tipo: 'savings', total: c(30000), totalAtivas: c(30000) },
         // subtotal do banco diferente da soma da tela: prova que a tela não soma
-        { tipo: 'investment', total: c(999999), totalAtivas: c(999999) },
+        { tipo: 'brokerage', total: c(999999), totalAtivas: c(999999) },
+        { tipo: 'fixed_income', total: c(227788), totalAtivas: c(227788) },
       ],
     })
     render(<MemoryRouter><Contas /></MemoryRouter>)
     const titulos = (await screen.findAllByRole('heading', { level: 2 })).map((h) => h.textContent)
-    expect(titulos.slice(0, 3)).toEqual(['Contas correntes', 'Poupanças', 'Investimentos'])
-    const investimentos = screen.getByRole('heading', { name: 'Investimentos' }).closest('section')!
-    expect(within(investimentos).getByText('CDB Caixinha')).toBeTruthy()
-    expect(within(investimentos).getByText('R$ 9.999,99')).toBeTruthy()
-    expect(within(investimentos).queryByText('Itaú')).toBeNull()
+    expect(titulos.slice(0, 7)).toEqual(['Contas correntes', 'Poupança / reserva', 'Corretora (saldo a aplicar)', 'Renda fixa',
+      'Renda variável', 'Cripto', 'Dinheiro (carteira)'])
+    expect(titulos).not.toContain('Investimentos')
+    const corretora = screen.getByRole('heading', { name: 'Corretora (saldo a aplicar)' }).closest('section')!
+    expect(within(corretora).getByText('Saldo parado')).toBeTruthy()
+    expect(within(corretora).getByText('R$ 9.999,99')).toBeTruthy()
+    expect(within(corretora).queryByText('Itaú')).toBeNull()
+    expect(within(corretora).getByText(/^Corretora \(saldo a aplicar\) · desde/)).toBeTruthy()
+    // sem subtotal do banco, o grupo não mostra soma feita na tela
+    const cripto = screen.getByRole('heading', { name: 'Cripto' }).closest('section')!
+    expect(within(cripto).queryByText('R$ 40,00', { selector: 'h2 + span' })).toBeNull()
   })
 
-  it('o tipo Investimento aparece no cadastro de conta', async () => {
+  it('conta com tipo antigo (front antes da migration 070) não some: vai para "Tipo a revisar" com o rótulo antigo', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [corrente, { ...corrente, id: 'a9', nome: 'Aplicação antiga', tipo: 'investment' as unknown as 'checking', saldo: c(1000) }],
+      total: c(126050),
+    })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const grupo = (await screen.findByRole('heading', { name: 'Tipo a revisar' })).closest('section')!
+    expect(within(grupo).getByText('Aplicação antiga')).toBeTruthy()
+    expect(within(grupo).getByText(/^Investimento \(tipo antigo\) · desde/)).toBeTruthy()
+    // editar não troca o tipo sem a pessoa escolher
+    await userEvent.click(within(grupo).getByRole('button', { name: 'Editar' }))
+    expect((screen.getByLabelText('Tipo') as HTMLSelectElement).value).toBe('investment')
+    expect(screen.getByText('Tipo antigo: escolha onde o dinheiro está.')).toBeTruthy()
+  })
+
+  it('o cadastro oferece os 7 tipos agrupados (dia a dia, reserva, investimentos)', async () => {
     render(<MemoryRouter><Contas /></MemoryRouter>)
     await userEvent.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
-    expect(screen.getByRole('option', { name: 'Investimento' })).toBeTruthy()
+    const tipo = screen.getByLabelText('Tipo') as HTMLSelectElement
+    const grupos = Array.from(tipo.querySelectorAll('optgroup')).map((g) => [g.label, Array.from(g.querySelectorAll('option')).map((o) => o.textContent)])
+    expect(grupos).toEqual([
+      ['Dia a dia', ['Conta corrente', 'Dinheiro (carteira)']],
+      ['Reserva', ['Poupança / reserva']],
+      ['Investimentos', ['Corretora (saldo a aplicar)', 'Renda fixa', 'Renda variável', 'Cripto']],
+    ])
+    expect(Array.from(tipo.options).map((o) => o.value).sort()).toEqual(
+      ['brokerage', 'cash', 'checking', 'crypto', 'fixed_income', 'savings', 'variable_income'])
+    expect(screen.queryByRole('option', { name: 'Investimento' })).toBeNull()
+    expect(screen.queryByRole('option', { name: 'Outra' })).toBeNull()
+  })
+
+  it('corretora (saldo a aplicar) explica que o dinheiro parado não rende e grava brokerage', async () => {
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
+    await u.type(screen.getByLabelText('Nome'), 'Corretora de teste')
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'brokerage')
+    expect(screen.getByLabelText('Tipo').getAttribute('aria-describedby')).toBe('tipo-conta-ajuda')
+    expect(document.getElementById('tipo-conta-ajuda')!.textContent).toMatch(/parado na corretora.*não rende/)
+    expect((screen.getByLabelText('Banco') as HTMLSelectElement).disabled).toBe(false)
+    await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
+    expect(mock.criarConta).toHaveBeenCalledWith('h1', expect.objectContaining({ nome: 'Corretora de teste', tipo: 'brokerage' }))
   })
 })
 

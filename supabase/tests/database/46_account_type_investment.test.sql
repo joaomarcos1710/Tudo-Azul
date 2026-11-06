@@ -1,4 +1,5 @@
 -- 46_account_type_investment: migration 044. Conta do tipo Investimento e saldo por tipo.
+-- Desde a 070 o tipo 'investment' não existe mais: a conta de investimento de liquidez (CDB) é 'fixed_income'.
 -- Datas relativas a hoje em São Paulo; nada depende de data fixa nem do fuso do servidor.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -35,8 +36,8 @@ insert into auth.users (id, email) values
 select pg_temp.login('00000000-0000-0000-0000-0000000046a1');
 insert into fixture select 'h', public.create_household('Casa Contas');
 
-select lives_ok($$select pg_temp.conta('CDB Caixinha', 'investment', 2000)$$, 'T1 aceita conta do tipo investimento');
-select is(pg_temp.sqlstate_of($$select pg_temp.conta('Cripto', 'crypto', 10)$$), '23514', 'T2 tipo desconhecido continua recusado');
+select lives_ok($$select pg_temp.conta('CDB Caixinha', 'fixed_income', 2000)$$, 'T1 aceita conta de investimento (renda fixa, 070)');
+select is(pg_temp.sqlstate_of($$select pg_temp.conta('Fundo', 'fund', 10)$$), '23514', 'T2 tipo desconhecido continua recusado');
 insert into fixture select 'cc', pg_temp.conta('Corrente', 'checking', 1000);
 insert into fixture select 'pp', pg_temp.conta('Poupança', 'savings', 300);
 insert into fixture select 'p2', pg_temp.conta('Poupança antiga', 'savings', 50);
@@ -48,13 +49,13 @@ insert into public.transactions (household_id, type, status, date, amount, descr
 values (pg_temp.fx('h'), 'transfer', 'paid', pg_temp.hoje() - 1, 400, 'Aplicação CDB', pg_temp.fx('cc'), pg_temp.fx('inv'));
 
 select is(pg_temp.por_tipo('checking'), '600.00|600.00', 'T3 corrente: 1000 - 400 aplicados');
-select is(pg_temp.por_tipo('investment'), '2400.00|2400.00', 'T4 investimento: 2000 + 400 aplicados');
+select is(pg_temp.por_tipo('fixed_income'), '2400.00|2400.00', 'T4 renda fixa: 2000 + 400 aplicados');
 select is(pg_temp.por_tipo('savings'), '350.00|300.00', 'T5 poupança: total inclui a arquivada (50), ativas só 300');
 select is((select sum(total) from public.balance_totals_by_type(pg_temp.fx('h'), pg_temp.hoje())),
           (select total from public.balance_totals(pg_temp.fx('h'), pg_temp.hoje())),
           'T6 a soma por tipo bate com o saldo total da família');
 select is((select array_agg(account_type) from public.balance_totals_by_type(pg_temp.fx('h'), pg_temp.hoje())),
-          array['checking', 'savings', 'investment']::text[], 'T7 ordem: corrente, poupança, investimento');
+          array['checking', 'savings', 'fixed_income']::text[], 'T7 ordem: corrente, poupança, renda fixa');
 
 select pg_temp.login('00000000-0000-0000-0000-0000000046a2');
 select is((select count(*) from public.balance_totals_by_type(pg_temp.fx('h'), pg_temp.hoje())), 0::bigint, 'T8 quem não é da família não vê nada');

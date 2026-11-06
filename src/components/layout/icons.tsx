@@ -42,3 +42,10 @@ export const IconeCadeadoAberto = ({ tamanho }: { tamanho?: number }) => <Icone 
 export const IconeCadeadoFechado = ({ tamanho }: { tamanho?: number }) => <Icone tamanho={tamanho}><rect x="4.5" y="11" width="15" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><path d="M12 15v2" /></Icone>
 export const IconeCadeadoPago = ({ tamanho }: { tamanho?: number }) => <Icone tamanho={tamanho}><rect x="4.5" y="11" width="15" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><path d="m9 16 2 2 4-4" /></Icone>
 export const IconeCadeadoVencido = ({ tamanho }: { tamanho?: number }) => <Icone tamanho={tamanho}><rect x="4.5" y="11" width="15" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /><path d="M12 13.5v3" /><path d="M12 18.6v.01" /></Icone>
+// Ícones dos tipos de conta (migration 070), usados no selo da conta sem banco
+export const IconeCarteira = () => <Icone><path d="M4 7.5h14a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5A2.5 2.5 0 0 1 5.5 4H16v3.5" /><path d="M16 13.5h1.5" /></Icone>
+export const IconeReserva = () => <Icone><path d="M12 3 4.5 6v5.5c0 4.4 3.2 8.2 7.5 9.5 4.3-1.3 7.5-5.1 7.5-9.5V6L12 3Z" /><path d="M9 12l2 2 4-4" /></Icone>
+export const IconeCorretora = () => <Icone><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8.5 7V5a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v2M3 12.5h18" /></Icone>
+export const IconeRendaFixa = () => <Icone><path d="M3 21h18M4.5 10h15M12 3l8 5H4l8-5ZM6.5 10v8M10 10v8M14 10v8M17.5 10v8" /></Icone>
+export const IconeRendaVariavel = () => <Icone><path d="M3 17l5-5 4 3 8-8" /><path d="M15 7h5v5" /></Icone>
+export const IconeCripto = () => <Icone><circle cx="12" cy="12" r="9" /><path d="M9.5 7.5v9M9.5 8h4a2 2 0 0 1 0 4h-4m0 0h4.5a2 2 0 0 1 0 4H9.5M11.5 6v2M11.5 16v2" /></Icone>

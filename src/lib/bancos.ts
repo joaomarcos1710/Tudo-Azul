@@ -62,9 +62,14 @@ function cita(palavras: string[], expressao: string): boolean {
   return false
 }
 
+/** Carteira em dinheiro nunca tem banco (o banco também recusa: accounts_bank_not_cash, migration 017). Vale para os 7 tipos da 070: só 'cash'. */
+export function tipoSemBanco(tipo: string): boolean {
+  return tipo === 'cash'
+}
+
 /** O banco citado no nome da conta, ou null (carteira em dinheiro nunca é banco: "Caixa da casa" não é a Caixa). */
 export function bancoDaConta(nome: string, tipo: TipoConta): Banco | null {
-  if (tipo === 'cash') return null
+  if (tipoSemBanco(tipo)) return null
   const palavras = palavrasDe(nome)
   return BANCOS.find((b) => b.palavras.some((expr) => cita(palavras, expr))) ?? null
 }
@@ -83,7 +88,7 @@ export function bancoPorChave(chave: string | null | undefined): Banco | null {
 
 /** Banco da conta: o escolhido (gravado) vale; sem escolha, tenta o nome ("Conta Caixa"), como antes de existir o campo. */
 export function bancoEscolhidoOuDoNome(chave: string | null | undefined, nome: string, tipo: TipoConta): Banco | null {
-  if (tipo === 'cash') return null
+  if (tipoSemBanco(tipo)) return null
   return bancoPorChave(chave) ?? bancoDaConta(nome, tipo)
 }
 

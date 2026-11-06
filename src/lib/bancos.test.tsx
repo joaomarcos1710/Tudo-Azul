@@ -59,10 +59,10 @@ describe('IconeConta', () => {
 describe('Nomad, OKX, Binance e Funcef (logos oficiais)', () => {
   it('reconhece pelo nome da conta e tem logo', () => {
     expect(bancoDaConta('NOMAD - DOLAR', 'checking')?.chave).toBe('nomad')
-    expect(bancoDaConta('NOMAD INVESTIMENTO', 'investment')?.chave).toBe('nomad')
-    expect(bancoDaConta('OKX', 'investment')?.chave).toBe('okx')
-    expect(bancoDaConta('Binance cripto', 'investment')?.chave).toBe('binance')
-    expect(bancoDaConta('Previdência Funcef', 'investment')?.chave).toBe('funcef')
+    expect(bancoDaConta('NOMAD INVESTIMENTO', 'brokerage')?.chave).toBe('nomad')
+    expect(bancoDaConta('OKX', 'crypto')?.chave).toBe('okx')
+    expect(bancoDaConta('Binance cripto', 'crypto')?.chave).toBe('binance')
+    expect(bancoDaConta('Previdência Funcef', 'fixed_income')?.chave).toBe('funcef')
     for (const chave of ['nomad', 'okx', 'binance', 'funcef']) expect(LOGOS[chave]).toBeTruthy()
   })
 })
