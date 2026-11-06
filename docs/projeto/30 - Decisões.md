@@ -413,3 +413,8 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 - **A carteira continua visível à parte**: `home_indicators` ainda devolve `investments` e o (i) do card mostra o valor, dizendo que fica fora da soma. A ligação conta ↔ ativo (custódia) continua pendente.
 - **O Disponível não mudou** nesta PR (outra decisão pendente: tirar ou não renda fixa/variável/cripto do disponível).
 - **Tabela `public."Teste1"` apagada** (criada à mão no painel de produção, vazia, com RLS e sem policies, fora das migrations): o banco só muda por migration; `drop table if exists` para a migration passar no CI/local, onde ela não existe.
+
+## Disponível só com o dinheiro de uso no mesmo dia (#200, migration 076, 06/11/2026)
+- **O Disponível do Início conta só Conta corrente, Poupança / reserva, Dinheiro (carteira) e Corretora (saldo a aplicar)**, ativas e em reais, menos as faturas de cartão fechadas a pagar (decisão do dono: "sim, pode mudar o Disponível"). Motivo: Renda fixa, Renda variável e Cripto precisam ser vendidas ou resgatadas, o que leva dias e pode dar perda; contá-las no Disponível dizia que havia dinheiro para gastar hoje que não há. Elas continuam no Patrimônio total (que não muda).
+- **Os nomes dos campos não mudam** (`accounts_active`, `available`): o front e os testes continuam lendo os mesmos campos; `accounts_active` passa a significar "contas líquidas ativas" (documentado na migration e em `src/lib/indicadores.ts`). Renomear quebraria o front publicado antes da migration.
+- **A Poupança / reserva fica no Disponível**: resgata no mesmo dia. A Cobertura da reserva continua usando só `savings`.

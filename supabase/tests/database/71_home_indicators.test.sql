@@ -154,11 +154,13 @@ select is(pg_temp.sqlstate_of(format('update public.categories set non_consumpti
 -- ---- Disponível ----
 -- corrente 10000 − 5×500 − 4×10000 + 5000 + 1000 + 20000 − 4000 − 100 − 3000 + 700 − 200 = −13100; reserva 3000;
 -- corretora 200; carteira 50 (a inativa e a em dólar não)
-select is((select accounts_active from hi), -9850.00, 'D1 contas ativas em reais dos 7 tipos (inativa e dólar fora)');
+-- (076) o Disponível conta só os 4 tipos líquidos; esta família só tem contas desses tipos, então o valor não muda
+select is((select accounts_active from hi), -9850.00, 'D1 contas líquidas ativas em reais (inativa e dólar fora)');
 select is((select card_bills_closed from hi), 300.00, 'D2 fatura fechada a pagar');
 select is((select available from hi), -10150.00, 'D3 disponível = contas ativas − fatura fechada');
-select is((select accounts_active from hi), (select sum(total_active) from public.balance_totals_by_type(pg_temp.fx('h'), pg_temp.hoje())),
-          'D4 o mesmo total das contas ativas de balance_totals_by_type');
+select is((select accounts_active from hi), (select sum(total_active) from public.balance_totals_by_type(pg_temp.fx('h'), pg_temp.hoje())
+                                               where account_type in ('checking', 'savings', 'cash', 'brokerage')),
+          'D4 o mesmo total ativo dos 4 tipos líquidos de balance_totals_by_type');
 select public.set_card_cycle(pg_temp.fx('cartao'), 25, 5);
 select public.card_purchase(pg_temp.fx('cartao'), pg_temp.hoje(), 900, 3, pg_temp.fx('desp'), 'Compra parcelada de teste');
 select is((select available from hi), -10150.00, 'D5 a fatura aberta não entra no disponível');

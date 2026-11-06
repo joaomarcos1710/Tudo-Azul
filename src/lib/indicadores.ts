@@ -19,6 +19,7 @@ export interface Indicadores {
   /** AAAA-MM-DD: o último mês fechado (taxa de poupança e comprometimento) */
   inicioMesFechado: string
   fimMesFechado: string
+  /** accounts_active: contas LÍQUIDAS ativas em reais (corrente, reserva, carteira, corretora; 076) */
   contasAtivas: Cents
   faturasFechadas: Cents
   disponivel: Cents

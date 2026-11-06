@@ -59,7 +59,7 @@ export function itensDaFaixa(d: Indicadores): Item[] {
   return [
     {
       id: 'disponivel', rotulo: 'Disponível', valor: formatBRL(d.disponivel), tom: tomDoValor(d.disponivel), selo: rotuloDoSinal(d.disponivel),
-      explicacao: `Contas ativas em reais ${formatBRL(d.contasAtivas)} − faturas de cartão fechadas a pagar ${formatBRL(d.faturasFechadas)}. A fatura aberta só entra quando fechar.`,
+      explicacao: `Conta corrente, reserva, carteira e saldo na corretora (ativas, em reais) ${formatBRL(d.contasAtivas)} − faturas de cartão fechadas a pagar ${formatBRL(d.faturasFechadas)}. Renda fixa, renda variável e cripto ficam no Patrimônio: precisam de resgate ou venda. A fatura aberta só entra quando fechar.`,
     },
     {
       id: 'patrimonio', rotulo: 'Patrimônio total', valor: formatBRL(d.patrimonio), tom: tomDoValor(d.patrimonio), selo: rotuloDoSinal(d.patrimonio),
