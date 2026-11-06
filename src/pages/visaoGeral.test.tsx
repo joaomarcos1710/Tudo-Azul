@@ -66,7 +66,7 @@ const IND = {
   inicioMes: '2026-11-01', fimMes: '2026-11-30', inicioMesFechado: '2026-10-01', fimMesFechado: '2026-10-31',
   contasAtivas: c(1225000), faturasFechadas: c(30000), disponivel: c(1195000),
   contasTodas: c(1265000), creditoAReceber: c(0), bens: c(5000000), investimentos: c(100000), dividas: c(3530000), compromissos: c(90000),
-  patrimonio: c(2835000), receitas: c(600000), despesas: c(400000), resultado: c(200000),
+  patrimonio: c(2735000), receitas: c(600000), despesas: c(400000), resultado: c(200000),
   receitasPoupanca: c(600000), despesasPoupanca: c(410000), resultadoPoupanca: c(190000),
   taxaPoupanca: 31.7, faixaPoupanca: 'saudavel' as const,
   reserva: c(300000), mesesFechados: 6, despesaTipica: c(50000), coberturaReserva: 6, faixaReserva: 'saudavel' as const,
@@ -296,7 +296,7 @@ describe('Visão geral', () => {
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
     cleanup()
     montar()
-    // #188: no Início os investimentos entram no Patrimônio total (o (i) mostra a parcela); o card à parte saiu
+    // #188: o card à parte saiu do Início; desde a 075 (#196) a carteira fica fora do Patrimônio total (o (i) mostra o valor à parte)
     await screen.findByRole('region', { name: 'Indicadores do mês' })
     expect(screen.queryByText(/Saldo em USD/)).toBeNull()
     expect(screen.queryByText('Saldo de investimentos')).toBeNull()
@@ -891,7 +891,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
       'Disponível', 'Patrimônio total', 'Resultado do mês', 'Taxa de poupança', 'Cobertura da reserva', 'Comprometimento com dívidas', 'Dívidas totais',
     ])
     expect(itens.map((x) => x.querySelectorAll('p')[1].textContent)).toEqual([
-      'R$ 11.950,00', 'R$ 28.350,00', 'R$ 2.000,00', '31,7%', '6,0 meses', '20,0%', 'R$ 35.300,00',
+      'R$ 11.950,00', 'R$ 27.350,00', 'R$ 2.000,00', '31,7%', '6,0 meses', '20,0%', 'R$ 35.300,00',
     ])
     // de quando é cada número: o resultado é do mês corrente até hoje; poupança e comprometimento, do último mês fechado
     expect(itens.map((x) => x.querySelector('[data-periodo]')?.textContent ?? null)).toEqual([
@@ -978,7 +978,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
       fireEvent.click(botao)
       return document.getElementById(botao.getAttribute('aria-controls')!)!.textContent
     }
-    expect(await texto('patrimonio')).toBe('Contas R$ 12.650,00 + bens R$ 50.000,00 + investimentos R$ 1.000,00 − dívidas R$ 35.300,00. Previdência e FGTS ainda não entram.')
+    expect(await texto('patrimonio')).toBe('Contas R$ 12.650,00 + bens R$ 50.000,00 − dívidas R$ 35.300,00, o mesmo de Análises. As contas de renda fixa, renda variável e cripto já estão nas contas; os investimentos cadastrados na carteira (R$ 1.000,00) aparecem à parte, em Investimentos, para não contar duas vezes. Previdência e FGTS ainda não entram.')
     expect(await texto('resultado')).toMatch(/^Receitas R\$ 6\.000,00 − despesas R\$ 4\.000,00 pagas neste mês até hoje.*data da fatura\.$/)
     expect(await texto('poupanca')).toBe('Outubro, o último mês fechado: (receitas R$ 6.000,00 − despesas R$ 4.100,00) ÷ receitas, sem as categorias que não contam como consumo. Azul a partir de 10%, vermelho abaixo de 0%.')
     expect(await texto('reserva')).toBe('Poupança / reserva R$ 3.000,00 ÷ despesa típica de R$ 500,00 por mês (mediana de 6 meses fechados, sem o que não conta como consumo). Azul a partir de 6 meses; vermelho abaixo de 3.')

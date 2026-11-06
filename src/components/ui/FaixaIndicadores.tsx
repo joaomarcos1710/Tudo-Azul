@@ -63,7 +63,7 @@ export function itensDaFaixa(d: Indicadores): Item[] {
     },
     {
       id: 'patrimonio', rotulo: 'Patrimônio total', valor: formatBRL(d.patrimonio), tom: tomDoValor(d.patrimonio), selo: rotuloDoSinal(d.patrimonio),
-      explicacao: `Contas ${formatBRL(d.contasTodas)}${d.creditoAReceber > 0 ? ` + crédito no cartão ${formatBRL(d.creditoAReceber)}` : ''} + bens ${formatBRL(d.bens)} + investimentos ${formatBRL(d.investimentos)} − dívidas ${formatBRL(d.dividas)}. Previdência e FGTS ainda não entram.`,
+      explicacao: `Contas ${formatBRL(d.contasTodas)}${d.creditoAReceber > 0 ? ` + crédito no cartão ${formatBRL(d.creditoAReceber)}` : ''} + bens ${formatBRL(d.bens)} − dívidas ${formatBRL(d.dividas)}, o mesmo de Análises. As contas de renda fixa, renda variável e cripto já estão nas contas; os investimentos cadastrados na carteira (${formatBRL(d.investimentos)}) aparecem à parte, em Investimentos, para não contar duas vezes. Previdência e FGTS ainda não entram.`,
     },
     {
       id: 'resultado', rotulo: 'Resultado do mês', periodo: 'Até hoje', valor: formatBRL(d.resultado), tom: tomDoValor(d.resultado), selo: rotuloDoSinal(d.resultado),

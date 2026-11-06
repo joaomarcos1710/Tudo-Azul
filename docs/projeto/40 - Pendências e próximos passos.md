@@ -42,15 +42,22 @@ atualizado: 2026-10-28
 - [x] **Aplicar a migration 073** em produção: aplicada em 06/11/2026 (execução 42198308981, merge `5e3c8ce`). Entrou antes do "este e os próximos" (que passa a ser a 074). Antes, conferir numa transação desfeita: Entradas x Saídas de um período com crédito de empréstimo ou conta nova, o Saldo da última linha contra o Calendário no último dia.
 - [ ] **Desempenho da 073 em produção**: `cash_flow_series` ganhou duas leituras pequenas (créditos de empréstimo do período e contas da família); não foi medida no volume de teste nesta PR. Medir no mês de novembro em produção (limite de 8 s).
 - [ ] **Decisão do dono — crédito de empréstimo**: entra como **entrada** no Relatório › Contas (é extrato) mas **não** em Entradas x Saídas (decisão de 03/11: não é receita). Agora o Saldo das duas telas bate; as colunas Entradas diferem por esse valor. Manter assim ou mostrar uma linha "Movimentos que não são entrada/saída" em Entradas x Saídas?
-- [ ] **Decisão do dono — patrimônio com investimentos em dobro**: o Patrimônio total do Início soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; Análises (`net_worth_with_assets`) não soma os investimentos. Os dois números diferem e o do Início pode contar o mesmo dinheiro duas vezes (ver também a seção da #188).
+- [x] **Decisão do dono — patrimônio com investimentos em dobro**: decidido em 06/11/2026 — o Patrimônio total do Início passa a ser o de Análises (`net_worth_with_assets`), sem somar a carteira (migration 075, #196).
 - [ ] **Decisão do dono — "Disponível"** inclui as contas Renda fixa, Renda variável e Cripto (os 7 tipos ativos). Dinheiro aplicado não está disponível para gastar no dia; decidir se o Disponível fica só com corrente, poupança/reserva, corretora (saldo a aplicar) e dinheiro.
 - [ ] **Decisão do dono — Relatório › Contas sem as contas arquivadas**: só contas ativas aparecem, então o total do relatório não fecha com o saldo total (que inclui as arquivadas com saldo). Mostrar as arquivadas com saldo ou movimento no período?
 - [ ] **Desempenho de `account_flow_report`**: chama `account_movements` uma vez por conta (`cross join lateral`); com muitas contas e anos de histórico pode passar do limite de 8 s. Medir e, se preciso, ler os movimentos numa passada só.
 - [ ] **Legado**: compra parcelada em dívida que não é cartão (`charge`/`credit` sem conta) entra no resultado de Entradas x Saídas sem mexer no saldo; desde a migration 008 parcelas só existem em cartão, então não deve haver nenhuma. Conferir em produção (`select count(*) from debt_events e join debts d on d.id = e.debt_id where d.kind <> 'card' and e.kind in ('charge','credit')`).
 
+### Um patrimônio só (#196, migration 075)
+- [x] Patrimônio total do Início = `net_worth_with_assets` (Análises), sem somar a carteira de Investimentos; `investments` continua no retorno e o (i) diz que a carteira fica à parte (#196).
+- [x] Apagar a tabela `public."Teste1"` criada à mão no painel (migration 075, `drop table if exists`).
+- [ ] **Aplicar a migration 075** em produção (simular → ler o log → aplicar, com o "pode" do dono), junto da publicação do front: antes dela, o (i) novo diz que a carteira fica à parte, mas o número do banco ainda a soma. No log da simulação, conferir o `drop table` do `Teste1`.
+- [ ] Conferir em produção (transação desfeita) que `home_indicators(...).net_worth = net_worth_with_assets(...).net_worth` para a família.
+- [ ] **Quem tinha só a carteira** (ativo em Investimentos sem a conta de renda fixa/variável/cripto correspondente) vê o Patrimônio total cair pelo valor da carteira. Se for o caso, cadastrar a conta ou esperar a ligação conta ↔ ativo.
+
 ### Faixa de indicadores do Início (#188, migration 071)
 - [ ] **Aplicar a migration 071** em produção (simular → ler o log → aplicar, com o "pode" do dono), depois da 070. Antes, conferir os números em produção numa transação desfeita (`begin; select * from public.home_indicators(<família>, current_date); rollback;`).
-- [ ] **Investimento contado duas vezes**: o Patrimônio total soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; se o mesmo dinheiro estiver nos dois, conta em dobro. Resolver com a ligação conta ↔ ativo (item da #186) ou escolher uma das fontes.
+- [x] **Investimento contado duas vezes**: resolvido escolhendo uma fonte — o patrimônio conta as contas; a carteira aparece à parte (migration 075, #196). A ligação conta ↔ ativo (item da #186) continua pendente.
 - [x] **Comprometimento e taxa de poupança no começo do mês** enganavam (73,7% e 71,6% em produção): passaram para o último mês fechado; o comprometimento usa a renda esperada (recorrentes) ou a recebida, a maior.
 - [x] **Reserva 0,0** com a média inflada por empréstimo, quitação e repasses: agora é a mediana, sem as categorias "não conta como consumo".
 - [x] **Marcar as categorias que não são consumo** (06/11/2026, a pedido do dono, depois da 071 aplicada): receita de empréstimo, os repasses de família (receita e despesa, subcategoria por subcategoria) e a subcategoria nova "Quitação de empréstimo" (em Financiamento e Empréstimos), para onde foram as liquidações de empréstimo. Quitações de anos anteriores ficaram onde estavam (fora da janela de 6 meses).
@@ -63,7 +70,7 @@ atualizado: 2026-10-28
 - [x] "Saldo hoje e previsto": o previsto do fim do mês ficou numa linha de Minhas contas.
 ### Recorrente: "Apenas este / Este e os próximos" (#194, migration 074)
 - [x] Pergunta ao salvar a edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria (Lançamentos, no celular e na tabela); "Este e os próximos" pela `recurrence_update_from` (#194).
-- [ ] **Aplicar a migration 074** em produção (simular → ler o log → aplicar, com o "pode" do dono), **antes** de publicar o front: sem ela, "Este e os próximos" dá erro (o "Apenas este" funciona).
+- [x] **Aplicar a migration 074** em produção: aplicada em 06/11/2026 (execução 42203309171, merge `67fa25a`).
 - [ ] Conferir no iPad/celular: editar a conta de luz de um mês (dia e valor), escolher "Este e os próximos" e ver os meses seguintes no Calendário e em Recorrentes; um mês já pago e um corrigido à mão ficam como estavam.
 - [ ] **Marcar pago não pergunta** (decisão em [[30 - Decisões]]): confirmar com o dono.
 - [ ] Assinatura de cartão: "este e os próximos" não existe (ocorrência é parcela da fatura). Se fizer falta, a edição em Recorrentes já muda valor/descrição/categoria; o dia continua sem mudar.
