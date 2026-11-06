@@ -421,7 +421,7 @@ export async function editarLancamento(id: string, d: DadosLancamento): Promise<
 
 /**
  * Editar um lançamento que veio de um recorrente pergunta "Este lançamento se repete em outras datas. O que deseja
- * fazer?" (pedido do dono, #191, como no Organizze) só quando muda o que a regra tem: valor, data, descrição ou
+ * fazer?" (pedido do dono, #193, como no Organizze) só quando muda o que a regra tem: valor, data, descrição ou
  * categoria. Situação (pago/planejado), observação e conta não perguntam (valem só para este). Trocar o tipo também não:
  * a regra não muda de tipo, então vale só para este.
  */
@@ -432,7 +432,7 @@ export function perguntaSeRepete(original: Lancamento, novo: DadosLancamento): b
 }
 
 /**
- * "Este e os próximos" (migration 073, recurrence_update_from): o banco muda esta ocorrência e a regra (valor,
+ * "Este e os próximos" (migration 074, recurrence_update_from): o banco muda esta ocorrência e a regra (valor,
  * descrição, categoria e, se a data mudou, o dia), e as próximas planejadas que ninguém corrigiu acompanham; pagas, na
  * lixeira e corrigidas à mão ficam. Situação, observação e conta (e o destino da transferência) vão na MESMA chamada e
  * valem só para este: o banco grava tudo ou nada (período conciliado, conta desativada etc. recusam sem mudar a regra).

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Cents } from './format'
 
-// "Este e os próximos" (migration 073): o nome e os parâmetros da RPC têm de bater com o banco; uma chamada só (sem UPDATE depois)
+// "Este e os próximos" (migration 074): o nome e os parâmetros da RPC têm de bater com o banco; uma chamada só (sem UPDATE depois)
 const fake = vi.hoisted(() => {
   const chamadas: unknown[][] = []
   const resposta: { data: unknown; error: unknown } = { data: 4, error: null }
@@ -32,7 +32,7 @@ const dados: DadosLancamento = {
 
 beforeEach(() => { fake.chamadas.length = 0; fake.resposta.data = 4; fake.resposta.error = null })
 
-describe('perguntaSeRepete (#191)', () => {
+describe('perguntaSeRepete (#193)', () => {
   it('pergunta quando o recorrente muda valor, data, descrição ou categoria', () => {
     expect(perguntaSeRepete(luz, { ...dados, valor: c(12000) })).toBe(true)
     expect(perguntaSeRepete(luz, { ...dados, data: '2026-11-15' })).toBe(true)
@@ -49,7 +49,7 @@ describe('perguntaSeRepete (#191)', () => {
   })
 })
 
-describe('editarEsteEProximos (migration 073)', () => {
+describe('editarEsteEProximos (migration 074)', () => {
   it('UMA chamada: recurrence_update_from com o formulário inteiro (valor em decimal dos centavos, situação, observação, conta)', async () => {
     expect(await editarEsteEProximos('r1', { ...dados, valor: c(12050), data: '2026-11-15', descricao: ' Luz nova ', status: 'paid', notas: ' x ', contaId: 'a2' })).toBe(4)
     expect(fake.chamadas).toEqual([['rpc', 'recurrence_update_from', {

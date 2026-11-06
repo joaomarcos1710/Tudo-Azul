@@ -1173,7 +1173,7 @@ describe('multimoeda F2 (migration 056)', () => {
   })
 })
 
-describe('editar um lançamento recorrente pergunta "Apenas este / Este e os próximos" (#191)', () => {
+describe('editar um lançamento recorrente pergunta "Apenas este / Este e os próximos" (#193)', () => {
   const luz = { id: 'r1', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'mer', descricao: 'Luz', valor: c(10000), data: '2026-10-10', status: 'planned', notas: '', recorrente: true }
 
   async function editar(l: Record<string, unknown>) {

@@ -22,6 +22,20 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Auditoria de dinheiro (#191, migration 073, 06/11/2026)
+- [x] **C1 (crítico) Saldo de Entradas x Saídas** não contava o crédito de empréstimo na conta nem o saldo inicial de conta aberta no período (ex.: terminava setembro em 0,00 em vez de 7.000): `cash_flow_series` soma essas variações só no Saldo (migration 073). Entradas, saídas e resultado não mudam.
+- [x] **I1 Recorrente em conta arquivada** contava no resumo dos recorrentes e na renda regular esperada do Início (073).
+- [x] **I2 "Resultado do mês — Até hoje"** contava o pago com data futura (073).
+- [x] **M1 Orçamento exatamente no limite**: "Chegou ao limite." em vez de "sobram R$ 0,00"; a barra do Início usa as faixas de `faixaOrcamento` (sem migration).
+- [x] **Aplicar a migration 073** em produção: aplicada em 06/11/2026 (execução 42198308981, merge `5e3c8ce`). Entrou antes do "este e os próximos" (que passa a ser a 074). Antes, conferir numa transação desfeita: Entradas x Saídas de um período com crédito de empréstimo ou conta nova, o Saldo da última linha contra o Calendário no último dia.
+- [ ] **Desempenho da 073 em produção**: `cash_flow_series` ganhou duas leituras pequenas (créditos de empréstimo do período e contas da família); não foi medida no volume de teste nesta PR. Medir no mês de novembro em produção (limite de 8 s).
+- [ ] **Decisão do dono — crédito de empréstimo**: entra como **entrada** no Relatório › Contas (é extrato) mas **não** em Entradas x Saídas (decisão de 03/11: não é receita). Agora o Saldo das duas telas bate; as colunas Entradas diferem por esse valor. Manter assim ou mostrar uma linha "Movimentos que não são entrada/saída" em Entradas x Saídas?
+- [ ] **Decisão do dono — patrimônio com investimentos em dobro**: o Patrimônio total do Início soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; Análises (`net_worth_with_assets`) não soma os investimentos. Os dois números diferem e o do Início pode contar o mesmo dinheiro duas vezes (ver também a seção da #188).
+- [ ] **Decisão do dono — "Disponível"** inclui as contas Renda fixa, Renda variável e Cripto (os 7 tipos ativos). Dinheiro aplicado não está disponível para gastar no dia; decidir se o Disponível fica só com corrente, poupança/reserva, corretora (saldo a aplicar) e dinheiro.
+- [ ] **Decisão do dono — Relatório › Contas sem as contas arquivadas**: só contas ativas aparecem, então o total do relatório não fecha com o saldo total (que inclui as arquivadas com saldo). Mostrar as arquivadas com saldo ou movimento no período?
+- [ ] **Desempenho de `account_flow_report`**: chama `account_movements` uma vez por conta (`cross join lateral`); com muitas contas e anos de histórico pode passar do limite de 8 s. Medir e, se preciso, ler os movimentos numa passada só.
+- [ ] **Legado**: compra parcelada em dívida que não é cartão (`charge`/`credit` sem conta) entra no resultado de Entradas x Saídas sem mexer no saldo; desde a migration 008 parcelas só existem em cartão, então não deve haver nenhuma. Conferir em produção (`select count(*) from debt_events e join debts d on d.id = e.debt_id where d.kind <> 'card' and e.kind in ('charge','credit')`).
+
 ### Faixa de indicadores do Início (#188, migration 071)
 - [ ] **Aplicar a migration 071** em produção (simular → ler o log → aplicar, com o "pode" do dono), depois da 070. Antes, conferir os números em produção numa transação desfeita (`begin; select * from public.home_indicators(<família>, current_date); rollback;`).
 - [ ] **Investimento contado duas vezes**: o Patrimônio total soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; se o mesmo dinheiro estiver nos dois, conta em dobro. Resolver com a ligação conta ↔ ativo (item da #186) ou escolher uma das fontes.
@@ -35,17 +49,17 @@ atualizado: 2026-10-28
 - [ ] **Preferência antiga dos widgets** (`tudo-azul:dashboard-widgets:<usuário>`) fica sem uso no aparelho; inofensiva.
 - [x] Personalização dos widgets do Início saiu (substituída pela faixa fixa de 7).
 - [x] "Saldo hoje e previsto": o previsto do fim do mês ficou numa linha de Minhas contas.
-### Recorrente: "Apenas este / Este e os próximos" (#191, migration 073)
-- [x] Pergunta ao salvar a edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria (Lançamentos, no celular e na tabela); "Este e os próximos" pela `recurrence_update_from` (#191).
-- [ ] **Aplicar a migration 073** em produção (simular → ler o log → aplicar, com o "pode" do dono), **antes** de publicar o front: sem ela, "Este e os próximos" dá erro (o "Apenas este" funciona).
+### Recorrente: "Apenas este / Este e os próximos" (#193, migration 074)
+- [x] Pergunta ao salvar a edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria (Lançamentos, no celular e na tabela); "Este e os próximos" pela `recurrence_update_from` (#193).
+- [ ] **Aplicar a migration 074** em produção (simular → ler o log → aplicar, com o "pode" do dono), **antes** de publicar o front: sem ela, "Este e os próximos" dá erro (o "Apenas este" funciona).
 - [ ] Conferir no iPad/celular: editar a conta de luz de um mês (dia e valor), escolher "Este e os próximos" e ver os meses seguintes no Calendário e em Recorrentes; um mês já pago e um corrigido à mão ficam como estavam.
 - [ ] **Marcar pago não pergunta** (decisão em [[30 - Decisões]]): confirmar com o dono.
 - [ ] Assinatura de cartão: "este e os próximos" não existe (ocorrência é parcela da fatura). Se fizer falta, a edição em Recorrentes já muda valor/descrição/categoria; o dia continua sem mudar.
-- [x] Situação, observação e conta dentro da RPC: "Este e os próximos" é uma chamada só, tudo ou nada (revisão de dinheiro, #191).
-- [x] Revisão de dinheiro (#191): ocorrência antes do começo atual da série é recusada (evita ocorrências em dobro e datas mudadas sem pedido); nova data só entre a anterior e a seguinte e, no mensal, no mês da ocorrência; família conferida antes de qualquer outra recusa; recorrente encerrado, categoria desativada nova e despesa/receita sem categoria recusados.
+- [x] Situação, observação e conta dentro da RPC: "Este e os próximos" é uma chamada só, tudo ou nada (revisão de dinheiro, #193).
+- [x] Revisão de dinheiro (#193): ocorrência antes do começo atual da série é recusada (evita ocorrências em dobro e datas mudadas sem pedido); nova data só entre a anterior e a seguinte e, no mensal, no mês da ocorrência; família conferida antes de qualquer outra recusa; recorrente encerrado, categoria desativada nova e despesa/receita sem categoria recusados.
 - [ ] Depois de um "este e os próximos" com data nova, as ocorrências **anteriores** a ela não aceitam mais "este e os próximos" (só "Apenas este"). Se fizer falta mudar o valor de toda a série de uma vez, a edição em Recorrentes (`recurrence_update`) continua valendo para os planejados de hoje em diante.
 - [ ] Mudar a **frequência** de um recorrente continua sendo excluir e cadastrar outro.
-- [ ] **Folha trata o Esc na captura** (#191, para fechar só a pergunta e não o formulário de trás): o Esc dentro de uma Folha não chega mais a controles internos que usam Esc (ex.: um campo que limparia com Esc); com duas Folhas abertas, as duas escutam na captura. Revisar quando unificar os painéis (`PainelLancamento` → `ui/Folha`), com uma pilha de painéis.
+- [ ] **Folha trata o Esc na captura** (#193, para fechar só a pergunta e não o formulário de trás): o Esc dentro de uma Folha não chega mais a controles internos que usam Esc (ex.: um campo que limparia com Esc); com duas Folhas abertas, as duas escutam na captura. Revisar quando unificar os painéis (`PainelLancamento` → `ui/Folha`), com uma pilha de painéis.
 
 ### Etiquetas nas contas (#189, migration 072)
 - [x] Etiquetas livres por família: criar, renomear, apagar, marcar até 10 por conta; selos, filtro e seção "Etiquetas" em Contas; coluna na exportação completa (#189).
@@ -58,7 +72,7 @@ atualizado: 2026-10-28
 - [ ] Etiquetas fora da tela Contas (seletor de conta em Lançamentos, Início › Minhas contas): não pedido; avaliar com o dono.
 
 ### Tipos de conta (#186, migration 070)
-- [ ] **Aplicar a migration 070** em produção (simular → ler o log → aplicar, com o "pode" do dono). Depois da 069 (saldo projetado, outra PR).
+- [x] **Aplicar a migration 070** em produção (aplicada em 05/11/2026, execução 42136165202) (simular → ler o log → aplicar, com o "pode" do dono). Depois da 069 (saldo projetado, outra PR).
 - [ ] **Ajustar conta por conta** pelo app (Contas › Editar › Tipo): as que eram Investimento viraram Renda fixa e as Outra viraram Conta corrente; conferir cada uma (ex.: a conta da corretora que não rende → Corretora (saldo a aplicar)).
 - [ ] **Vincular a corretora aos ativos de Investimentos** (custódia): a conta `brokerage` como a corretora dos ativos — ainda não existe ligação entre conta e ativo.
 - [ ] **Início (Minhas contas)** não agrupa por tipo (é a lista de saldos de hoje); só ganhou os ícones por tipo, sem mexer em `VisaoGeral.tsx`. Se o dono quiser os tipos no Início (ex.: subtotal por tipo), é outra PR.
@@ -229,7 +243,7 @@ atualizado: 2026-10-28
 - [x] **App**: PR #66 mesclado depois da 016 aplicada.
 - [ ] Conferir no app, depois dos dois merges: cadastrar uma quinzenal e a PLR anual de teste e ver os planejados em Lançamentos e no Calendário.
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
-- [x] **Mudar o dia** de um recorrente em conta: em Lançamentos, editar a ocorrência e escolher "Este e os próximos" (#191, migration 073).
+- [x] **Mudar o dia** de um recorrente em conta: em Lançamentos, editar a ocorrência e escolher "Este e os próximos" (#193, migration 074).
 - [x] **Recorrentes agrupados por frequência e totais por mês no cartão/na conta** (#173): migration 063 (`recurrence_summary`) **não aplicada** — aplicar pelo workflow (simular → log → `APLICAR`) com o seu "pode" **antes** de publicar o front (sem ela a tela Recorrentes mostra erro ao carregar).
 - [ ] Conferir no iPad/celular: os cartões do topo, as abas Conta/Cartão e os totais de cada grupo com os seus recorrentes reais.
 - [ ] Recorrentes em outra moeda ficam fora dos totais (só um aviso com a quantidade). Se quiser, um total por moeda depois.

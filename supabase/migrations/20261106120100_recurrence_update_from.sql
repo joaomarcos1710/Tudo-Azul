@@ -1,6 +1,6 @@
--- Tudo Azul — migration 073: editar um lançamento recorrente e escolher "Este e os próximos"
+-- Tudo Azul — migration 074: editar um lançamento recorrente e escolher "Este e os próximos"
 --
--- Pedido do dono (06/11/2026, #191): "Eu mudei a data e o valor de um pagamento recorrente. Isso deveria recolocar para
+-- Pedido do dono (06/11/2026, #193): "Eu mudei a data e o valor de um pagamento recorrente. Isso deveria recolocar para
 -- os outros meses, contudo deveria aparecer a mensagem" (o diálogo do Organizze: "Este lançamento se repete em outras
 -- datas. O que deseja fazer?" → Atualizar apenas este · Este e os próximos · Cancelar).
 --
@@ -35,7 +35,7 @@
 --      que vale para todas): "este e os próximos" é daqui em diante.
 --   4. O que ainda não foi gerado sai da regra nova na próxima recurrence_materialize (o app chama ao abrir).
 --
--- Limites (decisão do dono, #191):
+-- Limites (decisão do dono, #193):
 --   * a data nova fica ESTRITAMENTE entre a ocorrência anterior e a seguinte (datas reais e chaves; sem vizinha gerada,
 --     a posição vizinha da série) e, no mensal, dentro do mês da ocorrência (no bimestral em diante, dos N meses dela).
 --     Mudar de mês (ou de semana) é "Atualizar apenas este": senão um mês ficaria com duas e outro vazio;
@@ -60,7 +60,7 @@
 -- Gatilhos de sempre: transactions_guard (centavos, conta desativada/abertura), transactions_period_guard (período
 -- conciliado; mudar só a chave não dispara), recurrences_money_guard e os CHECKs da regra.
 -- Atalho: o "editado à mão" é a diferença com a regra (mesma marca da 015); editar um campo para exatamente o valor da
--- regra continua acompanhando. Teste: 73_recurrence_update_from (falha sem esta migration).
+-- regra continua acompanhando. Teste: 74_recurrence_update_from (falha sem esta migration).
 
 -- Data da j-ésima ocorrência de uma série que tem `p_anchor` como ocorrência 0 (mesma regra de recurrence_occurrences:
 -- mês = dia fixo limitado ao último dia do mês; semana e dia = anchor + j×passo).
@@ -180,7 +180,7 @@ begin
                 when v_mudou_data then extract(day from p_date)::int
                 else v.day end;
 
-  -- Trocar de período (decisão do dono, #191): a data nova fica ESTRITAMENTE entre a ocorrência anterior e a seguinte,
+  -- Trocar de período (decisão do dono, #193): a data nova fica ESTRITAMENTE entre a ocorrência anterior e a seguinte,
   -- pelas datas reais e pelas chaves (a anterior pode ter sido movida à mão). Fora disso um mês ficaria com duas e outro
   -- vazio. Sem anterior/seguinte gerada, o limite é a posição vizinha na série.
   if p_date <> t.date then

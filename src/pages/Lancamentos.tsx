@@ -612,7 +612,7 @@ function PainelPagar({ lancamento: l, nomeConta, moeda, aoConfirmar, aoCancelar 
 }
 
 /**
- * A pergunta do Organizze ao editar um lançamento que se repete (#191), na Folha do app (foco preso, Esc e × cancelam,
+ * A pergunta do Organizze ao editar um lançamento que se repete (#193), na Folha do app (foco preso, Esc e × cancelam,
  * o foco começa no botão principal). Cancelar não grava nada e volta ao formulário com o que foi digitado.
  */
 function PerguntaRecorrente({ aoEscolher, aoCancelar }: { aoEscolher: (escolha: 'este' | 'proximos') => void; aoCancelar: () => void }) {
@@ -707,7 +707,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     return ultimo && cartoes.some((c) => c.id === ultimo && c.ativo && c.fechamento !== null) ? ultimo : ''
   })
   const [registrado, setRegistrado] = useState('')
-  // edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria: a pergunta antes de gravar (#191)
+  // edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria: a pergunta antes de gravar (#193)
   const [pergunta, setPergunta] = useState<DadosLancamento | null>(null)
   const outroRef = useRef(false)
   const [parcelasTexto, setParcelasTexto] = useState('1')
