@@ -746,6 +746,21 @@ describe('Visão geral', () => {
     expect(within(card).getByRole('link', { name: 'Ver todos' }).getAttribute('href')).toBe('/orcamentos')
   })
 
+  it('orçamentos do mês: a barra usa as faixas da tela de Orçamentos (100% exato = vermelho, "Chegou ao limite") (#191)', async () => {
+    const o = (id: string, nome: string, gasto: number, sobra: number | null) =>
+      ({ categoriaId: id, nome, limite: c(100000), gasto: c(gasto), previsto: null, ritmo: null, projetado: null, sobra: sobra === null ? null : c(sobra) })
+    mock.listarOrcamentos.mockResolvedValue([
+      o('a', 'Lazer', 100000, 0), o('b', 'Mercado', 90000, 10000), o('c', 'Saúde', 70000, 30000), o('d', 'Moradia', 40000, 60000),
+    ])
+    montar()
+    const card = (await screen.findByText('Orçamentos do mês')).closest('div[class*="rounded"]') as HTMLElement
+    const barras = [...card.querySelectorAll('[data-faixa]')]
+    expect(barras.map((b) => b.getAttribute('data-faixa'))).toEqual(['estourou', 'perto', 'atencao', 'tranquilo'])
+    expect(barras.map((b) => b.className.match(/bg-\S+/)?.[0])).toEqual(['bg-prejuizo-marca', 'bg-prejuizo-claro', 'bg-atencao-marca', 'bg-lucro-marca'])
+    expect(within(card).getByText('Chegou ao limite')).toBeTruthy()
+    expect(within(card).queryByText('Passou do limite')).toBeNull()
+  })
+
   it('a faixa de indicadores fica logo abaixo do cabeçalho, antes dos vencidos (#188); os avisos continuam no alto', async () => {
     mock.vencidosPlanejados.mockResolvedValue({ itens: [{ id: 't9', tipo: 'expense', descricao: 'Luz', valor: c(18000), data: '2026-10-01', categoriaId: null, contaId: null, destinoId: null }], total: 1 })
     montar()

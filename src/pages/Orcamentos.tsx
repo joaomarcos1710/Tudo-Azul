@@ -195,6 +195,11 @@ function Situacao({ o, emAndamento }: { o: OrcamentoMes; emAndamento: boolean })
   if (o.gasto > o.limite) {
     return <p className="mt-2 text-sm font-medium text-prejuizo">Já passou do limite em {formatBRL(-o.restante as Cents)}.</p>
   }
+  if (o.gasto === o.limite) {
+    // exatamente no limite (centavos do banco, sem conta na tela): a barra já é vermelha (100% = estourou, decisão do
+    // dono); dizer "sobram R$ 0,00" soava como folga
+    return <p className="mt-2 text-sm font-medium text-prejuizo">Chegou ao limite.</p>
+  }
   if (!emAndamento) {
     // mês passado ou futuro: sem ritmo; "sobra" já desconta o que está previsto (ex.: parcela de cartão que ainda vai fechar)
     if (o.sobra !== null && o.sobra < 0) {

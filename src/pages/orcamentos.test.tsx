@@ -75,6 +75,33 @@ describe('Orçamentos', () => {
     expect(screen.queryByText(/No ritmo/)).toBeNull()
   })
 
+  it('gasto exatamente no limite: "Chegou ao limite." (barra vermelha), nunca "sobram R$ 0,00" (#191)', async () => {
+    // no mês corrente (com projeção) e num mês passado (sem projeção): os centavos do banco são iguais
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(100000), restante: c(0), projetado: c(100000), sobra: c(0) })])
+    const u = userEvent.setup()
+    const { container } = render(<Orcamentos />)
+    const aviso = await screen.findByText('Chegou ao limite.')
+    expect(aviso.className).toMatch(/text-prejuizo/)
+    expect(screen.queryByText(/sobram/)).toBeNull()
+    expect(screen.queryByText(/passou do limite/i)).toBeNull()
+    expect(container.querySelector('[data-faixa]')?.getAttribute('data-faixa')).toBe('estourou')
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(100000), restante: c(0), previsto: null, ritmo: null, projetado: null, sobra: null })])
+    await u.click(screen.getByRole('button', { name: 'Mês anterior' }))
+    await vi.waitFor(() => expect(mock.listarOrcamentos).toHaveBeenLastCalledWith('h1', '2026-09', '2026-10-10'))
+    expect(await screen.findByText('Chegou ao limite.')).toBeTruthy()
+    expect(screen.queryByText(/sobram/)).toBeNull()
+  })
+
+  it('um centavo abaixo do limite: ainda dentro, sobra R$ 0,01', async () => {
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(99999), restante: c(1), previsto: null, ritmo: null, projetado: null, sobra: null })])
+    const u = userEvent.setup()
+    render(<Orcamentos />)
+    await screen.findByText('Mercado')
+    await u.click(screen.getByRole('button', { name: 'Mês anterior' }))
+    expect(await screen.findByText(/Ainda dentro do limite: sobram R\$ 0,01/)).toBeTruthy()
+    expect(screen.queryByText('Chegou ao limite.')).toBeNull()
+  })
+
   it('mês passado: sem projeção, só o resultado', async () => {
     mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(90000), previsto: null, ritmo: null, projetado: null, sobra: null, restante: c(10000) })])
     const u = userEvent.setup()

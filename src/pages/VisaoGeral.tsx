@@ -41,7 +41,7 @@ import { fluxoDeCaixa } from '../lib/fluxoCaixa'
 import type { SaldoTotal } from '../lib/saldoProjetado'
 import { listarOrcamentos } from '../lib/orcamentos'
 import type { OrcamentoMes } from '../lib/orcamentos'
-import { corDoTipo, corDoValor } from '../lib/cores'
+import { BARRA_ORCAMENTO, corDoTipo, corDoValor, faixaOrcamento } from '../lib/cores'
 import { carregarIndicadores } from '../lib/indicadores'
 import type { Indicadores } from '../lib/indicadores'
 import { FaixaIndicadores } from '../components/ui/FaixaIndicadores'
@@ -767,7 +767,10 @@ function OrcamentosDoInicio({ orcamentos }: { orcamentos: OrcamentoMes[] }) {
           // largura da barra: razão entre dois valores do banco (apresentação, não soma de dinheiro)
           const pct = o.limite > 0 ? Math.min(100, Math.round((o.gasto / o.limite) * 100)) : 100
           const estourou = o.gasto > o.limite
-          const vaiEstourar = !estourou && o.sobra !== null && o.sobra < 0
+          const noLimite = o.gasto === o.limite
+          const vaiEstourar = !estourou && !noLimite && o.sobra !== null && o.sobra < 0
+          // a cor da barra é a mesma da tela de Orçamentos (faixas 50/70/90/100% de lib/cores; 100% = vermelho)
+          const faixa = faixaOrcamento(o.gasto, o.limite)
           return (
             <li key={o.categoriaId}>
               <div className="flex items-baseline justify-between gap-2 text-sm">
@@ -776,9 +779,10 @@ function OrcamentosDoInicio({ orcamentos }: { orcamentos: OrcamentoMes[] }) {
               </div>
               <div className="mt-1 h-2 rounded-full bg-slate-100" role="progressbar" aria-label={`${o.nome}: ${pct}% do orçamento`}
                 aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-                <div className={`h-2 rounded-full ${estourou ? 'bg-prejuizo-marca' : vaiEstourar ? 'bg-atencao-marca' : 'bg-lucro-marca'}`} style={{ width: `${pct}%` }} />
+                <div data-faixa={faixa} className={`h-2 rounded-full ${BARRA_ORCAMENTO[faixa]}`} style={{ width: `${pct}%` }} />
               </div>
               {estourou && <p className="mt-1 text-xs font-semibold text-prejuizo">Passou do limite</p>}
+              {noLimite && <p className="mt-1 text-xs font-semibold text-prejuizo">Chegou ao limite</p>}
               {vaiEstourar && <p className="mt-1 text-xs text-atencao">Atenção: no ritmo atual, vai passar do limite</p>}
             </li>
           )
