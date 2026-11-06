@@ -127,6 +127,14 @@ describe('Entradas x Saídas: o período escolhido, fatiado pela divisão', () =
     expect(screen.queryByText(/12 meses até/)).toBeNull()
   })
 
+  it('auditoria 5h (axe): a caixa rolável da tabela recebe foco pelo teclado e tem nome', async () => {
+    render(<EntradasSaidas />)
+    await screen.findByRole('table')
+    const caixa = screen.getByTestId('caixa-tabela')
+    expect(caixa.getAttribute('tabindex')).toBe('0')
+    expect(screen.getByRole('region', { name: 'Tabela de entradas e saídas por dia' })).toBe(caixa)
+  })
+
   it('período da página (o mesmo da aba Contas): usa o recebido, começa numa divisão que vale nele e avisa a página ao trocar', async () => {
     const u = userEvent.setup()
     const aoMudar = vi.fn()

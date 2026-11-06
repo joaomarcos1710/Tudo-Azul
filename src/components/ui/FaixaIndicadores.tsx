@@ -120,7 +120,7 @@ function Indicador({ item }: { item: Item }) {
         <span data-selo className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${SELO_TOM[item.tom]}`}>{item.selo}</span>
         <button type="button" onClick={() => setAberto((v) => !v)} aria-expanded={aberto} aria-controls={id}
           aria-label={`Como é calculado: ${item.rotulo}`}
-          className="-my-1 -mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-marinho">
+          className="-my-2 -mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-marinho">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
             <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
           </svg>

@@ -159,7 +159,13 @@ describe('Lançamentos no computador: tabela', () => {
     // a fatura é linha especial: sem caixa de seleção, expansível
     const linhaFatura = screen.getByText('Fatura Nubank').closest('tr') as HTMLElement
     expect(within(linhaFatura).queryByRole('checkbox')).toBeNull()
-    await userEvent.setup().click(within(linhaFatura).getByRole('button', { name: 'Ver compras' }))
+    // auditoria 5h: as ações da fatura ficam no menu ⋯ (dois botões soltos faziam a tabela rolar de lado a 1280px)
+    expect(within(linhaFatura).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Ações da fatura Nubank'])
+    expect(within(linhaFatura).queryByRole('link')).toBeNull()
+    const uf = userEvent.setup()
+    await uf.click(within(linhaFatura).getByRole('button', { name: 'Ações da fatura Nubank' }))
+    expect(within(linhaFatura).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Ver compras', 'Ver em Cartões'])
+    await uf.click(within(linhaFatura).getByRole('menuitem', { name: 'Ver compras' }))
     expect(await screen.findByRole('list', { name: 'Compras da fatura Nubank' })).toBeTruthy()
     // sem lista por dia no desktop
     expect(screen.queryByRole('region', { name: '15/10/2026' })).toBeNull()
@@ -351,7 +357,8 @@ describe('Lançamentos no computador: tabela', () => {
     expect(within(linhaFatura).getByText('R$ 440,00')).toBeTruthy()
     expect(within(linhaFatura).getByText('fecha 17/10')).toBeTruthy()
     expect(screen.queryByText('Estorno de IOF')).toBeNull()
-    await u.click(within(linhaFatura).getByRole('button', { name: 'Ver compras' }))
+    await u.click(within(linhaFatura).getByRole('button', { name: 'Ações da fatura Nubank' }))
+    await u.click(within(linhaFatura).getByRole('menuitem', { name: 'Ver compras' }))
     const lista = await screen.findByRole('list', { name: 'Créditos e reembolsos da fatura Nubank' })
     expect(within(lista).getByText('+R$ 10,00').className).toContain('text-lucro')
   })

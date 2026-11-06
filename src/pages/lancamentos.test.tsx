@@ -90,6 +90,9 @@ const lancs = [
   { id: 't3', tipo: 'transfer', contaId: 'a1', destinoId: 'a2', categoriaId: null, descricao: '', valor: c(10000), data: '2026-10-05', status: 'paid', notas: '' },
 ]
 
+/** Os mesmos lançamentos, com o planejado (Salário) numa data futura: planejado com data passada vira "Vencido". */
+const lancsComPlanejadoFuturo = () => lancs.map((l) => (l.id === 't2' ? { ...l, data: '2099-10-05' } : l))
+
 beforeEach(() => {
   window.localStorage.clear() // a conta/cartão lembrados de um teste não podem vazar para o próximo
   automaticos.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: true, faturasOk: true })
@@ -135,6 +138,7 @@ describe('datas do mês', () => {
 
 describe('Lançamentos', () => {
   it('lista por dia com sinais do design system e totais vindos do banco', async () => {
+    mock.listarLancamentos.mockResolvedValue(lancsComPlanejadoFuturo())
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     expect((await screen.findAllByText('−R$ 250,50')).length).toBe(2) // item da lista e card de despesas pagas
     expect(screen.getAllByText('+R$ 8.000,00').length).toBe(2) // item planejado da lista e "Planejado:" do resultado
@@ -620,6 +624,7 @@ describe('Lançamentos', () => {
 
   describe('layout da linha na lista (abaixo de 1024px)', () => {
     it('valor em elemento próprio, sem quebra, fora do bloco do título; ações no menu ⋯ e "Marcar pago" em 1 toque', async () => {
+      mock.listarLancamentos.mockResolvedValue(lancsComPlanejadoFuturo())
       const u = userEvent.setup()
       render(<MemoryRouter><Lancamentos /></MemoryRouter>)
       const titulo = await screen.findByText('Salário', { selector: '.line-clamp-2' })
@@ -849,6 +854,13 @@ describe('Formulário de lançamento (novo visual)', () => {
     const abas = screen.getByRole('radiogroup', { name: 'Tipo do lançamento' })
     expect(within(abas).getAllByRole('radio').map((r) => r.getAttribute('aria-label')))
       .toEqual(['Despesa', 'Receita', 'Transferência', 'Cartão de crédito'])
+    // auditoria 5h: uma linha só também a 390px (flex sem grade de 2 colunas, sem quebra; "Transf." abreviado no celular)
+    expect(abas.className).toMatch(/(^| )flex( |$)/)
+    expect(abas.className).not.toContain('grid-cols-2')
+    for (const r of within(abas).getAllByRole('radio')) expect(r.className).toContain('whitespace-nowrap')
+    const transf = within(abas).getByRole('radio', { name: 'Transferência' })
+    expect(within(transf).getByText('Transf.').className).toContain('sm:hidden')
+    expect(within(transf).getByText('Transferência').className).toContain('hidden sm:inline')
     expect(screen.getByRole('button', { name: 'Registrar despesa' })).toBeTruthy()
     await u.click(within(abas).getByRole('radio', { name: 'Receita' }))
     expect(screen.getByRole('button', { name: 'Registrar receita' })).toBeTruthy()
@@ -949,7 +961,7 @@ describe('Subcategoria na ordem e no nome', () => {
   })
   it('parcela planejada do contrato aparece no mês, marcada como planejada, com Baixar parcela, e fora dos totais', async () => {
     mock.listarParcelasDivida.mockResolvedValue([
-      { id: 's3', dividaId: 'd1', nomeDivida: 'Financiamento do imóvel', numero: 3, vencimento: '2026-10-20', valor: c(150000), formaPagamento: 'account_debit', contaPagamentoId: 'a1' },
+      { id: 's3', dividaId: 'd1', nomeDivida: 'Financiamento do imóvel', numero: 3, vencimento: '2099-10-20', valor: c(150000), formaPagamento: 'account_debit', contaPagamentoId: 'a1' },
     ])
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const linha = (await screen.findByText(/Financiamento do imóvel · parcela 3/)).closest('li')!
@@ -1168,5 +1180,88 @@ describe('multimoeda F2 (migration 056)', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
     expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
+  })
+})
+
+describe('auditoria de design e acessibilidade (5h)', () => {
+  it('painel de lançamento: o foco começa no formulário, o Tab não sai, o Esc fecha e o foco volta ao "+ Lançamento"', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const novo = await screen.findByRole('button', { name: '+ Lançamento' })
+    await u.click(novo)
+    await u.click(screen.getByRole('menuitem', { name: /Nova despesa/ }))
+    const painel = screen.getByRole('dialog', { name: 'Novo lançamento' })
+    const form = painel.querySelector('form') as HTMLFormElement
+    expect(form.contains(document.activeElement)).toBe(true)
+    // o Tab dá a volta dentro do painel, nos dois sentidos
+    const focaveis = Array.from(painel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'))
+    focaveis[focaveis.length - 1].focus()
+    await u.tab()
+    expect(document.activeElement).toBe(focaveis[0])
+    await u.tab({ shift: true })
+    expect(document.activeElement).toBe(focaveis[focaveis.length - 1])
+    await u.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: '+ Lançamento' }))
+  })
+
+  it('editar pelo menu ⋯: ao fechar, o foco volta para o ⋯ da linha', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const menu = await screen.findByRole('button', { name: 'Ações de Supermercado' })
+    await u.click(menu)
+    await u.click(screen.getByRole('menuitem', { name: 'Editar' }))
+    const painel = screen.getByRole('dialog', { name: 'Editar lançamento' })
+    expect(painel.contains(document.activeElement)).toBe(true)
+    await u.click(within(painel).getByRole('button', { name: 'Fechar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Ações de Supermercado' }))
+  })
+
+  it('menu "+ Lançamento" abre para a direita no celular (não sai da tela) e esconde a dica de tecla em tela pequena/toque', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: '+ Lançamento' }))
+    const menu = screen.getByRole('menu', { name: 'Novo lançamento' })
+    expect(menu.className).toMatch(/(^| )left-0( |$)/)
+    expect(menu.className).toContain('sm:left-auto')
+    expect(menu.className).toContain('sm:right-0')
+    expect(menu.className).not.toMatch(/(^| )right-0( |$)/)
+    const dica = within(menu).getByText('tecla D')
+    expect(dica.className).toMatch(/(^| )hidden( |$)/)
+    expect(dica.className).toContain('sm:inline')
+    expect(dica.className).toContain('[@media(pointer:coarse)]:hidden')
+    // ‹ › do mês com alvo de toque de 44px
+    expect(screen.getByRole('button', { name: 'Mês anterior' }).className).toContain('min-w-11')
+    expect(screen.getByRole('button', { name: 'Próximo mês' }).className).toContain('min-w-11')
+  })
+
+  it('lista do celular: planejado com data passada é "Vencido" em vermelho (não "Planejado" verde); o futuro continua Planejado', async () => {
+    const futuro = { ...lancs[1], id: 't9', descricao: 'Aluguel', data: '2099-10-05' }
+    mock.listarLancamentos.mockResolvedValue([...lancs, futuro]) // t2 (Salário) é planejado de 05/10/2026: já passou
+    mock.listarParcelasDivida.mockResolvedValue([
+      { id: 's1', dividaId: 'd1', nomeDivida: 'Financiamento', numero: 1, vencimento: '2026-01-20', valor: c(1000), formaPagamento: 'boleto', contaPagamentoId: null },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const linha = (await screen.findByText('Salário', { selector: '.line-clamp-2' })).closest('li') as HTMLElement
+    const selo = within(linha).getByText('Vencido')
+    expect(selo.className).toContain('bg-prejuizo-fundo text-prejuizo')
+    expect(within(linha).queryByText('Planejado')).toBeNull()
+    const aluguel = screen.getByText('Aluguel').closest('li') as HTMLElement
+    expect(within(aluguel).getByText('Planejado').className).toContain('bg-agendado-fundo text-agendado')
+    const contrato = screen.getByText(/Financiamento · parcela 1/).closest('li') as HTMLElement
+    expect(within(contrato).getByText('Vencido · contrato').className).toContain('text-prejuizo')
+  })
+
+  it('lista do celular: os selos não encolhem e a categoria é que corta com reticências', async () => {
+    mock.listarLancamentos.mockResolvedValue(lancsComPlanejadoFuturo())
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const linha = (await screen.findByText('Salário', { selector: '.line-clamp-2' })).closest('li') as HTMLElement
+    const meta = linha.querySelector('[data-metadados]') as HTMLElement
+    expect(within(meta).getByText('Planejado').className).toContain('shrink-0')
+    const categoria = within(meta).getByText('Salário').closest('[data-metadados] > span') as HTMLElement
+    expect(categoria.className).toContain('min-w-0')
+    expect(categoria.className).toContain('truncate')
+    expect(categoria.className).not.toContain('shrink-0')
   })
 })

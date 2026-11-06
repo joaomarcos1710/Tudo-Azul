@@ -91,6 +91,9 @@ describe('menu em grupos', () => {
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
     expect(within(lateral).queryByText('Fatura, parcelas e limite de cada cartão.')).toBeNull()
     expect(within(lateral).getAllByRole('link')).toHaveLength(itensNavegacao.length)
+    // auditoria 5h: itens do menu lateral e "Sair" com alvo de toque de 44px
+    for (const l of within(lateral).getAllByRole('link')) expect(l.className).toContain('min-h-11')
+    for (const b of screen.getAllByRole('button', { name: 'Sair' })) expect(b.className).toContain('min-h-11')
   })
 
   it('o Mais fecha com Esc, no fundo, no ×, e ao escolher um item (que leva à tela)', async () => {

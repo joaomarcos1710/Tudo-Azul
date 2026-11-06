@@ -357,7 +357,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         <Card className="mb-4">
           <div className="flex items-center justify-between">
             <CardTitle>Cartões</CardTitle>
-            <Link to="/cartoes" className="mb-3 text-sm font-semibold text-azul hover:underline">Ver cartões</Link>
+            <Link to="/cartoes" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver cartões</Link>
           </div>
           <FaturasDoMes mes={mes} dados={dados.faturasDoMes} className="mb-3" />
           <ul className="space-y-3">
@@ -586,7 +586,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         <Card semPadding className="lg:col-span-2">
           <div className="flex items-center justify-between px-5 pt-5">
             <CardTitle>Últimos lançamentos</CardTitle>
-            <Link to="/lancamentos" className="mb-3 text-sm font-semibold text-azul hover:underline">Ver todos</Link>
+            <Link to="/lancamentos" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todos</Link>
           </div>
           {dados.ultimos.length === 0 ? (
             <p className="px-5 pb-5 text-sm text-slate-500">Nenhum lançamento pago neste mês ainda.</p>

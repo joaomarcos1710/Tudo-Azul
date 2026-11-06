@@ -90,9 +90,9 @@ export default function Orcamentos() {
         acoes={!adicionando && itens !== null && disponiveis.length > 0 && <Button onClick={() => setAdicionando(true)}>Novo orçamento</Button>} />
 
       <div className="mb-4 flex items-center gap-2">
-        <Button variante="secundario" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
+        <Button variante="secundario" className="min-w-11" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
         <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
-        <Button variante="secundario" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
+        <Button variante="secundario" className="min-w-11" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
       </div>
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
@@ -159,7 +159,7 @@ export default function Orcamentos() {
               ) : (
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button variante="fantasma" onClick={() => setEditando(o.categoriaId)}>Alterar limite</Button>
-                  <Button variante="fantasma" onClick={() => remover(o)}>Remover</Button>
+                  <Button variante="perigoTexto" onClick={() => remover(o)}>Remover</Button>
                 </div>
               )}
             </Card>

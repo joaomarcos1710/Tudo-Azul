@@ -1165,7 +1165,20 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     render(<Cartoes />)
     expect(await screen.findByText('A cobrar (atual + futuras)')).toBeTruthy()
     expect(screen.queryByText('Parcelas futuras')).toBeNull()
-    expect(screen.getByText(/Inclui as compras da fatura atual, que ainda não fechou/)).toBeTruthy()
+    const dica = screen.getByText(/Inclui as compras da fatura atual, que ainda não fechou/)
+    // auditoria 5h (axe): a dica fica fora do <dl> (texto solto dentro de <dl> é inválido)
+    expect(dica.closest('dl')).toBeNull()
+    // #183: o valor em verde vem com o rótulo "Agendado" ao lado
+    const dd = screen.getByText('A cobrar (atual + futuras)').nextElementSibling as HTMLElement
+    expect(dd.tagName).toBe('DD')
+    expect(dd.querySelector('.text-agendado')).not.toBeNull()
+    expect(within(dd).getByText('Agendado').className).toContain('bg-agendado-fundo text-agendado')
+    for (const dl of document.querySelectorAll('dl')) {
+      for (const filho of Array.from(dl.children)) {
+        const ok = ['DT', 'DD'].includes(filho.tagName) || (filho.tagName === 'DIV' && Array.from(filho.children).every((x) => ['DT', 'DD'].includes(x.tagName)))
+        expect(ok).toBe(true)
+      }
+    }
   })
 
   it('6. estornar parte de uma parcela na linha da compra: valor até o da parcela, data, e recarrega', async () => {
@@ -1490,7 +1503,9 @@ describe('Resumo de todos os cartões numa chamada (card_overview, migration 065
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }, itau])
     render(<Cartoes />)
     const previstas = await screen.findByTestId('previstas-k1')
-    expect(previstas.textContent).toBe('Prevista até o fechamento: R$ 239,90 — inclui R$ 39,90 de assinaturas previstas')
+    // #183: o verde da previsão vem com o rótulo "Agendado"
+    expect(previstas.textContent).toBe('Prevista até o fechamento: R$ 239,90 Agendado — inclui R$ 39,90 de assinaturas previstas')
+    expect(within(previstas).getByText('Agendado').className).toContain('bg-agendado-fundo text-agendado')
     expect(screen.queryByTestId('previstas-k2')).toBeNull()
   })
 

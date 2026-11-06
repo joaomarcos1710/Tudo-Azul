@@ -248,6 +248,14 @@ atualizado: 2026-10-28
 - [ ] A faixa usa só o **gasto pago**; parcelas de cartão já previstas não pintam a barra (a projeção avisa no texto). Decidir com o dono se a barra deve considerar o projetado.
 - [ ] O equivalente mensal de cada item (≈ R$ x/mês) não aparece na linha do item, só nos totais; dá para trazer do banco (nível `detail` por regra) se fizer falta.
 
+## Auditoria de design e acessibilidade (#192, 06/11/2026)
+- [x] Foco do painel de lançamento, menu "+ Lançamento" no celular, rolagem lateral da tabela a 1280px, selos cortados, vencido verde na lista e no Calendário, "próxima" cortada em Recorrentes, verde sem rótulo em Cartões, 4 achados sérios do axe, alvos de toque de 44px, Excluir/Remover em vermelho, subtotal de Contas sem cor, seletor de tipo em 2 linhas a 390px.
+- [ ] **"R$" quebrando linha**: usar espaço não separável entre "R$" e o número (ou `whitespace-nowrap` nos valores) em todo o app; ficou para depois, numa PR própria.
+- [ ] **Decisões de design (para o dono)**: faixa de 7 indicadores do Início (densa no celular); Categorias muito longa no celular; eixo do gráfico de Relatórios; Calendário no computador (grade pequena para a largura); faixas de cor na barra de limite do cartão (como no orçamento?); tokens soltos `blue-100`/`blue-700` (botão primário e dica do menu) ainda fora de `src/lib/cores.ts`.
+- [ ] **Foco inicial do painel de editar** vai para o primeiro controle do formulário (a aba "Despesa"), não para a aba marcada; avaliar focar a aba do tipo do lançamento.
+- [ ] **Conflito previsto com a branch do recorrente "este e os próximos"** (Esc em captura na Folha): a lógica da Folha foi para `useFocoPreso`; ao juntar, não reaplicar o `addEventListener(..., true)` — a pilha de diálogos já faz o Esc fechar só a pergunta do recorrente.
+- [ ] **Dica "tecla D/R/T/C"** some abaixo de 640px e com `pointer: coarse`; num iPad com teclado físico ela continua escondida se o navegador disser "coarse".
+
 ## Menu e formulário de lançamento
 - [x] **Projeção errada depois de excluir recorrente** (#86, mesclado em 29/10; **migration 019 aplicada em produção em 29/10/2026**). Já pode excluir recorrente com lançamento pago no mês corrente.
 - [ ] **Excluir recorrente + versão 2026.5** (#84, mesclado em 29/10; **migration 018 aplicada em produção em 29/10/2026**). Falta você: excluir o recorrente já finalizado em Recorrentes → Encerrados, conferir que os lançamentos pagos dele continuam, e testar a 2026.5 no iPhone.
