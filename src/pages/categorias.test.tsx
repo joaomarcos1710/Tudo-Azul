@@ -9,6 +9,7 @@ const mock = vi.hoisted(() => ({
   editarCategoria: vi.fn(),
   definirCategoriaAtiva: vi.fn(),
   definirCategoriaEventual: vi.fn(),
+  definirCategoriaNaoConsumo: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -20,6 +21,7 @@ vi.mock('../lib/categorias', async (original) => ({
   editarCategoria: mock.editarCategoria,
   definirCategoriaAtiva: mock.definirCategoriaAtiva,
   definirCategoriaEventual: mock.definirCategoriaEventual,
+  definirCategoriaNaoConsumo: mock.definirCategoriaNaoConsumo,
 }))
 
 import Categorias from './Categorias'
@@ -46,6 +48,7 @@ beforeEach(() => {
   mock.editarCategoria.mockResolvedValue(undefined)
   mock.definirCategoriaAtiva.mockResolvedValue(undefined)
   mock.definirCategoriaEventual.mockResolvedValue(undefined)
+  mock.definirCategoriaNaoConsumo.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -136,6 +139,48 @@ describe('Receita eventual', () => {
     const filha = screen.getByText('Bônus').closest('div')!
     expect(within(filha).getByText('eventual (da principal)')).toBeTruthy()
     expect(within(filha).queryByRole('button', { name: /eventual|regular/ })).toBeNull()
+  })
+})
+
+describe('Não conta como consumo (migration 071)', () => {
+  it('cada categoria tem o próprio botão (despesa e receita), com aria-pressed, e a tela explica o efeito', async () => {
+    render(<Categorias />)
+    const u = userEvent.setup()
+    await screen.findByText('Moradia')
+    expect(screen.getByText(/sai da taxa de poupança, da reserva e do comprometimento do\s+Início/)).toBeTruthy()
+    expect(screen.getByText('só para a categoria marcada')).toBeTruthy()
+    const mor = screen.getByText('Moradia').closest('div')!
+    const botao = within(mor).getByRole('button', { name: 'Não conta como consumo' })
+    expect(botao.getAttribute('aria-pressed')).toBe('false')
+    await u.click(botao)
+    expect(mock.definirCategoriaNaoConsumo).toHaveBeenCalledWith('m', true)
+    await u.click(screen.getByRole('tab', { name: 'Receitas' }))
+    await u.click(within(screen.getByText('Salário').closest('div')!).getByRole('button', { name: 'Não conta como consumo' }))
+    expect(mock.definirCategoriaNaoConsumo).toHaveBeenCalledWith('sal', true)
+  })
+
+  it('a marca da principal NÃO passa para a subcategoria: a filha mostra o próprio estado e pode ser marcada sozinha', async () => {
+    mock.listarCategorias.mockResolvedValue(base.map((c) => (c.id === 'm' ? { ...c, naoConsumo: true } : c)))
+    render(<Categorias />)
+    const u = userEvent.setup()
+    await screen.findByText('Moradia')
+    const mae = screen.getByText('Moradia').closest('div')!
+    expect(within(mae).getByText('não conta como consumo')).toBeTruthy()
+    expect(within(mae).getByRole('button', { name: 'Não conta como consumo' }).getAttribute('aria-pressed')).toBe('true')
+    const filha = screen.getByText('Aluguel').closest('div')!
+    expect(within(filha).queryByText(/não conta como consumo/)).toBeNull()
+    const botaoFilha = within(filha).getByRole('button', { name: 'Não conta como consumo' })
+    expect(botaoFilha.getAttribute('aria-pressed')).toBe('false')
+    await u.click(within(mae).getByRole('button', { name: 'Não conta como consumo' }))
+    expect(mock.definirCategoriaNaoConsumo).toHaveBeenCalledWith('m', false)
+    await u.click(botaoFilha)
+    expect(mock.definirCategoriaNaoConsumo).toHaveBeenCalledWith('al', true)
+  })
+
+  it('"Sem categoria" não tem o botão (o banco recusa a marca)', async () => {
+    render(<Categorias />)
+    await screen.findByText('Moradia')
+    expect(within(screen.getByText('Sem categoria').closest('div')!).queryByRole('button', { name: 'Não conta como consumo' })).toBeNull()
   })
 })
 

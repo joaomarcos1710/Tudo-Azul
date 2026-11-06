@@ -19,6 +19,11 @@ export interface Categoria {
   cor?: string | null
   /** Grupo da regra 50-30-20 (só despesa); null/ausente = sem grupo. Subcategoria sem grupo próprio herda o da principal. */
   grupo?: GrupoOrcamento | null
+  /**
+   * "Não conta como consumo" (migration 071): quitação, empréstimo recebido, repasse entre familiares. Sai só dos
+   * indicadores do Início. Vale só para esta categoria: a subcategoria NÃO herda. Ausente = false.
+   */
+  naoConsumo?: boolean
 }
 
 /** Categoria raiz com suas subcategorias (só 1 nível, regra do banco). */
@@ -38,8 +43,9 @@ function cliente() {
 export async function listarCategorias(familiaId: string, opcoes: { comEventual?: boolean } = {}): Promise<Categoria[]> {
   const base = 'id, name, type, parent_id, system_key, active, color, icon'
   const ler = (colunas: string) => cliente().from('categories').select(colunas).eq('household_id', familiaId).order('name')
-  // escada tolerante a migration ausente: com grupo (032) → só com eventual (012) → básico
-  let { data, error } = opcoes.comEventual ? await ler(`${base}, eventual, budget_group`) : await ler(base)
+  // escada tolerante a migration ausente: com "não é consumo" (071) → com grupo (032) → só com eventual (012) → básico
+  let { data, error } = opcoes.comEventual ? await ler(`${base}, eventual, budget_group, non_consumption`) : await ler(base)
+  if (error && opcoes.comEventual) ({ data, error } = await ler(`${base}, eventual, budget_group`))
   if (error && opcoes.comEventual) ({ data, error } = await ler(`${base}, eventual`))
   if (error && opcoes.comEventual) ({ data, error } = await ler(base))
   if (error) throw error
@@ -54,6 +60,7 @@ export async function listarCategorias(familiaId: string, opcoes: { comEventual?
     icone: (c.icon as string | null) ?? null,
     cor: (c.color as string | null) ?? null,
     grupo: (c.budget_group as GrupoOrcamento | null | undefined) ?? null,
+    naoConsumo: c.non_consumption === true,
   }))
 }
 
@@ -89,6 +96,12 @@ export async function editarCategoria(id: string, d: { nome: string; paiId: stri
 /** Categoria com histórico é desativada, nunca apagada: some das novas escolhas, fica nos relatórios. */
 export async function definirCategoriaAtiva(id: string, ativa: boolean): Promise<void> {
   const { error } = await cliente().from('categories').update({ active: ativa }).eq('id', id)
+  if (error) throw error
+}
+
+/** Marca ou desmarca "não conta como consumo" (migration 071). Só a categoria marcada: a subcategoria não herda. */
+export async function definirCategoriaNaoConsumo(id: string, naoConsumo: boolean): Promise<void> {
+  const { error } = await cliente().from('categories').update({ non_consumption: naoConsumo }).eq('id', id)
   if (error) throw error
 }
 
