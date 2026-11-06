@@ -59,6 +59,12 @@ tags: [tudo-azul, regras, dinheiro]
 - **O que entra**: só regras ativas e sem data final passada (data final hoje ainda conta), só em reais (cartão sempre; conta só BRL — conta em outra moeda fica **fora**, não é convertida). Transferência é linha própria e **nunca** entra nos totais de gasto/receita. Assinatura de cartão é saída no cartão.
 - **A tela não soma**: todos os totais (cartões do topo, por cartão/conta, cabeçalho de cada grupo, nas três abas) vêm de `public.recurrence_summary`.
 
+## Editar uma ocorrência de recorrente (migration 073, #191)
+- **"Atualizar apenas este"**: só aquele lançamento muda e passa a ser "corrigido à mão" (fica diferente da regra; a marca é essa diferença, como na 015).
+- **"Este e os próximos"** (só recorrente em conta): a **mesma regra** passa a ter o valor, a descrição e a categoria novos e, se a data mudou, começa na nova data desta ocorrência, com o dia dela (mensal: dia 10 → dia 15) e a data final na mesma posição da série. As próximas **planejadas, fora da lixeira e ainda iguais à regra** (data, valor, descrição e categoria) acompanham. **Pagas, na lixeira e corrigidas à mão não mudam.** As anteriores não mudam (nem a categoria, ao contrário da edição em Recorrentes).
+- A nova data precisa ficar **depois da ocorrência anterior** (o banco recusa, 22023). A geração seguinte não duplica nem traz de volta a excluída.
+- O equivalente mensal (063) e o saldo previsto (068/069) acompanham porque leem a regra; a tela não soma.
+
 ## Receita
 - **Regular × eventual** (categoria marcada como eventual): a renda regular é a base para a cobertura das despesas.
 

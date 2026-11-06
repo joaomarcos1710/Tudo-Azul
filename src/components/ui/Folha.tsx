@@ -23,14 +23,16 @@ export function Folha({ titulo, aoFechar, rodape, children }: {
 
   useEffect(() => {
     const origem = document.activeElement as HTMLElement | null
+    // captura: o Esc fecha só a folha, mesmo aberta por cima de outro painel que também escuta o Esc no document (a
+    // pergunta do recorrente por cima do formulário de Lançamentos, #191); sem isso os dois fechavam juntos
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); fechar.current() } }
-    document.addEventListener('keydown', esc)
+    document.addEventListener('keydown', esc, true)
     const antes = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     // o primeiro controle do conteúdo (não o ×): quem abriu os filtros quer mexer neles
     ;(corpo.current?.querySelector<HTMLElement>(FOCAVEIS) ?? painel.current?.querySelector<HTMLElement>(FOCAVEIS))?.focus()
     return () => {
-      document.removeEventListener('keydown', esc)
+      document.removeEventListener('keydown', esc, true)
       document.body.style.overflow = antes
       origem?.focus?.()
     }

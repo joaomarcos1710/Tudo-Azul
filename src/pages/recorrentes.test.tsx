@@ -153,7 +153,7 @@ describe('Recorrentes', () => {
     expect(screen.getByText(/Valor e descrição valem para os planejados ainda não pagos de hoje em diante\. A categoria vale para todos os meses, inclusive os já pagos e os passados\. Em qualquer caso, o que você corrigiu à mão em um mês fica como está\./)).toBeTruthy()
     // frequência não muda na edição: diz como mudar
     expect(screen.queryByLabelText('Frequência')).toBeNull()
-    expect(screen.getByText(/Todo dia 10\. .*Para mudar a frequência ou o dia, exclua este recorrente e cadastre outro\./)).toBeTruthy()
+    expect(screen.getByText(/Todo dia 10\. .*Para mudar o dia, edite em Lançamentos .*"Este e os próximos".*Para mudar a frequência, exclua este recorrente e cadastre outro\./)).toBeTruthy()
     const valor = screen.getByLabelText('Valor estimado (R$)')
     await u.clear(valor)
     await u.type(valor, '200,00')

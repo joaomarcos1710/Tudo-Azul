@@ -35,6 +35,15 @@ atualizado: 2026-10-28
 - [ ] **Preferência antiga dos widgets** (`tudo-azul:dashboard-widgets:<usuário>`) fica sem uso no aparelho; inofensiva.
 - [x] Personalização dos widgets do Início saiu (substituída pela faixa fixa de 7).
 - [x] "Saldo hoje e previsto": o previsto do fim do mês ficou numa linha de Minhas contas.
+### Recorrente: "Apenas este / Este e os próximos" (#191, migration 073)
+- [x] Pergunta ao salvar a edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria (Lançamentos, no celular e na tabela); "Este e os próximos" pela `recurrence_update_from` (#191).
+- [ ] **Aplicar a migration 073** em produção (simular → ler o log → aplicar, com o "pode" do dono), **antes** de publicar o front: sem ela, "Este e os próximos" dá erro (o "Apenas este" funciona).
+- [ ] Conferir no iPad/celular: editar a conta de luz de um mês (dia e valor), escolher "Este e os próximos" e ver os meses seguintes no Calendário e em Recorrentes; um mês já pago e um corrigido à mão ficam como estavam.
+- [ ] **Marcar pago não pergunta** (decisão em [[30 - Decisões]]): confirmar com o dono.
+- [ ] Assinatura de cartão: "este e os próximos" não existe (ocorrência é parcela da fatura). Se fizer falta, a edição em Recorrentes já muda valor/descrição/categoria; o dia continua sem mudar.
+- [ ] **Atalho**: o front faz duas chamadas (RPC + UPDATE de situação/observação/conta); se a segunda falhar, a regra já mudou (salvar de novo completa). Melhorar levando esses campos para a RPC.
+- [ ] Mudar a **frequência** de um recorrente continua sendo excluir e cadastrar outro.
+
 ### Etiquetas nas contas (#189, migration 072)
 - [x] Etiquetas livres por família: criar, renomear, apagar, marcar até 10 por conta; selos, filtro e seção "Etiquetas" em Contas; coluna na exportação completa (#189).
 - [x] **Contas arquivadas escondidas por padrão** em Contas, atrás do botão "Arquivadas (N)" (pedido do dono, #189). A escolha não é lembrada entre visitas (sempre fechada ao abrir a tela).
@@ -217,6 +226,7 @@ atualizado: 2026-10-28
 - [x] **App**: PR #66 mesclado depois da 016 aplicada.
 - [ ] Conferir no app, depois dos dois merges: cadastrar uma quinzenal e a PLR anual de teste e ver os planejados em Lançamentos e no Calendário.
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
+- [x] **Mudar o dia** de um recorrente em conta: em Lançamentos, editar a ocorrência e escolher "Este e os próximos" (#191, migration 073).
 - [x] **Recorrentes agrupados por frequência e totais por mês no cartão/na conta** (#173): migration 063 (`recurrence_summary`) **não aplicada** — aplicar pelo workflow (simular → log → `APLICAR`) com o seu "pode" **antes** de publicar o front (sem ela a tela Recorrentes mostra erro ao carregar).
 - [ ] Conferir no iPad/celular: os cartões do topo, as abas Conta/Cartão e os totais de cada grupo com os seus recorrentes reais.
 - [ ] Recorrentes em outra moeda ficam fora dos totais (só um aviso com a quantidade). Se quiser, um total por moeda depois.

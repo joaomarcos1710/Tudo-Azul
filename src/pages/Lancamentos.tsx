@@ -25,13 +25,13 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, parseBRL, primeiraMaiuscula, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, criarParcelado, editarLancamento, limitesDoMes, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
+  criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, limitesDoMes, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
   listarMovimentosDeDivida, marcarComoPago,
-  moverParaLixeira, restaurarDaLixeira, resumoDoMes, resumoPorMoeda, somarMeses, valoresDasParcelas,
+  moverParaLixeira, perguntaSeRepete, restaurarDaLixeira, resumoDoMes, resumoPorMoeda, somarMeses, valoresDasParcelas,
 } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
-import type { CompraDaFatura, CreditoDeCartao, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { ComprasDaFatura, NomeCategoria, TabelaLancamentos, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, useTelaGrande, valorComSinal } from './LancamentosTabela'
@@ -611,6 +611,27 @@ function PainelPagar({ lancamento: l, nomeConta, moeda, aoConfirmar, aoCancelar 
   )
 }
 
+/**
+ * A pergunta do Organizze ao editar um lançamento que se repete (#191), na Folha do app (foco preso, Esc e × cancelam,
+ * o foco começa no botão principal). Cancelar não grava nada e volta ao formulário com o que foi digitado.
+ */
+function PerguntaRecorrente({ aoEscolher, aoCancelar }: { aoEscolher: (escolha: 'este' | 'proximos') => void; aoCancelar: () => void }) {
+  return (
+    <Folha titulo="Lançamento recorrente" aoFechar={aoCancelar}>
+      <p className="text-base font-medium text-marinho">Este lançamento se repete em outras datas. O que deseja fazer?</p>
+      <p className="mt-2 text-sm text-slate-600">
+        Em &quot;Este e os próximos&quot;, o recorrente passa a ter o valor, a descrição, a categoria e o dia novos. O que já foi pago, o que
+        está na lixeira e o que você corrigiu à mão em outro mês ficam como estão.
+      </p>
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        <Button onClick={() => aoEscolher('este')}>Atualizar apenas este</Button>
+        <Button variante="secundario" onClick={() => aoEscolher('proximos')}>Este e os próximos</Button>
+        <Button variante="fantasma" onClick={aoCancelar}>Cancelar</Button>
+      </div>
+    </Folha>
+  )
+}
+
 /** Como o formulário novo abre quando vem de um atalho do painel. */
 type InicialForm = TipoLancamento | 'cartao'
 
@@ -686,6 +707,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     return ultimo && cartoes.some((c) => c.id === ultimo && c.ativo && c.fechamento !== null) ? ultimo : ''
   })
   const [registrado, setRegistrado] = useState('')
+  // edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria: a pergunta antes de gravar (#191)
+  const [pergunta, setPergunta] = useState<DadosLancamento | null>(null)
   const outroRef = useRef(false)
   const [parcelasTexto, setParcelasTexto] = useState('1')
   // "Repetir → Lançamento fixo": cria a regra de recorrente (a mesma da tela Recorrentes) em vez de um lançamento solto
@@ -780,14 +803,33 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         await concluir(`Lançamento fixo criado (${f.rotulo.toLowerCase()}). As ocorrências entram como planejadas.`)
         return
       }
-      const dados = {
+      const dados: DadosLancamento = {
         tipo, contaId, destinoId: transferencia ? destinoId : null, categoriaId: transferencia ? null : categoriaId,
         descricao, valor: valor as Cents, data, status: statusEfetivo, notas,
       }
+      if (l && perguntaSeRepete(l, dados)) { setPergunta(dados); return }
       if (l) await editarLancamento(l.id, dados)
       else await criarLancamento(familiaId, dados)
       if (!l) lembrarEscolha(familiaId, 'conta', contaId)
       await concluir(`${rotuloTipo[tipo]} registrada.`)
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  /** Resposta da pergunta do recorrente: "Apenas este" (o UPDATE de sempre) ou "Este e os próximos" (a regra também). */
+  async function gravarRecorrente(escolha: 'este' | 'proximos') {
+    if (!l || !pergunta) return
+    const dados = pergunta
+    setPergunta(null)
+    setErro('')
+    setEnviando(true)
+    try {
+      if (escolha === 'proximos') await editarEsteEProximos(l.id, dados)
+      else await editarLancamento(l.id, dados)
+      await concluir(`${rotuloTipo[dados.tipo]} registrada.`)
     } catch (err) {
       setErro(mensagemErroBanco(err))
     } finally {
@@ -806,6 +848,9 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
 
   return (
     <Card className="!shadow-none">
+      {pergunta && (
+        <PerguntaRecorrente aoEscolher={gravarRecorrente} aoCancelar={() => setPergunta(null)} />
+      )}
       <div className="mb-4 flex items-start justify-between gap-3">
         <h2 id="titulo-painel-lancamento" className="text-lg font-semibold">{l ? 'Editar lançamento' : 'Novo lançamento'}</h2>
         <button type="button" onClick={aoCancelar} aria-label="Fechar"

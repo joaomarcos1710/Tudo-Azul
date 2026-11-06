@@ -420,6 +420,39 @@ export async function editarLancamento(id: string, d: DadosLancamento): Promise<
 }
 
 /**
+ * Editar um lançamento que veio de um recorrente pergunta "Este lançamento se repete em outras datas. O que deseja
+ * fazer?" (pedido do dono, #191, como no Organizze) só quando muda o que a regra tem: valor, data, descrição ou
+ * categoria. Situação (pago/planejado), observação e conta não perguntam (valem só para este). Trocar o tipo também não:
+ * a regra não muda de tipo, então vale só para este.
+ */
+export function perguntaSeRepete(original: Lancamento, novo: DadosLancamento): boolean {
+  if (!original.recorrente || novo.tipo !== original.tipo) return false
+  return novo.valor !== original.valor || novo.data !== original.data || novo.descricao.trim() !== original.descricao.trim()
+    || (novo.tipo !== 'transfer' && novo.categoriaId !== original.categoriaId)
+}
+
+/**
+ * "Este e os próximos" (migration 073, recurrence_update_from): o banco muda esta ocorrência e a regra (valor,
+ * descrição, categoria e, se a data mudou, o dia), e as próximas planejadas que ninguém corrigiu acompanham; pagas, na
+ * lixeira e corrigidas à mão ficam. Depois grava o resto do formulário só neste (situação, observação, conta), com o
+ * UPDATE de sempre. Devolve quantas próximas acompanharam.
+ * atalho: são duas chamadas (a RPC e o UPDATE); se a segunda falhar, a regra já mudou e a tela mostra o erro — salvar de
+ * novo completa (a RPC é idempotente para os mesmos valores). Melhorar: levar situação/observação/conta para a RPC.
+ */
+export async function editarEsteEProximos(id: string, d: DadosLancamento): Promise<number> {
+  const { data, error } = await cliente().rpc('recurrence_update_from', {
+    p_transaction: id,
+    p_date: d.data,
+    p_description: d.descricao.trim(),
+    p_amount: centsToDecimal(d.valor),
+    p_category: d.tipo === 'transfer' ? null : d.categoriaId,
+  })
+  if (error) throw error
+  await editarLancamento(id, d)
+  return Number(data ?? 0)
+}
+
+/**
  * Marca o planejado como pago com o que REALMENTE saiu ou entrou na conta. A data e o valor do planejado são só
  * estimativa (conta de luz paga dia 12 por 143,20, e não dia 10 por 150,00): sem trocar os dois, o saldo do dia
  * deixa de bater com o extrato. O banco confere período conciliado, abertura da conta e centavos.

@@ -20,6 +20,7 @@ const mock = vi.hoisted(() => ({
   criarRecorrencia: vi.fn(),
   criarParcelado: vi.fn(),
   editarLancamento: vi.fn(),
+  editarEsteEProximos: vi.fn(),
   marcarComoPago: vi.fn(),
   moverParaLixeira: vi.fn(),
   restaurarDaLixeira: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
   resumoPorMoeda: mock.resumoPorMoeda,
   criarLancamento: mock.criarLancamento,
   editarLancamento: mock.editarLancamento,
+  editarEsteEProximos: mock.editarEsteEProximos,
   marcarComoPago: mock.marcarComoPago,
   moverParaLixeira: mock.moverParaLixeira,
   restaurarDaLixeira: mock.restaurarDaLixeira,
@@ -108,7 +110,7 @@ beforeEach(() => {
   mock.registrarCompra.mockResolvedValue(undefined)
   mock.resumoDoMes.mockResolvedValue({ receitas: c(0), despesas: c(25050), resultado: c(-25050), receitasPrevistas: c(800000), despesasPrevistas: c(0) })
   mock.resumoPorMoeda.mockResolvedValue([])
-  for (const f of [mock.criarLancamento, mock.editarLancamento, mock.marcarComoPago, mock.moverParaLixeira, mock.restaurarDaLixeira]) f.mockResolvedValue(undefined)
+  for (const f of [mock.criarLancamento, mock.editarLancamento, mock.editarEsteEProximos, mock.marcarComoPago, mock.moverParaLixeira, mock.restaurarDaLixeira]) f.mockResolvedValue(undefined)
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 afterEach(() => {
@@ -1168,5 +1170,96 @@ describe('multimoeda F2 (migration 056)', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
     expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
+  })
+})
+
+describe('editar um lançamento recorrente pergunta "Apenas este / Este e os próximos" (#191)', () => {
+  const luz = { id: 'r1', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'mer', descricao: 'Luz', valor: c(10000), data: '2026-10-10', status: 'planned', notas: '', recorrente: true }
+
+  async function editar(l: Record<string, unknown>) {
+    mock.listarLancamentos.mockResolvedValue([l])
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const item = (await screen.findByText(l.descricao as string)).closest('li') as HTMLElement
+    await u.click(within(item).getByRole('button', { name: `Ações de ${l.descricao as string}` }))
+    await u.click(within(item).getByRole('menuitem', { name: 'Editar' }))
+    return u
+  }
+  async function mudarValorESalvar(u: ReturnType<typeof userEvent.setup>) {
+    await u.clear(screen.getByLabelText('Valor (R$)'))
+    await u.type(screen.getByLabelText('Valor (R$)'), '120,00')
+    await u.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+  }
+
+  it('mudou o valor: pergunta antes de gravar, com o foco no botão principal e nada gravado ainda', async () => {
+    const u = await editar(luz)
+    await mudarValorESalvar(u)
+    const dialogo = await screen.findByRole('dialog', { name: 'Lançamento recorrente' })
+    expect(within(dialogo).getByText('Este lançamento se repete em outras datas. O que deseja fazer?')).toBeTruthy()
+    expect(within(dialogo).getAllByRole('button').map((b) => b.textContent))
+      .toEqual(['×', 'Atualizar apenas este', 'Este e os próximos', 'Cancelar'])
+    expect(document.activeElement).toBe(within(dialogo).getByRole('button', { name: 'Atualizar apenas este' }))
+    expect(mock.editarLancamento).not.toHaveBeenCalled()
+    expect(mock.editarEsteEProximos).not.toHaveBeenCalled()
+  })
+
+  it('"Atualizar apenas este" grava só o lançamento (o caminho de sempre)', async () => {
+    const u = await editar(luz)
+    await mudarValorESalvar(u)
+    await u.click(await screen.findByRole('button', { name: 'Atualizar apenas este' }))
+    await waitFor(() => expect(mock.editarLancamento).toHaveBeenCalledWith('r1', expect.objectContaining({ valor: 12000, data: '2026-10-10' })))
+    expect(mock.editarEsteEProximos).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Salvar alterações' })).toBeNull())
+  })
+
+  it('"Este e os próximos" chama o banco para a regra (e não o UPDATE solto)', async () => {
+    const u = await editar(luz)
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value: '2026-10-15' } })
+    await mudarValorESalvar(u)
+    await u.click(await screen.findByRole('button', { name: 'Este e os próximos' }))
+    await waitFor(() => expect(mock.editarEsteEProximos).toHaveBeenCalledWith('r1', expect.objectContaining({ valor: 12000, data: '2026-10-15', categoriaId: 'mer' })))
+    expect(mock.editarLancamento).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Salvar alterações' })).toBeNull())
+  })
+
+  it('Cancelar e Esc não gravam nada e voltam ao formulário com o que foi digitado', async () => {
+    const u = await editar(luz)
+    await mudarValorESalvar(u)
+    await u.click(within(await screen.findByRole('dialog', { name: 'Lançamento recorrente' })).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog', { name: 'Lançamento recorrente' })).toBeNull()
+    expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('120,00')
+    await u.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+    await screen.findByRole('dialog', { name: 'Lançamento recorrente' })
+    await u.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Lançamento recorrente' })).toBeNull()
+    // o Esc fecha só a pergunta: o formulário continua aberto
+    expect(screen.getByRole('button', { name: 'Salvar alterações' })).toBeTruthy()
+    expect(mock.editarLancamento).not.toHaveBeenCalled()
+    expect(mock.editarEsteEProximos).not.toHaveBeenCalled()
+  })
+
+  it('só a situação ou a observação mudou: não pergunta', async () => {
+    const u = await editar(luz)
+    await u.click(screen.getByRole('radio', { name: 'Pago' }))
+    await u.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+    await waitFor(() => expect(mock.editarLancamento).toHaveBeenCalledWith('r1', expect.objectContaining({ status: 'paid', valor: 10000 })))
+    expect(screen.queryByRole('dialog', { name: 'Lançamento recorrente' })).toBeNull()
+    expect(mock.editarEsteEProximos).not.toHaveBeenCalled()
+  })
+
+  it('lançamento que não é de recorrente: não pergunta', async () => {
+    const u = await editar({ ...luz, id: 's1', descricao: 'Avulso', recorrente: false })
+    await mudarValorESalvar(u)
+    await waitFor(() => expect(mock.editarLancamento).toHaveBeenCalledWith('s1', expect.objectContaining({ valor: 12000 })))
+    expect(screen.queryByRole('dialog', { name: 'Lançamento recorrente' })).toBeNull()
+  })
+
+  it('erro do banco em "Este e os próximos" aparece no formulário, que continua aberto', async () => {
+    mock.editarEsteEProximos.mockRejectedValue({ code: '22023', message: 'a nova data precisa ficar depois da ocorrência anterior deste recorrente' })
+    const u = await editar(luz)
+    await mudarValorESalvar(u)
+    await u.click(await screen.findByRole('button', { name: 'Este e os próximos' }))
+    expect(await screen.findByText(/nova data precisa ficar depois da ocorrência anterior/i)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Salvar alterações' })).toBeTruthy()
   })
 })
