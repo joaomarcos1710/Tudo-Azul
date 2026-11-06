@@ -6,7 +6,10 @@
 --
 -- "Apenas este" já existia (o UPDATE comum do lançamento; a ocorrência fica diferente da regra = editada à mão, a mesma
 -- marca implícita da 015/036). Esta migration faz o "Este e os próximos":
---   public.recurrence_update_from(p_transaction, p_date, p_description, p_amount, p_category) → integer
+--   public.recurrence_update_from(p_transaction, p_date, p_description, p_amount, p_category, p_status, p_notes,
+--                                 p_account, p_destination) → integer
+-- Uma chamada só grava o formulário inteiro (situação, observação e conta valem só para esta ocorrência): ou tudo, ou
+-- nada (antes eram a RPC e depois um UPDATE; se o segundo falhasse, a regra já tinha mudado).
 --
 -- Caminho escolhido: a MESMA regra é reancorada nesta ocorrência (não "encerrar a antiga + criar outra"). Motivos:
 --   * recurrence_end (031) APAGA a regra e manda para a lixeira TODOS os planejados depois da data, inclusive os
@@ -18,7 +21,8 @@
 --     ocorrência excluída: as ocorrências desta em diante só trocam de chave (occurrence_date) para a data da série nova.
 --
 -- O que a função faz, numa transação (tudo ou nada):
---   1. Esta ocorrência: data = p_date, valor, descrição e categoria novos (qualquer situação, como a edição comum).
+--   1. Esta ocorrência: data = p_date, valor, descrição, categoria, situação, observação e conta (qualquer situação,
+--      como a edição comum).
 --   2. A regra: valor, descrição e categoria novos. Se a DATA mudou nesta edição (p_date ≠ data gravada), a série passa
 --      a começar em p_date (start_date) e, na frequência mensal, o dia passa a ser o de p_date (dia 10 → dia 15). A data
 --      final (se houver) anda junto: a última ocorrência continua sendo a última. Sem mudança de data, a série fica.
@@ -31,16 +35,28 @@
 --      que vale para todas): "este e os próximos" é daqui em diante.
 --   4. O que ainda não foi gerado sai da regra nova na próxima recurrence_materialize (o app chama ao abrir).
 --
--- Recusas: 42501 não autenticado, lançamento de outra família ou inexistente (mesma resposta); 22023 lançamento que não
--- é de recorrente, valor ≤ 0, data fora de 2000–2100, descrição vazia ou com mais de 80 caracteres (limite da regra), ou
--- nova data que não fica depois da ocorrência anterior; 55000 lançamento na lixeira; 23514 categoria de outro tipo.
+-- Limites (decisão do dono, #191):
+--   * a data nova fica ESTRITAMENTE entre a ocorrência anterior e a seguinte (datas reais e chaves; sem vizinha gerada,
+--     a posição vizinha da série) e, no mensal, dentro do mês da ocorrência (no bimestral em diante, dos N meses dela).
+--     Mudar de mês (ou de semana) é "Atualizar apenas este": senão um mês ficaria com duas e outro vazio;
+--   * ocorrência anterior ao começo atual da série (um "este e os próximos" mais adiante já reancorou a regra) é
+--     recusada com a data de onde editar: a regra guarda uma grade só, e recalcular as chaves da anterior criaria
+--     ocorrências em dobro (semanal, a cada N dias, bimestral) ou mudaria a data das próximas sem pedido (mensal).
+--
+-- Recusas: 42501 não autenticado, lançamento de outra família ou inexistente (mesma resposta, antes de qualquer outra);
+-- 22023 lançamento que não é de recorrente, valor ≤ 0, data fora de 2000–2100, situação inválida, sem conta (ou sem
+-- destino na transferência), descrição vazia ou com mais de 80 caracteres (limite da regra), receita/despesa sem
+-- categoria ou com categoria desativada que a regra ainda não tem, data fora do intervalo acima, ocorrência anterior ao
+-- começo da série; 55000 lançamento na lixeira, recorrente encerrado (active = false), período conciliado (gatilho);
+-- 23514 categoria de outro tipo, conta desativada (gatilho).
 -- Recorrente de CARTÃO não passa por aqui: as ocorrências dele são parcelas da fatura (debt_installments, imutáveis), não
 -- lançamentos; continua sendo editado em Recorrentes (recurrence_update).
 --
 -- Segurança: a função pública é SECURITY INVOKER (como pedido): lê o lançamento com a RLS de quem chama e confere
 -- private.is_member. A gravação precisa de colunas que o cliente não tem (recurrences, transactions.occurrence_date),
--- então passa por private.recurrence_update_from_apply (SECURITY DEFINER), que trava a regra por private.recurrence_lock
--- (família atual de quem chama) e confere que o lançamento é dela. O schema private não é exposto pela API.
+-- então passa por private.recurrence_update_from_apply (SECURITY DEFINER), que confere is_member logo depois de ler o
+-- lançamento, trava a regra por private.recurrence_lock (família atual de quem chama) e confere que o lançamento é dela.
+-- O schema private não é exposto pela API.
 -- Gatilhos de sempre: transactions_guard (centavos, conta desativada/abertura), transactions_period_guard (período
 -- conciliado; mudar só a chave não dispara), recurrences_money_guard e os CHECKs da regra.
 -- Atalho: o "editado à mão" é a diferença com a regra (mesma marca da 015); editar um campo para exatamente o valor da
@@ -73,8 +89,10 @@ returns integer language sql immutable set search_path = '' as $$
 $$;
 revoke execute on function private.recurrence_steps(text, integer, date, date) from public, anon, authenticated;
 
+
 create function private.recurrence_update_from_apply(p_transaction uuid, p_date date, p_description text,
-                                                     p_amount numeric, p_category uuid)
+                                                     p_amount numeric, p_category uuid, p_status text, p_notes text,
+                                                     p_account uuid, p_destination uuid)
 returns integer language plpgsql security definer set search_path = '' as $$
 declare
   t public.transactions%rowtype;
@@ -82,10 +100,13 @@ declare
   v_desc text := btrim(coalesce(p_description, ''));
   v_cat uuid;
   v_tipo text;
+  v_cat_ativa boolean;
   v_mudou_data boolean;
   v_anchor date;
   v_day integer;
   v_end date;
+  v_lo date;
+  v_hi date;
   v_j integer;
   v_n integer;
   v_ids uuid[];
@@ -95,7 +116,8 @@ begin
     raise exception 'não autenticado' using errcode = '42501';
   end if;
   select * into t from public.transactions where id = p_transaction;
-  if not found then
+  -- SECURITY DEFINER lê sem RLS: a família vem antes de qualquer outra resposta (não revela que o lançamento existe)
+  if not found or not private.is_member(t.household_id) then
     raise exception 'lançamento não encontrado' using errcode = '42501';
   end if;
   if t.recurrence_id is null then
@@ -105,23 +127,49 @@ begin
   if v.household_id <> t.household_id or v.kind = 'card' then
     raise exception 'lançamento não encontrado' using errcode = '42501';
   end if;
+  if not v.active then
+    raise exception 'este recorrente foi encerrado: use "Atualizar apenas este"' using errcode = '55000';
+  end if;
   select * into t from public.transactions where id = p_transaction for update;
   if t.deleted_at is not null then
     raise exception 'lançamento na lixeira: restaure antes de editar' using errcode = '55000';
   end if;
-  if p_amount is null or p_amount <= 0 or p_date is null or p_date not between date '2000-01-01' and date '2100-01-01' then
+  if p_amount is null or p_amount <= 0 or p_date is null or p_date not between date '2000-01-01' and date '2100-01-01'
+     or p_status is null or p_status not in ('paid', 'planned') or p_account is null
+     or (v.kind = 'transfer' and p_destination is null) then
     raise exception 'parâmetros inválidos' using errcode = '22023';
   end if;
   if char_length(v_desc) not between 1 and 80 then
     raise exception 'descrição do recorrente: de 1 a 80 caracteres' using errcode = '22023';
   end if;
-  v_cat := case when v.kind = 'transfer' then null else coalesce(p_category, v.category_id) end;
-  if v_cat is not null then
-    select c.type into v_tipo from public.categories c where c.household_id = v.household_id and c.id = v_cat;
+  -- categoria: obrigatória em receita e despesa (como no formulário: "Escolha a categoria"), nenhuma em transferência.
+  -- Antes, nula virava a da regra sem avisar.
+  if v.kind = 'transfer' then
+    v_cat := null;
+  else
+    if p_category is null then
+      raise exception 'escolha a categoria' using errcode = '22023';
+    end if;
+    v_cat := p_category;
+    select c.type, c.active into v_tipo, v_cat_ativa
+      from public.categories c where c.household_id = v.household_id and c.id = v_cat;
     if v_tipo is distinct from (case when v.kind = 'income' then 'income' else 'expense' end) then
       raise exception 'a categoria precisa ser de %', case when v.kind = 'income' then 'receita' else 'despesa' end
         using errcode = '23514';
     end if;
+    -- categoria desativada não entra na série; manter a que a regra já tem continua possível (o formulário oferece a atual)
+    if not v_cat_ativa and v_cat is distinct from v.category_id then
+      raise exception 'categoria desativada: escolha outra' using errcode = '22023';
+    end if;
+  end if;
+
+  -- Ocorrência ANTES do começo atual da série: um "Este e os próximos" numa ocorrência mais adiante já reancorou a regra
+  -- (começo e, no mensal, o dia). As anteriores ficaram na grade antiga e a regra só conhece a nova: recalcular as
+  -- chaves daqui em diante numa grade só ou criaria ocorrências em dobro (a geração segue o começo da regra) ou mudaria
+  -- a data das próximas sem o usuário pedir. Recusa e diz de onde dá para editar.
+  if t.occurrence_date < v.start_date then
+    raise exception 'este recorrente foi alterado a partir de %: para mudar a série, edite a ocorrência dessa data ou uma depois dela; para mudar só esta, use "Atualizar apenas este"', v.start_date
+      using errcode = '22023';
   end if;
 
   -- a série nova: começa nesta ocorrência, na data nova (só se a data mudou nesta edição). Voltar para a data da própria
@@ -131,9 +179,28 @@ begin
   v_day := case when v.freq_unit <> 'month' then null
                 when v_mudou_data then extract(day from p_date)::int
                 else v.day end;
-  if exists (select 1 from public.transactions x
-              where x.recurrence_id = v.id and x.occurrence_date < t.occurrence_date and x.occurrence_date >= v_anchor) then
-    raise exception 'a nova data precisa ficar depois da ocorrência anterior deste recorrente' using errcode = '22023';
+
+  -- Trocar de período (decisão do dono, #191): a data nova fica ESTRITAMENTE entre a ocorrência anterior e a seguinte,
+  -- pelas datas reais e pelas chaves (a anterior pode ter sido movida à mão). Fora disso um mês ficaria com duas e outro
+  -- vazio. Sem anterior/seguinte gerada, o limite é a posição vizinha na série.
+  if p_date <> t.date then
+    select max(greatest(x.date, x.occurrence_date)) into v_lo
+      from public.transactions x where x.recurrence_id = v.id and x.occurrence_date < t.occurrence_date;
+    select min(least(x.date, x.occurrence_date)) into v_hi
+      from public.transactions x where x.recurrence_id = v.id and x.occurrence_date > t.occurrence_date;
+    v_lo := coalesce(v_lo, private.recurrence_slot(v.freq_unit, v.freq_every, v.day, t.occurrence_date, -1));
+    v_hi := coalesce(v_hi, private.recurrence_slot(v.freq_unit, v.freq_every, v.day, t.occurrence_date, 1));
+    -- no mensal, também dentro do período desta posição (o mês da chave; no bimestral em diante, os N meses): a de
+    -- janeiro em 25/12 fica entre as vizinhas (10/12 e 10/02), mas deixaria dezembro com duas e janeiro vazio
+    if v.freq_unit = 'month' then
+      v_lo := greatest(v_lo, (date_trunc('month', t.occurrence_date) - interval '1 day')::date);
+      v_hi := least(v_hi, (date_trunc('month', t.occurrence_date) + make_interval(months => v.freq_every))::date);
+    end if;
+    if not (p_date > v_lo and p_date < v_hi) then
+      raise exception 'a nova data precisa ficar depois de % e antes de %; para mudar de %, use "Atualizar apenas este"',
+        v_lo, v_hi, case v.freq_unit when 'month' then 'mês' when 'week' then 'semana' else 'período' end
+        using errcode = '22023';
+    end if;
   end if;
 
   -- data final: a última ocorrência possível continua sendo a mesma posição da série
@@ -154,23 +221,31 @@ begin
      and x.amount = v.amount and x.description = v.description and x.category_id is not distinct from v.category_id;
 
   -- 1. a chave (occurrence_date) desta em diante passa para a série nova. Duas etapas: o índice único
-  --    (recurrence_id, occurrence_date) é conferido linha a linha, e a chave nova de uma pode ser a antiga da seguinte
-  --    (ex.: mover a de dezembro para janeiro). Chave nula não colide.
+  --    (recurrence_id, occurrence_date) é conferido linha a linha, e a chave nova de uma pode ser a antiga da seguinte.
+  --    Chave nula não colide. Daqui em diante todas estão na grade da regra (a recusa acima garante), então os passos
+  --    contados da chave desta valem para todas.
   select array_agg(x.id order by x.occurrence_date), array_agg(x.occurrence_date order by x.occurrence_date)
     into v_ids, v_antigas
     from public.transactions x
    where x.recurrence_id = v.id and x.occurrence_date >= t.occurrence_date;
   update public.transactions x set occurrence_date = null where x.id = any (v_ids);
 
-  -- 2. cada uma recebe a chave nova; esta ocorrência recebe a edição; as próximas planejadas, fora da lixeira e ainda
-  --    iguais à regra antiga (data na chave, valor, descrição e categoria) acompanham a regra nova. As demais (pagas, na
-  --    lixeira, corrigidas à mão) só trocam a chave.
+  -- 2. cada uma recebe a chave nova; esta ocorrência recebe a edição inteira do formulário (inclusive situação,
+  --    observação e conta, que valem só para ela); as próximas planejadas, fora da lixeira e ainda iguais à regra antiga
+  --    (data na chave, valor, descrição e categoria) acompanham a regra nova. As demais (pagas, na lixeira, corrigidas à
+  --    mão) só trocam a chave. Os gatilhos de sempre (transactions_guard: conta desativada, centavos;
+  --    transactions_period_guard: período conciliado) valem aqui como no UPDATE comum, e qualquer recusa desfaz tudo.
   update public.transactions x
      set occurrence_date = m.chave,
          date        = case when x.id = t.id then p_date when m.segue then m.chave else x.date end,
          amount      = case when x.id = t.id or m.segue then p_amount else x.amount end,
          description = case when x.id = t.id or m.segue then v_desc else x.description end,
-         category_id = case when x.id = t.id or m.segue then v_cat else x.category_id end
+         category_id = case when x.id = t.id or m.segue then v_cat else x.category_id end,
+         status      = case when x.id = t.id then p_status else x.status end,
+         notes       = case when x.id = t.id then p_notes else x.notes end,
+         account_id  = case when x.id = t.id then p_account else x.account_id end,
+         destination_account_id = case when x.id = t.id then (case when v.kind = 'transfer' then p_destination end)
+                                       else x.destination_account_id end
     from (select u.id, u.antiga,
                  private.recurrence_slot(v.freq_unit, v.freq_every, v_day, v_anchor,
                                          private.recurrence_steps(v.freq_unit, v.freq_every, t.occurrence_date, u.antiga)) as chave,
@@ -189,13 +264,16 @@ begin
    where id = v.id;
   return v_n;
 end $$;
-revoke execute on function private.recurrence_update_from_apply(uuid, date, text, numeric, uuid) from public, anon;
+revoke execute on function private.recurrence_update_from_apply(uuid, date, text, numeric, uuid, text, text, uuid, uuid)
+  from public, anon;
 -- a função pública (SECURITY INVOKER) roda como quem chama, que precisa poder executar esta; o schema private não é
--- exposto pela API, e ela mesma confere a família (recurrence_lock)
-grant execute on function private.recurrence_update_from_apply(uuid, date, text, numeric, uuid) to authenticated;
+-- exposto pela API, e ela mesma confere a família (is_member e recurrence_lock)
+grant execute on function private.recurrence_update_from_apply(uuid, date, text, numeric, uuid, text, text, uuid, uuid)
+  to authenticated;
 
 create function public.recurrence_update_from(p_transaction uuid, p_date date, p_description text, p_amount numeric,
-                                              p_category uuid default null)
+                                              p_category uuid, p_status text, p_notes text, p_account uuid,
+                                              p_destination uuid)
 returns integer language plpgsql security invoker set search_path = '' as $$
 declare
   v_h uuid;
@@ -208,7 +286,10 @@ begin
   if v_h is null or not private.is_member(v_h) then
     raise exception 'lançamento não encontrado' using errcode = '42501';
   end if;
-  return private.recurrence_update_from_apply(p_transaction, p_date, p_description, p_amount, p_category);
+  return private.recurrence_update_from_apply(p_transaction, p_date, p_description, p_amount, p_category, p_status,
+                                              p_notes, p_account, p_destination);
 end $$;
-revoke execute on function public.recurrence_update_from(uuid, date, text, numeric, uuid) from public, anon;
-grant execute on function public.recurrence_update_from(uuid, date, text, numeric, uuid) to authenticated;
+revoke execute on function public.recurrence_update_from(uuid, date, text, numeric, uuid, text, text, uuid, uuid)
+  from public, anon;
+grant execute on function public.recurrence_update_from(uuid, date, text, numeric, uuid, text, text, uuid, uuid)
+  to authenticated;

@@ -434,21 +434,24 @@ export function perguntaSeRepete(original: Lancamento, novo: DadosLancamento): b
 /**
  * "Este e os próximos" (migration 073, recurrence_update_from): o banco muda esta ocorrência e a regra (valor,
  * descrição, categoria e, se a data mudou, o dia), e as próximas planejadas que ninguém corrigiu acompanham; pagas, na
- * lixeira e corrigidas à mão ficam. Depois grava o resto do formulário só neste (situação, observação, conta), com o
- * UPDATE de sempre. Devolve quantas próximas acompanharam.
- * atalho: são duas chamadas (a RPC e o UPDATE); se a segunda falhar, a regra já mudou e a tela mostra o erro — salvar de
- * novo completa (a RPC é idempotente para os mesmos valores). Melhorar: levar situação/observação/conta para a RPC.
+ * lixeira e corrigidas à mão ficam. Situação, observação e conta (e o destino da transferência) vão na MESMA chamada e
+ * valem só para este: o banco grava tudo ou nada (período conciliado, conta desativada etc. recusam sem mudar a regra).
+ * Devolve quantas próximas acompanharam.
  */
 export async function editarEsteEProximos(id: string, d: DadosLancamento): Promise<number> {
+  const l = linha(d)
   const { data, error } = await cliente().rpc('recurrence_update_from', {
     p_transaction: id,
-    p_date: d.data,
-    p_description: d.descricao.trim(),
-    p_amount: centsToDecimal(d.valor),
-    p_category: d.tipo === 'transfer' ? null : d.categoriaId,
+    p_date: l.date,
+    p_description: l.description,
+    p_amount: l.amount,
+    p_category: l.category_id,
+    p_status: l.status,
+    p_notes: l.notes,
+    p_account: l.account_id,
+    p_destination: l.destination_account_id,
   })
   if (error) throw error
-  await editarLancamento(id, d)
   return Number(data ?? 0)
 }
 

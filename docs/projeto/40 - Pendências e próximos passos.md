@@ -41,8 +41,11 @@ atualizado: 2026-10-28
 - [ ] Conferir no iPad/celular: editar a conta de luz de um mês (dia e valor), escolher "Este e os próximos" e ver os meses seguintes no Calendário e em Recorrentes; um mês já pago e um corrigido à mão ficam como estavam.
 - [ ] **Marcar pago não pergunta** (decisão em [[30 - Decisões]]): confirmar com o dono.
 - [ ] Assinatura de cartão: "este e os próximos" não existe (ocorrência é parcela da fatura). Se fizer falta, a edição em Recorrentes já muda valor/descrição/categoria; o dia continua sem mudar.
-- [ ] **Atalho**: o front faz duas chamadas (RPC + UPDATE de situação/observação/conta); se a segunda falhar, a regra já mudou (salvar de novo completa). Melhorar levando esses campos para a RPC.
+- [x] Situação, observação e conta dentro da RPC: "Este e os próximos" é uma chamada só, tudo ou nada (revisão de dinheiro, #191).
+- [x] Revisão de dinheiro (#191): ocorrência antes do começo atual da série é recusada (evita ocorrências em dobro e datas mudadas sem pedido); nova data só entre a anterior e a seguinte e, no mensal, no mês da ocorrência; família conferida antes de qualquer outra recusa; recorrente encerrado, categoria desativada nova e despesa/receita sem categoria recusados.
+- [ ] Depois de um "este e os próximos" com data nova, as ocorrências **anteriores** a ela não aceitam mais "este e os próximos" (só "Apenas este"). Se fizer falta mudar o valor de toda a série de uma vez, a edição em Recorrentes (`recurrence_update`) continua valendo para os planejados de hoje em diante.
 - [ ] Mudar a **frequência** de um recorrente continua sendo excluir e cadastrar outro.
+- [ ] **Folha trata o Esc na captura** (#191, para fechar só a pergunta e não o formulário de trás): o Esc dentro de uma Folha não chega mais a controles internos que usam Esc (ex.: um campo que limparia com Esc); com duas Folhas abertas, as duas escutam na captura. Revisar quando unificar os painéis (`PainelLancamento` → `ui/Folha`), com uma pilha de painéis.
 
 ### Etiquetas nas contas (#189, migration 072)
 - [x] Etiquetas livres por família: criar, renomear, apagar, marcar até 10 por conta; selos, filtro e seção "Etiquetas" em Contas; coluna na exportação completa (#189).

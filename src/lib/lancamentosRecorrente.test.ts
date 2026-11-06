@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Cents } from './format'
 
-// "Este e os próximos" (migration 073): o nome e os parâmetros da RPC têm de bater com o banco; depois, o UPDATE de sempre
+// "Este e os próximos" (migration 073): o nome e os parâmetros da RPC têm de bater com o banco; uma chamada só (sem UPDATE depois)
 const fake = vi.hoisted(() => {
   const chamadas: unknown[][] = []
   const resposta: { data: unknown; error: unknown } = { data: 4, error: null }
@@ -50,21 +50,21 @@ describe('perguntaSeRepete (#191)', () => {
 })
 
 describe('editarEsteEProximos (migration 073)', () => {
-  it('chama recurrence_update_from com o valor em decimal montado dos centavos e depois grava o resto só neste', async () => {
-    expect(await editarEsteEProximos('r1', { ...dados, valor: c(12050), data: '2026-11-15', descricao: ' Luz nova ', status: 'paid', notas: 'x' })).toBe(4)
-    expect(fake.chamadas[0]).toEqual(['rpc', 'recurrence_update_from', {
+  it('UMA chamada: recurrence_update_from com o formulário inteiro (valor em decimal dos centavos, situação, observação, conta)', async () => {
+    expect(await editarEsteEProximos('r1', { ...dados, valor: c(12050), data: '2026-11-15', descricao: ' Luz nova ', status: 'paid', notas: ' x ', contaId: 'a2' })).toBe(4)
+    expect(fake.chamadas).toEqual([['rpc', 'recurrence_update_from', {
       p_transaction: 'r1', p_date: '2026-11-15', p_description: 'Luz nova', p_amount: '120.50', p_category: 'mer',
-    }])
-    expect(fake.chamadas[1]).toEqual(['update', 'transactions', expect.objectContaining({ status: 'paid', notes: 'x', amount: '120.50' }), 'id', 'r1'])
+      p_status: 'paid', p_notes: 'x', p_account: 'a2', p_destination: null,
+    }]])
   })
-  it('transferência vai sem categoria', async () => {
-    await editarEsteEProximos('r1', { ...dados, tipo: 'transfer', destinoId: 'a2', categoriaId: null })
-    expect(fake.chamadas[0]).toEqual(['rpc', 'recurrence_update_from', expect.objectContaining({ p_category: null })])
+  it('observação vazia vai nula; transferência vai sem categoria e com o destino', async () => {
+    await editarEsteEProximos('r1', { ...dados, tipo: 'transfer', destinoId: 'a2', categoriaId: 'mer', notas: '   ' })
+    expect(fake.chamadas).toEqual([['rpc', 'recurrence_update_from', expect.objectContaining({ p_category: null, p_destination: 'a2', p_notes: null })]])
   })
-  it('erro do banco sobe e o UPDATE não roda', async () => {
+  it('erro do banco sobe e nada mais é chamado', async () => {
     fake.resposta.data = null
-    fake.resposta.error = { code: '22023', message: 'parâmetros inválidos' }
-    await expect(editarEsteEProximos('r1', dados)).rejects.toMatchObject({ code: '22023' })
+    fake.resposta.error = { code: '55000', message: 'a conta já foi conciliada' }
+    await expect(editarEsteEProximos('r1', { ...dados, status: 'paid' })).rejects.toMatchObject({ code: '55000' })
     expect(fake.chamadas).toHaveLength(1)
   })
 })
