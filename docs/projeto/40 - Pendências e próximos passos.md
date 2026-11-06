@@ -22,6 +22,12 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Cartões no celular (#201, 06/11/2026)
+- [x] Página sem rolagem lateral em 360, 390, 820 e 1280px (harness com dados fictícios); valores das compras, do resumo da fatura e dos pagamentos visíveis; créditos e pagamentos recolhidos em 5 + "Ver todos (N)".
+- [ ] **Conferir no seu iPhone** (você), com os seus cartões: fileira de meses deslizando dentro do cartão, valores à direita e "Ver todos".
+- [ ] **"Pagamentos e devoluções" por fatura**: hoje a lista é do cartão (os 30 mais recentes, `listarMovimentosDoCartao`), por isso fica recolhida. Dá para filtrar pela fatura escolhida usando o `invoice_id` que já chega, mas o adiantamento (sem fatura) e a devolução em dinheiro precisam de lugar próprio; decidir e fazer numa PR à parte (sem migration).
+- [ ] **Mais de 30 pagamentos**: atalho — a tela lê só os 30 mais recentes e diz "Mostrando os 30 mais recentes"; os antigos não aparecem nem para anular. Melhorar com paginação ou com o filtro por fatura acima.
+- [ ] **Abas de fatura**: com 24 faturas a fileira continua longa (rola de lado); avaliar um seletor de mês (‹ mês ›) no celular no lugar das abas.
 ### Segurança dos GitHub Actions (#195, 06/11/2026)
 - [x] Segredos de produção só nos passos que usam (workflow de migrations), checkout com `persist-credentials: false`, actions por SHA com a tag no comentário, `setup-cli@v1` (branch) + `latest` trocados por v3.2.0 + CLI 2.122.1 nos testes do banco, Dependabot semanal para as actions.
 - [ ] **Rodar "simular" no workflow de produção depois do merge** (com o "pode" do dono): é a única prova real de que os segredos chegam aos passos certos e de que a setup-cli fixada por SHA funciona ali (o CI do PR não roda esse workflow).
