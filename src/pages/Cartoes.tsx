@@ -17,7 +17,7 @@ import {
   inicioDaTroca, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
-  visaoDosCartoes,
+  visaoDosCartoes, LIMITE_MOVIMENTOS,
 } from '../lib/cartoes'
 import type { Cartao, CreditoFatura, Fatura, ItemFatura, ItemPrevia, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
 import { IconeCadeadoAberto, IconeCadeadoFechado, IconeCadeadoPago, IconeCadeadoVencido } from '../components/layout/icons'
@@ -420,11 +420,14 @@ export default function Cartoes() {
         />
       )}
 
-      <ul className="grid gap-4 lg:grid-cols-2">
+      {/* #201: grid-cols-1 (= minmax(0, 1fr)) e min-w-0 no li. Sem coluna explícita, a coluna implícita do grid é `auto` e
+          cresce até a largura mínima do conteúdo: a fileira de faturas (24 abas lado a lado) alargava o cartão e a página
+          inteira no celular (1.680px numa tela de 390px), e os valores ficavam fora da tela */}
+      <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2" data-testid="lista-cartoes">
         {ativos.map((c) => (
           // com painel ou faturas abertas, o cartão ocupa a linha inteira da grade (os formulários precisam de largura)
           <li key={c.id} id={`cartao-${c.id}`}
-            className={`scroll-mt-4 ${aberto === c.id || (painel && painel.tipo !== 'novo' && painel.cartao.id === c.id) ? 'lg:col-span-2' : ''}`}>
+            className={`min-w-0 scroll-mt-4 ${aberto === c.id || (painel && painel.tipo !== 'novo' && painel.cartao.id === c.id) ? 'lg:col-span-2' : ''}`}>
             <Card>
               <div className="flex items-start gap-3">
                 <IconeEmissor nome={c.nome} emissor={c.emissor} />
@@ -706,35 +709,63 @@ const rotuloSituacao = { aberta: SELO_FATURA.aberta, fechada: SELO_FATURA.fechad
 
 // resumo da fatura (#183): empilhado = linha "nome … valor"; em 3 colunas = nome em cima do valor
 const itemResumo = 'flex items-baseline justify-between gap-3 sm:block md:flex xl:block'
-const valorResumo = 'whitespace-nowrap tabular-nums font-semibold'
+const valorResumo = 'shrink-0 whitespace-nowrap tabular-nums font-semibold'
 
 /**
- * Uma compra ou um crédito da fatura (#183, como a lista de Lançamentos depois da #172), em grade:
- * ícone | título (até 2 linhas, reticências) e a categoria embaixo | valor numa coluna própria (nowrap, tabular), nunca
- * por cima do texto, com o ⋯ embaixo dele. Sem `acoes` (fatura paga, travada) não há ⋯. O painel abre na linha toda.
+ * Uma compra ou um crédito da fatura, compacta (#201, queixa do dono no iPhone): ícone | nome (até 2 linhas, reticências;
+ * nome inteiro no `title`) e o valor NA MESMA LINHA do começo do nome, à direita (nowrap, tabular, nunca encolhe) | ⋯ ao lado. Embaixo,
+ * menor, a categoria (e "a cobrar no fechamento") com a parcela num selo. Sem `acoes` (fatura paga, travada) não há ⋯.
+ * O painel (Estornar) abre na linha toda.
  */
 function LinhaDaFatura({ testId, icone, titulo, detalhe, parcela = null, valor, corValor, acoes, painel }: {
   testId: string; icone: ReactNode; titulo: string; detalhe: string; parcela?: string | null
   valor: string; corValor: string; acoes: ReactNode; painel?: ReactNode
 }) {
   return (
-    <li className="py-3" data-testid={testId}>
-      <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3">
-        {icone}
-        <div className="min-w-0">
-          <p className="line-clamp-2 break-words font-medium" title={titulo}>{titulo}</p>
-          <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-sm text-slate-500">
+    <li className="py-1.5" data-testid={testId}>
+      <div className="flex min-w-0 items-center gap-x-3">
+        <span className="shrink-0">{icone}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start gap-2" data-linha-principal>
+            <p className="line-clamp-2 min-w-0 flex-1 break-words font-medium leading-snug" title={titulo}>{titulo}</p>
+            <span data-valor className={`shrink-0 whitespace-nowrap tabular-nums font-semibold ${corValor}`}>{valor}</span>
+          </div>
+          <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
             <span className="min-w-0 truncate" title={detalhe}>{detalhe}</span>
-            {parcela && <span className="shrink-0 whitespace-nowrap rounded bg-neutro-fundo px-1.5 text-xs font-medium text-neutro">{parcela}</span>}
+            {parcela && <span className="shrink-0 whitespace-nowrap rounded bg-neutro-fundo px-1.5 font-medium text-neutro">{parcela}</span>}
           </p>
         </div>
-        <div className="flex shrink-0 flex-col items-end">
-          <span data-valor className={`whitespace-nowrap tabular-nums font-semibold ${corValor}`}>{valor}</span>
-          {acoes && <div className="-mr-2 flex items-center gap-1">{acoes}</div>}
-        </div>
+        {acoes && <div className="-mr-2 flex shrink-0 items-center gap-1">{acoes}</div>}
       </div>
       {painel}
     </li>
+  )
+}
+
+/** Quantos itens as listas longas da fatura mostram antes do "Ver todos (N)". */
+const VISIVEIS_NA_LISTA = 5
+
+/**
+ * Lista longa recolhida (#201: no celular, 30 créditos de IOF ou o histórico de pagamentos empurravam a fatura para longe):
+ * mostra os primeiros VISIVEIS_NA_LISTA (a lista já vem na ordem certa, o mais recente primeiro) e "Ver todos (N)", que
+ * expande e recolhe (aria-expanded). Só apresentação: nenhum total é somado aqui.
+ */
+function ListaRecolhida<T>({ itens, rotulo, className, children }: {
+  itens: T[]; rotulo: string; className?: string; children: (item: T) => ReactNode
+}) {
+  const [todos, setTodos] = useState(false)
+  const id = useId()
+  const mostrar = todos ? itens : itens.slice(0, VISIVEIS_NA_LISTA)
+  const texto = todos ? 'Mostrar menos' : `Ver todos (${itens.length})`
+  return (
+    <>
+      <ul id={id} aria-label={rotulo} className={className}>{mostrar.map(children)}</ul>
+      {itens.length > VISIVEIS_NA_LISTA && (
+        // o nome acessível começa pelo texto visível e diz de qual lista é (há mais de um "Ver todos" na tela)
+        <Button variante="fantasma" compacto aria-expanded={todos} aria-controls={id} aria-label={`${texto} — ${rotulo.toLowerCase()}`}
+          onClick={() => setTodos(!todos)}>{texto}</Button>
+      )}
+    </>
   )
 }
 
@@ -785,23 +816,34 @@ function MovimentosCartao({ cartaoId, versao, aoAlterar }: { cartaoId: string; v
       {erro && <div className="mb-2"><Aviso tipo="erro">{erro}</Aviso></div>}
       {movs === null && !erro && <p className="text-sm text-slate-500" role="status">Carregando…</p>}
       {movs?.length === 0 && <p className="text-sm text-slate-500">Nenhum pagamento ou devolução lançado.</p>}
-      <ul className="flex flex-col gap-2">
-        {movs?.map((m) => (
-          <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
-            <span>
-              {formatDate(m.data)} · {m.tipo === 'devolucao' ? 'Devolução em dinheiro' : m.tipo === 'amortizacao' ? 'Amortização' : 'Pagamento'}
-              {m.ligadoAFatura ? ' (fatura)' : ' (sem fatura: adiantado)'} · <span className="tabular-nums font-semibold">{formatBRL(m.valor)}</span>
-            </span>
-            {m.faturaId && travadas.has(m.faturaId) && !podeAnularPagamentoTravado(m, movs) ? (
-              <span className="text-xs font-medium text-lucro">Fatura paga — travada</span>
-            ) : (
-              <Button variante="perigo" carregando={anulando === m.id} disabled={anulando !== null} onClick={() => void anular(m)}>
-                Anular
-              </Button>
-            )}
-          </li>
-        ))}
-      </ul>
+      {/* #201: a lista é do cartão (não da fatura escolhida), então começa recolhida nos mais recentes */}
+      {movs && movs.length > 0 && (
+        <ListaRecolhida itens={movs} rotulo="Pagamentos e devoluções" className="divide-y divide-slate-100">
+          {(m) => (
+            <li key={m.id} className="flex min-w-0 items-center gap-2 py-1.5 text-sm" data-testid="movimento-cartao">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">
+                  {m.tipo === 'devolucao' ? 'Devolução em dinheiro' : m.tipo === 'amortizacao' ? 'Amortização' : 'Pagamento'}
+                </span>
+                <span className="block truncate text-xs text-slate-500">{formatDate(m.data)} · {m.ligadoAFatura ? 'fatura' : 'sem fatura: adiantado'}</span>
+              </span>
+              <span data-valor className="shrink-0 whitespace-nowrap tabular-nums font-semibold">{formatBRL(m.valor)}</span>
+              {m.faturaId && travadas.has(m.faturaId) && !podeAnularPagamentoTravado(m, movs) ? (
+                <span className="w-20 shrink-0 leading-tight text-right text-xs font-medium text-lucro">Fatura paga — travada</span>
+              ) : (
+                <Button variante="discreto" compacto className="w-20 shrink-0" carregando={anulando === m.id} disabled={anulando !== null} onClick={() => void anular(m)}>
+                  Anular
+                </Button>
+              )}
+            </li>
+          )}
+        </ListaRecolhida>
+      )}
+      {movs && movs.length >= LIMITE_MOVIMENTOS && (
+        // atalho: a leitura traz só os LIMITE_MOVIMENTOS mais recentes (listarMovimentosDoCartao); "Ver todos" não passa
+        // disso. Melhorar filtrando por fatura no banco (ver 40 - Pendências)
+        <p className="text-xs text-slate-500">Mostrando os {LIMITE_MOVIMENTOS} mais recentes.</p>
+      )}
     </div>
   )
 }
@@ -925,9 +967,22 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
   }, [rolar, idBase])
 
   // a aba escolhida fica à vista na faixa rolável (abre já rolada na fatura atual)
+  // #201: a faixa rola dentro dela mesma; a sombra no lado que ainda tem faturas escondidas avisa que dá para deslizar
+  const [maisAbas, setMaisAbas] = useState({ antes: false, depois: false })
+  const medirAbas = useCallback(() => {
+    const el = abas.current
+    if (!el) return
+    const antes = el.scrollLeft > 1, depois = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+    setMaisAbas((m) => (m.antes === antes && m.depois === depois ? m : { antes, depois }))
+  }, [])
   useEffect(() => {
     abas.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' })
-  }, [mes, faturas, todas])
+    medirAbas()
+  }, [mes, faturas, todas, medirAbas])
+  useEffect(() => {
+    window.addEventListener('resize', medirAbas)
+    return () => window.removeEventListener('resize', medirAbas)
+  }, [medirAbas])
 
   const nomeCategoria = nomesCompletos(categorias)
   const categoriaPorId = new Map(categorias.map((c) => [c.id, c]))
@@ -992,20 +1047,24 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
           {pagar.formulario}
         </div>
       )}
-      <div ref={abas} className="flex gap-2 overflow-x-auto pb-2" role="tablist" aria-label="Faturas">
+      <div className="relative min-w-0" data-testid="faixa-faturas">
+      {maisAbas.antes && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-white" data-testid="sombra-antes" />}
+      {maisAbas.depois && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-white" data-testid="sombra-depois" />}
+      <div ref={abas} onScroll={medirAbas} className="flex snap-x gap-2 overflow-x-auto overscroll-x-contain pb-2" role="tablist" aria-label="Faturas">
         {visiveis.map((f, i) => {
           const s = faturaVencida(f, hoje) ? { texto: 'Vencida', estilo: 'bg-prejuizo text-white' } : rotuloSituacao[situacaoFatura(f, hoje)]
           const escolhida = mes === f.mes
           return (
             <button key={f.mes} id={idAba(f.mes)} type="button" role="tab" aria-selected={escolhida} aria-controls={escolhida ? idPainel : undefined}
               tabIndex={escolhida ? 0 : -1} onClick={() => setMes(f.mes)} onKeyDown={(e) => teclaNaAba(e, i)}
-              className={`min-w-32 shrink-0 rounded-lg border px-3 py-2 text-left text-sm ${escolhida ? 'border-azul bg-azul-claro' : 'border-slate-200'}`}>
-              <span className="block font-semibold">{primeiraMaiuscula(formatMonth(f.mes))}</span>
-              <span className="block tabular-nums">{formatBRL(f.total)}</span>
+              className={`min-w-32 shrink-0 snap-start rounded-lg border px-3 py-2 text-left text-sm ${escolhida ? 'border-azul bg-azul-claro' : 'border-slate-200'}`}>
+              <span className="block whitespace-nowrap font-semibold">{primeiraMaiuscula(formatMonth(f.mes))}</span>
+              <span className="block whitespace-nowrap tabular-nums">{formatBRL(f.total)}</span>
               <span className={`mt-1 inline-block rounded px-1.5 text-xs font-medium ${s.estilo}`}>{s.texto}</span>
             </button>
           )
         })}
+      </div>
       </div>
       {mes && (() => {
         const f = faturas.find((x) => x.mes === mes)!
@@ -1017,7 +1076,7 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
         const ultimoPagamento = pagamentos.length > 0 ? pagamentos[pagamentos.length - 1] : null
         return (
           <section role="tabpanel" id={idPainel} aria-labelledby={idAba(mes)} aria-label={`Fatura de ${formatMonth(mes)}`} tabIndex={0} className="mt-3">
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="rounded-lg bg-fundo p-3">
                 <p className="flex flex-wrap items-center gap-2 font-semibold">
                   {cartao.nome} · {primeiraMaiuscula(formatMonth(f.mes))}
@@ -1047,7 +1106,7 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
               </div>
               {/* #183: o valor nunca quebra (nowrap). Três colunas só com largura de sobra (sm sozinho na linha; xl lado a
                   lado com a fatura); no resto, empilha: nome à esquerda, valor à direita */}
-              <dl className="grid grid-cols-1 gap-x-4 gap-y-1 rounded-lg bg-fundo p-3 text-sm sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3" aria-label="Resumo da fatura">
+              <dl className="grid grid-cols-1 content-start gap-x-4 gap-y-1 rounded-lg bg-fundo p-3 text-sm sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3" aria-label="Resumo da fatura">
                 <div className={itemResumo}>
                   <dt className="text-xs text-slate-500">Saldo anterior</dt>
                   <dd className={`${valorResumo} ${f.saldoAnterior > 0 ? 'text-prejuizo' : f.adiantamentoEntrada > 0 ? 'text-lucro' : ''}`}>
@@ -1067,14 +1126,16 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
             {!pagarForaDasAbas && pagar.formulario}
             {erroPagamentos && <div className="mt-2"><Aviso tipo="erro">{erroPagamentos}</Aviso></div>}
             {pagamentos.length > 0 && (
-              <ul className="mt-2 flex flex-col gap-1 text-sm" aria-label="Pagamentos da fatura">
-                {pagamentos.map((p) => (
-                  <li key={p.id} className="flex justify-between gap-2 rounded border border-slate-100 px-3 py-1.5">
-                    <span>Pagamento recebido em {formatDate(p.data)}</span>
-                    <span className="tabular-nums font-semibold text-lucro">{formatBRL(p.valor)}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="mt-2">
+                <ListaRecolhida key={mes} itens={pagamentos} rotulo="Pagamentos da fatura" className="flex flex-col gap-1 text-sm">
+                  {(p) => (
+                    <li key={p.id} className="flex min-w-0 items-center justify-between gap-2 rounded border border-slate-100 px-3 py-1.5">
+                      <span className="min-w-0 truncate">Pagamento recebido em {formatDate(p.data)}</span>
+                      <span data-valor className="shrink-0 whitespace-nowrap tabular-nums font-semibold text-lucro">{formatBRL(p.valor)}</span>
+                    </li>
+                  )}
+                </ListaRecolhida>
+              </div>
             )}
             {f.aCobrar > 0 && f.cobrado > 0 && (
               <p className="text-xs text-agendado">Ainda vai entrar nesta fatura: {formatBRL(f.aCobrar)} <SeloAgendado /></p>
@@ -1101,8 +1162,8 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
             {creditos.length > 0 && (
               <div className="mt-3" role="group" aria-label="Créditos e reembolsos">
                 <h4 className="mb-1 text-sm font-semibold text-slate-500">Créditos e reembolsos</h4>
-                <ul className="divide-y divide-slate-100">
-                  {creditos.map((cr) => (
+                <ListaRecolhida key={mes} itens={creditos} rotulo="Créditos e reembolsos" className="divide-y divide-slate-100">
+                  {(cr) => (
                     <LinhaDaFatura key={cr.id} testId="credito-fatura"
                       icone={<IconeCategoria visual={visualPorId(cr.categoriaId, categoriaPorId, 'income')} tamanho="pequeno" />}
                       titulo={cr.descricao}
@@ -1123,12 +1184,12 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
                             aoConcluir={async () => { setAcao(null); await aoAlterar() }} />
                         </PainelJunto>
                       )} />
-                  ))}
-                </ul>
+                  )}
+                </ListaRecolhida>
               </div>
             )}
             {erroItens ? <div className="mt-2"><Aviso tipo="erro">{erroItens}</Aviso></div> : itens === null ? <p className="mt-2 text-sm text-slate-600" role="status">Carregando…</p> : (
-              <div className="mt-3 flex flex-col gap-4">
+              <div className="mt-3 flex flex-col gap-3">
                 {comprasPorDia(itens).map(([dia, doDia]) => (
                   <div key={dia ?? 'sem-data'} role="group" aria-label={dia ? formatDate(dia) : 'Sem data da compra'}>
                     <h4 className="mb-1 text-sm font-semibold text-slate-500">{dia ? formatDate(dia) : 'Sem data da compra'}</h4>

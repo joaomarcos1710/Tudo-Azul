@@ -1385,7 +1385,7 @@ describe('Fatura paga travada (migration 064)', () => {
     expect(screen.getByRole('form', { name: 'Trocar categoria do crédito' })).toBeTruthy()
   })
 
-  it('#183: na lista de compras o valor tem coluna própria (nunca por cima do nome), o título corta em 2 linhas e a categoria fica embaixo', async () => {
+  it('#183/#201: na lista de compras o valor fica na linha do nome, à direita e sem encolher; o título corta em 2 linhas e a categoria fica embaixo', async () => {
     const u = userEvent.setup()
     fixarHoje('2026-11-05')
     const longa = { ...tv, parcelaId: 'p10', descricao: 'Supermercado do bairro com nome comprido de verdade', valor: c(53456), parcela: 2, deParcelas: 10 }
@@ -1397,18 +1397,18 @@ describe('Fatura paga travada (migration 064)', () => {
     await u.click(await screen.findByRole('tab', { name: /Setembro/ }))
     const titulo = await screen.findByText(longa.descricao)
     const linha = titulo.closest('[data-testid="compra-fatura"]') as HTMLElement
-    const grade = linha.firstElementChild as HTMLElement
-    expect(grade.className).toContain('grid-cols-[auto_minmax(0,1fr)_auto]')
-    expect(grade.children).toHaveLength(3) // ícone | texto | valor + ⋯
-    expect(titulo.className).toContain('line-clamp-2')
+    expect(titulo.className.split(' ')).toEqual(expect.arrayContaining(['line-clamp-2', 'min-w-0']))
     const valor = within(linha).getByText(/^−R\$\s?534,56$/)
-    expect(valor.className.split(' ')).toEqual(expect.arrayContaining(['whitespace-nowrap', 'tabular-nums', 'text-prejuizo']))
-    // o valor não está no mesmo bloco do texto: fica na terceira coluna, junto do ⋯
-    expect(grade.children[1].contains(valor)).toBe(false)
-    expect(grade.children[2].contains(valor)).toBe(true)
-    expect(within(grade.children[2] as HTMLElement).getByRole('button', { name: `Ações de ${longa.descricao}` })).toBeTruthy()
-    // categoria e parcela embaixo do título, no bloco do texto
-    expect(within(grade.children[1] as HTMLElement).getByText('2/10')).toBeTruthy()
+    expect(valor.className.split(' ')).toEqual(expect.arrayContaining(['shrink-0', 'whitespace-nowrap', 'tabular-nums', 'text-prejuizo']))
+    // #201: nome e valor na mesma linha, valor à direita sem encolher (no celular ele sumia para fora da tela)
+    const principal = linha.querySelector('[data-linha-principal]') as HTMLElement
+    expect(principal.contains(titulo) && principal.contains(valor)).toBe(true)
+    // o ⋯ fica ao lado, fora da linha do nome; categoria e parcela embaixo, menores
+    const menu = within(linha).getByRole('button', { name: `Ações de ${longa.descricao}` })
+    expect(principal.contains(menu)).toBe(false)
+    const parcela = within(linha).getByText('2/10')
+    expect(principal.contains(parcela)).toBe(false)
+    expect(parcela.parentElement!.className).toContain('text-xs')
   })
 
   it('#183: no resumo da fatura (saldo anterior, gasto do mês, valor pago) os valores não quebram e empilham quando falta espaço', async () => {
@@ -1452,10 +1452,10 @@ describe('Fatura paga travada (migration 064)', () => {
     ])
     render(<Cartoes />)
     await u.click(await botaoVerFatura())
-    const antiga = (await screen.findByText(/25\/09\/2026 · Pagamento/)).closest('li')!
+    const antiga = (await screen.findByText(/25\/09\/2026 · fatura/)).closest('li')!
     expect(within(antiga).queryByRole('button', { name: 'Anular' })).toBeNull()
     expect(within(antiga).getByText('Fatura paga — travada')).toBeTruthy()
-    const recente = screen.getByText(/05\/11\/2026 · Pagamento/).closest('li')!
+    const recente = screen.getByText(/05\/11\/2026 · fatura/).closest('li')!
     expect(within(recente).getByRole('button', { name: 'Anular' })).toBeTruthy()
   })
 })
@@ -1703,5 +1703,87 @@ describe('Visual do resumo e dos botões de fatura (#181, pedido do dono)', () =
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-11', fechamento: '2026-11-03', vencimento: '2026-11-10', cobrado: c(4000), total: c(4000) })])
     render(<Cartoes />)
     expect((await screen.findByTestId('proxima-fatura')).textContent).toBe('Próxima fatura vence em10/11/2026Cartão VerdeVer fatura')
+  })
+})
+
+describe('Tela de Cartões no celular (#201, queixa do dono no iPhone)', () => {
+  // dados fictícios: fatura aberta de novembro com 30 créditos de IOF e 30 pagamentos no histórico do cartão
+  const aberta = fatura({ mes: '2026-11', fechamento: '2026-11-17', vencimento: '2026-11-25', aCobrar: c(5000), total: c(5000), creditos: c(46500), faturaId: null })
+  const creditos = Array.from({ length: 30 }, (_, i) => ({
+    id: `cr${i}`, descricao: `IOF ${i + 1}`, dataCredito: '2026-10-24', fechamento: '2026-11-17', valor: c(100 + i), categoriaId: 'g2',
+  }))
+  const movimentos = Array.from({ length: 30 }, (_, i) => ({
+    id: `mv${i}`, data: `2026-${String(10 - (i % 6)).padStart(2, '0')}-2${i % 8}`, tipo: 'pagamento' as const, valor: c(10000 + i),
+    ligadoAFatura: false, faturaId: null, criadoEm: '2026-01-01T00:00:00Z',
+  }))
+  const compra = { parcelaId: 'p1', compra: 'x1', parcela: 2, deParcelas: 3, descricao: 'Drogaria com um nome bem comprido de exemplo', dataCompra: '2026-11-02', valor: c(12345), falta: c(12345), categoriaId: 'g1' }
+
+  async function abrir(u: ReturnType<typeof userEvent.setup>) {
+    fixarHoje('2026-11-06')
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }])
+    mock.listarFaturas.mockResolvedValue([aberta])
+    mock.listarItens.mockResolvedValue([compra])
+    mock.listarCreditosDaFatura.mockResolvedValue(creditos)
+    mock.listarMovimentosDoCartao.mockResolvedValue(movimentos)
+    render(<Cartoes />)
+    await u.click(await botaoVerFatura())
+    await screen.findByText(compra.descricao)
+  }
+
+  it('a lista de cartões não alarga a página: coluna do grid minmax(0, 1fr) e o cartão com min-w-0; as faturas rolam dentro da faixa', async () => {
+    const u = userEvent.setup()
+    await abrir(u)
+    // sem coluna explícita o grid usava `auto`, que crescia até a largura das 24 abas de fatura (1.680px numa tela de 390px)
+    const lista = screen.getByTestId('lista-cartoes')
+    expect(lista.className.split(' ')).toContain('grid-cols-1')
+    const li = document.getElementById('cartao-k1')!
+    expect(li.parentElement).toBe(lista)
+    expect(li.className.split(' ')).toContain('min-w-0')
+    // a fileira de meses rola no próprio contêiner, que não empurra o cartão
+    const abas = screen.getByRole('tablist', { name: 'Faturas' })
+    expect(abas.className.split(' ')).toContain('overflow-x-auto')
+    expect(abas.parentElement!.className.split(' ')).toContain('min-w-0')
+  })
+
+  it('créditos e reembolsos: 30 na fatura mostram 5 e "Ver todos (30)", que expande e recolhe', async () => {
+    const u = userEvent.setup()
+    await abrir(u)
+    const grupo = screen.getByRole('group', { name: 'Créditos e reembolsos' })
+    expect(within(grupo).getAllByTestId('credito-fatura')).toHaveLength(5)
+    const ver = within(grupo).getByRole('button', { name: /^Ver todos \(30\)/ })
+    expect(ver.getAttribute('aria-expanded')).toBe('false')
+    expect(document.getElementById(ver.getAttribute('aria-controls')!)).toBeTruthy()
+    await u.click(ver)
+    expect(within(grupo).getAllByTestId('credito-fatura')).toHaveLength(30)
+    const menos = within(grupo).getByRole('button', { name: /^Mostrar menos/ })
+    expect(menos.getAttribute('aria-expanded')).toBe('true')
+    await u.click(menos)
+    expect(within(grupo).getAllByTestId('credito-fatura')).toHaveLength(5)
+    // o total da seção continua sendo o do banco (card_months), não a soma das linhas
+    expect(screen.getByText(/Créditos e reembolsos nesta fatura \(contam como receita\): R\$\s?465,00/)).toBeTruthy()
+  })
+
+  it('pagamentos e devoluções do cartão: 5 mais recentes e "Ver todos (30)"; cada linha com o valor visível no DOM', async () => {
+    const u = userEvent.setup()
+    await abrir(u)
+    const lista = screen.getByRole('list', { name: 'Pagamentos e devoluções' })
+    const linhas = within(lista).getAllByTestId('movimento-cartao')
+    expect(linhas).toHaveLength(5)
+    expect(linhas[0].querySelector('[data-valor]')!.textContent).toMatch(/R\$\s?100,00/)
+    for (const l of linhas) expect(l.querySelector('[data-valor]')!.className.split(' ')).toEqual(expect.arrayContaining(['shrink-0', 'whitespace-nowrap']))
+    await u.click(screen.getByRole('button', { name: /^Ver todos \(30\) — pagamentos e devoluções/ }))
+    expect(within(lista).getAllByTestId('movimento-cartao')).toHaveLength(30)
+    expect(screen.getByText('Mostrando os 30 mais recentes.')).toBeTruthy()
+  })
+
+  it('valores das compras e dos créditos estão no DOM, na mesma linha do nome', async () => {
+    const u = userEvent.setup()
+    await abrir(u)
+    const linha = screen.getAllByTestId('compra-fatura')[0]
+    const principal = linha.querySelector('[data-linha-principal]')!
+    expect(principal.querySelector('[data-valor]')!.textContent).toMatch(/^−R\$\s?123,45$/)
+    for (const cr of screen.getAllByTestId('credito-fatura')) {
+      expect(cr.querySelector('[data-linha-principal] [data-valor]')!.textContent).toMatch(/^\+R\$/)
+    }
   })
 })

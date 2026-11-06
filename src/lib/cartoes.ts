@@ -613,6 +613,9 @@ export async function listarPagamentosDaFatura(cartaoId: string, faturaId: strin
     .map((e) => ({ id: e.id, data: e.date, valor: centsFromDb(e.amount) }))
 }
 
+/** Quantos pagamentos e devoluções do cartão a tela lê (os mais recentes). */
+export const LIMITE_MOVIMENTOS = 30
+
 export async function listarMovimentosDoCartao(cartaoId: string): Promise<MovimentoCartao[]> {
   const { data, error } = await cliente()
     .from('debt_events')
@@ -622,7 +625,7 @@ export async function listarMovimentosDoCartao(cartaoId: string): Promise<Movime
     .in('kind', ['payment', 'extra_principal', 'refund_cash'])
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(30)
+    .limit(LIMITE_MOVIMENTOS)
   if (error) throw error
   const tipos: Record<string, MovimentoCartao['tipo']> = { payment: 'pagamento', extra_principal: 'amortizacao', refund_cash: 'devolucao' }
   return (data ?? []).map((e) => ({
