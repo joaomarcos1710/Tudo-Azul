@@ -33,18 +33,12 @@ create function pg_temp.totais(p_de date, p_ate date, p_plan boolean default fal
          || total_transfers::numeric(14,2) || '/' || total_closing::numeric(14,2)
     from public.account_flow_report(pg_temp.fx('h'), p_de, p_ate, p_plan) limit 1 $f$;
 -- contas cuja linha NÃO fecha: o saldo final (inicial + entradas − saídas, uma chamada de saldo só) tem de bater com o
--- saldo calculado à parte no fim do período (account_balances_projected em p_ate, menos as assinaturas previstas que
--- vencem até ali pela conta e mais os fixos não gerados até ali); null = todas fecham
+-- saldo calculado à parte no fim do período (account_balances_projected em p_ate, que desde a 069 já desconta as
+-- assinaturas previstas e soma os fixos não gerados até ali); null = todas fecham
 create function pg_temp.nao_fecham(p_de date, p_ate date, p_plan boolean) returns text language sql as $f$
   select string_agg(r.name, ',') from public.account_flow_report(pg_temp.fx('h'), p_de, p_ate, p_plan) r
    where r.opening_balance + r.income - r.expense <> r.closing_balance
-      or r.closing_balance <> (select b.balance from public.account_balances_projected(pg_temp.fx('h'), p_ate, p_plan) b where b.account_id = r.account_id)
-           - case when p_plan then coalesce((select sum(pc.amount) from private.card_pending_by_due(pg_temp.fx('h'), null, p_ate) pc
-                                              where pc.pay_account_id = r.account_id), 0) else 0 end
-           + case when p_plan then coalesce((select sum(case when pr.destination_account_id = r.account_id then pr.amount
-                                                             when pr.kind = 'income' then pr.amount else -pr.amount end)
-                                               from private.account_recurrence_pending(pg_temp.fx('h'), null, p_ate) pr
-                                              where r.account_id in (pr.account_id, pr.destination_account_id)), 0) else 0 end $f$;
+      or r.closing_balance <> (select b.balance from public.account_balances_projected(pg_temp.fx('h'), p_ate, p_plan) b where b.account_id = r.account_id) $f$;
 grant execute on function pg_temp.fx(text), pg_temp.login(uuid), pg_temp.sqlstate_of(text), pg_temp.saidas(date, date, boolean),
   pg_temp.contas(date, date, boolean), pg_temp.totais(date, date, boolean), pg_temp.nao_fecham(date, date, boolean) to public;
 
@@ -135,13 +129,10 @@ select is((select string_agg(period_start::text, ',') from (
           null, 'P2 saldo de hoje − saldo de ontem = resultado de hoje, de jan a abr/2030 (assinaturas e fixos previstos inclusos)');
 select is((select closing_balance from public.cash_flow_series(pg_temp.fx('h'), '2030-02-05', '2030-02-05', 'day', null, null, true))
           - (select total from public.balance_totals_projected(pg_temp.fx('h'), '2030-02-05', true)),
-          -30.00::numeric, 'P2.1 em 05/02 o saldo = balance_totals_projected − a assinatura prevista que venceu ali (30); a de 10/02 vence só em 05/03');
+          0.00::numeric, 'P2.1 em 05/02 o saldo = balance_totals_projected (desde a 069 ele já desconta a assinatura prevista que venceu ali)');
 select is((select string_agg(period_start::text, ',') from public.cash_flow_series(pg_temp.fx('h'), '2030-03-01', '2030-06-30', 'month', null, null, true) s
-            where s.closing_balance <> (select bt.total from public.balance_totals_projected(pg_temp.fx('h'), s.period_end, true) bt)
-                    - coalesce((select sum(pc.amount) from private.card_pending_by_due(pg_temp.fx('h'), null, s.period_end) pc), 0)
-                    + coalesce((select sum(case pr.kind when 'income' then pr.amount else -pr.amount end)
-                                  from private.account_recurrence_pending(pg_temp.fx('h'), null, s.period_end) pr where pr.kind <> 'transfer'), 0)),
-          null, 'P2.2 de mar a jun/2030: abertura (uma chamada em 28/02, menos a assinatura de 05/02 e o aluguel de 15/02 ainda previstos) + acumulado = saldo calculado à parte no fim de cada mês');
+            where s.closing_balance <> (select bt.total from public.balance_totals_projected(pg_temp.fx('h'), s.period_end, true) bt)),
+          null, 'P2.2 de mar a jun/2030: abertura (uma chamada em 28/02) + acumulado = balance_totals_projected no fim de cada mês (069: com os previstos)');
 
 -- P3 a assinatura vira compra (simula recurrence_materialize no dia 10/01): já está no total da fatura e sai da previsão
 reset role;

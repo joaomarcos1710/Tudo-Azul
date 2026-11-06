@@ -281,7 +281,8 @@ export default function Calendario() {
 
 /**
  * Uma linha só: o saldo total (em reais, do banco: balance_totals_projected) no dia escolhido ou no fim do mês, só
- * efetuados ou efetuados + planejados. É a única informação daqui que não está em outra tela: o saldo por conta
+ * efetuados ou efetuados + planejados (desde a migration 069, com as assinaturas e os lançamentos fixos previstos, os
+ * mesmos números de Relatórios › Entradas x Saídas). É a única informação daqui que não está em outra tela: o saldo por conta
  * fica em Contas e no Início (só o de hoje, decisão do dono de 05/11/2026).
  */
 function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; ate: string; hoje: string }) {
@@ -322,6 +323,11 @@ function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; a
             className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${incluir ? 'bg-azul text-white' : 'bg-fundo text-slate-600'}`}>Efetuados + planejados</button>
         </div>
       </div>
+      {incluir && !carregando && total && (
+        <p className="mt-1 text-xs text-slate-500" data-testid="saldo-o-que-inclui">
+          Com os planejados, os lançamentos fixos ainda não gerados e as faturas com as assinaturas previstas, como nos Relatórios.
+        </p>
+      )}
       {incluir && !carregando && total && total.faturasSemConta > 0 && (
         <p className="mt-1 text-xs text-atencao" data-testid="saldo-sem-conta">
           Inclui {formatBRL(total.faturasSemConta)} em faturas e parcelas sem conta de pagamento; escolha a conta em{' '}

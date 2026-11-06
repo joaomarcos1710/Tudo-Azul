@@ -696,6 +696,8 @@ describe('Visão geral', () => {
     expect(within(painel).getAllByText('R$ 2.494,49')).toHaveLength(1) // saldo das contas uma vez só
     expect(within(painel).getByText('Saldo hoje')).toBeTruthy()
     expect(within(painel).getByText('R$ 994,49')).toBeTruthy() // previsto no fim do mês, do banco
+    // migration 069: o previsto é o mesmo dos Relatórios (com as assinaturas e os fixos previstos), e o card diz isso
+    expect(within(painel).getByText(/O previsto já conta as contas planejadas, os lançamentos fixos e as faturas com as assinaturas previstas/)).toBeTruthy()
     // cada item na sua linha, rótulo e valor juntos (em duas colunas o rótulo quebrava e o valor saía do card)
     const linhas = Array.from(within(painel).getByText('Saldo hoje').closest('dl')!.children)
     expect(linhas.map((l) => l.textContent)).toEqual(['Saldo hojeR$ 2.494,49', expect.stringMatching(/^Previsto em \d{2}\/\d{2}R\$ 994,49$/)])
