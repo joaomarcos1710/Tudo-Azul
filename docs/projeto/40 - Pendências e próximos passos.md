@@ -228,7 +228,7 @@ atualizado: 2026-10-28
 - [ ] A faixa usa só o **gasto pago**; parcelas de cartão já previstas não pintam a barra (a projeção avisa no texto). Decidir com o dono se a barra deve considerar o projetado.
 - [ ] O equivalente mensal de cada item (≈ R$ x/mês) não aparece na linha do item, só nos totais; dá para trazer do banco (nível `detail` por regra) se fizer falta.
 
-## Auditoria de design e acessibilidade (#193, 06/11/2026)
+## Auditoria de design e acessibilidade (#192, 06/11/2026)
 - [x] Foco do painel de lançamento, menu "+ Lançamento" no celular, rolagem lateral da tabela a 1280px, selos cortados, vencido verde na lista e no Calendário, "próxima" cortada em Recorrentes, verde sem rótulo em Cartões, 4 achados sérios do axe, alvos de toque de 44px, Excluir/Remover em vermelho, subtotal de Contas sem cor, seletor de tipo em 2 linhas a 390px.
 - [ ] **"R$" quebrando linha**: usar espaço não separável entre "R$" e o número (ou `whitespace-nowrap` nos valores) em todo o app; ficou para depois, numa PR própria.
 - [ ] **Decisões de design (para o dono)**: faixa de 7 indicadores do Início (densa no celular); Categorias muito longa no celular; eixo do gráfico de Relatórios; Calendário no computador (grade pequena para a largura); faixas de cor na barra de limite do cartão (como no orçamento?); tokens soltos `blue-100`/`blue-700` (botão primário e dica do menu) ainda fora de `src/lib/cores.ts`.
