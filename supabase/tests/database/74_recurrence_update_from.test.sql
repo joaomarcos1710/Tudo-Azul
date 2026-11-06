@@ -388,5 +388,79 @@ update public.categories set active = false where id = pg_temp.fx('catB');
 select pg_temp.login('00000000-0000-0000-0000-0000000073a1');
 select is(pg_temp.proximos(pg_temp.fx('o7'), pg_temp.dia(7, 15), 'Luz nova', 155.00, pg_temp.fx('catB')), '4', 'V6 categoria desativada que a regra já tem: aceita');
 
+-- ---------------------------------------------------------------------------
+-- B1 (revisão do #193): a renda regular ESPERADA do mês fechado (home_indicators) sai das ocorrências daquele mês, não
+-- da regra viva. Datas fixas (2026): a geração vai do começo da regra até 12 meses depois de hoje, então setembro a
+-- novembro de 2026 sempre existem; home_indicators recebe a data de referência.
+-- ---------------------------------------------------------------------------
+reset role;
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000074b1', 'esperada-b1@teste.com');
+select pg_temp.login('00000000-0000-0000-0000-0000000074b1');
+insert into fixture select 'hb', public.create_household('Casa Esperada');
+with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
+           values (pg_temp.fx('hb'), 'Conta B', 'checking', 0, '2026-01-01') returning id)
+  insert into fixture select 'ccb', id from i;
+with i as (insert into public.categories (household_id, name, type) values (pg_temp.fx('hb'), 'Salário B1', 'income') returning id)
+  insert into fixture select 'catSal', id from i;
+-- salário mensal, dia 5, R$ 5.000,00, desde 05/09/2026
+insert into fixture select 'rb', public.recurrence_create('income', 'Salário', 5000.00, 5, '2026-09-05', pg_temp.fx('ccb'), null, null, pg_temp.fx('catSal'));
+select public.recurrence_materialize();
+insert into fixture select 'b_out', id from public.transactions where recurrence_id = pg_temp.fx('rb') and occurrence_date = '2026-10-05';
+insert into fixture select 'b_nov', id from public.transactions where recurrence_id = pg_temp.fx('rb') and occurrence_date = '2026-11-05';
+create function pg_temp.esperada(p_h text, p_d date) returns numeric language sql as $f$
+  select regular_income_expected from public.home_indicators(pg_temp.fx(p_h), p_d) $f$;
+grant execute on function pg_temp.esperada(text, date) to public;
+
+select is(pg_temp.esperada('hb', '2026-11-06'), 5000.00::numeric, 'B1.1 sem "este e os próximos": esperada de outubro = R$ 5.000,00 (o mesmo que a 073)');
+-- uma recorrente de receita ainda não gerada (criada depois da geração): entra pela pendente, como na 073
+insert into fixture select 'rb2', public.recurrence_create('income', 'Aluguel recebido', 1000.00, 20, '2026-10-20', pg_temp.fx('ccb'), null, null, pg_temp.fx('catSal'));
+select is(pg_temp.esperada('hb', '2026-11-06'), 6000.00::numeric, 'B1.2 ocorrência ainda não gerada conta pela regra (R$ 1.000,00 a mais, o mesmo que a 073)');
+-- outubro pago R$ 4.800,00: a esperada passa a ser o que o lançamento daquele mês diz
+update public.transactions set status = 'paid', amount = 4800.00 where id = pg_temp.fx('b_out');
+select is(pg_temp.esperada('hb', '2026-11-06'), 5800.00::numeric, 'B1.3 a esperada de outubro usa o valor do lançamento de outubro (4.800 + 1.000)');
+-- "este e os próximos" na de novembro: 05/11 → 07/11, R$ 5.200,00 (a regra passa a começar em 07/11)
+select is(pg_temp.proximos(pg_temp.fx('b_nov'), '2026-11-07', 'Salário', 5200.00, pg_temp.fx('catSal')) ~ '^[0-9]+$', true,
+  'B1.4 "este e os próximos" na de novembro aceito');
+select is((select start_date || '|' || amount::numeric(14,2) from public.recurrences where id = pg_temp.fx('rb')), '2026-11-07|5200.00',
+  'B1.5 a regra foi reancorada em 07/11 com R$ 5.200,00');
+select is(pg_temp.esperada('hb', '2026-11-06'), 5800.00::numeric,
+  'B1.6 a esperada de outubro NÃO muda com o "este e os próximos" de novembro (antes caía para 1.000: a regra só começa em 07/11)');
+select is(pg_temp.esperada('hb', '2026-12-06'), 6200.00::numeric, 'B1.7 a esperada de novembro tem o valor novo (5.200 + 1.000)');
+-- ocorrência na lixeira não conta
+update public.transactions set deleted_at = now() where id = pg_temp.fx('b_out');
+select is(pg_temp.esperada('hb', '2026-11-06'), 1000.00::numeric, 'B1.8 a ocorrência de outubro na lixeira não conta (nem volta pela regra)');
+update public.transactions set deleted_at = null where id = pg_temp.fx('b_out');
+
+-- ---------------------------------------------------------------------------
+-- I1 (revisão do #193): encerrar um recorrente cuja regra foi reancorada para o futuro manda para a lixeira TODO
+-- planejado depois da data pedida (antes: só os depois do start_date novo).
+-- ---------------------------------------------------------------------------
+reset role;
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000074c1', 'encerrar-i1@teste.com');
+select pg_temp.login('00000000-0000-0000-0000-0000000074c1');
+insert into fixture select 'hc', public.create_household('Casa Encerrar');
+with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
+           values (pg_temp.fx('hc'), 'Conta C', 'checking', 0, '2026-01-01') returning id)
+  insert into fixture select 'cci1', id from i;
+with i as (insert into public.categories (household_id, name, type) values (pg_temp.fx('hc'), 'Aluguel I1', 'expense') returning id)
+  insert into fixture select 'catMor', id from i;
+-- aluguel mensal, dia 10, R$ 2.000,00, desde 10/09/2026
+insert into fixture select 'ri1', public.recurrence_create('expense', 'Aluguel', 2000.00, 10, '2026-09-10', pg_temp.fx('cci1'), null, null, pg_temp.fx('catMor'));
+select public.recurrence_materialize();
+create temp table i1 as select id from public.transactions where recurrence_id = pg_temp.fx('ri1');
+grant all on i1 to public;
+insert into fixture select 'c_dez', id from public.transactions where recurrence_id = pg_temp.fx('ri1') and occurrence_date = '2026-12-10';
+select is(pg_temp.proximos(pg_temp.fx('c_dez'), '2026-12-15', 'Aluguel', 2100.00, pg_temp.fx('catMor')) ~ '^[0-9]+$', true,
+  'I1.1 reancorar a de dezembro para 15/12 com R$ 2.100,00');
+select is((select start_date from public.recurrences where id = pg_temp.fx('ri1')), '2026-12-15'::date, 'I1.2 a regra começa em 15/12');
+select lives_ok($q$ select public.recurrence_end(pg_temp.fx('ri1'), '2026-11-06') $q$, 'I1.3 encerrar em 06/11');
+select is((select count(*) from public.transactions t join i1 on i1.id = t.id
+            where t.status = 'planned' and t.deleted_at is null and t.date > '2026-11-06'), 0::bigint,
+  'I1.4 nenhum planejado depois de 06/11 fica vivo (antes ficavam o de 10/11 e o de 15/12)');
+select is((select count(*) from public.transactions t join i1 on i1.id = t.id
+            where t.deleted_at is null and t.date <= '2026-11-06'), 2::bigint,
+  'I1.5 setembro e outubro (até a data) ficam');
+select is((select count(*) from public.recurrences where id = pg_temp.fx('ri1')), 0::bigint, 'I1.6 a regra foi apagada (031)');
+
 select * from finish();
 rollback;

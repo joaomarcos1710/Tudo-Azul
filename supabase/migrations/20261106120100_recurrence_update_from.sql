@@ -59,8 +59,22 @@
 -- O schema private não é exposto pela API.
 -- Gatilhos de sempre: transactions_guard (centavos, conta desativada/abertura), transactions_period_guard (período
 -- conciliado; mudar só a chave não dispara), recurrences_money_guard e os CHECKs da regra.
--- Atalho: o "editado à mão" é a diferença com a regra (mesma marca da 015); editar um campo para exatamente o valor da
--- regra continua acompanhando. Teste: 74_recurrence_update_from (falha sem esta migration).
+-- "Editado à mão" aqui é TUDO OU NADA por ocorrência: a próxima planejada só acompanha se data (na chave), valor,
+-- descrição e categoria ainda forem os da regra antiga; se UM deles difere, ela não muda em nada (nem a data, nem os
+-- outros campos). É diferente da edição em Recorrentes (recurrence_update, 015/036), que segue campo a campo (o valor
+-- acompanha mesmo com a descrição corrigida). Motivo: aqui a data também muda, e mover uma ocorrência que alguém ajustou
+-- misturaria a correção dele com a regra nova.
+-- Atalho: a marca é a diferença com a regra (sem coluna nova); editar um campo para exatamente o valor da regra volta a
+-- acompanhar. Melhorar se o dono pedir uma marca explícita de "corrigido à mão".
+--
+-- Também nesta migration (revisão de dinheiro do #193):
+--   * public.home_indicators (corpo da 073, 20261106113100_audit_fixes.sql): a renda regular ESPERADA do mês fechado
+--     deixa de recalcular as ocorrências pela regra viva (que "este e os próximos" reancora: start_date vai para frente
+--     e o valor muda, e a esperada de outubro caía a 0 ou mudava de valor) e passa a sair das ocorrências daquele mês:
+--     os lançamentos gerados (valor do lançamento) + as ainda não geradas (private.account_recurrence_pending).
+--   * public.recurrence_end (corpo da 031, 20261031175000_recurrence_end_delete.sql): sem o greatest(p_end,
+--     start_date), que deixava planejados vivos entre a data pedida e um start_date reancorado para o futuro.
+-- Teste: 74_recurrence_update_from (falha sem esta migration).
 
 -- Data da j-ésima ocorrência de uma série que tem `p_anchor` como ocorrência 0 (mesma regra de recurrence_occurrences:
 -- mês = dia fixo limitado ao último dia do mês; semana e dia = anchor + j×passo).
@@ -293,3 +307,213 @@ revoke execute on function public.recurrence_update_from(uuid, date, text, numer
   from public, anon;
 grant execute on function public.recurrence_update_from(uuid, date, text, numeric, uuid, text, text, uuid, uuid)
   to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- B1. Indicadores do Início (corpo da 073, 20261106113100_audit_fixes.sql; só o CTE `esperada` muda)
+-- ---------------------------------------------------------------------------
+create or replace function public.home_indicators(p_household uuid, p_as_of date)
+returns table (
+  month_start date, month_end date, closed_month_start date, closed_month_end date,
+  accounts_active numeric, card_bills_closed numeric, available numeric,
+  accounts_total numeric, credit_receivable numeric, family_assets numeric, investments numeric,
+  debt_total numeric, planned_commitments numeric, net_worth numeric,
+  income numeric, expense numeric, result numeric,
+  savings_income numeric, savings_expense numeric, savings_result numeric, savings_rate numeric, savings_band text,
+  reserve numeric, closed_months integer, typical_expense numeric, reserve_months numeric, reserve_band text,
+  debt_installments numeric, regular_income_expected numeric, regular_income_received numeric, regular_income numeric,
+  regular_income_source text, commitment_pct numeric, commitment_band text
+)
+-- jit = off: a consulta junta várias funções de 1000 linhas estimadas e passa do jit_above_cost; no volume do #182 a
+-- compilação JIT levava ~600 ms de um total de ~870 ms. Sem JIT: ~260 ms. O resultado não muda.
+language sql stable security invoker set search_path = '' set jit = off as $$
+  with m as (
+    select date_trunc('month', p_as_of)::date as ini,
+           (date_trunc('month', p_as_of) + interval '1 month - 1 day')::date as fim,
+           (date_trunc('month', p_as_of) - interval '1 month')::date as fini,
+           (date_trunc('month', p_as_of) - interval '1 day')::date as ffim,
+           (date_trunc('month', p_as_of) - interval '6 months')::date as ini6
+  ),
+  contas as materialized (
+    select coalesce(sum(b.balance) filter (where b.active and b.type in
+             ('checking', 'savings', 'brokerage', 'fixed_income', 'variable_income', 'crypto', 'cash')), 0) as ativas,
+           coalesce(sum(b.balance) filter (where b.active and b.type = 'savings'), 0) as reserva,
+           coalesce(sum(b.balance), 0) as todas
+      from public.account_balances(p_household, p_as_of) b
+     where b.currency_code = 'BRL'
+  ),
+  dividas as materialized (
+    select coalesce(sum(x.debt), 0) as debt, coalesce(sum(x.credit_receivable), 0) as cr,
+           coalesce(sum(x.planned_remaining), 0) as pc,
+           coalesce(sum(x.debt) filter (where x.kind = 'card'), 0) as cartao_fechadas
+      from public.debt_balances(p_household, p_as_of) x
+  ),
+  inv as materialized (
+    select round(coalesce(sum(i.market_value) filter (where i.currency_code = 'BRL'), 0), 2) as brl
+      from public.investment_totals(p_household, p_as_of) i
+  ),
+  -- o mês corrente, ATÉ HOJE: period_summary do 1º dia até p_as_of (073: antes ia até o fim do mês e contava o pago com
+  -- data futura), sem tirar nada
+  mes as materialized (select ps.* from m cross join lateral public.period_summary(p_household, m.ini, least(p_as_of, m.fim)) ps),
+  -- despesa de cada mês fechado (até 6), pela regra de sempre (private.expense_items = a despesa de period_summary),
+  -- sem as categorias marcadas como "não conta como consumo" (só a marcada; a subcategoria não herda)
+  desp_mes as materialized (
+    select date_trunc('month', x.day)::date as mes, sum(x.amount) as total
+      from m cross join lateral private.expense_items(p_household, m.ini6, m.ffim) x
+      left join public.categories c on c.household_id = p_household and c.id = x.category_id
+     where not coalesce(c.non_consumption, false)
+     group by 1
+  ),
+  -- meses fechados da janela que já tinham conta aberta (família nova não conta meses que não existiam)
+  meses as (
+    select g.d::date as mes
+      from m cross join lateral generate_series(m.ini6, m.ffim, interval '1 month') g(d)
+     where (g.d + interval '1 month - 1 day')::date
+           >= (select min(a.opening_date) from public.accounts a where a.household_id = p_household)
+  ),
+  -- despesa típica = MEDIANA dos meses contados (mês sem despesa conta como zero): um mês com quitação ou repasse
+  -- grande não puxa a régua da reserva
+  serie as (
+    select coalesce(d.total, 0) as v, row_number() over (order by coalesce(d.total, 0)) as rn, count(*) over () as n
+      from meses left join desp_mes d on d.mes = meses.mes
+  ),
+  tipica as (
+    select coalesce(max(n), 0)::integer as n,
+           round(avg(v) filter (where rn in ((n + 1) / 2, (n + 2) / 2)), 2) as mediana
+      from serie
+  ),
+  -- receitas pagas do último mês fechado, em reais (lançamentos + crédito avulso do cartão já fechado, como
+  -- income_regularity), com as marcas da categoria: eventual herda da mãe (012); "não é consumo" não herda
+  renda_itens as materialized (
+    select r.amount,
+           coalesce(c.eventual, false) or coalesce(p.eventual, false) as eventual,
+           coalesce(c.non_consumption, false) as fora
+      from (
+        select t.category_id, t.amount
+          from m, public.transactions t
+         where t.household_id = p_household and t.deleted_at is null
+           and t.type = 'income' and t.status = 'paid' and t.date between m.fini and m.ffim
+           and exists (select 1 from public.accounts ac where ac.household_id = t.household_id and ac.id = t.account_id
+                         and ac.currency_code = 'BRL')
+        union all
+        select ci.category_id, ci.amount
+          from m cross join lateral private.card_income_items(p_household, m.fini, m.ffim) ci
+         where ci.paid
+      ) r
+      left join public.categories c on c.household_id = p_household and c.id = r.category_id
+      left join public.categories p on p.household_id = c.household_id and p.id = c.parent_id
+  ),
+  renda as (
+    select coalesce(sum(amount) filter (where not fora), 0) as rec,
+           coalesce(sum(amount) filter (where not fora and not eventual), 0) as regular
+      from renda_itens
+  ),
+  -- renda regular ESPERADA no mês fechado: as OCORRÊNCIAS daquele mês das recorrentes de receita ativas, em conta ativa
+  -- em reais, de categoria regular (nem eventual, nem "não é consumo"):
+  --   * as já geradas: o lançamento (pela chave occurrence_date no mês, fora da lixeira), com o valor e a categoria
+  --     dele; pago ou planejado;
+  --   * as ainda não geradas: private.account_recurrence_pending (regra viva, sem lançamento nenhum naquela chave).
+  -- (074) Antes recalculava pela regra viva (recurrence_occurrences × valor da regra): depois de um "este e os próximos"
+  -- com data nova, a regra começa no mês corrente e a esperada do mês fechado caía a 0; com valor novo, mudava o
+  -- passado. O lançamento guarda o que aquele mês era. Ocorrência na lixeira não conta (antes contava pela regra).
+  esperada_itens as materialized (
+    select t.amount, t.category_id
+      from m, public.transactions t
+      join public.recurrences r on r.household_id = t.household_id and r.id = t.recurrence_id
+                               and r.kind = 'income' and r.active
+      join public.accounts ac on ac.household_id = t.household_id and ac.id = t.account_id
+                             and ac.currency_code = 'BRL' and ac.active
+     where t.household_id = p_household and t.recurrence_id is not null and t.type = 'income'
+       and t.deleted_at is null and t.occurrence_date between m.fini and m.ffim
+    union all
+    select pr.amount, r.category_id
+      from m cross join lateral private.account_recurrence_pending(p_household, m.fini, m.ffim) pr
+      join public.recurrences r on r.household_id = p_household and r.id = pr.recurrence_id
+      join public.accounts ac on ac.household_id = p_household and ac.id = pr.account_id
+                             and ac.currency_code = 'BRL' and ac.active
+     where pr.kind = 'income'
+  ),
+  esperada as (
+    select coalesce(sum(e.amount), 0) as total
+      from esperada_itens e
+      left join public.categories c on c.household_id = p_household and c.id = e.category_id
+      left join public.categories p on p.household_id = c.household_id and p.id = c.parent_id
+     where not (coalesce(c.eventual, false) or coalesce(p.eventual, false))
+       and not coalesce(c.non_consumption, false)
+  ),
+  -- parcelas de contrato que vencem no mês fechado (paga ou a pagar; a cancelada não), de empréstimo, financiamento e
+  -- consignado. A planejada de dívida arquivada não conta (a dívida saiu do dia a dia).
+  parcelas as (
+    select coalesce(sum(s.amount), 0) as total
+      from m
+      join public.debt_payment_schedule s on s.household_id = p_household and s.due_date between m.fini and m.ffim
+      join public.debts d on d.household_id = s.household_id and d.id = s.debt_id and d.kind in ('loan', 'financing')
+     where s.status = 'paid' or (s.status = 'planned' and d.active)
+  ),
+  calc as (
+    select m.ini, m.fim, m.fini, m.ffim, contas.ativas, contas.reserva, contas.todas, dividas.cartao_fechadas,
+           dividas.debt, dividas.cr, dividas.pc, round(private.family_assets_brl(p_household, p_as_of), 2) as bens, inv.brl as inv,
+           mes.income_paid as rec, mes.expense_paid as desp, mes.result as res,
+           renda.rec as prec, coalesce((select d.total from desp_mes d where d.mes = m.fini), 0) as pdesp,
+           tipica.n as meses, tipica.mediana as tip,
+           esperada.total as esp, renda.regular as recebida, greatest(esperada.total, renda.regular) as reg,
+           parcelas.total as parc
+      from m, contas, dividas, inv, mes, renda, tipica, esperada, parcelas
+  ),
+  calc2 as (
+    select c.*,
+           case when c.prec > 0 then round(100 * (c.prec - c.pdesp) / c.prec, 1) end as taxa,
+           case when c.tip > 0 then round(c.reserva / c.tip, 1) end as cob,
+           case when c.reg > 0 then round(100 * c.parc / c.reg, 1) end as comp
+      from calc c
+  )
+  select c.ini, c.fim, c.fini, c.ffim,
+         c.ativas, c.cartao_fechadas, c.ativas - c.cartao_fechadas,
+         c.todas, c.cr, c.bens, c.inv, c.debt, c.pc, c.todas + c.cr + c.bens - c.debt + c.inv,
+         c.rec, c.desp, c.res,
+         c.prec, c.pdesp, c.prec - c.pdesp, c.taxa,
+         case when c.taxa is null then null when c.taxa < 0 then 'critico' when c.taxa < 10 then 'atencao' else 'saudavel' end,
+         c.reserva, c.meses, c.tip, c.cob,
+         case when c.cob is null then null when c.cob < 3 then 'critico' when c.cob < 6 then 'atencao' else 'saudavel' end,
+         c.parc, c.esp, c.recebida, c.reg,
+         case when c.esp > c.recebida then 'recurring' else 'received' end,
+         c.comp,
+         case when c.comp is null then null when c.comp > 40 then 'critico' when c.comp > 30 then 'atencao' else 'saudavel' end
+    from calc2 c
+   where (select private.is_member(p_household))
+$$;
+
+revoke execute on function public.home_indicators(uuid, date) from public, anon;
+grant execute on function public.home_indicators(uuid, date) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- I1. Encerrar um recorrente (corpo da 031, 20261031175000_recurrence_end_delete.sql; sem o greatest com start_date)
+-- ---------------------------------------------------------------------------
+-- Antes: v_end := greatest(p_end, start_date). Depois de um "este e os próximos" com data nova, start_date fica no futuro
+-- (ex.: 15/12) e encerrar em 06/11 só mandava para a lixeira os planejados DEPOIS de 15/12: o de 10/11 e o próprio
+-- 15/12 ficavam vivos, de uma regra que não existe mais. Agora a data pedida (ou hoje) vale: todo planejado depois dela
+-- vai para a lixeira. A regra continua sendo apagada (031), então não há data final a ajustar; pagos e os planejados
+-- até a data ficam, sem vínculo (ON DELETE SET NULL).
+create or replace function public.recurrence_end(p_id uuid, p_end date default null)
+returns void language plpgsql security definer set search_path = '' as $$
+declare
+  v public.recurrences%rowtype;
+  v_end date;
+begin
+  v := private.recurrence_lock(p_id);
+  v_end := coalesce(p_end, private.today_sp());
+
+  update public.transactions
+     set deleted_at = now()
+   where recurrence_id = v.id
+     and status = 'planned'
+     and deleted_at is null
+     and date > v_end;
+
+  perform set_config('app.card_edit', 'on', true);
+  delete from public.recurrences where id = v.id;
+  perform set_config('app.card_edit', 'off', true);
+end
+$$;
+revoke execute on function public.recurrence_end(uuid, date) from public, anon;
+grant execute on function public.recurrence_end(uuid, date) to authenticated;
