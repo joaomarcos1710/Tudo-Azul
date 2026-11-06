@@ -884,7 +884,7 @@ function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense'
     : <IconeCategoria visual={visualPorId(categoriaId, porId, tipo)} tamanho="pequeno" />
 }
 
-/** Saldo das contas hoje e o previsto no fim do mês (planejados e faturas descontados); os dois vêm do banco. */
+/** Saldo das contas hoje e o previsto no fim do mês (planejados, fixos e faturas com as assinaturas previstas, migration 069); os dois vêm do banco. */
 function CardSaldo({ hoje, previsto, fimDoMes, porMoeda }: { hoje: Cents | null; previsto: Cents | null; fimDoMes: string; porMoeda: TotalPorMoeda[] }) {
   return (
     <Card>
@@ -904,7 +904,7 @@ function CardSaldo({ hoje, previsto, fimDoMes, porMoeda }: { hoje: Cents | null;
       </dl>
       <EmOutrasMoedas porMoeda={porMoeda} className="mt-2 border-t border-slate-100 pt-2" />
       <p className="mt-2 text-xs text-slate-500">
-        O previsto já desconta as contas planejadas e as faturas até o fim do mês. <Link to="/calendario" className="font-semibold text-azul hover:underline">Ver no calendário</Link>
+        O previsto já conta as contas planejadas, os lançamentos fixos e as faturas com as assinaturas previstas até o fim do mês. <Link to="/calendario" className="font-semibold text-azul hover:underline">Ver no calendário</Link>
       </p>
     </Card>
   )

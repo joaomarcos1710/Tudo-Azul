@@ -257,12 +257,15 @@ describe('Calendário: faturas e saldo projetado', () => {
     expect(total.textContent).toBe('R$ 1.150,00')
     expect(total.closest('p')!.textContent).toBe('Saldo previsto hoje: R$ 1.150,00')
     expect(screen.getByTestId('saldo-sem-conta').textContent).toContain('R$ 100,00 em faturas e parcelas sem conta')
+    // migration 069: o previsto é o mesmo dos Relatórios, e a tela diz o que ele inclui
+    expect(screen.getByTestId('saldo-o-que-inclui').textContent).toBe('Com os planejados, os lançamentos fixos ainda não gerados e as faturas com as assinaturas previstas, como nos Relatórios.')
     expect(mock.saldosProjetados).toHaveBeenCalledWith('h1', '2026-10-16', true)
     const u = userEvent.setup()
     await u.click(screen.getByRole('button', { name: 'Só efetuados' }))
     expect(mock.saldosProjetados).toHaveBeenLastCalledWith('h1', '2026-10-16', false)
     expect((await screen.findByTestId('saldo-total')).closest('p')!.textContent).toBe('Saldo hoje (só efetuados): R$ 1.150,00')
     expect(screen.queryByTestId('saldo-sem-conta')).toBeNull()
+    expect(screen.queryByTestId('saldo-o-que-inclui')).toBeNull()
   })
 
   it('pedido do dono (05/11/2026): sem lista de saldo por conta nem detalhamento; o saldo por conta fica no Início', async () => {
