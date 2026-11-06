@@ -86,6 +86,19 @@ describe('menu em grupos', () => {
       .toEqual(['Atalhos', 'Visão geral', 'Movimentações', 'Planejamento', 'Patrimônio', 'Conta'])
   })
 
+  it('a fatura tem modo de foco: recolhe e expande o menu lateral e esconde a barra inferior', async () => {
+    const u = userEvent.setup()
+    montar('/cartoes/k1/fatura/2026-11')
+    const lateral = screen.getByRole('navigation', { name: 'Principal' }).closest('aside')!
+    expect(lateral.className).toContain('md:flex')
+    expect(screen.getByRole('navigation', { name: 'Principal no celular' }).className).toContain('hidden')
+    await u.click(screen.getByRole('button', { name: 'Ocultar menu lateral' }))
+    expect(lateral.className).toContain('md:hidden')
+    expect(screen.getByRole('button', { name: 'Mostrar menu lateral' }).getAttribute('aria-expanded')).toBe('false')
+    await u.click(screen.getByRole('button', { name: 'Mostrar menu lateral' }))
+    expect(lateral.className).toContain('md:flex')
+  })
+
   it('o menu lateral (iPad e computador) não muda: só os nomes, sem frases', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
