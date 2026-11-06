@@ -37,13 +37,15 @@ jobs:
     timeout-minutes: 15
     env:
       PROJECT_REF: vbhzilsqzzevaodqsenr
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    # Os segredos NÃO ficam no env do job: só os passos que falam com o Supabase os recebem (checkout, instalação da CLI e
+    # "Versão da CLI" rodam sem nenhum segredo no ambiente).
     steps:
       - name: Conferir pedido e segredos
         env:
           MODO: ${{ inputs.modo }}
           CONFIRMACAO: ${{ inputs.confirmacao }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
             echo "::error::Cadastre os segredos SUPABASE_ACCESS_TOKEN e SUPABASE_DB_PASSWORD."; exit 1
@@ -53,13 +55,15 @@ jobs:
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       # A CLI fica na linha 2.x (e não em "latest"): em 02/11/2026 a versão nova passou a tratar o banco LOCAL como padrão e
       # recusou `migration list --password` ("--password only applies to a linked project"), derrubando o workflow antes de
       # simular. O alvo também é dito explicitamente (--linked), para não depender do padrão de nenhuma versão.
       - name: Instalar Supabase CLI
-        uses: supabase/setup-cli@v3
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
         with:
           version: 2.x
 
@@ -67,18 +71,33 @@ jobs:
         run: supabase --version
 
       - name: Ligar ao projeto
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Situação antes (local x remoto)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
 
       - name: Simular (nada é alterado)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase db push --linked --dry-run --password "$SUPABASE_DB_PASSWORD"
 
       - name: Aplicar
         if: inputs.modo == 'aplicar'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase db push --linked --yes --password "$SUPABASE_DB_PASSWORD"
 
       - name: Situação depois
         if: inputs.modo == 'aplicar'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"

@@ -37,12 +37,18 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Instalar Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          version: latest
+          persist-credentials: false
+
+      # CLI com versão FIXA (antes: setup-cli@v1, que é uma branch, com `version: latest`). Em 02/11/2026 a `latest`
+      # virou a 3.0.0 e mudou o padrão de alvo (ver o comentário em supabase-migrations.yml); aqui fica a mesma linha
+      # 2.x da produção, na última 2.x estável (dist-tag `v2.stable` do npm). Subir de versão = PR própria.
+      # A v3 da action só tem a input `version` (a `github-token` da v1 saiu; não era usada aqui).
+      - name: Instalar Supabase CLI
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with:
+          version: 2.122.1
 
       - name: Versões usadas
         run: |
@@ -64,7 +70,7 @@ jobs:
 
       - name: Configurar Node.js
         if: ${{ !cancelled() }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -106,7 +112,7 @@ jobs:
 
       - name: Guardar logs
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: logs-testes-banco
           path: |

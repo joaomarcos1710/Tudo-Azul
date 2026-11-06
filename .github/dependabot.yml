@@ -1,0 +1,13 @@
+# Atualiza as actions fixadas por SHA nos workflows (.github/workflows/*.yml).
+# O Dependabot abre uma PR por atualização, trocando o SHA e o comentário da tag; a PR passa pelo CI como qualquer outra
+# e só entra com o "pode" do dono. A `version` da Supabase CLI (input do setup-cli) NÃO é atualizada por aqui.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Espera 7 dias depois de uma versão sair antes de propor (versão recém-publicada é onde costuma aparecer o ataque
+    # de cadeia de suprimentos, ou a quebra corrigida no dia seguinte).
+    cooldown:
+      default-days: 7

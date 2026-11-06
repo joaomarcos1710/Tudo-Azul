@@ -22,6 +22,12 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Segurança dos GitHub Actions (#195, 06/11/2026)
+- [x] Segredos de produção só nos passos que usam (workflow de migrations), checkout com `persist-credentials: false`, actions por SHA com a tag no comentário, `setup-cli@v1` (branch) + `latest` trocados por v3.2.0 + CLI 2.122.1 nos testes do banco, Dependabot semanal para as actions.
+- [ ] **Rodar "simular" no workflow de produção depois do merge** (com o "pode" do dono): é a única prova real de que os segredos chegam aos passos certos e de que a setup-cli fixada por SHA funciona ali (o CI do PR não roda esse workflow).
+- [ ] **Ligar Dependabot alerts / security updates** em Settings → Code security, se ainda não estiverem (o `dependabot.yml` só cobre as versões das actions).
+- [ ] **Subir a CLI do Supabase para a 3.x** (testes e produção juntos), numa PR própria: conferir antes as mudanças de padrão de alvo da 3.0.0; enquanto isso, a 2.122.1 é a `v2.stable`.
+- [ ] `concurrency` no `ci.yml` (sugestão do zizmor no modo pedante): PR com vários pushes roda o CI inteiro de cada um. Baixa prioridade.
 ### Falhas de Análises e Início (#193, 06/11/2026)
 - [x] **`net_worth_with_assets` com HTTP 500 em rajada** (auditoria de falhas, logs de 05–06/11: 65 de 125 chamadas): a evolução de 12 meses agora vai em fila (máx. 2 por vez), depois das outras consultas; mês que falha fica de fora com aviso; falha de consulta opcional vai ao Sentry (nome da consulta e código do erro).
 - [ ] **RPC `net_worth_series`** (migration nova): os 12 pontos da evolução numa chamada só, calculados no banco; tira o atalho de uma chamada por mês (`evolucaoPatrimonio`, `src/lib/painel.ts`).
