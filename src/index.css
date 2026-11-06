@@ -6,3 +6,13 @@
   body { @apply bg-fundo text-marinho font-sans antialiased; }
   :focus-visible { @apply outline-2 outline-offset-2 outline-azul; }
 }
+
+
+@media print {
+  body { background: #fff !important; }
+  aside, header, nav[aria-label="Principal no celular"], button { display: none !important; }
+  main { max-width: none !important; padding: 0 !important; }
+  article, section, [class*="shadow"] { box-shadow: none !important; }
+  a { color: inherit !important; text-decoration: none !important; }
+  @page { margin: 14mm; }
+}
