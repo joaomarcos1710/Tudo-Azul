@@ -55,8 +55,8 @@ describe('Avisos do topo do Início', () => {
       aviso({ tipo: 'invoice', total: c(500), data: '2026-04-21', cartaoId: 'k2', cartaoNome: 'Nubank' }),
       aviso({ tipo: 'invoice', total: c(100), data: HOJE, cartaoId: 'k3', cartaoNome: 'Inter' }),
     ])
-    expect(link(/A fatura do Cartão Azul de R\$ 80,00 vence em 25\/04\./).getAttribute('href')).toBe('/cartoes?cartao=k1')
-    expect(link(/A fatura do Nubank de R\$ 5,00 vence amanhã\./).getAttribute('href')).toBe('/cartoes?cartao=k2')
+    expect(link(/A fatura do Cartão Azul de R\$ 80,00 vence em 25\/04\./).getAttribute('href')).toBe('/cartoes/k1')
+    expect(link(/A fatura do Nubank de R\$ 5,00 vence amanhã\./).getAttribute('href')).toBe('/cartoes/k2')
     expect(link(/A fatura do Inter de R\$ 1,00 vence hoje\./)).toBeTruthy()
   })
 

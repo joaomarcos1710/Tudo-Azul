@@ -47,7 +47,10 @@ export default function App() {
           <Route path="calendario" element={<Calendario />} />
           <Route path="recorrentes" element={<Recorrentes />} />
           <Route path="contas" element={<Contas />} />
+          {/* #203: lista, página do cartão e página da fatura (o mesmo componente escolhe pelo endereço) */}
           <Route path="cartoes" element={<Cartoes />} />
+          <Route path="cartoes/:id" element={<Cartoes />} />
+          <Route path="cartoes/:id/fatura/:mes" element={<Cartoes />} />
           <Route path="dividas" element={<Dividas />} />
           <Route path="investimentos" element={<Investimentos />} />
           <Route path="bens" element={<Bens />} />

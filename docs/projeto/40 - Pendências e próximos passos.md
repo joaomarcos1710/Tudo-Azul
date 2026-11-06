@@ -1,6 +1,6 @@
 ---
 tags: [tudo-azul, pendencias]
-atualizado: 2026-10-28
+atualizado: 2026-11-06
 ---
 # Pendências e próximos passos
 
@@ -27,8 +27,14 @@ atualizado: 2026-10-28
 - [ ] **Conferir no seu iPhone** (você), com os seus cartões: fileira de meses deslizando dentro do cartão, valores à direita e "Ver todos".
 - [ ] **"Pagamentos e devoluções" por fatura**: hoje a lista é do cartão (os 30 mais recentes, `listarMovimentosDoCartao`), por isso fica recolhida. Dá para filtrar pela fatura escolhida usando o `invoice_id` que já chega, mas o adiantamento (sem fatura) e a devolução em dinheiro precisam de lugar próprio; decidir e fazer numa PR à parte (sem migration).
 - [ ] **Mais de 30 pagamentos**: atalho — a tela lê só os 30 mais recentes e diz "Mostrando os 30 mais recentes"; os antigos não aparecem nem para anular. Melhorar com paginação ou com o filtro por fatura acima.
-- [ ] **Abas de fatura**: com 24 faturas a fileira continua longa (rola de lado); avaliar um seletor de mês (‹ mês ›) no celular no lugar das abas.
+- [x] **Abas de fatura**: na #203 a fileira virou links para a página da fatura, que tem as setas ‹ › de mês; a fileira continua rolando de lado no cartão.
 
+### Cartões em três páginas (#203, 06/11/2026)
+- [x] Lista, página do cartão e página da fatura, com os blocos Pagamentos → Entradas → Saídas; links do Início, de Lançamentos e do aviso apontando para a página certa; prints em 390, 820 e 1280px sem rolagem lateral (harness com dados fictícios).
+- [ ] **Conferir no seu iPhone** (você): abrir um cartão, abrir a fatura, as setas ‹ ›, o voltar do navegador e o "‹ Cartões".
+- [ ] **"Pagamentos e devoluções" por fatura** (pendência da #201): agora que a fatura tem o bloco Pagamentos (os ligados a ela), a lista do cartão poderia mostrar só o que não está em fatura (adiantamentos e devoluções). Decidir e fazer numa PR à parte.
+- [ ] Atalho: a página da fatura lê `card_months` de novo ao abrir (a fileira do cartão já tinha lido); são páginas diferentes, então não há leitura dupla na mesma tela, mas trocar de fatura pelas setas relê itens, créditos e pagamentos daquela fatura (o esperado). Se ficar lento com muitas faturas, guardar a lista no `Cartoes` pai.
+- [ ] Os prints do Início e de Lançamentos não foram refeitos nesta PR (só os links mudaram); conferir "Ver fatura" e "Ver em Cartões" no app.
 ### Categoria do crédito de cartão (#202, migration 077, 06/11/2026)
 - [x] RPC `card_credit_set_category` (lote, tudo ou nada) + brecha no guard só para `category_id` de `income_credit` com a marca de sessão; "Trocar categoria" no ⋯ do crédito em Cartões (também em fatura paga).
 - [ ] **Aplicar a migration 077 em produção** pelo workflow (simular → ler o log → aplicar), com o "pode" do dono.
