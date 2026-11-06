@@ -19,6 +19,7 @@ import {
   restaurarDaLixeiraEmLote, situacaoDoLancamento, voltarPlanejadoEmLote,
 } from '../lib/lancamentos'
 import type { CompraDaFatura, CreditoDeCartao, FaturaDoMes, Lancamento, MovimentoDivida, TipoLancamento } from '../lib/lancamentos'
+import { rotaFatura } from '../lib/cartoes'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { hojeSP } from '../lib/contas'
 import { SELO, SELO_FATURA, corDoTipo } from '../lib/cores'
@@ -549,7 +550,7 @@ function LinhaSoLeitura({ it, p }: { it: Exclude<ItemLista, { origem: 'lancament
       nome={<NomeCategoria id={c.categoriaId} categoriaPorId={p.categoriaPorId} nomeCategoria={p.nomeCategoria} />} />
     conta = `Fatura ${c.cartaoNome}`
     valor = { texto: formatBRL(c.valor), cor: 'text-neutro' }
-    acao = <Link to={`/cartoes?cartao=${c.cartaoId}`} className={linkAcao}>Ver em Cartões</Link>
+    acao = <Link to={rotaFatura(c.cartaoId, c.fechamento.slice(0, 7))} className={linkAcao}>Ver em Cartões</Link>
   } else if (it.origem === 'credito') {
     const k = it.k
     situacao = k.planejado ? 'planejado' : 'pago'
@@ -620,7 +621,7 @@ function LinhaFaturaTabela({ f, categoriaPorId, nomeCategoria }: { f: FaturaDoMe
         <td className={`${td} text-right`}>
           <MenuAcoes rotulo={`Ações da fatura ${f.cartaoNome}`} acoes={[
             { rotulo: aberto ? 'Esconder compras' : 'Ver compras', aoEscolher: alternar },
-            { rotulo: 'Ver em Cartões', aoEscolher: () => navegar(`/cartoes?cartao=${f.cartaoId}`) },
+            { rotulo: 'Ver em Cartões', aoEscolher: () => navegar(rotaFatura(f.cartaoId, f.mes)) },
           ]} />
         </td>
       </tr>

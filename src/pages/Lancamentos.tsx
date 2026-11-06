@@ -14,7 +14,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
-import { listarCartoes, novaChave, registrarCompra } from '../lib/cartoes'
+import { listarCartoes, novaChave, registrarCompra, rotaFatura } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
 import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
@@ -385,7 +385,7 @@ export default function Lancamentos() {
                         etiquetas={[<Etiqueta key="c" estilo="bg-azul-claro text-marinho">No cartão</Etiqueta>]}
                         detalhe={`fatura ${c.cartaoNome}${c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''} · a despesa conta em ${formatDate(c.fechamento)} (fechamento da fatura)`}
                         valor={formatBRL(c.valor)} corValor="text-neutro"
-                        acoes={<Link to={`/cartoes?cartao=${c.cartaoId}`} aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
+                        acoes={<Link to={rotaFatura(c.cartaoId, c.fechamento.slice(0, 7))} aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
                   if (item.origem === 'credito') {
@@ -562,7 +562,8 @@ function LinhaFatura({ fatura: f, categoriaPorId, nomeCategoria }: {
       {aberto && (
         <div className="px-4 pb-3 sm:px-5">
           <ComprasDaFatura f={f} compras={compras} creditos={creditos} erro={erro} idLista={idLista} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />
-          <Link to={`/cartoes?cartao=${f.cartaoId}`} aria-label={`Ver fatura ${f.cartaoNome} em Cartões`} className={linkCompacto}>Ver em Cartões</Link>
+          {/* #203: direto na página desta fatura */}
+          <Link to={rotaFatura(f.cartaoId, f.mes)} aria-label={`Ver fatura ${f.cartaoNome} em Cartões`} className={linkCompacto}>Ver em Cartões</Link>
         </div>
       )}
     </li>

@@ -11,7 +11,7 @@ import { BandeiraCartao, IconeConta, IconeEmissor } from '../components/ui/Icone
 import { useAuth } from '../lib/auth'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
-import { resumoDosCartoes, totalFaturasDoMes } from '../lib/cartoes'
+import { resumoDosCartoes, rotaCartao, rotaFatura, totalFaturasDoMes } from '../lib/cartoes'
 import { FaturasDoMes } from '../components/ui/FaturasDoMes'
 import type { ResumoCartao, TotalFaturasMes } from '../lib/cartoes'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
@@ -367,7 +367,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                   <span className="flex min-w-0 items-center gap-2 font-medium">
                     <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />{c.nome}<BandeiraCartao bandeira={c.bandeira} />
                   </span>
-                  <Link to="/cartoes" className="inline-flex min-h-11 items-center text-xs font-semibold text-azul hover:underline">Ver fatura</Link>
+                  {/* #203: direto na página da fatura atual do cartão (sem fatura aberta, na página do cartão) */}
+                  <Link to={c.proxima ? rotaFatura(c.id, c.proxima.mes) : rotaCartao(c.id)} aria-label={`Ver fatura ${c.nome}`}
+                    className="inline-flex min-h-11 items-center text-xs font-semibold text-azul hover:underline">Ver fatura</Link>
                 </div>
                 {/* como no Organizze: limite disponível ao lado da fatura atual (aberta) */}
                 <dl className="mt-1 grid grid-cols-2 gap-3 rounded-lg bg-fundo p-2">

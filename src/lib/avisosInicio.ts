@@ -1,4 +1,5 @@
 import { centsFromDb, formatBRL, formatDate } from './format'
+import { rotaCartao } from './cartoes'
 import type { Cents } from './format'
 import { supabase } from './supabase'
 
@@ -71,7 +72,8 @@ export function textoDoAviso(a: AvisoInicio, hoje: string): TextoAviso {
       const d = dias(hoje, a.data)
       const quando = d <= 0 ? 'vence hoje' : d === 1 ? 'vence amanhã' : `vence em ${formatDate(a.data).slice(0, 5)}`
       return { titulo: 'Fatura do cartão', texto: `A fatura do ${a.cartaoNome ?? 'cartão'} de ${valor} ${quando}.`,
-        destino: a.cartaoId ? `/cartoes?cartao=${a.cartaoId}` : '/cartoes' }
+        // #203: a página do cartão (as faturas são páginas dele)
+        destino: a.cartaoId ? rotaCartao(a.cartaoId) : '/cartoes' }
     }
   }
 }

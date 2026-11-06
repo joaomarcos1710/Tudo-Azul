@@ -428,7 +428,7 @@ describe('Lançamentos', () => {
       // "Ver em Cartões" fica dentro da área aberta: nada de botões lado a lado espremendo o texto
       expect(within(item).queryByRole('link', { name: 'Ver fatura Nubank em Cartões' })).toBeNull()
       await userEvent.setup().click(within(item).getByRole('button', { name: /Ver compras/ }))
-      expect(within(item).getByRole('link', { name: 'Ver fatura Nubank em Cartões' }).getAttribute('href')).toBe('/cartoes?cartao=k1')
+      expect(within(item).getByRole('link', { name: 'Ver fatura Nubank em Cartões' }).getAttribute('href')).toBe(`/cartoes/k1/fatura/${mesAtual()}`)
       expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
       expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
       expect(mock.listarFaturasDoMes).toHaveBeenCalledWith('h1', mesAtual(), {}, hojeSP())

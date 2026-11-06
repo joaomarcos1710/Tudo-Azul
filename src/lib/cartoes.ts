@@ -801,3 +801,7 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
     }
   }))
 }
+
+/** Endereços das páginas de Cartões (#203): o cartão e uma fatura dele (`mes` = AAAA-MM do fechamento). */
+export const rotaCartao = (cartaoId: string) => `/cartoes/${cartaoId}`
+export const rotaFatura = (cartaoId: string, mes: string) => `/cartoes/${cartaoId}/fatura/${mes}`

@@ -48,7 +48,9 @@ vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/c
 vi.mock('../lib/lancamentos', async (o) => ({ ...(await o<typeof import('../lib/lancamentos')>()), resumoDoMes: mock.resumoDoMes, resumoDoPeriodo: mock.resumoDoPeriodo, listarLancamentos: mock.listarLancamentos, resumoPorMoeda: mock.resumoPorMoeda }))
 const cobrar = vi.hoisted(() => vi.fn())
 const gerar = vi.hoisted(() => vi.fn())
-vi.mock('../lib/cartoes', () => ({ cobrarFaturasFechadas: cobrar, resumoDosCartoes: mock.resumoDosCartoes, totalFaturasDoMes: mock.totalFaturasDoMes }))
+vi.mock('../lib/cartoes', async (o) => ({
+  ...(await o<typeof import('../lib/cartoes')>()), cobrarFaturasFechadas: cobrar, resumoDosCartoes: mock.resumoDosCartoes, totalFaturasDoMes: mock.totalFaturasDoMes,
+}))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: gerar }))
 vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados }))
 vi.mock('../lib/orcamentos', () => ({ listarOrcamentos: mock.listarOrcamentos }))
