@@ -42,6 +42,9 @@ import type { SaldoTotal } from '../lib/saldoProjetado'
 import { listarOrcamentos } from '../lib/orcamentos'
 import type { OrcamentoMes } from '../lib/orcamentos'
 import { corDoTipo, corDoValor } from '../lib/cores'
+import { carregarIndicadores } from '../lib/indicadores'
+import type { Indicadores } from '../lib/indicadores'
+import { FaixaIndicadores } from '../components/ui/FaixaIndicadores'
 
 /**
  * Cada tela carrega só o que mostra. Início: contas, lançamentos e planejados são essenciais (se falharem, a tela
@@ -91,6 +94,8 @@ interface Dados {
   orcamentos: OrcamentoMes[] | null
   /** Avisos do topo do Início (home_alerts, do banco); null = não carregou (a faixa some, o resto segue). */
   avisos: AvisoInicio[] | null
+  /** Início: os 7 indicadores do topo (home_indicators, migration 071); null = não carregou ou é Análises. */
+  indicadores: Indicadores | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
   categoriaPorId: Map<string, Categoria>
@@ -120,24 +125,6 @@ function variacao(atual: Cents, anterior: Cents): number | null {
   return ((atual - anterior) / Math.abs(anterior)) * 100
 }
 
-type WidgetDashboardId = 'patrimonio' | 'disponivel' | 'resultado'
-
-const WIDGETS_DASHBOARD: { id: WidgetDashboardId; rotulo: string }[] = [
-  { id: 'patrimonio', rotulo: 'Patrimônio líquido' },
-  // receita e despesa do mês ficam só no cabeçalho do Início (antes apareciam duas vezes)
-  { id: 'disponivel', rotulo: 'Saldo hoje e previsto' },
-  { id: 'resultado', rotulo: 'Resultado do mês' },
-]
-const WIDGETS_DASHBOARD_PADRAO: WidgetDashboardId[] = WIDGETS_DASHBOARD.map((w) => w.id)
-const CHAVE_WIDGETS_DASHBOARD = (usuarioId: string) => `tudo-azul:dashboard-widgets:${usuarioId}`
-
-function validarWidgetsDashboard(valor: unknown): WidgetDashboardId[] {
-  if (!Array.isArray(valor)) return [...WIDGETS_DASHBOARD_PADRAO]
-  return [...new Set(valor.filter((id): id is WidgetDashboardId =>
-    typeof id === 'string' && WIDGETS_DASHBOARD.some((w) => w.id === id),
-  ))]
-}
-
 /** Painel: todo valor em reais vem calculado do banco (net_worth, period_summary, expenses_by_category, daily_expenses, cash_flow_report, account_balances_projected). */
 /** Início ("o que fazer agora") e Análises ("como estou indo"): cada seção carrega e mostra só os seus blocos. */
 export type SecaoResumo = 'inicio' | 'analises'
@@ -162,53 +149,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   // até dois nomes ("João Marcos"), como no cabeçalho do Organizze
   const nome = ((sessao?.user?.user_metadata?.name as string | undefined) ?? '').trim().split(/\s+/).slice(0, 2).join(' ')
 
-  const usuarioId = sessao?.user?.id ?? null
-  const [preferenciasWidgets, setPreferenciasWidgets] = useState<{ usuarioId: string | null; ids: WidgetDashboardId[] }>({
-    usuarioId: null, ids: [...WIDGETS_DASHBOARD_PADRAO],
-  })
-  const [preferenciasWidgetsCarregadas, setPreferenciasWidgetsCarregadas] = useState(false)
-  const [personalizandoWidgets, setPersonalizandoWidgets] = useState(false)
-
-  useEffect(() => {
-    let ids = [...WIDGETS_DASHBOARD_PADRAO]
-    if (usuarioId) {
-      try {
-        const salvo = window.localStorage.getItem(CHAVE_WIDGETS_DASHBOARD(usuarioId))
-        if (salvo !== null) ids = validarWidgetsDashboard(JSON.parse(salvo))
-      } catch { /* armazenamento indisponível ou preferência inválida: usa o padrão */ }
-    }
-    setPreferenciasWidgets({ usuarioId, ids })
-    setPreferenciasWidgetsCarregadas(true)
-  }, [usuarioId])
-
-  useEffect(() => {
-    if (!preferenciasWidgetsCarregadas || !usuarioId || preferenciasWidgets.usuarioId !== usuarioId) return
-    try {
-      window.localStorage.setItem(CHAVE_WIDGETS_DASHBOARD(usuarioId), JSON.stringify(preferenciasWidgets.ids))
-    } catch { /* sem armazenamento: a personalização vale só nesta sessão */ }
-  }, [preferenciasWidgets, preferenciasWidgetsCarregadas, usuarioId])
-
-  // Nunca expõe por um render as preferências do usuário anterior durante uma troca de sessão.
-  const widgetsVisiveis = preferenciasWidgets.usuarioId === usuarioId
-    ? preferenciasWidgets.ids
-    : [...WIDGETS_DASHBOARD_PADRAO]
-  const adicionarWidget = (id: WidgetDashboardId) => {
-    setPreferenciasWidgets({ usuarioId, ids: widgetsVisiveis.includes(id) ? widgetsVisiveis : [...widgetsVisiveis, id] })
-  }
-  const removerWidget = (id: WidgetDashboardId) => {
-    setPreferenciasWidgets({ usuarioId, ids: widgetsVisiveis.filter((x) => x !== id) })
-  }
-  const moverWidget = (id: WidgetDashboardId, direcao: -1 | 1) => {
-    const origem = widgetsVisiveis.indexOf(id)
-    const destino = origem + direcao
-    if (origem < 0 || destino < 0 || destino >= widgetsVisiveis.length) return
-    const ids = [...widgetsVisiveis]
-    ;[ids[origem], ids[destino]] = [ids[destino], ids[origem]]
-    setPreferenciasWidgets({ usuarioId, ids })
-  }
-  const restaurarWidgets = () => setPreferenciasWidgets({ usuarioId, ids: [...WIDGETS_DASHBOARD_PADRAO] })
-
-
   useEffect(() => {
     if (!familiaId) return
     const [de, ate] = limitesDoMes(mes)
@@ -231,14 +171,16 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje), listarLancamentos(familiaId, mes), listarCategorias(familiaId),
             opcional(vencidosPlanejados(familiaId, hoje, 5)), opcional(resumoDosCartoes(familiaId, hoje)),
             opcional(totalFaturasDoMes(familiaId, mes)),
-            // O resumo do Início reutiliza as mesmas fontes financeiras já usadas em Análises.
-            opcional(carregarPatrimonio(familiaId, hoje)), opcional(carregarResumoInvestimentos(familiaId, hoje)),
-            opcional(resumoDoMes(familiaId, mes)), opcional(resumoDoMes(familiaId, somarMeses(mes, -1))), comparar(),
+            // a faixa de indicadores do topo (#187): os 7 números numa chamada só, calculados no banco
+            opcional(carregarIndicadores(familiaId, hoje)),
+            // receita e despesa do mês, com o que ainda vai entrar e sair: só no cabeçalho
+            opcional(resumoDoMes(familiaId, mes)),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
             opcional(saldosProjetados(familiaId, ate, true)), opcional(listarOrcamentos(familiaId, mes, hoje)),
             opcional(resumoPorMoeda(familiaId, de, ate)), opcional(avisosDoInicio(familiaId, hoje)),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, patrimonio, investimentos, resumo, anterior, comparacao, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
-            patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, resumo, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
+            patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores,
+            categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes,
             saldoPrevisto: projetado?.total ?? null, balanco: null,
             orcamentos, avisos, evolucao: null,
@@ -271,7 +213,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             })))),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, evolucao, porMoeda, mesPorMoeda, balanco]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, evolucao, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => { if (ativo) setDados(d) })
       .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
@@ -307,19 +249,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const contasComSaldo = dados.contas.filter((c) => c.saldo !== 0)
   const mesAnteriorCurto = formatMonth(somarMeses(mes, -1)).split(' ')[0].slice(0, 3)
   const comparadoAteHoje = `${mesAnteriorCurto} até dia ${Number(mesmoDiaMesAnterior(hoje).slice(8))}`
-  const indicadoresWidgets: Record<WidgetDashboardId, ReactNode> = {
-    // o saldo das contas já está no card "Saldo hoje e previsto": aqui só Bens e Dívida, para não repetir
-    patrimonio: p ? <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-      detalhes={[['Bens', p.bens], ['Dívida', p.divida]]} /> : (
-      <Card><CardTitle>Patrimônio líquido</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
-    ),
-    // a dívida já aparece no card de patrimônio: aqui só o saldo das contas
-    disponivel: <CardSaldo hoje={p?.disponivel ?? null} previsto={dados.saldoPrevisto?.saldo ?? null} fimDoMes={limitesDoMes(mes)[1]} porMoeda={dados.porMoeda} />,
-    resultado: m ? <Indicador rotulo="Resultado do mês" valor={m.resultado} icone={<Balanca />} corIcone="bg-azul-claro text-azul"
-      var={cmp ? variacao(cmp.atual.resultado, cmp.anterior.resultado) : null} subirEhBom comparado={comparadoAteHoje} corPeloSinal /> : (
-      <Card><CardTitle>Resultado do mês</CardTitle><p className="text-sm text-slate-500" role="status">Indicador indisponível agora.</p></Card>
-    ),
-  }
   return (
     <>
       {/* avisos do topo (a receber, a pagar, fatura e vencidos): só aparecem quando há algo a dizer */}
@@ -328,6 +257,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         ? <CabecalhoInicio nome={nome} receitas={m?.receitas ?? null} despesas={m?.despesas ?? null}
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
         : <CabecalhoPagina titulo="Análises" descricao={`Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />}
+      {/* #187: os 7 indicadores logo abaixo do cabeçalho; substituem os widgets personalizáveis, o card de investimentos e a nota do patrimônio */}
+      {noInicio && <FaixaIndicadores dados={dados.indicadores} />}
       {/* receitas e despesas do mês em outras moedas: à parte, nunca somadas aos totais em reais acima */}
       <ResultadoEmOutrasMoedas porMoeda={dados.mesPorMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
       {cobrancaFalhou && (
@@ -383,81 +314,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           )}
         </Card>
       )}
-
-      {noInicio && <section aria-label="Resumo financeiro personalizável" className="mb-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold text-marinho">Visão geral financeira</h2>
-            <p className="text-sm text-slate-600">{formatMonth(mes).replace(/^./, (c) => c.toUpperCase())} · organize os indicadores como preferir.</p>
-          </div>
-          <button type="button" onClick={() => setPersonalizandoWidgets((v) => !v)}
-            aria-expanded={personalizandoWidgets} aria-controls="configurar-widgets-dashboard"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-marinho hover:bg-slate-50">
-            {personalizandoWidgets ? 'Concluir' : 'Personalizar painel'}
-          </button>
-        </div>
-        {personalizandoWidgets && <div id="configurar-widgets-dashboard" className="mb-4 rounded-card border border-slate-200 bg-slate-50 p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h3 className="font-semibold text-marinho">Seus widgets</h3>
-              <p className="text-xs text-slate-600">Adicione, remova ou mude a ordem. A preferência fica salva neste aparelho, separada por usuário.</p>
-            </div>
-            <button type="button" onClick={restaurarWidgets} className="text-sm font-semibold text-azul hover:underline">Restaurar padrão</button>
-          </div>
-          <ul className="space-y-2">
-            {WIDGETS_DASHBOARD.map((widget) => {
-              const indice = widgetsVisiveis.indexOf(widget.id)
-              const visivel = indice >= 0
-              return <li key={widget.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white px-3 py-2">
-                <span className="text-sm font-medium">{widget.rotulo}</span>
-                <div className="flex flex-wrap items-center gap-2">
-                  {visivel && <>
-                    <button type="button" onClick={() => moverWidget(widget.id, -1)} disabled={indice === 0}
-                      aria-label={`Mover ${widget.rotulo} para cima`} className="rounded border border-slate-200 px-2 py-1 text-sm disabled:opacity-40">↑</button>
-                    <button type="button" onClick={() => moverWidget(widget.id, 1)} disabled={indice === widgetsVisiveis.length - 1}
-                      aria-label={`Mover ${widget.rotulo} para baixo`} className="rounded border border-slate-200 px-2 py-1 text-sm disabled:opacity-40">↓</button>
-                  </>}
-                  <button type="button" onClick={() => visivel ? removerWidget(widget.id) : adicionarWidget(widget.id)}
-                    className="rounded border border-slate-200 px-2 py-1 text-sm font-semibold text-azul hover:bg-azul-claro">
-                    {visivel ? 'Remover' : 'Adicionar'}
-                  </button>
-                </div>
-              </li>
-            })}
-          </ul>
-        </div>}
-        {widgetsVisiveis.length === 0 ? (
-          <div className="rounded-card border border-dashed border-slate-300 p-5 text-sm text-slate-600">
-            Nenhum widget selecionado. Use <strong>Personalizar painel</strong> para adicionar indicadores.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-label="Indicadores financeiros">
-            {widgetsVisiveis.map((id) => <div key={id} className="min-w-0">{indicadoresWidgets[id]}</div>)}
-          </div>
-        )}
-        {p && <p className="mt-2 text-xs text-slate-500">
-          Patrimônio = saldo das contas + crédito a receber + bens em reais − dívidas. Investimentos ficam à parte, abaixo.
-        </p>}
-        {dados.investimentos && <Card className="mt-3">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <CardTitle>Saldo de investimentos</CardTitle>
-            <Link to="/investimentos" className="text-sm font-semibold text-azul hover:underline">Ver carteira</Link>
-          </div>
-          {dados.investimentos.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhuma posição investida. Cadastre um ativo e registre uma compra para acompanhar o saldo.</p>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-3">
-              {dados.investimentos.map((x) => <div key={x.moeda}>
-                <p className="text-xs text-slate-500">Saldo em {x.moeda}</p>
-                <p className="text-lg font-bold tabular-nums">{formatMoeda(x.valorAtual, x.moeda)}</p>
-              </div>)}
-            </div>
-          )}
-          <p className="mt-2 text-xs text-slate-500">Moedas estrangeiras são exibidas separadamente, sem conversão cambial automática.</p>
-        </Card>}
-        {!m && <p className="mt-2 text-xs text-slate-500" role="status">Resumo do mês indisponível agora; os demais widgets continuam disponíveis.</p>}
-      </section>}
-
 
       {noInicio && dados.cartoes && dados.cartoes.length > 0 && (
         <Card className="mb-4">
@@ -747,8 +603,20 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               ))}
             </ul>
           )}
+          {/* #187: o previsto do fim do mês ("posso gastar?") saiu do card "Saldo hoje e previsto" e ficou aqui, uma linha */}
+          {dados.saldoPrevisto && dados.contas.length > 0 && (
+            <p className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 border-t border-slate-100 pt-2 text-sm">
+              <span className="text-slate-500">Previsto em {formatDate(limitesDoMes(mes)[1]).slice(0, 5)}
+                <span className="block text-xs">com planejados, fixos e faturas até o fim do mês</span></span>
+              <span className={`ml-auto whitespace-nowrap tabular-nums font-semibold ${corDoValor(dados.saldoPrevisto.saldo)}`}>{formatBRL(dados.saldoPrevisto.saldo)}</span>
+            </p>
+          )}
+          <EmOutrasMoedas porMoeda={dados.porMoeda} className="mt-2 border-t border-slate-100 pt-2" />
           {dados.contas.length > 0 && (
-            <Link to="/contas" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todas as contas</Link>
+            <div className="flex flex-wrap gap-x-4">
+              <Link to="/contas" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todas as contas</Link>
+              <Link to="/calendario" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver no calendário</Link>
+            </div>
           )}
         </Card>
       </div>}
@@ -882,32 +750,6 @@ function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense'
   return tipo === 'transfer'
     ? <IconeCategoria fixo="transferencia" tamanho="pequeno" />
     : <IconeCategoria visual={visualPorId(categoriaId, porId, tipo)} tamanho="pequeno" />
-}
-
-/** Saldo das contas hoje e o previsto no fim do mês (planejados, fixos e faturas com as assinaturas previstas, migration 069); os dois vêm do banco. */
-function CardSaldo({ hoje, previsto, fimDoMes, porMoeda }: { hoje: Cents | null; previsto: Cents | null; fimDoMes: string; porMoeda: TotalPorMoeda[] }) {
-  return (
-    <Card>
-      <span className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-azul-claro text-azul" aria-hidden="true"><Cofre /></span>
-      {/* um item por linha (rótulo à esquerda, valor à direita): em duas colunas o "Previsto em 30/11" quebrava e o valor saía do card */}
-      <dl className="space-y-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-          <dt className="text-sm text-slate-500">Saldo hoje</dt>
-          <dd className={`ml-auto whitespace-nowrap tabular-nums text-lg font-bold ${hoje === null ? '' : corDoValor(hoje)}`}>{hoje === null ? '—' : formatBRL(hoje)}</dd>
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-t border-slate-100 pt-2">
-          <dt className="text-sm text-slate-500">Previsto em {formatDate(fimDoMes).slice(0, 5)}</dt>
-          <dd className={`ml-auto whitespace-nowrap tabular-nums text-lg font-bold ${previsto === null ? '' : corDoValor(previsto)}`}>
-            {previsto === null ? '—' : formatBRL(previsto)}
-          </dd>
-        </div>
-      </dl>
-      <EmOutrasMoedas porMoeda={porMoeda} className="mt-2 border-t border-slate-100 pt-2" />
-      <p className="mt-2 text-xs text-slate-500">
-        O previsto já conta as contas planejadas, os lançamentos fixos e as faturas com as assinaturas previstas até o fim do mês. <Link to="/calendario" className="font-semibold text-azul hover:underline">Ver no calendário</Link>
-      </p>
-    </Card>
-  )
 }
 
 /** Até 4 orçamentos, os mais perto de estourar primeiro (pela fração do limite já gasta; nenhum valor em reais é somado aqui). */

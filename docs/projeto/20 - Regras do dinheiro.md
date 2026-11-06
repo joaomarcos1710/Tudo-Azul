@@ -62,5 +62,15 @@ tags: [tudo-azul, regras, dinheiro]
 ## Receita
 - **Regular × eventual** (categoria marcada como eventual): a renda regular é a base para a cobertura das despesas.
 
+## Indicadores do Início (migration 071, #187)
+Todos calculados no banco (`public.home_indicators(p_household, p_as_of)`), numa chamada; o mês é o de hoje. Só reais: conta em outra moeda fica fora de tudo. Razões com 1 casa (`round`, meio para longe do zero); a **faixa de cor é decidida sobre o valor já arredondado** (o que a tela mostra: 2,998 meses aparece 3,0 e é âmbar).
+- **Disponível** = saldo das contas **ativas** em reais (os 7 tipos da 070) − **faturas de cartão fechadas a pagar** (a dívida do cartão em `debt_balances`: cobrado no fechamento − pago). A **fatura aberta não entra** (ainda muda e não foi cobrada; está no card Cartões). Cor pelo sinal.
+- **Patrimônio total** = todas as contas em reais (inclusive as desativadas, como sempre) + crédito a receber no cartão + bens (avaliação atual × participação, arredondados ao centavo) − todas as dívidas (= `net_worth_with_assets`) **+ investimentos cadastrados em reais** (valor de mercado, `investment_totals`). Previdência e FGTS ainda não existem no app. Cor pelo sinal.
+- **Resultado do mês** = receitas − despesas pagas do mês (`period_summary`, cartão pela data da fatura). Cor pelo sinal.
+- **Taxa de poupança** = resultado ÷ receitas × 100. Sem receita: "—". Vermelho abaixo de 0%, âmbar abaixo de 10%, azul a partir de 10%.
+- **Cobertura da reserva** = saldo das contas **Poupança / reserva** (`savings`, ativas) ÷ despesa média mensal dos **meses fechados** dos últimos 6, em meses. Os meses contados são os que terminam depois da abertura da 1ª conta (família com 2 meses de app divide por 2, não por 6). Sem despesa nesses meses ou sem mês fechado: "—". Vermelho abaixo de 3, âmbar abaixo de 6, azul a partir de 6.
+- **Comprometimento com dívidas** = parcelas de contrato que vencem no mês (empréstimo, financiamento e consignado, pagas ou a pagar; a cancelada e a planejada de dívida arquivada não) ÷ **renda regular recebida no mês** (`income_regularity`: receita paga fora das categorias eventuais) × 100. **Cartão fica fora**, inclusive a compra parcelada: é consumo e já está nas despesas. Sem renda regular: "—". Azul até 30%, âmbar acima de 30%, vermelho acima de 40%.
+- **Dívidas totais** = saldo devedor de todas as dívidas (`debt_balances.debt`), cartões incluídos (a fatura fechada a pagar). Parcelas futuras do cartão (compromissos) não entram. Neutro (cinza).
+
 ## Ocultar valores
 Só apresentação. Campos de edição usam `formatBRLCampo` (nunca mascarado), com teste-guarda.
