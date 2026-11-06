@@ -195,6 +195,16 @@ export interface FaturaDoMes {
   contaPagamentoId: string | null
 }
 
+/**
+ * Situação de um lançamento (ou de outro compromisso com data): pago; planejado com data antes de hoje (hojeSP) =
+ * vencido (vermelho, prejuízo, #183); senão planejado (verde). A mesma regra na tabela do computador, na lista do
+ * celular e no Calendário; o Início (vencidosPlanejados) usa o mesmo corte `data < hoje` no banco.
+ */
+export type SituacaoLancamento = 'pago' | 'planejado' | 'vencido'
+export function situacaoDoLancamento(pago: boolean, data: string, hoje: string): SituacaoLancamento {
+  return pago ? 'pago' : data < hoje ? 'vencido' : 'planejado'
+}
+
 /** A regra da tela Cartões (situacaoFatura) mais "vencida": fechada, não paga e com o vencimento antes de hoje. */
 export type SituacaoDaFatura = 'aberta' | 'fechada' | 'paga' | 'vencida'
 
@@ -421,7 +431,7 @@ export async function editarLancamento(id: string, d: DadosLancamento): Promise<
 
 /**
  * Editar um lançamento que veio de um recorrente pergunta "Este lançamento se repete em outras datas. O que deseja
- * fazer?" (pedido do dono, #193, como no Organizze) só quando muda o que a regra tem: valor, data, descrição ou
+ * fazer?" (pedido do dono, #194, como no Organizze) só quando muda o que a regra tem: valor, data, descrição ou
  * categoria. Situação (pago/planejado), observação e conta não perguntam (valem só para este). Trocar o tipo também não:
  * a regra não muda de tipo, então vale só para este.
  */

@@ -1,12 +1,15 @@
 import type { ButtonHTMLAttributes } from 'react'
 
-type Variante = 'primario' | 'secundario' | 'perigo' | 'fantasma' | 'discreto' | 'pilula'
+type Variante = 'primario' | 'secundario' | 'perigo' | 'perigoTexto' | 'fantasma' | 'discreto' | 'pilula'
 
 const estilos: Record<Variante, string> = {
   primario: 'bg-azul text-white hover:bg-blue-700 disabled:opacity-60',
   secundario: 'bg-white text-marinho border border-slate-300 hover:bg-azul-claro disabled:opacity-50',
   perigo: 'bg-negativo text-white hover:bg-negativo-escuro disabled:opacity-50',
   fantasma: 'text-azul hover:bg-azul-claro disabled:opacity-50',
+  // ação destrutiva solta ao lado de outras ações (Excluir conta, Remover orçamento): texto vermelho, o mesmo estilo de
+  // perigo do MenuAcoes; a confirmação vem depois
+  perigoTexto: 'text-negativo hover:bg-negativo-fundo disabled:opacity-50',
   // ação destrutiva repetida em lista (Excluir): cinza em repouso, vermelha só no hover/foco
   discreto: 'text-slate-600 hover:bg-negativo-fundo hover:text-negativo focus-visible:text-negativo disabled:opacity-50',
   // ação curta e repetida em cada cartão (Ver fatura, Pagar fatura; #181): pílula azul-clara com texto azul da marca

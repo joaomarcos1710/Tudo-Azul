@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -16,7 +16,7 @@ import { formatBRL, formatDate, formatMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
   LIMITE_LOTE, listarComprasDaFatura, listarCreditosDaFaturaDoMes, marcarPagoEmLote, moverParaLixeiraEmLote, mudarCategoriaEmLote,
-  restaurarDaLixeiraEmLote, voltarPlanejadoEmLote,
+  restaurarDaLixeiraEmLote, situacaoDoLancamento, voltarPlanejadoEmLote,
 } from '../lib/lancamentos'
 import type { CompraDaFatura, CreditoDeCartao, FaturaDoMes, Lancamento, MovimentoDivida, TipoLancamento } from '../lib/lancamentos'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
@@ -453,7 +453,8 @@ export function TabelaLancamentos(p: PropsTabela) {
                 </th>
                 <th scope="col" className="px-2 py-2">Descrição</th>
                 <th scope="col" className="px-2 py-2">Categoria</th>
-                <th scope="col" className="px-2 py-2">Conta</th>
+                {/* largura mínima: o nome da conta quebra entre palavras, nunca uma palavra por linha */}
+                <th scope="col" className="min-w-36 px-2 py-2">Conta</th>
                 <th scope="col" aria-sort={ariaSort('valor')} className="px-2 py-2 text-right">
                   <button type="button" onClick={() => ordenarPor('valor')} className="inline-flex min-h-11 items-center gap-1 font-semibold uppercase hover:text-marinho">
                     Valor <span aria-hidden="true">{seta('valor')}</span>
@@ -498,7 +499,7 @@ function LinhaLancamento({ l, p, marcado, aoAlternar }: {
   l: Lancamento; p: PropsTabela; marcado: boolean; aoAlternar: (id: string, intervalo: boolean) => void
 }) {
   const v = valorComSinal(l, p.moedaConta.get(l.contaId) ?? 'BRL')
-  const situacao: Situacao = l.status === 'paid' ? 'pago' : l.data < p.hoje ? 'vencido' : 'planejado'
+  const situacao: Situacao = situacaoDoLancamento(l.status === 'paid', l.data, p.hoje)
   const nome = l.descricao || rotuloTipo[l.tipo]
   const acoes: AcaoMenu[] = [
     ...(l.status === 'planned' ? [{ rotulo: 'Marcar pago', aoEscolher: () => p.aoPagar(l), desabilitado: p.ocupado }] : []),
@@ -560,7 +561,7 @@ function LinhaSoLeitura({ it, p }: { it: Exclude<ItemLista, { origem: 'lancament
     acao = <Link to="/cartoes" className={linkAcao}>Ver em Cartões</Link>
   } else if (it.origem === 'contrato') {
     const c = it.p
-    situacao = c.vencimento < p.hoje ? 'vencido' : 'planejado'
+    situacao = situacaoDoLancamento(false, c.vencimento, p.hoje)
     descricao = <>{c.nomeDivida} · parcela {c.numero}<span className="block text-xs text-slate-500">Contrato · só entra no saldo quando você der baixa</span></>
     categoria = <CelulaCategoria icone={<IconeCategoria fixo="cartao" tamanho="pequeno" />} nome="Contrato" />
     conta = c.formaPagamento === 'account_debit' ? p.nomeConta.get(c.contaPagamentoId ?? '') ?? 'conta' : '—'
@@ -594,6 +595,7 @@ const situacaoDaFaturaNaTabela: Record<FaturaDoMes['situacao'], Situacao> = { ab
 /** A linha "Fatura <cartão>" (PR #164): total e situação do banco, sem seleção; "Ver compras" abre as parcelas embaixo. */
 function LinhaFaturaTabela({ f, categoriaPorId, nomeCategoria }: { f: FaturaDoMes; categoriaPorId: Map<string, Categoria>; nomeCategoria: Map<string, string> }) {
   const { aberto, compras, creditos, erro, alternar, idLista } = useComprasDaFatura(f)
+  const navegar = useNavigate()
   const s = rotuloSituacaoFatura[f.situacao]
   const quando = resumoDaFatura(f)
   return (
@@ -614,11 +616,12 @@ function LinhaFaturaTabela({ f, categoriaPorId, nomeCategoria }: { f: FaturaDoMe
         <td className={td}><CelulaCategoria icone={<IconeCategoria fixo="cartao" tamanho="pequeno" />} nome="Cartão de crédito" /></td>
         <td className={td}>{f.cartaoNome}</td>
         <td className={`${td} whitespace-nowrap text-right tabular-nums font-semibold text-neutro`}>{formatBRL(f.total)}</td>
-        <td className={`${td} whitespace-nowrap text-right`}>
-          <Button variante="fantasma" compacto onClick={alternar} aria-expanded={aberto} aria-controls={idLista}>
-            {aberto ? 'Esconder compras' : 'Ver compras'}
-          </Button>
-          <Link to={`/cartoes?cartao=${f.cartaoId}`} aria-label={`Ver fatura ${f.cartaoNome} em Cartões`} className={linkAcao}>Cartões</Link>
+        {/* as duas ações no menu ⋯, como nas outras linhas: dois botões lado a lado empurravam a tabela para fora da tela */}
+        <td className={`${td} text-right`}>
+          <MenuAcoes rotulo={`Ações da fatura ${f.cartaoNome}`} acoes={[
+            { rotulo: aberto ? 'Esconder compras' : 'Ver compras', aoEscolher: alternar },
+            { rotulo: 'Ver em Cartões', aoEscolher: () => navegar(`/cartoes?cartao=${f.cartaoId}`) },
+          ]} />
         </td>
       </tr>
       {aberto && (

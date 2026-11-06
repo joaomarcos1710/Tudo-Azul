@@ -31,7 +31,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { asCents, formatBRL, formatBRLCampo, formatDate, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
-import { SELO_FATURA } from '../lib/cores'
+import { SELO, SELO_FATURA } from '../lib/cores'
 
 type Painel =
   | { tipo: 'novo' }
@@ -453,12 +453,10 @@ export default function Cartoes() {
               </div>
 
               <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <dt className="text-slate-500">A cobrar (atual + futuras)</dt>
-                  <dd className="tabular-nums font-semibold text-agendado">{formatBRL(c.compromissos)}</dd>
-                </div>
-                <div className="basis-full text-xs text-slate-500">
-                  Inclui as compras da fatura atual, que ainda não fechou, e as parcelas dos próximos meses.
+                  {/* #183: verde só com o rótulo "Agendado" ao lado (ainda vai ser cobrado nas próximas faturas) */}
+                  <dd className="flex items-center gap-2"><span className="tabular-nums font-semibold text-agendado">{formatBRL(c.compromissos)}</span><SeloAgendado /></dd>
                 </div>
                 {c.credito > 0 && (
                   <div className="flex gap-2">
@@ -467,6 +465,8 @@ export default function Cartoes() {
                   </div>
                 )}
               </dl>
+              {/* fora do <dl>: texto solto dentro de <dl> não é termo nem definição (axe) */}
+              <p className="mt-1 text-xs text-slate-500">Inclui as compras da fatura atual, que ainda não fechou, e as parcelas dos próximos meses.</p>
               {c.limite !== null && c.limiteComprometido !== null && c.limiteDisponivel !== null && (
                 <Limite limite={c.limite} comprometido={c.limiteComprometido} disponivel={c.limiteDisponivel} />
               )}
@@ -633,10 +633,15 @@ function Previstas({ cartaoId, faturas, comoParagrafo = false }: { cartaoId: str
   const Tag = comoParagrafo ? 'p' : 'dd'
   return (
     <Tag className="mt-1 text-sm text-slate-600" data-testid={`previstas-${cartaoId}`}>
-      Prevista até o fechamento: <strong className="tabular-nums whitespace-nowrap text-agendado">{formatBRL(com)}</strong>
+      Prevista até o fechamento: <strong className="tabular-nums whitespace-nowrap text-agendado">{formatBRL(com)}</strong> <SeloAgendado />
       {' '}— inclui <span className="tabular-nums whitespace-nowrap">{formatBRL(x)}</span> de assinaturas previstas
     </Tag>
   )
+}
+
+/** O rótulo que acompanha todo valor em verde (#183): verde é "agendado", nunca "entrou" como nos bancos. */
+function SeloAgendado() {
+  return <span className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${SELO.planejado}`}>Agendado</span>
 }
 
 /** Confirmação de arquivar ou excluir o cartão; o banco é quem decide se pode (saldo, parcelas, recorrente, histórico). */
@@ -1071,7 +1076,7 @@ function Faturas({ cartao, versao, categorias, contas, aoAlterar, pedido = null,
               </ul>
             )}
             {f.aCobrar > 0 && f.cobrado > 0 && (
-              <p className="text-xs text-agendado">Ainda vai entrar nesta fatura: {formatBRL(f.aCobrar)}</p>
+              <p className="text-xs text-agendado">Ainda vai entrar nesta fatura: {formatBRL(f.aCobrar)} <SeloAgendado /></p>
             )}
             {f.creditos > 0 && <p className="text-xs text-lucro">Créditos e reembolsos nesta fatura (contam como receita): {formatBRL(f.creditos)}</p>}
             {f.adiantamentoEntrada > 0 && <p className="text-xs text-lucro">Adiantamento usado nesta fatura: até {formatBRL(f.adiantamentoEntrada)}</p>}

@@ -184,7 +184,7 @@ select is(pg_temp.lanc('f3'), pg_temp.dia(3, 8) || '|50.00|Curso|catA|planned|fa
 select is(public.recurrence_materialize(), 0, 'P33 nada a mais gerado');
 select is((select count(*) from public.transactions where recurrence_id = pg_temp.fx('rf')), 4::bigint, 'P34 continuam 4 ocorrências');
 
--- empurrar a 3ª para o lugar da 4ª (mesmo dia, um mês à frente): agora é mudar de mês, recusado (decisão #193)
+-- empurrar a 3ª para o lugar da 4ª (mesmo dia, um mês à frente): agora é mudar de mês, recusado (decisão #194)
 select is(pg_temp.proximos(pg_temp.fx('f2'), pg_temp.dia(3, 8), 'Curso', 50.00, pg_temp.fx('catA')), 'erro 22023',
   'P35 empurrar para o mês da seguinte: recusado');
 select is(pg_temp.lanc('f2') || ' ' || pg_temp.lanc('f3'),
@@ -192,7 +192,7 @@ select is(pg_temp.lanc('f2') || ' ' || pg_temp.lanc('f3'),
   'P36 a recusa não mexe em nada');
 
 -- ===========================================================================================================
--- Revisão de dinheiro (#193): reancorar uma ocorrência mais adiante e depois editar uma ANTERIOR só no valor.
+-- Revisão de dinheiro (#194): reancorar uma ocorrência mais adiante e depois editar uma ANTERIOR só no valor.
 -- Antes: as chaves das próximas eram recalculadas na grade antiga e a regra gerava a partir do começo novo — semanal,
 -- a cada N dias e bimestral criavam ocorrências em dobro; o mensal mudava datas sem pedido. Agora: recusado (22023,
 -- "edite a partir de <data>"), nada muda, nada a mais é gerado nem previsto.
@@ -284,7 +284,7 @@ select is(pg_temp.lanc('m1') || ' ' || pg_temp.lanc('m3'),
 select is(public.recurrence_materialize(), 0, 'R4k nada a mais gerado');
 
 -- ===========================================================================================================
--- Trocar de período (decisão do dono, #193): a data nova fica entre a anterior e a seguinte (datas reais) e, no mensal,
+-- Trocar de período (decisão do dono, #194): a data nova fica entre a anterior e a seguinte (datas reais) e, no mensal,
 -- no mês da ocorrência
 -- ===========================================================================================================
 insert into fixture select 'c', public.recurrence_create('expense', 'Água', 40.00, 10, pg_temp.dia(0), pg_temp.fx('cc'), null, null, pg_temp.fx('catA'));
@@ -314,7 +314,7 @@ select is(pg_temp.proximos(pg_temp.fx('p2'), pg_temp.dia(0, 2) + 15, 'Padaria', 
 select is(public.recurrence_materialize(), 0, 'T11 nada a mais gerado');
 
 -- ===========================================================================================================
--- Uma chamada só (#193): situação, observação e conta vão junto; qualquer recusa desfaz tudo
+-- Uma chamada só (#194): situação, observação e conta vão junto; qualquer recusa desfaz tudo
 -- ===========================================================================================================
 with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
            values (pg_temp.fx('h'), 'Poupança', 'savings', 0, '2026-01-01') returning id)
@@ -356,7 +356,7 @@ select is((select amount::numeric(14,2)::text from public.recurrences where id =
   'U8 nada mudou: regra, esta e as próximas');
 
 -- ===========================================================================================================
--- Menores (#193): família antes de tudo, regra encerrada, categoria desativada ou vazia
+-- Menores (#194): família antes de tudo, regra encerrada, categoria desativada ou vazia
 -- ===========================================================================================================
 create function pg_temp.aplica(p_t uuid) returns text language plpgsql as $f$
 begin
@@ -389,7 +389,7 @@ select pg_temp.login('00000000-0000-0000-0000-0000000073a1');
 select is(pg_temp.proximos(pg_temp.fx('o7'), pg_temp.dia(7, 15), 'Luz nova', 155.00, pg_temp.fx('catB')), '4', 'V6 categoria desativada que a regra já tem: aceita');
 
 -- ---------------------------------------------------------------------------
--- B1 (revisão do #193): a renda regular ESPERADA do mês fechado (home_indicators) sai das ocorrências daquele mês, não
+-- B1 (revisão do #194): a renda regular ESPERADA do mês fechado (home_indicators) sai das ocorrências daquele mês, não
 -- da regra viva. Datas fixas (2026): a geração vai do começo da regra até 12 meses depois de hoje, então setembro a
 -- novembro de 2026 sempre existem; home_indicators recebe a data de referência.
 -- ---------------------------------------------------------------------------
@@ -432,7 +432,7 @@ select is(pg_temp.esperada('hb', '2026-11-06'), 1000.00::numeric, 'B1.8 a ocorr�
 update public.transactions set deleted_at = null where id = pg_temp.fx('b_out');
 
 -- ---------------------------------------------------------------------------
--- I1 (revisão do #193): encerrar um recorrente cuja regra foi reancorada para o futuro manda para a lixeira TODO
+-- I1 (revisão do #194): encerrar um recorrente cuja regra foi reancorada para o futuro manda para a lixeira TODO
 -- planejado depois da data pedida (antes: só os depois do start_date novo).
 -- ---------------------------------------------------------------------------
 reset role;

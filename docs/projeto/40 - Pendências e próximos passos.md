@@ -49,17 +49,21 @@ atualizado: 2026-10-28
 - [ ] **Preferência antiga dos widgets** (`tudo-azul:dashboard-widgets:<usuário>`) fica sem uso no aparelho; inofensiva.
 - [x] Personalização dos widgets do Início saiu (substituída pela faixa fixa de 7).
 - [x] "Saldo hoje e previsto": o previsto do fim do mês ficou numa linha de Minhas contas.
-### Recorrente: "Apenas este / Este e os próximos" (#193, migration 074)
-- [x] Pergunta ao salvar a edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria (Lançamentos, no celular e na tabela); "Este e os próximos" pela `recurrence_update_from` (#193).
+### Recorrente: "Apenas este / Este e os próximos" (#194, migration 074)
+- [x] Pergunta ao salvar a edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria (Lançamentos, no celular e na tabela); "Este e os próximos" pela `recurrence_update_from` (#194).
 - [ ] **Aplicar a migration 074** em produção (simular → ler o log → aplicar, com o "pode" do dono), **antes** de publicar o front: sem ela, "Este e os próximos" dá erro (o "Apenas este" funciona).
 - [ ] Conferir no iPad/celular: editar a conta de luz de um mês (dia e valor), escolher "Este e os próximos" e ver os meses seguintes no Calendário e em Recorrentes; um mês já pago e um corrigido à mão ficam como estavam.
 - [ ] **Marcar pago não pergunta** (decisão em [[30 - Decisões]]): confirmar com o dono.
 - [ ] Assinatura de cartão: "este e os próximos" não existe (ocorrência é parcela da fatura). Se fizer falta, a edição em Recorrentes já muda valor/descrição/categoria; o dia continua sem mudar.
-- [x] Situação, observação e conta dentro da RPC: "Este e os próximos" é uma chamada só, tudo ou nada (revisão de dinheiro, #193).
-- [x] Revisão de dinheiro (#193): ocorrência antes do começo atual da série é recusada (evita ocorrências em dobro e datas mudadas sem pedido); nova data só entre a anterior e a seguinte e, no mensal, no mês da ocorrência; família conferida antes de qualquer outra recusa; recorrente encerrado, categoria desativada nova e despesa/receita sem categoria recusados.
+- [x] Situação, observação e conta dentro da RPC: "Este e os próximos" é uma chamada só, tudo ou nada (revisão de dinheiro, #194).
+- [x] Revisão de dinheiro (#194): ocorrência antes do começo atual da série é recusada (evita ocorrências em dobro e datas mudadas sem pedido); nova data só entre a anterior e a seguinte e, no mensal, no mês da ocorrência; família conferida antes de qualquer outra recusa; recorrente encerrado, categoria desativada nova e despesa/receita sem categoria recusados.
 - [ ] Depois de um "este e os próximos" com data nova, as ocorrências **anteriores** a ela não aceitam mais "este e os próximos" (só "Apenas este"). Se fizer falta mudar o valor de toda a série de uma vez, a edição em Recorrentes (`recurrence_update`) continua valendo para os planejados de hoje em diante.
 - [ ] Mudar a **frequência** de um recorrente continua sendo excluir e cadastrar outro.
-- [ ] **Folha trata o Esc na captura** (#193, para fechar só a pergunta e não o formulário de trás): o Esc dentro de uma Folha não chega mais a controles internos que usam Esc (ex.: um campo que limparia com Esc); com duas Folhas abertas, as duas escutam na captura. Revisar quando unificar os painéis (`PainelLancamento` → `ui/Folha`), com uma pilha de painéis.
+- [x] ~~Folha trata o Esc na captura~~: substituído no merge com a #192 pela pilha de diálogos de `useFocoPreso` (o Esc fecha só o de cima); o teste "Cancelar e Esc não gravam nada" confere que o Esc na pergunta fecha só ela e o formulário continua aberto (#194).
+- [x] **B1 (revisão do #194)** renda regular **esperada** do mês fechado (Início) caía a 0 ou mudava de valor depois de um "este e os próximos" (lia a regra viva, que é reancorada): agora sai das ocorrências daquele mês (lançamentos gerados + as ainda não geradas), migration 074.
+- [x] **I1 (revisão do #194)** `recurrence_end` deixava planejados vivos quando o começo da regra tinha ido para o futuro (`greatest(p_end, start_date)`): agora todo planejado depois da data pedida vai para a lixeira, migration 074.
+- [ ] **Esperada passou a usar o valor do lançamento** (B1): mês pago a menor e corrigido à mão (ex.: salário de 5.000 pago 4.800) agora espera 4.800, não 5.000; ocorrência na lixeira não conta mais. Afeta só o comprometimento com dívidas (`greatest(esperada, recebida)`). Confirmar com o dono.
+- [ ] **Recorrentes (tela) segue campo a campo, "este e os próximos" é tudo ou nada por ocorrência** (M1): uma ocorrência com só a descrição corrigida não recebe o valor novo aqui, mas recebe pela edição em Recorrentes. Atalho conhecido; uniformizar se o dono estranhar.
 
 ### Etiquetas nas contas (#189, migration 072)
 - [x] Etiquetas livres por família: criar, renomear, apagar, marcar até 10 por conta; selos, filtro e seção "Etiquetas" em Contas; coluna na exportação completa (#189).
@@ -243,7 +247,7 @@ atualizado: 2026-10-28
 - [x] **App**: PR #66 mesclado depois da 016 aplicada.
 - [ ] Conferir no app, depois dos dois merges: cadastrar uma quinzenal e a PLR anual de teste e ver os planejados em Lançamentos e no Calendário.
 - Depois (só com autorização): "mudar frequência" numa ação só (encerra a regra e cria outra).
-- [x] **Mudar o dia** de um recorrente em conta: em Lançamentos, editar a ocorrência e escolher "Este e os próximos" (#193, migration 074).
+- [x] **Mudar o dia** de um recorrente em conta: em Lançamentos, editar a ocorrência e escolher "Este e os próximos" (#194, migration 074).
 - [x] **Recorrentes agrupados por frequência e totais por mês no cartão/na conta** (#173): migration 063 (`recurrence_summary`) **não aplicada** — aplicar pelo workflow (simular → log → `APLICAR`) com o seu "pode" **antes** de publicar o front (sem ela a tela Recorrentes mostra erro ao carregar).
 - [ ] Conferir no iPad/celular: os cartões do topo, as abas Conta/Cartão e os totais de cada grupo com os seus recorrentes reais.
 - [ ] Recorrentes em outra moeda ficam fora dos totais (só um aviso com a quantidade). Se quiser, um total por moeda depois.
@@ -254,6 +258,14 @@ atualizado: 2026-10-28
 - [x] **Orçamento com cor por faixa** (#190, 06/11/2026): 50% azul claro, 70% amarelo, 90% vermelho claro, 100% vermelho, com o percentual ao lado.
 - [ ] A faixa usa só o **gasto pago**; parcelas de cartão já previstas não pintam a barra (a projeção avisa no texto). Decidir com o dono se a barra deve considerar o projetado.
 - [ ] O equivalente mensal de cada item (≈ R$ x/mês) não aparece na linha do item, só nos totais; dá para trazer do banco (nível `detail` por regra) se fizer falta.
+
+## Auditoria de design e acessibilidade (#192, 06/11/2026)
+- [x] Foco do painel de lançamento, menu "+ Lançamento" no celular, rolagem lateral da tabela a 1280px, selos cortados, vencido verde na lista e no Calendário, "próxima" cortada em Recorrentes, verde sem rótulo em Cartões, 4 achados sérios do axe, alvos de toque de 44px, Excluir/Remover em vermelho, subtotal de Contas sem cor, seletor de tipo em 2 linhas a 390px.
+- [ ] **"R$" quebrando linha**: usar espaço não separável entre "R$" e o número (ou `whitespace-nowrap` nos valores) em todo o app; ficou para depois, numa PR própria.
+- [ ] **Decisões de design (para o dono)**: faixa de 7 indicadores do Início (densa no celular); Categorias muito longa no celular; eixo do gráfico de Relatórios; Calendário no computador (grade pequena para a largura); faixas de cor na barra de limite do cartão (como no orçamento?); tokens soltos `blue-100`/`blue-700` (botão primário e dica do menu) ainda fora de `src/lib/cores.ts`.
+- [ ] **Foco inicial do painel de editar** vai para o primeiro controle do formulário (a aba "Despesa"), não para a aba marcada; avaliar focar a aba do tipo do lançamento.
+- [x] **Conflito previsto com a branch do recorrente "este e os próximos"** (Esc em captura na Folha; resolvido no merge do #194, ficou a versão do main): a lógica da Folha foi para `useFocoPreso`; ao juntar, não reaplicar o `addEventListener(..., true)` — a pilha de diálogos já faz o Esc fechar só a pergunta do recorrente.
+- [ ] **Dica "tecla D/R/T/C"** some abaixo de 640px e com `pointer: coarse`; num iPad com teclado físico ela continua escondida se o navegador disser "coarse".
 
 ## Menu e formulário de lançamento
 - [x] **Projeção errada depois de excluir recorrente** (#86, mesclado em 29/10; **migration 019 aplicada em produção em 29/10/2026**). Já pode excluir recorrente com lançamento pago no mês corrente.

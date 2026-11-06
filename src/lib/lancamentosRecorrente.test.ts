@@ -32,7 +32,7 @@ const dados: DadosLancamento = {
 
 beforeEach(() => { fake.chamadas.length = 0; fake.resposta.data = 4; fake.resposta.error = null })
 
-describe('perguntaSeRepete (#193)', () => {
+describe('perguntaSeRepete (#194)', () => {
   it('pergunta quando o recorrente muda valor, data, descrição ou categoria', () => {
     expect(perguntaSeRepete(luz, { ...dados, valor: c(12000) })).toBe(true)
     expect(perguntaSeRepete(luz, { ...dados, data: '2026-11-15' })).toBe(true)

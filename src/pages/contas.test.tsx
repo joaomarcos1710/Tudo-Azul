@@ -293,6 +293,29 @@ describe('Contas', () => {
     expect(within(cripto).queryByText('R$ 40,00', { selector: 'h2 + span' })).toBeNull()
   })
 
+  it('auditoria 5h: subtotal do grupo com a cor do valor (negativo vermelho) e "Excluir" vermelho junto das outras ações', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [corrente, { ...corrente, id: 'a7', nome: 'Carteira', tipo: 'cash', saldo: c(-20340) }],
+      total: c(104710),
+      porTipo: [
+        { tipo: 'checking', total: c(125050), totalAtivas: c(125050) },
+        { tipo: 'cash', total: c(-20340), totalAtivas: c(-20340) },
+      ],
+    })
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const negativo = await screen.findByTestId('subtotal-cash')
+    expect(within(negativo).getByText('-R$ 203,40').className).toContain('text-prejuizo')
+    expect(within(screen.getByTestId('subtotal-checking')).getByText('R$ 1.250,50').className).toContain('text-lucro')
+    const card = screen.getByText('Carteira', { selector: 'p' }).closest('li') as HTMLElement
+    const excluir = within(card).getByRole('button', { name: 'Excluir' })
+    expect(excluir.className).toContain('text-negativo')
+    // as três ações no mesmo grupo sem quebra: o Excluir não cai sozinho numa linha
+    const grupo = excluir.parentElement as HTMLElement
+    expect(grupo.hasAttribute('data-acoes-conta')).toBe(true)
+    expect(grupo.className).not.toContain('flex-wrap')
+    expect(within(grupo).getAllByRole('button').map((b) => b.textContent)).toEqual(['Editar', 'Arquivar', 'Excluir'])
+  })
+
   it('conta com tipo antigo (front antes da migration 070) não some: vai para "Tipo a revisar" com o rótulo antigo', async () => {
     mock.listarContas.mockResolvedValue({
       contas: [corrente, { ...corrente, id: 'a9', nome: 'Aplicação antiga', tipo: 'investment' as unknown as 'checking', saldo: c(1000) }],

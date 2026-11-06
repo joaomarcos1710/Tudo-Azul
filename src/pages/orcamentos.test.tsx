@@ -201,6 +201,15 @@ describe('Orçamentos', () => {
     expect(confirma).toHaveBeenCalledTimes(2)
   })
 
+  it('auditoria 5h: "Remover" no vermelho de perigo (como no menu ⋯) e ‹ › do mês com alvo de toque de 44px', async () => {
+    render(<Orcamentos />)
+    const remover = await screen.findByRole('button', { name: 'Remover' })
+    expect(remover.className).toContain('text-negativo')
+    expect(remover.className).not.toContain('text-azul')
+    expect(screen.getByRole('button', { name: 'Mês anterior' }).className).toContain('min-w-11')
+    expect(screen.getByRole('button', { name: 'Próximo mês' }).className).toContain('min-w-11')
+  })
+
   it('erro do banco ao salvar aparece e o formulário continua aberto', async () => {
     mock.definirOrcamento.mockRejectedValue(new Error('falhou'))
     const u = userEvent.setup()

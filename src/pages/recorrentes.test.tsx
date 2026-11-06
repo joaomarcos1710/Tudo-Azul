@@ -82,7 +82,7 @@ describe('Recorrentes', () => {
     mock.listarRecorrencias.mockResolvedValue([luz, { ...luz, id: 'r2', descricao: 'Academia antiga', ativa: false, fim: '2026-09-30' }])
     montar()
     expect(await screen.findByText('Luz')).toBeTruthy()
-    expect(metas()[0]).toMatch(/^dia 10 · Itaú · Moradia · próxima /)
+    expect(metas()[0]).toMatch(/^próxima \d\d\/\d\d(\/\d{4})? · dia 10 · Itaú · Moradia$/)
     expect(screen.getByText('−R$ 180,00')).toBeTruthy()
   })
 
@@ -213,8 +213,9 @@ describe('Recorrentes', () => {
     expect(await screen.findByText('PLR')).toBeTruthy()
     // grupos por frequência: semanais antes de anuais; dentro do item, "próxima" curta no ano corrente
     expect(metas()).toEqual([
-      'quinzenal · sexta · Itaú · Moradia · próxima 06/11 · até 30/06/2027',
-      '20 de fev · Itaú · Salário · próxima 20/02/2027',
+      // auditoria 5h: a próxima data abre a linha (no fim, era cortada pelas reticências no celular)
+      'próxima 06/11 · quinzenal · sexta · Itaú · Moradia · até 30/06/2027',
+      'próxima 20/02/2027 · 20 de fev · Itaú · Salário',
     ])
     // o detalhe completo continua no title
     expect(screen.getAllByTestId('meta-recorrente')[1].getAttribute('title')).toBe(
@@ -436,7 +437,7 @@ describe('Recorrentes', () => {
       expect(cabecalhos()).toEqual(['Assinaturas no cartão · 2', 'Contas fixas · 2', 'Receitas · 1', 'Transferências · 1',
         'Já terminaram · fora dos totais'])
       // sem linha 'frequency' do banco para receitas: a faixa mostra só a contagem, a tela não soma
-      expect(within(card(/^Receitas/)).getByRole('region', { name: 'Mensais · 1' }).textContent).not.toContain('/mês')
+      expect(within(card(/^Receitas/)).getByRole('region', { name: 'Mensais · 1 · Receitas' }).textContent).not.toContain('/mês')
       expect(screen.getByTestId('total-income').textContent).toBe('R$ 5.000,00/mês')
       expect(within(card(/^Já terminaram/)).getByText('Academia antiga')).toBeTruthy()
     })
@@ -454,12 +455,12 @@ describe('Recorrentes', () => {
       await screen.findByText('Streaming')
       const cartao = card(/^Assinaturas no cartão/)
       expect(faixas(cartao)).toEqual(['Mensais · 1', 'Anuais · 1'])
-      expect(within(cartao).getByRole('region', { name: 'Mensais · 1' }).textContent).toContain('R$ 55,90/mês')
-      expect(within(cartao).getByRole('region', { name: 'Anuais · 1' }).textContent).toContain('R$ 120,00 por vez · ≈ R$ 10,00/mês')
+      expect(within(cartao).getByRole('region', { name: 'Mensais · 1 · Assinaturas no cartão' }).textContent).toContain('R$ 55,90/mês')
+      expect(within(cartao).getByRole('region', { name: 'Anuais · 1 · Assinaturas no cartão' }).textContent).toContain('R$ 120,00 por vez · ≈ R$ 10,00/mês')
       const fixas = card(/^Contas fixas/)
       expect(faixas(fixas)).toEqual(['Mensais · 1', 'Anuais · 1'])
-      expect(within(fixas).getByRole('region', { name: 'Mensais · 1' }).textContent).toContain('R$ 180,00/mês')
-      expect(within(fixas).getByRole('region', { name: 'Anuais · 1' }).textContent).toContain('R$ 1.200,00 por vez · ≈ R$ 100,00/mês')
+      expect(within(fixas).getByRole('region', { name: 'Mensais · 1 · Contas fixas' }).textContent).toContain('R$ 180,00/mês')
+      expect(within(fixas).getByRole('region', { name: 'Anuais · 1 · Contas fixas' }).textContent).toContain('R$ 1.200,00 por vez · ≈ R$ 100,00/mês')
       // o total que mistura conta e cartão (frequency_all) não aparece mais
       expect(screen.queryByText(/1\.111,11/)).toBeNull()
     })
@@ -468,7 +469,7 @@ describe('Recorrentes', () => {
       mock.listarRecorrencias.mockResolvedValue([...regras, { ...luz, id: 'r8', descricao: 'Internet', dia: 15 }])
       montar()
       await screen.findByText('Internet')
-      const mensais = within(card(/^Contas fixas/)).getByRole('region', { name: 'Mensais · 2' })
+      const mensais = within(card(/^Contas fixas/)).getByRole('region', { name: 'Mensais · 2 · Contas fixas' })
       // o dia 15 (próxima 15/11) vem antes do dia 1 (próxima 01/12)
       expect(Array.from(mensais.querySelectorAll('li p:first-child')).map((p) => p.textContent))
         .toEqual(['Internet', 'Condomínio do prédio com nome bem comprido'])
@@ -523,10 +524,12 @@ describe('Recorrentes', () => {
       montar()
       await screen.findByText('Streaming')
       const meta = screen.getAllByTestId('meta-recorrente').find((p) => p.textContent?.includes('dia 1 '))!
-      expect(metas()).toContain('dia 1 · Itaú · Condomínio · próxima 01/12')
+      expect(metas()).toContain('próxima 01/12 · dia 1 · Itaú · Condomínio')
       expect(meta.querySelector('[aria-hidden="true"]')?.textContent).toBe('Condomínio')
       expect(meta.querySelector('.sr-only')?.textContent).toBe('Moradia › Condomínio')
       expect(meta.getAttribute('title')).toContain('Moradia › Condomínio')
+      // auditoria 5h: a linha é o bloco de contenção do sr-only (absolute); sem isso ele vazava a 390px e alargava a página
+      expect(meta.className).toMatch(/(^| )relative( |$)/)
     })
 
     it('a explicação completa fica atrás do (i), que abre e fecha', async () => {

@@ -7,7 +7,8 @@ import { gruposNavegacao, itemAtivo, itensFixosNoCelular, itensNavegacao } from 
 import { Marca } from './Marca'
 import { Versao } from './Versao'
 
-const base = 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
+// min-h-11: alvo de toque de 44px também no menu lateral do iPad (py-2.5 sozinho dava 40px; auditoria 5h)
+const base = 'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
 
 /** Encerra a sessão; o RotaProtegida leva para /entrar quando a sessão some. */
 function sair() {

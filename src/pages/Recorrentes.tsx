@@ -186,10 +186,12 @@ export default function Recorrentes() {
               {r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}{formatMoeda(r.valor, moeda)}
             </span>
           </div>
-          <p className="truncate text-xs text-slate-500" title={completo} data-testid="meta-recorrente">
+          {/* relative: o texto sr-only (absolute) fica preso ao corte da linha; sem isso ele vazava e alargava a página no celular */}
+          <p className="relative truncate text-xs text-slate-500" title={completo} data-testid="meta-recorrente">
+            {/* a próxima data abre a linha: no fim ela era a primeira a sumir nas reticências do celular (auditoria 5h) */}
+            {prox && <><span className="text-agendado">próxima {dataCurta(prox, hoje)}</span> · </>}
             {quando(r)} · {onde(r)}
             {curta && <> · <span aria-hidden="true">{curta}</span><span className="sr-only">{caminho}</span></>}
-            {prox && <> · <span className="text-agendado">próxima {dataCurta(prox, hoje)}</span></>}
             {fimTexto && <> · {fimTexto}</>}
           </p>
         </div>
@@ -320,7 +322,8 @@ export default function Recorrentes() {
                     {t.grupos.map((g) => {
                       const daFrequencia = linha('frequency', t.meio, t.tipoResumo, g.f)
                       return (
-                        <section key={g.f} aria-labelledby={`grupo-${t.tipo}-${g.f}`} className="border-t border-slate-100">
+                        // o nome do card no rótulo: "Mensais" aparece em mais de um card e duas regiões com o mesmo nome confundem o leitor de tela
+                        <section key={g.f} aria-label={`${rotuloGrupoFrequencia[g.f]} · ${g.itens.length} · ${t.titulo}`} className="border-t border-slate-100">
                           <div className="flex flex-wrap items-baseline justify-between gap-x-3 bg-slate-50 px-4 py-2 sm:px-5">
                             <h3 id={`grupo-${t.tipo}-${g.f}`} className="text-sm font-semibold text-marinho">
                               {rotuloGrupoFrequencia[g.f]} <span className="font-normal text-slate-500">· {g.itens.length}</span>

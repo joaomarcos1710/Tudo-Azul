@@ -1,6 +1,6 @@
 -- Tudo Azul — migration 074: editar um lançamento recorrente e escolher "Este e os próximos"
 --
--- Pedido do dono (06/11/2026, #193): "Eu mudei a data e o valor de um pagamento recorrente. Isso deveria recolocar para
+-- Pedido do dono (06/11/2026, #194): "Eu mudei a data e o valor de um pagamento recorrente. Isso deveria recolocar para
 -- os outros meses, contudo deveria aparecer a mensagem" (o diálogo do Organizze: "Este lançamento se repete em outras
 -- datas. O que deseja fazer?" → Atualizar apenas este · Este e os próximos · Cancelar).
 --
@@ -35,7 +35,7 @@
 --      que vale para todas): "este e os próximos" é daqui em diante.
 --   4. O que ainda não foi gerado sai da regra nova na próxima recurrence_materialize (o app chama ao abrir).
 --
--- Limites (decisão do dono, #193):
+-- Limites (decisão do dono, #194):
 --   * a data nova fica ESTRITAMENTE entre a ocorrência anterior e a seguinte (datas reais e chaves; sem vizinha gerada,
 --     a posição vizinha da série) e, no mensal, dentro do mês da ocorrência (no bimestral em diante, dos N meses dela).
 --     Mudar de mês (ou de semana) é "Atualizar apenas este": senão um mês ficaria com duas e outro vazio;
@@ -67,7 +67,7 @@
 -- Atalho: a marca é a diferença com a regra (sem coluna nova); editar um campo para exatamente o valor da regra volta a
 -- acompanhar. Melhorar se o dono pedir uma marca explícita de "corrigido à mão".
 --
--- Também nesta migration (revisão de dinheiro do #193):
+-- Também nesta migration (revisão de dinheiro do #194):
 --   * public.home_indicators (corpo da 073, 20261106113100_audit_fixes.sql): a renda regular ESPERADA do mês fechado
 --     deixa de recalcular as ocorrências pela regra viva (que "este e os próximos" reancora: start_date vai para frente
 --     e o valor muda, e a esperada de outubro caía a 0 ou mudava de valor) e passa a sair das ocorrências daquele mês:
@@ -194,7 +194,7 @@ begin
                 when v_mudou_data then extract(day from p_date)::int
                 else v.day end;
 
-  -- Trocar de período (decisão do dono, #193): a data nova fica ESTRITAMENTE entre a ocorrência anterior e a seguinte,
+  -- Trocar de período (decisão do dono, #194): a data nova fica ESTRITAMENTE entre a ocorrência anterior e a seguinte,
   -- pelas datas reais e pelas chaves (a anterior pode ter sido movida à mão). Fora disso um mês ficaria com duas e outro
   -- vazio. Sem anterior/seguinte gerada, o limite é a posição vizinha na série.
   if p_date <> t.date then

@@ -139,6 +139,31 @@ describe('Calendário', () => {
     expect(document.querySelector('.bg-positivo, .bg-planejado')).toBeNull()
   })
 
+  it('auditoria 5h: planejado com data passada é Vencido (traço e texto em vermelho de prejuízo), não o verde de planejado', async () => {
+    mock.listarLancamentos.mockResolvedValue([
+      lanc('l9', '2026-10-08', 'expense', 9000, 'planned', 'Academia'), // hoje é 16/10: já passou
+      lanc('l3', '2026-10-25', 'expense', 12000, 'planned', 'Internet'),
+    ])
+    const u = userEvent.setup()
+    montar()
+    const dia8 = await screen.findByRole('button', { name: '8 de outubro de 2026: 1 lançamento, 1 vencido' })
+    expect(dia8.querySelector('[data-traco="vencido"]')!.className).toContain('border-prejuizo-marca')
+    expect(dia8.querySelector('.bg-agendado-marca')).toBeNull()
+    expect(screen.getByRole('button', { name: '25 de outubro de 2026: 1 lançamento, 1 planejado' }).querySelector('[data-traco="vencido"]')).toBeNull()
+    expect(screen.getByText('Vencido (planejado que passou da data)')).toBeTruthy()
+    await u.click(dia8)
+    const lista = screen.getByText('08/10/2026').closest('div')!.parentElement!.querySelector('ul')!
+    expect(within(lista).getByText('Vencido').className).toContain('text-prejuizo')
+    expect(within(lista).queryByText('Planejado')).toBeNull()
+  })
+
+  it('auditoria 5h: os botões de saldo e o "Ver em Lançamentos" têm alvo de toque de 44px (min-h-11)', async () => {
+    montar()
+    expect((await screen.findByRole('button', { name: 'Só efetuados' })).className).toContain('min-h-11')
+    expect(screen.getByRole('button', { name: 'Efetuados + planejados' }).className).toContain('min-h-11')
+    expect(screen.getByRole('link', { name: 'Ver em Lançamentos' }).className).toContain('min-h-11')
+  })
+
   it('pagamento de fatura aparece como saída da conta no dia; transferência aparece sem sinal de receita ou despesa', async () => {
     const u = userEvent.setup()
     montar()
