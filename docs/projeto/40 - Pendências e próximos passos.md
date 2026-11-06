@@ -22,6 +22,11 @@ atualizado: 2026-11-06
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Cartão de crédito: recursos avançados da fatura (pendentes após #204)
+- [ ] **Categorias da fatura**: RPC agregada por categoria e gráfico/lista na página dedicada. O front não deve somar os valores.
+- [ ] **Detalhes do lançamento**: painel lateral com categoria, valor, data e descrição editáveis; tag de despesa fixa mensal; ações de excluir e estornar/reembolsar. Exige trilha de auditoria e preservação da trava de fatura paga.
+- [ ] **Mover parcela entre faturas**: ações no menu de contexto para fatura anterior/próxima; definir a regra para parcela já cobrada, fatura paga e sequência de parcelas, com operação atômica no banco.
+
 ### Cartões no celular (#201, 06/11/2026)
 - [x] Página sem rolagem lateral em 360, 390, 820 e 1280px (harness com dados fictícios); valores das compras, do resumo da fatura e dos pagamentos visíveis; créditos e pagamentos recolhidos em 5 + "Ver todos (N)".
 - [ ] **Conferir no seu iPhone** (você), com os seus cartões: fileira de meses deslizando dentro do cartão, valores à direita e "Ver todos".
