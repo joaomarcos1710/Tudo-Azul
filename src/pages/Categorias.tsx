@@ -5,7 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Field } from '../components/ui/Field'
 import { useFamilia } from '../lib/FamiliaContext'
-import { agrupar, criarCategoria, definirCategoriaAtiva, definirCategoriaEventual, definirCategoriaGrupo, editarCategoria, listarCategorias } from '../lib/categorias'
+import { agrupar, criarCategoria, definirCategoriaAtiva, definirCategoriaEventual, definirCategoriaGrupo, definirCategoriaNaoConsumo, editarCategoria, listarCategorias } from '../lib/categorias'
 import type { Categoria, TipoCategoria } from '../lib/categorias'
 import { mensagemErroBanco } from '../lib/erros'
 import { asCents, currentMonth, formatBRL, formatMonth, primeiraMaiuscula } from '../lib/format'
@@ -76,6 +76,15 @@ export default function Categorias() {
     }
   }
 
+  async function alternarNaoConsumo(c: Categoria) {
+    try {
+      await definirCategoriaNaoConsumo(c.id, !c.naoConsumo)
+      await carregar()
+    } catch (err) {
+      setErro(mensagemErroBanco(err))
+    }
+  }
+
   async function alternarEventual(c: Categoria) {
     try {
       await definirCategoriaEventual(c.id, !c.eventual)
@@ -137,6 +146,15 @@ export default function Categorias() {
         </p>
       )}
 
+      {categorias && (
+        <p className="mb-4 text-sm text-slate-600">
+          Marque <strong>Não conta como consumo</strong> no que não é gasto nem renda do dia a dia: quitação de dívida, dinheiro de
+          empréstimo recebido, repasse entre familiares. A categoria sai da taxa de poupança, da reserva e do comprometimento do
+          Início; os relatórios e o orçamento não mudam. Vale <strong>só para a categoria marcada</strong>: as subcategorias
+          continuam contando, a não ser que você marque cada uma.
+        </p>
+      )}
+
       {tipo === 'expense' && regra && <CartaoRegra linhas={regra} mes={mes} />}
 
       {categorias === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
@@ -145,12 +163,12 @@ export default function Categorias() {
         {grupos.map((g) => (
           <li key={g.id}>
             <Card semPadding>
-              <Linha categoria={g} porId={porId} aoEditar={() => setEditando(g)} aoAlternar={() => alternarAtiva(g)} aoEventual={() => alternarEventual(g)} herdaEventual={false} aoGrupo={(gr) => mudarGrupo(g, gr)} grupoHerdado={null} />
+              <Linha categoria={g} porId={porId} aoEditar={() => setEditando(g)} aoAlternar={() => alternarAtiva(g)} aoEventual={() => alternarEventual(g)} aoNaoConsumo={() => alternarNaoConsumo(g)} herdaEventual={false} aoGrupo={(gr) => mudarGrupo(g, gr)} grupoHerdado={null} />
               {g.filhas.length > 0 && (
                 <ul className="border-t border-slate-100">
                   {g.filhas.map((f) => (
                     <li key={f.id} className="pl-6">
-                      <Linha categoria={f} porId={porId} aoEditar={() => setEditando(f)} aoAlternar={() => alternarAtiva(f)} aoEventual={() => alternarEventual(f)} herdaEventual={g.eventual} aoGrupo={(gr) => mudarGrupo(f, gr)} grupoHerdado={g.grupo ?? null} />
+                      <Linha categoria={f} porId={porId} aoEditar={() => setEditando(f)} aoAlternar={() => alternarAtiva(f)} aoEventual={() => alternarEventual(f)} aoNaoConsumo={() => alternarNaoConsumo(f)} herdaEventual={g.eventual} aoGrupo={(gr) => mudarGrupo(f, gr)} grupoHerdado={g.grupo ?? null} />
                     </li>
                   ))}
                 </ul>
@@ -163,8 +181,8 @@ export default function Categorias() {
   )
 }
 
-function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, herdaEventual, aoGrupo, grupoHerdado }: {
-  categoria: Categoria; porId: Map<string, Categoria>; aoEditar: () => void; aoAlternar: () => void; aoEventual: () => void; herdaEventual: boolean
+function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, aoNaoConsumo, herdaEventual, aoGrupo, grupoHerdado }: {
+  categoria: Categoria; porId: Map<string, Categoria>; aoEditar: () => void; aoAlternar: () => void; aoEventual: () => void; aoNaoConsumo: () => void; herdaEventual: boolean
   aoGrupo: (g: GrupoOrcamento | null) => void; grupoHerdado: GrupoOrcamento | null
 }) {
   const sugestao = c.tipo === 'expense' && !c.sistema && !c.grupo && !grupoHerdado ? sugerirGrupo(c.nome) : null
@@ -179,6 +197,8 @@ function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, herdaEve
         {c.grupo && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(c.grupo)}</span>}
         {!c.grupo && grupoHerdado && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(grupoHerdado)} (da principal)</span>}
         {(c.eventual || herdaEventual) && <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${SELO.neutro}`}>eventual{herdaEventual && !c.eventual ? ' (da principal)' : ''}</span>}
+        {/* só a própria marca: a subcategoria não herda a da principal (decisão do dono, 06/11/2026) */}
+        {c.naoConsumo && <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${SELO.neutro}`}>não conta como consumo</span>}
         </span>
       </span>
       {!c.sistema && (
@@ -196,6 +216,8 @@ function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, herdaEve
           {c.tipo === 'income' && (!herdaEventual || c.eventual) && (
             <Button variante="fantasma" onClick={aoEventual}>{c.eventual ? 'Marcar como regular' : 'Marcar como eventual'}</Button>
           )}
+          <Button variante="fantasma" aria-pressed={c.naoConsumo === true} onClick={aoNaoConsumo}
+            title="Sai da taxa de poupança, da reserva e do comprometimento do Início; só esta categoria">Não conta como consumo</Button>
           <Button variante="fantasma" onClick={aoEditar}>Editar</Button>
           <Button variante="fantasma" onClick={aoAlternar}>{c.ativa ? 'Desativar' : 'Reativar'}</Button>
         </span>

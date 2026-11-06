@@ -22,6 +22,19 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Faixa de indicadores do Início (#188, migration 071)
+- [ ] **Aplicar a migration 071** em produção (simular → ler o log → aplicar, com o "pode" do dono), depois da 070. Antes, conferir os números em produção numa transação desfeita (`begin; select * from public.home_indicators(<família>, current_date); rollback;`).
+- [ ] **Investimento contado duas vezes**: o Patrimônio total soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; se o mesmo dinheiro estiver nos dois, conta em dobro. Resolver com a ligação conta ↔ ativo (item da #186) ou escolher uma das fontes.
+- [x] **Comprometimento e taxa de poupança no começo do mês** enganavam (73,7% e 71,6% em produção): passaram para o último mês fechado; o comprometimento usa a renda esperada (recorrentes) ou a recebida, a maior.
+- [x] **Reserva 0,0** com a média inflada por empréstimo, quitação e repasses: agora é a mediana, sem as categorias "não conta como consumo".
+- [x] **Marcar as categorias que não são consumo** (06/11/2026, a pedido do dono, depois da 071 aplicada): receita de empréstimo, os repasses de família (receita e despesa, subcategoria por subcategoria) e a subcategoria nova "Quitação de empréstimo" (em Financiamento e Empréstimos), para onde foram as liquidações de empréstimo. Quitações de anos anteriores ficaram onde estavam (fora da janela de 6 meses).
+- [ ] **Aplicar a marcação também nos relatórios** (próximo passo): `period_summary`, Relatórios, Análises, orçamento e o Resultado do mês ainda contam as categorias "não conta como consumo". Decidir com o dono onde ela vale (ex.: Entradas x Saídas é caixa e talvez deva continuar contando).
+- [ ] **Renda esperada só com recorrentes ativas**: recorrente encerrada é apagada (`recurrence_end`), então um mês fechado antigo perde a esperada; por isso vale a maior entre esperada e recebida.
+- [ ] **Empréstimo sem contrato** (sem agenda de parcelas) não entra no comprometimento; só os com contrato cadastrado.
+- [ ] **Previdência e FGTS** não existem no app (o (i) do patrimônio avisa).
+- [ ] **Preferência antiga dos widgets** (`tudo-azul:dashboard-widgets:<usuário>`) fica sem uso no aparelho; inofensiva.
+- [x] Personalização dos widgets do Início saiu (substituída pela faixa fixa de 7).
+- [x] "Saldo hoje e previsto": o previsto do fim do mês ficou numa linha de Minhas contas.
 ### Etiquetas nas contas (#189, migration 072)
 - [x] Etiquetas livres por família: criar, renomear, apagar, marcar até 10 por conta; selos, filtro e seção "Etiquetas" em Contas; coluna na exportação completa (#189).
 - [x] **Contas arquivadas escondidas por padrão** em Contas, atrás do botão "Arquivadas (N)" (pedido do dono, #189). A escolha não é lembrada entre visitas (sempre fechada ao abrir a tela).
@@ -207,6 +220,10 @@ atualizado: 2026-10-28
 - [x] **Recorrentes agrupados por frequência e totais por mês no cartão/na conta** (#173): migration 063 (`recurrence_summary`) **não aplicada** — aplicar pelo workflow (simular → log → `APLICAR`) com o seu "pode" **antes** de publicar o front (sem ela a tela Recorrentes mostra erro ao carregar).
 - [ ] Conferir no iPad/celular: os cartões do topo, as abas Conta/Cartão e os totais de cada grupo com os seus recorrentes reais.
 - [ ] Recorrentes em outra moeda ficam fora dos totais (só um aviso com a quantidade). Se quiser, um total por moeda depois.
+- [x] **Recorrentes em cards por tipo** (#187, 06/11/2026): Assinaturas no cartão, Contas fixas, Receitas e Transferências, cada um com o total do banco (`medium`) no título e o total por frequência do tipo (`frequency`). Sem migration (usa a 063).
+- [ ] Conferir no iPad/celular os cards por tipo com os seus recorrentes reais (espaçamento, títulos longos, total ao lado do título).
+- [ ] Nos cards por tipo, a **contagem** do título inclui os recorrentes em outra moeda (estão na lista), mas o **total** do banco não (só reais); o aviso do topo já diz quantos ficam fora. Se confundir, mostrar "N (M em reais)" com o `qtde` do banco.
+- [ ] O nível `frequency_all` de `recurrence_summary` deixou de ser usado pela tela (#187); continua no banco e no teste 63. Remover numa migration nova só se ninguém mais usar.
 - [ ] O equivalente mensal de cada item (≈ R$ x/mês) não aparece na linha do item, só nos totais; dá para trazer do banco (nível `detail` por regra) se fizer falta.
 
 ## Menu e formulário de lançamento

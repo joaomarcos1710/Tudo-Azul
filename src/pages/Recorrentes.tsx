@@ -36,6 +36,16 @@ type Aba = 'todos' | 'conta' | 'cartao'
 const abas: [Aba, string][] = [['todos', 'Todos'], ['conta', 'Conta'], ['cartao', 'Cartão']]
 type TipoResumo = LinhaResumoRecorrencia['tipo']
 const rotuloTipoResumo: Record<TipoResumo, string> = { expense: 'saídas', income: 'entradas', transfer: 'transferências' }
+/**
+ * Um card por tipo de recorrente (pedido do dono, #189). `meio` e `tipoResumo` apontam para as linhas de
+ * public.recurrence_summary (migration 063): o total do título é o nível 'medium' e o de cada frequência, o 'frequency'.
+ */
+const cardsPorTipo: { tipo: TipoRecorrencia; titulo: string; meio: 'card' | 'account'; tipoResumo: TipoResumo }[] = [
+  { tipo: 'card', titulo: 'Assinaturas no cartão', meio: 'card', tipoResumo: 'expense' },
+  { tipo: 'expense', titulo: 'Contas fixas', meio: 'account', tipoResumo: 'expense' },
+  { tipo: 'income', titulo: 'Receitas', meio: 'account', tipoResumo: 'income' },
+  { tipo: 'transfer', titulo: 'Transferências', meio: 'account', tipoResumo: 'transfer' },
+]
 
 /** Quando acontece, curto (o cabeçalho do grupo já diz a frequência): "dia 10", "20 de fev", "sexta", "a cada 10 dias". */
 function quando(r: Recorrencia): string {
@@ -137,15 +147,19 @@ export default function Recorrentes() {
   const emOutraMoeda = vigentes.filter((r) => r.tipo !== 'card' && (moedaConta.get(r.contaId ?? '') ?? 'BRL') !== 'BRL').length
 
   const proxima = (r: Recorrencia) => proximasOcorrencias(r, hoje, 1)[0] ?? null
-  const daAba = (r: Recorrencia) => aba === 'todos' || (aba === 'cartao') === (r.tipo === 'card')
-  const grupos = ordemFrequencias
-    .map((f) => ({
-      f,
-      itens: vigentes.filter((r) => daAba(r) && frequenciaResumo(r) === f)
-        .map((r) => ({ r, prox: proxima(r) }))
-        .sort((a, b) => (a.prox ?? '9999').localeCompare(b.prox ?? '9999') || a.r.descricao.localeCompare(b.r.descricao, 'pt-BR')),
-    }))
-    .filter((g) => g.itens.length > 0)
+  const proximaPrimeiro = (a: { r: Recorrencia; prox: string | null }, b: { r: Recorrencia; prox: string | null }) =>
+    (a.prox ?? '9999').localeCompare(b.prox ?? '9999') || a.r.descricao.localeCompare(b.r.descricao, 'pt-BR')
+  // as abas filtram quais cards aparecem: Cartão = assinaturas; Conta = contas fixas, receitas e transferências
+  const cards = cardsPorTipo
+    .filter((t) => aba === 'todos' || (aba === 'cartao') === (t.tipo === 'card'))
+    .map((t) => {
+      const doTipo = vigentes.filter((r) => r.tipo === t.tipo)
+      const grupos = ordemFrequencias
+        .map((f) => ({ f, itens: doTipo.filter((r) => frequenciaResumo(r) === f).map((r) => ({ r, prox: proxima(r) })).sort(proximaPrimeiro) }))
+        .filter((g) => g.itens.length > 0)
+      return { ...t, qtde: doTipo.length, grupos }
+    })
+    .filter((t) => t.qtde > 0)
 
   const linha = (nivel: LinhaResumoRecorrencia['nivel'], meio: LinhaResumoRecorrencia['meio'], tipo: TipoResumo, f?: FrequenciaResumo) =>
     resumo.find((l) => l.nivel === nivel && l.meio === meio && l.tipo === tipo && (f === undefined || l.frequencia === f))
@@ -187,17 +201,11 @@ export default function Recorrentes() {
     )
   }
 
-  /** "saídas R$ 300,00 por vez · ≈ R$ 99,99/mês" (mensal: só "R$ X/mês"), com os números do banco. */
-  function totaisDoGrupo(f: FrequenciaResumo) {
-    const nivel = aba === 'todos' ? 'frequency_all' : 'frequency'
-    const meio = aba === 'todos' ? null : aba === 'cartao' ? 'card' : 'account'
-    return (['expense', 'income', 'transfer'] as TipoResumo[]).flatMap((tipo) => {
-      const l = linha(nivel, meio, tipo, f)
-      if (!l) return []
-      return [f === 'monthly'
-        ? `${rotuloTipoResumo[tipo]} ${formatBRL(l.porMes)}/mês`
-        : `${rotuloTipoResumo[tipo]} ${formatBRL(l.porOcorrencia)} por vez · ≈ ${formatBRL(l.porMes)}/mês`]
-    }).join(' · ')
+  /** Total de um recorte com os números do banco: mensal só "R$ X/mês"; os demais "R$ 300,00 por vez · ≈ R$ 99,99/mês". */
+  function total(l: LinhaResumoRecorrencia, f?: FrequenciaResumo) {
+    return f === undefined || f === 'monthly'
+      ? `${formatBRL(l.porMes)}/mês`
+      : `${formatBRL(l.porOcorrencia)} por vez · ≈ ${formatBRL(l.porMes)}/mês`
   }
 
   const porAlvo = resumo.filter((l) => l.nivel === 'target')
@@ -289,30 +297,57 @@ export default function Recorrentes() {
               </button>
             ))}
           </div>
-          <Card semPadding>
-            {grupos.length === 0 && <p className="px-5 py-4 text-sm text-slate-600">Nenhum recorrente {aba === 'cartao' ? 'no cartão' : 'em conta'}.</p>}
-            {grupos.map((g) => (
-              <section key={g.f} aria-labelledby={`grupo-${g.f}`} className="border-b border-slate-100 last:border-b-0">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 bg-slate-50 px-4 py-2 sm:px-5">
-                  <h2 id={`grupo-${g.f}`} className="text-sm font-semibold text-marinho">
-                    {rotuloGrupoFrequencia[g.f]} <span className="font-normal text-slate-500">· {g.itens.length}</span>
-                  </h2>
-                  <p className="text-xs text-slate-600 tabular-nums">{totaisDoGrupo(g.f)}</p>
-                </div>
-                <ul className="divide-y divide-slate-100">{g.itens.map(({ r, prox }) => item(r, prox))}</ul>
-              </section>
-            ))}
-            {terminadas.length > 0 && aba === 'todos' && (
-              <section aria-labelledby="grupo-terminados" className="border-t border-slate-100">
-                <div className="bg-slate-50 px-4 py-2 sm:px-5">
-                  <h2 id="grupo-terminados" className="text-sm font-semibold text-marinho">
-                    Já terminaram <span className="font-normal text-slate-500">· fora dos totais</span>
-                  </h2>
-                </div>
-                <ul className="divide-y divide-slate-100">{terminadas.map((r) => item(r, null))}</ul>
-              </section>
+          <div className="space-y-4">
+            {cards.length === 0 && (
+              <Card><p className="text-sm text-slate-600">Nenhum recorrente {aba === 'cartao' ? 'no cartão' : 'em conta'}.</p></Card>
             )}
-          </Card>
+            {cards.map((t) => {
+              // total do banco (só reais); sem linha (ex.: todos em outra moeda) a tela mostra só a contagem, nunca soma
+              const doTipo = linha('medium', t.meio, t.tipoResumo)
+              return (
+                <Card key={t.tipo} semPadding>
+                  <section aria-labelledby={`card-${t.tipo}`}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-4 py-3 sm:px-5">
+                      <h2 id={`card-${t.tipo}`} className="text-base font-semibold text-marinho">
+                        {t.titulo} <span className="font-normal text-slate-500">· {t.qtde}</span>
+                      </h2>
+                      {doTipo && (
+                        <p className={`text-sm font-semibold tabular-nums ${corDoTipo(t.tipoResumo)}`} data-testid={`total-${t.tipo}`}>
+                          {total(doTipo)}
+                        </p>
+                      )}
+                    </div>
+                    {t.grupos.map((g) => {
+                      const daFrequencia = linha('frequency', t.meio, t.tipoResumo, g.f)
+                      return (
+                        <section key={g.f} aria-labelledby={`grupo-${t.tipo}-${g.f}`} className="border-t border-slate-100">
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 bg-slate-50 px-4 py-2 sm:px-5">
+                            <h3 id={`grupo-${t.tipo}-${g.f}`} className="text-sm font-semibold text-marinho">
+                              {rotuloGrupoFrequencia[g.f]} <span className="font-normal text-slate-500">· {g.itens.length}</span>
+                            </h3>
+                            {daFrequencia && <p className="text-xs text-slate-600 tabular-nums">{total(daFrequencia, g.f)}</p>}
+                          </div>
+                          <ul className="divide-y divide-slate-100">{g.itens.map(({ r, prox }) => item(r, prox))}</ul>
+                        </section>
+                      )
+                    })}
+                  </section>
+                </Card>
+              )
+            })}
+            {terminadas.length > 0 && aba === 'todos' && (
+              <Card semPadding>
+                <section aria-labelledby="grupo-terminados">
+                  <div className="px-4 py-3 sm:px-5">
+                    <h2 id="grupo-terminados" className="text-base font-semibold text-marinho">
+                      Já terminaram <span className="font-normal text-slate-500">· fora dos totais</span>
+                    </h2>
+                  </div>
+                  <ul className="divide-y divide-slate-100 border-t border-slate-100">{terminadas.map((r) => item(r, null))}</ul>
+                </section>
+              </Card>
+            )}
+          </div>
         </>
       )}
 

@@ -27,6 +27,7 @@ const mock = vi.hoisted(() => ({
   listarOrcamentos: vi.fn(),
   avisosDoInicio: vi.fn(),
   fluxoDeCaixa: vi.fn(),
+  carregarIndicadores: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -51,16 +52,30 @@ vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetado
 vi.mock('../lib/orcamentos', () => ({ listarOrcamentos: mock.listarOrcamentos }))
 vi.mock('../lib/fluxoCaixa', async (o) => ({ ...(await o<typeof import('../lib/fluxoCaixa')>()), fluxoDeCaixa: mock.fluxoDeCaixa }))
 vi.mock('../lib/avisosInicio', async (o) => ({ ...(await o<typeof import('../lib/avisosInicio')>()), avisosDoInicio: mock.avisosDoInicio }))
+vi.mock('../lib/indicadores', async (o) => ({ ...(await o<typeof import('../lib/indicadores')>()), carregarIndicadores: mock.carregarIndicadores }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas, totaisPorMoeda: mock.totaisPorMoeda }))
 
 import { hojeSP } from '../lib/contas'
 import VisaoGeral from './VisaoGeral'
 
 const c = (n: number) => n as Cents
+// o que home_indicators devolveria (inventado; os números como o banco calcularia)
+const IND = {
+  inicioMes: '2026-11-01', fimMes: '2026-11-30', inicioMesFechado: '2026-10-01', fimMesFechado: '2026-10-31',
+  contasAtivas: c(1225000), faturasFechadas: c(30000), disponivel: c(1195000),
+  contasTodas: c(1265000), creditoAReceber: c(0), bens: c(5000000), investimentos: c(100000), dividas: c(3530000), compromissos: c(90000),
+  patrimonio: c(2835000), receitas: c(600000), despesas: c(400000), resultado: c(200000),
+  receitasPoupanca: c(600000), despesasPoupanca: c(410000), resultadoPoupanca: c(190000),
+  taxaPoupanca: 31.7, faixaPoupanca: 'saudavel' as const,
+  reserva: c(300000), mesesFechados: 6, despesaTipica: c(50000), coberturaReserva: 6, faixaReserva: 'saudavel' as const,
+  parcelasDividas: c(100000), rendaEsperada: c(0), rendaRecebida: c(500000), rendaRegular: c(500000), fonteRenda: 'recebida' as const,
+  comprometimento: 20, faixaComprometimento: 'saudavel' as const,
+}
 const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(<MemoryRouter><VisaoGeral secao={secao} /></MemoryRouter>)
 
 beforeEach(() => {
   window.localStorage.clear()
+  mock.carregarIndicadores.mockResolvedValue(IND)
   mock.totaisPorMoeda.mockResolvedValue([])
   mock.resumoPorMoeda.mockResolvedValue([])
   cobrar.mockResolvedValue(0)
@@ -247,13 +262,14 @@ describe('Visão geral', () => {
     expect(within(despesas).getByText(new RegExp(`até dia ${Number(ateAnt.slice(8))}`))).toBeTruthy()
     expect(mock.resumoDoPeriodo).toHaveBeenCalledWith('h1', `${ant}-01`, ateAnt)
   })
-  it('valores ocultos: o saldo em dólar também vira máscara no Início', async () => {
+  it('valores ocultos: os valores da faixa de indicadores e do (i) viram máscara; as % continuam', async () => {
     const { definirValoresOcultos } = await import('../lib/privacidade')
     definirValoresOcultos(true)
     try {
       montar()
-      const card = (await screen.findByText(/Saldo em USD/)).parentElement as HTMLElement
-      expect(within(card).queryByText(/US\$|201/)).toBeNull()
+      const faixa = await screen.findByRole('region', { name: 'Indicadores do mês' })
+      expect(faixa.textContent).not.toMatch(/R\$\s*\d/)
+      expect(within(faixa).getByText('31,7%')).toBeTruthy()
     } finally {
       definirValoresOcultos(false)
     }
@@ -277,7 +293,10 @@ describe('Visão geral', () => {
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
     cleanup()
     montar()
-    expect(await screen.findByText(/Saldo em USD/)).toBeTruthy() // investimentos aparecem no Início, em moeda segregada
+    // #188: no Início os investimentos entram no Patrimônio total (o (i) mostra a parcela); o card à parte saiu
+    await screen.findByRole('region', { name: 'Indicadores do mês' })
+    expect(screen.queryByText(/Saldo em USD/)).toBeNull()
+    expect(screen.queryByText('Saldo de investimentos')).toBeNull()
   })
   it('resumo do mês (Análises): receitas e despesas do banco', async () => {
     montar('analises')
@@ -640,7 +659,7 @@ describe('Visão geral', () => {
     const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
     expect(within(card).getByText('Saldo geral em reais')).toBeTruthy()
     expect(within(card).getByText('R$ 12.820,30', { selector: 'span.font-bold' })).toBeTruthy() // o total do banco, sem o dólar
-    expect(within(card).getByText(/US\$\s*250,50/)).toBeTruthy()
+    expect(within(card).getAllByText(/US\$\s*250,50/).length).toBeGreaterThan(0)
     const bloco = screen.getByRole('group', { name: 'Em outras moedas' })
     expect(bloco.textContent).toMatch(/US\$\s*250,50/)
   })
@@ -686,29 +705,25 @@ describe('Visão geral', () => {
     expect(mock.totaisPorMoeda).toHaveBeenCalledWith('h1', expect.any(String))
   })
 
-  it('Início sem número repetido: Patrimônio só com Bens e Dívida; saldo hoje e previsto num card; receita e despesa só no cabeçalho', async () => {
-    mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(249449), creditoAReceber: c(0), divida: c(28193112), bens: c(42000000), patrimonio: c(14056337), compromissos: c(0) })
+  it('Início sem número repetido: a faixa substitui Patrimônio, Saldo hoje e previsto e Resultado; o previsto fica em Minhas contas', async () => {
     mock.saldosProjetados.mockResolvedValue({ contas: [], total: { efetuado: c(249449), planejado: c(-100000), faturas: c(-50000), faturasSemConta: c(0), saldo: c(99449) } })
     montar()
-    const painel = await screen.findByRole('region', { name: 'Resumo financeiro personalizável' })
-    const pat = within(painel).getByText('Patrimônio líquido').closest('div[class*="rounded"]') as HTMLElement
-    expect(Array.from(pat.querySelectorAll('dt')).map((dt) => dt.textContent)).toEqual(['Bens', 'Dívida'])
-    expect(within(painel).getAllByText('R$ 2.494,49')).toHaveLength(1) // saldo das contas uma vez só
-    expect(within(painel).getByText('Saldo hoje')).toBeTruthy()
-    expect(within(painel).getByText('R$ 994,49')).toBeTruthy() // previsto no fim do mês, do banco
-    // migration 069: o previsto é o mesmo dos Relatórios (com as assinaturas e os fixos previstos), e o card diz isso
-    expect(within(painel).getByText(/O previsto já conta as contas planejadas, os lançamentos fixos e as faturas com as assinaturas previstas/)).toBeTruthy()
-    // cada item na sua linha, rótulo e valor juntos (em duas colunas o rótulo quebrava e o valor saía do card)
-    const linhas = Array.from(within(painel).getByText('Saldo hoje').closest('dl')!.children)
-    expect(linhas.map((l) => l.textContent)).toEqual(['Saldo hojeR$ 2.494,49', expect.stringMatching(/^Previsto em \d{2}\/\d{2}R\$ 994,49$/)])
-    // card estreito (4 colunas → ~240px): o valor pode descer para baixo do rótulo, nunca sair do card
-    for (const l of linhas) expect(l.className).toMatch(/flex-wrap/)
-    for (const dt of linhas.map((l) => l.querySelector('dt')!)) expect(dt.className).not.toMatch(/whitespace-nowrap/)
-    expect(painel.querySelector('[aria-label="Indicadores financeiros"]')!.className).toMatch(/xl:grid-cols-3/)
-    expect(within(painel).queryByText('Entradas do mês')).toBeNull()
-    expect(within(painel).queryByText('Despesas do mês')).toBeNull()
-    expect(within(screen.getByRole('banner')).getByText('R$ 12.150,00')).toBeTruthy() // receita no cabeçalho
+    const faixa = await screen.findByRole('region', { name: 'Indicadores do mês' })
+    expect(screen.queryByRole('region', { name: 'Resumo financeiro personalizável' })).toBeNull()
+    expect(screen.queryByText('Saldo hoje')).toBeNull()
+    expect(screen.queryByText('Patrimônio líquido')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Personalizar painel' })).toBeNull()
+    // cada indicador uma vez, na faixa
+    expect(within(faixa).getAllByText('Resultado do mês')).toHaveLength(1)
+    expect(screen.getAllByText('Resultado do mês')).toHaveLength(1)
+    // o previsto do fim do mês ("posso gastar?"), do banco, continua — agora numa linha de Minhas contas
+    const contas = screen.getByText('Minhas contas').closest('div[class*="rounded"]') as HTMLElement
+    expect(within(contas).getByText(/^Previsto em \d{2}\/\d{2}/)).toBeTruthy()
+    expect(within(contas).getByText('R$ 994,49')).toBeTruthy()
+    // receita e despesa continuam só no cabeçalho
+    expect(within(screen.getByRole('banner')).getByText('R$ 12.150,00')).toBeTruthy()
     expect(within(screen.getByRole('banner')).getByText('a pagar R$ 389,90')).toBeTruthy()
+    expect(within(faixa).queryByText('R$ 12.150,00')).toBeNull()
   })
 
   it('orçamentos do mês: no máximo 4, os mais perto de estourar primeiro, com aviso de estouro', async () => {
@@ -729,12 +744,14 @@ describe('Visão geral', () => {
     expect(within(card).getByRole('link', { name: 'Ver todos' }).getAttribute('href')).toBe('/orcamentos')
   })
 
-  it('vencidos aparecem antes dos indicadores: o que pede ação vem primeiro', async () => {
+  it('a faixa de indicadores fica logo abaixo do cabeçalho, antes dos vencidos (#188); os avisos continuam no alto', async () => {
     mock.vencidosPlanejados.mockResolvedValue({ itens: [{ id: 't9', tipo: 'expense', descricao: 'Luz', valor: c(18000), data: '2026-10-01', categoriaId: null, contaId: null, destinoId: null }], total: 1 })
     montar()
     const vencidos = await screen.findByText('Vencidos e precisam de atenção')
-    const painel = screen.getByRole('region', { name: 'Resumo financeiro personalizável' })
-    expect(vencidos.compareDocumentPosition(painel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const faixa = screen.getByRole('region', { name: 'Indicadores do mês' })
+    const cabecalho = screen.getByRole('banner')
+    expect(cabecalho.compareDocumentPosition(faixa) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(faixa.compareDocumentPosition(vencidos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('Análises: patrimônio e saldo mês a mês em dois gráficos, com tabela dos valores do banco', async () => {
@@ -780,58 +797,159 @@ describe('Visão geral', () => {
   })
 })
 
-describe('Personalização dos widgets do Início', () => {
-  it('restaura a preferência salva do usuário e permite remover e adicionar indicadores', async () => {
-    window.localStorage.setItem('tudo-azul:dashboard-widgets:u1', JSON.stringify(['disponivel', 'resultado']))
+describe('Faixa de indicadores do Início (#188, migration 071)', () => {
+  const indicador = async (id: string) => {
+    const faixa = await screen.findByRole('region', { name: 'Indicadores do mês' })
+    return faixa.querySelector(`[data-indicador="${id}"]`) as HTMLElement
+  }
+
+  it('pede ao banco os 7 indicadores numa chamada só (home_indicators) com hoje, e o Início não consulta mais patrimônio e investimentos à parte', async () => {
     montar()
-    expect(await screen.findByText('Próximos planejados')).toBeTruthy()
-    const painel = screen.getByRole('region', { name: 'Resumo financeiro personalizável' })
-    expect(within(painel).getByText('Saldo hoje')).toBeTruthy()
-    expect(within(painel).getByText('Resultado do mês')).toBeTruthy()
-    expect(within(painel).queryByText('Patrimônio líquido')).toBeNull()
-    fireEvent.click(within(painel).getByRole('button', { name: 'Personalizar painel' }))
-    fireEvent.click(within(painel).getAllByRole('button', { name: 'Adicionar' })[0])
-    await waitFor(() => expect(JSON.parse(window.localStorage.getItem('tudo-azul:dashboard-widgets:u1') || '[]')).toContain('patrimonio'))
-    expect(within(painel).getAllByText('Patrimônio líquido').length).toBeGreaterThan(0)
-    fireEvent.click(within(painel).getAllByRole('button', { name: 'Remover' })[0])
+    await screen.findByRole('region', { name: 'Indicadores do mês' })
+    expect(mock.carregarIndicadores).toHaveBeenCalledTimes(1)
+    expect(mock.carregarIndicadores).toHaveBeenCalledWith('h1', hojeSP())
+    expect(mock.carregarPatrimonio).not.toHaveBeenCalled()
+    expect(mock.carregarResumoInvestimentos).not.toHaveBeenCalled()
   })
 
-  it('ignora IDs desconhecidos e repetidos na preferência salva', async () => {
-    // 'receitas' e 'despesas' saíram do Início (estão no cabeçalho): preferência antiga com eles é ignorada
-    window.localStorage.setItem('tudo-azul:dashboard-widgets:u1', JSON.stringify(['disponivel', 'desconhecido', 'disponivel', 'receitas', 'despesas']))
+  it('mostra os 7, na ordem, com o valor do banco, o rótulo curto e o (i)', async () => {
     montar()
-    const painel = await screen.findByRole('region', { name: 'Resumo financeiro personalizável' })
-    expect(within(painel).getAllByText('Saldo hoje')).toHaveLength(1)
-    expect(within(painel).queryByText('Entradas do mês')).toBeNull()
-    expect(within(painel).queryByText('Patrimônio líquido')).toBeNull()
+    const faixa = await screen.findByRole('region', { name: 'Indicadores do mês' })
+    const itens = Array.from(faixa.querySelectorAll('[data-indicador]')) as HTMLElement[]
+    // o rótulo pode ter hífen opcional (U+00AD) para quebrar bem no card estreito
+    expect(itens.map((x) => x.querySelector('[data-rotulo]')!.textContent!.replace(/\u00AD/g, ''))).toEqual([
+      'Disponível', 'Patrimônio total', 'Resultado do mês', 'Taxa de poupança', 'Cobertura da reserva', 'Comprometimento com dívidas', 'Dívidas totais',
+    ])
+    expect(itens.map((x) => x.querySelectorAll('p')[1].textContent)).toEqual([
+      'R$ 11.950,00', 'R$ 28.350,00', 'R$ 2.000,00', '31,7%', '6,0 meses', '20,0%', 'R$ 35.300,00',
+    ])
+    // de quando é cada número: o resultado é do mês corrente até hoje; poupança e comprometimento, do último mês fechado
+    expect(itens.map((x) => x.querySelector('[data-periodo]')?.textContent ?? null)).toEqual([
+      null, null, 'Até hoje', 'Outubro', null, 'Outubro', null,
+    ])
+    expect(itens.map((x) => x.querySelector('[data-selo]')!.textContent)).toEqual([
+      'Positivo', 'Positivo', 'Positivo', 'Saudável', 'Saudável', 'Saudável', 'Em aberto',
+    ])
+    for (const x of itens) {
+      const valor = x.querySelectorAll('p')[1]
+      expect(valor.className).toMatch(/tabular-nums/)
+      expect(valor.className).toMatch(/whitespace-nowrap/)
+      expect(within(x).getByRole('button', { name: /^Como é calculado: / })).toBeTruthy()
+    }
   })
 
-  it('permite reordenar e restaurar a ordem padrão', async () => {
+  it('grade: 2 colunas no celular, 4 no iPad e 7 numa linha no computador', async () => {
     montar()
-    const painel = await screen.findByRole('region', { name: 'Resumo financeiro personalizável' })
-    fireEvent.click(within(painel).getByRole('button', { name: 'Personalizar painel' }))
-    fireEvent.click(within(painel).getByRole('button', { name: 'Mover Patrimônio líquido para baixo' }))
-    await waitFor(() => expect(JSON.parse(window.localStorage.getItem('tudo-azul:dashboard-widgets:u1') || '[]').slice(0, 2))
-      .toEqual(['disponivel', 'patrimonio']))
-    fireEvent.click(within(painel).getByRole('button', { name: 'Restaurar padrão' }))
-    await waitFor(() => expect(JSON.parse(window.localStorage.getItem('tudo-azul:dashboard-widgets:u1') || '[]'))
-      .toEqual(['patrimonio', 'disponivel', 'resultado']))
+    const lista = (await screen.findByRole('region', { name: 'Indicadores do mês' })).querySelector('ul')!
+    expect(lista.className.split(/\s+/)).toEqual(expect.arrayContaining(['grid', 'grid-cols-2', 'md:grid-cols-4', 'xl:grid-cols-7']))
+  })
+
+  it('cores pela regra do app e sempre com rótulo: âmbar, vermelho, azul e neutro', async () => {
+    mock.carregarIndicadores.mockResolvedValue({
+      ...IND, disponivel: c(-5000), resultado: c(-100), patrimonio: c(0),
+      taxaPoupanca: -1.7, faixaPoupanca: 'critico', coberturaReserva: 3, faixaReserva: 'atencao', comprometimento: 40.2, faixaComprometimento: 'critico',
+    })
+    montar()
+    const cor = (x: HTMLElement) => x.querySelectorAll('p')[1].className
+    const selo = (x: HTMLElement) => x.querySelector('[data-selo]')!
+    expect(cor(await indicador('disponivel'))).toMatch(/text-prejuizo/)
+    expect(selo(await indicador('disponivel')).textContent).toBe('Negativo')
+    expect(cor(await indicador('patrimonio'))).toMatch(/text-neutro/)
+    expect(selo(await indicador('patrimonio')).textContent).toBe('Zerado')
+    expect(cor(await indicador('resultado'))).toMatch(/text-prejuizo/)
+    expect(cor(await indicador('poupanca'))).toMatch(/text-prejuizo/)
+    expect(selo(await indicador('poupanca')).textContent).toBe('Negativa')
+    expect(cor(await indicador('reserva'))).toMatch(/text-atencao/)
+    expect(selo(await indicador('reserva')).textContent).toBe('Atenção')
+    expect(selo(await indicador('reserva')).className).toMatch(/bg-atencao-fundo/)
+    expect(cor(await indicador('comprometimento'))).toMatch(/text-prejuizo/)
+    expect(selo(await indicador('comprometimento')).textContent).toBe('Alto')
+    expect(cor(await indicador('dividas'))).toMatch(/text-neutro/)
+  })
+
+  it('sem receita, sem despesa ou sem renda: "—" e o motivo, sem cor de alerta', async () => {
+    mock.carregarIndicadores.mockResolvedValue({
+      ...IND, receitas: c(0), resultado: c(0), taxaPoupanca: null, faixaPoupanca: null,
+      coberturaReserva: null, faixaReserva: null, despesaTipica: null, mesesFechados: 0,
+      rendaRegular: c(0), comprometimento: null, faixaComprometimento: null, dividas: c(0),
+    })
+    montar()
+    for (const [id, motivo] of [['poupanca', 'Sem receita'], ['reserva', 'Sem despesa'], ['comprometimento', 'Sem renda']] as const) {
+      const x = await indicador(id)
+      expect(x.querySelectorAll('p')[1].textContent).toBe('—')
+      expect(x.querySelectorAll('p')[1].className).toMatch(/text-neutro/)
+      expect(x.querySelector('[data-selo]')!.textContent).toBe(motivo)
+    }
+    expect((await indicador('dividas')).querySelector('[data-selo]')!.textContent).toBe('Nenhuma')
+  })
+
+  it('(i): botão com aria-expanded que abre a conta em uma linha, com os números do banco, e fecha com Esc', async () => {
+    montar()
+    const x = await indicador('disponivel')
+    const botao = within(x).getByRole('button', { name: 'Como é calculado: Disponível' })
+    const painel = document.getElementById(botao.getAttribute('aria-controls')!)!
+    expect(botao.getAttribute('aria-expanded')).toBe('false')
+    expect(painel.hidden).toBe(true)
+    fireEvent.click(botao)
+    expect(botao.getAttribute('aria-expanded')).toBe('true')
+    expect(painel.hidden).toBe(false)
+    expect(painel.textContent).toBe('Contas ativas em reais R$ 12.250,00 − faturas de cartão fechadas a pagar R$ 300,00. A fatura aberta só entra quando fechar.')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(botao.getAttribute('aria-expanded')).toBe('false')
+    expect(painel.hidden).toBe(true)
+  })
+
+  it('(i) de cada indicador explica a regra decidida (patrimônio sem previdência/FGTS, cartão fora do comprometimento, meses fechados)', async () => {
+    montar()
+    const texto = async (id: string) => {
+      const x = await indicador(id)
+      const botao = within(x).getByRole('button')
+      fireEvent.click(botao)
+      return document.getElementById(botao.getAttribute('aria-controls')!)!.textContent
+    }
+    expect(await texto('patrimonio')).toBe('Contas R$ 12.650,00 + bens R$ 50.000,00 + investimentos R$ 1.000,00 − dívidas R$ 35.300,00. Previdência e FGTS ainda não entram.')
+    expect(await texto('resultado')).toMatch(/^Receitas R\$ 6\.000,00 − despesas R\$ 4\.000,00 pagas neste mês até hoje.*data da fatura\.$/)
+    expect(await texto('poupanca')).toBe('Outubro, o último mês fechado: (receitas R$ 6.000,00 − despesas R$ 4.100,00) ÷ receitas, sem as categorias que não contam como consumo. Azul a partir de 10%, vermelho abaixo de 0%.')
+    expect(await texto('reserva')).toBe('Poupança / reserva R$ 3.000,00 ÷ despesa típica de R$ 500,00 por mês (mediana de 6 meses fechados, sem o que não conta como consumo). Azul a partir de 6 meses; vermelho abaixo de 3.')
+    expect(await texto('comprometimento')).toBe('Outubro: parcelas de empréstimo, financiamento e consignado R$ 1.000,00 ÷ renda regular R$ 5.000,00 (a recebida no mês, fora as eventuais). Cartão fica fora. Azul até 30%, vermelho acima de 40%.')
+    expect(await texto('dividas')).toMatch(/Parcelas futuras do cartão \(R\$ 900,00\) ainda não entram\./)
+  })
+
+  it('(i) do comprometimento diz quando a renda usada é a esperada pelas recorrentes', async () => {
+    mock.carregarIndicadores.mockResolvedValue({ ...IND, rendaEsperada: c(600000), rendaRegular: c(600000), fonteRenda: 'recorrente', comprometimento: 16.7 })
+    montar()
+    const x = await indicador('comprometimento')
+    const botao = within(x).getByRole('button')
+    fireEvent.click(botao)
+    expect(document.getElementById(botao.getAttribute('aria-controls')!)!.textContent)
+      .toMatch(/÷ renda regular R\$ 6\.000,00 \(a esperada pelas receitas recorrentes\)/)
+  })
+
+  it('se a consulta falhar, a faixa avisa e o resto do Início segue', async () => {
+    mock.carregarIndicadores.mockRejectedValue(new Error('rede'))
+    montar()
+    expect(await screen.findByText('Indicadores indisponíveis agora. O resto do Início continua.')).toBeTruthy()
+    expect(screen.getByText('Próximos planejados')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('Análises não mostra a faixa nem consulta os indicadores', async () => {
+    montar('analises')
+    await screen.findByRole('heading', { name: 'Análises' })
+    expect(screen.queryByRole('region', { name: 'Indicadores do mês' })).toBeNull()
+    expect(mock.carregarIndicadores).not.toHaveBeenCalled()
   })
 })
 
 describe('Início × Análises: cada seção mostra só os seus blocos', () => {
-  it('Início mostra os widgets financeiros, sem os blocos detalhados de Análises', async () => {
+  it('Início mostra a faixa de indicadores, sem os blocos detalhados de Análises', async () => {
     montar()
     await screen.findByText('Próximos planejados')
-    expect(screen.getByRole('heading', { name: 'Visão geral financeira' })).toBeTruthy()
-    expect(screen.getByText('Patrimônio líquido')).toBeTruthy()
-    expect(screen.getByText('Saldo hoje')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Indicadores do mês' })).toBeTruthy()
+    expect(screen.getByText('Patrimônio total')).toBeTruthy()
     expect(screen.queryByText('Entradas do mês')).toBeNull()
     expect(screen.queryByText('Despesas do mês')).toBeNull()
     expect(screen.getByText('Resultado do mês')).toBeTruthy()
-    expect(screen.getByText('Saldo de investimentos')).toBeTruthy()
-    expect(screen.getByText('R$ 360,00')).toBeTruthy()
-    expect(screen.getByText('Saldo em USD')).toBeTruthy()
     expect(screen.queryByText('Renda regular × despesas')).toBeNull()
     expect(screen.queryByText('Comparação com o ano passado')).toBeNull()
     expect(screen.queryByText('Projeção do mês')).toBeNull()
@@ -858,15 +976,15 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     expect(screen.getByRole('navigation', { name: 'Ações rápidas' })).toBeTruthy()
     expect(screen.getByText('Nubank')).toBeTruthy()
   })
-  it('falha nos indicadores financeiros não derruba as demais seções do Início', async () => {
-    mock.carregarPatrimonio.mockRejectedValue(new Error('rede'))
+  it('falha nos indicadores e no resumo do mês não derruba as demais seções do Início', async () => {
+    mock.carregarIndicadores.mockRejectedValue(new Error('rede'))
     mock.resumoDoMes.mockRejectedValue(new Error('rede'))
     montar()
     expect(await screen.findByText('Próximos planejados')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(mock.carregarPatrimonio).toHaveBeenCalled()
+    expect(mock.carregarIndicadores).toHaveBeenCalled()
     expect(mock.resumoDoMes).toHaveBeenCalled()
-    expect(screen.getAllByText('Indicador indisponível agora.').length).toBeGreaterThan(0)
+    expect(screen.getByText('Indicadores indisponíveis agora. O resto do Início continua.')).toBeTruthy()
   })
 })
 
