@@ -125,7 +125,7 @@ select functions_are('private', array[
   'card_income_items','card_paid_lock_check','card_paid_lock_raise','card_paid_snapshot','card_reopen_invoice','card_void_events','categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
   'debt_effect','debt_events_card_payment_date','debt_events_guard','debt_events_period_guard','expense_items','expense_items_basis','family_assets_brl','fx_rates_immutable','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debt_schedule_restore_void','debts_immutable',
   'handle_new_user','inherit_person_classification','is_member','is_owner','loan_principal_items','loan_schedule_planned','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrence_occurrences','recurrence_slot','recurrence_steps','recurrence_update_from_apply','recurrences_money_guard','seed_default_categories',
-  'shares_household','today_sp','touch_updated_at','transactions_bulk_lock','transactions_guard','transactions_period_guard','transfer_same_currency','validate_person_scope'],
+  'shares_household','today_sp','touch_updated_at','transactions_bulk_lock','transactions_guard','transactions_period_guard','transfer_same_currency','validate_person_scope','guard_person_active'],
   'funções do schema private');
 
 -- Nenhuma função com EXECUTE para PUBLIC (ACL nula = padrão do PostgreSQL = PUBLIC)
@@ -199,6 +199,26 @@ select is_empty($$
   select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public' and c.relkind = 'r' and c.relforcerowsecurity
 $$, 'nenhuma tabela com FORCE ROW LEVEL SECURITY (decisão registrada no plano)');
+
+select is_empty($
+  select tablename from pg_indexes
+   where schemaname = 'public'
+     and indexname in ('transactions_person_period_idx','debt_installments_person_period_idx')
+     and indexdef not like '%(household_id, person_id,%'
+$, 'índices de classificação cobrem as FKs compostas antes do período');
+
+select ok(exists (
+  select 1 from pg_trigger
+   where tgname = 'transactions_guard_person_active' and not tgisinternal
+), 'transactions rejeita novas atribuições a pessoas inativas');
+select ok(exists (
+  select 1 from pg_trigger
+   where tgname = 'debt_installments_guard_person_active' and not tgisinternal
+), 'parcelas rejeitam novas atribuições a pessoas inativas');
+select ok(exists (
+  select 1 from pg_trigger
+   where tgname = 'recurrences_guard_person_active' and not tgisinternal
+), 'recorrências rejeitam novas atribuições a pessoas inativas');
 
 select * from finish();
 rollback;
