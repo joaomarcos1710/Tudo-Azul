@@ -85,6 +85,8 @@ describe('Relatórios', () => {
     expect(screen.getByText('Gastos por pessoa de 2026-12-01 a 2026-12-31')).toBeTruthy()
     await u.click(screen.getByRole('button', { name: 'avançar pessoas' }))
     expect(screen.getByText('Gastos por pessoa de 2027-01-01 a 2027-01-31')).toBeTruthy()
+    await u.click(aba('Contas'))
+    await u.click(screen.getByRole('button', { name: 'voltar Contas' }))
     await u.click(screen.getByRole('button', { name: 'voltar Contas' }))
     await u.click(screen.getByRole('button', { name: 'voltar Contas' }))
     expect(screen.getByText('Contas de 2026-10-01 a 2026-10-31')).toBeTruthy()
