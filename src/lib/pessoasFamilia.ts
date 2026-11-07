@@ -1,4 +1,6 @@
 import { supabase } from './supabase'
+import { centsFromDb } from './format'
+import type { Cents } from './format'
 
 export const VINCULOS_PESSOA = [
   'Conhecido', 'Familiar', 'Companheiro(a)', 'Pai/Mãe',
@@ -85,4 +87,35 @@ export async function definirStatusPessoaFamilia(familiaId: string, pessoaId: st
   const { error } = await cliente().from('household_people').update({ status: ativo })
     .eq('household_id', familiaId).eq('id', pessoaId)
   if (error) throw error
+}
+
+
+export async function listarPessoasAtivas(familiaId: string): Promise<PessoaFamilia[]> {
+  return (await listarPessoasFamilia(familiaId)).filter((pessoa) => pessoa.ativo)
+}
+
+export interface GastoPessoa {
+  personId: string | null
+  personName: string | null
+  isSharedExpense: boolean
+  totalSpent: Cents
+}
+
+/** O banco soma despesas à vista e cobranças/estornos de parcelas vinculados à fatura. */
+export async function listarGastosPorPessoa(familiaId: string, de: string, ate: string): Promise<GastoPessoa[]> {
+  const { data, error } = await cliente().rpc('monthly_expenses_by_person', {
+    p_household: familiaId, p_from: de, p_to: ate,
+  })
+  if (error) throw error
+  return ((data ?? []) as {
+    person_id: string | null
+    person_name: string | null
+    is_shared_expense: boolean
+    total_spent: number | string
+  }[]).map((item) => ({
+    personId: item.person_id,
+    personName: item.person_name,
+    isSharedExpense: item.is_shared_expense,
+    totalSpent: centsFromDb(item.total_spent),
+  }))
 }
