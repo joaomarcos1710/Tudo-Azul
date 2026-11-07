@@ -220,7 +220,7 @@ describe('Lançamentos no computador: tabela', () => {
     for (const n of ['Feira', 'Supermercado', 'Luz', 'Salário']) expect(caixa(n).checked).toBe(true)
     expect(caixa('Transferência').checked).toBe(false)
     // todos do mês/filtro (só lançamentos: a fatura não entra)
-    const todos = screen.getByRole('checkbox', { name: 'Selecionar todos os lançamentos do mês e filtro' }) as HTMLInputElement
+    const todos = screen.getByRole('checkbox', { name: 'Selecionar todos os lançamentos carregados' }) as HTMLInputElement
     expect(todos.indeterminate).toBe(true)
     await u.click(todos)
     expect(screen.getByText('5 selecionados')).toBeTruthy()
