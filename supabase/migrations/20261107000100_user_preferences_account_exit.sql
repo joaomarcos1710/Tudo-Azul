@@ -20,17 +20,19 @@ declare
   v_household uuid;
   v_role text;
   v_successor uuid;
+  v_other_members integer;
 begin
   select household_id, role into v_household, v_role
   from public.household_members where user_id = p_user_id for update;
   if v_household is null then return; end if;
   if v_role = 'owner' then
-    select user_id into v_successor from public.household_members
-    where household_id = v_household and user_id <> p_user_id
-    order by joined_at asc limit 1 for update;
-    if v_successor is null then
-      raise exception 'Não há outro membro para assumir a família. Adicione um membro antes de excluir esta conta.';
+    select count(*) into v_other_members from public.household_members
+    where household_id = v_household and user_id <> p_user_id;
+    if v_other_members <> 1 then
+      raise exception 'Para preservar a família, deixe exatamente um outro membro antes de excluir esta conta.';
     end if;
+    select user_id into v_successor from public.household_members
+    where household_id = v_household and user_id <> p_user_id for update;
     update public.household_members set role = 'owner'
     where household_id = v_household and user_id = v_successor;
   end if;
