@@ -99,11 +99,16 @@ export default function Preferencias() {
     setErroExclusao(''); setExcluindo(true)
     try {
       const { data, error } = await supabase.functions.invoke('delete-account')
-      if (error || data?.success !== true) throw error ?? new Error('Exclusão não confirmada.')
+      if (error) {
+        const contexto = (error as { context?: Response }).context
+        const respostaErro = contexto ? await contexto.clone().json().catch(() => null) as { error?: string } | null : null
+        throw new Error(respostaErro?.error || 'Não foi possível concluir a exclusão da conta.')
+      }
+      if (data?.success !== true) throw new Error(data?.error || 'A exclusão não foi confirmada.')
       await supabase.auth.signOut({ scope: 'local' })
       navegar('/entrar', { replace: true })
-    } catch {
-      setErroExclusao('Não foi possível excluir sua conta. Nenhum dado financeiro da família foi removido. Confira se há outro membro para assumir a titularidade.')
+    } catch (err) {
+      setErroExclusao(err instanceof Error ? err.message : 'Não foi possível excluir sua conta. Nenhum dado financeiro da família foi removido.')
       setExcluindo(false)
     }
   }
