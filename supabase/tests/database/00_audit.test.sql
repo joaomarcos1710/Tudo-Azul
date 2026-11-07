@@ -124,7 +124,7 @@ select functions_are('private', array[
   'account_brl_only','account_recurrence_pending','account_tags_limit_guard','account_type_from_legacy','accounts_guard','accounts_period_guard','budgets_guard','card_cycle_closing','card_cycle_closing_day','card_cycle_due','card_cycle_due_day','card_cycle_first','card_day_in_month','card_due_date','card_first_closing','card_pending_by_due','card_recurrence_pending',
   'card_income_items','card_paid_lock_check','card_paid_lock_raise','card_paid_snapshot','card_reopen_invoice','card_void_events','categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
   'debt_effect','debt_events_card_payment_date','debt_events_guard','debt_events_period_guard','expense_items','expense_items_basis','family_assets_brl','fx_rates_immutable','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debt_schedule_restore_void','debts_immutable',
-  'handle_new_user','inherit_person_classification','is_member','is_owner','loan_principal_items','loan_schedule_planned','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrence_occurrences','recurrence_slot','recurrence_steps','recurrence_update_from_apply','recurrences_money_guard','seed_default_categories',
+  'ensure_household_person_for_member','handle_new_user','inherit_person_classification','is_member','is_owner','loan_principal_items','loan_schedule_planned','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrence_occurrences','recurrence_slot','recurrence_steps','recurrence_update_from_apply','recurrences_money_guard','seed_default_categories',
   'shares_household','today_sp','touch_updated_at','transactions_bulk_lock','transactions_guard','transactions_period_guard','transfer_same_currency','validate_person_scope'],
   'funções do schema private');
 
@@ -174,7 +174,7 @@ select is(
          where n.nspname in ('public','private') and p.prosecdef
          order by 1),
   array['private.card_reopen_invoice','private.card_void_events','private.current_household','private.debt_balance','private.debt_chk','private.debt_chk_trg',
-        'private.debt_lock','private.debt_schedule_restore_void','private.handle_new_user','private.is_member','private.is_owner',
+        'private.debt_lock','private.debt_schedule_restore_void','private.ensure_household_person_for_member','private.handle_new_user','private.is_member','private.is_owner',
         'private.members_owner_guard','private.reconciled_until','private.recurrence_lock','private.recurrence_update_from_apply','private.seed_default_categories','private.shares_household',
         'public.accept_invitation','public.account_delete','public.card_bill_due','public.card_credit_income','public.card_credit_set_category','public.card_installment_edit','public.card_invoice_reopen',
         'public.card_purchase','public.card_purchase_at','public.card_purchase_at_classified','public.card_purchase_delete','public.card_set_start',
