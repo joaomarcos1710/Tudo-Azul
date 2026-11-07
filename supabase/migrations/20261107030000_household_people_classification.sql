@@ -262,5 +262,6 @@ grant execute on function public.card_purchase_at_classified(uuid, date, numeric
   public.transaction_installments_create_classified(text, text, numeric, integer, text, integer, date, uuid, uuid, uuid, boolean, uuid, boolean),
   public.recurrence_create_classified(text, text, numeric, integer, date, uuid, uuid, uuid, uuid, date, text, integer, uuid, boolean),
   public.recurrence_set_person(uuid, uuid, boolean),
+  public.recurrence_update_classified(uuid, text, numeric, uuid, uuid, boolean),
   public.monthly_expenses_by_person(uuid, date, date)
 to authenticated;
