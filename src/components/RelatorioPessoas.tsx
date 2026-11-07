@@ -47,7 +47,7 @@ export function RelatorioPessoas({ periodo, aoMudarPeriodo }: {
             <p className="py-5 text-center text-sm text-slate-500">Nenhuma despesa encontrada neste período.</p>
           ) : (
             <ul className="space-y-4">
-              {gastos.map((g, index) => {
+              {gastos.map((g) => {
                 const nome = g.isSharedExpense ? 'Toda a família'
                   : g.personId ? g.personName ?? 'Pessoa cadastrada'
                   : 'Não classificada'
