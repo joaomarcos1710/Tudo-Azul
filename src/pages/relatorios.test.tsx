@@ -29,6 +29,9 @@ vi.mock('../components/RelatorioPessoas', async () => {
     ),
   }
 })
+vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: null, carregando: false }) }))
+vi.mock('../lib/supabase', () => ({ supabase: null }))
+
 // "hoje" fixo: 05/11/2026
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), hojeSP: () => '2026-11-05' }))
 
