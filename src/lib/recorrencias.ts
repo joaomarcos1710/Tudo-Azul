@@ -140,13 +140,19 @@ function cliente() {
 }
 
 export async function listarRecorrencias(familiaId: string): Promise<Recorrencia[]> {
-  const { data, error } = await cliente()
-    .from('recurrences')
-    .select('id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active, person_id, is_shared_expense')
-    .eq('household_id', familiaId)
-    .order('active', { ascending: false })
-    .order('day')
-    .order('description')
+  const db = cliente()
+  const consultar = (colunas: string) => db.from('recurrences').select(colunas)
+    .eq('household_id', familiaId).order('active', { ascending: false }).order('day').order('description')
+  let { data, error } = await consultar(
+    'id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active, person_id, is_shared_expense',
+  )
+  if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) {
+    const antigo = await consultar(
+      'id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active',
+    )
+    data = antigo.data as typeof data
+    error = antigo.error
+  }
   if (error) throw error
   return (data ?? []).map((r) => ({
     id: r.id,
