@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { createClient } from '@supabase/supabase-js'
 import { z } from 'zod'
-import { smartTransactionSchema } from '../../src/lib/smartTransaction'
+import { smartTransactionSchema } from '../../src/lib/smartTransaction.js'
 
 const entradaSchema = z.object({
   text: z.string().trim().min(3).max(500),
