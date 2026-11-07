@@ -61,6 +61,13 @@ begin
     raise exception 'Usuário inválido.' using errcode = '22023';
   end if;
 
+  if exists (
+    select 1 from storage.objects o
+    where o.owner = p_user_id or o.owner_id = p_user_id::text
+  ) then
+    raise exception 'Sua conta ainda possui arquivos no armazenamento. Transfira ou remova esses arquivos antes de excluir a conta.';
+  end if;
+
   select hm.household_id, hm.role into v_household, v_role
   from public.household_members hm
   where hm.user_id = p_user_id;
@@ -73,13 +80,6 @@ begin
   select hm.household_id, hm.role into v_household, v_role
   from public.household_members hm
   where hm.user_id = p_user_id for update;
-
-  if exists (
-    select 1 from storage.objects o
-    where o.owner = p_user_id or o.owner_id = p_user_id::text
-  ) then
-    raise exception 'Sua conta ainda possui arquivos no armazenamento. Transfira ou remova esses arquivos antes de excluir a conta.';
-  end if;
 
   if v_role = 'owner' then
     select count(*) into v_other_members
