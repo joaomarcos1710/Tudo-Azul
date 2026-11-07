@@ -45,3 +45,8 @@ enable_signup = true
 enable_signup = true
 # Local/CI apenas: sem confirmação por e-mail para os testes poderem criar usuários.
 enable_confirmations = false
+
+[functions.admin-api]
+# ToolJet usa uma credencial de integração própria validada pela função.
+# O gateway não deve tentar interpretar essa credencial como JWT Supabase.
+verify_jwt = false
