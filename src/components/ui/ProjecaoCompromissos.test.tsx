@@ -9,6 +9,7 @@ vi.mock('../../lib/projecaoCompromissos', () => ({
 }))
 
 import { ProjecaoCompromissos } from './ProjecaoCompromissos'
+import { definirValoresOcultos, MASCARA } from '../../lib/privacidade'
 
 const c = (n: number) => n as Cents
 const linha = (overrides: Partial<{
@@ -44,6 +45,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  definirValoresOcultos(false)
   vi.clearAllMocks()
 })
 
@@ -76,6 +78,17 @@ describe('Projeção de compromissos', () => {
     expect(screen.getByRole('columnheader', { name: 'Jan 27' })).toBeTruthy()
     expect(screen.queryByRole('columnheader', { name: 'Fev 27' })).toBeNull()
     expect(mock.carregar).toHaveBeenCalledTimes(1)
+  })
+
+
+  it('oculta valores da matriz quando a preferência global está ativada', async () => {
+    definirValoresOcultos(true)
+    render(<ProjecaoCompromissos familiaId="h1" hoje="2026-11-07" />)
+
+    expect(await screen.findByText('Seguro auto')).toBeTruthy()
+    expect(screen.getAllByText(MASCARA).length).toBeGreaterThan(0)
+    expect(screen.queryByText('R$ 250,00')).toBeNull()
+    expect(screen.queryByText('R$ 439,90')).toBeNull()
   })
 
   it('mostra estado vazio quando não existem compromissos', async () => {
