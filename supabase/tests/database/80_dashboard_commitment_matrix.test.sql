@@ -123,8 +123,14 @@ select is((select count(*) from public.dashboard_commitment_matrix(pg_temp.fx('h
           1::bigint, 'M1 lançamento planejado aparece uma vez');
 -- Entradas, transferências e lançamentos excluídos não são despesas comprometidas.
 select is((select count(*) from public.dashboard_commitment_matrix(pg_temp.fx('h1'), pg_temp.hoje(), 6)
-            where description in ('Receita futura', 'Transferência futura', 'Despesa excluída')),
-          0::bigint, 'M2 receitas, transferências e excluídos ficam fora');
+            where description = 'Receita futura'),
+          0::bigint, 'M2.1 receitas ficam fora');
+select is((select count(*) from public.dashboard_commitment_matrix(pg_temp.fx('h1'), pg_temp.hoje(), 6)
+            where description = 'Transferência futura'),
+          0::bigint, 'M2.2 transferências ficam fora');
+select is((select count(*) from public.dashboard_commitment_matrix(pg_temp.fx('h1'), pg_temp.hoje(), 6)
+            where description = 'Despesa excluída'),
+          0::bigint, 'M2.3 lançamentos excluídos ficam fora');
 -- Conta em moeda estrangeira aparece em moeda própria, sem ser convertida em BRL.
 select is((select array[currency_code, amount::text] from public.dashboard_commitment_matrix(pg_temp.fx('h1'), pg_temp.hoje(), 6)
             where description = 'Despesa em dólar' and row_type = 'item'),
