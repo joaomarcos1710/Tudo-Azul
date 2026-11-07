@@ -23,16 +23,13 @@ Deno.serve(async (req) => {
   if (!authorization?.startsWith('Bearer ')) return resposta({ error: 'Não autenticado.' }, 401)
 
   const url = Deno.env.get('SUPABASE_URL')
-  const anon = Deno.env.get('SUPABASE_ANON_KEY')
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!url || !anon || !serviceKey) return resposta({ error: 'Serviço de autenticação não configurado.' }, 500)
+  if (!url || !serviceKey) return resposta({ error: 'Serviço de autenticação não configurado.' }, 500)
 
   const token = authorization.slice('Bearer '.length)
-  const userClient = createClient(url, anon, { global: { headers: { Authorization: authorization } } })
-  const { data: { user }, error: authError } = await userClient.auth.getUser()
-  if (authError || !user) return resposta({ error: 'Sessão inválida.' }, 401)
-
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+  const { data: { user }, error: authError } = await admin.auth.getUser(token)
+  if (authError || !user) return resposta({ error: 'Sessão inválida.' }, 401)
   const { data: state, error: prepareError } = await admin.rpc('prepare_account_deletion', { p_user_id: user.id })
   if (prepareError) return resposta({ error: prepareError.message }, 409)
 
