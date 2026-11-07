@@ -30,7 +30,7 @@ const c = (n: number) => n as Cents
 const cat = (id: string, nome: string, extra: Record<string, unknown> = {}) =>
   ({ id, nome, tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false, ...extra })
 const orc = (extra: Record<string, unknown> = {}) => ({
-  categoriaId: 'mercado', nome: 'Mercado', limite: c(100000), gasto: c(30000), previsto: c(20000), ritmo: c(63000),
+  categoriaId: 'mercado', nome: 'Mercado', limite: c(100000), gasto: c(30000), restante: c(70000), previsto: c(20000), ritmo: c(63000),
   projetado: c(113000), sobra: c(-13000), ...extra,
 })
 
