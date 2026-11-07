@@ -211,6 +211,10 @@ select ok(exists (
   select 1 from pg_trigger
    where tgname = 'transactions_guard_person_active' and not tgisinternal
 ), 'transactions rejeita novas atribuições a pessoas inativas');
+select ok(position('hp.status = true' in pg_get_functiondef('private.validate_person_scope(uuid,uuid,boolean)'::regprocedure)) > 0,
+  'validação de pessoa exige status ativo');
+select ok(position('hp.status = true' in pg_get_functiondef('private.guard_person_active()'::regprocedure)) > 0,
+  'trigger de pessoa exige status ativo em novas atribuições');
 select ok(exists (
   select 1 from pg_trigger
    where tgname = 'debt_installments_guard_person_active' and not tgisinternal
