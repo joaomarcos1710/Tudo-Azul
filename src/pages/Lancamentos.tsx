@@ -53,7 +53,17 @@ const totalValor = 'whitespace-nowrap tabular-nums text-base font-bold sm:text-x
 
 export default function Lancamentos() {
   const { familia } = useFamilia()
+  const { sessao } = useAuth()
   const familiaId = familia?.id
+  const [ordemPreferida, setOrdemPreferida] = useState<'asc' | 'desc'>('desc')
+
+  useEffect(() => {
+    let ativo = true
+    if (!supabase || !sessao?.user.id) return
+    void supabase.from('user_preferences').select('ordem_lancamentos').eq('user_id', sessao.user.id).maybeSingle()
+      .then(({ data }) => { if (ativo && data?.ordem_lancamentos) setOrdemPreferida(data.ordem_lancamentos) })
+    return () => { ativo = false }
+  }, [sessao?.user.id])
   const [params, setParams] = useSearchParams()
   // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
   const [mes, setMes] = useState(() => {
