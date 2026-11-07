@@ -49,6 +49,8 @@ export interface Recorrencia {
   cartaoId: string | null
   categoriaId: string | null
   ativa: boolean
+  personId?: string | null
+  isSharedExpense?: boolean
 }
 
 export type DadosRecorrencia = Omit<Recorrencia, 'id' | 'ativa'>
@@ -140,7 +142,7 @@ function cliente() {
 export async function listarRecorrencias(familiaId: string): Promise<Recorrencia[]> {
   const { data, error } = await cliente()
     .from('recurrences')
-    .select('id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active')
+    .select('id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active, person_id, is_shared_expense')
     .eq('household_id', familiaId)
     .order('active', { ascending: false })
     .order('day')
@@ -161,12 +163,14 @@ export async function listarRecorrencias(familiaId: string): Promise<Recorrencia
     cartaoId: r.debt_id,
     categoriaId: r.category_id,
     ativa: r.active,
+    personId: r.person_id ?? null,
+    isSharedExpense: r.is_shared_expense ?? false,
   }))
 }
 
 export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
   const db = cliente()
-  const { error } = await db.rpc('recurrence_create', {
+  const { error } = await db.rpc('recurrence_create_classified', {
     p_kind: d.tipo, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor),
     p_day: d.unidade === 'month' ? d.dia : null, p_start: d.inicio,
     p_account: d.tipo === 'card' ? null : d.contaId,
@@ -175,6 +179,8 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
     p_category: d.tipo === 'transfer' ? null : d.categoriaId,
     p_end: d.fim,
     p_freq_unit: d.unidade, p_freq_every: d.cada,
+    p_person_id: d.tipo === 'expense' || d.tipo === 'card' ? d.personId ?? null : null,
+    p_is_shared_expense: d.tipo === 'expense' || d.tipo === 'card' ? d.isSharedExpense ?? false : false,
   })
   if (error) throw error
   // a regra já está gravada: se só a geração falhar, ela roda de novo ao abrir as telas. Lançar erro aqui faria a pessoa reenviar e duplicar a regra.
@@ -186,9 +192,17 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
  * todas as ocorrências (pagas, passadas e parcelas de cartão também). Campo a campo, sem desfazer o que foi corrigido à mão
  * (migrations 015 e 036).
  */
-export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null }): Promise<void> {
+export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null; personId?: string | null; isSharedExpense?: boolean }): Promise<void> {
   const { error } = await cliente().rpc('recurrence_update', {
     p_id: id, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor), p_category: d.categoriaId,
+  })
+  if (error) throw error
+  await definirPessoaRecorrencia(id, d.personId ?? null, d.isSharedExpense ?? false)
+}
+
+export async function definirPessoaRecorrencia(id: string, personId: string | null, isSharedExpense: boolean): Promise<void> {
+  const { error } = await cliente().rpc('recurrence_set_person', {
+    p_id: id, p_person_id: personId, p_is_shared_expense: isSharedExpense,
   })
   if (error) throw error
 }
