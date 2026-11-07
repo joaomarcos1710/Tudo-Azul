@@ -21,6 +21,14 @@ vi.mock('../components/RelatorioContas', async () => {
     ),
   }
 })
+vi.mock('../components/RelatorioPessoas', async () => {
+  const { moverPeriodo } = await import('../lib/periodoRelatorio')
+  return {
+    RelatorioPessoas: ({ periodo, aoMudarPeriodo }: { periodo: Periodo; aoMudarPeriodo: (p: Periodo) => void }) => (
+      <div><p>Gastos por pessoa de {periodo.de} a {periodo.ate}</p><button type="button" onClick={() => aoMudarPeriodo(moverPeriodo(periodo, 1))}>avançar pessoas</button></div>
+    ),
+  }
+})
 // "hoje" fixo: 05/11/2026
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), hojeSP: () => '2026-11-05' }))
 
@@ -41,7 +49,7 @@ describe('Relatórios', () => {
   it('abas no topo (tablist): Entradas x Saídas aberta; tocar em Contas abre Contas no painel da aba', async () => {
     const u = userEvent.setup()
     render(<Relatorios />)
-    expect(within(screen.getByRole('tablist', { name: 'Relatórios' })).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Entradas x Saídas', 'Contas'])
+    expect(within(screen.getByRole('tablist', { name: 'Relatórios' })).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Entradas x Saídas', 'Contas', 'Gastos por pessoa'])
     expect(aba('Entradas x Saídas').getAttribute('aria-selected')).toBe('true')
     expect(aba('Contas').getAttribute('aria-selected')).toBe('false')
     expect(screen.getByRole('tabpanel').textContent).toContain('Entradas x Saídas de 2026-11-01 a 2026-11-30')
@@ -63,7 +71,7 @@ describe('Relatórios', () => {
     fireEvent.keyDown(aba('Contas'), { key: 'Home' })
     expect(aba('Entradas x Saídas').getAttribute('aria-selected')).toBe('true')
     fireEvent.keyDown(aba('Entradas x Saídas'), { key: 'End' })
-    expect(aba('Contas').getAttribute('aria-selected')).toBe('true')
+    expect(aba('Gastos por pessoa').getAttribute('aria-selected')).toBe('true')
   })
 
   it('o período é um só: o escolhido numa aba continua na outra, nos dois sentidos', async () => {
@@ -73,6 +81,10 @@ describe('Relatórios', () => {
     expect(screen.getByText('Entradas x Saídas de 2026-12-01 a 2026-12-31')).toBeTruthy()
     await u.click(aba('Contas'))
     expect(screen.getByText('Contas de 2026-12-01 a 2026-12-31')).toBeTruthy()
+    await u.click(aba('Gastos por pessoa'))
+    expect(screen.getByText('Gastos por pessoa de 2026-12-01 a 2026-12-31')).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'avançar pessoas' }))
+    expect(screen.getByText('Gastos por pessoa de 2027-01-01 a 2027-01-31')).toBeTruthy()
     await u.click(screen.getByRole('button', { name: 'voltar Contas' }))
     await u.click(screen.getByRole('button', { name: 'voltar Contas' }))
     expect(screen.getByText('Contas de 2026-10-01 a 2026-10-31')).toBeTruthy()
