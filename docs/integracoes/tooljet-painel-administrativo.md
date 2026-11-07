@@ -99,7 +99,7 @@ Rotas reservadas, ainda não habilitadas:
 - `GET /functions/v1/admin-api/events`
 - `GET /functions/v1/admin-api/audit`
 
-As duas últimas respondem `501 integration_pending`; a interface não deve apresentar dados fictícios. A trilha de auditoria persistente, retenção de eventos e limitação de taxa ainda precisam ser implementadas antes de qualquer liberação real.
+As duas últimas respondem `501 integration_pending`; a interface não deve apresentar dados fictícios. A trilha de auditoria persistente, retenção de eventos, limitação de taxa distribuída e testes automatizados específicos da função ainda precisam ser implementados antes de qualquer liberação real. Não publicar esta função em produção nesta etapa.
 
 ### Segredos e cabeçalhos
 
@@ -112,6 +112,8 @@ No datasource REST do ToolJet Cloud:
 - Base URL: `https://<PROJECT_REF>.supabase.co/functions/v1/admin-api`
 - Cabeçalho `apikey`: publishable key do projeto (chave pública, usada pelo gateway).
 - Cabeçalho `Authorization`: `Bearer <TOOLJET_ADMIN_API_KEY>`.
+
+A função tem `verify_jwt = false` somente para permitir a credencial não-JWT do datasource. A validação obrigatória é feita no código da função. A publishable key não autoriza acesso aos dados por si só; a função usa a chave privilegiada apenas no ambiente server-side após validar o segredo da integração.
 
 Nunca colocar o `TOOLJET_ADMIN_API_KEY` em query, componente, JavaScript ou estado client-side. Armazená-lo como segredo do datasource. Nunca colocar `SUPABASE_SERVICE_ROLE_KEY` no ToolJet.
 
