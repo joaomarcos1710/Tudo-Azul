@@ -11,7 +11,9 @@ import { Selecao } from '../components/ui/Selecao'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import type { AcaoMenu } from '../components/ui/MenuAcoes'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useFamilia } from '../lib/FamiliaContext'\nimport { useAuth } from '../lib/auth'\nimport { supabase } from '../lib/supabase'
+import { useFamilia } from '../lib/FamiliaContext'
+import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import { listarCartoes, novaChave, registrarCompra, rotaFatura } from '../lib/cartoes'
@@ -236,7 +238,9 @@ export default function Lancamentos() {
     ...comprasCategoria.map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
     ...parcelasContrato.map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
     ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
-  ].sort((x, y) => ordemPreferida === 'asc'\n    ? (x.data < y.data ? -1 : x.data > y.data ? 1 : 0)\n    : (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
+  ].sort((x, y) => ordemPreferida === 'asc'
+    ? (x.data < y.data ? -1 : x.data > y.data ? 1 : 0)
+    : (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
   const hoje = hojeSP()
   const itensVisiveis = itens.slice(0, limiteVisivel)
   const porDia: [string, Item[]][] = []
