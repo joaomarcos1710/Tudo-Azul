@@ -126,12 +126,16 @@ export function PessoasFamilia({ familiaId }: Props) {
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-marinho">{pessoa.nome}</p>
-                  <p className="text-sm text-slate-500">{pessoa.vinculo}</p>
+                  <p className="text-sm text-slate-500">{pessoa.userId ? 'Usuário com acesso ao aplicativo' : pessoa.vinculo}</p>
                   {pessoa.nascimento && <p className="text-xs text-slate-500">{dataCurta(pessoa.nascimento)}</p>}
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Button variante="secundario" compacto onClick={() => abrirEdicao(pessoa)}>Editar</Button>
-                    <Button variante="discreto" compacto onClick={() => void alternarStatus(pessoa)}>Inativar</Button>
-                  </div>
+                  {pessoa.userId ? (
+                    <p className="mt-2 text-xs font-medium text-azul">Vinculado automaticamente ao login</p>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button variante="secundario" compacto onClick={() => abrirEdicao(pessoa)}>Editar</Button>
+                      <Button variante="discreto" compacto onClick={() => void alternarStatus(pessoa)}>Inativar</Button>
+                    </div>
+                  )}
                 </div>
               </article>
             ))}
