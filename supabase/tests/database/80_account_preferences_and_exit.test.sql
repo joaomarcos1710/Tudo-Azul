@@ -35,6 +35,15 @@ select ok((select prosecdef from pg_proc where oid = 'public.prepare_account_del
 select ok((select prosecdef from pg_proc where oid = 'public.rollback_account_deletion(jsonb)'::regprocedure),
   'reversão executa com privilégio controlado no servidor');
 
+
+select has_function('public','account_balances_daily',array['uuid','date','date'],
+  'saldo diário vem da fonte oficial de saldos por conta e moeda');
+select ok(has_function_privilege('authenticated','public.account_balances_daily(uuid,date,date)','EXECUTE')
+  and not has_function_privilege('anon','public.account_balances_daily(uuid,date,date)','EXECUTE'),
+  'série diária só é consultável por sessão autenticada');
+select ok(not (select prosecdef from pg_proc where oid = 'public.account_balances_daily(uuid,date,date)'::regprocedure),
+  'série diária respeita RLS como função invoker');
+
 select has_function('public','clear_household_transactions',array['uuid','text'],
   'função de limpeza restrita de lançamentos existe');
 select ok(has_function_privilege('authenticated','public.clear_household_transactions(uuid,text)','EXECUTE')
