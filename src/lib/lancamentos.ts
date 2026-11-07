@@ -21,9 +21,9 @@ export interface Lancamento {
   data: string
   status: StatusLancamento
   notas: string
-  personId: string | null
-  isSharedExpense: boolean
-  recorrenciaId: string | null
+  personId?: string | null
+  isSharedExpense?: boolean
+  recorrenciaId?: string | null
   /** Gerado por uma regra recorrente (só leitura: o vínculo é gravado pelo banco). */
   recorrente?: boolean
 }
@@ -75,17 +75,27 @@ export async function listarLancamentos(familiaId: string, mes: string, f: Filtr
     if (f.tipo) consulta = consulta.eq('type', f.tipo)
     return consulta.order('date', { ascending: false }).order('created_at', { ascending: false })
   }
-  let { data, error } = await consultar([
+  type LinhaLancamentoDb = {
+    id: string; type: TipoLancamento; account_id: string; destination_account_id: string | null;
+    category_id: string | null; description: string; amount: number | string; date: string;
+    status: StatusLancamento; notes: string | null; recurrence_id: string | null;
+    person_id?: string | null; is_shared_expense?: boolean;
+  }
+  let data: LinhaLancamentoDb[] | null = null
+  let error: { code?: string; message?: string } | null = null
+  const novo = await consultar([
     'id', 'type', 'account_id', 'destination_account_id', 'category_id', 'description', 'amount', 'date',
     'status', 'notes', 'recurrence_id', 'person_id', 'is_shared_expense',
   ])
+  data = novo.data as unknown as LinhaLancamentoDb[] | null
+  error = novo.error
   if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) {
     // Preview sem a migration ainda: mantém o extrato antigo funcional, sem classificação.
     const antigo = await consultar([
       'id', 'type', 'account_id', 'destination_account_id', 'category_id', 'description', 'amount', 'date',
       'status', 'notes', 'recurrence_id',
     ])
-    data = antigo.data as typeof data
+    data = antigo.data as unknown as LinhaLancamentoDb[] | null
     error = antigo.error
   }
   if (error) throw error
@@ -457,8 +467,8 @@ export function perguntaSeRepete(original: Lancamento, novo: DadosLancamento): b
   if (!original.recorrente || novo.tipo !== original.tipo) return false
   return novo.valor !== original.valor || novo.data !== original.data || novo.descricao.trim() !== original.descricao.trim()
     || (novo.tipo !== 'transfer' && novo.categoriaId !== original.categoriaId)
-    || (novo.tipo === 'expense' && (novo.personId ?? null) !== original.personId)
-    || (novo.tipo === 'expense' && (novo.isSharedExpense ?? false) !== original.isSharedExpense)
+    || (novo.tipo === 'expense' && (novo.personId ?? null) !== (original.personId ?? null))
+    || (novo.tipo === 'expense' && (novo.isSharedExpense ?? false) !== (original.isSharedExpense ?? false))
 }
 
 /**
