@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
@@ -9,7 +10,7 @@ import { supabase } from '../lib/supabase'
 type PreferenciasDados = { ordem_lancamentos: 'asc' | 'desc'; periodo_padrao: 'daily' | 'weekly' | 'monthly'; saldo_diario: boolean }
 const padrao: PreferenciasDados = { ordem_lancamentos: 'desc', periodo_padrao: 'monthly', saldo_diario: true }
 
-function Opcao({ titulo, descricao, children }: { titulo: string; descricao: string; children: React.ReactNode }) {
+function Opcao({ titulo, descricao, children }: { titulo: string; descricao: string; children: ReactNode }) {
   return <section className="grid gap-4 border-b border-slate-100 py-5 last:border-0 md:grid-cols-[minmax(0,1fr)_13rem] md:items-center">
     <div><h3 className="font-semibold text-marinho">{titulo}</h3><p className="mt-1 text-sm text-slate-500">{descricao}</p></div>
     <div className="flex flex-col gap-2">{children}</div>
