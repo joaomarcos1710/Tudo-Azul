@@ -107,15 +107,15 @@ export default function Recorrentes() {
   const carregar = useCallback(async () => {
     if (!familiaId) return
     try {
-      const [r, c, k, cat, s, p] = await Promise.all([
+      const [r, c, k, cat, s] = await Promise.all([
         listarRecorrencias(familiaId), listarContas(familiaId), listarCartoes(familiaId), listarCategorias(familiaId),
-        resumoRecorrencias(familiaId), listarPessoasFamilia(familiaId),
+        resumoRecorrencias(familiaId),
       ])
       setRecorrencias(r)
       setContas(c.contas)
       setCartoes(k)
       setCategorias(cat)
-      setPessoas(p)
+      void listarPessoasFamilia(familiaId).then(setPessoas).catch(() => setPessoas([]))
       setResumo(s)
       setErro('')
     } catch (err) {
