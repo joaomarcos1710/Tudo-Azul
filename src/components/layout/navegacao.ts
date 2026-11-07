@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
-  IconeAnalises, IconeExportar, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens,
+  IconeAnalises, IconeExportar, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens, IconePreferencias,
 } from './icons'
 
 export interface ItemNavegacao {
@@ -63,7 +63,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     itens: [
       { caminho: '/familia', rotulo: 'Família', curto: 'Família', Icone: IconeFamilia, descricao: 'Quem participa, convites e versão do app.' },
       { caminho: '/exportar', rotulo: 'Exportar dados', curto: 'Exportar', Icone: IconeExportar, descricao: 'Lançamentos em planilha e cópia completa dos dados.' },
-      { caminho: '/preferencias', rotulo: 'Preferências', curto: 'Preferências', Icone: IconeFamilia, descricao: 'Personalize a navegação e as opções da sua conta.' },
+      { caminho: '/preferencias', rotulo: 'Preferências', curto: 'Preferências', Icone: IconePreferencias, descricao: 'Personalize a navegação e as opções da sua conta.' },
     ],
   },
 ]
