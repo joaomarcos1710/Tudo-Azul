@@ -190,6 +190,8 @@ begin
     where r.household_id = p_household
       and r.kind = 'card'
       and r.active
+      and d.closing_day is not null
+      and d.due_day is not null
       and datas.vencimento between v_from and v_to
       and not exists (
         select 1
