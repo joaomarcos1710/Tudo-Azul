@@ -536,14 +536,24 @@ export interface DadosParcelado {
 
 /** Cria as N parcelas de uma vez no banco (todas ou nenhuma); devolve o id do grupo. */
 export async function criarParcelado(d: DadosParcelado): Promise<string> {
-  const { data, error } = await cliente().rpc('transaction_installments_create_classified', {
+  const args = {
     p_kind: d.tipo, p_description: d.descricao.trim(), p_total: centsToDecimal(d.total), p_count: d.parcelas,
     p_unit: d.unidade, p_every: d.cada, p_first: d.primeira, p_account: d.contaId,
     p_destination: d.tipo === 'transfer' ? d.destinoId : null, p_category: d.tipo === 'transfer' ? null : d.categoriaId,
     p_first_paid: d.primeiraPaga,
     p_person_id: d.tipo === 'expense' ? d.personId ?? null : null,
     p_is_shared_expense: d.tipo === 'expense' ? d.isSharedExpense ?? false : false,
-  })
+  }
+  let { data, error } = await cliente().rpc('transaction_installments_create_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense) {
+    const antigo = await cliente().rpc('transaction_installments_create', {
+      p_kind: args.p_kind, p_description: args.p_description, p_total: args.p_total, p_count: args.p_count,
+      p_unit: args.p_unit, p_every: args.p_every, p_first: args.p_first, p_account: args.p_account,
+      p_destination: args.p_destination, p_category: args.p_category, p_first_paid: args.p_first_paid,
+    })
+    data = antigo.data
+    error = antigo.error
+  }
   if (error) throw error
   return data as string
 }
