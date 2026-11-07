@@ -41,8 +41,10 @@ insert into fixture select 'h1', public.create_household('Casa Matriz A');
 insert into public.accounts (household_id, name, type, initial_balance, opening_date, currency_code)
 values
   (pg_temp.fx('h1'), 'Conta corrente', 'checking', 1000, pg_temp.hoje() - 180, 'BRL'),
+  (pg_temp.fx('h1'), 'Conta destino', 'checking', 100, pg_temp.hoje() - 180, 'BRL'),
   (pg_temp.fx('h1'), 'Conta em dólar', 'checking', 100, pg_temp.hoje() - 180, 'USD');
 insert into fixture select 'brl', id from public.accounts where household_id = pg_temp.fx('h1') and name = 'Conta corrente';
+insert into fixture select 'brl2', id from public.accounts where household_id = pg_temp.fx('h1') and name = 'Conta destino';
 insert into fixture select 'usd', id from public.accounts where household_id = pg_temp.fx('h1') and name = 'Conta em dólar';
 insert into fixture select 'expense', id from public.categories
  where household_id = pg_temp.fx('h1') and type = 'expense' and system_key = 'uncategorized';
@@ -61,7 +63,7 @@ insert into public.transactions (household_id, account_id, destination_account_i
 values
   (pg_temp.fx('h1'), pg_temp.fx('brl'), null, pg_temp.fx('income'), 'income',
    'Receita futura', 900, pg_temp.amanha() + 3, 'planned'),
-  (pg_temp.fx('h1'), pg_temp.fx('brl'), pg_temp.fx('usd'), null, 'transfer',
+  (pg_temp.fx('h1'), pg_temp.fx('brl'), pg_temp.fx('brl2'), null, 'transfer',
    'Transferência futura', 400, pg_temp.amanha() + 4, 'planned'),
   (pg_temp.fx('h1'), pg_temp.fx('usd'), null, pg_temp.fx('expense'), 'expense',
    'Despesa em dólar', 40, pg_temp.amanha() + 5, 'planned');
