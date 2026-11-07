@@ -66,8 +66,15 @@ begin
   end if;
 
   if to_regclass('storage.objects') is not null then
-    execute 'select exists (select 1 from storage.objects where owner = $1 or owner_id = $2)'
-      into v_has_storage using p_user_id, p_user_id::text;
+    if exists (select 1 from information_schema.columns
+      where table_schema = 'storage' and table_name = 'objects' and column_name = 'owner_id') then
+      execute 'select exists (select 1 from storage.objects where owner_id = $1::text)'
+        into v_has_storage using p_user_id;
+    elsif exists (select 1 from information_schema.columns
+      where table_schema = 'storage' and table_name = 'objects' and column_name = 'owner') then
+      execute 'select exists (select 1 from storage.objects where owner::text = $1::text)'
+        into v_has_storage using p_user_id;
+    end if;
     if v_has_storage then
       raise exception 'Sua conta ainda possui arquivos no armazenamento. Transfira ou remova esses arquivos antes de excluir a conta.';
     end if;
