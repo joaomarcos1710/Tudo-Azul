@@ -28,7 +28,7 @@ export interface Lancamento {
   recorrente?: boolean
 }
 
-export type DadosLancamento = Omit<Lancamento, 'id' | 'recorrente'>
+export type DadosLancamento = Omit<Lancamento, 'id' | 'recorrente' | 'recorrenciaId' | 'personId' | 'isSharedExpense'> & Partial<Pick<Lancamento, 'personId' | 'isSharedExpense'>>
 
 /** Totais do mês calculados no banco (period_summary): a tela não soma dinheiro. */
 export interface ResumoMes {
@@ -422,8 +422,8 @@ function linha(d: DadosLancamento) {
     date: d.data,
     status: d.status,
     notes: d.notas.trim() || null,
-    person_id: d.tipo === 'expense' ? d.personId : null,
-    is_shared_expense: d.tipo === 'expense' ? d.isSharedExpense : false,
+    person_id: d.tipo === 'expense' ? d.personId ?? null : null,
+    is_shared_expense: d.tipo === 'expense' ? d.isSharedExpense ?? false : false,
   }
 }
 
@@ -518,8 +518,8 @@ export interface DadosParcelado {
   destinoId: string | null
   categoriaId: string | null
   primeiraPaga: boolean
-  personId: string | null
-  isSharedExpense: boolean
+  personId?: string | null
+  isSharedExpense?: boolean
 }
 
 /** Cria as N parcelas de uma vez no banco (todas ou nenhuma); devolve o id do grupo. */
@@ -529,8 +529,8 @@ export async function criarParcelado(d: DadosParcelado): Promise<string> {
     p_unit: d.unidade, p_every: d.cada, p_first: d.primeira, p_account: d.contaId,
     p_destination: d.tipo === 'transfer' ? d.destinoId : null, p_category: d.tipo === 'transfer' ? null : d.categoriaId,
     p_first_paid: d.primeiraPaga,
-    p_person_id: d.tipo === 'expense' ? d.personId : null,
-    p_is_shared_expense: d.tipo === 'expense' ? d.isSharedExpense : false,
+    p_person_id: d.tipo === 'expense' ? d.personId ?? null : null,
+    p_is_shared_expense: d.tipo === 'expense' ? d.isSharedExpense ?? false : false,
   })
   if (error) throw error
   return data as string
