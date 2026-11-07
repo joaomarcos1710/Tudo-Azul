@@ -75,5 +75,106 @@ select ok(not exists (
     and is_nullable <> 'YES'
 ), 'autoria pessoal pode ser anonimizada sem apagar registros familiares');
 
+
+-- Testes comportamentais da limpeza: somente titular, frase exata e isolamento entre famílias.
+create temp table fixture80 (k text primary key, v uuid);
+create temp table fixture80_txt (k text primary key, v text);
+grant all on fixture80, fixture80_txt to public;
+create function pg_temp.fx80(p_k text) returns uuid language sql as $f$
+  select v from fixture80 where k = p_k
+$f$;
+create function pg_temp.login80(p_uid uuid) returns void language plpgsql as $f$
+begin
+  perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+  perform set_config('role', 'authenticated', true);
+end
+$f$;
+create function pg_temp.sqlstate80(p_sql text) returns text language plpgsql as $f$
+begin
+  execute p_sql;
+  return null;
+exception when others then return sqlstate;
+end
+$f$;
+grant execute on function pg_temp.fx80(text), pg_temp.login80(uuid), pg_temp.sqlstate80(text) to public;
+
+insert into auth.users (id, email) values
+ ('00000000-0000-0000-0000-0000000080a1','prefs-owner@teste.com'),
+ ('00000000-0000-0000-0000-0000000080a2','prefs-member@teste.com'),
+ ('00000000-0000-0000-0000-0000000080a3','prefs-other@teste.com');
+
+select pg_temp.login80('00000000-0000-0000-0000-0000000080a1');
+insert into fixture80 select 'household', public.create_household('Família Preferências');
+insert into fixture80_txt select 'invite', public.create_invitation('prefs-member@teste.com');
+reset role;
+select pg_temp.login80('00000000-0000-0000-0000-0000000080a2');
+select public.accept_invitation((select v from fixture80_txt where k='invite'));
+reset role;
+select pg_temp.login80('00000000-0000-0000-0000-0000000080a3');
+insert into fixture80 select 'other_household', public.create_household('Outra Família');
+reset role;
+
+select pg_temp.login80('00000000-0000-0000-0000-0000000080a1');
+with a as (
+  insert into public.accounts (household_id,name,type,initial_balance,opening_date)
+  values (pg_temp.fx80('household'),'Conta preservada','checking',1000,'2026-10-01') returning id
+) insert into fixture80 select 'account',id from a;
+insert into fixture80 select 'expense_category' from (
+  select id from public.categories where household_id=pg_temp.fx80('household')
+    and name='Compras pessoais' and type='expense' limit 1
+) c;
+insert into fixture80 select 'asset', public.investment_asset_create(
+  pg_temp.fx80('household'),'Ativo de teste','TEST','fund','BRL'
+);
+insert into public.transactions (household_id,account_id,category_id,type,description,amount,date,status)
+values
+ (pg_temp.fx80('household'),pg_temp.fx80('account'),pg_temp.fx80('expense_category'),'expense','Pago',10,'2026-11-01','paid'),
+ (pg_temp.fx80('household'),pg_temp.fx80('account'),pg_temp.fx80('expense_category'),'expense','Planejado',20,'2026-11-02','planned');
+with tx as (
+  insert into public.transactions (household_id,account_id,category_id,type,description,amount,date,status)
+  values (pg_temp.fx80('household'),pg_temp.fx80('account'),pg_temp.fx80('expense_category'),'expense','Na lixeira',5,'2026-11-03','paid')
+  returning id
+) update public.transactions set deleted_at=now() where id=(select id from tx);
+select public.investment_distribution_record(pg_temp.fx80('asset'),'dividend','2026-11-04',3,pg_temp.fx80('account'));
+reset role;
+
+-- Membro, titular de outra família e frase incorreta não podem apagar.
+select pg_temp.login80('00000000-0000-0000-0000-0000000080a2');
+select is(pg_temp.sqlstate80(format(
+  $select public.clear_household_transactions(%L,'excluir transações')$,pg_temp.fx80('household')
+)), '42501', 'membro não titular não pode limpar os lançamentos');
+reset role;
+select pg_temp.login80('00000000-0000-0000-0000-0000000080a3');
+select is(pg_temp.sqlstate80(format(
+  $select public.clear_household_transactions(%L,'excluir transações')$,pg_temp.fx80('household')
+)), '42501', 'outra família não pode ser limpa');
+reset role;
+select pg_temp.login80('00000000-0000-0000-0000-0000000080a1');
+select is(pg_temp.sqlstate80(format(
+  $select public.clear_household_transactions(%L,'errado')$,pg_temp.fx80('household')
+)), '22023', 'frase incorreta é recusada');
+
+-- Titular limpa pagos, planejados, lixeira e provento vinculado.
+select is((public.clear_household_transactions(pg_temp.fx80('household'),'  EXCLUIR TRANSAÇÕES  ')->>'transactions_deleted')::int,
+  4, 'titular remove todos os quatro lançamentos da família');
+select is((select count(*) from public.transactions where household_id=pg_temp.fx80('household')),0::bigint,
+  'nenhum lançamento ativo, planejado ou na lixeira permanece');
+select is((select count(*) from public.investment_distributions where household_id=pg_temp.fx80('household')),0::bigint,
+  'provento vinculado é removido pela cascata da FK');
+select is((select count(*) from public.accounts where household_id=pg_temp.fx80('household')),1::bigint,
+  'conta permanece cadastrada');
+select is((select count(*) from public.categories where household_id=pg_temp.fx80('household') and type='expense'),1::bigint,
+  'categoria permanece cadastrada');
+select is((select count(*) from public.investment_assets where household_id=pg_temp.fx80('household')),1::bigint,
+  'ativo de investimento permanece cadastrado');
+select is((select balance from public.account_balances(pg_temp.fx80('household'),'2026-11-30')
+  where account_id=pg_temp.fx80('account')),1000::numeric,
+  'saldo volta ao saldo inicial da conta');
+select is((select count(*) from public.transactions where household_id=pg_temp.fx80('other_household')),0::bigint,
+  'família vizinha não tinha nem recebeu lançamentos');
+select is((public.clear_household_transactions(pg_temp.fx80('household'),'excluir transações')->>'transactions_deleted')::int,
+  0, 'repetir a operação numa família vazia não apaga mais nada');
+reset role;
+
 select * from finish();
 rollback;
