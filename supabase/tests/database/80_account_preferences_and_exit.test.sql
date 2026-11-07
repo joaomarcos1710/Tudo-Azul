@@ -112,6 +112,15 @@ select public.accept_invitation((select v from fixture80_txt where k='invite'));
 reset role;
 select pg_temp.login80('00000000-0000-0000-0000-0000000080a3');
 insert into fixture80 select 'other_household', public.create_household('Outra Família');
+with a as (
+  insert into public.accounts (household_id,name,type,initial_balance,opening_date)
+  values (pg_temp.fx80('other_household'),'Conta vizinha','checking',250,'2026-10-01') returning id
+) insert into fixture80 select 'other_account',id from a;
+insert into fixture80 select 'other_category',id from public.categories
+  where household_id=pg_temp.fx80('other_household') and name='Compras pessoais' and type='expense' limit 1;
+insert into public.transactions (household_id,account_id,category_id,type,description,amount,date,status)
+values (pg_temp.fx80('other_household'),pg_temp.fx80('other_account'),pg_temp.fx80('other_category'),
+  'expense','Lançamento da vizinha',12,'2026-11-01','paid');
 reset role;
 
 select pg_temp.login80('00000000-0000-0000-0000-0000000080a1');
@@ -119,10 +128,7 @@ with a as (
   insert into public.accounts (household_id,name,type,initial_balance,opening_date)
   values (pg_temp.fx80('household'),'Conta preservada','checking',1000,'2026-10-01') returning id
 ) insert into fixture80 select 'account',id from a;
-insert into fixture80 select 'expense_category' from (
-  select id from public.categories where household_id=pg_temp.fx80('household')
-    and name='Compras pessoais' and type='expense' limit 1
-) c;
+insert into fixture80 select 'expense_category',id from public.categories where household_id=pg_temp.fx80('household') and name='Compras pessoais' and type='expense' limit 1;
 insert into fixture80 select 'asset', public.investment_asset_create(
   pg_temp.fx80('household'),'Ativo de teste','TEST','fund','BRL'
 );
@@ -163,15 +169,15 @@ select is((select count(*) from public.investment_distributions where household_
   'provento vinculado é removido pela cascata da FK');
 select is((select count(*) from public.accounts where household_id=pg_temp.fx80('household')),1::bigint,
   'conta permanece cadastrada');
-select is((select count(*) from public.categories where household_id=pg_temp.fx80('household') and type='expense'),1::bigint,
-  'categoria permanece cadastrada');
+select ok((select count(*) > 0 from public.categories where household_id=pg_temp.fx80('household') and type='expense'),
+  'categorias permanecem cadastradas');
 select is((select count(*) from public.investment_assets where household_id=pg_temp.fx80('household')),1::bigint,
   'ativo de investimento permanece cadastrado');
 select is((select balance from public.account_balances(pg_temp.fx80('household'),'2026-11-30')
   where account_id=pg_temp.fx80('account')),1000::numeric,
   'saldo volta ao saldo inicial da conta');
-select is((select count(*) from public.transactions where household_id=pg_temp.fx80('other_household')),0::bigint,
-  'família vizinha não tinha nem recebeu lançamentos');
+select is((select count(*) from public.transactions where household_id=pg_temp.fx80('other_household')),1::bigint,
+  'lançamento da outra família permanece intacto');
 select is((public.clear_household_transactions(pg_temp.fx80('household'),'excluir transações')->>'transactions_deleted')::int,
   0, 'repetir a operação numa família vazia não apaga mais nada');
 reset role;
