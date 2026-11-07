@@ -344,7 +344,7 @@ export default function Lancamentos() {
           familiaId={familiaId}
           aoSalvar={async () => { setEditando(null); setPreenchimentoIA(null); await carregar() }}
           aoRegistrarOutro={carregar}
-          aoCancelar={() => setEditando(null)}
+          aoCancelar={() => { setEditando(null); setPreenchimentoIA(null) }}
         />
         </PainelLancamento>
       )}
