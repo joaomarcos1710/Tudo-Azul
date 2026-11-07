@@ -9,7 +9,7 @@ tags: [tudo-azul, regras, dinheiro]
 4. **Banco** usa `numeric` com guarda de casas decimais (erro 22003 se passar de 2).
 5. **Cores do dinheiro (#183, regra do dono)**: azul = lucro/entrada/receita/saldo positivo/pago; vermelho = prejuízo/saída/despesa/saldo negativo/vencida; âmbar = atenção; verde = agendado/planejado (nunca "entrou"); cinza = zero/neutro; marinho = transferência. Toda tela nova usa os tokens de `src/lib/cores.ts` (`text-lucro`, `SELO.planejado`, `corDoValor`, `corDoTipo`…), nunca hex nem `green-`/`amber-`/`red-` soltos (o teste `cores.test.ts` recusa); a cor nunca é a única informação (sinal "−", rótulo, ícone).
 
-## Projeção de compromissos (Dashboard, #207)
+## Projeção de compromissos (Dashboard, #210)
 - A matriz considera apenas despesas planejadas e compromissos de saída: lançamentos avulsos/parcelados, recorrências de conta (materializadas ou ainda pendentes), compras e assinaturas de cartão pelo **vencimento da fatura**, e parcelas planejadas de empréstimos/financiamentos.
 - O PostgreSQL é a fonte dos totais mensais. O front organiza as linhas, sem somar dinheiro.
 - Uma recorrência materializada não reaparece como pendente; uma assinatura de cartão deixa de ser previsão quando sua compra já foi criada. Compra parcelada é reconciliada ao valor ainda em aberto da fatura (`card_months`), incluindo pagamentos e créditos já considerados.
