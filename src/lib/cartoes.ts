@@ -122,6 +122,8 @@ export interface DadosCompra {
   categoriaId: string
   /** Em qual fatura lançar: 0 = a que a data dá; -3 a +3 = tantas faturas antes ou depois (migration 051). */
   deslocamento?: number
+  personId?: string | null
+  isSharedExpense?: boolean
 }
 
 function cliente() {
@@ -260,10 +262,12 @@ export function novaChave(): string {
 }
 
 export async function registrarCompra(cartaoId: string, d: DadosCompra, chave?: string): Promise<void> {
-  const { error } = await cliente().rpc('card_purchase_at', {
+  const { error } = await cliente().rpc('card_purchase_at_classified', {
     p_debt: cartaoId, p_date: d.data, p_total: centsToDecimal(d.total), p_count: d.parcelas,
     p_category: d.categoriaId, p_description: d.descricao.trim(), p_invoice_offset: d.deslocamento ?? 0,
     ...(chave ? { p_idem: chave } : {}),
+    p_person_id: d.personId ?? null,
+    p_is_shared_expense: d.isSharedExpense ?? false,
   })
   if (error) throw error
 }
