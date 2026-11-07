@@ -141,7 +141,9 @@ with tx as (
   insert into public.transactions (household_id,account_id,category_id,type,description,amount,date,status)
   values (pg_temp.fx80('household'),pg_temp.fx80('account'),pg_temp.fx80('expense_category'),'expense','Na lixeira',5,'2026-11-03','paid')
   returning id
-) update public.transactions set deleted_at=now() where id=(select id from tx);
+) insert into fixture80 select 'trash_tx', id from tx;
+select is(public.transactions_bulk_trash(array[pg_temp.fx80('trash_tx')]),1,
+  'lançamento de teste vai para a lixeira pela RPC oficial');
 select public.investment_distribution_record(pg_temp.fx80('asset'),'dividend','2026-11-04',3,pg_temp.fx80('account'));
 select is((select balance from public.account_balances_daily(
   pg_temp.fx80('household'),'2026-11-01','2026-11-01') where balance_date='2026-11-01' and currency_code='BRL'),
