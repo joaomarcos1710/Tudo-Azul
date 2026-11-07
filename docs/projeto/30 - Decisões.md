@@ -432,3 +432,12 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 - **O extrato da fatura tem três blocos, nesta ordem: Pagamentos, Entradas (estornos e reembolsos), Saídas.** Pedido literal do dono: "separar pagamento quando realizasse na parte de cima, aí embaixo entradas ou estorno/reembolso, e embaixo saídas normais". O total das entradas continua vindo do banco (`card_months.creditos`); a tela não soma.
 - **"Abrir fatura" leva à fatura que o pagamento quita** (a fechada mais antiga não paga) e, sem dívida, à atual — a mesma regra do "Ver fatura" da #181 (decisão do dono de 05/11). Mês sem linha em `card_months` cai na fatura mais próxima (regra da fileira de antes), e sem fatura nenhuma volta ao cartão: um link nunca abre uma página vazia.
 - **Nenhum cálculo mudou**: as três páginas leem as mesmas funções (`card_overview`, `card_months`, `card_items`, créditos e pagamentos) que a tela única lia; a mudança é só de endereço e disposição.
+
+## 07/11/2026 — Marca separada da transferência (#211)
+- **Pedido do dono:** opção A da revisão de uma paleta proposta por terceiros: o marinho fica só na camada de marca (logo, títulos, cabeçalhos, boas-vindas e login). Status financeiro e transferência ficam como estão, pela #183.
+- **O que foi achado antes de mexer:** o `text-marinho` do Tailwind lia `CORES.transferencia.DEFAULT`. Títulos e cabeçalhos já usavam a cor da transferência, e trocar a marca trocaria também a transferência. Não havia um "marinho de marca" próprio.
+- **Decisão:** token `MARCA` (marinho `#0B1F46`, celeste `#48B5FF`) em `src/lib/cores.ts`, lido pelo `tailwind.config.js` e pela logo (`components/layout/Marca.tsx`). Os hex são os mesmos de antes: nenhuma tela muda de cor.
+- **Motivo:** a cor da marca e a cor de "dinheiro que muda de conta" são coisas diferentes e precisam poder evoluir separadas. Com um token só, qualquer ajuste de identidade mexia no significado de transferência.
+- **Não feito:** a paleta proposta (marinho `#0A1F44`, azul `#1E5EFF`, vermelho `#C1121F`, verde `#0B7A55`, fundo `#F6F8FC`) não foi aplicada. Os tons de status seguem a #183. O modo escuro não existe e não foi criado.
+- **Testes:** `cores.test.ts` confere que o Tailwind lê `MARCA`, que o marinho passa 4,5:1 no branco e no fundo do app, que branco passa 4,5:1 sobre o marinho (barra lateral) e que o celeste passa 3:1 sobre o marinho (losango da logo).
+- **Atenção:** `public/favicon.svg` repete os mesmos hex à mão (o SVG não importa código). Se a marca mudar, mudar lá também.

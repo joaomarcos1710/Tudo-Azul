@@ -188,6 +188,8 @@ atualizado: 2026-11-06
 - [ ] **Sem "Pagar fatura" se a leitura das faturas falhar** (#181): antes o botão do cartão abria o pagamento mesmo assim (com dívida, o formulário já bloqueava). Avaliar se vale um caminho de pagar adiantado nesse caso.
 
 ### Cores do app (#183)
+- [ ] **Favicon com hex fixo** (#211): `public/favicon.svg` repete o marinho e o celeste de `MARCA` (`src/lib/cores.ts`). Se a marca mudar, mudar nos dois lugares.
+- [ ] **Paleta proposta por terceiros** (marinho `#0A1F44`, azul `#1E5EFF`, vermelho `#C1121F`, verde `#0B7A55`): não aplicada. Decidir com o dono se mantém a #183 ou troca tons; se trocar, passar pelo `cores.test.ts` e registrar no doc 30.
 - [x] Tokens `lucro`, `prejuizo`, `atencao`, `agendado`, `neutro`, `transferencia` em `src/lib/cores.ts`, aplicados nas telas e nos gráficos; contraste medido em teste; laranja do Balanço → vermelho.
 - [ ] **Conferir no aparelho** (você): o verde de "Planejado" lido como "agendado" e não como "entrou" (o oposto do Organizze). Se confundir, trocar só o tom de `agendado` em `src/lib/cores.ts`.
 - [ ] **Relatórios ainda usam os nomes antigos** (`text-azul`, `text-negativo`, hex do gráfico pelos nomes `COR_RECEITA`/`COR_SAIDA`): mesmos tons, ficaram de fora porque outra PR mexia lá; trocar por `text-lucro`/`text-prejuizo`/`corDoValor` quando ela entrar.

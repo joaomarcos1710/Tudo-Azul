@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { BARRA_ORCAMENTO, CORES, FUNDOS, SELO, SELO_FATURA, corDoTipo, corDoValor, faixaOrcamento } from './cores'
+import { BARRA_ORCAMENTO, CORES, FUNDOS, MARCA, SELO, SELO_FATURA, corDoTipo, corDoValor, faixaOrcamento } from './cores'
 import config from '../../tailwind.config.js'
 
 /** Contraste WCAG 2.x entre duas cores #RRGGBB. */
@@ -53,6 +53,16 @@ describe('sistema de cores (#183)', () => {
     expect(cores.negativo).toEqual(CORES.prejuizo) // erro e ação destrutiva: o mesmo vermelho
     expect(cores.azul).toEqual({ DEFAULT: CORES.lucro.DEFAULT, claro: CORES.lucro.fundo }) // Relatórios usam text-azul
     for (const antigo of ['positivo', 'planejado', 'pago']) expect(cores[antigo]).toBeUndefined()
+  })
+
+  it('marca (logo, títulos, cabeçalhos) vem de MARCA, separada da transferência; o texto da marca passa AA', () => {
+    const cores = config.theme.extend.colors as Record<string, unknown>
+    expect(cores.marinho).toBe(MARCA.marinho) // text-marinho: títulos, cabeçalhos, barra lateral
+    expect(cores.celeste).toBe(MARCA.celeste)
+    expect(contraste(MARCA.marinho, FUNDOS.branco)).toBeGreaterThanOrEqual(4.5) // título no card
+    expect(contraste(MARCA.marinho, FUNDOS.app)).toBeGreaterThanOrEqual(4.5) // título no fundo do app
+    expect(contraste('#FFFFFF', MARCA.marinho)).toBeGreaterThanOrEqual(4.5) // texto branco na barra lateral
+    expect(contraste(MARCA.celeste, MARCA.marinho)).toBeGreaterThanOrEqual(3) // losango da logo sobre o fundo marinho
   })
 
   it('valor com sinal: positivo azul, negativo vermelho, zero cinza; tipo: receita azul, despesa vermelha, transferência marinho', () => {
