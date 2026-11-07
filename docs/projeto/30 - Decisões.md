@@ -433,7 +433,7 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 - **"Abrir fatura" leva à fatura que o pagamento quita** (a fechada mais antiga não paga) e, sem dívida, à atual — a mesma regra do "Ver fatura" da #181 (decisão do dono de 05/11). Mês sem linha em `card_months` cai na fatura mais próxima (regra da fileira de antes), e sem fatura nenhuma volta ao cartão: um link nunca abre uma página vazia.
 - **Nenhum cálculo mudou**: as três páginas leem as mesmas funções (`card_overview`, `card_months`, `card_items`, créditos e pagamentos) que a tela única lia; a mudança é só de endereço e disposição.
 
-## 07/11/2026 — Marca separada da transferência (#210)
+## 07/11/2026 — Marca separada da transferência (#211)
 - **Pedido do dono:** opção A da revisão de uma paleta proposta por terceiros: o marinho fica só na camada de marca (logo, títulos, cabeçalhos, boas-vindas e login). Status financeiro e transferência ficam como estão, pela #183.
 - **O que foi achado antes de mexer:** o `text-marinho` do Tailwind lia `CORES.transferencia.DEFAULT`. Títulos e cabeçalhos já usavam a cor da transferência, e trocar a marca trocaria também a transferência. Não havia um "marinho de marca" próprio.
 - **Decisão:** token `MARCA` (marinho `#0B1F46`, celeste `#48B5FF`) em `src/lib/cores.ts`, lido pelo `tailwind.config.js` e pela logo (`components/layout/Marca.tsx`). Os hex são os mesmos de antes: nenhuma tela muda de cor.
