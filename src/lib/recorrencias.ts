@@ -208,14 +208,22 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
  * (migrations 015 e 036).
  */
 export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null; personId?: string | null; isSharedExpense?: boolean }): Promise<void> {
-  const { error } = await cliente().rpc('recurrence_update_classified', {
+  const args = {
     p_id: id, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor), p_category: d.categoriaId,
     p_person_id: d.personId ?? null, p_is_shared_expense: d.isSharedExpense ?? false,
-  })
+  }
+  let { error } = await cliente().rpc('recurrence_update_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense) {
+    const antigo = await cliente().rpc('recurrence_update', {
+      p_id: id, p_description: args.p_description, p_amount: args.p_amount, p_category: args.p_category,
+    })
+    error = antigo.error
+  }
   if (error) throw error
 }
 
 export async function definirPessoaRecorrencia(id: string, personId: string | null, isSharedExpense: boolean): Promise<void> {
+  if (!personId && !isSharedExpense) return
   const { error } = await cliente().rpc('recurrence_set_person', {
     p_id: id, p_person_id: personId, p_is_shared_expense: isSharedExpense,
   })
