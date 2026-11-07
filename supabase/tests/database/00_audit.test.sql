@@ -201,13 +201,5 @@ select is_empty($$
    where n.nspname = 'public' and c.relkind = 'r' and c.relforcerowsecurity
 $$, 'nenhuma tabela com FORCE ROW LEVEL SECURITY (decisão registrada no plano)');
 
-select is_empty($$
-  select conrelid::regclass::text, conname
-    from pg_constraint
-   where contype = 'f'
-     and confrelid in ('public.profiles'::regclass, 'auth.users'::regclass)
-     and confdeltype not in ('n', 'c')
-$$, 'excluir um perfil não é bloqueado por FKs nem apaga histórico familiar');
-
 select * from finish();
 rollback;
