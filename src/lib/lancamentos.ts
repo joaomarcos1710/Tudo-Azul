@@ -66,18 +66,28 @@ export interface Filtros {
 
 export async function listarLancamentos(familiaId: string, mes: string, f: Filtros = {}): Promise<Lancamento[]> {
   const [de, ate] = limitesDoMes(mes)
-  let consulta = cliente()
-    .from('transactions')
-    .select('id, type, account_id, destination_account_id, category_id, description, amount, date, status, notes, recurrence_id, person_id, is_shared_expense')
-    .eq('household_id', familiaId)
-    .is('deleted_at', null)
-    .gte('date', de)
-    .lte('date', ate)
-  // conta filtra origem ou destino: a transferência aparece nas duas contas
-  if (f.contaId) consulta = consulta.or(`account_id.eq.${f.contaId},destination_account_id.eq.${f.contaId}`)
-  if (f.categoriaId) consulta = consulta.eq('category_id', f.categoriaId)
-  if (f.tipo) consulta = consulta.eq('type', f.tipo)
-  const { data, error } = await consulta.order('date', { ascending: false }).order('created_at', { ascending: false })
+  const consultar = async (colunas: string[]) => {
+    let consulta = cliente().from('transactions').select(colunas.join(', '))
+      .eq('household_id', familiaId).is('deleted_at', null).gte('date', de).lte('date', ate)
+    // conta filtra origem ou destino: a transferência aparece nas duas contas
+    if (f.contaId) consulta = consulta.or(`account_id.eq.${f.contaId},destination_account_id.eq.${f.contaId}`)
+    if (f.categoriaId) consulta = consulta.eq('category_id', f.categoriaId)
+    if (f.tipo) consulta = consulta.eq('type', f.tipo)
+    return consulta.order('date', { ascending: false }).order('created_at', { ascending: false })
+  }
+  let { data, error } = await consultar([
+    'id', 'type', 'account_id', 'destination_account_id', 'category_id', 'description', 'amount', 'date',
+    'status', 'notes', 'recurrence_id', 'person_id', 'is_shared_expense',
+  ])
+  if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) {
+    // Preview sem a migration ainda: mantém o extrato antigo funcional, sem classificação.
+    const antigo = await consultar([
+      'id', 'type', 'account_id', 'destination_account_id', 'category_id', 'description', 'amount', 'date',
+      'status', 'notes', 'recurrence_id',
+    ])
+    data = antigo.data as typeof data
+    error = antigo.error
+  }
   if (error) throw error
   return (data ?? []).map((t) => ({
     id: t.id,
