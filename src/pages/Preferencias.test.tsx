@@ -78,11 +78,11 @@ describe('Preferências', () => {
     const continuar = screen.getByRole('button', { name: 'Continuar' })
     const caixas = screen.getAllByRole('checkbox')
     expect(caixas).toHaveLength(2)
-    expect(continuar).toBeDisabled()
+    expect((continuar as HTMLButtonElement).disabled).toBe(true)
     await u.click(caixas[0])
     expect(continuar).toBeDisabled()
     await u.click(caixas[1])
-    expect(continuar).toBeEnabled()
+    expect((continuar as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('exige a frase exata para limpar lançamentos e preserva o escopo da família', async () => {
@@ -91,9 +91,9 @@ describe('Preferências', () => {
     await screen.findByRole('button', { name: 'Salvar alterações' })
     await u.click(screen.getByRole('button', { name: 'Excluir minhas transações' }))
     const excluir = screen.getByRole('button', { name: 'Excluir lançamentos' })
-    expect(excluir).toBeDisabled()
+    expect((excluir as HTMLButtonElement).disabled).toBe(true)
     await u.type(screen.getByLabelText(/Para confirmar, escreva/), 'excluir transações')
-    expect(excluir).toBeEnabled()
+    expect((excluir as HTMLButtonElement).disabled).toBe(false)
     await u.click(excluir)
     await waitFor(() => expect(mock.rpc).toHaveBeenCalledWith('clear_household_transactions', {
       p_household: 'h1',
@@ -105,6 +105,6 @@ describe('Preferências', () => {
     mock.familia = { id: 'h1', nome: 'Casa', papel: 'member' }
     montar()
     await screen.findByRole('button', { name: 'Salvar alterações' })
-    expect(screen.getByRole('button', { name: 'Excluir minhas transações' })).toBeDisabled()
+    expect((screen.getByRole('button', { name: 'Excluir minhas transações' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })
