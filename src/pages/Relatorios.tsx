@@ -6,7 +6,9 @@ import { RelatorioPessoas } from '../components/RelatorioPessoas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { hojeSP } from '../lib/contas'
 import { ATALHOS, periodoDoMes } from '../lib/periodoRelatorio'
-import type { Periodo } from '../lib/periodoRelatorio'\nimport { useAuth } from '../lib/auth'\nimport { supabase } from '../lib/supabase'
+import type { Periodo } from '../lib/periodoRelatorio'
+import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 
 type Aba = 'entradas-saidas' | 'contas' | 'pessoas'
 const ABAS: { chave: Aba; rotulo: string }[] = [
