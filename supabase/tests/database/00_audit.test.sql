@@ -174,8 +174,8 @@ select is(
          where n.nspname in ('public','private') and p.prosecdef
          order by 1),
   array['private.card_reopen_invoice','private.card_void_events','private.current_household','private.debt_balance','private.debt_chk','private.debt_chk_trg',
-        'private.debt_lock','private.debt_schedule_restore_void','private.handle_new_user','private.is_member','private.is_owner',
-        'private.ensure_household_person_for_member','private.members_owner_guard','private.reconciled_until','private.recurrence_lock','private.recurrence_update_from_apply','private.seed_default_categories','private.shares_household',
+        'private.debt_lock','private.debt_schedule_restore_void','private.ensure_household_person_for_member','private.handle_new_user','private.is_member','private.is_owner',
+        'private.members_owner_guard','private.reconciled_until','private.recurrence_lock','private.recurrence_update_from_apply','private.seed_default_categories','private.shares_household',
         'public.accept_invitation','public.account_delete','public.card_bill_due','public.card_credit_income','public.card_credit_set_category','public.card_installment_edit','public.card_invoice_reopen',
         'public.card_purchase','public.card_purchase_at','public.card_purchase_at_classified','public.card_purchase_delete','public.card_set_start',
         'public.create_card','public.create_debt','public.create_debt_installments','public.create_debt_invoice',
