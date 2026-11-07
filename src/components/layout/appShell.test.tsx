@@ -29,16 +29,29 @@ describe('menu em grupos', () => {
     }
   })
 
-  it('o menu lateral mostra os grupos na ordem e cada item dentro do seu grupo', () => {
+  it('a sidebar desktop mostra somente os módulos de acesso rápido, sem cabeçalhos', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
-    expect(within(lateral).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
-      .toEqual(['Visão geral', 'Movimentações', 'Planejamento', 'Patrimônio', 'Conta'])
-    const mov = within(lateral).getByRole('group', { name: 'Movimentações' })
-    expect(within(mov).getAllByRole('link').map((a) => a.textContent))
-      .toEqual(['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas'])
-    expect(within(lateral).getByRole('link', { name: 'Recorrentes' }).getAttribute('href')).toBe('/recorrentes')
-    expect(within(lateral).getByRole('link', { name: 'Investimentos' }).getAttribute('href')).toBe('/investimentos')
+    expect(within(lateral).getAllByRole('link').map((a) => a.textContent))
+      .toEqual(['Início', 'Lançamentos', 'Cartões', 'Orçamentos', 'Investimentos', 'Análises', 'Relatórios', 'Calendário'])
+    expect(within(lateral).queryByRole('group')).toBeNull()
+    expect(within(lateral).queryByRole('link', { name: 'Contas' })).toBeNull()
+  })
+
+  it('perfil abre popover com gestão, patrimônio, sistema, logout e versão', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(screen.getByRole('button', { name: 'Perfil de Minha conta' }))
+    const menu = screen.getByRole('menu', { name: 'Configurações da conta' })
+    expect(within(menu).getByRole('link', { name: 'Contas' })).toBeTruthy()
+    expect(within(menu).getByRole('link', { name: 'Categorias' })).toBeTruthy()
+    expect(within(menu).getByRole('link', { name: 'Recorrentes' })).toBeTruthy()
+    expect(within(menu).getByRole('link', { name: 'Bens e patrimônio' })).toBeTruthy()
+    expect(within(menu).getByRole('link', { name: 'Dívidas e empréstimos' })).toBeTruthy()
+    expect(within(menu).getByRole('link', { name: 'Família' })).toBeTruthy()
+    expect(within(menu).getByRole('link', { name: 'Exportar dados' })).toBeTruthy()
+    expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toBeTruthy()
+    expect(within(menu).getByText(/Versão/)).toBeTruthy()
   })
 
   it('celular: 4 atalhos fixos + "Mais"; o resto só aparece dentro do Mais', async () => {
@@ -86,14 +99,14 @@ describe('menu em grupos', () => {
       .toEqual(['Atalhos', 'Visão geral', 'Movimentações', 'Planejamento', 'Patrimônio', 'Conta'])
   })
 
-  it('o menu lateral (iPad e computador) não muda: só os nomes, sem frases', () => {
+  it('os links principais mantêm alvos de toque de pelo menos 44px e o perfil fica no rodapé', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
-    expect(within(lateral).queryByText('Fatura, parcelas e limite de cada cartão.')).toBeNull()
-    expect(within(lateral).getAllByRole('link')).toHaveLength(itensNavegacao.length)
-    // auditoria 5h: itens do menu lateral e "Sair" com alvo de toque de 44px
     for (const l of within(lateral).getAllByRole('link')) expect(l.className).toContain('min-h-11')
-    for (const b of screen.getAllByRole('button', { name: 'Sair' })) expect(b.className).toContain('min-h-11')
+    const perfil = screen.getByRole('button', { name: 'Perfil de Minha conta' })
+    expect(perfil.className).toContain('mt-auto')
+    expect(perfil).toHaveAttribute('aria-haspopup', 'menu')
+    expect(screen.queryByRole('button', { name: 'Sair' })).toBeNull()
   })
 
   it('o Mais fecha com Esc, no fundo, no ×, e ao escolher um item (que leva à tela)', async () => {

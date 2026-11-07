@@ -10,7 +10,7 @@ export interface ItemNavegacao {
   /** Rótulo curto para a barra inferior do celular. */
   curto: string
   Icone: ComponentType
-  /** Uma linha dizendo para que a tela serve (aparece no "Mais" do celular). */
+  /** Uma linha dizendo para que a tela serve (aparece nos menus secundários). */
   descricao: string
   /** Fica sempre na barra inferior do celular; os demais ficam no "Mais". */
   fixoNoCelular?: boolean
@@ -23,7 +23,7 @@ export interface GrupoNavegacao {
   itens: ItemNavegacao[]
 }
 
-/** O app em grupos (menu lateral no iPad/computador; "Mais" no celular). Toda tela tem de estar aqui. */
+/** Todas as telas do app, usadas também no menu "Mais" do celular. */
 export const gruposNavegacao: GrupoNavegacao[] = [
   {
     titulo: 'Visão geral',
@@ -69,6 +69,19 @@ export const gruposNavegacao: GrupoNavegacao[] = [
 
 export const itensNavegacao: ItemNavegacao[] = gruposNavegacao.flatMap((g) => g.itens)
 export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) => i.fixoNoCelular)
+
+/** Acesso rápido no desktop: sem cabeçalhos e sem configurações esporádicas. */
+const caminhosAcessoRapido = ['/', '/lancamentos', '/cartoes', '/orcamentos', '/investimentos', '/analises', '/relatorios', '/calendario']
+export const itensAcessoRapido: ItemNavegacao[] = caminhosAcessoRapido
+  .map((caminho) => itensNavegacao.find((item) => item.caminho === caminho))
+  .filter((item): item is ItemNavegacao => item !== undefined)
+
+/** Destinos secundários exibidos no popover do perfil. */
+export const gruposMenuPerfil: GrupoNavegacao[] = [
+  { titulo: 'Gestão', itens: itensNavegacao.filter((i) => ['/contas', '/categorias', '/recorrentes'].includes(i.caminho)) },
+  { titulo: 'Patrimônio & Conta', itens: itensNavegacao.filter((i) => ['/bens', '/dividas', '/familia'].includes(i.caminho)) },
+  { titulo: 'Sistema', itens: itensNavegacao.filter((i) => i.caminho === '/exportar') },
+]
 
 /** Item ativo para um caminho (uma subtela como `/contas/abc` conta como "Contas"). */
 export function itemAtivo(pathname: string): ItemNavegacao | undefined {
