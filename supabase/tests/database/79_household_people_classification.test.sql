@@ -10,6 +10,19 @@ select has_column('public','debt_installments','is_shared_expense','parcelas do 
 select has_column('public','recurrences','person_id','regras recorrentes recebem classificação individual');
 select has_column('public','recurrences','is_shared_expense','regras recorrentes distinguem despesas compartilhadas');
 
+select ok(exists (select 1 from pg_constraint where conname = 'transactions_person_fk' and contype = 'f'),
+  'transações só referenciam pessoas da mesma família');
+select ok(exists (select 1 from pg_constraint where conname = 'debt_installments_person_fk' and contype = 'f'),
+  'parcelas só referenciam pessoas da mesma família');
+select ok(exists (select 1 from pg_constraint where conname = 'recurrences_person_fk' and contype = 'f'),
+  'recorrências só referenciam pessoas da mesma família');
+select ok(exists (select 1 from pg_constraint where conname = 'transactions_person_scope_check' and contype = 'c'),
+  'transação não mistura pessoa individual e escopo compartilhado');
+select ok(exists (select 1 from pg_constraint where conname = 'debt_installments_person_scope_check' and contype = 'c'),
+  'parcela não mistura pessoa individual e escopo compartilhado');
+select ok(exists (select 1 from pg_constraint where conname = 'recurrences_person_scope_check' and contype = 'c'),
+  'recorrência não mistura pessoa individual e escopo compartilhado');
+
 select has_function('public','card_purchase_at_classified',
   array['uuid','date','numeric','integer','uuid','text','integer','uuid','uuid','boolean'],
   'compra de cartão grava classificação no mesmo commit');
