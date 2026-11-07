@@ -177,8 +177,10 @@ select is((select count(*) from public.investment_assets where household_id=pg_t
 select is((select balance from public.account_balances(pg_temp.fx80('household'),'2026-11-30')
   where account_id=pg_temp.fx80('account')),1000::numeric,
   'saldo volta ao saldo inicial da conta');
+set role service_role;
 select is((select count(*) from public.transactions where household_id=pg_temp.fx80('other_household')),1::bigint,
   'lançamento da outra família permanece intacto');
+reset role;
 select is((public.clear_household_transactions(pg_temp.fx80('household'),'excluir transações')->>'transactions_deleted')::int,
   0, 'repetir a operação numa família vazia não apaga mais nada');
 reset role;
