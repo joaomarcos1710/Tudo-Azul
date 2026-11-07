@@ -18,8 +18,7 @@ import { copiarDoMesAnterior, definirOrcamento, listarOrcamentos, removerOrcamen
 import type { OrcamentoMes } from '../lib/orcamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { BARRA_ORCAMENTO, faixaOrcamento } from '../lib/cores'
-import { IconeCategoria } from '../lib/visualCategoria'
-import { visualDaCategoria } from '../lib/visualCategoria'
+import { IconeCategoria, visualDaCategoria } from '../lib/visualCategoria'
 
 /** Orçamento mensal por categoria principal, com a projeção até o fim do mês (calculada no banco). */
 export default function Orcamentos() {
@@ -138,7 +137,7 @@ export default function Orcamentos() {
             { titulo: 'Gasto', valor: itens.reduce((s, o) => s + o.gasto, 0), cor: 'text-slate-900' },
             { titulo: 'Saldo', valor: itens.reduce((s, o) => s + o.restante, 0), cor: itens.reduce((s, o) => s + o.restante, 0) < 0 ? 'text-prejuizo' : 'text-lucro' },
           ] as const).map((m) => (
-            <Card key={m.titulo} className="min-w-0 border border-slate-100 p-4">
+            <Card key={m.titulo} semPadding className="min-w-0 border border-slate-100 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{m.titulo}</p>
               <p className={`mt-1 truncate text-xl font-semibold tabular-nums ${m.cor}`}>{formatBRL(m.valor as Cents)}</p>
             </Card>
@@ -153,7 +152,7 @@ export default function Orcamentos() {
           const saldoPositivo = o.restante >= 0
           return (
             <li key={o.categoriaId} className="min-w-0">
-              <Card className="h-full border border-slate-100 p-4">
+              <Card semPadding className="h-full border border-slate-100 p-4">
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2.5">
                     <IconeCategoria visual={visual} tamanho="pequeno" />
