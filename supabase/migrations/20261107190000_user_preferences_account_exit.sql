@@ -56,16 +56,18 @@ declare
   v_role text;
   v_successor uuid;
   v_other_members integer;
+  v_has_storage boolean := false;
 begin
   if p_user_id is null then
     raise exception 'Usuário inválido.' using errcode = '22023';
   end if;
 
-  if exists (
-    select 1 from storage.objects o
-    where o.owner = p_user_id or o.owner_id = p_user_id::text
-  ) then
-    raise exception 'Sua conta ainda possui arquivos no armazenamento. Transfira ou remova esses arquivos antes de excluir a conta.';
+  if to_regclass('storage.objects') is not null then
+    execute 'select exists (select 1 from storage.objects where owner = $1 or owner_id = $2)'
+      into v_has_storage using p_user_id, p_user_id::text;
+    if v_has_storage then
+      raise exception 'Sua conta ainda possui arquivos no armazenamento. Transfira ou remova esses arquivos antes de excluir a conta.';
+    end if;
   end if;
 
   select hm.household_id, hm.role into v_household, v_role
