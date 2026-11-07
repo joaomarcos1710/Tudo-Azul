@@ -143,14 +143,24 @@ export async function listarRecorrencias(familiaId: string): Promise<Recorrencia
   const db = cliente()
   const consultar = (colunas: string) => db.from('recurrences').select(colunas)
     .eq('household_id', familiaId).order('active', { ascending: false }).order('day').order('description')
-  let { data, error } = await consultar(
+  type LinhaRecorrenciaDb = {
+    id: string; kind: TipoRecorrencia; description: string; amount: number | string; day: number | null;
+    freq_unit: UnidadeFrequencia; freq_every: number; start_date: string; end_date: string | null;
+    account_id: string | null; destination_account_id: string | null; debt_id: string | null;
+    category_id: string | null; active: boolean; person_id?: string | null; is_shared_expense?: boolean;
+  }
+  let data: LinhaRecorrenciaDb[] | null = null
+  let error: { code?: string; message?: string } | null = null
+  const novo = await consultar(
     'id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active, person_id, is_shared_expense',
   )
+  data = novo.data as unknown as LinhaRecorrenciaDb[] | null
+  error = novo.error
   if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) {
     const antigo = await consultar(
       'id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active',
     )
-    data = antigo.data as typeof data
+    data = antigo.data as unknown as LinhaRecorrenciaDb[] | null
     error = antigo.error
   }
   if (error) throw error
