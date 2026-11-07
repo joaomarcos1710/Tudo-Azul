@@ -176,18 +176,27 @@ export async function listarRecorrencias(familiaId: string): Promise<Recorrencia
 
 export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
   const db = cliente()
-  const { error } = await db.rpc('recurrence_create_classified', {
+  const args = {
     p_kind: d.tipo, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor),
     p_day: d.unidade === 'month' ? d.dia : null, p_start: d.inicio,
     p_account: d.tipo === 'card' ? null : d.contaId,
     p_destination: d.tipo === 'transfer' ? d.destinoId : null,
     p_debt: d.tipo === 'card' ? d.cartaoId : null,
     p_category: d.tipo === 'transfer' ? null : d.categoriaId,
-    p_end: d.fim,
-    p_freq_unit: d.unidade, p_freq_every: d.cada,
+    p_end: d.fim, p_freq_unit: d.unidade, p_freq_every: d.cada,
     p_person_id: d.tipo === 'expense' || d.tipo === 'card' ? d.personId ?? null : null,
     p_is_shared_expense: d.tipo === 'expense' || d.tipo === 'card' ? d.isSharedExpense ?? false : false,
-  })
+  }
+  let { error } = await db.rpc('recurrence_create_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense) {
+    const antigo = await db.rpc('recurrence_create', {
+      p_kind: args.p_kind, p_description: args.p_description, p_amount: args.p_amount,
+      p_day: args.p_day, p_start: args.p_start, p_account: args.p_account, p_destination: args.p_destination,
+      p_debt: args.p_debt, p_category: args.p_category, p_end: args.p_end,
+      p_freq_unit: args.p_freq_unit, p_freq_every: args.p_freq_every,
+    })
+    error = antigo.error
+  }
   if (error) throw error
   // a regra já está gravada: se só a geração falhar, ela roda de novo ao abrir as telas. Lançar erro aqui faria a pessoa reenviar e duplicar a regra.
   await gerarOcorrencias().catch(() => undefined)
