@@ -111,6 +111,10 @@ reset role;
 select pg_temp.login80('00000000-0000-0000-0000-0000000080a2');
 select public.accept_invitation((select v from fixture80_txt where k='invite'));
 reset role;
+select pg_temp.login80('00000000-0000-0000-0000-0000000080a1');
+insert into fixture80 select 'owner_person', id from public.household_people
+where household_id=pg_temp.fx80('household') and user_id='00000000-0000-0000-0000-0000000080a1';
+reset role;
 select pg_temp.login80('00000000-0000-0000-0000-0000000080a3');
 insert into fixture80 select 'other_household', public.create_household('Outra Família');
 with a as (
@@ -231,6 +235,8 @@ select is((select role from public.household_members where user_id='00000000-000
   'owner', 'membro restante assume a titularidade');
 select ok(exists (select 1 from public.households where id=pg_temp.fx80('household')),
   'família continua existindo');
+select is((select user_id from public.household_people where id=pg_temp.fx80('owner_person')),null::uuid,
+  'pessoa financeira do titular permanece e perde somente o vínculo do login');
 select is((select count(*) from public.user_preferences where user_id='00000000-0000-0000-0000-0000000080a1'),
   0::bigint, 'preferências pessoais são removidas junto da conta');
 select is((select count(*) from public.transactions where household_id=pg_temp.fx80('household')),
