@@ -23,6 +23,14 @@ export const CORES = {
   transferencia: { DEFAULT: '#0B1F46', fundo: '#E8ECF4' },
 } as const
 
+/**
+ * Identidade visual (24/10/2026): marinho e celeste da logo. Fica separada de `CORES.transferencia` de propósito:
+ * os dois hoje têm o mesmo marinho, mas a marca pode mudar sem mexer no significado de transferência (#183), e o
+ * contrário também. Os títulos e cabeçalhos usam `text-marinho` (tailwind.config.js lê daqui); a logo (components/layout/Marca.tsx)
+ * usa estes hex. public/favicon.svg tem os mesmos hex escritos à mão: se a marca mudar, mudar lá também.
+ */
+export const MARCA = { marinho: '#0B1F46', celeste: '#48B5FF' } as const
+
 /** Fundos onde o texto aparece: o branco dos cards e o fundo do app (`bg-fundo`). */
 export const FUNDOS = { branco: '#FFFFFF', app: '#F7F9FC' } as const
 

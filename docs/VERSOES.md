@@ -138,3 +138,4 @@ continuam abaixo como histórico.
 
 | 2026.205 | **Gestão de Pessoas da Família.** Cadastro privado de pessoas/pets; classificação de despesas à vista, parcelas de cartão e recorrências; distinção entre pessoa individual, Toda a família e Não classificada; relatório mensal por pessoa. Migrations 078 e 079. O pagamento da fatura continua fora da soma de despesas, pois é baixa de caixa. |
 | 2026.206 | **Orçamentos em grelha.** Resumo de Orçado, Gasto e Saldo em cards; categorias em duas colunas no desktop e uma no mobile, com ícone e cor da categoria, saldo disponível/excedido e barra de progresso. Mantém cálculos, projeções e ações de edição/exclusão existentes. Sem migration.
+| 2026.210 | **Marca separada da transferência.** O marinho da logo, dos títulos e dos cabeçalhos ganha um token próprio (`MARCA` em `src/lib/cores.ts`) e deixa de ser o mesmo token da cor de transferência. Sem mudança visual: os hex são os mesmos. Sem migration.
