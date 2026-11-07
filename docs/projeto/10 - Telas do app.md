@@ -61,3 +61,11 @@ PWA instalável · versão `AAAA.E` · ocultar valores · valores sempre vindos 
 
 
 **Família — Pessoas (PR #205, Fase 1)**: a tela Família ganha o bloco Pessoas da família, separado da lista de usuários e convites. Cadastro e edição em modal claro, com nome, data de nascimento, vínculo e URL HTTPS opcional de imagem; avatar usa iniciais quando não há foto. Pessoas podem ser inativadas e reativadas, nunca apagadas pela interface. O cadastro não cria login, e-mail ou convite. Upload privado de arquivo será tratado em etapa própria.
+
+
+## Relatórios — Gastos por pessoa (PR #205, migration 079)
+
+- Nova aba **Gastos por pessoa**, compartilhando o período selecionado com as demais abas de Relatórios.
+- Barras por pessoa cadastrada, mais os grupos especiais **Toda a família** e **Não classificada**.
+- Despesas à vista são agrupadas pela data do lançamento; despesas de cartão são agrupadas pelos eventos de cobrança/estorno das parcelas vinculados à fatura. Eventos de pagamento da fatura não entram no relatório.
+- O seletor **Despesa de quem?** aparece em despesas à vista, compras no cartão, parcelamentos em conta e regras recorrentes. Pessoas inativas não aparecem em novos lançamentos, mas permanecem disponíveis ao editar registros históricos.
