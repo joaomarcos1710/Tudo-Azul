@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { LinhaAcumulada } from '../components/graficos/LinhaAcumulada'
 import { BarrasCategorias } from '../components/graficos/BarrasCategorias'
 import { BalancoMensal } from '../components/graficos/BalancoMensal'
@@ -46,6 +46,7 @@ import { carregarIndicadores } from '../lib/indicadores'
 import type { Indicadores } from '../lib/indicadores'
 import { FaixaIndicadores } from '../components/ui/FaixaIndicadores'
 import { opcional, registrarFalhaConsulta } from '../lib/consultaOpcional'
+import { SmartTransactionInput } from '../components/SmartTransactionInput'
 
 /**
  * Cada tela carrega só o que mostra. Início: contas, lançamentos e planejados são essenciais (se falharem, a tela
@@ -155,6 +156,7 @@ export type SecaoResumo = 'inicio' | 'analises'
 export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }) {
   const noInicio = secao === 'inicio'
   const { familia } = useFamilia()
+  const navigate = useNavigate()
   const { sessao } = useAuth()
   const familiaId = familia?.id
   const [dados, setDados] = useState<Dados | null>(null)
@@ -295,6 +297,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         ? <CabecalhoInicio nome={nome} receitas={m?.receitas ?? null} despesas={m?.despesas ?? null}
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
         : <CabecalhoPagina titulo="Análises" descricao={`Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />}
+      {noInicio && familiaId && <SmartTransactionInput familiaId={familiaId}
+        onPrefill={(dados) => navigate('/lancamentos', { state: { smartPrefill: dados } })}
+        onFallback={() => navigate('/lancamentos?novo=despesa')} />}
       {/* #188: os 7 indicadores logo abaixo do cabeçalho; substituem os widgets personalizáveis, o card de investimentos e a nota do patrimônio */}
       {noInicio && <FaixaIndicadores dados={dados.indicadores} />}
       {/* receitas e despesas do mês em outras moedas: à parte, nunca somadas aos totais em reais acima */}
