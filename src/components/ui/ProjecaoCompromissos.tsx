@@ -5,6 +5,7 @@ import type { LinhaProjecaoCompromisso } from '../../lib/projecaoCompromissos'
 import { formatMoeda } from '../../lib/format'
 import { mensagemErroBanco } from '../../lib/erros'
 import { registrarFalhaConsulta } from '../../lib/consultaOpcional'
+import { MASCARA, useValoresOcultos } from '../../lib/privacidade'
 
 type Periodo = 3 | 6
 
@@ -44,6 +45,7 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
   const [linhas, setLinhas] = useState<LinhaProjecaoCompromisso[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(false)
+  const valoresOcultos = useValoresOcultos()
 
   useEffect(() => {
     let ativo = true
@@ -162,7 +164,7 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
                     const valor = item.valores.get(mes)
                     return (
                       <td key={mes} className="px-2 py-3 text-right tabular-nums">
-                        {valor ? formatMoeda(valor.valor, item.moeda) : <span className="text-slate-300">-</span>}
+                        {valor ? (valoresOcultos ? MASCARA : formatMoeda(valor.valor, item.moeda)) : <span className="text-slate-300">-</span>}
                       </td>
                     )
                   })}
@@ -179,7 +181,7 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
                     const total = porMes.get(mes)
                     return (
                       <td key={mes} className="px-2 py-3 text-right tabular-nums text-prejuizo">
-                        {formatMoeda(total?.valor ?? (0 as LinhaProjecaoCompromisso['valor']), moeda)}
+                        {valoresOcultos ? MASCARA : formatMoeda(total?.valor ?? (0 as LinhaProjecaoCompromisso['valor']), moeda)}
                       </td>
                     )
                   })}
