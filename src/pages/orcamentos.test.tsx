@@ -30,7 +30,7 @@ const c = (n: number) => n as Cents
 const cat = (id: string, nome: string, extra: Record<string, unknown> = {}) =>
   ({ id, nome, tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false, ...extra })
 const orc = (extra: Record<string, unknown> = {}) => ({
-  categoriaId: 'mercado', nome: 'Mercado', limite: c(100000), gasto: c(30000), previsto: c(20000), ritmo: c(63000),
+  categoriaId: 'mercado', nome: 'Mercado', limite: c(100000), gasto: c(30000), restante: c(70000), previsto: c(20000), ritmo: c(63000),
   projetado: c(113000), sobra: c(-13000), ...extra,
 })
 
@@ -54,8 +54,16 @@ describe('Orçamentos', () => {
   it('mostra limite, gasto e a projeção do banco: vai passar do limite no ritmo atual', async () => {
     render(<Orcamentos />)
     expect(await screen.findByText('Mercado')).toBeTruthy()
-    expect(screen.getByText('Limite R$ 1.000,00')).toBeTruthy()
-    expect(screen.getByText('R$ 300,00')).toBeTruthy()
+    expect(screen.getByTestId('budget-grid').className).toContain('lg:grid-cols-2')
+    expect(screen.getByTestId('budget-grid').className).toContain('grid-cols-1')
+    expect(screen.getByTestId('budget-summary')).toBeTruthy()
+    expect(screen.getByText('Orçado')).toBeTruthy()
+    expect(screen.getByText('Gasto')).toBeTruthy()
+    expect(screen.getByText('Saldo')).toBeTruthy()
+    expect(screen.getByText(/R\$ 300,00 gastos de R\$ 1.000,00/)).toBeTruthy()
+    expect(within(screen.getByTestId('budget-summary')).getByText('R$ 1.000,00')).toBeTruthy()
+    expect(within(screen.getByTestId('budget-summary')).getByText('R$ 300,00')).toBeTruthy()
+    expect(within(screen.getByTestId('budget-summary')).getByText('R$ 700,00')).toBeTruthy()
     expect(screen.getByText(/No ritmo atual vai passar do limite em R\$ 130,00/)).toBeTruthy()
     expect(screen.getByText(/projeção R\$ 1.130,00/)).toBeTruthy()
     expect(screen.getByText(/Gasto R\$ 300,00 \+ previsto R\$ 200,00 \+ ritmo do mês R\$ 630,00/)).toBeTruthy()
