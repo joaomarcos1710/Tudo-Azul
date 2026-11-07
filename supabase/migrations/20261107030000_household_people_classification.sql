@@ -215,7 +215,7 @@ end $$;
 create function public.recurrence_update_classified(
   p_id uuid, p_description text, p_amount numeric, p_category uuid,
   p_person_id uuid default null, p_is_shared_expense boolean default false
-) returns void language plpgsql security definer set search_path = '' as $
+) returns void language plpgsql security definer set search_path = '' as $$
 begin
   perform public.recurrence_update(p_id, p_description, p_amount, p_category);
   perform public.recurrence_set_person(p_id, p_person_id, p_is_shared_expense);
