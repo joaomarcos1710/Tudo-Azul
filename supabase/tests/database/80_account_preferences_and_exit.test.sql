@@ -143,6 +143,12 @@ with tx as (
   returning id
 ) update public.transactions set deleted_at=now() where id=(select id from tx);
 select public.investment_distribution_record(pg_temp.fx80('asset'),'dividend','2026-11-04',3,pg_temp.fx80('account'));
+select is((select balance from public.account_balances_daily(
+  pg_temp.fx80('household'),'2026-11-01','2026-11-01') where balance_date='2026-11-01' and currency_code='BRL'),
+  990::numeric, 'saldo diário considera somente movimentos pagos até a data');
+select is((select balance from public.account_balances_daily(
+  pg_temp.fx80('household'),'2026-11-04','2026-11-04') where balance_date='2026-11-04' and currency_code='BRL'),
+  993::numeric, 'saldo diário inclui provento pago na data e exclui planejados e lixeira');
 reset role;
 
 -- Membro, titular de outra família e frase incorreta não podem apagar.
