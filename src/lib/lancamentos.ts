@@ -21,6 +21,9 @@ export interface Lancamento {
   data: string
   status: StatusLancamento
   notas: string
+  personId: string | null
+  isSharedExpense: boolean
+  recorrenciaId: string | null
   /** Gerado por uma regra recorrente (só leitura: o vínculo é gravado pelo banco). */
   recorrente?: boolean
 }
@@ -65,7 +68,7 @@ export async function listarLancamentos(familiaId: string, mes: string, f: Filtr
   const [de, ate] = limitesDoMes(mes)
   let consulta = cliente()
     .from('transactions')
-    .select('id, type, account_id, destination_account_id, category_id, description, amount, date, status, notes, recurrence_id')
+    .select('id, type, account_id, destination_account_id, category_id, description, amount, date, status, notes, recurrence_id, person_id, is_shared_expense')
     .eq('household_id', familiaId)
     .is('deleted_at', null)
     .gte('date', de)
@@ -87,6 +90,9 @@ export async function listarLancamentos(familiaId: string, mes: string, f: Filtr
     data: t.date,
     status: t.status,
     notas: t.notes ?? '',
+    personId: t.person_id ?? null,
+    isSharedExpense: t.is_shared_expense ?? false,
+    recorrenciaId: t.recurrence_id ?? null,
     recorrente: t.recurrence_id != null,
   }))
 }
@@ -416,6 +422,8 @@ function linha(d: DadosLancamento) {
     date: d.data,
     status: d.status,
     notes: d.notas.trim() || null,
+    person_id: d.tipo === 'expense' ? d.personId : null,
+    is_shared_expense: d.tipo === 'expense' ? d.isSharedExpense : false,
   }
 }
 
@@ -510,15 +518,19 @@ export interface DadosParcelado {
   destinoId: string | null
   categoriaId: string | null
   primeiraPaga: boolean
+  personId: string | null
+  isSharedExpense: boolean
 }
 
 /** Cria as N parcelas de uma vez no banco (todas ou nenhuma); devolve o id do grupo. */
 export async function criarParcelado(d: DadosParcelado): Promise<string> {
-  const { data, error } = await cliente().rpc('transaction_installments_create', {
+  const { data, error } = await cliente().rpc('transaction_installments_create_classified', {
     p_kind: d.tipo, p_description: d.descricao.trim(), p_total: centsToDecimal(d.total), p_count: d.parcelas,
     p_unit: d.unidade, p_every: d.cada, p_first: d.primeira, p_account: d.contaId,
     p_destination: d.tipo === 'transfer' ? d.destinoId : null, p_category: d.tipo === 'transfer' ? null : d.categoriaId,
     p_first_paid: d.primeiraPaga,
+    p_person_id: d.tipo === 'expense' ? d.personId : null,
+    p_is_shared_expense: d.tipo === 'expense' ? d.isSharedExpense : false,
   })
   if (error) throw error
   return data as string
