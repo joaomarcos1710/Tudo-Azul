@@ -144,7 +144,7 @@ describe('Lançamentos no computador: tabela', () => {
     for (const h of within(tabela).getAllByRole('columnheader')) expect(h.getAttribute('scope')).toBe('col')
     // valor com sinal e cor (não só cor); situação com texto acessível
     const linhaLuz = screen.getByText('Luz').closest('tr') as HTMLElement
-    expect(within(linhaLuz).getByText('−R$ 143,20').className).toContain('text-prejuizo')
+    expect(within(linhaLuz).getByText('−R$ 143,20').className).toContain('text-neutro')
     expect(within(linhaLuz).getByText('Vencido')).toBeTruthy() // planejado com data antes de hoje
     expect(within(screen.getByText('Feira').closest('tr') as HTMLElement).getByText('Planejado')).toBeTruthy()
     expect(within(screen.getByText('Supermercado').closest('tr') as HTMLElement).getByText('Pago')).toBeTruthy()
