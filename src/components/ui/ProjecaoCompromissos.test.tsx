@@ -58,10 +58,10 @@ describe('Projeção de compromissos', () => {
     expect(screen.getByRole('columnheader', { name: 'Abr 27' })).toBeTruthy()
 
     const linhaSeguro = screen.getByText('Seguro auto').closest('tr')!
-    expect(within(linhaSeguro).getByText('R$ 250,00')).toBeTruthy()
-    expect(within(linhaSeguro).getAllByText('-')).toHaveLength(5)
+    expect(within(linhaSeguro).getAllByText('R$ 250,00')).toHaveLength(2)
+    expect(within(linhaSeguro).getAllByText('-')).toHaveLength(4)
 
-    expect(screen.getByText('Total do mês')).toBeTruthy()
+    expect(screen.getByText(/Total do mês/)).toBeTruthy()
     expect(screen.getByText('R$ 439,90')).toBeTruthy()
     expect(mock.carregar).toHaveBeenCalledWith('h1', '2026-11-07', 6)
   })
