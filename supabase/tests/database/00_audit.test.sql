@@ -196,10 +196,18 @@ select is(
 
 -- Todas as tabelas de public têm dono = quem roda as migrations (e nenhuma tem FORCE: as RPCs
 -- SECURITY DEFINER dependem de verificações internas, não da RLS)
-select is_empty($$
+select is_empty($
   select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
    where n.nspname = 'public' and c.relkind = 'r' and c.relforcerowsecurity
-$$, 'nenhuma tabela com FORCE ROW LEVEL SECURITY (decisão registrada no plano)');
+$, 'nenhuma tabela com FORCE ROW LEVEL SECURITY (decisão registrada no plano)');
+
+select is_empty($
+  select conrelid::regclass::text, conname
+    from pg_constraint
+   where contype = 'f'
+     and confrelid in ('public.profiles'::regclass, 'auth.users'::regclass)
+     and confdeltype not in ('n', 'c')
+$, 'excluir um perfil não é bloqueado por FKs nem apaga histórico familiar');
 
 select * from finish();
 rollback;
