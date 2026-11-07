@@ -11,7 +11,8 @@ create policy "user_preferences_insert_own" on public.user_preferences for inser
 create policy "user_preferences_update_own" on public.user_preferences for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- O serviço de exclusão chama esta função somente depois de validar o token do usuário.
--- Transfere a titularidade para o membro mais antigo e remove apenas o vínculo do usuário que está saindo.
+-- Transfere a titularidade para o membro mais antigo. O vínculo do usuário sai por ON DELETE CASCADE
+-- somente depois que auth.admin.deleteUser confirmar a exclusão.
 create or replace function public.prepare_account_deletion(p_user_id uuid)
 returns void language plpgsql security definer set search_path = public
 as $$
@@ -33,7 +34,6 @@ begin
     update public.household_members set role = 'owner'
     where household_id = v_household and user_id = v_successor;
   end if;
-  delete from public.household_members where household_id = v_household and user_id = p_user_id;
 end;
 $$;
 revoke all on function public.prepare_account_deletion(uuid) from public, anon, authenticated;
