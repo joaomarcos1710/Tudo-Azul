@@ -183,11 +183,13 @@ select is((public.clear_household_transactions(pg_temp.fx80('household'),'exclui
 reset role;
 
 -- A exclusão do perfil transfere a titularidade e mantém a família e seu histórico.
+select pg_temp.login80('00000000-0000-0000-0000-0000000080a1');
 insert into public.user_preferences (user_id, ordem_lancamentos, periodo_padrao, saldo_diario)
 values ('00000000-0000-0000-0000-0000000080a1','asc','weekly',false);
 select public.investment_distribution_record(
   pg_temp.fx80('asset'),'dividend','2026-11-05',4,pg_temp.fx80('account')
 );
+reset role;
 
 set role service_role;
 insert into fixture80_txt
