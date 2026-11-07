@@ -39,8 +39,8 @@ export async function POST(request: Request): Promise<Response> {
 
     const url = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL
     const chave = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY
-    const chaveOpenAI = process.env.OPENAI_API_KEY
-    if (!url || !chave || !chaveOpenAI) return resposta({ error: 'Serviço não configurado.' }, 503)
+    const chaveOpenRouter = process.env.OPENROUTER_API_KEY
+    if (!url || !chave || !chaveOpenRouter) return resposta({ error: 'Serviço não configurado.' }, 503)
 
     const supabase = createClient(url, chave, {
       global: { headers: { Authorization: `Bearer ${token}` } },
@@ -76,11 +76,20 @@ export async function POST(request: Request): Promise<Response> {
       'Não incluas markdown, explicações ou propriedades adicionais.',
     ].join(' ')
 
-    const openai = new OpenAI({ apiKey: chaveOpenAI, timeout: 9_000, maxRetries: 0 })
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    const openrouter = new OpenAI({
+      apiKey: chaveOpenRouter,
+      baseURL: 'https://openrouter.ai/api/v1',
+      timeout: 9_000,
+      maxRetries: 0,
+      defaultHeaders: {
+        ...(process.env.OPENROUTER_SITE_URL ? { 'HTTP-Referer': process.env.OPENROUTER_SITE_URL } : {}),
+        'X-Title': process.env.OPENROUTER_SITE_NAME ?? 'Tudo Azul',
+      },
+    })
+    const completion = await openrouter.chat.completions.create({
+      model: process.env.OPENROUTER_MODEL ?? 'openai/gpt-4o-mini',
       temperature: 0,
-      max_completion_tokens: 300,
+      max_tokens: 300,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
