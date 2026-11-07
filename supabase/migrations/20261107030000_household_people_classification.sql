@@ -87,6 +87,7 @@ create trigger debt_installments_inherit_person_classification
 create or replace function private.debt_installments_immutable()
 returns trigger language plpgsql security invoker set search_path = '' as $$
 begin
+  -- RPC de classificação: somente person_id/is_shared_expense podem mudar.
   if current_setting('app.person_classification', true) = 'on'
      and (new.id, new.household_id, new.debt_id, new.plan, new.seq, new.due_date, new.face,
           new.category_id, new.category_type, new.created_at, new.description, new.purchase_date,
@@ -97,12 +98,24 @@ begin
           old.closing_day, old.due_day, old.recurrence_id, old.occurrence_date) then
     return new;
   end if;
+  -- Edição financeira autorizada de parcela e ON DELETE SET NULL do vínculo recorrente.
   if current_setting('app.card_edit', true) = 'on'
      and (new.id, new.household_id, new.debt_id, new.plan, new.seq, new.due_date, new.category_id,
           new.category_type, new.created_at, new.description, new.purchase_date, new.closing_day,
-          new.due_day, new.recurrence_id, new.occurrence_date, new.person_id, new.is_shared_expense)
+          new.due_day, new.person_id, new.is_shared_expense)
          is not distinct from
          (old.id, old.household_id, old.debt_id, old.plan, old.seq, old.due_date, old.category_id,
+          old.category_type, old.created_at, old.description, old.purchase_date, old.closing_day,
+          old.due_day, old.person_id, old.is_shared_expense) then
+    return new;
+  end if;
+  -- Sincronização de categoria das parcelas de recorrência (migration 036): somente category_id muda.
+  if current_setting('app.recurrence_category', true) = 'on'
+     and (new.id, new.household_id, new.debt_id, new.plan, new.seq, new.due_date, new.face,
+          new.category_type, new.created_at, new.description, new.purchase_date, new.closing_day,
+          new.due_day, new.recurrence_id, new.occurrence_date, new.person_id, new.is_shared_expense)
+         is not distinct from
+         (old.id, old.household_id, old.debt_id, old.plan, old.seq, old.due_date, old.face,
           old.category_type, old.created_at, old.description, old.purchase_date, old.closing_day,
           old.due_day, old.recurrence_id, old.occurrence_date, old.person_id, old.is_shared_expense) then
     return new;
