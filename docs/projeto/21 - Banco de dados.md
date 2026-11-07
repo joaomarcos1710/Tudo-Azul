@@ -135,3 +135,23 @@ A série numerada chega à **077** (a 077, #202, aplicada em 06/11/2026, execuç
 
 ## Limite de membros
 `households.member_limit` (1 a 10, padrão 2), checado ao convidar, ao aceitar e por gatilho. Alterável só por quem administra o banco. Base para planos futuros ([[30 - Decisões]]).
+
+
+## Pessoas da família (migration 078, PR #205)
+
+- Nova tabela `household_people`, independente de `household_members`: representa pessoas e pets usados para classificação financeira, sem conta de usuário, e-mail, senha ou convite.
+- Campos: `id`, `household_id`, `name`, `photo_url` (URL HTTPS opcional), `birthdate`, `relationship`, `status`, `created_at`, `updated_at`.
+- `relationship` aceita Conhecido, Familiar, Companheiro(a), Pai/Mãe, Filho(a), Irmão/Irmã, Pet e Amigo(a).
+- RLS por `private.is_member(household_id)`; chave única composta `(household_id,id)` prepara referências futuras sem cruzar famílias.
+- Cliente pode selecionar, inserir e atualizar dados descritivos/status, mas não tem privilégio de DELETE. Inativar preserva o cadastro.
+- Esta entrega ainda não adiciona referência de pessoa em transações, parcelas ou recorrências. "Toda a família" continuará sendo um escopo especial, nunca uma linha nesta tabela.
+
+
+## Classificação de despesas por pessoa (migration 079, PR #205)
+
+- `transactions`, `debt_installments` e `recurrences` recebem `person_id` e `is_shared_expense`.
+- FK composta `(household_id, person_id)` para `household_people(household_id,id)`, evitando referência cruzada entre famílias. Exclusão de pessoa limpa somente `person_id` e preserva o lançamento.
+- **Pessoa individual:** `person_id` preenchido e `is_shared_expense=false`. **Toda a família:** `person_id=NULL` e `is_shared_expense=true`. **Não classificada:** ambos nulos/falso.
+- Recorrências propagam a classificação no INSERT de transações e parcelas de cartão. RPCs específicas gravam classificação na mesma transação da criação do cartão/parcelamento/recorrência.
+- Parcelas de cartão continuam ligadas às faturas por `debt_events.installment_id` e `invoice_id`. `monthly_expenses_by_person` soma transações à vista e eventos `charge`/`credit` ligados a fatura; eventos `payment` e `extra_principal` são excluídos por serem baixa de caixa, não despesa.
+- A trigger de imutabilidade de `debt_installments` permite alteração exclusiva dos campos analíticos apenas dentro da RPC controlada; valores, datas, sequência e eventos financeiros permanecem protegidos.

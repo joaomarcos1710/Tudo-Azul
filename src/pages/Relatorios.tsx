@@ -2,15 +2,17 @@ import { useId, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { EntradasSaidas } from '../components/EntradasSaidas'
 import { RelatorioContas } from '../components/RelatorioContas'
+import { RelatorioPessoas } from '../components/RelatorioPessoas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { hojeSP } from '../lib/contas'
 import { periodoDoMes } from '../lib/periodoRelatorio'
 import type { Periodo } from '../lib/periodoRelatorio'
 
-type Aba = 'entradas-saidas' | 'contas'
+type Aba = 'entradas-saidas' | 'contas' | 'pessoas'
 const ABAS: { chave: Aba; rotulo: string }[] = [
   { chave: 'entradas-saidas', rotulo: 'Entradas x Saídas' },
   { chave: 'contas', rotulo: 'Contas' },
+  { chave: 'pessoas', rotulo: 'Gastos por pessoa' },
 ]
 
 /**
@@ -57,7 +59,9 @@ export default function Relatorios() {
       <div role="tabpanel" id={idPainel} aria-labelledby={idAba(aba)}>
         {aba === 'entradas-saidas'
           ? <EntradasSaidas periodo={periodo} aoMudarPeriodo={setPeriodo} />
-          : <RelatorioContas periodo={periodo} aoMudarPeriodo={setPeriodo} />}
+          : aba === 'contas'
+            ? <RelatorioContas periodo={periodo} aoMudarPeriodo={setPeriodo} />
+            : <RelatorioPessoas periodo={periodo} aoMudarPeriodo={setPeriodo} />}
       </div>
     </>
   )

@@ -158,7 +158,7 @@ describe('Recorrentes', () => {
     await u.clear(valor)
     await u.type(valor, '200,00')
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(mock.editarRecorrencia).toHaveBeenCalledWith('r1', { descricao: 'Luz', valor: 20000, categoriaId: 'g1' })
+    expect(mock.editarRecorrencia).toHaveBeenCalledWith('r1', { descricao: 'Luz', valor: 20000, categoriaId: 'g1', personId: null, isSharedExpense: false })
   })
 
   it('excluir pede confirmação e só então exclui; recusar a confirmação não faz nada', async () => {

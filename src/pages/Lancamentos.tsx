@@ -39,8 +39,11 @@ import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { ComprasDaFatura, NomeCategoria, TabelaLancamentos, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, useTelaGrande, valorComSinal } from './LancamentosTabela'
 import type { ItemLista } from './LancamentosTabela'
-import { criarRecorrencia, frequencias } from '../lib/recorrencias'
+import { criarRecorrencia, definirPessoaRecorrencia, frequencias } from '../lib/recorrencias'
 import { SELO, corDoValor } from '../lib/cores'
+import { PessoaSelectField } from '../components/PessoaSelectField'
+import { listarPessoasFamilia } from '../lib/pessoasFamilia'
+import type { PessoaFamilia } from '../lib/pessoasFamilia'
 
 const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
 const totalRotulo = 'shrink-0 text-sm text-slate-500'
@@ -711,6 +714,10 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const [status, setStatus] = useState<StatusLancamento | null>(l?.status ?? null)
   const statusEfetivo: StatusLancamento = status ?? (data > hoje ? 'planned' : 'paid')
   const [notas, setNotas] = useState(l?.notas ?? '')
+  const [pessoas, setPessoas] = useState<PessoaFamilia[]>([])
+  const [personId, setPersonId] = useState<string | null>(l?.personId ?? null)
+  const [isSharedExpense, setIsSharedExpense] = useState(l?.isSharedExpense ?? false)
+  useEffect(() => { void listarPessoasFamilia(familiaId).then(setPessoas).catch(() => setPessoas([])) }, [familiaId])
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -770,7 +777,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   /** Depois de gravar: fecha o formulário, ou (em "Registrar e lançar outro") limpa valor, descrição e categoria e continua aberto. */
   async function concluir(mensagem: string) {
     if (!outroRef.current || l) { await aoSalvar(); return }
-    setValorTexto(''); setDescricao(''); setCategoriaId(''); setNotas(''); setParcelasTexto('1'); setStatus(null)
+    setValorTexto(''); setDescricao(''); setCategoriaId(''); setNotas(''); setParcelasTexto('1'); setStatus(null); setPersonId(null); setIsSharedExpense(false)
     setTentou(false); chaveRef.current = null
     setRegistrado(mensagem)
     await aoRegistrarOutro()
@@ -789,7 +796,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         // mesma chave só para o mesmo conteúdo reenviado; se algo mudou, é outra compra (evita gravar um valor diferente do mostrado)
         const sig = JSON.stringify([cartaoId, descricao.trim(), data, valor, parcelas, categoriaId])
         if (chaveRef.current?.sig !== sig) chaveRef.current = { sig, chave: novaChave() }
-        await registrarCompra(cartaoId, { descricao: descricao.trim(), data, total: valor as Cents, parcelas, categoriaId }, chaveRef.current.chave)
+        await registrarCompra(cartaoId, { descricao: descricao.trim(), data, total: valor as Cents, parcelas, categoriaId, personId, isSharedExpense }, chaveRef.current.chave)
         lembrarEscolha(familiaId, 'cartao', cartaoId)
         await concluir('Compra registrada.')
         return
@@ -799,7 +806,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         await criarParcelado({
           tipo, descricao, total: valor as Cents, parcelas: nParcelas, unidade: p.unidade, cada: p.cada, primeira: data,
           contaId, destinoId: transferencia ? destinoId : null, categoriaId: transferencia ? null : categoriaId,
-          primeiraPaga: statusEfetivo === 'paid',
+          primeiraPaga: statusEfetivo === 'paid', personId: tipo === 'expense' ? personId : null,
+          isSharedExpense: tipo === 'expense' ? isSharedExpense : false,
         })
         lembrarEscolha(familiaId, 'conta', contaId)
         setRepetir(false); setNParcelasTexto('2')
@@ -812,6 +820,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
           tipo, descricao: descricao.trim(), valor: valor as Cents, dia: f.unidade === 'month' ? Number(data.slice(8, 10)) : null,
           unidade: f.unidade, cada: f.cada, inicio: data, fim: repetirAte || null,
           contaId, destinoId: transferencia ? destinoId : null, cartaoId: null, categoriaId: transferencia ? null : categoriaId,
+          personId: tipo === 'expense' ? personId : null, isSharedExpense: tipo === 'expense' ? isSharedExpense : false,
         })
         lembrarEscolha(familiaId, 'conta', contaId)
         setRepetir(false); setRepetirAte('')
@@ -821,6 +830,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
       const dados: DadosLancamento = {
         tipo, contaId, destinoId: transferencia ? destinoId : null, categoriaId: transferencia ? null : categoriaId,
         descricao, valor: valor as Cents, data, status: statusEfetivo, notas,
+        personId: tipo === 'expense' ? personId : null, isSharedExpense: tipo === 'expense' ? isSharedExpense : false,
       }
       if (l && perguntaSeRepete(l, dados)) { setPergunta(dados); return }
       if (l) await editarLancamento(l.id, dados)
@@ -842,8 +852,10 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     setErro('')
     setEnviando(true)
     try {
-      if (escolha === 'proximos') await editarEsteEProximos(l.id, dados)
-      else await editarLancamento(l.id, dados)
+      if (escolha === 'proximos') {
+        await editarEsteEProximos(l.id, dados)
+        if (l.recorrenciaId) await definirPessoaRecorrencia(l.recorrenciaId, dados.tipo === 'expense' ? dados.personId ?? null : null, dados.tipo === 'expense' ? dados.isSharedExpense ?? false : false)
+      } else await editarLancamento(l.id, dados)
       await concluir(`${rotuloTipo[dados.tipo]} registrada.`)
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -958,6 +970,12 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
                 {opcoesDeCategoria(categoriasDoTipo, categorias).map((o) => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
               </select>{seta}
             </Linha>
+          )}
+          {!transferencia && tipo === 'expense' && (
+            <div className="px-3 py-3">
+              <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
+                onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
+            </div>
           )}
         </div>
         {tentou && (erros.data || erros.conta || erros.cartao || erros.parcelas || erros.destino || erros.categoria || erros.repetir) && (

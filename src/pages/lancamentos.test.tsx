@@ -212,7 +212,7 @@ describe('Lançamentos', () => {
     await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', {
       tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'mer', descricao: 'Feira',
-      valor: 123456, data: hojeSP(), status: 'paid', notas: '',
+      valor: 123456, data: hojeSP(), status: 'paid', notas: '', personId: null, isSharedExpense: false,
     })
   })
 

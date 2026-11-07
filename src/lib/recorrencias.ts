@@ -49,6 +49,8 @@ export interface Recorrencia {
   cartaoId: string | null
   categoriaId: string | null
   ativa: boolean
+  personId?: string | null
+  isSharedExpense?: boolean
 }
 
 export type DadosRecorrencia = Omit<Recorrencia, 'id' | 'ativa'>
@@ -138,13 +140,29 @@ function cliente() {
 }
 
 export async function listarRecorrencias(familiaId: string): Promise<Recorrencia[]> {
-  const { data, error } = await cliente()
-    .from('recurrences')
-    .select('id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active')
-    .eq('household_id', familiaId)
-    .order('active', { ascending: false })
-    .order('day')
-    .order('description')
+  const db = cliente()
+  const consultar = (colunas: string) => db.from('recurrences').select(colunas)
+    .eq('household_id', familiaId).order('active', { ascending: false }).order('day').order('description')
+  type LinhaRecorrenciaDb = {
+    id: string; kind: TipoRecorrencia; description: string; amount: number | string; day: number | null;
+    freq_unit: UnidadeFrequencia; freq_every: number; start_date: string; end_date: string | null;
+    account_id: string | null; destination_account_id: string | null; debt_id: string | null;
+    category_id: string | null; active: boolean; person_id?: string | null; is_shared_expense?: boolean;
+  }
+  let data: LinhaRecorrenciaDb[] | null = null
+  let error: { code?: string; message?: string } | null = null
+  const novo = await consultar(
+    'id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active, person_id, is_shared_expense',
+  )
+  data = novo.data as unknown as LinhaRecorrenciaDb[] | null
+  error = novo.error
+  if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) {
+    const antigo = await consultar(
+      'id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active',
+    )
+    data = antigo.data as unknown as LinhaRecorrenciaDb[] | null
+    error = antigo.error
+  }
   if (error) throw error
   return (data ?? []).map((r) => ({
     id: r.id,
@@ -161,21 +179,34 @@ export async function listarRecorrencias(familiaId: string): Promise<Recorrencia
     cartaoId: r.debt_id,
     categoriaId: r.category_id,
     ativa: r.active,
+    personId: r.person_id ?? null,
+    isSharedExpense: r.is_shared_expense ?? false,
   }))
 }
 
 export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
   const db = cliente()
-  const { error } = await db.rpc('recurrence_create', {
+  const args = {
     p_kind: d.tipo, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor),
     p_day: d.unidade === 'month' ? d.dia : null, p_start: d.inicio,
     p_account: d.tipo === 'card' ? null : d.contaId,
     p_destination: d.tipo === 'transfer' ? d.destinoId : null,
     p_debt: d.tipo === 'card' ? d.cartaoId : null,
     p_category: d.tipo === 'transfer' ? null : d.categoriaId,
-    p_end: d.fim,
-    p_freq_unit: d.unidade, p_freq_every: d.cada,
-  })
+    p_end: d.fim, p_freq_unit: d.unidade, p_freq_every: d.cada,
+    p_person_id: d.tipo === 'expense' || d.tipo === 'card' ? d.personId ?? null : null,
+    p_is_shared_expense: d.tipo === 'expense' || d.tipo === 'card' ? d.isSharedExpense ?? false : false,
+  }
+  let { error } = await db.rpc('recurrence_create_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense) {
+    const antigo = await db.rpc('recurrence_create', {
+      p_kind: args.p_kind, p_description: args.p_description, p_amount: args.p_amount,
+      p_day: args.p_day, p_start: args.p_start, p_account: args.p_account, p_destination: args.p_destination,
+      p_debt: args.p_debt, p_category: args.p_category, p_end: args.p_end,
+      p_freq_unit: args.p_freq_unit, p_freq_every: args.p_freq_every,
+    })
+    error = antigo.error
+  }
   if (error) throw error
   // a regra já está gravada: se só a geração falhar, ela roda de novo ao abrir as telas. Lançar erro aqui faria a pessoa reenviar e duplicar a regra.
   await gerarOcorrencias().catch(() => undefined)
@@ -186,10 +217,26 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
  * todas as ocorrências (pagas, passadas e parcelas de cartão também). Campo a campo, sem desfazer o que foi corrigido à mão
  * (migrations 015 e 036).
  */
-export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null }): Promise<void> {
-  const { error } = await cliente().rpc('recurrence_update', {
+export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null; personId?: string | null; isSharedExpense?: boolean }): Promise<void> {
+  const args = {
     p_id: id, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor), p_category: d.categoriaId,
+    p_person_id: d.personId ?? null, p_is_shared_expense: d.isSharedExpense ?? false,
+  }
+  let { error } = await cliente().rpc('recurrence_update_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense) {
+    const antigo = await cliente().rpc('recurrence_update', {
+      p_id: id, p_description: args.p_description, p_amount: args.p_amount, p_category: args.p_category,
+    })
+    error = antigo.error
+  }
+  if (error) throw error
+}
+
+export async function definirPessoaRecorrencia(id: string, personId: string | null, isSharedExpense: boolean): Promise<void> {
+  const { error } = await cliente().rpc('recurrence_set_person', {
+    p_id: id, p_person_id: personId, p_is_shared_expense: isSharedExpense,
   })
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !personId && !isSharedExpense) return
   if (error) throw error
 }
 

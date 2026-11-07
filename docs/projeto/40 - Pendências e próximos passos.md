@@ -407,3 +407,11 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] **Excluir ativo com histórico** (migration 050, #151). Falta aplicar a 050 em produção.
 - [ ] **Categoria: excluir e migrar** no lugar de desativar (escolher a categoria destino; lançamentos, recorrentes e orçamentos vão juntos).
 - [ ] **Importar o histórico do Organizze** a partir do arquivo exportado (.xls).
+
+
+## Gestão de pessoas da família (PR #205)
+
+- [x] **Fase 1 na PR #205:** cadastro isolado de pessoas e pets em `household_people`, RLS por família, edição e inativação sem hard delete.
+- [ ] **Fase 2:** classificar despesas de conta, compras/parcelas de cartão e recorrências. Distinguir `person`, `shared` ("Toda a família") e `unassigned` (ainda sem classificação). Preservar triggers de imutabilidade e os cálculos financeiros.
+- [ ] **Fase 3:** filtros por pessoa e agregação mensal por pessoa/escopo, sem contar pagamento de fatura como uma segunda despesa.
+- [ ] Upload privado de foto com política de Storage por família; nesta primeira tela a foto pode ser informada por URL HTTPS e o avatar usa iniciais por padrão.
