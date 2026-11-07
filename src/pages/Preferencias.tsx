@@ -141,7 +141,7 @@ export default function Preferencias() {
         <div className="flex flex-col justify-between gap-3 py-4 sm:flex-row sm:items-center">
           <div>
             <h3 className="font-medium">Começar do zero</h3>
-            <p className="mt-1 text-sm text-slate-500">Apaga os lançamentos de toda a família, inclusive os planejados e da lixeira. Mantém contas, categorias, cartões, dívidas, recorrências, investimentos e bens. Proventos vinculados a lançamentos também são removidos.</p>
+            <p className="mt-1 text-sm text-slate-500">Apaga os lançamentos de toda a família, inclusive os planejados e da lixeira. Preserva contas, categorias, cartões, contratos e pagamentos de dívidas, recorrências, operações de investimento e bens. Proventos vinculados a lançamentos também são removidos.</p>
           </div>
           <Button variante="perigoTexto" disabled={!ehTitular} title={!ehTitular ? 'Somente o titular da família pode executar esta ação.' : undefined} onClick={() => { setErroExclusao(''); setFraseTransacoes(''); setModalTransacoes(true) }}>Excluir minhas transações</Button>
         </div>
@@ -157,7 +157,7 @@ export default function Preferencias() {
         <div className="mb-3 flex justify-end"><button type="button" aria-label="Fechar" disabled={excluindo} onClick={() => setModalTransacoes(false)} className="flex h-10 w-10 items-center justify-center rounded-lg text-2xl text-slate-500 hover:bg-slate-100">×</button></div>
         <div className="mb-4 rounded-lg border-l-4 border-negativo bg-negativo-fundo p-3 text-sm text-negativo">A exclusão é definitiva. Todos os lançamentos da família serão removidos, inclusive os planejados e os que estão na lixeira.</div>
         <h2 id="titulo-limpar-transacoes" className="text-xl font-bold text-marinho">Começar do zero</h2>
-        <p className="mt-2 text-sm text-slate-600">Contas, categorias, cartões, dívidas, recorrências, investimentos e bens serão preservados. Proventos vinculados a lançamentos também serão excluídos.</p>
+        <p className="mt-2 text-sm text-slate-600">Contas, categorias, cartões, contratos e pagamentos de dívidas, recorrências, operações de investimento e bens serão preservados. Proventos vinculados a lançamentos também serão excluídos.</p>
         <label className="mt-5 block text-sm font-medium text-slate-700" htmlFor="confirmar-transacoes">Para confirmar, escreva <strong>{FRASE_EXCLUIR}</strong>.</label>
         <input id="confirmar-transacoes" autoComplete="off" value={fraseTransacoes} onChange={e => setFraseTransacoes(e.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-slate-300 px-3 focus:border-azul focus:outline-none focus:ring-2 focus:ring-azul/20" />
         {erroExclusao && <div className="mt-4"><Aviso tipo="erro">{erroExclusao}</Aviso></div>}
