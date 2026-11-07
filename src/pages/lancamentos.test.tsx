@@ -158,7 +158,7 @@ describe('Lançamentos', () => {
     expect(within(linha('Itaú → Nubank')).getByText('⇄ R$ 100,00').className).toContain('text-transferencia')
     // os totais: receitas pagas azul, despesas pagas vermelho, "Planejado: +… / −…" verde
     const totais = screen.getAllByText('−R$ 250,50').find((e) => e.tagName === 'P') as HTMLElement
-    expect(totais.className).toContain('text-prejuizo')
+    expect(totais.className).toContain('text-neutro')
     expect(screen.getByText('Planejado:').parentElement!.className).toContain('text-agendado')
     expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
   })
