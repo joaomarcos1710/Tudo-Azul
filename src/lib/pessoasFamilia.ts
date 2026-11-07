@@ -11,6 +11,7 @@ export type VinculoPessoa = typeof VINCULOS_PESSOA[number]
 
 export interface PessoaFamilia {
   id: string
+  userId: string | null
   familiaId: string
   nome: string
   fotoUrl: string | null
@@ -30,6 +31,7 @@ export interface DadosPessoaFamilia {
 
 interface LinhaPessoa {
   id: string
+  user_id: string | null
   household_id: string
   name: string
   photo_url: string | null
@@ -40,7 +42,7 @@ interface LinhaPessoa {
   updated_at: string
 }
 
-const COLUNAS = 'id, household_id, name, photo_url, birthdate, relationship, status, created_at, updated_at'
+const COLUNAS = 'id, user_id, household_id, name, photo_url, birthdate, relationship, status, created_at, updated_at'
 
 function cliente() {
   if (!supabase) throw new Error('Supabase não configurado')
@@ -49,7 +51,7 @@ function cliente() {
 
 function mapear(p: LinhaPessoa): PessoaFamilia {
   return {
-    id: p.id, familiaId: p.household_id, nome: p.name, fotoUrl: p.photo_url,
+    id: p.id, userId: p.user_id, familiaId: p.household_id, nome: p.name, fotoUrl: p.photo_url,
     nascimento: p.birthdate, vinculo: p.relationship, ativo: p.status,
     criadaEm: p.created_at, atualizadaEm: p.updated_at,
   }

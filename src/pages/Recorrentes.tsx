@@ -29,6 +29,7 @@ import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
+import { useAuth } from '../lib/auth'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 
 const dias: [string, string][] = Array.from({ length: 31 }, (_, i) => [String(i + 1), `Dia ${i + 1}`])
@@ -393,6 +394,7 @@ interface PropsForm {
 }
 
 function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas, aoSalvar, aoCancelar }: PropsForm) {
+  const { sessao } = useAuth()
   const editando = r !== null
   // multimoeda F2: receita, despesa e transferência em qualquer moeda; o destino da transferência só na moeda da origem
   const contasAtivas = contas.filter((c) => c.ativa && aceitaLancamento(c, 'lancamento'))
@@ -413,6 +415,12 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
   const [categoriaId, setCategoriaId] = useState(r?.categoriaId ?? '')
   const [personId, setPersonId] = useState<string | null>(r?.personId ?? null)
   const [isSharedExpense, setIsSharedExpense] = useState(r?.isSharedExpense ?? false)
+  const pessoaEscolhidaManualmente = useRef(false)
+  useEffect(() => {
+    if (editando || pessoaEscolhidaManualmente.current || !sessao?.user.id) return
+    const propria = pessoas.find((pessoa) => pessoa.userId === sessao.user.id && pessoa.ativo)
+    if (propria) setPersonId((atual) => atual ?? propria.id)
+  }, [editando, pessoas, sessao?.user.id])
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -550,7 +558,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
         )}
         {(tipo === 'expense' || tipo === 'card') && (
           <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
-            onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
+            onChange={(value) => { pessoaEscolhidaManualmente.current = true; setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando
