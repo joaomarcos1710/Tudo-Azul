@@ -7,6 +7,7 @@ import { BalancoMensal } from '../components/graficos/BalancoMensal'
 import type { MesBalanco } from '../components/graficos/BalancoMensal'
 import { Aviso } from '../components/ui/Aviso'
 import { Card, CardTitle } from '../components/ui/Card'
+import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
 import { BandeiraCartao, IconeConta, IconeEmissor } from '../components/ui/IconeConta'
 import { useAuth } from '../lib/auth'
 import { useFamilia } from '../lib/FamiliaContext'
@@ -396,6 +397,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
 
       {noInicio && dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
+      {noInicio && familiaId && <ProjecaoCompromissos familiaId={familiaId} hoje={hoje} />}
 
       {!noInicio && <>
       {(m || p) ? (
