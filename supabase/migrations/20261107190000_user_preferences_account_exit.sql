@@ -99,6 +99,10 @@ begin
     where hm.household_id = v_household and hm.user_id <> p_user_id
     for update;
 
+    -- O trigger de integridade é deferred: transfere sem deixar dois titulares.
+    update public.household_members
+    set role = 'member'
+    where household_id = v_household and user_id = p_user_id;
     update public.household_members
     set role = 'owner'
     where household_id = v_household and user_id = v_successor;
