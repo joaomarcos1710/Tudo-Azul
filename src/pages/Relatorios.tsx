@@ -1,12 +1,12 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 import { EntradasSaidas } from '../components/EntradasSaidas'
 import { RelatorioContas } from '../components/RelatorioContas'
 import { RelatorioPessoas } from '../components/RelatorioPessoas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { hojeSP } from '../lib/contas'
-import { periodoDoMes } from '../lib/periodoRelatorio'
-import type { Periodo } from '../lib/periodoRelatorio'
+import { ATALHOS, periodoDoMes } from '../lib/periodoRelatorio'
+import type { Periodo } from '../lib/periodoRelatorio'\nimport { useAuth } from '../lib/auth'\nimport { supabase } from '../lib/supabase'
 
 type Aba = 'entradas-saidas' | 'contas' | 'pessoas'
 const ABAS: { chave: Aba; rotulo: string }[] = [
@@ -20,7 +20,22 @@ const ABAS: { chave: Aba; rotulo: string }[] = [
  * período escolhido). Só a aba aberta fica montada e consulta o banco. A exportação foi para Conta › Exportar dados.
  */
 export default function Relatorios() {
+  const { sessao } = useAuth()
   const [periodo, setPeriodo] = useState<Periodo>(() => periodoDoMes(hojeSP().slice(0, 7)))
+
+  useEffect(() => {
+    let ativo = true
+    if (!supabase || !sessao?.user.id) return
+    void supabase.from('user_preferences').select('periodo_padrao').eq('user_id', sessao.user.id).maybeSingle()
+      .then(({ data }) => {
+        if (!ativo || !data?.periodo_padrao) return
+        const hoje = hojeSP()
+        const atalho = data.periodo_padrao === 'daily' ? ATALHOS[0]
+          : data.periodo_padrao === 'weekly' ? ATALHOS[1] : ATALHOS[2]
+        setPeriodo(atalho.criar(hoje))
+      })
+    return () => { ativo = false }
+  }, [sessao?.user.id])
   const [aba, setAba] = useState<Aba>('entradas-saidas')
   const id = useId()
   const lista = useRef<HTMLDivElement>(null)
