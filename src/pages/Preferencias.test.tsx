@@ -80,7 +80,7 @@ describe('Preferências', () => {
     expect(caixas).toHaveLength(2)
     expect((continuar as HTMLButtonElement).disabled).toBe(true)
     await u.click(caixas[0])
-    expect(continuar).toBeDisabled()
+    expect((continuar as HTMLButtonElement).disabled).toBe(true)
     await u.click(caixas[1])
     expect((continuar as HTMLButtonElement).disabled).toBe(false)
   })
