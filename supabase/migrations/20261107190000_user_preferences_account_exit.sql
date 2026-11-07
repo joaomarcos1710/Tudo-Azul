@@ -135,6 +135,35 @@ $$;
 revoke all on function public.rollback_account_deletion(jsonb) from public, anon, authenticated;
 grant execute on function public.rollback_account_deletion(jsonb) to service_role;
 
+
+
+-- Série de saldos de fechamento por dia, usando a mesma fonte oficial de saldo das contas.
+-- Não converte moedas: devolve um total separado para cada moeda em cada data.
+create or replace function public.account_balances_daily(p_household uuid, p_from date, p_to date)
+returns table(balance_date date, currency_code text, balance numeric)
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $
+begin
+  if p_household is null or p_from is null or p_to is null or p_to < p_from or (p_to - p_from) > 366 then
+    raise exception 'Informe um intervalo válido de até 367 dias.' using errcode = '22023';
+  end if;
+  if not private.is_member(p_household) then
+    raise exception 'Você não participa desta família.' using errcode = '42501';
+  end if;
+  return query
+  select dias.dia::date, b.currency_code, sum(b.balance)::numeric
+  from generate_series(p_from::timestamp, p_to::timestamp, interval '1 day') as dias(dia)
+  cross join lateral public.account_balances(p_household, dias.dia::date) b
+  group by dias.dia::date, b.currency_code
+  order by dias.dia::date, b.currency_code;
+end;
+$;
+revoke all on function public.account_balances_daily(uuid, date, date) from public, anon;
+grant execute on function public.account_balances_daily(uuid, date, date) to authenticated;
+
 -- Limpa somente os lançamentos da família. Contas, categorias, cartões, contratos,
 -- recorrências, investimentos e bens ficam. Proventos ligados a um lançamento são
 -- dependentes desse lançamento e seguem a FK ON DELETE CASCADE existente.
