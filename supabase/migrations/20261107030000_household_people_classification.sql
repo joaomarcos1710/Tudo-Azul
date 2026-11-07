@@ -49,9 +49,9 @@ begin
   end if;
   if p_person is not null and not exists (
     select 1 from public.household_people hp
-     where hp.household_id = p_household and hp.id = p_person and hp.status
+     where hp.household_id = p_household and hp.id = p_person
   ) then
-    raise exception 'pessoa não encontrada, inativa ou de outra família' using errcode = '23514';
+    raise exception 'pessoa não encontrada ou de outra família' using errcode = '23514';
   end if;
 end $$;
 revoke execute on function private.validate_person_scope(uuid, uuid, boolean) from public, anon, authenticated;
