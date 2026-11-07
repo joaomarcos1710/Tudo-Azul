@@ -57,13 +57,13 @@ with x as (
   returning id
 )
 insert into fixture select 'avulsa', id from x;
-insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status)
+insert into public.transactions (household_id, account_id, destination_account_id, category_id, type, description, amount, date, status)
 values
-  (pg_temp.fx('h1'), pg_temp.fx('brl'), pg_temp.fx('income'), 'income',
+  (pg_temp.fx('h1'), pg_temp.fx('brl'), null, pg_temp.fx('income'), 'income',
    'Receita futura', 900, pg_temp.amanha() + 3, 'planned'),
-  (pg_temp.fx('h1'), pg_temp.fx('brl'), null, 'transfer',
+  (pg_temp.fx('h1'), pg_temp.fx('brl'), pg_temp.fx('usd'), null, 'transfer',
    'Transferência futura', 400, pg_temp.amanha() + 4, 'planned'),
-  (pg_temp.fx('h1'), pg_temp.fx('usd'), pg_temp.fx('expense'), 'expense',
+  (pg_temp.fx('h1'), pg_temp.fx('usd'), null, pg_temp.fx('expense'), 'expense',
    'Despesa em dólar', 40, pg_temp.amanha() + 5, 'planned');
 with x as (
   insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status)
