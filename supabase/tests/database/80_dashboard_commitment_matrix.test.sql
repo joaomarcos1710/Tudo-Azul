@@ -73,7 +73,7 @@ with x as (
           'Despesa excluída', 999, pg_temp.amanha() + 6, 'planned')
   returning id
 )
-update public.transactions t set deleted_at = now() from x where t.id = x.id;
+select public.transactions_bulk_trash(array(select id from x));
 
 -- Parcelamento comum: a matriz agrupa as parcelas da mesma compra numa única linha.
 select public.transaction_installments_create(
