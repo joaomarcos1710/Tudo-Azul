@@ -182,5 +182,51 @@ select is((public.clear_household_transactions(pg_temp.fx80('household'),'exclui
   0, 'repetir a operação numa família vazia não apaga mais nada');
 reset role;
 
+-- A exclusão do perfil transfere a titularidade e mantém a família e seu histórico.
+insert into public.user_preferences (user_id, ordem_lancamentos, periodo_padrao, saldo_diario)
+values ('00000000-0000-0000-0000-0000000080a1','asc','weekly',false);
+select public.investment_distribution_record(
+  pg_temp.fx80('asset'),'dividend','2026-11-05',4,pg_temp.fx80('account')
+);
+
+set role service_role;
+insert into fixture80_txt
+select 'state_rollback',
+  (public.prepare_account_deletion('00000000-0000-0000-0000-0000000080a1')
+    || jsonb_build_object('user_id','00000000-0000-0000-0000-0000000080a1'))::text;
+select public.rollback_account_deletion((select v::jsonb from fixture80_txt where k='state_rollback'));
+reset role;
+select is((select role from public.household_members where user_id='00000000-0000-0000-0000-0000000080a1'),
+  'owner', 'rollback restaura o titular original');
+select is((select role from public.household_members where user_id='00000000-0000-0000-0000-0000000080a2'),
+  'member', 'rollback devolve o sucessor ao papel de membro');
+
+set role service_role;
+select public.prepare_account_deletion('00000000-0000-0000-0000-0000000080a1');
+reset role;
+delete from auth.users where id='00000000-0000-0000-0000-0000000080a1';
+
+select ok(not exists (select 1 from public.profiles where id='00000000-0000-0000-0000-0000000080a1'),
+  'perfil do usuário excluído é removido');
+select is((select role from public.household_members where user_id='00000000-0000-0000-0000-0000000080a2'),
+  'owner', 'membro restante assume a titularidade');
+select ok(exists (select 1 from public.households where id=pg_temp.fx80('household')),
+  'família continua existindo');
+select is((select count(*) from public.user_preferences where user_id='00000000-0000-0000-0000-0000000080a1'),
+  0::bigint, 'preferências pessoais são removidas junto da conta');
+select is((select count(*) from public.transactions where household_id=pg_temp.fx80('household')),
+  1::bigint, 'lançamento familiar posterior à limpeza permanece');
+select is((select count(*) from public.investment_distributions where household_id=pg_temp.fx80('household')),
+  1::bigint, 'provento familiar permanece após excluir o perfil');
+select ok((select created_by is null from public.investment_distributions where household_id=pg_temp.fx80('household')),
+  'autoria pessoal do provento é anonimizada');
+select is((select balance from public.account_balances(pg_temp.fx80('household'),'2026-11-30')
+  where account_id=pg_temp.fx80('account')),1004::numeric,
+  'saldo e histórico financeiro da família permanecem após excluir o titular');
+select is((select count(*) from public.accounts where household_id=pg_temp.fx80('household')),
+  1::bigint, 'conta da família permanece após excluir o titular');
+select is((select count(*) from public.investment_assets where household_id=pg_temp.fx80('household')),
+  1::bigint, 'ativo de investimento permanece após excluir o titular');
+
 select * from finish();
 rollback;
