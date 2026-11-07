@@ -7,7 +7,7 @@ atualizado: 2026-11-06
 ## Atualização da auditoria — 07/11/2026
 
 - [x] **Produção sincronizada com Gestão de Pessoas**: migrations 078 e 079 aplicadas e verificadas; tabela `household_people`, colunas de classificação e RPCs do relatório presentes. Nenhum dado financeiro foi alterado.
-- [ ] **Migration 080 — proteção de pessoas inativas e índices de classificação**: preparada na PR #207; impede novas atribuições de pessoas inativas, preserva vínculos históricos existentes e corrige o prefixo dos índices das FKs compostas. Aguardar CI/revisão antes de aplicar em produção.
+- [ ] **Migration 080 — proteção de pessoas inativas e índices de classificação**: preparada na PR #209; impede novas atribuições de pessoas inativas, preserva vínculos históricos existentes e corrige o prefixo dos índices das FKs compostas. Aguardar CI/revisão antes de aplicar em produção.
 - [ ] **Proteção contra senhas vazadas**: alerta do Supabase Auth permanece aberto. A integração disponível nesta sessão não expõe a configuração de Auth; habilitar em Authentication → Settings → Password Security.
 - [ ] **Auditoria SECURITY DEFINER**: os avisos do advisor abrangem funções deliberadamente expostas a usuários autenticados. Não revogar em lote: o teste `00_audit.test.sql` mantém allowlist explícita. Revisar individualmente qualquer função fora dessa lista e preservar validação de família/ownership.
 - [ ] **PR #204**: atualizar a branch com a `main` atual e revalidar CI antes de considerar merge.
