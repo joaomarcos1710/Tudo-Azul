@@ -12,10 +12,11 @@ select ok((select relrowsecurity from pg_class where oid = 'public.user_preferen
 select ok((select count(*) = 3 from pg_policies where schemaname = 'public' and tablename = 'user_preferences'),
   'há políticas próprias para SELECT, INSERT e UPDATE');
 select ok(has_table_privilege('authenticated','public.user_preferences','SELECT')
-  and has_table_privilege('authenticated','public.user_preferences','INSERT')
-  and has_table_privilege('authenticated','public.user_preferences','UPDATE')
+  and has_column_privilege('authenticated','public.user_preferences','user_id','INSERT')
+  and has_column_privilege('authenticated','public.user_preferences','ordem_lancamentos','INSERT')
+  and has_column_privilege('authenticated','public.user_preferences','ordem_lancamentos','UPDATE')
   and not has_table_privilege('authenticated','public.user_preferences','DELETE'),
-  'usuário autenticado pode ler e alterar somente sua preferência, sem hard delete');
+  'usuário autenticado pode ler e alterar somente suas colunas de preferência, sem hard delete');
 select ok(not has_table_privilege('anon','public.user_preferences','SELECT'),
   'usuário anônimo não lê preferências');
 
