@@ -222,3 +222,5 @@ end;
 $$;
 revoke all on function public.clear_household_transactions(uuid, text) from public, anon;
 grant execute on function public.clear_household_transactions(uuid, text) to authenticated;
+
+-- As FKs para profiles/auth.users usam SET NULL ou CASCADE: a exclusão do login não bloqueia nem apaga o histórico familiar.
