@@ -24,6 +24,12 @@ describe('PessoaSelectField', () => {
     expect(onChange).toHaveBeenLastCalledWith({ personId: null, isSharedExpense: false })
   })
 
+  it('identifica no seletor as pessoas vinculadas a um login', () => {
+    render(<PessoaSelectField pessoas={pessoas} personId="p1" isSharedExpense={false} onChange={vi.fn()} />)
+    expect(screen.getByRole('option', { name: 'Pessoa A · acesso ao app' })).toBeTruthy()
+    expect(screen.getByRole('option', { name: 'Bidu' })).toBeTruthy()
+  })
+
   it('não oferece pessoas inativas em novos lançamentos, mas mantém a selecionada no histórico', () => {
     const onChange = vi.fn()
     const { rerender } = render(<PessoaSelectField pessoas={pessoas} personId={null} isSharedExpense={false} onChange={onChange} />)
