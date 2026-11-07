@@ -10,7 +10,7 @@ import { useFocoPreso } from '../components/ui/useFocoPreso'
 import { Selecao } from '../components/ui/Selecao'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import type { AcaoMenu } from '../components/ui/MenuAcoes'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
@@ -44,6 +44,8 @@ import { SELO, corDoValor } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
+import { smartTransactionSchema } from '../lib/smartTransaction'
+import type { SmartTransactionPrefill } from '../lib/smartTransaction'
 
 const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
 const totalRotulo = 'shrink-0 text-sm text-slate-500'
@@ -52,6 +54,8 @@ const totalValor = 'whitespace-nowrap tabular-nums text-base font-bold sm:text-x
 export default function Lancamentos() {
   const { familia } = useFamilia()
   const familiaId = familia?.id
+  const location = useLocation()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
   const [mes, setMes] = useState(() => {
@@ -59,6 +63,7 @@ export default function Lancamentos() {
     return m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
   })
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
+  const [preenchimentoIA, setPreenchimentoIA] = useState<SmartTransactionPrefill | null>(null)
   // ?tipo=receita|despesa (avisos do Início): abre já filtrado pelo tipo; o filtro continua editável na tela
   const [filtros, setFiltros] = useState<Filtros>(() => {
     const tipo = ({ receita: 'income', despesa: 'expense' } as Record<string, TipoLancamento>)[params.get('tipo') ?? '']
@@ -100,9 +105,20 @@ export default function Lancamentos() {
     if (!novo || contas.length === 0) return
     const tipo = ({ despesa: 'expense', receita: 'income', transferencia: 'transfer', cartao: 'cartao' } as Record<string, InicialForm>)[novo]
     // não atropela um lançamento que já está sendo editado
-    if (tipo && editando === null) { setInicial(tipo); setEditando('novo') }
+    if (tipo && editando === null) { setInicial(tipo); setPreenchimentoIA(null); setEditando('novo') }
     setParams((p) => { const n = new URLSearchParams(p); n.delete('novo'); return n }, { replace: true })
   }, [params, contas.length, setParams, editando])
+
+  // Resultado da IA chega pelo state da navegação: abre o modal existente e consome o state para não reabrir no refresh.
+  useEffect(() => {
+    const recebido = (location.state as { smartPrefill?: unknown } | null)?.smartPrefill
+    if (recebido === undefined || contas.length === 0 || editando !== null) return
+    const validado = smartTransactionSchema.safeParse(recebido)
+    setPreenchimentoIA(validado.success ? validado.data : null)
+    setInicial(validado.success && validado.data.is_credit_card ? 'cartao' : 'expense')
+    setEditando('novo')
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null })
+  }, [location.state, location.pathname, location.search, contas.length, editando, navigate])
 
   // atalhos de teclado como no Organizze: D despesa, R receita, T transferência, C compra no cartão (fora de campos de texto)
   useEffect(() => {
@@ -317,17 +333,18 @@ export default function Lancamentos() {
       )}
 
       {editando !== null && (
-        <PainelLancamento aoFechar={() => setEditando(null)}>
+        <PainelLancamento aoFechar={() => { setEditando(null); setPreenchimentoIA(null) }}>
         <FormLancamento
           lancamento={editando === 'novo' ? null : editando}
           inicial={inicial}
+          preenchimentoIA={editando === 'novo' ? preenchimentoIA : null}
           contas={contas}
           categorias={categorias}
           cartoes={cartoes}
           familiaId={familiaId}
-          aoSalvar={async () => { setEditando(null); await carregar() }}
+          aoSalvar={async () => { setEditando(null); setPreenchimentoIA(null); await carregar() }}
           aoRegistrarOutro={carregar}
-          aoCancelar={() => setEditando(null)}
+          aoCancelar={() => { setEditando(null); setPreenchimentoIA(null) }}
         />
         </PainelLancamento>
       )}
@@ -656,6 +673,7 @@ type InicialForm = TipoLancamento | 'cartao'
 interface PropsForm {
   lancamento: Lancamento | null
   inicial?: InicialForm
+  preenchimentoIA?: SmartTransactionPrefill | null
   contas: Conta[]
   categorias: Categoria[]
   cartoes: Cartao[]
@@ -693,15 +711,20 @@ function Linha({ icone, rotulo, dica, htmlFor, fixo = false, children }: {
 const controleLinha = 'min-h-11 min-w-0 max-w-full appearance-none truncate rounded-md bg-transparent px-1 text-right text-base text-slate-700 focus:outline focus:outline-2 focus:outline-azul'
 const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</span>
 
-function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
+function FormLancamento({ lancamento: l, inicial, preenchimentoIA, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
   const hoje = hojeSP()
+  const resultadoIA = !l && preenchimentoIA ? smartTransactionSchema.safeParse(preenchimentoIA) : null
+  const dadosIA = resultadoIA?.success ? resultadoIA.data : null
+  const valorIA = dadosIA ? parseBRL(dadosIA.amount.toFixed(2)) : null
+  const categoriaIA = dadosIA?.category_id && categorias.some((c) => c.id === dadosIA.category_id && c.ativa && c.tipo === 'expense')
+    ? dadosIA.category_id : ''
   // multimoeda F2: receita, despesa e transferência aceitam conta em qualquer moeda (o destino da transferência, só na
   // mesma moeda da origem: ver `destinos`)
   const ativas = contas.filter((c) => aceitaLancamento(c, 'lancamento') && (c.ativa || c.id === l?.contaId || c.id === l?.destinoId))
   const [tipo, setTipo] = useState<TipoLancamento>(l?.tipo ?? (inicial && inicial !== 'cartao' ? inicial : 'expense'))
-  const [valorTexto, setValorTexto] = useState(l ? formatBRLCampo(l.valor) : '')
-  const [data, setData] = useState(l?.data ?? hoje)
-  const [descricao, setDescricao] = useState(l?.descricao ?? '')
+  const [valorTexto, setValorTexto] = useState(l ? formatBRLCampo(l.valor) : valorIA !== null ? formatBRLCampo(valorIA) : '')
+  const [data, setData] = useState(l?.data ?? dadosIA?.date ?? hoje)
+  const [descricao, setDescricao] = useState(l?.descricao ?? dadosIA?.description ?? '')
   // conta principal: o formulário novo abre na última conta usada neste aparelho (se ainda estiver ativa)
   const [contaId, setContaId] = useState(() => {
     if (l) return l.contaId
@@ -709,7 +732,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     return (ultima && ativas.some((c) => c.id === ultima) ? ultima : ativas[0]?.id) ?? ''
   })
   const [destinoId, setDestinoId] = useState(l?.destinoId ?? '')
-  const [categoriaId, setCategoriaId] = useState(l?.categoriaId ?? '')
+  const [categoriaId, setCategoriaId] = useState(l?.categoriaId ?? categoriaIA)
   // planejado por padrão quando a data é futura; a pessoa pode trocar
   const [status, setStatus] = useState<StatusLancamento | null>(l?.status ?? null)
   const statusEfetivo: StatusLancamento = status ?? (data > hoje ? 'planned' : 'paid')
@@ -723,7 +746,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const [enviando, setEnviando] = useState(false)
   // Onde foi: conta (dinheiro saiu/entrou agora) ou cartão (compra parcelada; a despesa conta na fatura).
   // Só para lançamento novo: editar continua sendo conta, como antes.
-  const [onde, setOnde] = useState<'conta' | 'cartao'>(!l && inicial === 'cartao' ? 'cartao' : 'conta')
+  const [onde, setOnde] = useState<'conta' | 'cartao'>(!l && (inicial === 'cartao' || dadosIA?.is_credit_card) ? 'cartao' : 'conta')
   const [cartaoId, setCartaoId] = useState(() => {
     const ultimo = ultimaEscolha(familiaId, 'cartao')
     return ultimo && cartoes.some((c) => c.id === ultimo && c.ativo && c.fechamento !== null) ? ultimo : ''
@@ -732,7 +755,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   // edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria: a pergunta antes de gravar (#194)
   const [pergunta, setPergunta] = useState<DadosLancamento | null>(null)
   const outroRef = useRef(false)
-  const [parcelasTexto, setParcelasTexto] = useState('1')
+  const [parcelasTexto, setParcelasTexto] = useState(dadosIA?.is_credit_card && dadosIA.installments ? String(dadosIA.installments) : '1')
   // "Repetir → Lançamento fixo": cria a regra de recorrente (a mesma da tela Recorrentes) em vez de um lançamento solto
   const [repetir, setRepetir] = useState(false)
   const [modoRepetir, setModoRepetir] = useState<'fixo' | 'parcelado'>('fixo')
