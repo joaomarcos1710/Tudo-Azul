@@ -147,6 +147,14 @@ A primeira versão não terá botões de alteração ou exclusão.
 
 > Crie uma aplicação interna chamada “Tudo Azul | Administração”, com navegação lateral e páginas Visão geral, Famílias, Usuários, Diagnóstico e Auditoria. Use somente um datasource REST chamado Tudo Azul Admin API, com HTTPS e autenticação Bearer configurada como segredo do datasource, nunca em valores de componentes ou queries. Todas as consultas devem chamar endpoints explícitos da API, com paginação, estados de carregamento, tratamento de 401/403/429 e mensagens de erro sem dados sensíveis. Não crie conexão PostgreSQL direta, consultas SQL, CRUD genérico, chamadas RPC arbitrárias, ações de exclusão ou alteração de dados financeiros. A interface deve ser limpa, responsiva e em português do Brasil. Na Visão geral, exiba apenas métricas agregadas. Nas páginas de Famílias e Usuários, use tabelas paginadas e campos minimizados. Na página Diagnóstico, permita filtros de data e código de erro, respeitando o limite de janela retornado pela API. Na Auditoria, exiba ator/identidade, ação, alvo, horário e resultado. Se um endpoint ainda não estiver disponível, mostre estado “Integração pendente” em vez de simular dados reais.
 
+## Workspace ToolJet Cloud confirmado
+
+Workspace informado pelo usuário: `https://app.tooljet.ai/joao-1794089187966`.
+
+Origem web observada para eventual configuração CORS: `https://app.tooljet.ai`. Como o domínio é compartilhado pela plataforma, CORS não deve ser tratado como controle de autenticação; a autorização real continua sendo a credencial validada no backend. Configurar `TOOLJET_ALLOWED_ORIGIN=https://app.tooljet.ai` somente se as chamadas forem feitas diretamente do navegador e após confirmar o comportamento do datasource. Não adicionar o identificador do workspace como mecanismo de autorização.
+
+Acesso ao workspace ainda precisa ser feito pelo próprio usuário no ToolJet Cloud. Não temos uma conexão administrativa ToolJet nesta sessão para criar apps ou datasources diretamente.
+
 ## Etapas de entrega
 
 1. Confirmar se o usuário já possui workspace ToolJet e qual modalidade/plano será usada (Cloud ou self-hosted).
