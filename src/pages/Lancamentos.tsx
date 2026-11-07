@@ -59,18 +59,12 @@ export default function Lancamentos() {
   const [mostrarSaldoDiario, setMostrarSaldoDiario] = useState(true)
   const [saldosDiarios, setSaldosDiarios] = useState<SaldoDiario[]>([])
 
-  useEffect(() => {
-    let ativo = true
-    if (!supabase || !sessao?.user.id) return
-    void supabase.from('user_preferences').select('ordem_lancamentos,saldo_diario').eq('user_id', sessao.user.id).maybeSingle()
-      .then(({ data }) => {
-        if (!ativo || !data) return
-        if (data.ordem_lancamentos) setOrdemPreferida(data.ordem_lancamentos)
-        setMostrarSaldoDiario(data.saldo_diario)
-      })
-    return () => { ativo = false }
-  }, [sessao?.user.id])
-
+  const [params, setParams] = useSearchParams()
+  // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
+  const [mes, setMes] = useState(() => {
+    const m = params.get('mes')
+    return m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
+  })
   useEffect(() => {
     let ativo = true
     if (!familiaId || !mostrarSaldoDiario) {
@@ -83,12 +77,6 @@ export default function Lancamentos() {
       .catch(() => { if (ativo) setSaldosDiarios([]) })
     return () => { ativo = false }
   }, [familiaId, mes, mostrarSaldoDiario])
-  const [params, setParams] = useSearchParams()
-  // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
-  const [mes, setMes] = useState(() => {
-    const m = params.get('mes')
-    return m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
-  })
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
   // ?tipo=receita|despesa (avisos do Início): abre já filtrado pelo tipo; o filtro continua editável na tela
   const [filtros, setFiltros] = useState<Filtros>(() => {
