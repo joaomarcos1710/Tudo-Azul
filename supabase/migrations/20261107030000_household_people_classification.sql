@@ -219,7 +219,7 @@ create function public.recurrence_update_classified(
 begin
   perform public.recurrence_update(p_id, p_description, p_amount, p_category);
   perform public.recurrence_set_person(p_id, p_person_id, p_is_shared_expense);
-end $;
+end $$;
 
 -- Relatório por competência: despesas à vista pela data do lançamento; cartão pelas cobranças/estornos
 -- vinculados a uma fatura. Eventos payment/extra_principal não entram: são baixa de caixa, não despesa.
