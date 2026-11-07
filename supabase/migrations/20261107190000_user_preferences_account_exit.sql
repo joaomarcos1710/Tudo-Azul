@@ -8,7 +8,10 @@ create table public.user_preferences (
 );
 alter table public.user_preferences enable row level security;
 revoke all on public.user_preferences from public, anon;
-grant select, insert, update on public.user_preferences to authenticated;
+grant select on public.user_preferences to authenticated;
+grant insert (user_id, ordem_lancamentos, periodo_padrao, saldo_diario, updated_at),
+  update (ordem_lancamentos, periodo_padrao, saldo_diario, updated_at)
+  on public.user_preferences to authenticated;
 grant all on public.user_preferences to service_role;
 create policy user_preferences_select_own on public.user_preferences
   for select to authenticated using ((select auth.uid()) = user_id);
