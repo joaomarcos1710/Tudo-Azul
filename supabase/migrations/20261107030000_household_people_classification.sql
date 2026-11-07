@@ -211,6 +211,16 @@ begin
   perform set_config('app.person_classification', 'off', true);
 end $$;
 
+-- Atualização de regra e classificação numa única transação.
+create function public.recurrence_update_classified(
+  p_id uuid, p_description text, p_amount numeric, p_category uuid,
+  p_person_id uuid default null, p_is_shared_expense boolean default false
+) returns void language plpgsql security definer set search_path = '' as $
+begin
+  perform public.recurrence_update(p_id, p_description, p_amount, p_category);
+  perform public.recurrence_set_person(p_id, p_person_id, p_is_shared_expense);
+end $;
+
 -- Relatório por competência: despesas à vista pela data do lançamento; cartão pelas cobranças/estornos
 -- vinculados a uma fatura. Eventos payment/extra_principal não entram: são baixa de caixa, não despesa.
 create function public.monthly_expenses_by_person(p_household uuid, p_from date, p_to date)
@@ -245,6 +255,7 @@ revoke execute on function public.card_purchase_at_classified(uuid, date, numeri
   public.transaction_installments_create_classified(text, text, numeric, integer, text, integer, date, uuid, uuid, uuid, boolean, uuid, boolean),
   public.recurrence_create_classified(text, text, numeric, integer, date, uuid, uuid, uuid, uuid, date, text, integer, uuid, boolean),
   public.recurrence_set_person(uuid, uuid, boolean),
+  public.recurrence_update_classified(uuid, text, numeric, uuid, uuid, boolean),
   public.monthly_expenses_by_person(uuid, date, date)
 from public, anon;
 grant execute on function public.card_purchase_at_classified(uuid, date, numeric, integer, uuid, text, integer, uuid, uuid, boolean),
