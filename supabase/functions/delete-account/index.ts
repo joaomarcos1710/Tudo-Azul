@@ -46,14 +46,22 @@ Deno.serve(async (req) => {
   // Revoga os refresh tokens globais antes da exclusão. JWTs já emitidos continuam válidos até expirar.
   const { error: revokeError } = await admin.auth.admin.signOut(token)
   if (revokeError) {
-    await rollback()
-    return resposta({ error: 'Não foi possível encerrar as sessões da conta. Nenhum dado foi removido.' }, 500)
+    const rollbackError = await rollback()
+    return resposta({
+      error: rollbackError
+        ? 'Não foi possível encerrar as sessões nem restaurar automaticamente a titularidade. Procure o suporte antes de tentar novamente.'
+        : 'Não foi possível encerrar as sessões da conta. Nenhum dado foi removido.',
+    }, 500)
   }
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(user.id)
   if (deleteError) {
-    await rollback()
-    return resposta({ error: 'Não foi possível concluir a exclusão da conta. A titularidade foi restaurada.' }, 500)
+    const rollbackError = await rollback()
+    return resposta({
+      error: rollbackError
+        ? 'A exclusão falhou e a titularidade não pôde ser restaurada automaticamente. Procure o suporte.'
+        : 'Não foi possível concluir a exclusão da conta. A titularidade foi restaurada.',
+    }, 500)
   }
 
   return resposta({ success: true })
