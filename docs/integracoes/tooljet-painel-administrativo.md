@@ -86,6 +86,37 @@ A credencial compartilhada é aceitável apenas enquanto o workspace tiver opera
 - Exibir consultas e ações administrativas, identidade da integração/operador, alvo, horário e resultado.
 - A trilha de auditoria deve ser gravada no servidor e não pode ser alterada pelo ToolJet.
 
+## Primeira implementação da API (PR #214)
+
+Foi criada a Edge Function `admin-api` no repositório, com gateway JWT desativado apenas para esta função porque ela valida uma credencial de integração própria no código.
+
+Rotas implementadas no código:
+- `GET /functions/v1/admin-api/overview`: contagens agregadas de famílias, vínculos e perfis.
+- `GET /functions/v1/admin-api/families?page=1&per_page=25&query=...`: famílias paginadas, nome, data de criação e quantidade de membros.
+- `GET /functions/v1/admin-api/users?page=1&per_page=25`: usuários paginados com e-mail mascarado e estado de confirmação/banimento.
+
+Rotas reservadas, ainda não habilitadas:
+- `GET /functions/v1/admin-api/events`
+- `GET /functions/v1/admin-api/audit`
+
+As duas últimas respondem `501 integration_pending`; a interface não deve apresentar dados fictícios. A trilha de auditoria persistente, retenção de eventos e limitação de taxa ainda precisam ser implementadas antes de qualquer liberação real.
+
+### Segredos e cabeçalhos
+
+Configurar no Supabase Functions Secrets:
+- `TOOLJET_ADMIN_API_KEY`: segredo aleatório forte e exclusivo para a integração ToolJet.
+- `SUPABASE_SERVICE_ROLE_KEY`: chave privilegiada somente server-side, necessária para as consultas administrativas.
+- `TOOLJET_ALLOWED_ORIGIN`: origem exata do workspace, somente se chamadas diretas do navegador exigirem CORS.
+
+No datasource REST do ToolJet Cloud:
+- Base URL: `https://<PROJECT_REF>.supabase.co/functions/v1/admin-api`
+- Cabeçalho `apikey`: publishable key do projeto (chave pública, usada pelo gateway).
+- Cabeçalho `Authorization`: `Bearer <TOOLJET_ADMIN_API_KEY>`.
+
+Nunca colocar o `TOOLJET_ADMIN_API_KEY` em query, componente, JavaScript ou estado client-side. Armazená-lo como segredo do datasource. Nunca colocar `SUPABASE_SERVICE_ROLE_KEY` no ToolJet.
+
+**Importante:** o código ainda não está implantado no Supabase hospedado. Não configure o datasource apontando para produção até a revisão da PR, testes, rate limit e auditoria persistente estarem concluídos.
+
 ## Contrato inicial de API
 
 Implementar endpoints separados, sem endpoint genérico de SQL:
@@ -98,7 +129,7 @@ Implementar endpoints separados, sem endpoint genérico de SQL:
 
 As funções devem ter contrato versionado, validação de parâmetros, limite máximo de resultados e respostas sem dados além do necessário. Não aceitar nomes de tabela, colunas, filtros SQL, nomes de RPC ou comandos arbitrários fornecidos pelo ToolJet.
 
-A implementação deve primeiro conferir os nomes e tipos reais das colunas necessárias nas migrations e no banco. Não presumir esquema. Criar testes para credencial ausente, inválida, acesso não autorizado, paginação fora dos limites, tentativa de injeção, vazamento de campos e rate limit.
+A implementação deve conferir os nomes e tipos reais das colunas necessárias nas migrations e no banco. A primeira função já usa os nomes confirmados no banco (`households`, `household_members`, `profiles`) e campos minimizados. Antes de produção, criar testes para credencial ausente/inválida, acesso não autorizado, paginação fora dos limites, tentativa de injeção, vazamento de campos, rate limit e auditoria.
 
 ## Estrutura de telas ToolJet
 
@@ -118,7 +149,7 @@ A primeira versão não terá botões de alteração ou exclusão.
 
 1. Confirmar se o usuário já possui workspace ToolJet e qual modalidade/plano será usada (Cloud ou self-hosted).
 2. Restringir o workspace e o app ao proprietário/operadores autorizados; ativar MFA/SSO conforme disponibilidade.
-3. Implementar Edge Functions administrativas com credencial de integração separada, autorização negativa por padrão, rate limit, respostas minimizadas e auditoria.
+3. Revisar a Edge Function `admin-api` da PR #214; completar testes, rate limit distribuído e auditoria persistente antes de produção.
 4. Testar segurança e isolamento com casos positivos e negativos em ambiente de desenvolvimento.
 5. Criar o app usando o prompt acima e conectar somente os endpoints aprovados.
 6. Revisar RLS, permissões, logs e exposição de dados antes de liberar acesso.
@@ -126,4 +157,4 @@ A primeira versão não terá botões de alteração ou exclusão.
 
 ## Estado desta entrega
 
-A avaliação do Supabase foi feita em modo somente leitura. O documento registra a arquitetura corrigida com base nas capacidades reais do datasource REST do ToolJet e no estado observado do projeto. A criação do workspace, configuração de credenciais no ToolJet e implantação das Edge Functions dependem do acesso ao workspace e de uma decisão sobre Cloud ou self-hosted. Nenhuma alteração foi aplicada ao Supabase hospedado.
+A avaliação do Supabase foi feita em modo somente leitura. O código inicial da Edge Function está versionado na PR #214, mas não foi implantado. Nenhuma migration, segredo ou configuração foi aplicada ao Supabase hospedado. O datasource do ToolJet Cloud ainda não foi criado porque depende do workspace do usuário. A função não deve ser publicada até que testes, rate limit e auditoria persistente estejam prontos.
