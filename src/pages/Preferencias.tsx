@@ -111,7 +111,7 @@ export default function Preferencias() {
           <label className="flex cursor-pointer items-start gap-3 py-4 text-sm text-slate-700"><input type="checkbox" checked={confirmacoes[1]} onChange={e => setConfirmacoes(v => [v[0],e.target.checked])} className="mt-0.5 h-4 w-4 accent-azul" /><span>2. Ao seguir, você confirma que entendeu que a exclusão da sua conta é definitiva e não pode ser desfeita.</span></label>
         </div>
         {erroExclusao && <div className="mt-4"><Aviso tipo="erro">{erroExclusao}</Aviso></div>}
-        <Button variante="perigo" block className="mt-5 w-full" disabled={confirmacoes.some(v => !v) || excluindo} carregando={excluindo} onClick={excluirConta}>Continuar</Button>
+        <Button variante="perigo" className="mt-5 w-full" disabled={confirmacoes.some(v => !v) || excluindo} carregando={excluindo} onClick={excluirConta}>Continuar</Button>
         <p className="mt-3 text-center text-xs text-slate-500">Marque todas as opções para continuar.</p>
       </section>
     </div>}
