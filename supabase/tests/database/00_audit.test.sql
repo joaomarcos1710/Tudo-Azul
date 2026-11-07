@@ -200,12 +200,12 @@ select is_empty($$
    where n.nspname = 'public' and c.relkind = 'r' and c.relforcerowsecurity
 $$, 'nenhuma tabela com FORCE ROW LEVEL SECURITY (decisão registrada no plano)');
 
-select is_empty($
+select is_empty($audit$
   select tablename from pg_indexes
    where schemaname = 'public'
      and indexname in ('transactions_person_period_idx','debt_installments_person_period_idx')
      and indexdef not like '%(household_id, person_id,%'
-$, 'índices de classificação cobrem as FKs compostas antes do período');
+$audit$, 'índices de classificação cobrem as FKs compostas antes do período');
 
 select ok(exists (
   select 1 from pg_trigger
