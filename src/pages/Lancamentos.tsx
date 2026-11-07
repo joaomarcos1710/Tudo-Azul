@@ -22,8 +22,8 @@ import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeTransferir } from '../components/layout/icons'
 import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
-import { aceitaLancamento, hojeSP, listarContas, mesmaMoeda } from '../lib/contas'
-import type { Conta } from '../lib/contas'
+import { aceitaLancamento, hojeSP, listarContas, listarSaldosDiarios, mesmaMoeda } from '../lib/contas'
+import type { Conta, SaldoDiario } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, parseBRL, primeiraMaiuscula, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
@@ -56,14 +56,33 @@ export default function Lancamentos() {
   const { sessao } = useAuth()
   const familiaId = familia?.id
   const [ordemPreferida, setOrdemPreferida] = useState<'asc' | 'desc'>('desc')
+  const [mostrarSaldoDiario, setMostrarSaldoDiario] = useState(true)
+  const [saldosDiarios, setSaldosDiarios] = useState<SaldoDiario[]>([])
 
   useEffect(() => {
     let ativo = true
     if (!supabase || !sessao?.user.id) return
-    void supabase.from('user_preferences').select('ordem_lancamentos').eq('user_id', sessao.user.id).maybeSingle()
-      .then(({ data }) => { if (ativo && data?.ordem_lancamentos) setOrdemPreferida(data.ordem_lancamentos) })
+    void supabase.from('user_preferences').select('ordem_lancamentos,saldo_diario').eq('user_id', sessao.user.id).maybeSingle()
+      .then(({ data }) => {
+        if (!ativo || !data) return
+        if (data.ordem_lancamentos) setOrdemPreferida(data.ordem_lancamentos)
+        setMostrarSaldoDiario(data.saldo_diario)
+      })
     return () => { ativo = false }
   }, [sessao?.user.id])
+
+  useEffect(() => {
+    let ativo = true
+    if (!familiaId || !mostrarSaldoDiario) {
+      setSaldosDiarios([])
+      return
+    }
+    const [de, ate] = limitesDoMes(mes)
+    void listarSaldosDiarios(familiaId, de, ate)
+      .then((valores) => { if (ativo) setSaldosDiarios(valores) })
+      .catch(() => { if (ativo) setSaldosDiarios([]) })
+    return () => { ativo = false }
+  }, [familiaId, mes, mostrarSaldoDiario])
   const [params, setParams] = useSearchParams()
   // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
   const [mes, setMes] = useState(() => {
@@ -260,6 +279,16 @@ export default function Lancamentos() {
     else porDia.push([it.data, [it]])
   }
 
+  const saldosPorData = new Map<string, SaldoDiario[]>()
+  for (const saldo of saldosDiarios) {
+    const grupo = saldosPorData.get(saldo.data) ?? []
+    grupo.push(saldo)
+    saldosPorData.set(saldo.data, grupo)
+  }
+  const rotuloSaldoDoDia = (data: string) => (saldosPorData.get(data) ?? [])
+    .map((saldo) => formatMoeda(saldo.saldo, saldo.moeda)).join(' · ')
+  const gruposSaldosDiarios = [...saldosPorData.entries()]
+
   return (
     <>
       <CabecalhoPagina titulo="Lançamentos" descricao="Receitas, despesas e transferências do mês, pagas e planejadas."
@@ -374,6 +403,23 @@ export default function Lancamentos() {
         </Explicacao>
       )}
 
+      {telaGrande && mostrarSaldoDiario && gruposSaldosDiarios.length > 0 && (
+        <Card>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-marinho">Saldo ao final de cada dia</h2>
+            <span className="text-xs text-slate-500">Por moeda, sem conversão</span>
+          </div>
+          <div className="grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            {gruposSaldosDiarios.map(([data, valores]) => (
+              <div key={data} className="flex items-center justify-between gap-3 border-b border-slate-100 py-1 text-sm">
+                <span className="text-slate-500">{formatDate(data)}</span>
+                <strong className="text-right tabular-nums text-marinho">{valores.map((s) => formatMoeda(s.saldo, s.moeda)).join(' · ')}</strong>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && creditosCartao.length === 0 && faturas.length === 0
         && comprasCategoria.length === 0 && editando === null && contas.length > 0 && (
         <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
@@ -381,7 +427,7 @@ export default function Lancamentos() {
       )}
 
       {telaGrande ? (
-        <TabelaLancamentos itens={itensVisiveis} hoje={hoje} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
+        <TabelaLancamentos itens={itensVisiveis} hoje={hoje} ordemInicial={ordemPreferida} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
           categorias={categorias} nomeConta={nomeConta} moedaConta={moedaConta} nomeCategoria={nomeCategoria} categoriaPorId={categoriaPorId}
           ocupado={pagando !== null} aoEditar={(l) => { setPagando(null); setEditando(l) }} aoPagar={(l) => { setEditando(null); setPagando(l) }}
           aoExcluir={excluir} aoAlterar={carregar} />
@@ -389,7 +435,7 @@ export default function Lancamentos() {
       <div className="flex flex-col gap-4">
         {porDia.map(([data, itens]) => (
           <section key={data} aria-label={formatDate(data)}>
-            <h2 className="mb-2 text-sm font-semibold text-slate-500">{formatDate(data)}</h2>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-sm font-semibold text-slate-500">{formatDate(data)}</h2>{mostrarSaldoDiario && rotuloSaldoDoDia(data) && <span className="text-xs font-medium tabular-nums text-slate-600">Saldo final: {rotuloSaldoDoDia(data)}</span>}</div>
             <Card semPadding>
               <ul className="divide-y divide-slate-100">
                 {itens.map((item) => {
