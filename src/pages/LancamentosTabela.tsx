@@ -29,7 +29,7 @@ export const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', 
 /** Sinal e cor por tipo: receita "+", despesa "−", transferência "⇄" sem sinal (design system). Valor na moeda da conta. */
 export function valorComSinal(l: Lancamento, moeda: string) {
   if (l.tipo === 'income') return { texto: `+${formatMoeda(l.valor, moeda)}`, cor: corDoTipo('income') }
-  if (l.tipo === 'expense') return { texto: `−${formatMoeda(l.valor, moeda)}`, cor: corDoTipo('expense') }
+  if (l.tipo === 'expense') return { texto: `−${formatMoeda(l.valor, moeda)}`, cor: 'text-neutro' }
   return { texto: `⇄ ${formatMoeda(l.valor, moeda)}`, cor: corDoTipo('transfer') }
 }
 
@@ -442,7 +442,7 @@ export function TabelaLancamentos(p: PropsTabela) {
             <thead className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th scope="col" className="w-12 px-4 py-2">
-                  <input type="checkbox" className="h-5 w-5 accent-azul" aria-label="Selecionar todos os lançamentos do mês e filtro"
+                  <input type="checkbox" className="h-5 w-5 accent-azul" aria-label="Selecionar todos os lançamentos carregados"
                     checked={todos} disabled={lancamentos.length === 0}
                     ref={(el) => { if (el) el.indeterminate = n > 0 && !todos }} onChange={alternarTodos} />
                 </th>

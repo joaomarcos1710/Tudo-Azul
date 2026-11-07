@@ -82,6 +82,9 @@ export default function Lancamentos() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
+  // Renderização progressiva: mantém o mês completo no estado, mas limita o DOM a 50 linhas por etapa.
+  const [limiteVisivel, setLimiteVisivel] = useState(50)
+  useEffect(() => { setLimiteVisivel(50) }, [mes, filtros.contaId, filtros.tipo, filtros.categoriaId])
 
   /** Categorias oferecidas no filtro: só as do tipo escolhido; transferência não tem categoria. */
   const categoriasDoFiltro = filtros.tipo === 'transfer' ? [] : categorias.filter((c) => !filtros.tipo || c.tipo === filtros.tipo)
@@ -235,8 +238,9 @@ export default function Lancamentos() {
     ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
   ].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
   const hoje = hojeSP()
+  const itensVisiveis = itens.slice(0, limiteVisivel)
   const porDia: [string, Item[]][] = []
-  for (const it of itens) {
+  for (const it of itensVisiveis) {
     const ultimo = porDia[porDia.length - 1]
     if (ultimo && ultimo[0] === it.data) ultimo[1].push(it)
     else porDia.push([it.data, [it]])
@@ -252,7 +256,7 @@ export default function Lancamentos() {
         <div className="mb-4"><Aviso tipo="info">Cadastre uma conta em <strong>Contas</strong> antes do primeiro lançamento.</Aviso></div>
       )}
 
-      <div className="mb-4 flex items-center gap-2">
+      <div className="sticky top-0 z-20 -mx-4 mb-4 flex items-center gap-2 border-b border-slate-100 bg-white/85 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/75">
         <Button variante="secundario" className="min-w-11" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
         <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
         <Button variante="secundario" className="min-w-11" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
@@ -262,7 +266,7 @@ export default function Lancamentos() {
         <div className="mb-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
           {/* celular: uma linha por total (rótulo à esquerda, valor à direita); a partir de sm: três painéis */}
           <Card semPadding className={totalCard}><p className={totalRotulo}>Receitas pagas</p><p className={`${totalValor} text-lucro`}>+{formatBRL(resumo.receitas)}</p></Card>
-          <Card semPadding className={totalCard}><p className={totalRotulo}>Despesas pagas</p><p className={`${totalValor} text-prejuizo`}>−{formatBRL(resumo.despesas)}</p></Card>
+          <Card semPadding className={totalCard}><p className={totalRotulo}>Despesas pagas</p><p className={`${totalValor} text-neutro`}>−{formatBRL(resumo.despesas)}</p></Card>
           <Card semPadding className={totalCard}>
             <p className={totalRotulo}>Resultado do mês</p>
             <div className="min-w-0 text-right sm:text-left">
@@ -363,7 +367,7 @@ export default function Lancamentos() {
       )}
 
       {telaGrande ? (
-        <TabelaLancamentos itens={itens} hoje={hoje} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
+        <TabelaLancamentos itens={itensVisiveis} hoje={hoje} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
           categorias={categorias} nomeConta={nomeConta} moedaConta={moedaConta} nomeCategoria={nomeCategoria} categoriaPorId={categoriaPorId}
           ocupado={pagando !== null} aoEditar={(l) => { setPagando(null); setEditando(l) }} aoPagar={(l) => { setEditando(null); setPagando(l) }}
           aoExcluir={excluir} aoAlterar={carregar} />
@@ -472,6 +476,14 @@ export default function Lancamentos() {
           </section>
         ))}
       </div>
+      )}
+      {itens.length > limiteVisivel && (
+        <div className="flex flex-col items-center gap-2 py-4">
+          <p className="text-xs text-slate-500">Mostrando {itensVisiveis.length} de {itens.length} lançamentos e movimentos</p>
+          <Button variante="secundario" onClick={() => setLimiteVisivel((atual) => Math.min(atual + 50, itens.length))}>
+            Carregar mais 50
+          </Button>
+        </div>
       )}
     </>
   )
@@ -972,10 +984,13 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             </Linha>
           )}
           {!transferencia && tipo === 'expense' && (
-            <div className="px-3 py-3">
-              <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
-                onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
-            </div>
+            <details className="border-t border-slate-100 px-3 py-2">
+              <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Opções avançadas · Pessoa responsável</summary>
+              <div className="pb-2">
+                <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
+                  onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
+              </div>
+            </details>
           )}
         </div>
         {tentou && (erros.data || erros.conta || erros.cartao || erros.parcelas || erros.destino || erros.categoria || erros.repetir) && (
@@ -990,7 +1005,9 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         )}
 
         {!l && !cartaoMode && (
-          <div className="rounded-xl border border-slate-200 px-3 py-2">
+          <details className="rounded-xl border border-slate-200 px-3 py-2">
+            <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Opções avançadas · Recorrência e parcelamento</summary>
+            <div className="pb-2">
             <button type="button" aria-pressed={repetir} onClick={() => setRepetir((v) => !v)}
               className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold ${repetir ? 'border-azul bg-azul-claro text-azul' : 'border-slate-300 text-slate-600'}`}>
               <span aria-hidden="true">↻</span>Repetir
@@ -1047,7 +1064,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
                 </>)}
               </fieldset>
             )}
-          </div>
+            </div>
+          </details>
         )}
         {!cartaoMode && !fixo && (
           <fieldset className="flex flex-wrap items-center gap-2">
