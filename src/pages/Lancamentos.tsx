@@ -43,6 +43,7 @@ import { criarRecorrencia, definirPessoaRecorrencia, frequencias } from '../lib/
 import { SELO, corDoValor } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
+import { useAuth } from '../lib/auth'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 
 const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
@@ -706,6 +707,7 @@ const controleLinha = 'min-h-11 min-w-0 max-w-full appearance-none truncate roun
 const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</span>
 
 function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
+  const { sessao } = useAuth()
   const hoje = hojeSP()
   // multimoeda F2: receita, despesa e transferência aceitam conta em qualquer moeda (o destino da transferência, só na
   // mesma moeda da origem: ver `destinos`)
@@ -729,7 +731,19 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const [pessoas, setPessoas] = useState<PessoaFamilia[]>([])
   const [personId, setPersonId] = useState<string | null>(l?.personId ?? null)
   const [isSharedExpense, setIsSharedExpense] = useState(l?.isSharedExpense ?? false)
-  useEffect(() => { void listarPessoasFamilia(familiaId).then(setPessoas).catch(() => setPessoas([])) }, [familiaId])
+  const pessoaEscolhidaManualmente = useRef(false)
+  useEffect(() => {
+    let ativo = true
+    void listarPessoasFamilia(familiaId).then((lista) => {
+      if (!ativo) return
+      setPessoas(lista)
+      if (!l && !pessoaEscolhidaManualmente.current && sessao?.user.id) {
+        const propria = lista.find((pessoa) => pessoa.userId === sessao.user.id && pessoa.ativo)
+        if (propria) setPersonId(propria.id)
+      }
+    }).catch(() => { if (ativo) setPessoas([]) })
+    return () => { ativo = false }
+  }, [familiaId, l, sessao?.user.id])
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -988,7 +1002,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
               <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Opções avançadas · Pessoa responsável</summary>
               <div className="pb-2">
                 <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
-                  onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
+                  onChange={(value) => { pessoaEscolhidaManualmente.current = true; setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
               </div>
             </details>
           )}
