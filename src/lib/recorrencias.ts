@@ -223,10 +223,10 @@ export async function editarRecorrencia(id: string, d: { descricao: string; valo
 }
 
 export async function definirPessoaRecorrencia(id: string, personId: string | null, isSharedExpense: boolean): Promise<void> {
-  if (!personId && !isSharedExpense) return
   const { error } = await cliente().rpc('recurrence_set_person', {
     p_id: id, p_person_id: personId, p_is_shared_expense: isSharedExpense,
   })
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !personId && !isSharedExpense) return
   if (error) throw error
 }
 
