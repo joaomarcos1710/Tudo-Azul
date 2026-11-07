@@ -147,7 +147,7 @@ language plpgsql
 stable
 security invoker
 set search_path = ''
-as $
+as $$
 begin
   if p_household is null or p_from is null or p_to is null or p_to < p_from or (p_to - p_from) > 366 then
     raise exception 'Informe um intervalo válido de até 367 dias.' using errcode = '22023';
@@ -162,7 +162,7 @@ begin
   group by dias.dia::date, b.currency_code
   order by dias.dia::date, b.currency_code;
 end;
-$;
+$$;
 revoke all on function public.account_balances_daily(uuid, date, date) from public, anon;
 grant execute on function public.account_balances_daily(uuid, date, date) to authenticated;
 
