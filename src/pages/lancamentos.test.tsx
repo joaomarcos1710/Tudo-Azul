@@ -150,10 +150,10 @@ describe('Lançamentos', () => {
     expect(screen.getByText('Mercado')).toBeTruthy()
     expect(screen.queryByText('Mercado · Itaú')).toBeNull()
     expect(screen.getByText('Planejado')).toBeTruthy()
-    // #183 (regra de cores do dono): selo "Planejado" verde (agendado), receita azul (lucro), despesa vermelha (prejuízo)
+    // #208: selo "Planejado" verde (agendado), receita azul (lucro), valor de despesa neutro
     expect(screen.getByText('Planejado').className).toContain('bg-agendado-fundo text-agendado')
     const linha = (texto: string) => screen.getByText(texto).closest('li') as HTMLElement
-    expect(within(linha('Supermercado')).getByText('−R$ 250,50').className).toContain('text-prejuizo')
+    expect(within(linha('Supermercado')).getByText('−R$ 250,50').className).toContain('text-neutro')
     expect(within(linha('Planejado')).getByText('+R$ 8.000,00').className).toContain('text-lucro')
     expect(within(linha('Itaú → Nubank')).getByText('⇄ R$ 100,00').className).toContain('text-transferencia')
     // os totais: receitas pagas azul, despesas pagas vermelho, "Planejado: +… / −…" verde
@@ -197,7 +197,7 @@ describe('Lançamentos', () => {
     expect(linha('Supermercado').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
     expect(linha('Itaú → Nubank').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('transferencia')
     const valor = within(linha('Supermercado')).getByText('−R$ 250,50')
-    expect(valor.className).toContain('text-prejuizo')
+    expect(valor.className).toContain('text-neutro')
     expect(valor.getAttribute('style')).toBeNull()
   })
 
