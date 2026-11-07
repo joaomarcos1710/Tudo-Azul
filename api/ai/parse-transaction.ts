@@ -24,12 +24,12 @@ function hojeEmSaoPaulo(): string {
 }
 
 /** Vercel Serverless Function. A publishable key + JWT do utilizador mantêm as consultas sob RLS. */
-export default async function handler(request: Request): Promise<Response> {
+export async function POST(request: Request): Promise<Response> {
   if (request.method !== 'POST') return resposta({ error: 'Método não permitido.' }, 405)
 
   try {
     const autorizacao = request.headers.get('authorization') ?? ''
-    const token = /^Bearer\\s+(.+)$/i.exec(autorizacao)?.[1]
+    const token = /^Bearer\s+(.+)$/i.exec(autorizacao)?.[1]
     if (!token) return resposta({ error: 'Sessão necessária.' }, 401)
 
     let corpo: unknown
@@ -80,7 +80,7 @@ export default async function handler(request: Request): Promise<Response> {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       temperature: 0,
-      max_tokens: 300,
+      max_completion_tokens: 300,
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },
