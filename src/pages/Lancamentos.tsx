@@ -984,10 +984,13 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             </Linha>
           )}
           {!transferencia && tipo === 'expense' && (
-            <div className="px-3 py-3">
-              <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
-                onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
-            </div>
+            <details className="border-t border-slate-100 px-3 py-2">
+              <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Opções avançadas · Pessoa responsável</summary>
+              <div className="pb-2">
+                <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
+                  onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
+              </div>
+            </details>
           )}
         </div>
         {tentou && (erros.data || erros.conta || erros.cartao || erros.parcelas || erros.destino || erros.categoria || erros.repetir) && (
@@ -1002,7 +1005,9 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
         )}
 
         {!l && !cartaoMode && (
-          <div className="rounded-xl border border-slate-200 px-3 py-2">
+          <details className="rounded-xl border border-slate-200 px-3 py-2">
+            <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Opções avançadas · Recorrência e parcelamento</summary>
+            <div className="pb-2">
             <button type="button" aria-pressed={repetir} onClick={() => setRepetir((v) => !v)}
               className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold ${repetir ? 'border-azul bg-azul-claro text-azul' : 'border-slate-300 text-slate-600'}`}>
               <span aria-hidden="true">↻</span>Repetir
@@ -1059,7 +1064,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
                 </>)}
               </fieldset>
             )}
-          </div>
+            </div>
+          </details>
         )}
         {!cartaoMode && !fixo && (
           <fieldset className="flex flex-wrap items-center gap-2">
