@@ -197,6 +197,12 @@ insert into fixture80_txt
 select 'state_rollback',
   (public.prepare_account_deletion('00000000-0000-0000-0000-0000000080a1')
     || jsonb_build_object('user_id','00000000-0000-0000-0000-0000000080a1'))::text;
+reset role;
+select is((select role from public.household_members where user_id='00000000-0000-0000-0000-0000000080a1'),
+  'member', 'preparação remove a titularidade antiga');
+select is((select role from public.household_members where user_id='00000000-0000-0000-0000-0000000080a2'),
+  'owner', 'sucessor assume antes da exclusão Auth');
+set role service_role;
 select public.rollback_account_deletion((select v::jsonb from fixture80_txt where k='state_rollback'));
 reset role;
 select is((select role from public.household_members where user_id='00000000-0000-0000-0000-0000000080a1'),
