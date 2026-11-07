@@ -447,6 +447,8 @@ export function perguntaSeRepete(original: Lancamento, novo: DadosLancamento): b
   if (!original.recorrente || novo.tipo !== original.tipo) return false
   return novo.valor !== original.valor || novo.data !== original.data || novo.descricao.trim() !== original.descricao.trim()
     || (novo.tipo !== 'transfer' && novo.categoriaId !== original.categoriaId)
+    || (novo.tipo === 'expense' && (novo.personId ?? null) !== original.personId)
+    || (novo.tipo === 'expense' && (novo.isSharedExpense ?? false) !== original.isSharedExpense)
 }
 
 /**
