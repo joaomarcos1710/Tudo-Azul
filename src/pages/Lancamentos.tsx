@@ -767,6 +767,7 @@ const controleLinha = 'min-h-11 min-w-0 max-w-full appearance-none truncate roun
 const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</span>
 
 function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
+  const { sessao: sessaoAtual } = useAuth()
   const hoje = hojeSP()
   // multimoeda F2: receita, despesa e transferência aceitam conta em qualquer moeda (o destino da transferência, só na
   // mesma moeda da origem: ver `destinos`)
@@ -790,7 +791,19 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const [pessoas, setPessoas] = useState<PessoaFamilia[]>([])
   const [personId, setPersonId] = useState<string | null>(l?.personId ?? null)
   const [isSharedExpense, setIsSharedExpense] = useState(l?.isSharedExpense ?? false)
-  useEffect(() => { void listarPessoasFamilia(familiaId).then(setPessoas).catch(() => setPessoas([])) }, [familiaId])
+  const pessoaEscolhidaManualmente = useRef(false)
+  useEffect(() => {
+    let ativo = true
+    void listarPessoasFamilia(familiaId).then((lista) => {
+      if (!ativo) return
+      setPessoas(lista)
+      if (!l && !pessoaEscolhidaManualmente.current && sessaoAtual?.user.id) {
+        const propria = lista.find((pessoa) => pessoa.userId === sessaoAtual.user.id && pessoa.ativo)
+        if (propria) setPersonId(propria.id)
+      }
+    }).catch(() => { if (ativo) setPessoas([]) })
+    return () => { ativo = false }
+  }, [familiaId, l, sessaoAtual?.user.id])
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -850,7 +863,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   /** Depois de gravar: fecha o formulário, ou (em "Registrar e lançar outro") limpa valor, descrição e categoria e continua aberto. */
   async function concluir(mensagem: string) {
     if (!outroRef.current || l) { await aoSalvar(); return }
-    setValorTexto(''); setDescricao(''); setCategoriaId(''); setNotas(''); setParcelasTexto('1'); setStatus(null); setPersonId(null); setIsSharedExpense(false)
+    setValorTexto(''); setDescricao(''); setCategoriaId(''); setNotas(''); setParcelasTexto('1'); setStatus(null); setPersonId(null); setIsSharedExpense(false); pessoaEscolhidaManualmente.current = false
     setTentou(false); chaveRef.current = null
     setRegistrado(mensagem)
     await aoRegistrarOutro()
@@ -1049,7 +1062,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
               <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Opções avançadas · Pessoa responsável</summary>
               <div className="pb-2">
                 <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
-                  onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
+                  onChange={(value) => { pessoaEscolhidaManualmente.current = true; setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
               </div>
             </details>
           )}
