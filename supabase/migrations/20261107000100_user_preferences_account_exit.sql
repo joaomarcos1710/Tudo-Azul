@@ -7,7 +7,9 @@ create table public.user_preferences (
   updated_at timestamptz not null default now()
 );
 alter table public.user_preferences enable row level security;
-revoke all on public.user_preferences from public, anon;\ngrant select, insert, update on public.user_preferences to authenticated;\ngrant all on public.user_preferences to service_role;
+revoke all on public.user_preferences from public, anon;
+grant select, insert, update on public.user_preferences to authenticated;
+grant all on public.user_preferences to service_role;
 create policy user_preferences_select_own on public.user_preferences
   for select to authenticated using ((select auth.uid()) = user_id);
 create policy user_preferences_insert_own on public.user_preferences
