@@ -105,7 +105,7 @@ describe('menu em grupos', () => {
     for (const l of within(lateral).getAllByRole('link')) expect(l.className).toContain('min-h-11')
     const perfil = screen.getByRole('button', { name: 'Perfil de Minha conta' })
     expect(perfil.parentElement?.className).toContain('mt-auto')
-    expect(perfil).toHaveAttribute('aria-haspopup', 'menu')
+    expect(perfil.getAttribute('aria-haspopup')).toBe('menu')
     expect(screen.queryByRole('button', { name: 'Sair' })).toBeNull()
   })
 
