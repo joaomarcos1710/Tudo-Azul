@@ -34,31 +34,49 @@ Deno.serve(async (req) => {
   if (prepareError) return resposta({ error: prepareError.message }, 409)
 
   const rollback = async () => {
-    const { error } = await admin.rpc('rollback_account_deletion', {
-      p_state: { ...state, user_id: user.id },
-    })
-    return error
+    try {
+      const { error } = await admin.rpc('rollback_account_deletion', {
+        p_state: { ...state, user_id: user.id },
+      })
+      return !error
+    } catch {
+      return false
+    }
   }
 
-  // Revoga os refresh tokens globais antes da exclusão. JWTs já emitidos continuam válidos até expirar.
-  const { error: revokeError } = await admin.auth.admin.signOut(token)
-  if (revokeError) {
-    const rollbackError = await rollback()
+  // Antes de tentar excluir o usuário, revoga as sessões globais. Se falhar, restaura a titularidade.
+  try {
+    const { error: revokeError } = await admin.auth.admin.signOut(token)
+    if (revokeError) {
+      const restored = await rollback()
+      return resposta({
+        error: restored
+          ? 'Não foi possível encerrar as sessões da conta. Nenhum dado foi removido e a titularidade foi restaurada.'
+          : 'Não foi possível encerrar as sessões nem restaurar automaticamente a titularidade. Procure o suporte antes de tentar novamente.',
+      }, 500)
+    }
+  } catch {
+    const restored = await rollback()
     return resposta({
-      error: rollbackError
-        ? 'Não foi possível encerrar as sessões nem restaurar automaticamente a titularidade. Procure o suporte antes de tentar novamente.'
-        : 'Não foi possível encerrar as sessões da conta. Nenhum dado foi removido.',
+      error: restored
+        ? 'Não foi possível encerrar as sessões da conta. Nenhum dado foi removido e a titularidade foi restaurada.'
+        : 'Não foi possível encerrar as sessões nem restaurar automaticamente a titularidade. Procure o suporte antes de tentar novamente.',
     }, 500)
   }
 
-  const { error: deleteError } = await admin.auth.admin.deleteUser(user.id)
-  if (deleteError) {
-    const rollbackError = await rollback()
+  // A partir daqui, o resultado da chamada Auth pode ser ambíguo em caso de falha de rede.
+  // Por segurança, não desfazemos a transferência: o outro membro continua titular e pode usar a família.
+  try {
+    const { error: deleteError } = await admin.auth.admin.deleteUser(user.id)
+    if (deleteError) {
+      return resposta({
+        error: 'A exclusão não foi confirmada. A titularidade foi transferida para o outro membro para proteger os dados da família. Se sua conta ainda permitir acesso, entre como membro e tente novamente.',
+      }, 503)
+    }
+  } catch {
     return resposta({
-      error: rollbackError
-        ? 'A exclusão falhou e a titularidade não pôde ser restaurada automaticamente. Procure o suporte.'
-        : 'Não foi possível concluir a exclusão da conta. A titularidade foi restaurada.',
-    }, 500)
+      error: 'Não foi possível confirmar se a exclusão foi concluída. A titularidade permanece com o outro membro para proteger os dados da família. Verifique se ainda consegue entrar antes de solicitar novamente.',
+    }, 503)
   }
 
   return resposta({ success: true })
