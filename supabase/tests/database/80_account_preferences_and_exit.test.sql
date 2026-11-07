@@ -147,17 +147,17 @@ reset role;
 -- Membro, titular de outra família e frase incorreta não podem apagar.
 select pg_temp.login80('00000000-0000-0000-0000-0000000080a2');
 select is(pg_temp.sqlstate80(format(
-  $select public.clear_household_transactions(%L,'excluir transações')$,pg_temp.fx80('household')
+  $q$select public.clear_household_transactions(%L,'excluir transações')$q$,pg_temp.fx80('household')
 )), '42501', 'membro não titular não pode limpar os lançamentos');
 reset role;
 select pg_temp.login80('00000000-0000-0000-0000-0000000080a3');
 select is(pg_temp.sqlstate80(format(
-  $select public.clear_household_transactions(%L,'excluir transações')$,pg_temp.fx80('household')
+  $q$select public.clear_household_transactions(%L,'excluir transações')$q$,pg_temp.fx80('household')
 )), '42501', 'outra família não pode ser limpa');
 reset role;
 select pg_temp.login80('00000000-0000-0000-0000-0000000080a1');
 select is(pg_temp.sqlstate80(format(
-  $select public.clear_household_transactions(%L,'errado')$,pg_temp.fx80('household')
+  $q$select public.clear_household_transactions(%L,'errado')$q$,pg_temp.fx80('household')
 )), '22023', 'frase incorreta é recusada');
 
 -- Titular limpa pagos, planejados, lixeira e provento vinculado.
