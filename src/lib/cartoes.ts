@@ -262,13 +262,21 @@ export function novaChave(): string {
 }
 
 export async function registrarCompra(cartaoId: string, d: DadosCompra, chave?: string): Promise<void> {
-  const { error } = await cliente().rpc('card_purchase_at_classified', {
+  const args = {
     p_debt: cartaoId, p_date: d.data, p_total: centsToDecimal(d.total), p_count: d.parcelas,
     p_category: d.categoriaId, p_description: d.descricao.trim(), p_invoice_offset: d.deslocamento ?? 0,
     ...(chave ? { p_idem: chave } : {}),
-    p_person_id: d.personId ?? null,
-    p_is_shared_expense: d.isSharedExpense ?? false,
-  })
+    p_person_id: d.personId ?? null, p_is_shared_expense: d.isSharedExpense ?? false,
+  }
+  let { error } = await cliente().rpc('card_purchase_at_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !d.personId && !d.isSharedExpense) {
+    const antigo = await cliente().rpc('card_purchase_at', {
+      p_debt: cartaoId, p_date: d.data, p_total: centsToDecimal(d.total), p_count: d.parcelas,
+      p_category: d.categoriaId, p_description: d.descricao.trim(), p_invoice_offset: d.deslocamento ?? 0,
+      ...(chave ? { p_idem: chave } : {}),
+    })
+    error = antigo.error
+  }
   if (error) throw error
 }
 
