@@ -30,9 +30,9 @@ export function PessoaSelectField({
         <option value="unassigned">Não classificada</option>
         <option value="shared">👨‍👩‍👧‍👦 Toda a família</option>
         {pessoas.filter((p) => p.ativo).length > 0 && (
-          <optgroup label="Pessoas cadastradas">
+          <optgroup label="Pessoas da família">
             {pessoas.filter((p) => p.ativo).map((pessoa) => (
-              <option key={pessoa.id} value={pessoa.id}>{pessoa.nome}</option>
+              <option key={pessoa.id} value={pessoa.id}>{pessoa.nome}{pessoa.userId ? ' · acesso ao app' : ''}</option>
             ))}
           </optgroup>
         )}

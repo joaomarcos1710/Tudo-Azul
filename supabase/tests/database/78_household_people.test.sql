@@ -30,7 +30,7 @@ with p as (
   values (pg_temp.fx('h1'), 'Pessoa da Casa 1', '2015-04-12', 'Filho(a)') returning id
 )
 insert into fixture select 'p1', id from p;
-select is((select count(*) from public.household_people where household_id = pg_temp.fx('h1')), 1::bigint, 'família 1 lista a própria pessoa');
+select is((select count(*) from public.household_people where household_id = pg_temp.fx('h1')), 2::bigint, 'família 1 lista titular automático e pessoa cadastrada');
 select is((select status from public.household_people where id = pg_temp.fx('p1')), true, 'pessoa nasce ativa');
 update public.household_people set name = 'Nome corrigido' where id = pg_temp.fx('p1');
 update public.household_people set status = false where id = pg_temp.fx('p1');
@@ -46,18 +46,18 @@ reset role;
 
 select pg_temp.login('00000000-0000-0000-0000-0000000078a2');
 select is((select count(*) from public.household_people where household_id = pg_temp.fx('h1')), 0::bigint, 'família 2 não enxerga pessoas da família 1');
-select is((select count(*) from public.household_people), 0::bigint, 'família 2 não enxerga nenhum registro alheio');
+select is((select count(*) from public.household_people where household_id = pg_temp.fx('h1')), 0::bigint, 'família 2 não enxerga nenhum registro da família 1');
 select is(pg_temp.sqlstate_of(format($$insert into public.household_people (household_id,name,relationship) values (%L,'Invasão','Familiar')$$, pg_temp.fx('h1'))),
  '42501', 'RLS impede criar pessoa na família 1');
 select is(pg_temp.sqlstate_of(format($$update public.household_people set name = 'Invasão' where id = %L$$, pg_temp.fx('p1'))),
  null, 'update alheio não altera nenhuma linha');
-select is((select count(*) from public.household_people), 0::bigint, 'update alheio continua sem expor o registro');
+select is((select count(*) from public.household_people where household_id = pg_temp.fx('h1')), 0::bigint, 'update alheio continua sem expor o registro da família 1');
 with p as (
   insert into public.household_people (household_id,name,relationship)
   values (pg_temp.fx('h2'),'Pessoa da Casa 2','Pet') returning id
 )
 insert into fixture select 'p2', id from p;
-select is((select count(*) from public.household_people where household_id = pg_temp.fx('h2')), 1::bigint, 'família 2 pode cadastrar seu próprio pet');
+select is((select count(*) from public.household_people where household_id = pg_temp.fx('h2')), 2::bigint, 'família 2 lista seu integrante automático e seu pet');
 reset role;
 select * from finish();
 rollback;
