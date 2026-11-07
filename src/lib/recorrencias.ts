@@ -193,11 +193,11 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
  * (migrations 015 e 036).
  */
 export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null; personId?: string | null; isSharedExpense?: boolean }): Promise<void> {
-  const { error } = await cliente().rpc('recurrence_update', {
+  const { error } = await cliente().rpc('recurrence_update_classified', {
     p_id: id, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor), p_category: d.categoriaId,
+    p_person_id: d.personId ?? null, p_is_shared_expense: d.isSharedExpense ?? false,
   })
   if (error) throw error
-  await definirPessoaRecorrencia(id, d.personId ?? null, d.isSharedExpense ?? false)
 }
 
 export async function definirPessoaRecorrencia(id: string, personId: string | null, isSharedExpense: boolean): Promise<void> {
