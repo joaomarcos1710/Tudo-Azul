@@ -19,6 +19,9 @@ select has_function('public','transaction_installments_create_classified',
 select has_function('public','recurrence_create_classified',
   array['text','text','numeric','integer','date','uuid','uuid','uuid','uuid','date','text','integer','uuid','boolean'],
   'criação de recorrente grava classificação');
+select has_function('public','recurrence_update_classified',
+  array['uuid','text','numeric','uuid','uuid','boolean'],
+  'edição de recorrente e classificação são atômicas');
 select has_function('public','recurrence_set_person',
   array['uuid','uuid','boolean'],
   'classificação de recorrente pode ser atualizada');
