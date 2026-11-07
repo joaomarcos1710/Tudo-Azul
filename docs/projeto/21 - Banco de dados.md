@@ -135,3 +135,13 @@ A série numerada chega à **077** (a 077, #202, aplicada em 06/11/2026, execuç
 
 ## Limite de membros
 `households.member_limit` (1 a 10, padrão 2), checado ao convidar, ao aceitar e por gatilho. Alterável só por quem administra o banco. Base para planos futuros ([[30 - Decisões]]).
+
+
+## Pessoas da família (migration 078, PR #205)
+
+- Nova tabela `household_people`, independente de `household_members`: representa pessoas e pets usados para classificação financeira, sem conta de usuário, e-mail, senha ou convite.
+- Campos: `id`, `household_id`, `name`, `photo_url` (URL HTTPS opcional), `birthdate`, `relationship`, `status`, `created_at`, `updated_at`.
+- `relationship` aceita Conhecido, Familiar, Companheiro(a), Pai/Mãe, Filho(a), Irmão/Irmã, Pet e Amigo(a).
+- RLS por `private.is_member(household_id)`; chave única composta `(household_id,id)` prepara referências futuras sem cruzar famílias.
+- Cliente pode selecionar, inserir e atualizar dados descritivos/status, mas não tem privilégio de DELETE. Inativar preserva o cadastro.
+- Esta entrega ainda não adiciona referência de pessoa em transações, parcelas ou recorrências. "Toda a família" continuará sendo um escopo especial, nunca uma linha nesta tabela.

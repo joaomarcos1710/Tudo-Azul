@@ -5,6 +5,8 @@ tags: [tudo-azul, decisoes]
 
 | Decisão | Motivo |
 |---|---|
+| Pessoas financeiras da família ficam em `household_people`, separadas de `household_members`; cada linha pertence a um `household_id` e não representa login | Dependentes e pets podem receber classificação de despesas sem e-mail/conta; RLS e FK composta evitam exposição entre famílias |
+| "Toda a família" é um escopo analítico especial, nunca uma pessoa cadastrada; despesa sem classificação é diferente de despesa compartilhada | Evitar registro fictício editável/excluível e preservar o significado dos dados; será implementado junto à classificação financeira |
 | Dinheiro em centavos; front não soma relatório | Evitar erro de arredondamento e divergência entre telas |
 | Migration aplicada nunca é editada | Histórico confiável; mudança vira migration nova |
 | Banco em produção só por workflow manual (simular → aplicar) | Ninguém mexe no banco real por acidente |

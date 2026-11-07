@@ -6,7 +6,7 @@ select * from no_plan();
 
 -- Tabelas e policies exatamente as esperadas (nada sobrando sem revisão)
 select tables_are('public',
-  array['account_reconciliations','account_tag_links','account_tags','accounts','budgets','categories','currencies','daily_digest_settings','debt_events','debt_installment_edits','debt_installments','debt_invoices','debt_payment_schedule','debts','family_asset_valuations','family_assets','fx_rates','household_members','household_resets','households','invitations','investment_assets','investment_distributions','investment_operations','investment_valuations','profiles','recurrences','transactions'],
+  array['account_reconciliations','account_tag_links','account_tags','accounts','budgets','categories','currencies','daily_digest_settings','debt_events','debt_installment_edits','debt_installments','debt_invoices','debt_payment_schedule','debts','family_asset_valuations','family_assets','fx_rates','household_members','household_people','household_resets','households','invitations','investment_assets','investment_distributions','investment_operations','investment_valuations','profiles','recurrences','transactions'],
   'schema public contém só as tabelas esperadas');
 
 select is_empty($$
@@ -17,6 +17,7 @@ $$, 'RLS ligada em toda tabela do schema public');
 select policies_are('public','profiles',          array['profiles_select','profiles_update']);
 select policies_are('public','households',        array['households_select','households_update']);
 select policies_are('public','household_members', array['household_members_select']);
+select policies_are('public','household_people', array['household_people_select','household_people_insert','household_people_update']);
 select policies_are('public','invitations',       array['invitations_select']);
 select policies_are('public','investment_assets', array['investment_assets_select']);
 select policies_are('public','investment_distributions', array['investment_distributions_select']);
@@ -79,6 +80,9 @@ select is_empty($$
 $$, 'authenticated sem INSERT em households, household_members, invitations, profiles (só por RPC/trigger)');
 
 select ok(not has_any_column_privilege('authenticated', 'public.household_members', 'UPDATE'), 'sem UPDATE em household_members');
+select ok(not has_table_privilege('authenticated', 'public.household_people', 'DELETE'), 'pessoas da família não podem ser apagadas: só inativadas');
+select ok(not has_column_privilege('authenticated', 'public.household_people', 'household_id', 'UPDATE'), 'household_people.household_id imutável');
+select ok(has_column_privilege('authenticated', 'public.household_people', 'status', 'UPDATE'), 'pessoas podem ser inativadas/reativadas');
 select ok(not has_any_column_privilege('authenticated', 'public.invitations', 'UPDATE'), 'sem UPDATE em invitations');
 
 -- Privilégios por coluna: o que o cliente NÃO pode tocar
