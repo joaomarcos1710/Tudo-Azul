@@ -59,6 +59,19 @@ export default function Lancamentos() {
   const [mostrarSaldoDiario, setMostrarSaldoDiario] = useState(true)
   const [saldosDiarios, setSaldosDiarios] = useState<SaldoDiario[]>([])
 
+  useEffect(() => {
+    let ativo = true
+    if (!supabase || !sessao?.user.id) return
+    void supabase.from('user_preferences').select('ordem_lancamentos,saldo_diario')
+      .eq('user_id', sessao.user.id).maybeSingle()
+      .then(({ data }) => {
+        if (!ativo || !data) return
+        setOrdemPreferida(data.ordem_lancamentos)
+        setMostrarSaldoDiario(data.saldo_diario)
+      })
+    return () => { ativo = false }
+  }, [sessao?.user.id])
+
   const [params, setParams] = useSearchParams()
   // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
   const [mes, setMes] = useState(() => {
