@@ -6,8 +6,8 @@ import { PessoaSelectField } from './PessoaSelectField'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 
 const pessoas: PessoaFamilia[] = [
-  { id: 'p1', familiaId: 'h1', nome: 'Pessoa A', fotoUrl: null, nascimento: null, vinculo: 'Companheiro(a)', ativo: true, criadaEm: '', atualizadaEm: '' },
-  { id: 'p2', familiaId: 'h1', nome: 'Bidu', fotoUrl: null, nascimento: null, vinculo: 'Pet', ativo: false, criadaEm: '', atualizadaEm: '' },
+  { id: 'p1', userId: 'u1', familiaId: 'h1', nome: 'Pessoa A', fotoUrl: null, nascimento: null, vinculo: 'Companheiro(a)', ativo: true, criadaEm: '', atualizadaEm: '' },
+  { id: 'p2', userId: null, familiaId: 'h1', nome: 'Bidu', fotoUrl: null, nascimento: null, vinculo: 'Pet', ativo: false, criadaEm: '', atualizadaEm: '' },
 ]
 
 describe('PessoaSelectField', () => {
