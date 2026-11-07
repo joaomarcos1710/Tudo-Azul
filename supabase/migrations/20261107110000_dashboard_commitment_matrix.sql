@@ -190,7 +190,14 @@ begin
     where r.household_id = p_household
       and r.kind = 'card'
       and r.active
-      and r.end_date is not null or true
+      and datas.vencimento between v_from and v_to
+      and not exists (
+        select 1
+        from public.debt_installments ja
+        where ja.household_id = p_household
+          and ja.recurrence_id = r.id
+          and ja.occurrence_date = o.ocorrencia
+      )
     group by 1, 2, 3, 4, 5, 6
   ),
   -- Parcelas de empréstimos/financiamentos são cronograma contratual, não debt_installments.
