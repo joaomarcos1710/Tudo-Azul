@@ -38,23 +38,25 @@ as $$
   ),
   categorias as (
     select coalesce(jsonb_agg(jsonb_build_object(
-      'categoryId', x.category_id,
-      'name', x.category_name,
-      'limit', x.amount_limit,
-      'spent', x.spent,
-      'planned', x.planned,
-      'projected', x.projected,
-      'remaining', x.remaining,
-      'percent', case when x.amount_limit > 0
-        then round(100 * x.projected / x.amount_limit, 1) else null end
-    ) order by x.projected / nullif(x.amount_limit, 0) desc, x.category_name), '[]'::jsonb) as items
-      from periodo p
-      cross join lateral public.budget_projection(
-        p_household, p.month_start, p.today
-      ) x
-     where x.amount_limit > 0
-     order by x.projected / nullif(x.amount_limit, 0) desc, x.category_name
-     limit 5
+      'categoryId', ranked.category_id,
+      'name', ranked.category_name,
+      'limit', ranked.amount_limit,
+      'spent', ranked.spent,
+      'planned', ranked.planned,
+      'projected', ranked.projected,
+      'remaining', ranked.remaining,
+      'percent', round(100 * ranked.projected / ranked.amount_limit, 1)
+    ) order by ranked.ratio desc, ranked.category_name), '[]'::jsonb) as items
+      from (
+        select x.*, x.projected / nullif(x.amount_limit, 0) as ratio
+          from periodo p
+          cross join lateral public.budget_projection(
+            p_household, p.month_start, p.today
+          ) x
+         where x.amount_limit > 0
+         order by x.projected / nullif(x.amount_limit, 0) desc, x.category_name
+         limit 5
+      ) ranked
   ),
   calculo as (
     select p.month_start, p.month_end, p.today,
