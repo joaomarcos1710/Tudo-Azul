@@ -45,3 +45,6 @@ enable_signup = true
 enable_signup = true
 # Local/CI apenas: sem confirmação por e-mail para os testes poderem criar usuários.
 enable_confirmations = false
+
+[functions.delete-account]
+verify_jwt = true

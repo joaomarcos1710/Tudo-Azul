@@ -206,6 +206,7 @@ type AcaoLote = 'categoria' | 'pago' | 'lixeira'
 interface PropsTabela {
   itens: ItemLista[]
   hoje: string
+  ordemInicial?: 'asc' | 'desc'
   /** Muda com o mês e os filtros: a seleção é "do mês/filtro" e começa vazia em outro. */
   chaveSelecao: string
   categorias: Categoria[]
@@ -231,7 +232,8 @@ const alterados = (n: number) => (n === 1 ? '1 lançamento alterado' : `${n} lan
  * a quantidade (o front não soma dinheiro). Depois, "Desfazer" por alguns segundos.
  */
 export function TabelaLancamentos(p: PropsTabela) {
-  const [ordem, setOrdem] = useState<Ordem>({ campo: 'data', direcao: 'desc' })
+  const [ordem, setOrdem] = useState<Ordem>(() => ({ campo: 'data', direcao: p.ordemInicial ?? 'desc' }))
+  useEffect(() => { setOrdem({ campo: 'data', direcao: p.ordemInicial ?? 'desc' }) }, [p.ordemInicial])
   const [sel, setSel] = useState<Set<string>>(new Set())
   const ancora = useRef<string | null>(null)
   const [acao, setAcao] = useState<AcaoLote | null>(null)

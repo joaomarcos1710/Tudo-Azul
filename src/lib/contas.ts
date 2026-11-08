@@ -247,3 +247,35 @@ export async function definirAtiva(id: string, ativa: boolean): Promise<void> {
   const { error } = await cliente().from('accounts').update({ active: ativa }).eq('id', id)
   if (error) throw error
 }
+
+/** Saldo de fechamento diário por moeda, calculado no banco a partir do mesmo motor de saldo das contas. */
+export interface SaldoDiario {
+  data: string
+  moeda: string
+  saldo: Cents
+}
+
+/** Até 367 dias de saldos diários. Cada moeda é devolvida separadamente, sem conversão ou soma entre moedas. */
+export async function listarSaldosDiarios(familiaId: string, de: string, ate: string): Promise<SaldoDiario[]> {
+  const { data, error } = await cliente().rpc('account_balances_daily', {
+    p_household: familiaId,
+    p_from: de,
+    p_to: ate,
+  })
+  if (error) {
+    if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return []
+    throw error
+  }
+  const porDiaMoeda = new Map<string, SaldoDiario>()
+  for (const linha of (data ?? []) as { balance_date: string; currency_code: string; balance: number | string }[]) {
+    const chave = `${linha.balance_date}|${linha.currency_code}`
+    const anterior = porDiaMoeda.get(chave)
+    const valor = centsFromDb(linha.balance)
+    porDiaMoeda.set(chave, {
+      data: linha.balance_date,
+      moeda: linha.currency_code,
+      saldo: (anterior ? anterior.saldo + valor : valor) as Cents,
+    })
+  }
+  return [...porDiaMoeda.values()].sort((a, b) => a.data.localeCompare(b.data) || a.moeda.localeCompare(b.moeda))
+}

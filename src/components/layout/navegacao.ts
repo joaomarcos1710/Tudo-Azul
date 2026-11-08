@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
-  IconeAnalises, IconeExportar, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens,
+  IconeAnalises, IconeExportar, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens, IconePreferencias,
 } from './icons'
 
 export interface ItemNavegacao {
@@ -67,7 +67,8 @@ export const gruposNavegacao: GrupoNavegacao[] = [
   },
 ]
 
-export const itensNavegacao: ItemNavegacao[] = gruposNavegacao.flatMap((g) => g.itens)
+const itemPreferencias: ItemNavegacao = { caminho: '/preferencias', rotulo: 'Preferências', curto: 'Preferências', Icone: IconePreferencias, descricao: 'Personalize a navegação e as opções da sua conta.' }
+export const itensNavegacao: ItemNavegacao[] = [...gruposNavegacao.flatMap((g) => g.itens), itemPreferencias]
 export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) => i.fixoNoCelular)
 
 /** Acesso rápido no desktop: sem cabeçalhos e sem configurações esporádicas. */
@@ -80,7 +81,7 @@ export const itensAcessoRapido: ItemNavegacao[] = caminhosAcessoRapido
 export const gruposMenuPerfil: GrupoNavegacao[] = [
   { titulo: 'Gestão', itens: itensNavegacao.filter((i) => ['/contas', '/categorias', '/recorrentes'].includes(i.caminho)) },
   { titulo: 'Patrimônio & Conta', itens: itensNavegacao.filter((i) => ['/bens', '/dividas', '/familia'].includes(i.caminho)) },
-  { titulo: 'Sistema', itens: itensNavegacao.filter((i) => i.caminho === '/exportar') },
+  { titulo: 'Sistema', itens: itensNavegacao.filter((i) => ['/exportar', '/preferencias'].includes(i.caminho)) },
 ]
 
 /** Item ativo para um caminho (uma subtela como `/contas/abc` conta como "Contas"). */
