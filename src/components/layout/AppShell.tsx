@@ -181,6 +181,8 @@ function PerfilSidebar({ pathname }: { pathname: string }) {
 
 export function AppShell() {
   const { pathname } = useLocation()
+  const modoFatura = /^\/cartoes\/[^/]+\/fatura\//.test(pathname)
+  const [menuColapsado, setMenuColapsado] = useState(false)
   const [maisAberto, setMaisAberto] = useState(false)
   const botaoMais = useRef<HTMLButtonElement>(null)
   const fecharMais = useCallback(() => {
@@ -188,13 +190,15 @@ export function AppShell() {
     botaoMais.current?.focus()
   }, [])
   useEffect(() => { setMaisAberto(false) }, [pathname])
+  // O modo de foco só existe na página dedicada da fatura; ao sair, a navegação volta ao normal.
+  useEffect(() => { if (!modoFatura) setMenuColapsado(false) }, [modoFatura])
 
   const ativo = itemAtivo(pathname)
   const maisAtivo = maisAberto || (ativo !== undefined && !ativo.fixoNoCelular)
 
   return (
     <div className="min-h-screen md:flex">
-      <aside className="hidden w-64 shrink-0 flex-col bg-marinho p-4 text-white md:sticky md:top-0 md:flex md:h-screen md:overflow-y-auto">
+      <aside id="navegacao-lateral" className={`hidden w-64 shrink-0 flex-col bg-marinho p-4 text-white transition-all duration-300 md:sticky md:top-0 md:h-screen md:overflow-y-auto ${menuColapsado ? "md:hidden" : "md:flex"}`}>
         <div className="mb-5 flex items-center justify-between py-2 pl-3">
           <Marca claro />
           <BotaoOcultarValores claro />
@@ -219,13 +223,23 @@ export function AppShell() {
           <Marca tamanho={28} claro />
           <div className="flex items-center"><BotaoOcultarValores claro /></div>
         </header>
-        <main className="mx-auto w-full max-w-6xl flex-1 p-4 pb-28 md:p-8 md:pb-8">
+        {modoFatura && (
+          <div className="hidden justify-end px-4 pt-3 md:flex md:px-8">
+            <button type="button" aria-expanded={!menuColapsado} aria-controls="navegacao-lateral"
+              onClick={() => setMenuColapsado((v) => !v)}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              aria-label={menuColapsado ? "Mostrar menu lateral" : "Ocultar menu lateral"}>
+              <span aria-hidden="true">{menuColapsado ? "☰" : "‹"}</span>{menuColapsado ? "Mostrar menu" : "Ocultar menu"}
+            </button>
+          </div>
+        )}
+        <main className={`mx-auto w-full flex-1 p-4 transition-[max-width,padding] duration-300 ${modoFatura ? "max-w-none pb-4" : "max-w-6xl pb-28"} md:p-8 md:pb-8`}>
           <Suspense fallback={<p role="status" className="text-sm text-slate-500">Carregando…</p>}><Outlet /></Suspense>
         </main>
       </div>
 
       <nav aria-label="Principal no celular"
-        className="fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
+        className={`fixed inset-x-0 bottom-0 z-10 flex border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden ${modoFatura ? "hidden" : ""}`}>
         {itensFixosNoCelular.map(({ caminho, curto, Icone }) => (
           <NavLink key={caminho} to={caminho} end={caminho === '/'}
             className={({ isActive }) => `flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-0.5 text-[11px] font-medium ${

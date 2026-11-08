@@ -1825,6 +1825,21 @@ describe('Tela de Cartões no celular (#201, queixa do dono no iPhone)', () => {
     expect(screen.getByText('Mostrando os 30 mais recentes.')).toBeTruthy()
   })
 
+  it('a fatura oferece lançamento rápido de despesa/receita e impressão', async () => {
+    const u = userEvent.setup()
+    const imprimir = vi.fn()
+    Object.defineProperty(window, 'print', { configurable: true, value: imprimir })
+    await abrir(u)
+    await u.click(screen.getByRole('button', { name: 'Nova despesa' }))
+    expect(await screen.findByRole('heading', { name: 'Nova compra · Nubank' })).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await u.click(screen.getByRole('button', { name: 'Nova receita' }))
+    expect(await screen.findByRole('heading', { name: 'Crédito / reembolso · Nubank' })).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Cancelar' }))
+    await u.click(screen.getByRole('button', { name: 'Imprimir fatura' }))
+    expect(imprimir).toHaveBeenCalledTimes(1)
+  })
+
   it('valores das compras e dos créditos estão no DOM, na mesma linha do nome', async () => {
     const u = userEvent.setup()
     await abrir(u)
