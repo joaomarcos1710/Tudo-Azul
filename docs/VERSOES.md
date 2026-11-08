@@ -141,3 +141,4 @@ continuam abaixo como histórico.
 | 2026.211 | **Marca separada da transferência.** O marinho da logo, dos títulos e dos cabeçalhos ganha um token próprio (`MARCA` em `src/lib/cores.ts`) e deixa de ser o mesmo token da cor de transferência. Sem mudança visual: os hex são os mesmos. Sem migration.
 
 | 2026.212 | **Quem lançou a despesa aparece automaticamente.** O titular e cada membro que entra por convite passam a ter uma pessoa financeira vinculada ao login. Novos lançamentos, compras no cartão e recorrências já selecionam quem está logado; despesas da família continuam selecionáveis separadamente. Migration 080. |
+| 2026.220 | **Ideia 05 do dono em `docs/ideias`.** Membros da família: separa o que já está no app (pessoas, parentesco, classificação, relatório e vínculo com login) do que seria novo. Só documentação, sem mudança de código. |
