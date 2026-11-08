@@ -144,16 +144,16 @@ afterEach(() => {
 describe('Visão geral', () => {
   it('o Início saúda pelo nome (até dois nomes) com receita e despesa do mês do banco; Análises mostra o título próprio', async () => {
     montar()
-    expect(await screen.findByRole('heading', { name: 'João Marcos!' })).toBeTruthy()
-    expect(screen.getByText(/^(Bom dia|Boa tarde|Boa noite),$/)).toBeTruthy()
-    const cabecalho = screen.getByRole('heading', { name: 'João Marcos!' }).closest('header')!
+    expect(await screen.findByRole('heading', { level: 1, name: 'Minha Carteira' })).toBeTruthy()
+    expect(screen.getByText(/^(Bom dia|Boa tarde|Boa noite), João Marcos$/)).toBeTruthy()
+    const cabecalho = screen.getByRole('heading', { name: 'Minha Carteira' }).closest('header')!
     expect(within(cabecalho).getByText('Receita mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
     expect(within(cabecalho).getByText('Despesa mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
     expect(within(cabecalho).getByRole('link', { name: 'Ver análises do mês' }).getAttribute('href')).toBe('/analises')
     cleanup()
     montar('analises')
     expect(await screen.findByRole('heading', { name: 'Análises' })).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'João Marcos!' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Minha Carteira' })).toBeNull()
   })
   it('gráfico de categorias com valores e % do banco (Análises)', async () => {
     montar('analises')
