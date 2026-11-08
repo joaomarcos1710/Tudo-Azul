@@ -618,7 +618,7 @@ describe('Visão geral', () => {
 
   it('avisos do topo: sem aviso do banco, a faixa não aparece', async () => {
     montar()
-    await screen.findByRole('heading', { name: 'João Marcos!' })
+    await screen.findByRole('heading', { name: 'Minha Carteira' })
     expect(mock.avisosDoInicio).toHaveBeenCalledWith('h1', hojeSP())
     expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
   })
@@ -638,7 +638,7 @@ describe('Visão geral', () => {
     cleanup()
     mock.avisosDoInicio.mockRejectedValue(new Error('sem a migration 057'))
     montar()
-    expect(await screen.findByRole('heading', { name: 'João Marcos!' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Minha Carteira' })).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
   })
 
