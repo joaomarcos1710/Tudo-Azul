@@ -432,3 +432,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Categorias da fatura**: RPC agregada por categoria e gráfico/lista na página dedicada. O front não deve somar os valores.
 - [ ] **Detalhes do lançamento**: painel lateral com categoria, valor, data e descrição editáveis; tag de despesa fixa mensal; ações de excluir e estornar/reembolsar. Exige trilha de auditoria e preservação da trava de fatura paga.
 - [ ] **Mover parcela entre faturas**: ações no menu de contexto para fatura anterior/próxima; definir a regra para parcela já cobrada, fatura paga e sequência de parcelas, com operação atômica no banco.
+
+
+## Auditoria de pessoas inativas (PR #209)
+- [x] Bloqueio no banco de novas atribuições de pessoas inativas em lançamentos, parcelas de dívidas e recorrências; classificações históricas permanecem preservadas.
+- [x] Índices compostos começam por `(household_id, person_id)`, cobrindo as FKs e as consultas por período.
+- Migration 083: `20261108210000_people_active_and_fk_indexes.sql`. Ainda não aplicada no Supabase hospedado.
