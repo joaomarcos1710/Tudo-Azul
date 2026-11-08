@@ -426,3 +426,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Fase 4:** distribuição do patrimônio e resumo da carteira de investimentos com dados agregados no banco, moedas segregadas e histórico disponível.
 - [ ] **Fase 5:** integrar a projeção de compromissos da PR #210, sem duplicar a consulta ou o motor financeiro.
 - [ ] **Fase 6:** revisão independente, testes de privacidade, âncoras, responsividade, estados vazios, moedas e isolamento familiar; conferir CI e preview antes de solicitar merge.
+
+
+## Auditoria de pessoas inativas (PR #209)
+- [x] Bloqueio no banco de novas atribuições a pessoas inativas em lançamentos, parcelas de dívidas e recorrências; classificações históricas permanecem preservadas.
+- [x] Índices compostos começam por `(household_id, person_id)`, cobrindo as FKs e as consultas por período.
+- Migration 083: `20261108210000_people_active_and_fk_indexes.sql`. Ainda não aplicada no Supabase hospedado.
