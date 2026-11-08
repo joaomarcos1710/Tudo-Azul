@@ -69,3 +69,12 @@ PWA instalável · versão `AAAA.E` · ocultar valores · valores sempre vindos 
 - Barras por pessoa cadastrada, mais os grupos especiais **Toda a família** e **Não classificada**.
 - Despesas à vista são agrupadas pela data do lançamento; despesas de cartão são agrupadas pelos eventos de cobrança/estorno das parcelas vinculados à fatura. Eventos de pagamento da fatura não entram no relatório.
 - O seletor **Despesa de quem?** aparece em despesas à vista, compras no cartão, parcelamentos em conta e regras recorrentes. Pessoas inativas não aparecem em novos lançamentos, mas permanecem disponíveis ao editar registros históricos.
+
+
+## Minha Carteira — Fase 1 (em PR)
+
+- O Início passa a se apresentar como **Minha Carteira**, mantendo os indicadores e ações rápidas existentes.
+- Navegação horizontal por âncoras para Visão geral, Contas, Cartões, Investimentos e Dívidas, com rolagem suave e respeito à preferência do sistema por movimento reduzido.
+- Contas, cartões, investimentos e dívidas mantêm seus módulos completos; nesta fase, os resumos de investimentos e dívidas aparecem como pontos de entrada explícitos, sem números fictícios.
+- A privacidade reutiliza `useValoresOcultos`, `formatBRL` e o botão global do `AppShell`; nenhum segundo estado de ocultação é criado.
+- Nenhum endpoint, RPC, migration ou cálculo financeiro foi criado nesta fase.

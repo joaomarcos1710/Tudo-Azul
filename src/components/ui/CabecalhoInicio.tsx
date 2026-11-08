@@ -22,8 +22,9 @@ export function CabecalhoInicio({ nome, receitas, despesas, aReceber = null, aPa
   return (
     <header className="mb-6 flex flex-col gap-4 rounded-card bg-white p-5 shadow-card md:flex-row md:items-end md:justify-between">
       <div>
-        <p className="text-sm text-slate-500">{saudacao()},</p>
-        <h1 className="text-xl font-bold text-marinho">{nome ? `${nome}!` : 'bem-vindo!'}</h1>
+        <p className="text-sm text-slate-500">{saudacao()}{nome ? `, ${nome}` : ''}</p>
+        <h1 className="text-xl font-bold text-marinho">Minha Carteira</h1>
+        <p className="mt-1 text-sm text-slate-500">A visão financeira da sua família, em um só lugar.</p>
         <div className="mt-3 flex items-start gap-6">
           <div>
             <p className="text-xs text-slate-500">Receita mensal</p>

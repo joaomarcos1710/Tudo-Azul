@@ -144,16 +144,16 @@ afterEach(() => {
 describe('Visão geral', () => {
   it('o Início saúda pelo nome (até dois nomes) com receita e despesa do mês do banco; Análises mostra o título próprio', async () => {
     montar()
-    expect(await screen.findByRole('heading', { name: 'João Marcos!' })).toBeTruthy()
-    expect(screen.getByText(/^(Bom dia|Boa tarde|Boa noite),$/)).toBeTruthy()
-    const cabecalho = screen.getByRole('heading', { name: 'João Marcos!' }).closest('header')!
+    expect(await screen.findByRole('heading', { level: 1, name: 'Minha Carteira' })).toBeTruthy()
+    expect(screen.getByText(/^(Bom dia|Boa tarde|Boa noite), João Marcos$/)).toBeTruthy()
+    const cabecalho = screen.getByRole('heading', { name: 'Minha Carteira' }).closest('header')!
     expect(within(cabecalho).getByText('Receita mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
     expect(within(cabecalho).getByText('Despesa mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
     expect(within(cabecalho).getByRole('link', { name: 'Ver análises do mês' }).getAttribute('href')).toBe('/analises')
     cleanup()
     montar('analises')
     expect(await screen.findByRole('heading', { name: 'Análises' })).toBeTruthy()
-    expect(screen.queryByRole('heading', { name: 'João Marcos!' })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Minha Carteira' })).toBeNull()
   })
   it('gráfico de categorias com valores e % do banco (Análises)', async () => {
     montar('analises')
@@ -618,7 +618,7 @@ describe('Visão geral', () => {
 
   it('avisos do topo: sem aviso do banco, a faixa não aparece', async () => {
     montar()
-    await screen.findByRole('heading', { name: 'João Marcos!' })
+    await screen.findByRole('heading', { name: 'Minha Carteira' })
     expect(mock.avisosDoInicio).toHaveBeenCalledWith('h1', hojeSP())
     expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
   })
@@ -638,7 +638,7 @@ describe('Visão geral', () => {
     cleanup()
     mock.avisosDoInicio.mockRejectedValue(new Error('sem a migration 057'))
     montar()
-    expect(await screen.findByRole('heading', { name: 'João Marcos!' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Minha Carteira' })).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
   })
 
@@ -1322,5 +1322,21 @@ describe('Análises: base dos gastos de cartão no gráfico por categoria (PR #1
     montar('inicio')
     await screen.findByText(/João Marcos/)
     expect(screen.queryByRole('group', { name: 'Gastos de cartão com base na:' })).toBeNull()
+  })
+})
+
+
+describe('Minha Carteira — estrutura da Fase 1', () => {
+  it('mostra o título, a navegação horizontal e mantém as cinco âncoras disponíveis', async () => {
+    mock.resumoDosCartoes.mockResolvedValue([])
+    montar()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Minha Carteira' })).toBeTruthy()
+    const nav = screen.getByRole('navigation', { name: 'Seções da Minha Carteira' })
+    expect(within(nav).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
+      '#visao-geral', '#contas', '#cartoes', '#investimentos', '#dividas',
+    ])
+    for (const id of ['visao-geral', 'contas', 'cartoes', 'investimentos', 'dividas']) {
+      expect(document.getElementById(id)).not.toBeNull()
+    }
   })
 })

@@ -6,3 +6,7 @@
   body { @apply bg-fundo text-marinho font-sans antialiased; }
   :focus-visible { @apply outline-2 outline-offset-2 outline-azul; }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}

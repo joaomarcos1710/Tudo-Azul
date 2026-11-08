@@ -31,6 +31,7 @@ import { SeletorBaseCartao } from '../components/SeletorBaseCartao'
 import { guardarBaseGastosCartao, lerBaseGastosCartao } from '../lib/baseGastosCartao'
 import type { BaseGastosCartao } from '../lib/baseGastosCartao'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
+import { NavegacaoCarteira } from '../components/ui/NavegacaoCarteira'
 import { AvisosInicio } from '../components/ui/AvisosInicio'
 import { avisosDoInicio } from '../lib/avisosInicio'
 import type { AvisoInicio } from '../lib/avisosInicio'
@@ -295,8 +296,12 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         ? <CabecalhoInicio nome={nome} receitas={m?.receitas ?? null} despesas={m?.despesas ?? null}
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
         : <CabecalhoPagina titulo="Análises" descricao={`Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />}
-      {/* #188: os 7 indicadores logo abaixo do cabeçalho; substituem os widgets personalizáveis, o card de investimentos e a nota do patrimônio */}
-      {noInicio && <FaixaIndicadores dados={dados.indicadores} />}
+      {noInicio && <>
+        <NavegacaoCarteira />
+        <section id="visao-geral" aria-label="Resumo geral" className="mb-4 scroll-mt-24">
+          <FaixaIndicadores dados={dados.indicadores} />
+        </section>
+      </>}
       {/* receitas e despesas do mês em outras moedas: à parte, nunca somadas aos totais em reais acima */}
       <ResultadoEmOutrasMoedas porMoeda={dados.mesPorMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
       {cobrancaFalhou && (
@@ -353,14 +358,17 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </Card>
       )}
 
-      {noInicio && dados.cartoes && dados.cartoes.length > 0 && (
+      {noInicio && <div id="cartoes" className="scroll-mt-24" />}
+      {noInicio && dados.cartoes && (
         <Card className="mb-4">
           <div className="flex items-center justify-between">
             <CardTitle>Cartões</CardTitle>
             <Link to="/cartoes" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver cartões</Link>
           </div>
           <FaturasDoMes mes={mes} dados={dados.faturasDoMes} className="mb-3" />
-          <ul className="space-y-3">
+          {dados.cartoes.length === 0 ? (
+            <p className="text-sm text-slate-500">Nenhum cartão cadastrado. <Link to="/cartoes" className="font-semibold text-azul hover:underline">Adicionar cartão</Link></p>
+          ) : <ul className="space-y-3">
             {dados.cartoes.map((c) => (
               <li key={c.id} className="rounded-lg border border-slate-100 p-3 text-sm">
                 <div className="flex items-center justify-between gap-2">
@@ -391,7 +399,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
                 {c.divida === 0 && c.credito > 0 && <p className="mt-2 text-xs text-slate-500">Crédito no cartão de {formatBRL(c.credito)}</p>}
               </li>
             ))}
-          </ul>
+          </ul>}
         </Card>
       )}
 
@@ -636,7 +644,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           )}
         </Card>
 
-        <Card>
+        <Card id="contas" className="scroll-mt-24">
           <div className="flex items-start justify-between gap-3">
             <CardTitle>Minhas contas</CardTitle>
             {dados.saldoGeral !== null && dados.contas.length > 0 && (
@@ -681,6 +689,16 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               <Link to="/calendario" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver no calendário</Link>
             </div>
           )}
+        </Card>
+        <Card id="investimentos" className="scroll-mt-24">
+          <CardTitle>Meus investimentos</CardTitle>
+          <p className="text-sm text-slate-500">A visão consolidada da carteira será integrada aqui nas próximas etapas. Seus ativos, operações e avaliações continuam disponíveis no módulo completo.</p>
+          <Link to="/investimentos" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Abrir investimentos</Link>
+        </Card>
+        <Card id="dividas" className="scroll-mt-24">
+          <CardTitle>Empréstimos e dívidas</CardTitle>
+          <p className="text-sm text-slate-500">O resumo dos contratos e compromissos será integrado aqui nas próximas etapas. Os saldos e pagamentos continuam disponíveis no módulo completo.</p>
+          <Link to="/dividas" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Abrir dívidas</Link>
         </Card>
       </div>}
     </>

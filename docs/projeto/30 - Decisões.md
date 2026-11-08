@@ -441,3 +441,11 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 - **Não feito:** a paleta proposta (marinho `#0A1F44`, azul `#1E5EFF`, vermelho `#C1121F`, verde `#0B7A55`, fundo `#F6F8FC`) não foi aplicada. Os tons de status seguem a #183. O modo escuro não existe e não foi criado.
 - **Testes:** `cores.test.ts` confere que o Tailwind lê `MARCA`, que o marinho passa 4,5:1 no branco e no fundo do app, que branco passa 4,5:1 sobre o marinho (barra lateral) e que o celeste passa 3:1 sobre o marinho (losango da logo).
 - **Atenção:** `public/favicon.svg` repete os mesmos hex à mão (o SVG não importa código). Se a marca mudar, mudar lá também.
+
+
+## 08/11/2026 — Minha Carteira, Fase 1 (em PR)
+- **Decisão:** evoluir o Início para a experiência **Minha Carteira** em etapas pequenas, mantendo as rotas e os módulos completos existentes.
+- **Fase 1:** cabeçalho com o título Minha Carteira, chips horizontais que navegam por âncoras locais e pontos de entrada para Contas, Cartões, Investimentos e Dívidas. A navegação usa links nativos, rolagem suave e respeita `prefers-reduced-motion`.
+- **Privacidade:** reutilizar o estado global já existente em `src/lib/privacidade.ts` e o botão do `AppShell`. Não criar um estado paralelo nem duplicar o botão no cabeçalho da página.
+- **Dados:** não adicionar consultas, cálculos ou migrations na Fase 1. As próximas fases devem reutilizar as RPCs e serviços existentes, com PostgreSQL como fonte de verdade.
+- **Estado:** implementação em PR; ainda não integrada à `main` nem publicada em produção.
