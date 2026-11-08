@@ -141,3 +141,5 @@ continuam abaixo como histórico.
 | 2026.211 | **Marca separada da transferência.** O marinho da logo, dos títulos e dos cabeçalhos ganha um token próprio (`MARCA` em `src/lib/cores.ts`) e deixa de ser o mesmo token da cor de transferência. Sem mudança visual: os hex são os mesmos. Sem migration.
 
 | 2026.212 | **Quem lançou a despesa aparece automaticamente.** O titular e cada membro que entra por convite passam a ter uma pessoa financeira vinculada ao login. Novos lançamentos, compras no cartão e recorrências já selecionam quem está logado; despesas da família continuam selecionáveis separadamente. Migration 080. |
+
+| 2026.216 | **Minha Carteira, Fase 1.** O Início ganha o título Minha Carteira, navegação horizontal por âncoras para Visão geral, Contas, Cartões, Investimentos e Dívidas, rolagem suave acessível e pontos de entrada sem dados fictícios. Reutiliza a privacidade global existente. Sem migration ou alteração do motor financeiro. |
