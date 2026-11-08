@@ -141,3 +141,4 @@ continuam abaixo como histórico.
 | 2026.211 | **Marca separada da transferência.** O marinho da logo, dos títulos e dos cabeçalhos ganha um token próprio (`MARCA` em `src/lib/cores.ts`) e deixa de ser o mesmo token da cor de transferência. Sem mudança visual: os hex são os mesmos. Sem migration.
 
 | 2026.212 | **Quem lançou a despesa aparece automaticamente.** O titular e cada membro que entra por convite passam a ter uma pessoa financeira vinculada ao login. Novos lançamentos, compras no cartão e recorrências já selecionam quem está logado; despesas da família continuam selecionáveis separadamente. Migration 080. |
+| 2026.219 | **Ideias 03 e 04 do dono em `docs/ideias`.** Direitos reservados no popover e no login; cartão de crédito e fatura (extrato por dia, categorias da fatura, edição de lançamento, parcelas e mover entre faturas), com o que já está na PR #204. Só documentação, sem mudança de código. |
