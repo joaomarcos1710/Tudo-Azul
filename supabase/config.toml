@@ -48,3 +48,7 @@ enable_confirmations = false
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.admin-api]
+# A API administrativa valida uma credencial de integração própria no backend.
+verify_jwt = false
