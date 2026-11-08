@@ -417,3 +417,12 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Fase 2:** classificar despesas de conta, compras/parcelas de cartão e recorrências. Distinguir `person`, `shared` ("Toda a família") e `unassigned` (ainda sem classificação). Preservar triggers de imutabilidade e os cálculos financeiros.
 - [ ] **Fase 3:** filtros por pessoa e agregação mensal por pessoa/escopo, sem contar pagamento de fatura como uma segunda despesa.
 - [ ] Upload privado de foto com política de Storage por família; nesta primeira tela a foto pode ser informada por URL HTTPS e o avatar usa iniciais por padrão.
+
+
+## Minha Carteira — evolução faseada (PR em desenvolvimento)
+- [x] **Fase 1:** título Minha Carteira, chips horizontais com âncoras locais, rolagem suave acessível e integração com a privacidade global existente. Pontos de entrada para investimentos e dívidas sem valores simulados.
+- [ ] **Fase 2:** consolidar Patrimônio Total, Saldo Disponível e Patrimônio Líquido usando as RPCs atuais; resumo de contas agrupado por instituição e moeda, sem somas no navegador.
+- [ ] **Fase 3:** cartões com limite, utilização, disponibilidade, próxima fatura e vencimento; dívidas com saldo devedor, parcelas e próximo vencimento, reutilizando os serviços existentes.
+- [ ] **Fase 4:** distribuição do patrimônio e resumo da carteira de investimentos com dados agregados no banco, moedas segregadas e histórico disponível.
+- [ ] **Fase 5:** integrar a projeção de compromissos da PR #210, sem duplicar a consulta ou o motor financeiro.
+- [ ] **Fase 6:** revisão independente, testes de privacidade, âncoras, responsividade, estados vazios, moedas e isolamento familiar; conferir CI e preview antes de solicitar merge.
