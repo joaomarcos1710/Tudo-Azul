@@ -426,3 +426,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Fase 4:** distribuição do patrimônio e resumo da carteira de investimentos com dados agregados no banco, moedas segregadas e histórico disponível.
 - [ ] **Fase 5:** integrar a projeção de compromissos da PR #210, sem duplicar a consulta ou o motor financeiro.
 - [ ] **Fase 6:** revisão independente, testes de privacidade, âncoras, responsividade, estados vazios, moedas e isolamento familiar; conferir CI e preview antes de solicitar merge.
+
+
+### Cartão de crédito: recursos avançados da fatura (pendentes após #204)
+- [ ] **Categorias da fatura**: RPC agregada por categoria e gráfico/lista na página dedicada. O front não deve somar os valores.
+- [ ] **Detalhes do lançamento**: painel lateral com categoria, valor, data e descrição editáveis; tag de despesa fixa mensal; ações de excluir e estornar/reembolsar. Exige trilha de auditoria e preservação da trava de fatura paga.
+- [ ] **Mover parcela entre faturas**: ações no menu de contexto para fatura anterior/próxima; definir a regra para parcela já cobrada, fatura paga e sequência de parcelas, com operação atômica no banco.

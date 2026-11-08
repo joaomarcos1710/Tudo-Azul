@@ -78,3 +78,10 @@ PWA instalável · versão `AAAA.E` · ocultar valores · valores sempre vindos 
 - Contas, cartões, investimentos e dívidas mantêm seus módulos completos; nesta fase, os resumos de investimentos e dívidas aparecem como pontos de entrada explícitos, sem números fictícios.
 - A privacidade reutiliza `useValoresOcultos`, `formatBRL` e o botão global do `AppShell`; nenhum segundo estado de ocultação é criado.
 - Nenhum endpoint, RPC, migration ou cálculo financeiro foi criado nesta fase.
+
+
+### Cartões: modo de foco e ações da fatura (#204)
+- Na página dedicada `/cartoes/:id/fatura/:mes`, o menu lateral pode ser recolhido/expandido; a área da fatura ocupa a largura disponível e a navegação inferior some durante a análise.
+- Cabeçalho da fatura: pagar, nova despesa, nova receita e imprimir. Os lançamentos rápidos reaproveitam os formulários existentes e ficam associados ao cartão/fatura pelas regras do banco.
+- O agrupamento diário e as setas de navegação entre faturas são preservados.
+- Resumo agregado por categoria, edição completa de lançamentos e movimentação entre faturas continuam fora desta fase, pois exigem RPCs e auditoria no banco.
