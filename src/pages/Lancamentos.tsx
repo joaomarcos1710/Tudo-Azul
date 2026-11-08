@@ -12,6 +12,8 @@ import { MenuAcoes } from '../components/ui/MenuAcoes'
 import type { AcaoMenu } from '../components/ui/MenuAcoes'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
+import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import { listarCartoes, novaChave, registrarCompra, rotaFatura } from '../lib/cartoes'
@@ -20,8 +22,8 @@ import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeTransferir } from '../components/layout/icons'
 import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
-import { aceitaLancamento, hojeSP, listarContas, mesmaMoeda } from '../lib/contas'
-import type { Conta } from '../lib/contas'
+import { aceitaLancamento, hojeSP, listarContas, listarSaldosDiarios, mesmaMoeda } from '../lib/contas'
+import type { Conta, SaldoDiario } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, parseBRL, primeiraMaiuscula, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
@@ -43,7 +45,6 @@ import { criarRecorrencia, definirPessoaRecorrencia, frequencias } from '../lib/
 import { SELO, corDoValor } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
-import { useAuth } from '../lib/auth'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 
 const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
@@ -52,13 +53,43 @@ const totalValor = 'whitespace-nowrap tabular-nums text-base font-bold sm:text-x
 
 export default function Lancamentos() {
   const { familia } = useFamilia()
+  const { sessao } = useAuth()
   const familiaId = familia?.id
+  const [ordemPreferida, setOrdemPreferida] = useState<'asc' | 'desc'>('desc')
+  const [mostrarSaldoDiario, setMostrarSaldoDiario] = useState(true)
+  const [saldosDiarios, setSaldosDiarios] = useState<SaldoDiario[]>([])
+
+  useEffect(() => {
+    let ativo = true
+    if (!supabase || !sessao?.user.id) return
+    void supabase.from('user_preferences').select('ordem_lancamentos,saldo_diario')
+      .eq('user_id', sessao.user.id).maybeSingle()
+      .then(({ data }) => {
+        if (!ativo || !data) return
+        setOrdemPreferida(data.ordem_lancamentos)
+        setMostrarSaldoDiario(data.saldo_diario)
+      })
+    return () => { ativo = false }
+  }, [sessao?.user.id])
+
   const [params, setParams] = useSearchParams()
   // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
   const [mes, setMes] = useState(() => {
     const m = params.get('mes')
     return m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
   })
+  useEffect(() => {
+    let ativo = true
+    if (!familiaId || !mostrarSaldoDiario) {
+      setSaldosDiarios([])
+      return
+    }
+    const [de, ate] = limitesDoMes(mes)
+    void listarSaldosDiarios(familiaId, de, ate)
+      .then((valores) => { if (ativo) setSaldosDiarios(valores) })
+      .catch(() => { if (ativo) setSaldosDiarios([]) })
+    return () => { ativo = false }
+  }, [familiaId, mes, mostrarSaldoDiario])
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
   // ?tipo=receita|despesa (avisos do Início): abre já filtrado pelo tipo; o filtro continua editável na tela
   const [filtros, setFiltros] = useState<Filtros>(() => {
@@ -237,7 +268,9 @@ export default function Lancamentos() {
     ...comprasCategoria.map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
     ...parcelasContrato.map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
     ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
-  ].sort((x, y) => (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
+  ].sort((x, y) => ordemPreferida === 'asc'
+    ? (x.data < y.data ? -1 : x.data > y.data ? 1 : 0)
+    : (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
   const hoje = hojeSP()
   const itensVisiveis = itens.slice(0, limiteVisivel)
   const porDia: [string, Item[]][] = []
@@ -246,6 +279,16 @@ export default function Lancamentos() {
     if (ultimo && ultimo[0] === it.data) ultimo[1].push(it)
     else porDia.push([it.data, [it]])
   }
+
+  const saldosPorData = new Map<string, SaldoDiario[]>()
+  for (const saldo of saldosDiarios) {
+    const grupo = saldosPorData.get(saldo.data) ?? []
+    grupo.push(saldo)
+    saldosPorData.set(saldo.data, grupo)
+  }
+  const rotuloSaldoDoDia = (data: string) => (saldosPorData.get(data) ?? [])
+    .map((saldo) => formatMoeda(saldo.saldo, saldo.moeda)).join(' · ')
+  const gruposSaldosDiarios = [...saldosPorData.entries()]
 
   return (
     <>
@@ -361,6 +404,23 @@ export default function Lancamentos() {
         </Explicacao>
       )}
 
+      {telaGrande && mostrarSaldoDiario && gruposSaldosDiarios.length > 0 && (
+        <Card>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold text-marinho">Saldo ao final de cada dia</h2>
+            <span className="text-xs text-slate-500">Por moeda, sem conversão</span>
+          </div>
+          <div className="grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            {gruposSaldosDiarios.map(([data, valores]) => (
+              <div key={data} className="flex items-center justify-between gap-3 border-b border-slate-100 py-1 text-sm">
+                <span className="text-slate-500">{formatDate(data)}</span>
+                <strong className="text-right tabular-nums text-marinho">{valores.map((s) => formatMoeda(s.saldo, s.moeda)).join(' · ')}</strong>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && creditosCartao.length === 0 && faturas.length === 0
         && comprasCategoria.length === 0 && editando === null && contas.length > 0 && (
         <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
@@ -368,7 +428,7 @@ export default function Lancamentos() {
       )}
 
       {telaGrande ? (
-        <TabelaLancamentos itens={itensVisiveis} hoje={hoje} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
+        <TabelaLancamentos itens={itensVisiveis} hoje={hoje} ordemInicial={ordemPreferida} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
           categorias={categorias} nomeConta={nomeConta} moedaConta={moedaConta} nomeCategoria={nomeCategoria} categoriaPorId={categoriaPorId}
           ocupado={pagando !== null} aoEditar={(l) => { setPagando(null); setEditando(l) }} aoPagar={(l) => { setEditando(null); setPagando(l) }}
           aoExcluir={excluir} aoAlterar={carregar} />
@@ -376,7 +436,7 @@ export default function Lancamentos() {
       <div className="flex flex-col gap-4">
         {porDia.map(([data, itens]) => (
           <section key={data} aria-label={formatDate(data)}>
-            <h2 className="mb-2 text-sm font-semibold text-slate-500">{formatDate(data)}</h2>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-sm font-semibold text-slate-500">{formatDate(data)}</h2>{mostrarSaldoDiario && rotuloSaldoDoDia(data) && <span className="text-xs font-medium tabular-nums text-slate-600">Saldo final: {rotuloSaldoDoDia(data)}</span>}</div>
             <Card semPadding>
               <ul className="divide-y divide-slate-100">
                 {itens.map((item) => {
@@ -707,7 +767,7 @@ const controleLinha = 'min-h-11 min-w-0 max-w-full appearance-none truncate roun
 const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</span>
 
 function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
-  const { sessao } = useAuth()
+  const { sessao: sessaoAtual } = useAuth()
   const hoje = hojeSP()
   // multimoeda F2: receita, despesa e transferência aceitam conta em qualquer moeda (o destino da transferência, só na
   // mesma moeda da origem: ver `destinos`)
@@ -737,13 +797,13 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     void listarPessoasFamilia(familiaId).then((lista) => {
       if (!ativo) return
       setPessoas(lista)
-      if (!l && !pessoaEscolhidaManualmente.current && sessao?.user.id) {
-        const propria = lista.find((pessoa) => pessoa.userId === sessao.user.id && pessoa.ativo)
+      if (!l && !pessoaEscolhidaManualmente.current && sessaoAtual?.user.id) {
+        const propria = lista.find((pessoa) => pessoa.userId === sessaoAtual.user.id && pessoa.ativo)
         if (propria) setPersonId(propria.id)
       }
     }).catch(() => { if (ativo) setPessoas([]) })
     return () => { ativo = false }
-  }, [familiaId, l, sessao?.user.id])
+  }, [familiaId, l, sessaoAtual?.user.id])
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -803,7 +863,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   /** Depois de gravar: fecha o formulário, ou (em "Registrar e lançar outro") limpa valor, descrição e categoria e continua aberto. */
   async function concluir(mensagem: string) {
     if (!outroRef.current || l) { await aoSalvar(); return }
-    setValorTexto(''); setDescricao(''); setCategoriaId(''); setNotas(''); setParcelasTexto('1'); setStatus(null); setPersonId(null); setIsSharedExpense(false)
+    setValorTexto(''); setDescricao(''); setCategoriaId(''); setNotas(''); setParcelasTexto('1'); setStatus(null); setPersonId(null); setIsSharedExpense(false); pessoaEscolhidaManualmente.current = false
     setTentou(false); chaveRef.current = null
     setRegistrado(mensagem)
     await aoRegistrarOutro()

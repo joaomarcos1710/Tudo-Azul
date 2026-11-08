@@ -25,6 +25,7 @@ const mock = vi.hoisted(() => ({
   moverParaLixeira: vi.fn(),
   restaurarDaLixeira: vi.fn(),
   listarContas: vi.fn(),
+  listarSaldosDiarios: vi.fn(),
   listarCategorias: vi.fn(),
   listarParcelasDivida: vi.fn(),
 }))
@@ -34,6 +35,8 @@ vi.mock('../lib/recorrencias', async (original) => ({
   ...(await original<typeof import('../lib/recorrencias')>()),
   criarRecorrencia: mock.criarRecorrencia,
 }))
+vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1' } }, carregando: false }) }))
+vi.mock('../lib/supabase', () => ({ supabase: null }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
@@ -56,6 +59,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
 vi.mock('../lib/contas', async (original) => ({
   ...(await original<typeof import('../lib/contas')>()),
   listarContas: mock.listarContas,
+  listarSaldosDiarios: mock.listarSaldosDiarios,
 }))
 vi.mock('../lib/cartoes', async (original) => ({
   ...(await original<typeof import('../lib/cartoes')>()),
@@ -99,6 +103,7 @@ beforeEach(() => {
   window.localStorage.clear() // a conta/cartão lembrados de um teste não podem vazar para o próximo
   automaticos.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: true, faturasOk: true })
   mock.listarContas.mockResolvedValue({ contas, total: c(0) })
+  mock.listarSaldosDiarios.mockResolvedValue([])
   mock.listarCategorias.mockResolvedValue(categorias)
   mock.listarLancamentos.mockResolvedValue(lancs)
   mock.listarMovimentosDeDivida.mockResolvedValue([])
