@@ -142,3 +142,5 @@ continuam abaixo como histórico.
 
 | 2026.212 | **Quem lançou a despesa aparece automaticamente.** O titular e cada membro que entra por convite passam a ter uma pessoa financeira vinculada ao login. Novos lançamentos, compras no cartão e recorrências já selecionam quem está logado; despesas da família continuam selecionáveis separadamente. Migration 080. |
 | 2026.220 | **Ideia 05 do dono em `docs/ideias`.** Membros da família: separa o que já está no app (pessoas, parentesco, classificação, relatório e vínculo com login) do que seria novo. Só documentação, sem mudança de código. |
+| 2026.218 | **Ideia 02 do dono em `docs/ideias`.** Painel inicial com "Contas a receber" e "Contas a pagar" em cards (ícone, título e data, valor à direita, "ver mais") e refatoração do painel em cards e grades, com o que a tela já faz e os pontos a decidir. Só documentação, sem mudança de código. |
+| 2026.217 | **Ideias do dono em `docs/ideias`.** Primeira ideia registrada: tela de Contas com lista mais limpa, alça de reordenação, contas arquivadas e ações no hover, com o que a tela já faz e os pontos a decidir. Só documentação, sem mudança de código. |
