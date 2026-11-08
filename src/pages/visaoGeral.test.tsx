@@ -1324,3 +1324,19 @@ describe('Análises: base dos gastos de cartão no gráfico por categoria (PR #1
     expect(screen.queryByRole('group', { name: 'Gastos de cartão com base na:' })).toBeNull()
   })
 })
+
+
+describe('Minha Carteira — estrutura da Fase 1', () => {
+  it('mostra o título, a navegação horizontal e mantém as cinco âncoras disponíveis', async () => {
+    mock.resumoDosCartoes.mockResolvedValue([])
+    montar()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Minha Carteira' })).toBeTruthy()
+    const nav = screen.getByRole('navigation', { name: 'Seções da Minha Carteira' })
+    expect(within(nav).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
+      '#visao-geral', '#contas', '#cartoes', '#investimentos', '#dividas',
+    ])
+    for (const id of ['visao-geral', 'contas', 'cartoes', 'investimentos', 'dividas']) {
+      expect(document.getElementById(id)).not.toBeNull()
+    }
+  })
+})
