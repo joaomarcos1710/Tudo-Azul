@@ -142,3 +142,4 @@ continuam abaixo como histórico.
 
 | 2026.212 | **Quem lançou a despesa aparece automaticamente.** O titular e cada membro que entra por convite passam a ter uma pessoa financeira vinculada ao login. Novos lançamentos, compras no cartão e recorrências já selecionam quem está logado; despesas da família continuam selecionáveis separadamente. Migration 080. |
 | 2026.217 | **Ideias do dono em `docs/ideias`.** Primeira ideia registrada: tela de Contas com lista mais limpa, alça de reordenação, contas arquivadas e ações no hover, com o que a tela já faz e os pontos a decidir. Só documentação, sem mudança de código. |
+| 2026.222 | **Ideias 07 e 08 do dono em `docs/ideias`.** Categorias (acordeão, ícones, ações no hover e layout em cartão, com o que já existe) e SemVer (decisão do dono, porque contradiz a regra atual). Só documentação, sem mudança de código. |
