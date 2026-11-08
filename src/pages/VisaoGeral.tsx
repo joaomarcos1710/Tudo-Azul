@@ -358,6 +358,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </Card>
       )}
 
+      {noInicio && <div id="cartoes" className="scroll-mt-24" />}
       {noInicio && dados.cartoes && (
         <Card className="mb-4">
           <div className="flex items-center justify-between">
