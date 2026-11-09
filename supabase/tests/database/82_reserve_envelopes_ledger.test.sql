@@ -122,7 +122,12 @@ select is(pg_temp.sqlstate_of(format(
   '23514','despesa vinculada não pode ir para a lixeira');
 select is(pg_temp.sqlstate_of(format(
   'delete from public.transactions where id=%L',pg_temp.fx('rpc_tx'))),
-  '23514','despesa vinculada não pode ser excluída');
+  '42501','cliente não tem permissão de excluir despesa vinculada');
+reset role;
+select is(pg_temp.sqlstate_of(format(
+  'delete from public.transactions where id=%L',pg_temp.fx('rpc_tx'))),
+  '23514','mesmo com privilégio de tabela a trigger impede excluir despesa vinculada');
+select pg_temp.login('00000000-0000-0000-0000-000000022701');
 select lives_ok(format(
   'update public.transactions set description=''Passagens atualizadas'' where id=%L',pg_temp.fx('rpc_tx')),
   'descrição pode ser corrigida sem alterar a integridade financeira');
@@ -158,7 +163,7 @@ select is((select count(*) from public.transactions where household_id=pg_temp.f
   'reenvios e conflito não duplicam a despesa');
 select is((select sum(amount) from public.reserve_allocations where reserve_id=pg_temp.fx('r1')),400::numeric,
   'resgate reduz saldo do envelope');
-select is((select count(*) from public.transactions where household_id=pg_temp.fx('h1') and description='Passagens Riga'),1::bigint,
+select is((select count(*) from public.transactions where household_id=pg_temp.fx('h1') and id=pg_temp.fx('rpc_tx')),1::bigint,
   'RPC registra uma despesa real');
 select is((select count(*) from public.reserve_allocations a join public.transactions t
   on t.id=a.linked_transaction_id where a.reserve_id=pg_temp.fx('r1') and a.amount=-100 and t.amount=100),1::bigint,
