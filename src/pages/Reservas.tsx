@@ -12,7 +12,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { criarReserva, listarReservas, registrarAlocacaoReserva } from '../lib/reservas'
 import type { Reserva } from '../lib/reservas'
 
-const campo = 'mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-marinho outline-none transition focus:border-azul focus:ring-2 focus:ring-azul/15'
+const campo = 'mt-1 min-h-11 w-full rounded-[14px] border border-slate-300 bg-white px-3 text-sm text-marinho outline-none transition focus:border-azul focus:ring-2 focus:ring-azul/15'
 const rotulo = 'block text-sm font-medium text-slate-700'
 
 function nomeStatus(status: Reserva['status']): string {
@@ -121,7 +121,7 @@ export default function Reservas() {
     <>
       <CabecalhoPagina titulo="Reservas" descricao="Organize objetivos com envelopes virtuais e acompanhe cada aporte e resgate." />
       <Aviso tipo="info">
-        As reservas são compromissos virtuais: aportes e resgates não movimentam suas contas bancárias. O saldo reservado é descontado do Dinheiro Livre até um resgate explícito.
+        As reservas são compromissos virtuais: aportes e resgates não movimentam suas contas bancárias. Reservas em BRL são descontadas do Dinheiro Livre; envelopes em USD e EUR ficam separados por moeda, sem conversão automática. O saldo só volta ao Dinheiro Livre após um resgate explícito.
       </Aviso>
       {erro && <div className="mt-4"><Aviso tipo="erro">{erro}</Aviso></div>}
 

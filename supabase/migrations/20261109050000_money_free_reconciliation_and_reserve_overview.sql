@@ -43,6 +43,8 @@ begin
              max(p.closing_day) as cd, max(p.due_day) as dd
         from parc p where p.cancelado < p.face group by 1
     ), cred as (
+      -- income_credit.date identifica a fatura escolhida; credit_date registra quando o crédito foi efetivamente concedido.
+      -- Assim, crédito já recebido reduz a fatura futura sem antecipar crédito que ainda não ocorreu.
       select to_char(e.date, 'YYYY-MM') as label, min(e.date) as closing_date, sum(e.amount) as credits
         from public.debt_events e
        where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.voided_at is null

@@ -25,7 +25,9 @@ Há nove versões locais sem timestamp correspondente no histórico remoto:
 
 As três versões remotas antigas permanecem no histórico. Não devem ser marcadas como reverted: o conteúdo SQL foi comparado com os três arquivos locais e é idêntico. A divergência é de timestamp, não de definição.
 
-As migrations 090400 (integridade/idempotência do ledger) e 090500 (reconciliação do Dinheiro Livre, consulta de reservas e helper `private.card_months_as_of`) existem somente nesta branch e ainda não aparecem no histórico remoto. A reconciliação de cartões passa a respeitar a data de corte por mês: pagamentos, créditos, cancelamentos e estornos com data futura não antecipam a liquidação. A matriz e a Home usam o mesmo helper e a mesma data de corte.
+As migrations 090400 (integridade/idempotência do ledger) e 090500 (reconciliação do Dinheiro Livre, consulta de reservas e helper `private.card_months_as_of`) existem somente nesta branch e ainda não aparecem no histórico remoto. A reconciliação de cartões passa a respeitar a data de corte por mês.
+
+A base de liquidez da Home permanece a definição já existente em `home_indicators`: contas ativas de checking, savings, cash e brokerage, menos a dívida de cartões em aberto. Contas de renda fixa, renda variável e cripto continuam fora dessa base. Esta entrega corrige a reconciliação dos compromissos de cartão, sem redefinir quais ativos contam como dinheiro disponível. Em eventos `income_credit`, `date` identifica o fechamento/fatura escolhida e `credit_date` registra quando o crédito foi efetivamente concedido: um crédito já recebido pode reduzir uma fatura futura, mas um crédito ainda não ocorrido não é antecipado. Cobranças, pagamentos, cancelamentos e estornos respeitam a data efetiva do evento; pagamentos com data futura já são bloqueados pelo guard de eventos de dívida e também são filtrados defensivamente. A matriz e a Home usam o mesmo helper e a mesma data de corte.
 
 ## Sequência segura proposta
 
@@ -69,4 +71,4 @@ O Security Advisor retornou 69 avisos `authenticated_security_definer_function_e
 - Nenhuma migration foi aplicada ao Supabase hospedado.
 - Nenhuma linha financeira, evento, saldo, reserva ou histórico foi alterado.
 - Nenhum comando de repair foi executado.
-- Nenhum deploy ou merge foi feito.
+- Nenhum merge ou deploy de produção foi feito. A PR pode gerar um preview automático, sem promoção para produção.
