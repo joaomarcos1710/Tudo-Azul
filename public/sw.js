@@ -8,12 +8,12 @@
  * - Ícones e fontes: cache primeiro, atualiza em segundo plano.
  */
 // v2: troca o prefixo para o activate apagar os caches v1 (que podiam conter uma página de erro no lugar do app)
-const VERSAO = 'tudo-azul-v2'
+const VERSAO = 'tudo-azul-v3'
 const APP = `${VERSAO}-app`
 const ESTATICOS = `${VERSAO}-estaticos`
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(APP).then((c) => c.addAll(['/', '/manifest.webmanifest', '/favicon.svg', '/icons/icon-192.png'])))
+  e.waitUntil(caches.open(APP).then((c) => c.addAll(['/', '/manifest.webmanifest', '/favicon.png', '/icons/icon-192.png'])))
   self.skipWaiting()
 })
 
@@ -62,7 +62,7 @@ self.addEventListener('fetch', (e) => {
     return
   }
 
-  if (fonte || url.pathname.startsWith('/icons/') || url.pathname === '/favicon.svg' || url.pathname === '/manifest.webmanifest') {
+  if (fonte || url.pathname.startsWith('/icons/') || url.pathname === '/favicon.png' || url.pathname === '/manifest.webmanifest') {
     e.respondWith(
       caches.match(req).then((guardado) => {
         const rede = fetch(req).then((r) => {

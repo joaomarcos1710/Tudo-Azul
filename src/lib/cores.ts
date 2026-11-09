@@ -27,7 +27,7 @@ export const CORES = {
  * Identidade visual (24/10/2026): marinho e celeste da logo. Fica separada de `CORES.transferencia` de propósito:
  * os dois hoje têm o mesmo marinho, mas a marca pode mudar sem mexer no significado de transferência (#183), e o
  * contrário também. Os títulos e cabeçalhos usam `text-marinho` (tailwind.config.js lê daqui); a logo (components/layout/Marca.tsx)
- * usa estes hex. public/favicon.svg tem os mesmos hex escritos à mão: se a marca mudar, mudar lá também.
+ * usa estes hex. A logo agora é a imagem em public/brand (gerada da arte oficial, sem hex no código): se a marca mudar, gerar os arquivos de novo.
  */
 export const MARCA = { marinho: '#0B1F46', celeste: '#48B5FF' } as const
 
