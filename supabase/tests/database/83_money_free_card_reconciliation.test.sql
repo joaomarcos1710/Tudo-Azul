@@ -15,6 +15,14 @@ create function pg_temp.mes_anterior(p_dia integer) returns date language sql as
   select (date_trunc('month', pg_temp.hoje()::timestamp) - interval '1 month'
           + make_interval(days => p_dia - 1))::date
 $f$;
+create function pg_temp.fechamento_futuro() returns date language sql stable as $f$
+  select case when extract(day from pg_temp.hoje()) < 20
+    then (date_trunc('month', pg_temp.hoje()::timestamp) + interval '19 days')::date
+    else (date_trunc('month', pg_temp.hoje()::timestamp) + interval '1 month 19 days')::date end
+$f$;
+create function pg_temp.mes_fatura_futura() returns date language sql stable as $f$
+  select date_trunc('month', pg_temp.fechamento_futuro()::timestamp)::date
+$f$;
 create function pg_temp.login(p_uid uuid) returns void language plpgsql as $f$
 begin
   perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -29,7 +37,7 @@ exception when others then
   return sqlstate;
 end
 $f$;
-grant execute on function pg_temp.fx(text), pg_temp.hoje(), pg_temp.mes_anterior(integer),
+grant execute on function pg_temp.fx(text), pg_temp.hoje(), pg_temp.mes_anterior(integer), pg_temp.fechamento_futuro(), pg_temp.mes_fatura_futura(),
   pg_temp.login(uuid), pg_temp.sqlstate_of(text) to public;
 
 insert into auth.users (id, email) values
@@ -54,14 +62,15 @@ select public.card_purchase(pg_temp.fx('card'), pg_temp.mes_anterior(15), 100, 1
   pg_temp.fx('expense_category'), 'Compra já cobrada');
 insert into fixture select 'credit_event', public.card_credit_income(
   pg_temp.fx('card'), pg_temp.mes_anterior(20), 10, pg_temp.fx('income_category'), 'Crédito de fatura');
--- Segunda compra fecha amanhã: pertence à mesma fatura/mês, mas ainda não foi cobrada.
-select public.set_card_cycle(pg_temp.fx('card'),
-  extract(day from pg_temp.hoje())::integer + 1, 31);
--- Crédito futuro é registrado, mas ainda não pode reduzir a fatura na data de corte.
-insert into fixture select 'future_credit_event', public.card_credit_income(
-  pg_temp.fx('card'), pg_temp.hoje(), 5, pg_temp.fx('income_category'), 'Crédito futuro', pg_temp.hoje() + 1);
-select public.card_purchase(pg_temp.fx('card'), pg_temp.hoje(), 50, 1,
+-- Segundo cartão: compra ainda pendente, com crédito e adiantamento registrados para o fechamento futuro.
+insert into fixture select 'card_late', public.create_debt('Cartão Fechamento Futuro', 'card', pg_temp.hoje() - 365, 0);
+select public.set_card_cycle(pg_temp.fx('card_late'), 20, 31);
+select public.card_purchase(pg_temp.fx('card_late'), pg_temp.hoje(), 50, 1,
   pg_temp.fx('expense_category'), 'Compra ainda não cobrada');
+insert into fixture select 'future_credit_event', public.card_credit_income(
+  pg_temp.fx('card_late'), pg_temp.hoje(), 5, pg_temp.fx('income_category'), 'Crédito futuro', pg_temp.fechamento_futuro());
+insert into fixture select 'future_payment_event', public.debt_pay(
+  pg_temp.fx('card_late'), pg_temp.fechamento_futuro(), pg_temp.fx('bank'), 10, null, false, null);
 select is(public.card_bill_due(pg_temp.hoje()), 1,
   'C1 somente a parcela com fechamento até hoje é cobrada');
 
@@ -71,86 +80,91 @@ select is((select charged from private.card_months_as_of(pg_temp.fx('card'), pg_
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 90::numeric,
   'C2 charged considera a compra de 100 menos o crédito de 10');
 select is((select pending from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 50::numeric,
-  'C3 a segunda compra continua não cobrada');
+  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 0::numeric,
+  'C3 a fatura já fechada não recebe a compra do próximo ciclo');
 select is((select total from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 140::numeric,
-  'C4 total líquido da fatura combina cobrado e pendente');
+  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 90::numeric,
+  'C4 total líquido da fatura fechada combina cobrança e crédito');
 
 insert into fixture select 'payment_event', public.debt_pay(
   pg_temp.fx('card'), pg_temp.hoje(), pg_temp.fx('bank'), 40, pg_temp.fx('invoice'), false, null);
-insert into fixture select 'future_payment_event', public.debt_pay(
-  pg_temp.fx('card'), pg_temp.hoje() + 1, pg_temp.fx('bank'), 10, pg_temp.fx('invoice'), false, null);
 select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 40::numeric,
   'C5 pagamento parcial é conciliado na fatura');
+select is((select pending from private.card_months_as_of(pg_temp.fx('card_late'), pg_temp.hoje())
+  where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 50::numeric,
+  'C6 compra futura permanece integralmente pendente na data de corte');
+select is((select paid from private.card_months_as_of(pg_temp.fx('card_late'), pg_temp.hoje())
+  where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 0::numeric,
+  'C7 crédito e adiantamento com data futura não são tratados como pagos');
+
 
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
+    pg_temp.mes_fatura_futura())->>'availableMoney')::numeric,
   910::numeric,
-  'C6 tesouraria já desconta o pagamento de 40 e a dívida cobrada líquida de 50'
+  'C8 tesouraria já desconta o pagamento parcial e a dívida cobrada líquida'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
+    pg_temp.mes_fatura_futura())->>'plannedOutflows')::numeric,
   50::numeric,
-  'C7 Dinheiro Livre desconta somente os 50 ainda não cobrados, não a fatura inteira'
+  'C9 Dinheiro Livre desconta somente a fatura do próximo fechamento, sem antecipar o pagamento futuro'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
+    pg_temp.mes_fatura_futura())->>'moneyFree')::numeric,
   860::numeric,
-  'C8 Dinheiro Livre não duplica cobrança, crédito nem pagamento parcial'
+  'C10 Dinheiro Livre não duplica cobrança, crédito nem pagamento parcial'
 );
 select is(
   (select sum((item->>'amount')::numeric)
      from jsonb_array_elements(public.get_home_decision_month(
-       pg_temp.fx('household'), date_trunc('month', pg_temp.hoje()::timestamp)::date
+       pg_temp.fx('household'), pg_temp.mes_fatura_futura()
      )->'upcoming_commitments') item
     where item->>'sourceType' = 'Cartão'),
   50::numeric,
-  'C9 a lista operacional exibe somente a parte ainda não cobrada da fatura'
+  'C11 a lista operacional exibe somente a parte ainda não cobrada da fatura'
 );
 
 -- Estorno do crédito: aumenta a dívida cobrada, mas não cria novo compromisso pendente.
 select public.debt_void(pg_temp.fx('credit_event'), 'Teste de estorno do crédito');
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
+    pg_temp.mes_fatura_futura())->>'availableMoney')::numeric,
   900::numeric,
-  'C10 estornar o crédito aumenta a dívida refletida na tesouraria em 10'
+  'C12 estornar o crédito aumenta a dívida refletida na tesouraria em 10'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
+    pg_temp.mes_fatura_futura())->>'plannedOutflows')::numeric,
   50::numeric,
-  'C11 estornar crédito não duplica a parcela ainda não cobrada'
+  'C13 estornar crédito não duplica a parcela ainda não cobrada'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
+    pg_temp.mes_fatura_futura())->>'moneyFree')::numeric,
   850::numeric,
-  'C12 Dinheiro Livre acompanha o estorno do crédito uma única vez'
+  'C14 Dinheiro Livre acompanha o estorno do crédito uma única vez'
 );
 
 -- Estorno do pagamento: o dinheiro retorna à conta e a dívida volta a ser cobrada.
 select public.debt_void(pg_temp.fx('payment_event'), 'Teste de estorno do pagamento');
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
+    pg_temp.mes_fatura_futura())->>'availableMoney')::numeric,
   900::numeric,
-  'C13 estornar pagamento restaura o caixa e a dívida pelo mesmo valor'
+  'C15 estornar pagamento restaura o caixa e a dívida pelo mesmo valor'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
+    pg_temp.mes_fatura_futura())->>'plannedOutflows')::numeric,
   50::numeric,
   'C14 parcela não cobrada permanece pendente após estorno do pagamento'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
+    pg_temp.mes_fatura_futura())->>'moneyFree')::numeric,
   850::numeric,
   'C15 estornar pagamento não provoca dupla contagem'
 );
@@ -175,10 +189,10 @@ select is((select count(*)::integer from public.reserve_overview(pg_temp.fx('hou
   where reserve_id = pg_temp.fx('reserve_test') and allocation_id is not null), 2,
   'R2 histórico retorna os dois movimentos recentes');
 select is((public.get_home_decision_month(pg_temp.fx('household'),
-  date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric, 775::numeric,
-  'R3 reserva virtual reduz o Dinheiro Livre uma única vez');
+  pg_temp.mes_fatura_futura())->>'moneyFree')::numeric, 775::numeric,
+  'R20 reserva virtual reduz o Dinheiro Livre uma única vez');
 select ok(not (select prosecdef from pg_proc where oid='private.card_months_as_of(uuid,date)'::regprocedure),
-  'C16 card_months_as_of permanece SECURITY INVOKER');
+  'C18 card_months_as_of permanece SECURITY INVOKER');
 select ok(not (select prosecdef from pg_proc where oid='public.reserve_overview(uuid)'::regprocedure),
   'R4 reserve_overview permanece SECURITY INVOKER');
 
