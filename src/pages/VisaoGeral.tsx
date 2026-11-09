@@ -32,7 +32,6 @@ import { guardarBaseGastosCartao, lerBaseGastosCartao } from '../lib/baseGastosC
 import type { BaseGastosCartao } from '../lib/baseGastosCartao'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
 import { NavegacaoCarteira } from '../components/ui/NavegacaoCarteira'
-import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
 import { AvisosInicio } from '../components/ui/AvisosInicio'
 import { avisosDoInicio } from '../lib/avisosInicio'
 import type { AvisoInicio } from '../lib/avisosInicio'
@@ -453,7 +452,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
 
       {noInicio && dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
-      {noInicio && familiaId && <ProjecaoCompromissos familiaId={familiaId} hoje={hoje} />}
 
       {!noInicio && <>
       {(m || p) ? (

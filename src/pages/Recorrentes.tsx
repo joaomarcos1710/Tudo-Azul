@@ -28,6 +28,7 @@ import type {
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
+import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import { useAuth } from '../lib/auth'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
@@ -357,6 +358,7 @@ export default function Recorrentes() {
               </Card>
             )}
           </div>
+          {familiaId && <ProjecaoCompromissos familiaId={familiaId} hoje={hojeSP()} />}
         </>
       )}
 
