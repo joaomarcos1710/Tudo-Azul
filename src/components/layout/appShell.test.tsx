@@ -2,17 +2,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from './AppShell'
 import { gruposNavegacao, itemAtivo, itensFixosNoCelular, itensNavegacao } from './navegacao'
 import { definirValoresOcultos } from '../../lib/privacidade'
 
-vi.mock('../../lib/supabase', () => ({ supabase: null, supabaseConfigurado: true }))
+const mockSupabase = vi.hoisted(() => ({ auth: { signOut: vi.fn() } }))
+vi.mock('../../lib/supabase', () => ({ supabase: mockSupabase, supabaseConfigurado: true }))
+
+function CaminhoAtual() {
+  const location = useLocation()
+  return <output data-testid="caminho-atual">{location.pathname}</output>
+}
 
 function montar(caminho = '/painel') {
   return render(
     <MemoryRouter initialEntries={[caminho]}>
-      <Routes><Route element={<AppShell />}><Route path="*" element={<p>conteúdo</p>} /></Route></Routes>
+      <Routes><Route element={<AppShell />}><Route path="*" element={<><p>conteúdo</p><CaminhoAtual /></>} /></Route></Routes>
     </MemoryRouter>,
   )
 }
@@ -52,6 +58,16 @@ describe('menu em grupos', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Exportar dados' })).toBeTruthy()
     expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toBeTruthy()
     expect(within(menu).getByText(/Versão/)).toBeTruthy()
+  })
+
+  it('sair encerra a sessão e retorna à página pública de boas-vindas', async () => {
+    mockSupabase.auth.signOut.mockResolvedValue({ error: null })
+    const u = userEvent.setup()
+    montar()
+    await u.click(screen.getByRole('button', { name: 'Perfil de Minha conta' }))
+    await u.click(screen.getByRole('menuitem', { name: 'Sair' }))
+    expect(mockSupabase.auth.signOut).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('caminho-atual').textContent).toBe('/')
   })
 
   it('celular: 4 atalhos fixos + "Mais"; o resto só aparece dentro do Mais', async () => {
