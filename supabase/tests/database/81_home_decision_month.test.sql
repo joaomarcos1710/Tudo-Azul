@@ -51,13 +51,13 @@ insert into fixture select 'reserve_completed', id from public.reserves
 insert into fixture select 'reserve_eur', id from public.reserves
  where household_id = pg_temp.fx('household') and name = 'Reserva em EUR';
 
-update public.reserves set status = 'completed' where id = pg_temp.fx('reserve_completed');
-
 insert into public.reserve_allocations (household_id, reserve_id, amount, description)
 values
   (pg_temp.fx('household'), pg_temp.fx('reserve_active'), 300, 'Compromisso ativo'),
   (pg_temp.fx('household'), pg_temp.fx('reserve_completed'), 100, 'Compromisso concluído'),
   (pg_temp.fx('household'), pg_temp.fx('reserve_eur'), 500, 'Moeda estrangeira não entra no BRL');
+
+update public.reserves set status = 'completed' where id = pg_temp.fx('reserve_completed');
 
 insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status)
 values
