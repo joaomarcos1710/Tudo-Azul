@@ -151,7 +151,8 @@ describe('menu em grupos', () => {
 
   it('itemAtivo: subtela de conta conta como Contas; Início só casa com "/painel"', () => {
     expect(itemAtivo('/contas/abc')?.rotulo).toBe('Contas')
-    expect(itemAtivo('/')?.rotulo).toBe('Início')
+    expect(itemAtivo('/painel')?.rotulo).toBe('Início')
+    expect(itemAtivo('/')).toBeUndefined()
     expect(itemAtivo('/desconhecida')).toBeUndefined()
   })
   it('a fatura tem modo de foco: recolhe e expande o menu lateral e esconde a barra inferior', async () => {
