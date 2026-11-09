@@ -174,15 +174,18 @@ select is((select min(balance) from public.reserve_overview(pg_temp.fx('househol
 select is((select count(*)::integer from public.reserve_overview(pg_temp.fx('household'))
   where reserve_id = pg_temp.fx('reserve_test') and allocation_id is not null), 2,
   'R2 histórico retorna os dois movimentos recentes');
+select is((public.get_home_decision_month(pg_temp.fx('household'),
+  date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric, 775::numeric,
+  'R3 reserva virtual reduz o Dinheiro Livre uma única vez');
 select ok(not (select prosecdef from pg_proc where oid='private.card_months_as_of(uuid,date)'::regprocedure),
   'C16 card_months_as_of permanece SECURITY INVOKER');
 select ok(not (select prosecdef from pg_proc where oid='public.reserve_overview(uuid)'::regprocedure),
-  'R3 reserve_overview permanece SECURITY INVOKER');
+  'R4 reserve_overview permanece SECURITY INVOKER');
 
 select pg_temp.login('00000000-0000-0000-0000-0000000083a2');
 insert into fixture select 'other_household', public.create_household('Outra Casa');
 select is((select count(*)::integer from public.reserve_overview(pg_temp.fx('household'))), 0,
-  'R4 outra família não consulta envelopes alheios');
+  'R5 outra família não consulta envelopes alheios');
 
 select * from finish();
 rollback;
