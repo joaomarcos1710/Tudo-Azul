@@ -67,13 +67,13 @@ select is(public.card_bill_due(pg_temp.hoje()), 1,
 
 insert into fixture select 'invoice', invoice_id from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
  where label = to_char(pg_temp.hoje(), 'YYYY-MM');
-select is((select charged from public.card_months(pg_temp.fx('card'))
+select is((select charged from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 90::numeric,
   'C2 charged considera a compra de 100 menos o crédito de 10');
-select is((select pending from public.card_months(pg_temp.fx('card'))
+select is((select pending from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 50::numeric,
   'C3 a segunda compra continua não cobrada');
-select is((select total from public.card_months(pg_temp.fx('card'))
+select is((select total from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 140::numeric,
   'C4 total líquido da fatura combina cobrado e pendente');
 
@@ -81,7 +81,7 @@ insert into fixture select 'payment_event', public.debt_pay(
   pg_temp.fx('card'), pg_temp.hoje(), pg_temp.fx('bank'), 40, pg_temp.fx('invoice'), false, null);
 insert into fixture select 'future_payment_event', public.debt_pay(
   pg_temp.fx('card'), pg_temp.hoje() + 1, pg_temp.fx('bank'), 10, pg_temp.fx('invoice'), false, null);
-select is((select paid from public.card_months(pg_temp.fx('card'))
+select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 40::numeric,
   'C5 pagamento parcial é conciliado na fatura');
 
