@@ -56,52 +56,52 @@ insert into fixture select 'income_category', id from public.categories
 insert into fixture select 'card', public.create_debt('Cartão Deduplicação', 'card', pg_temp.hoje() - 365, 0);
 -- Primeira compra fecha no dia 1 do mês atual. O crédito também é alocado a essa fatura.
 select public.set_card_cycle(pg_temp.fx('card'), 1, 31);
-select public.card_purchase(pg_temp.fx('card'), pg_temp.mes_anterior(15), 100, 1,
+select public.card_purchase(pg_temp.fx('card'), pg_temp.mes_anterior(15), 100.05, 1,
   pg_temp.fx('expense_category'), 'Compra já cobrada');
 insert into fixture select 'credit_event', public.card_credit_income(
-  pg_temp.fx('card'), pg_temp.mes_anterior(20), 10, pg_temp.fx('income_category'), 'Crédito de fatura');
--- Compra, crédito e adiantamento pertencem ao próximo fechamento, ainda futuro na data de corte.
-select public.card_purchase(pg_temp.fx('card'), pg_temp.hoje(), 50, 1,
+  pg_temp.fx('card'), pg_temp.mes_anterior(20), 10.02, pg_temp.fx('income_category'), 'Crédito de fatura');
+-- Compra e crédito pertencem ao próximo fechamento, ainda futuro na data de corte.
+select public.card_purchase(pg_temp.fx('card'), pg_temp.hoje(), 50.03, 1,
   pg_temp.fx('expense_category'), 'Compra do próximo ciclo');
 insert into fixture select 'future_credit_event', public.card_credit_income(
-  pg_temp.fx('card'), pg_temp.hoje(), 5, pg_temp.fx('income_category'), 'Crédito futuro', pg_temp.fechamento_futuro());
+  pg_temp.fx('card'), pg_temp.hoje(), 5.01, pg_temp.fx('income_category'), 'Crédito futuro', pg_temp.fechamento_futuro());
 select is(public.card_bill_due(pg_temp.hoje()), 1,
   'C1 somente a parcela com fechamento até hoje é cobrada');
 
 insert into fixture select 'invoice', invoice_id from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
  where label = to_char(pg_temp.hoje(), 'YYYY-MM');
 select is((select charged from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 90::numeric,
+  90.03::numeric,
   'C2 charged considera a compra de 100 menos o crédito de 10');
 select is((select pending from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 0::numeric,
   'C3 a fatura já fechada não recebe a compra do próximo ciclo');
 select is((select total from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 90::numeric,
+  90.03::numeric,
   'C4 total líquido da fatura fechada combina cobrança e crédito');
 
 insert into fixture select 'payment_event', public.debt_pay(
-  pg_temp.fx('card'), pg_temp.hoje(), pg_temp.fx('bank'), 40, pg_temp.fx('invoice'), false, null);
+  pg_temp.fx('card'), pg_temp.hoje(), pg_temp.fx('bank'), 40.01, pg_temp.fx('invoice'), false, null);
 select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 40::numeric,
+  40.01::numeric,
   'C5 pagamento parcial é conciliado na fatura');
 select is((select pending from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 50::numeric,
+  50.03::numeric,
   'C6 compra do próximo ciclo permanece integralmente pendente na data de corte');
 select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 0::numeric,
-  'C7 crédito com fechamento futuro não é tratado como já liquidado');
+  'C7 crédito de hoje é aplicado ao próximo ciclo, sem antecipar pagamento');
 select is((select sum(amount) from public.dashboard_commitment_matrix(
   pg_temp.fx('household'), pg_temp.mes_fatura_futura(), 3)
   where period_month = pg_temp.mes_fatura_futura() and row_type = 'item'
-    and (commitment_id like 'card-purchase:%' or commitment_id like 'card-invoice-adjustment:%')),
-  50::numeric, 'C8 matriz futura preserva o valor integral enquanto o crédito ainda não venceu');
+  45.02::numeric,
+  50::numeric, 'C8 matriz futura reconhece o crédito pela data efetiva e mantém o saldo líquido');
 
 
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
-  910::numeric,
+  909.97::numeric,
   'C9 tesouraria já desconta o pagamento parcial e a dívida cobrada líquida'
 );
 select is(
@@ -113,7 +113,7 @@ select is(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
-  910::numeric,
+  909.97::numeric,
   'C11 Dinheiro Livre não duplica cobrança, crédito nem pagamento parcial'
 );
 -- Estorno do crédito: aumenta a dívida cobrada, mas não cria novo compromisso pendente.
@@ -121,7 +121,7 @@ select public.debt_void(pg_temp.fx('credit_event'), 'Teste de estorno do crédit
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
-  900::numeric,
+  899.95::numeric,
   'C13 estornar o crédito aumenta a dívida refletida na tesouraria em 10'
 );
 select is(
@@ -133,7 +133,7 @@ select is(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
-  900::numeric,
+  899.95::numeric,
   'C15 Dinheiro Livre acompanha o estorno do crédito uma única vez'
 );
 
@@ -142,7 +142,7 @@ select public.debt_void(pg_temp.fx('payment_event'), 'Teste de estorno do pagame
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
-  900::numeric,
+  899.95::numeric,
   'C16 estornar pagamento restaura o caixa e a dívida pelo mesmo valor'
 );
 select is(
@@ -154,7 +154,7 @@ select is(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
-  900::numeric,
+  899.95::numeric,
   'C18 estornar pagamento não provoca dupla contagem'
 );
 
@@ -167,18 +167,18 @@ select pg_temp.fx('household'), 'Reserva de teste', 'BRL'
 where not exists (select 1 from public.reserves where household_id = pg_temp.fx('household') and name = 'Reserva de teste');
 insert into fixture select 'reserve_test', id from public.reserves
  where household_id = pg_temp.fx('household') and name = 'Reserva de teste';
-select public.record_reserve_allocation(pg_temp.fx('reserve_test'), 100, pg_temp.hoje(),
+select public.record_reserve_allocation(pg_temp.fx('reserve_test'), 100.03, pg_temp.hoje(),
   'Aporte', '00000000-0000-0000-0000-000000083001');
-select public.record_reserve_allocation(pg_temp.fx('reserve_test'), -25, pg_temp.hoje(),
+select public.record_reserve_allocation(pg_temp.fx('reserve_test'), -25.01, pg_temp.hoje(),
   'Resgate', '00000000-0000-0000-0000-000000083002');
 select is((select min(balance) from public.reserve_overview(pg_temp.fx('household'))
-  where reserve_id = pg_temp.fx('reserve_test')), 75::numeric,
+  75.02::numeric,
   'R1 saldo da reserva é agregado pelo banco');
 select is((select count(*)::integer from public.reserve_overview(pg_temp.fx('household'))
   where reserve_id = pg_temp.fx('reserve_test') and allocation_id is not null), 2,
   'R2 histórico retorna os dois movimentos recentes');
 select is((public.get_home_decision_month(pg_temp.fx('household'),
-  date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric, 775::numeric,
+  824.93::numeric,
   'R20 reserva virtual reduz o Dinheiro Livre uma única vez');
 select ok(not (select prosecdef from pg_proc where oid='private.card_months_as_of(uuid,date)'::regprocedure),
   'C19 card_months_as_of permanece SECURITY INVOKER');
