@@ -28,7 +28,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
   {
     titulo: 'Visão geral',
     itens: [
-      { caminho: '/', rotulo: 'Início', curto: 'Início', Icone: IconeVisaoGeral, descricao: 'O que pede atenção agora na família.', fixoNoCelular: true },
+      { caminho: '/painel', rotulo: 'Início', curto: 'Início', Icone: IconeVisaoGeral, descricao: 'O que pede atenção agora na família.', fixoNoCelular: true },
       { caminho: '/analises', rotulo: 'Análises', curto: 'Análises', Icone: IconeAnalises, descricao: 'Como as finanças estão indo no mês.' },
       { caminho: '/relatorios', rotulo: 'Relatórios', curto: 'Relat.', Icone: IconeRelatorios, descricao: 'Quanto entrou e saiu em cada período.' },
     ],
@@ -72,7 +72,7 @@ export const itensNavegacao: ItemNavegacao[] = [...gruposNavegacao.flatMap((g) =
 export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) => i.fixoNoCelular)
 
 /** Acesso rápido no desktop: sem cabeçalhos e sem configurações esporádicas. */
-const caminhosAcessoRapido = ['/', '/lancamentos', '/cartoes', '/orcamentos', '/investimentos', '/analises', '/relatorios', '/calendario']
+const caminhosAcessoRapido = ['/painel', '/lancamentos', '/cartoes', '/orcamentos', '/investimentos', '/analises', '/relatorios', '/calendario']
 export const itensAcessoRapido: ItemNavegacao[] = caminhosAcessoRapido
   .map((caminho) => itensNavegacao.find((item) => item.caminho === caminho))
   .filter((item): item is ItemNavegacao => item !== undefined)
@@ -86,5 +86,5 @@ export const gruposMenuPerfil: GrupoNavegacao[] = [
 
 /** Item ativo para um caminho (uma subtela como `/contas/abc` conta como "Contas"). */
 export function itemAtivo(pathname: string): ItemNavegacao | undefined {
-  return itensNavegacao.find((i) => (i.caminho === '/' ? pathname === '/' : pathname === i.caminho || pathname.startsWith(`${i.caminho}/`)))
+  return itensNavegacao.find((i) => (i.caminho === '/painel' ? pathname === '/painel' : pathname === i.caminho || pathname.startsWith(`${i.caminho}/`)))
 }
