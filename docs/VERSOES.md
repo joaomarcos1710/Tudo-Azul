@@ -153,3 +153,4 @@ continuam abaixo como histórico.
 | 2026.237 | **Workflow de produção: modo reparar.** Ajusta só o histórico de migrations (seis versões fixas) e simula; não aplica nada. Exige APLICAR. |
 | 2026.238 | **Glossário de métricas do dinheiro.** Documenta saldo, saldo projetado, disponível, patrimônio, Dinheiro Livre, compromissos, fatura, limite, investimentos e moedas, com onde cada um é calculado. Só documentação. |
 | 2026.239 | **Glossário com a equação verificada.** Dinheiro Livre e disponível lidos do banco; registra que aporte em investimento não reduz o Dinheiro Livre. Só documentação. |
+| 2026.240 | **Glossário: patrimônio corrigido.** O cartão de patrimônio bate com net_worth_with_assets; a divergência real é o nome "Disponível", com duas definições no Início. Só documentação. |
