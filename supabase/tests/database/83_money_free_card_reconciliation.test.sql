@@ -37,11 +37,11 @@ insert into auth.users (id, email) values
  ('00000000-0000-0000-0000-0000000083a2', 'money-free-card-outro@teste.com');
 select pg_temp.login('00000000-0000-0000-0000-0000000083a1');
 insert into fixture select 'household', public.create_household('Casa Deduplicação');
+-- Família nova não recebe conta padrão; criar a conta-base da fixture explicitamente.
+insert into public.accounts (household_id, name, type, initial_balance, opening_date, currency_code)
+values (pg_temp.fx('household'), 'Conta corrente', 'checking', 1000, pg_temp.hoje() - 365, 'BRL');
 insert into fixture select 'bank', id from public.accounts
  where household_id = pg_temp.fx('household') and name = 'Conta corrente' limit 1;
--- Família nova: saldo inicial controlado, sem receitas/despesas históricas.
-update public.accounts set initial_balance = 1000, opening_date = pg_temp.hoje() - 365
- where id = pg_temp.fx('bank');
 insert into fixture select 'expense_category', id from public.categories
  where household_id = pg_temp.fx('household') and type = 'expense' and system_key = 'uncategorized' limit 1;
 insert into fixture select 'income_category', id from public.categories
