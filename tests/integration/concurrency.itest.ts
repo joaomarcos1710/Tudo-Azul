@@ -241,12 +241,12 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     const s2 = await session()
     const monitor = await session()
     const pid2 = (await s2.query('select pg_backend_pid() as pid')).rows[0].pid
-    await beginAs(s1, reserveOwner)
+    await beginAs(s1, reserveOwnerId)
     await s1.query(
       `insert into public.reserve_allocations(household_id,reserve_id,amount,description)
        values ($1,$2,10,'aporte concorrente com archive')`, [h, reserveForArchive],
     )
-    await beginAs(s2, reserveOwner)
+    await beginAs(s2, reserveOwnerId)
     let err: unknown = null
     const pending = s2.query(`update public.reserves set status='archived' where id=$1`, [reserveForArchive])
       .catch((e) => { err = e })
