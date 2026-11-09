@@ -23,8 +23,16 @@ insert into auth.users (id, email)
 values ('00000000-0000-0000-0000-0000000081a1', 'home-decision@teste.com');
 select pg_temp.login('00000000-0000-0000-0000-0000000081a1');
 insert into fixture select 'household', public.create_household('Casa Home Decision');
+
+-- A família recém-criada não possui contas padrão: crie a fixture explicitamente.
+insert into public.accounts (household_id, name, type, initial_balance, opening_date, currency_code)
+values
+  (pg_temp.fx('household'), 'Conta corrente', 'checking', 0, pg_temp.hoje(), 'BRL'),
+  (pg_temp.fx('household'), 'Conta em dólar', 'checking', 0, pg_temp.hoje(), 'USD');
 insert into fixture select 'account', id from public.accounts
- where household_id = pg_temp.fx('household') and currency_code = 'BRL' limit 1;
+ where household_id = pg_temp.fx('household') and name = 'Conta corrente';
+insert into fixture select 'account_usd', id from public.accounts
+ where household_id = pg_temp.fx('household') and name = 'Conta em dólar';
 insert into fixture select 'expense', id from public.categories
  where household_id = pg_temp.fx('household') and type = 'expense' and system_key = 'uncategorized' limit 1;
 insert into fixture select 'income', id from public.categories
@@ -34,7 +42,8 @@ insert into public.transactions (household_id, account_id, category_id, type, de
 values
   (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('income'), 'income', 'Receita paga', 3000, pg_temp.hoje(), 'paid'),
   (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('expense'), 'expense', 'Despesa paga', 500, pg_temp.hoje(), 'paid'),
-  (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('expense'), 'expense', 'Conta planejada', 200, pg_temp.hoje() + 2, 'planned');
+  (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('expense'), 'expense', 'Conta planejada', 200, pg_temp.hoje() + 2, 'planned'),
+  (pg_temp.fx('household'), pg_temp.fx('account_usd'), pg_temp.fx('expense'), 'expense', 'Despesa em dólar', 4000, pg_temp.hoje() + 2, 'planned');
 
 select ok(
   (select not p.prosecdef from pg_proc p
@@ -44,7 +53,12 @@ select ok(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->>'moneyFree')::numeric,
   2300::numeric,
-  'H2 dinheiro livre usa receitas e despesas pagas e planejadas do resumo do mês'
+  'H2 dinheiro livre usa receitas e despesas pagas e planejadas do resumo BRL'
+);
+select is(
+  (public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->>'moneyFree')::numeric,
+  2300::numeric,
+  'H2.1 despesas em moeda estrangeira não são somadas como se fossem BRL'
 );
 select is(
   jsonb_typeof(public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->'risks'),
