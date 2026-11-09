@@ -251,9 +251,9 @@ begin
          and e.voided_at is null
          and e.date <= f.as_of
     ) cancelados on true
-    group by 1, 2, 3, 4, 5, 6, 7, 8, 9
+    group by 1, 2, 3, 4, 5, 6, 7, 8, 9, f.as_of
   ),
-  -- card_months também considera créditos avulsos e pagamentos parciais. A linha de ajuste reconcilia cada
+  -- card_months_as_of também considera créditos avulsos e pagamentos parciais. A linha de ajuste reconcilia cada
   -- fatura ao saldo líquido real, sem esconder esses efeitos nem inflar o total da matriz.
   totais_itens_cartao as (
     select cartao_id, vencimento, sum(valor) as valor_itens
