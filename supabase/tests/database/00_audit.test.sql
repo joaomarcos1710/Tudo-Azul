@@ -207,7 +207,7 @@ select is(
   array(select p.proname::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
          where n.nspname = 'public' and p.proname in ('account_balances','account_flow_report','balance_totals','period_summary','budget_usage','debt_balances','get_home_decision_month','home_indicators','investment_portfolio','investment_totals','net_worth','net_worth_with_assets')
            and not p.prosecdef order by 1),
-  array['account_balances','account_flow_report','balance_totals','budget_usage','debt_balances','home_indicators','investment_portfolio','investment_totals','net_worth','net_worth_with_assets','period_summary']::text[],
+  array['account_balances','account_flow_report','balance_totals','budget_usage','debt_balances','get_home_decision_month','home_indicators','investment_portfolio','investment_totals','net_worth','net_worth_with_assets','period_summary']::text[],
   'funções de relatório são SECURITY INVOKER (a RLS do chamador decide)');
 
 -- Todas as tabelas de public têm dono = quem roda as migrations (e nenhuma tem FORCE: as RPCs
