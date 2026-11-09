@@ -24,8 +24,11 @@ insert into auth.users (id, email) values
 
 select pg_temp.login('00000000-0000-0000-0000-000000022701');
 insert into fixture select 'h1', public.create_household('Família A');
+insert into public.accounts (household_id,name,type,initial_balance,opening_date,currency_code)
+values (pg_temp.fx('h1'),'Conta BRL','checking',500,pg_temp.hoje()-30,'BRL')
+returning id;
 insert into fixture select 'account_brl', id from public.accounts
- where household_id=pg_temp.fx('h1') limit 1;
+ where household_id=pg_temp.fx('h1') and name='Conta BRL';
 insert into fixture select 'expense_cat', id from public.categories
  where household_id=pg_temp.fx('h1') and type='expense' and system_key='uncategorized';
 insert into public.accounts (household_id,name,type,initial_balance,opening_date,currency_code)
