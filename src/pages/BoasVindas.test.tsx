@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import BoasVindas from './BoasVindas'
+
+afterEach(cleanup)
 
 describe('página pública de boas-vindas', () => {
   it('apresenta a proposta do Tudo Azul e os acessos de cadastro e login', () => {
