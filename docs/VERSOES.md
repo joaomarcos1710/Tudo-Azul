@@ -155,3 +155,4 @@ continuam abaixo como histórico.
 | 2026.239 | **Glossário com a equação verificada.** Dinheiro Livre e disponível lidos do banco; registra que aporte em investimento não reduz o Dinheiro Livre. Só documentação. |
 | 2026.240 | **Glossário: patrimônio corrigido.** O cartão de patrimônio bate com net_worth_with_assets; a divergência real é o nome "Disponível", com duas definições no Início. Só documentação. |
 | 2026.242 | **Projeção de compromissos sai do Início e vai para Recorrentes.** No celular, cada despesa vira um bloco com os valores por mês, em vez de tabela cortada. |
+| 2026.243 | **Ideia 03: aviso de autoria.** "© AAAA Tudo Azul. Todos os direitos reservados a João Marcos." na tela de entrar e no menu de perfil, com ano automático. |
