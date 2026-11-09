@@ -1,5 +1,5 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { definirValoresOcultos, useValoresOcultos } from '../../lib/privacidade'
 import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
@@ -10,8 +10,9 @@ import { Versao } from './Versao'
 
 const base = 'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
 
-/** Encerra a sessão; a rota protegida leva para /entrar quando a sessão some. */
-function sair() {
+/** Volta à página pública antes de encerrar a sessão, evitando que a rota protegida intercepte o logout. */
+function sair(navegar: ReturnType<typeof useNavigate>) {
+  navegar('/', { replace: true })
   void supabase?.auth.signOut()
 }
 
@@ -36,6 +37,7 @@ function BotaoOcultarValores({ claro = false }: { claro?: boolean }) {
 /** Folha do celular com os destinos que não cabem na barra inferior. */
 function MenuMais({ aoFechar }: { aoFechar: () => void }) {
   const fechar = useRef<HTMLButtonElement>(null)
+  const navegar = useNavigate()
 
   useEffect(() => {
     fechar.current?.focus()
@@ -94,7 +96,7 @@ function MenuMais({ aoFechar }: { aoFechar: () => void }) {
           ))}
         </div>
         <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3">
-          <button type="button" onClick={sair} className="min-h-11 rounded-lg px-3 text-sm font-medium text-slate-700 hover:bg-slate-100">Sair</button>
+          <button type="button" onClick={() => sair(navegar)} className="min-h-11 rounded-lg px-3 text-sm font-medium text-slate-700 hover:bg-slate-100">Sair</button>
           <Versao className="text-slate-500" />
         </div>
       </div>
@@ -105,6 +107,7 @@ function MenuMais({ aoFechar }: { aoFechar: () => void }) {
 /** Perfil autenticado e menu de configurações da navegação desktop. */
 function PerfilSidebar({ pathname }: { pathname: string }) {
   const { sessao } = useAuth()
+  const navegar = useNavigate()
   const [aberto, setAberto] = useState(false)
   const area = useRef<HTMLDivElement>(null)
   const botao = useRef<HTMLButtonElement>(null)
@@ -155,7 +158,7 @@ function PerfilSidebar({ pathname }: { pathname: string }) {
             </section>
           ))}
           <div className="mt-1 border-t border-white/10 pt-2">
-            <button type="button" role="menuitem" onClick={sair}
+            <button type="button" role="menuitem" onClick={() => sair(navegar)}
               className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-blue-50 transition-colors hover:bg-white/10">
               <span aria-hidden="true" className="w-[22px] text-center">↪</span>Sair
             </button>
