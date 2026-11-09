@@ -105,8 +105,9 @@ as $$
        and cm.row_type = 'item'
        and cm.currency_code = 'BRL'
   ),
-  compromissos as (
-    select coalesce(sum(m.amount) filter (where not exists (
+  matriz_classificada as (
+    select m.*,
+           exists (
              select 1
                from public.debts d
                join public.debt_invoices di
@@ -127,7 +128,11 @@ as $$
                     )
                   )
                 )
-           )), 0) as total_pendente,
+           ) as already_reserved
+      from matriz m
+  ),
+  compromissos as (
+    select coalesce(sum(m.amount) filter (where not m.already_reserved), 0) as total_pendente,
            coalesce(jsonb_agg(jsonb_build_object(
              'id', m.commitment_id,
              'description', m.description,
@@ -138,8 +143,8 @@ as $$
              'amount', m.amount,
              'lineType', m.row_type
            ) order by m.amount desc, m.description)
-             filter (where m.commitment_id is not null), '[]'::jsonb) as items
-      from matriz m
+             filter (where m.commitment_id is not null and not m.already_reserved), '[]'::jsonb) as items
+      from matriz_classificada m
   ),
   alertas as (
     select coalesce(jsonb_agg(jsonb_build_object(
@@ -153,6 +158,17 @@ as $$
       from periodo p
       cross join lateral public.home_alerts(p_household, p.as_of) a
      where a.kind in ('overdue_payable', 'overdue_receivable')
+  ),
+  resumo_realizado as materialized (
+    select ps.*
+      from periodo p
+      cross join lateral public.period_summary(p_household, p.month_start, least(p.as_of, p.month_end)) ps
+     where p.as_of >= p.month_start
+  ),
+  resumo_mes as materialized (
+    select ps.*
+      from periodo p
+      cross join lateral public.period_summary(p_household, p.month_start, p.month_end) ps
   ),
   categorias as (
     select coalesce(jsonb_agg(jsonb_build_object(
@@ -177,8 +193,10 @@ as $$
   calculo as (
     select p.month_start, p.month_end, p.as_of, t.available,
            c.total_pendente, c.items,
-           greatest(0, p.month_end - greatest(p.month_start, least(p.as_of, p.month_end)) + 1) as days_remaining,
-           greatest(1, least(p.as_of, p.month_end) - p.month_start + 1) as elapsed_days,
+           coalesce((select r.income_paid from resumo_realizado r), 0) as income_paid,
+           coalesce((select r.income_planned from resumo_mes r), 0) as income_planned,
+           case when p.as_of > p.month_end then 0
+                else greatest(0, p.month_end - greatest(p.month_start, p.as_of) + 1) end as days_remaining,
            mp.*
       from periodo p
       cross join tesouraria t
