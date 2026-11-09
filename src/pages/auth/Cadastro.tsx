@@ -36,7 +36,7 @@ export default function Cadastro() {
       email: email.trim(),
       password: senha,
       // `name` é lido por private.handle_new_user para criar o perfil
-      options: { data: { name: nome.trim() }, emailRedirectTo: `${window.location.origin}/painel` },
+      options: { data: { name: nome.trim() }, emailRedirectTo: `${window.location.origin}/` },
     })
     setEnviando(false)
     if (error) setErro(mensagemErroAuth(error))
