@@ -71,22 +71,22 @@ select is(public.card_bill_due(pg_temp.hoje()), 1,
 insert into fixture select 'invoice', invoice_id from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
  where label = to_char(pg_temp.hoje(), 'YYYY-MM');
 select is((select charged from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  90.03::numeric,
-  'C2 charged considera a compra de 100 menos o crédito de 10');
+  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 90.03::numeric,
+  'C2 charged considera a compra de 100,05 menos o crédito de 10,02');
 select is((select pending from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 0::numeric,
   'C3 a fatura já fechada não recebe a compra do próximo ciclo');
 select is((select total from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  90.03::numeric,
+  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 90.03::numeric,
   'C4 total líquido da fatura fechada combina cobrança e crédito');
 
 insert into fixture select 'payment_event', public.debt_pay(
   pg_temp.fx('card'), pg_temp.hoje(), pg_temp.fx('bank'), 40.01, pg_temp.fx('invoice'), false, null);
 select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  40.01::numeric,
+  where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 40.01::numeric,
   'C5 pagamento parcial é conciliado na fatura');
 select is((select pending from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
-  50.03::numeric,
+  where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 50.03::numeric,
   'C6 compra do próximo ciclo permanece integralmente pendente na data de corte');
 select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 0::numeric,
@@ -94,8 +94,8 @@ select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_tem
 select is((select sum(amount) from public.dashboard_commitment_matrix(
   pg_temp.fx('household'), pg_temp.mes_fatura_futura(), 3)
   where period_month = pg_temp.mes_fatura_futura() and row_type = 'item'
-  45.02::numeric,
-  50::numeric, 'C8 matriz futura reconhece o crédito pela data efetiva e mantém o saldo líquido');
+    and (commitment_id like 'card-purchase:%' or commitment_id like 'card-invoice-adjustment:%')),
+  45.02::numeric, 'C8 matriz futura reconhece o crédito pela data efetiva e mantém o saldo líquido');
 
 
 select is(
@@ -172,7 +172,7 @@ select public.record_reserve_allocation(pg_temp.fx('reserve_test'), 100.03, pg_t
 select public.record_reserve_allocation(pg_temp.fx('reserve_test'), -25.01, pg_temp.hoje(),
   'Resgate', '00000000-0000-0000-0000-000000083002');
 select is((select min(balance) from public.reserve_overview(pg_temp.fx('household'))
-  75.02::numeric,
+  where reserve_id = pg_temp.fx('reserve_test')), 75.02::numeric,
   'R1 saldo da reserva é agregado pelo banco');
 select is((select count(*)::integer from public.reserve_overview(pg_temp.fx('household'))
   where reserve_id = pg_temp.fx('reserve_test') and allocation_id is not null), 2,
