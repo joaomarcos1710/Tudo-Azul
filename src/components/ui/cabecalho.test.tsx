@@ -27,7 +27,8 @@ describe('CabecalhoPagina', () => {
 
   it('nenhuma tela escreve o próprio <h1>: todas usam o cabeçalho padrão', () => {
     const dir = join(__dirname, '../../pages')
-    const telas = readdirSync(dir).filter((f) => f.endsWith('.tsx') && !f.includes('.test.'))
+    // A landing pública tem um hero próprio; as telas autenticadas usam CabecalhoPagina.
+    const telas = readdirSync(dir).filter((f) => f.endsWith('.tsx') && !f.includes('.test.') && f !== 'BoasVindas.tsx')
     const comH1 = telas.filter((f) => readFileSync(join(dir, f), 'utf8').includes('<h1'))
     expect(comH1).toEqual([])
   })
