@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import pg from 'pg'
 import { assertLocal, DB_URL, HAS_API, HAS_DB, mustRpc, newUser } from './helpers'
 
-// A11: duas sessões reais, com transações abertas ao mesmo tempo. Só o banco local (SUPABASE_DB_URL
-// aponta para o Postgres do stack descartável). Usa o dono do banco local para não depender de JWT:
-// o que se testa aqui são os gatilhos e travas, não a RLS.
+// A11: duas sessões reais, com transações abertas ao mesmo tempo, somente no Postgres local descartável.
+// Os testes preexistentes usam o dono do banco para exercitar gatilhos; os testes de reservas assumem
+// role authenticated e JWT de teste para validar também RLS e privilégios por coluna.
 const run = HAS_API && HAS_DB
 
 describe.skipIf(!run)('concorrência (duas sessões)', () => {
@@ -213,17 +213,17 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
       `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`, args,
     )
     await beginAs(s2, reserveOwnerId)
-    let second: { rows: Array<{ transaction_id: string; allocation_id: string }> } | null = null
+    let secondRows: Array<{ transaction_id: string; allocation_id: string }> = []
     let err: unknown = null
     const pending = s2.query(
       `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`, args,
-    ).then((r) => { second = r }).catch((e) => { err = e })
+    ).then((r) => { secondRows = r.rows }).catch((e) => { err = e })
     await waitBlocked(monitor, pid2)
     await s1.query('commit')
     await pending
     await s2.query('commit')
     expect(err).toBeNull()
-    expect(second?.rows[0]).toEqual(first.rows[0])
+    expect(secondRows[0]).toEqual(first.rows[0])
     const totals = await monitor.query(
       `select count(*)::int as n, coalesce(sum(amount),0)::numeric as balance
          from public.reserve_allocations where reserve_id=$1`, [reserveForIdempotency],
