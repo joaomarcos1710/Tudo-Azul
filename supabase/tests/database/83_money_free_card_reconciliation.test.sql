@@ -93,25 +93,30 @@ select is((select pending from private.card_months_as_of(pg_temp.fx('card'), pg_
 select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 0::numeric,
   'C7 crédito e adiantamento futuros não são tratados como pagos');
+select is((select sum(amount) from public.dashboard_commitment_matrix(
+  pg_temp.fx('household'), pg_temp.mes_fatura_futura(), 1)
+  where period_month = pg_temp.mes_fatura_futura() and row_type = 'item'
+    and (commitment_id like 'card-purchase:%' or commitment_id like 'card-invoice-adjustment:%')),
+  50::numeric, 'C8 matriz futura preserva o valor integral enquanto crédito e adiantamento ainda são futuros');
 
 
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    pg_temp.mes_fatura_futura())->>'availableMoney')::numeric,
+    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
   910::numeric,
-  'C8 tesouraria já desconta o pagamento parcial e a dívida cobrada líquida'
+  'C9 tesouraria já desconta o pagamento parcial e a dívida cobrada líquida'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    pg_temp.mes_fatura_futura())->>'plannedOutflows')::numeric,
-  50::numeric,
-  'C9 Dinheiro Livre desconta somente a fatura do próximo fechamento, sem antecipar o pagamento futuro'
+    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
+  0::numeric,
+  'C10 fatura já descontada da tesouraria não volta a ser deduzida'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    pg_temp.mes_fatura_futura())->>'moneyFree')::numeric,
-  860::numeric,
-  'C10 Dinheiro Livre não duplica cobrança, crédito nem pagamento parcial'
+    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
+  910::numeric,
+  'C11 Dinheiro Livre não duplica cobrança, crédito nem pagamento parcial'
 );
 select is(
   (select sum((item->>'amount')::numeric)
@@ -119,48 +124,48 @@ select is(
        pg_temp.fx('household'), pg_temp.mes_fatura_futura()
      )->'upcoming_commitments') item
     where item->>'sourceType' = 'Cartão'),
-  50::numeric,
-  'C11 a lista operacional exibe somente a parte ainda não cobrada da fatura'
+  0::numeric,
+  'C12 a lista operacional não repete a fatura já refletida na tesouraria'
 );
 
 -- Estorno do crédito: aumenta a dívida cobrada, mas não cria novo compromisso pendente.
 select public.debt_void(pg_temp.fx('credit_event'), 'Teste de estorno do crédito');
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    pg_temp.mes_fatura_futura())->>'availableMoney')::numeric,
+    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
   900::numeric,
-  'C12 estornar o crédito aumenta a dívida refletida na tesouraria em 10'
+  'C13 estornar o crédito aumenta a dívida refletida na tesouraria em 10'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    pg_temp.mes_fatura_futura())->>'plannedOutflows')::numeric,
+    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
   50::numeric,
-  'C13 estornar crédito não duplica a parcela ainda não cobrada'
+  'C14 estornar crédito não duplica a parcela já descontada'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    pg_temp.mes_fatura_futura())->>'moneyFree')::numeric,
+    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
   850::numeric,
-  'C14 Dinheiro Livre acompanha o estorno do crédito uma única vez'
+  'C15 Dinheiro Livre acompanha o estorno do crédito uma única vez'
 );
 
 -- Estorno do pagamento: o dinheiro retorna à conta e a dívida volta a ser cobrada.
 select public.debt_void(pg_temp.fx('payment_event'), 'Teste de estorno do pagamento');
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    pg_temp.mes_fatura_futura())->>'availableMoney')::numeric,
+    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
   900::numeric,
-  'C15 estornar pagamento restaura o caixa e a dívida pelo mesmo valor'
+  'C16 estornar pagamento restaura o caixa e a dívida pelo mesmo valor'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    pg_temp.mes_fatura_futura())->>'plannedOutflows')::numeric,
+    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
   50::numeric,
   'C14 parcela não cobrada permanece pendente após estorno do pagamento'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
-    pg_temp.mes_fatura_futura())->>'moneyFree')::numeric,
+    date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
   850::numeric,
   'C15 estornar pagamento não provoca dupla contagem'
 );
@@ -185,7 +190,7 @@ select is((select count(*)::integer from public.reserve_overview(pg_temp.fx('hou
   where reserve_id = pg_temp.fx('reserve_test') and allocation_id is not null), 2,
   'R2 histórico retorna os dois movimentos recentes');
 select is((public.get_home_decision_month(pg_temp.fx('household'),
-  pg_temp.mes_fatura_futura())->>'moneyFree')::numeric, 775::numeric,
+  date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric, 775::numeric,
   'R20 reserva virtual reduz o Dinheiro Livre uma única vez');
 select ok(not (select prosecdef from pg_proc where oid='private.card_months_as_of(uuid,date)'::regprocedure),
   'C18 card_months_as_of permanece SECURITY INVOKER');
