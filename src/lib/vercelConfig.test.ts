@@ -22,6 +22,25 @@ describe('vercel.json', () => {
     expect(re.test('/contas/abc')).toBe(true)
   })
 
+  it('toda resposta leva os headers de segurança (revisão de 09/11/2026)', () => {
+    const todos = config.headers.find((h) => h.source === '/(.*)')!.headers
+    const valor = (k: string) => todos.find((h) => h.key === k)?.value
+    expect(valor('X-Content-Type-Options')).toBe('nosniff')
+    expect(valor('X-Frame-Options')).toBe('DENY')
+    expect(valor('Referrer-Policy')).toBe('strict-origin-when-cross-origin')
+    expect(valor('Strict-Transport-Security')).toMatch(/max-age=\d+/)
+    // a CSP começa em modo relatório: nada quebra antes de medirmos o que ela bloquearia
+    const csp = valor('Content-Security-Policy-Report-Only')!
+    expect(valor('Content-Security-Policy')).toBeUndefined()
+    expect(csp).toContain("frame-ancestors 'none'")
+    expect(csp).toContain("script-src 'self'")
+    expect(csp).toMatch(/connect-src [^;]*supabase\.co/)
+    expect(csp).toMatch(/connect-src [^;]*wss:\/\//)
+    expect(csp).toMatch(/connect-src [^;]*sentry\.io/)
+    expect(csp).toMatch(/style-src [^;]*fonts\.googleapis\.com/)
+    expect(csp).toMatch(/font-src [^;]*fonts\.gstatic\.com/)
+  })
+
   it('o service worker nunca fica em cache', () => {
     const sw = config.headers.find((h) => h.source === '/sw.js')
     expect(sw?.headers).toContainEqual({ key: 'Cache-Control', value: 'no-cache' })
