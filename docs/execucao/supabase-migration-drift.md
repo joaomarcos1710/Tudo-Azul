@@ -62,7 +62,7 @@ As funções `daily_digest_mark` e `daily_digest_recipients` são SECURITY DEFIN
 
 ## Alertas de segurança fora deste ajuste
 
-O Security Advisor retornou 69 avisos de funções SECURITY DEFINER executáveis por usuários autenticados, além do aviso de proteção contra senhas vazadas desabilitada. São achados mais amplos do projeto; não serão corrigidos em massa nesta entrega. Cada RPC precisa ser revisada quanto a autenticação, escopo familiar, validação de parâmetros, search_path e grants, sem trocar SECURITY DEFINER por INVOKER indiscriminadamente.
+O Security Advisor retornou 69 avisos `authenticated_security_definer_function_executable` (funções SECURITY DEFINER executáveis por usuários autenticados) e um aviso de proteção contra senhas vazadas desabilitada. A orientação oficial do linter está em [Supabase Database Linter 0029](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable). São achados mais amplos do projeto; não serão corrigidos em massa nesta entrega. Cada RPC precisa ser revisada quanto a autenticação, escopo familiar, validação de parâmetros, search_path e grants, sem trocar SECURITY DEFINER por INVOKER indiscriminadamente.
 
 ## Contenção
 
