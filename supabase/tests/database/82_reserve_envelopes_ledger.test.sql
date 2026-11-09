@@ -31,6 +31,8 @@ insert into fixture select 'account_brl', id from public.accounts
  where household_id=pg_temp.fx('h1') and name='Conta BRL';
 insert into fixture select 'expense_cat', id from public.categories
  where household_id=pg_temp.fx('h1') and type='expense' and system_key='uncategorized';
+insert into fixture select 'expense_cat_alt', id from public.categories
+ where household_id=pg_temp.fx('h1') and type='expense' and name='Mercado';
 insert into public.accounts (household_id,name,type,initial_balance,opening_date,currency_code)
 values (pg_temp.fx('h1'),'Conta EUR','checking',500,pg_temp.hoje()-30,'EUR')
 returning id;
@@ -42,6 +44,10 @@ values (pg_temp.fx('h1'),'Viagem Riga',8000,'EUR')
 returning id;
 insert into fixture select 'r1', id from public.reserves
  where household_id=pg_temp.fx('h1') and name='Viagem Riga';
+insert into public.reserves (household_id,name,currency_code)
+values (pg_temp.fx('h1'),'Reserva alternativa','EUR') returning id;
+insert into fixture select 'r2', id from public.reserves
+ where household_id=pg_temp.fx('h1') and name='Reserva alternativa';
 
 select is((select status from public.reserves where id=pg_temp.fx('r1')), 'active',
   'reserva nasce ativa');
@@ -93,6 +99,21 @@ select is(pg_temp.sqlstate_of(format(
   pg_temp.fx('r1'),pg_temp.fx('account_eur'),pg_temp.fx('expense_cat'),pg_temp.hoje(),
   '00000000-0000-0000-0000-000000022711')),'40900',
   'mesma chave com valor diferente gera conflito de idempotência');
+select is(pg_temp.sqlstate_of(format(
+  'select * from public.record_reserve_expense(%L,%L,%L,100,%L,''Outra reserva'',%L)',
+  pg_temp.fx('r2'),pg_temp.fx('account_eur'),pg_temp.fx('expense_cat'),pg_temp.hoje(),
+  '00000000-0000-0000-0000-000000022711')),'40900',
+  'mesma chave em outra reserva gera conflito de idempotência');
+select is(pg_temp.sqlstate_of(format(
+  'select * from public.record_reserve_expense(%L,%L,%L,100,%L,''Outra conta'',%L)',
+  pg_temp.fx('r1'),pg_temp.fx('account_brl'),pg_temp.fx('expense_cat'),pg_temp.hoje(),
+  '00000000-0000-0000-0000-000000022711')),'40900',
+  'mesma chave com conta diferente gera conflito de idempotência');
+select is(pg_temp.sqlstate_of(format(
+  'select * from public.record_reserve_expense(%L,%L,%L,100,%L,''Outra categoria'',%L)',
+  pg_temp.fx('r1'),pg_temp.fx('account_eur'),pg_temp.fx('expense_cat_alt'),pg_temp.hoje(),
+  '00000000-0000-0000-0000-000000022711')),'40900',
+  'mesma chave com categoria diferente gera conflito de idempotência');
 select is((select count(*) from public.transactions where household_id=pg_temp.fx('h1')),1::bigint,
   'reenvios e conflito não duplicam a despesa');
 select is((select sum(amount) from public.reserve_allocations where reserve_id=pg_temp.fx('r1')),400::numeric,

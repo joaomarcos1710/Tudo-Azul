@@ -14,6 +14,7 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
   let reserveAccount = ''
   let reserveForResgates = ''
   let reserveForArchive = ''
+  let reserveForArchiveWins = ''
   let reserveForIdempotency = ''
   const open: pg.Client[] = []
 
@@ -70,6 +71,11 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     }).select('id').single()
     if (archiveReserve.error) throw archiveReserve.error
     reserveForArchive = archiveReserve.data.id
+    const archiveWinsReserve = await owner.client.from('reserves').insert({
+      household_id: h, name: 'Reserva arquivamento primeiro', currency_code: 'BRL',
+    }).select('id').single()
+    if (archiveWinsReserve.error) throw archiveWinsReserve.error
+    reserveForArchiveWins = archiveWinsReserve.data.id
     const idempotencyReserve = await owner.client.from('reserves').insert({
       household_id: h, name: 'Reserva idempotência concorrente', currency_code: 'BRL',
     }).select('id').single()
@@ -262,6 +268,33 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     )
     expect(state.rows[0].status).toBe('active')
     expect(Number(state.rows[0].balance)).toBe(10)
+  })
+
+  it('arquivamento que obtém o lock primeiro bloqueia movimentação concorrente', async () => {
+    const s1 = await session()
+    const s2 = await session()
+    const monitor = await session()
+    const pid2 = (await s2.query('select pg_backend_pid() as pid')).rows[0].pid
+    await beginAs(s1, reserveOwnerId)
+    await s1.query(`update public.reserves set status='archived' where id=$1`, [reserveForArchiveWins])
+    await beginAs(s2, reserveOwnerId)
+    let err: unknown = null
+    const pending = s2.query(
+      `insert into public.reserve_allocations(household_id,reserve_id,amount,description)
+       values ($1,$2,10,'movimentação após archive')`, [h, reserveForArchiveWins],
+    ).catch((e) => { err = e })
+    await waitBlocked(monitor, pid2)
+    await s1.query('commit')
+    await pending
+    await s2.query('rollback')
+    expect(code(err)).toBe('23514')
+    const state = await monitor.query(
+      `select r.status, coalesce(sum(a.amount),0)::numeric as balance
+         from public.reserves r left join public.reserve_allocations a on a.reserve_id=r.id
+        where r.id=$1 group by r.id`, [reserveForArchiveWins],
+    )
+    expect(state.rows[0].status).toBe('archived')
+    expect(Number(state.rows[0].balance)).toBe(0)
   })
 
   it('mudar a abertura da conta enquanto uma transferência é inserida: nunca sobra transferência anterior à abertura', async () => {
