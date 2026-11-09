@@ -155,3 +155,4 @@ continuam abaixo como histórico.
 | 2026.239 | **Glossário com a equação verificada.** Dinheiro Livre e disponível lidos do banco; registra que aporte em investimento não reduz o Dinheiro Livre. Só documentação. |
 | 2026.240 | **Glossário: patrimônio corrigido.** O cartão de patrimônio bate com net_worth_with_assets; a divergência real é o nome "Disponível", com duas definições no Início. Só documentação. |
 | 2026.242 | **Projeção de compromissos sai do Início e vai para Recorrentes.** No celular, cada despesa vira um bloco com os valores por mês, em vez de tabela cortada. |
+| 2026.246 | **Revisão geral de 09/11/2026.** Auditoria consolidada (dinheiro, banco, front, segurança) e pendências. Só documentação. |
