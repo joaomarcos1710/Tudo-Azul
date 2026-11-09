@@ -159,7 +159,7 @@ export type SecaoResumo = 'inicio' | 'analises'
 
 function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
   if (!dados) {
-    return <div className="mb-4"><Aviso tipo="erro">A visão de Dinheiro Livre está temporariamente indisponível. Os saldos e lançamentos continuam disponíveis.</Aviso></div>
+    return <div className="mb-4"><Aviso tipo="info">A visão de Dinheiro Livre está temporariamente indisponível. Os saldos e lançamentos continuam disponíveis.</Aviso></div>
   }
   return (
     <Card className="mb-4">
