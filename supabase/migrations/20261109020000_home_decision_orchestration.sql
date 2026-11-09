@@ -193,14 +193,20 @@ as $$
     'dailySafeLimit', case when c.days_remaining > 0
       then round(greatest(c.available - c.total_pendente, 0) / c.days_remaining, 2)
       else 0 end,
-    'currentDailyPace', case when c.elapsed_days > 0
-      then round(c.spent / c.elapsed_days, 2) else 0 end,
-    'incomePaid', round(c.available, 2),
+    'currentDailyPace', case when c.days_elapsed > 0
+      then round(c.spent / c.days_elapsed, 2) else 0 end,
+    'incomePaid', round(c.income_paid, 2),
+    'incomePlanned', round(c.income_planned, 2),
     'expensesPaid', round(c.spent, 2),
     'expensesPlanned', round(c.planned, 2),
     'plannedOutflows', round(c.total_pendente, 2),
     'treasury', (select to_jsonb(t) from tesouraria t),
-    'projection', to_jsonb(c) - array['month_start','month_end','as_of','available','total_pendente','items','days_remaining','elapsed_days']::text[],
+    'projection', jsonb_build_object(
+      'daysInMonth', c.days_in_month, 'daysElapsed', c.days_elapsed, 'daysLeft', c.days_left,
+      'spent', round(c.spent, 2), 'planned', round(c.planned, 2),
+      'variableSoFar', round(c.variable_so_far, 2), 'pacePerDay', round(c.pace_per_day, 2),
+      'paceExtra', round(c.pace_extra, 2), 'projected', round(c.projected, 2)
+    ),
     'upcoming_commitments', c.items,
     'risks', a.items,
     'monitoredCategories', k.items,
