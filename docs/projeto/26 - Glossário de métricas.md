@@ -8,45 +8,68 @@ dinheiro" (as regras que não podem quebrar). Quando uma definição mudar, muda
 
 Regra de leitura: o front só mostra. Somas de dinheiro vêm do banco (ver regra 2 em "20 - Regras do dinheiro").
 
+Os itens marcados **[verificado]** foram lidos no corpo das funções em produção (somente leitura). Os demais ainda não
+foram lidos e estão marcados como pendentes.
+
 ## Conta e saldo
 
 - **Saldo da conta (efetuado)**: soma dos lançamentos já pagos/recebidos na conta. Fonte: `src/lib/saldoProjetado.ts`
   (`SaldoDaConta.efetuado`).
-- **Saldo planejado**: o que está previsto para a conta (lançamentos planejados, assinaturas de cartão previstas e
-  lançamentos fixos ainda não gerados), desde a migration 069. Fonte: mesmo arquivo (`planejado`).
+- **Saldo planejado**: o previsto para a conta (lançamentos planejados, assinaturas de cartão previstas e lançamentos
+  fixos ainda não gerados), desde a migration 069. Fonte: mesmo arquivo (`planejado`).
 - **Faturas**: parte do saldo que é cartão de crédito a pagar na conta (`faturas`).
 - **Saldo** = efetuado + planejado − faturas, conforme o campo `saldo` retornado pelo banco. A tela não recalcula.
-  - Atenção: confirmei a presença dos campos, não a fórmula exata dentro do SQL. Antes de citar a fórmula como regra,
-    conferir a função no banco.
+  - **Pendente:** a fórmula exata do campo `saldo` dentro do SQL ainda não foi lida. Não citar como regra até ler.
 - **Parcela com débito automático** reduz a conta contratual. **Boleto ou lançamento manual sem conta** reduz só o
   total. **Consignado** aparece como compromisso, sem duplicar a saída de um salário já registrado líquido
   (comentário em `saldoProjetado.ts`).
 
-## Saldo projetado (fim do mês)
+## Disponível (Início) [verificado]
 
-- É o saldo esperado na data, somando o que já aconteceu com o que está planejado.
-- Tela: Calendário mostra "Saldo previsto …" quando o filtro inclui planejados, e "Saldo … (só efetuados)" quando não
-  inclui (`src/pages/Calendario.tsx`, linha ~316).
-- Não entra no patrimônio de hoje. Patrimônio usa só o que já é efetivo.
+- **Disponível** (`availableMoney` em `get_home_decision_month`) = saldo das contas BRL **ativas** dos tipos
+  checking, savings, cash e brokerage − **faturas de cartão fechadas** (`cartao_fechadas`).
+  - Fonte: `home_indicators`, coluna `ativas − cartao_fechadas`. O alias da coluna foi inferido pela ordem dos campos
+    no retorno, não por um nome literal no SQL.
+- Contas do tipo **brokerage** entram no disponível. Dinheiro parado em corretora de conta corrente conta como livre.
 
-## Disponível e patrimônio líquido
+## Patrimônio líquido (Início)
 
-- **Patrimônio líquido** (Início, `src/pages/VisaoGeral.tsx`), fórmula escrita na própria tela:
-  `disponível + crédito a receber + bens em BRL − dívida`.
-- **Disponível**: dinheiro em contas BRL hoje, segundo o banco (`p.disponivel`). A definição SQL não foi lida nesta
-  revisão.
-- **Bens em USD/EUR** e **contas em outras moedas** não entram no consolidado. Aparecem à parte (`EmOutrasMoedas`).
-- **Investimentos** aparecem separados até a integração com o caixa, segundo a própria tela.
+- A tela escreve: `disponível + crédito a receber + bens em BRL − dívida`
+  (`src/pages/VisaoGeral.tsx`, linha ~479).
+- **Divergência [verificado]:** o cálculo em `home_indicators` é `todas + cr + bens − debt`, em que `todas` é o saldo
+  de **todas** as contas BRL (incluindo as inativas e outros tipos) e `debt` inclui as faturas de cartão. A fórmula
+  escrita na tela usa `disponível`, que é diferente de `todas`. A diferença é `(todas − ativas) + cartao_fechadas`.
+  - **Pendente:** confirmar qual RPC alimenta o `p.patrimonio` mostrado em `VisaoGeral.tsx`. Se for a `home_indicators`,
+    o texto da tela está errado. Não corrigir antes de confirmar.
+- Bens em USD/EUR e contas em outras moedas não entram no consolidado. Aparecem à parte (`EmOutrasMoedas`).
+- Investimentos aparecem separados, fora do disponível e do patrimônio consolidado (`inv` existe em `home_indicators`
+  mas não entra em `todas + cr + bens − debt`).
 
-## Dinheiro Livre (Início)
+## Dinheiro Livre (Início) [verificado]
 
-- Valor do que sobra para gastar no mês, já descontando o comprometido. Vem do banco em
-  `get_home_decision_month` (campo `moneyFree`, lido em `src/lib/homeDecisao.ts`).
-- **Reservas em BRL** são descontadas do Dinheiro Livre. Envelopes em USD e EUR ficam separados (texto de
-  `src/pages/Reservas.tsx`).
-- Quando a visão está indisponível, a tela diz isso sem esconder o resto (`VisaoGeral.tsx`, linha ~162).
-- **Pendente de confirmação:** a fórmula exata de `moneyFree` (quais compromissos entram e como o cartão aparece). Não
-  está documentada aqui ainda. Antes de mudar essa conta, ler a função no banco.
+Equação lida em `get_home_decision_month`:
+
+```
+circulatingBalance = disponível − reservas BRL comprometidas
+moneyFree          = circulatingBalance − compromissos pendentes do mês
+```
+
+- **Reservas BRL comprometidas**: soma das alocações de reservas BRL com status `active` ou `completed`.
+- **Compromissos pendentes do mês**: matriz de compromissos do mês em BRL, sem o que já foi pago. Cartão entra só pela
+  parte **ainda não cobrada e não paga** (`card_months`): o que já está cobrado e não pago já saiu do disponível.
+- **É um saldo, não um fluxo.** Não é "receitas − despesas do mês". Por isso, o que muda o disponível muda o Dinheiro
+  Livre na mesma hora.
+- **Diária segura** = `moneyFree / dias restantes` (não negativo).
+
+### Consequência para aportes [verificado]
+
+- `investment_operation_record` (compra e aporte) **não grava lançamento** (checado no corpo da função em produção).
+  Grava só em `investment_operations`, sem ligação com conta.
+- Logo, **um aporte registrado no módulo de investimentos não reduz o disponível nem o Dinheiro Livre.** O dinheiro sai
+  do banco na vida real, mas o app continua mostrando como livre.
+- O único lançamento de investimento é o **provento** (`investment_distribution_record` grava em `transactions`).
+- Para o aporte reduzir o Dinheiro Livre hoje, é preciso registrar à mão uma transferência ou despesa. Isso é uma decisão
+  de produto e contabilidade pendente do dono. Não há teste automatizado que cubra esse caso.
 
 ## Compromissos futuros
 
@@ -60,27 +83,36 @@ Regra de leitura: o front só mostra. Somas de dinheiro vêm do banco (ver regra
 - **Limite do cartão**: `disponível = limite − comprometido`. Quando passa do limite, o valor aparece negativo e a
   tela diz "Passou do limite em …" (`src/pages/Cartoes.tsx`, componente `Limite`).
 - **Parcelamento**: o resto dos centavos vai na primeira parcela (100,00 em 3x = 33,34 + 33,33 + 33,33).
+- **Pendente:** a afirmação de que o pagamento da fatura não entra em resultado nem fluxo quando a fatura é liquidada
+  ainda não foi verificada no SQL.
 
 ## Dívidas
 
 - Saldo das dívidas vem de `debt_balances` no banco. Parcelas planejadas de empréstimo entram na projeção.
-- Não confirmei nesta revisão a regra de pagamento antecipado nem a de encerramento de contrato. Quando for mexer,
-  ler `supabase/migrations` das dívidas e os testes pgTAP antes.
+- **Pendente:** regra de pagamento antecipado e de encerramento de contrato.
 
 ## Investimentos
 
 - **Patrimônio em investimentos** é mostrado por moeda (`src/pages/Investimentos.tsx`).
-- Aporte e resgate **não** são despesa nem receita. Se um aporte reduzir o Dinheiro Livre, isso é um erro a corrigir.
-  Esta regra ainda precisa de teste automatizado explícito, que não confirmei existir.
+- Aporte e resgate **não** são despesa nem receita. Hoje não geram lançamento (ver "Dinheiro Livre").
+- **Pendente:** teste automatizado para "aporte não reduz indevidamente o Dinheiro Livre" e "resgate não cria receita".
 
 ## Moedas
 
 - Cada moeda tem seu total. **Nunca somar BRL, USD e EUR sem cotação explícita** (regra em "20 - Regras do dinheiro").
 - Lançamento em moeda estrangeira guarda o valor na moeda original. Conversão não altera o histórico.
 
-## O que este glossário NÃO confirma ainda
+## O que ainda NÃO está confirmado
 
-- A fórmula SQL de `disponível`, `saldo` e `moneyFree`.
-- Se existe teste automatizado para "aporte não reduz Dinheiro Livre" e "resgate não cria receita".
-- Uma divergência de rótulos entre "Disponível do Início" e "Disponível em Análises", apontada numa conversa anterior.
-  Não reconferi nesta revisão. Antes de unificar, verificar as duas telas no código.
+1. Fórmula do campo `saldo` (`saldoProjetado`) dentro do SQL.
+2. Qual RPC alimenta o patrimônio mostrado em `VisaoGeral.tsx`, e se o texto da fórmula da tela bate com ela.
+3. Se assinaturas de cartão previstas entram em `planejado` e em `faturas` ao mesmo tempo (risco de abatimento duplo).
+4. Regras de dívidas: pagamento antecipado, encerramento e lançamento na conta.
+5. Testes automatizados de aporte e resgate.
+6. Divergência de rótulos entre "Disponível do Início" e "Disponível em Análises".
+
+## Decisão pendente do dono
+
+- **Aporte deve reduzir o Dinheiro Livre?** Hoje não reduz. Se a resposta for sim, a regra é gerar uma saída de conta
+  (transferência para conta de investimento ou lançamento) no ato do aporte. Isso mexe no fluxo de investimentos e
+  precisa de migration e testes antes de implementar.
