@@ -97,6 +97,20 @@ describe('telas de acesso sem Supabase configurado', () => {
 })
 
 describe('Entrar', () => {
+  it('depois de entrar, não segue um destino que sairia do app (open redirect)', async () => {
+    mock.sessao = sessaoFalsa
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={[{ pathname: '/entrar', state: { de: '//evil.example/x' } }]}>
+          <Routes>
+            <Route path="/entrar" element={<Entrar />} />
+            <Route path="/" element={<RotaProtegida><p>Painel interno</p></RotaProtegida>} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>,
+    )
+    expect(await screen.findByText('Painel interno')).toBeTruthy()
+  })
   it('envia e-mail sem espaços e mostra erro traduzido', async () => {
     mock.auth.signInWithPassword.mockResolvedValue({ error: { code: 'invalid_credentials', message: 'Invalid login credentials' } })
     montar('/entrar')
