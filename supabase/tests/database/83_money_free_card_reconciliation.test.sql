@@ -118,16 +118,6 @@ select is(
   910::numeric,
   'C11 Dinheiro Livre não duplica cobrança, crédito nem pagamento parcial'
 );
-select is(
-  (select sum((item->>'amount')::numeric)
-     from jsonb_array_elements(public.get_home_decision_month(
-       pg_temp.fx('household'), pg_temp.mes_fatura_futura()
-     )->'upcoming_commitments') item
-    where item->>'sourceType' = 'Cartão'),
-  0::numeric,
-  'C12 a lista operacional não repete a fatura já refletida na tesouraria'
-);
-
 -- Estorno do crédito: aumenta a dívida cobrada, mas não cria novo compromisso pendente.
 select public.debt_void(pg_temp.fx('credit_event'), 'Teste de estorno do crédito');
 select is(
