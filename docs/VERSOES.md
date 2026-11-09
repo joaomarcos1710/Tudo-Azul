@@ -149,3 +149,4 @@ continuam abaixo como histórico.
 | 2026.233 | **Reservas: zerar tudo e exclusão da família apagam o ledger; idempotência completa.** Migration 20261109060000 (não aplicada). Reenvio do envelope compara o pedido inteiro; concorrência com o zerar tudo validada no runner local. Depende da #230. |
 | 2026.234 | **Decisão de segurança registrada:** as 69 funções SECURITY DEFINER do Security Advisor são mantidas (56 usadas pelo app, 13 em testes e API). Sem mudança de código nem de banco. |
 | 2026.235 | **Família sem o Zerar tudo.** O bloco Zona de perigo · Zerar tudo sai da tela Família; a ação de perigo fica só em Preferências. Sem migration. |
+| 2026.236 | **Lançamentos: criar e editar liberados (42501).** O front grava person_id e is_shared_expense (#205) e o grant de coluna não incluía essas duas. Migration 20261109070000, não aplicada em produção. |
