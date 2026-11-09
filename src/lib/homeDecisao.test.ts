@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fake = vi.hoisted(() => {
-  const e = { calls: [] as { name: string; args: unknown }[], response: { data: unknown; error: unknown } }
+  const e = { calls: [] as { name: string; args: unknown }[], response: null as unknown as { data: unknown; error: unknown } }
   return { e, supabase: { rpc: (name: string, args: unknown) => {
     e.calls.push({ name, args })
     return Promise.resolve(e.response)
