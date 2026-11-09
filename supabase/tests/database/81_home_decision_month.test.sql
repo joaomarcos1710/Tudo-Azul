@@ -55,10 +55,15 @@ select is(
   2300::numeric,
   'H2 dinheiro livre parte da tesouraria e abate os compromissos pendentes BRL'
 );
-select is(
-  (public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->>'moneyFree')::numeric,
-  2300::numeric,
-  'H2.1 despesas em moeda estrangeira não são somadas como se fossem BRL'
+select ok(
+  not exists (
+    select 1
+      from jsonb_array_elements(public.get_home_decision_month(
+        pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date
+      )->'upcoming_commitments') item
+     where item->>'currency' <> 'BRL'
+  ),
+  'H2.1 matriz da Home inclui somente compromissos em BRL no total do Dinheiro Livre'
 );
 select is(
   jsonb_typeof(public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->'risks'),
