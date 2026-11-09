@@ -9,7 +9,7 @@ import { definirValoresOcultos } from '../../lib/privacidade'
 
 vi.mock('../../lib/supabase', () => ({ supabase: null, supabaseConfigurado: true }))
 
-function montar(caminho = '/') {
+function montar(caminho = '/painel') {
   return render(
     <MemoryRouter initialEntries={[caminho]}>
       <Routes><Route element={<AppShell />}><Route path="*" element={<p>conteúdo</p>} /></Route></Routes>
@@ -24,7 +24,7 @@ describe('menu em grupos', () => {
   it('toda tela do app está no menu (inclui Recorrentes, que antes não aparecia) e sem caminhos repetidos', () => {
     const caminhos = itensNavegacao.map((i) => i.caminho)
     expect(new Set(caminhos).size).toBe(caminhos.length)
-    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/relatorios', '/familia', '/exportar']) {
+    for (const c of ['/painel', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/relatorios', '/familia', '/exportar']) {
       expect(caminhos).toContain(c)
     }
   })
@@ -146,10 +146,10 @@ describe('menu em grupos', () => {
   })
   it('em /analises o item ativo é Análises, e não Início', () => {
     expect(itemAtivo('/analises')?.rotulo).toBe('Análises')
-    expect(itemAtivo('/')?.rotulo).toBe('Início')
+    expect(itemAtivo('/painel')?.rotulo).toBe('Início')
   })
 
-  it('itemAtivo: subtela de conta conta como Contas; raiz só casa com "/"', () => {
+  it('itemAtivo: subtela de conta conta como Contas; Início só casa com "/painel"', () => {
     expect(itemAtivo('/contas/abc')?.rotulo).toBe('Contas')
     expect(itemAtivo('/')?.rotulo).toBe('Início')
     expect(itemAtivo('/desconhecida')).toBeUndefined()
