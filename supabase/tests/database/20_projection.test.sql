@@ -99,11 +99,11 @@ select is((select count(*) from public.budget_projection(pg_temp.fx('h'), '2026-
 
 
 -- ritmo só depois de 7 dias do mês: no dia 3 a projeção é só gasto + previsto (sem extrapolar o que foi pago até lá)
-select is(pg_temp.mp('2026-10-01', '2026-10-03'), '31|3|28|1300.00|250.00|0.00|0.00|1550.00',
-          'PJ11 até 6 dias de mês: ritmo zero (um aluguel pago no dia 2 não vira gasto diário)');
+select is(pg_temp.mp('2026-10-01', '2026-10-03'), '31|3|28|1000.00|250.00|0.00|0.00|1250.00',
+          'PJ11 dia 3: realizado considera somente pagamentos até o corte, sem extrapolar o ritmo variável');
 -- no 7º dia o ritmo entra: 200,00 pagos em 7 dias = 28,57/dia × 24 = 685,71
-select is(pg_temp.mp('2026-10-01', '2026-10-07'), '31|7|24|1300.00|250.00|200.00|685.71|2235.71',
-          'PJ12 a partir do 7º dia o ritmo entra na projeção');
+select is(pg_temp.mp('2026-10-01', '2026-10-07'), '31|7|24|1200.00|250.00|200.00|685.71|2135.71',
+          'PJ12 dia 7: realizado considera pagamentos até o corte e o ritmo variável entra na projeção');
 
 -- assinatura recorrente de CARTÃO (dia 20, 40,00): ainda não virou parcela, mas a fatura de 25/10 já a inclui
 reset role;
