@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const fake = vi.hoisted(() => {
   const e = {
     calls: [] as { name: string; args: unknown }[],
-    response: { data: unknown; error: unknown },
+    response: null as unknown as { data: unknown; error: unknown },
     inserts: [] as { table: string; value: unknown }[],
   }
   return {
