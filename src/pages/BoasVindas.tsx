@@ -80,7 +80,7 @@ export default function BoasVindas() {
 
       <main>
         <section className="relative isolate">
-          <div aria-hidden="true" className="absolute inset-x-0 top-0 -z-10 h-[42rem] bg-gradient-to-br from-[#F4F9FF] via-white to-[#EAF5FF]" />
+          <div aria-hidden="true" className="absolute inset-x-0 top-0 -z-10 h-[42rem] bg-gradient-to-br from-fundo via-white to-azul-claro" />
           <div aria-hidden="true" className="absolute -right-28 top-10 -z-10 h-72 w-72 rounded-full bg-celeste/20 blur-3xl" />
           <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-20 pt-10 sm:px-8 sm:pb-24 sm:pt-16 lg:grid-cols-[1.02fr_0.98fr] lg:gap-10 lg:px-12 lg:pb-28 lg:pt-20">
             <div className="max-w-2xl">
