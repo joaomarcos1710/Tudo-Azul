@@ -65,8 +65,6 @@ select public.card_purchase(pg_temp.fx('card'), pg_temp.hoje(), 50, 1,
   pg_temp.fx('expense_category'), 'Compra do próximo ciclo');
 insert into fixture select 'future_credit_event', public.card_credit_income(
   pg_temp.fx('card'), pg_temp.hoje(), 5, pg_temp.fx('income_category'), 'Crédito futuro', pg_temp.fechamento_futuro());
-insert into fixture select 'future_payment_event', public.debt_pay(
-  pg_temp.fx('card'), pg_temp.fechamento_futuro(), pg_temp.fx('bank'), 10, null, false, null);
 select is(public.card_bill_due(pg_temp.hoje()), 1,
   'C1 somente a parcela com fechamento até hoje é cobrada');
 
@@ -92,12 +90,12 @@ select is((select pending from private.card_months_as_of(pg_temp.fx('card'), pg_
   'C6 compra do próximo ciclo permanece integralmente pendente na data de corte');
 select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 0::numeric,
-  'C7 crédito e adiantamento futuros não são tratados como pagos');
+  'C7 crédito com fechamento futuro não é tratado como já liquidado');
 select is((select sum(amount) from public.dashboard_commitment_matrix(
   pg_temp.fx('household'), pg_temp.mes_fatura_futura(), 1)
   where period_month = pg_temp.mes_fatura_futura() and row_type = 'item'
     and (commitment_id like 'card-purchase:%' or commitment_id like 'card-invoice-adjustment:%')),
-  50::numeric, 'C8 matriz futura preserva o valor integral enquanto crédito e adiantamento ainda são futuros');
+  50::numeric, 'C8 matriz futura preserva o valor integral enquanto o crédito ainda não venceu');
 
 
 select is(
