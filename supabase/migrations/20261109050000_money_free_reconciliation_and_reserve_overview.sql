@@ -206,7 +206,7 @@ begin
   periodos_cartao as (
     select gs.mes::date as inicio_mes,
            (gs.mes + interval '1 month - 1 day')::date as fim_mes,
-           least(private.today_sp(), (gs.mes + interval '1 month - 1 day')::date) as as_of
+           least((now() at time zone 'America/Sao_Paulo')::date, (gs.mes + interval '1 month - 1 day')::date) as as_of
       from generate_series(v_from::timestamp, v_to::timestamp, interval '1 month') gs(mes)
   ),
   faturas_cartao as materialized (
