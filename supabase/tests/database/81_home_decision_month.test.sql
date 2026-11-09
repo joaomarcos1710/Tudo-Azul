@@ -53,7 +53,7 @@ select ok(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->>'moneyFree')::numeric,
   2300::numeric,
-  'H2 dinheiro livre usa receitas e despesas pagas e planejadas do resumo BRL'
+  'H2 dinheiro livre parte da tesouraria e abate os compromissos pendentes BRL'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->>'moneyFree')::numeric,
@@ -69,6 +69,71 @@ select is(
   jsonb_typeof(public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->'monitoredCategories'),
   'array',
   'H4 categorias monitoradas retornam como coleção estruturada'
+);
+
+
+-- Viagem no tempo: o realizado nunca pode incluir pagamentos com data posterior ao corte.
+insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status)
+values
+  (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('expense'), 'expense', 'Outubro dia 01', 100, '2026-10-01', 'paid'),
+  (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('expense'), 'expense', 'Outubro dia 10', 200, '2026-10-10', 'paid'),
+  (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('expense'), 'expense', 'Outubro dia 15', 150, '2026-10-15', 'paid'),
+  (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('expense'), 'expense', 'Pagamento futuro já marcado pago', 999, '2026-10-20', 'paid');
+
+with nova as (
+  insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status)
+  values (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('expense'), 'expense', 'Conta planejada de outubro', 500, '2026-10-20', 'planned')
+  returning id
+)
+insert into fixture select 'planned_october', id from nova;
+
+select is(
+  (select spent from public.month_projection(pg_temp.fx('household'), '2026-10-01', '2026-10-01')),
+  100::numeric,
+  'M1 dia 1: realizado considera somente pagamentos até a data de corte'
+);
+select is(
+  (select days_elapsed from public.month_projection(pg_temp.fx('household'), '2026-10-01', '2026-10-01')),
+  1,
+  'M2 dia 1: denominador protegido e igual a um'
+);
+select is(
+  (select spent from public.month_projection(pg_temp.fx('household'), '2026-10-01', '2026-10-15')),
+  450::numeric,
+  'M3 dia 15: ignora o pagamento futuro de 999 já marcado como pago'
+);
+select is(
+  (select pace_per_day from public.month_projection(pg_temp.fx('household'), '2026-10-01', '2026-10-15')),
+  30::numeric,
+  'M4 dia 15: ritmo diário divide 450 por 15 dias corridos'
+);
+select is(
+  (select projected from public.month_projection(pg_temp.fx('household'), '2026-10-01', '2026-10-15')),
+  1430::numeric,
+  'M5 dia 15: projeção combina realizado, planejado e ritmo variável sem antecipar o pagamento futuro'
+);
+
+update public.transactions set status = 'paid' where id = pg_temp.fx('planned_october');
+select is(
+  (select days_left from public.month_projection(pg_temp.fx('household'), '2026-10-01', '2026-10-31')),
+  0,
+  'M6 dia 31: não restam dias no mês'
+);
+select is(
+  (select projected from public.month_projection(pg_temp.fx('household'), '2026-10-01', '2026-10-31')),
+  (select spent from public.month_projection(pg_temp.fx('household'), '2026-10-01', '2026-10-31')),
+  'M7 dia 31: projeção coincide exatamente com o realizado quando não há planejados'
+);
+
+select is(
+  jsonb_typeof(public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->'upcoming_commitments'),
+  'array',
+  'H5 compromissos são entregues em uma coleção unificada'
+);
+select is(
+  public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->'opportunities',
+  'null'::jsonb,
+  'H6 oportunidades ficam nulas enquanto não houver regra objetiva de superávit'
 );
 
 select * from finish();
