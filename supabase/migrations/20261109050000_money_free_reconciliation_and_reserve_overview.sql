@@ -1,6 +1,6 @@
 -- Reconciliação de cartão respeita a data de corte; eventos futuros não antecipam saldo.
 create function private.card_months_as_of(p_debt uuid, p_as_of date)
-returns table (label text, due_date date, charged numeric, pending numeric, total numeric, paid numeric)
+returns table (label text, due_date date, charged numeric, pending numeric, total numeric, paid numeric, invoice_id uuid)
 language plpgsql stable security invoker set search_path = '' as $$
 declare
   v_d record; r record; v_credit numeric; v_ref numeric; v_s0 numeric; v_link numeric; v_total numeric;
@@ -92,7 +92,7 @@ begin
     v_surplus := greatest(0, v_link - v_total) + greatest(0, -(r.charged + r.pending));
     v_paid    := least(v_total, v_link) + v_use;
 
-    label := r.label; due_date := v_due;
+    label := r.label; due_date := v_due; invoice_id := r.inv_id;
     charged := r.charged; pending := r.pending; total := v_total; paid := v_paid;
     
     v_s0 := least(v_surplus, v_ref);
