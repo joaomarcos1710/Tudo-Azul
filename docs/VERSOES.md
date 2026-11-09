@@ -148,3 +148,4 @@ continuam abaixo como histórico.
 | 2026.217 | **Ideias do dono em `docs/ideias`.** Primeira ideia registrada: tela de Contas com lista mais limpa, alça de reordenação, contas arquivadas e ações no hover, com o que a tela já faz e os pontos a decidir. Só documentação, sem mudança de código. |
 | 2026.233 | **Reservas: zerar tudo e exclusão da família apagam o ledger; idempotência completa.** Migration 20261109060000 (não aplicada). Reenvio do envelope compara o pedido inteiro; concorrência com o zerar tudo validada no runner local. Depende da #230. |
 | 2026.234 | **Decisão de segurança registrada:** as 69 funções SECURITY DEFINER do Security Advisor são mantidas (56 usadas pelo app, 13 em testes e API). Sem mudança de código nem de banco. |
+| 2026.235 | **Família sem o Zerar tudo.** O bloco Zona de perigo · Zerar tudo sai da tela Família; a ação de perigo fica só em Preferências. Sem migration. |
