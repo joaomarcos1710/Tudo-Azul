@@ -176,7 +176,7 @@ function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
       </div>
       <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
         <div><p className="text-xs text-slate-500">Saldo disponível</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.dinheiroDisponivel)}</p></div>
-        <div><p className="text-xs text-slate-500">Reservas comprometidas</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.reservasComprometidas)}</p></div>
+        <div><p className="text-xs text-slate-500">Envelopes comprometidos</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.reservasComprometidas)}</p></div>
         <div><p className="text-xs text-slate-500">Compromissos futuros</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.saidasPlanejadas)}</p></div>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
