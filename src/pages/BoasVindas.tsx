@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Marca } from '../components/layout/Marca'
 import { Versao } from '../components/layout/Versao'
+import { CORES, GRAFICO, MARCA } from '../lib/cores'
 
 function IconeCheck() {
   return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5"><path d="m5 12.5 4.2 4.2L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -34,24 +35,24 @@ function PreviaPainel() {
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-[11px] font-semibold text-azul">Prévia ilustrativa</span>
         </div>
-        <div className="mt-6 rounded-2xl bg-[#F5F8FD] p-4 sm:p-5">
+        <div className="mt-6 rounded-2xl bg-fundo p-4 sm:p-5">
           <p className="text-xs font-medium text-slate-500">Acompanhamento financeiro</p>
           <div className="mt-1 flex items-end justify-between gap-3">
             <p className="text-2xl font-bold tracking-tight text-marinho sm:text-3xl">Mais clareza.</p>
             <span className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">Mês atual</span>
           </div>
           <svg viewBox="0 0 440 150" role="img" aria-label="Gráfico ilustrativo de evolução financeira" className="mt-5 h-auto w-full overflow-visible">
-            <defs><linearGradient id="areaAzul" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#48B5FF" stopOpacity=".28"/><stop offset="100%" stopColor="#48B5FF" stopOpacity="0"/></linearGradient></defs>
-            {[28,68,108].map((y) => <line key={y} x1="8" y1={y} x2="432" y2={y} stroke="#E5ECF5" strokeDasharray="4 5"/>)}
+            <defs><linearGradient id="areaAzul" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={MARCA.celeste} stopOpacity=".28"/><stop offset="100%" stopColor={MARCA.celeste} stopOpacity="0"/></linearGradient></defs>
+            {[28,68,108].map((y) => <line key={y} x1="8" y1={y} x2="432" y2={y} stroke={GRAFICO.grade} strokeDasharray="4 5"/>)}
             <path d="M8 112 C48 104 58 91 94 96 S145 83 178 88 S235 54 270 65 S327 38 358 46 S407 20 432 25 L432 140 L8 140Z" fill="url(#areaAzul)"/>
-            <path d="M8 112 C48 104 58 91 94 96 S145 83 178 88 S235 54 270 65 S327 38 358 46 S407 20 432 25" fill="none" stroke="#2563EB" strokeWidth="3.5" strokeLinecap="round"/>
-            <circle cx="432" cy="25" r="5" fill="#2563EB" stroke="white" strokeWidth="3"/>
+            <path d="M8 112 C48 104 58 91 94 96 S145 83 178 88 S235 54 270 65 S327 38 358 46 S407 20 432 25" fill="none" stroke={CORES.lucro.DEFAULT} strokeWidth="3.5" strokeLinecap="round"/>
+            <circle cx="432" cy="25" r="5" fill={CORES.lucro.DEFAULT} stroke="white" strokeWidth="3"/>
           </svg>
           <div className="mt-1 flex justify-between text-[10px] text-slate-400"><span>Início do período</span><span>Agora</span></div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-2xl border border-slate-100 p-4"><div className="flex items-center gap-2 text-xs text-slate-500"><span className="h-2 w-2 rounded-full bg-azul"/>Organização</div><p className="mt-2 text-sm font-bold text-marinho">Contas e cartões</p><p className="mt-1 text-xs text-slate-500">Tudo acompanhado</p></div>
-          <div className="rounded-2xl border border-slate-100 p-4"><div className="flex items-center gap-2 text-xs text-slate-500"><span className="h-2 w-2 rounded-full bg-[#0D9488]"/>Planejamento</div><p className="mt-2 text-sm font-bold text-marinho">Metas e orçamento</p><p className="mt-1 text-xs text-slate-500">Decisões com contexto</p></div>
+          <div className="rounded-2xl border border-slate-100 p-4"><div className="flex items-center gap-2 text-xs text-slate-500"><span className="h-2 w-2 rounded-full bg-agendado-marca"/>Planejamento</div><p className="mt-2 text-sm font-bold text-marinho">Metas e orçamento</p><p className="mt-1 text-xs text-slate-500">Decisões com contexto</p></div>
         </div>
         <div className="mt-4 flex items-center gap-2 rounded-xl bg-blue-50/80 px-3 py-2.5 text-xs text-blue-900"><span className="text-azul"><IconeCheck /></span> Um panorama para conversar e decidir em família.</div>
       </div>
