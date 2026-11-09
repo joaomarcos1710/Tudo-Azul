@@ -5,7 +5,8 @@ atualizado: 2026-11-06
 # Pendências e próximos passos
 
 ## Decisões suas
-- [ ] **Produção: lançamentos bloqueados (42501).** Aplicar a 079 (grants de `person_id` e `is_shared_expense`) é urgente. Ela não pode ir sozinha: o workflow aplica as pendentes 020000 a 060000 junto. Decidir o caminho com o dono e aplicar só com "pode" e `APLICAR`.
+- [x] **Produção: lançamentos bloqueados (42501)** — migration 079 aplicada em 09/11/2026 junto com as pendentes 020000–060000 (histórico reparado pelo modo `reparar` do workflow).
+- [ ] **Produção: salvar Preferências e ligar o Aviso diário nunca funcionaram (42501 no upsert).** Migration 080 pronta (PR da revisão geral); aplicar pelo workflow com `APLICAR` depois do merge.
 - [x] Versão **2026.2** (feito).
 - [x] Commit na versão: **só na tela Família** (#56).
 - [ ] **Relatórios: usar o espaço** que a exportação liberou (#180): abas como no Organizze (Categorias, Contas) — decidir com o dono o que entra primeiro.

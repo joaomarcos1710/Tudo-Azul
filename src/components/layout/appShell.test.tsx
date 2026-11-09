@@ -53,6 +53,9 @@ describe('menu em grupos', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Exportar dados' })).toBeTruthy()
     expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toBeTruthy()
     expect(within(menu).getByText(/Versão/)).toBeTruthy()
+    // ideia 03: autoria logo abaixo de Sair, dentro do menu
+    expect(within(menu).getByText(/Todos os direitos reservados a João Marcos\./)).toBeTruthy()
+    expect(within(menu).getByText(/^© \d{4} Tudo Azul\.$/)).toBeTruthy()
   })
 
   it('celular: 4 atalhos fixos + "Mais"; o resto só aparece dentro do Mais', async () => {

@@ -155,4 +155,7 @@ continuam abaixo como histórico.
 | 2026.239 | **Glossário com a equação verificada.** Dinheiro Livre e disponível lidos do banco; registra que aporte em investimento não reduz o Dinheiro Livre. Só documentação. |
 | 2026.240 | **Glossário: patrimônio corrigido.** O cartão de patrimônio bate com net_worth_with_assets; a divergência real é o nome "Disponível", com duas definições no Início. Só documentação. |
 | 2026.242 | **Projeção de compromissos sai do Início e vai para Recorrentes.** No celular, cada despesa vira um bloco com os valores por mês, em vez de tabela cortada. |
+| 2026.243 | **Ideia 03: aviso de autoria.** "© AAAA Tudo Azul. Todos os direitos reservados a João Marcos." na tela de entrar e no menu de perfil, com ano automático. |
+| 2026.244 | **Preferências e aviso diário: upsert liberado.** Migration 080 concede UPDATE em user_id; salvar nunca tinha funcionado em produção (42501). Teste pgTAP 85. Não aplicada. |
+| 2026.245 | **Segurança: headers no Vercel e destino seguro após login.** nosniff, X-Frame-Options, Referrer-Policy, HSTS e CSP em modo relatório; open redirect via state.de fechado; workflow de validação local pinado. |
 | 2026.246 | **Revisão geral de 09/11/2026.** Auditoria consolidada (dinheiro, banco, front, segurança) e pendências. Só documentação. |
