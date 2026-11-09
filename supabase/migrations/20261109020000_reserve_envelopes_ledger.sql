@@ -203,8 +203,6 @@ for each row execute function private.reserve_allocations_guard();
 revoke execute on function private.reserves_guard(), private.reserve_allocations_guard()
   from public, anon, authenticated;
 
--- Registra uma despesa paga e seu resgate no mesmo statement/transação.
--- Não cria transferência de conta nem despesa artificial de aporte.
 -- Troca o contrato anterior pela versão idempotente. Não mantém overload ambíguo.
 drop function if exists public.record_reserve_expense(uuid, uuid, uuid, numeric, date, text, text);
 

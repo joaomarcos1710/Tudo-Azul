@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import pg from 'pg'
-import { assertLocal, DB_URL, HAS_API, HAS_DB, mustRpc, newUser, type TestUser } from './helpers'
+import { assertLocal, DB_URL, HAS_API, HAS_DB, mustRpc, newUser } from './helpers'
 
 // A11: duas sessões reais, com transações abertas ao mesmo tempo. Só o banco local (SUPABASE_DB_URL
 // aponta para o Postgres do stack descartável). Usa o dono do banco local para não depender de JWT:
@@ -10,10 +10,11 @@ const run = HAS_API && HAS_DB
 describe.skipIf(!run)('concorrência (duas sessões)', () => {
   let h = ''
   let cat = ''
-  let reserveOwner: TestUser
+  let reserveOwnerId = ''
   let reserveAccount = ''
   let reserveForResgates = ''
   let reserveForArchive = ''
+  let reserveForIdempotency = ''
   const open: pg.Client[] = []
 
   const session = async () => {
@@ -47,7 +48,7 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
   beforeAll(async () => {
     assertLocal()
     const owner = await newUser('conc')
-    reserveOwner = owner
+    reserveOwnerId = owner.id
     h = await mustRpc<string>(owner, 'create_household', { p_name: 'Concorrência' })
     const account = await owner.client.from('accounts').insert({
       household_id: h, name: 'Conta reservas concorrência', type: 'checking',
@@ -69,6 +70,15 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     }).select('id').single()
     if (archiveReserve.error) throw archiveReserve.error
     reserveForArchive = archiveReserve.data.id
+    const idempotencyReserve = await owner.client.from('reserves').insert({
+      household_id: h, name: 'Reserva idempotência concorrente', currency_code: 'BRL',
+    }).select('id').single()
+    if (idempotencyReserve.error) throw idempotencyReserve.error
+    reserveForIdempotency = idempotencyReserve.data.id
+    const idempotencyAllocation = await owner.client.from('reserve_allocations').insert({
+      household_id: h, reserve_id: reserveForIdempotency, amount: '100.00', description: 'Saldo para idempotência',
+    })
+    if (idempotencyAllocation.error) throw idempotencyAllocation.error
     const c = await session()
     const r = await c.query(`select id from public.categories where household_id = $1 and name = 'Mercado'`, [h])
     cat = r.rows[0].id
@@ -78,9 +88,9 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     for (const c of open) await c.end().catch(() => undefined)
   })
 
-  async function beginAs(c: pg.Client, user: TestUser) {
+  async function beginAs(c: pg.Client, userId: string) {
     await c.query('begin')
-    await c.query('select set_config(\'request.jwt.claims\', $1, true)', [JSON.stringify({ sub: user.id, role: 'authenticated' })])
+    await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: userId, role: 'authenticated' })])
     await c.query('set local role authenticated')
   }
 
@@ -163,12 +173,12 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     const monitor = await session()
     const pid2 = (await s2.query('select pg_backend_pid() as pid')).rows[0].pid
     const args = [reserveForResgates, reserveAccount, cat, '70.00', '2026-02-01', 'Resgate concorrente']
-    await beginAs(s1, reserveOwner)
+    await beginAs(s1, reserveOwnerId)
     await s1.query(
       `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`,
       [...args, '00000000-0000-0000-0000-000000022721', null],
     )
-    await beginAs(s2, reserveOwner)
+    await beginAs(s2, reserveOwnerId)
     let err: unknown = null
     const pending = s2.query(
       `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -187,6 +197,41 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     expect(Number(totals.rows[0].balance)).toBe(30)
     const expenses = await monitor.query(
       `select count(*)::int as n from public.transactions where household_id=$1 and description='Resgate concorrente'`, [h],
+    )
+    expect(expenses.rows[0].n).toBe(1)
+  })
+
+  it('reenvio simultâneo com a mesma chave retorna os mesmos IDs sem duplicar despesa', async () => {
+    const s1 = await session()
+    const s2 = await session()
+    const monitor = await session()
+    const pid2 = (await s2.query('select pg_backend_pid() as pid')).rows[0].pid
+    const key = '00000000-0000-0000-0000-000000022723'
+    const args = [reserveForIdempotency, reserveAccount, cat, '70.00', '2026-02-01', 'Compra idempotente', key, null]
+    await beginAs(s1, reserveOwnerId)
+    const first = await s1.query(
+      `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`, args,
+    )
+    await beginAs(s2, reserveOwnerId)
+    let second: { rows: Array<{ transaction_id: string; allocation_id: string }> } | null = null
+    let err: unknown = null
+    const pending = s2.query(
+      `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`, args,
+    ).then((r) => { second = r }).catch((e) => { err = e })
+    await waitBlocked(monitor, pid2)
+    await s1.query('commit')
+    await pending
+    await s2.query('commit')
+    expect(err).toBeNull()
+    expect(second?.rows[0]).toEqual(first.rows[0])
+    const totals = await monitor.query(
+      `select count(*)::int as n, coalesce(sum(amount),0)::numeric as balance
+         from public.reserve_allocations where reserve_id=$1`, [reserveForIdempotency],
+    )
+    expect(totals.rows[0].n).toBe(2)
+    expect(Number(totals.rows[0].balance)).toBe(30)
+    const expenses = await monitor.query(
+      `select count(*)::int as n from public.transactions where household_id=$1 and description='Compra idempotente'`, [h],
     )
     expect(expenses.rows[0].n).toBe(1)
   })
