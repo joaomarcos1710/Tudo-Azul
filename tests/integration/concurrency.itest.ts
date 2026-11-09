@@ -63,7 +63,7 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     if (activeReserve.error) throw activeReserve.error
     reserveForResgates = activeReserve.data.id
     const initialAllocation = await owner.client.from('reserve_allocations').insert({
-      household_id: h, reserve_id: reserveForResgates, amount: '100.00', description: 'Saldo para concorrência',
+      household_id: h, reserve_id: reserveForResgates, amount: '100.00', description: 'Saldo para concorrência', idempotency_key: '00000000-0000-0000-0000-000000229001',
     })
     if (initialAllocation.error) throw initialAllocation.error
     const archiveReserve = await owner.client.from('reserves').insert({
@@ -82,7 +82,7 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     if (idempotencyReserve.error) throw idempotencyReserve.error
     reserveForIdempotency = idempotencyReserve.data.id
     const idempotencyAllocation = await owner.client.from('reserve_allocations').insert({
-      household_id: h, reserve_id: reserveForIdempotency, amount: '100.00', description: 'Saldo para idempotência',
+      household_id: h, reserve_id: reserveForIdempotency, amount: '100.00', description: 'Saldo para idempotência', idempotency_key: '00000000-0000-0000-0000-000000229002',
     })
     if (idempotencyAllocation.error) throw idempotencyAllocation.error
     const c = await session()
@@ -249,8 +249,8 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     const pid2 = (await s2.query('select pg_backend_pid() as pid')).rows[0].pid
     await beginAs(s1, reserveOwnerId)
     await s1.query(
-      `insert into public.reserve_allocations(household_id,reserve_id,amount,description)
-       values ($1,$2,10,'aporte concorrente com archive')`, [h, reserveForArchive],
+      `insert into public.reserve_allocations(household_id,reserve_id,amount,description,idempotency_key)
+       values ($1,$2,10,'aporte concorrente com archive',$3)`, [h, reserveForArchive, '00000000-0000-0000-0000-000000229003'],
     )
     await beginAs(s2, reserveOwnerId)
     let err: unknown = null
@@ -280,8 +280,8 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     await beginAs(s2, reserveOwnerId)
     let err: unknown = null
     const pending = s2.query(
-      `insert into public.reserve_allocations(household_id,reserve_id,amount,description)
-       values ($1,$2,10,'movimentação após archive')`, [h, reserveForArchiveWins],
+      `insert into public.reserve_allocations(household_id,reserve_id,amount,description,idempotency_key)
+       values ($1,$2,10,'movimentação após archive',$3)`, [h, reserveForArchiveWins, '00000000-0000-0000-0000-000000229004'],
     ).catch((e) => { err = e })
     await waitBlocked(monitor, pid2)
     await s1.query('commit')
