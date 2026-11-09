@@ -56,7 +56,7 @@ supabase migration repair 20261106160100 20261107030000 20261107150000 --status 
 
 A tabela está com RLS desabilitado e sem policies. A consulta direta ao catálogo confirmou que `anon`, `authenticated` e `service_role` não têm SELECT, INSERT, UPDATE ou DELETE na tabela. A tabela está no schema `private`.
 
-As funções `daily_digest_mark` e `daily_digest_recipients` são SECURITY DEFINER, pertencem a `postgres` e não têm EXECUTE concedido a `authenticated` ou `anon`. A função `daily_digest` é SECURITY INVOKER e não consulta `private.daily_digest_log`. O acesso à tabela ocorre pelas funções internas controladas.
+As funções `daily_digest_mark` e `daily_digest_recipients` são SECURITY DEFINER, pertencem a `postgres` e têm EXECUTE concedido somente a `service_role`, não a `authenticated` ou `anon`. A função `daily_digest` é SECURITY INVOKER e consulta somente transações, parcelas, faturas e projeções; não acessa `private.daily_digest_log`. A função `daily_digest_service` exige `auth.role() = service_role`. O schema `private` concede USAGE a `authenticated` e `service_role`, mas isso não concede acesso à tabela: os privilégios de tabela permanecem negados para os três papéis.
 
 **Decisão nesta entrega:** não ativar RLS nem criar policy sem necessidade demonstrada. O isolamento por ausência de privilégios diretos foi confirmado; o alerta genérico de RLS desabilitado permanece como defesa em profundidade a discutir separadamente. Nenhum privilégio foi concedido ou revogado.
 
