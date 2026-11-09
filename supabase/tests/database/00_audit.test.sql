@@ -6,7 +6,7 @@ select * from no_plan();
 
 -- Tabelas e policies exatamente as esperadas (nada sobrando sem revisão)
 select tables_are('public',
-  array['account_reconciliations','account_tag_links','account_tags','accounts','budgets','categories','currencies','daily_digest_settings','debt_events','debt_installment_edits','debt_installments','debt_invoices','debt_payment_schedule','debts','family_asset_valuations','family_assets','fx_rates','household_members','household_people','household_resets','households','invitations','investment_assets','investment_distributions','investment_operations','investment_valuations','profiles','recurrences','transactions','user_preferences'],
+  array['account_reconciliations','account_tag_links','account_tags','accounts','budgets','categories','currencies','daily_digest_settings','debt_events','debt_installment_edits','debt_installments','debt_invoices','debt_payment_schedule','debts','family_asset_valuations','family_assets','fx_rates','household_members','household_people','household_resets','households','invitations','investment_assets','investment_distributions','investment_operations','investment_valuations','profiles','recurrences','reserve_allocations','reserves','transactions','user_preferences'],
   'schema public contém só as tabelas esperadas');
 
 select is_empty($$
@@ -40,6 +40,8 @@ select policies_are('public','family_asset_valuations', array['family_asset_valu
 select policies_are('public','transactions',      array['transactions_select','transactions_insert','transactions_update']);
 select policies_are('public','budgets',           array['budgets_select','budgets_insert','budgets_update','budgets_delete']);
 select policies_are('public','recurrences',       array['recurrences_select']);
+select policies_are('public','reserve_allocations', array['reserve_allocations_select','reserve_allocations_insert']);
+select policies_are('public','reserves', array['reserves_select','reserves_insert','reserves_update']);
 select policies_are('public','account_reconciliations', array['account_reconciliations_select']);
 select policies_are('public','household_resets', array['household_resets_select']);
 select policies_are('public','user_preferences', array['user_preferences_select_own','user_preferences_insert_own','user_preferences_update_own']);
@@ -106,6 +108,17 @@ select ok(not has_column_privilege('authenticated','public.budgets','household_i
 select ok(not has_column_privilege('authenticated','public.budgets','category_id','UPDATE'),       'budgets.category_id imutável');
 select ok(not has_column_privilege('authenticated','public.investment_operations','voided_at','UPDATE'),   'investment_operations.voided_at só pela RPC de anulação');
 select ok(not has_column_privilege('authenticated','public.investment_operations','void_reason','UPDATE'), 'investment_operations.void_reason só pela RPC de anulação');
+select ok(not has_column_privilege('authenticated','public.reserves','id','INSERT'), 'reserves.id usa default do banco');
+select ok(not has_column_privilege('authenticated','public.reserves','created_by','INSERT'), 'reserves.created_by vem de auth.uid()');
+select ok(not has_column_privilege('authenticated','public.reserves','status','INSERT'), 'reserves nasce ativa por default, sem status informado pelo cliente');
+select ok(not has_column_privilege('authenticated','public.reserves','household_id','UPDATE'), 'reserves.household_id imutável');
+select ok(not has_column_privilege('authenticated','public.reserves','currency_code','UPDATE'), 'reserves.currency_code imutável');
+select ok(has_column_privilege('authenticated','public.reserves','status','UPDATE'), 'status só é alterável sob guarda da trigger');
+select ok(not has_column_privilege('authenticated','public.reserve_allocations','id','INSERT'), 'reserve_allocations.id usa default do banco');
+select ok(not has_column_privilege('authenticated','public.reserve_allocations','created_by','INSERT'), 'reserve_allocations.created_by vem de auth.uid()');
+select ok(has_column_privilege('authenticated','public.reserve_allocations','idempotency_key','INSERT'), 'RPC invoker pode gravar chave de idempotência');
+select ok(not has_any_column_privilege('authenticated','public.reserve_allocations','UPDATE'), 'ledger sem UPDATE por coluna');
+select ok(not has_table_privilege('authenticated','public.reserve_allocations','DELETE'), 'ledger sem DELETE no nível da tabela');
 -- ...e o que PODE
 select ok(has_column_privilege('authenticated','public.transactions','deleted_at','UPDATE'),       'lixeira = UPDATE deleted_at');
 select ok(has_column_privilege('authenticated','public.transactions','amount','INSERT'),           'transactions.amount informável');
@@ -118,15 +131,14 @@ select functions_are('public', array[
   'card_purchase','card_purchase_at','card_purchase_at_classified','card_purchase_delete','card_purchase_delete_preview','card_set_start','cash_flow_report','cash_flow_series','clear_household_transactions','create_card','create_debt','create_debt_installments','create_debt_invoice','create_household','create_invitation','daily_digest','daily_digest_mark','daily_digest_recipients','daily_digest_service','daily_expenses','dashboard_commitment_matrix','debt_anticipate','debt_balances','debt_bill','debt_contract_set',
   'debt_archive','debt_delete','debt_loan_event','debt_pay','debt_record_payment','debt_refund','debt_rename','debt_return','debt_schedule_record_payment','debt_set_principal_category','debt_set_terms','debt_unarchive','debt_void','delete_household','expenses_by_category','expenses_by_category_basis','family_asset_create','family_asset_delete','family_asset_end','family_asset_valuation_record','fx_rate_at','get_home_decision_month','home_alerts','home_indicators','income_regularity','investment_allocation','investment_asset_archive','investment_asset_create','investment_asset_delete','investment_asset_purge','investment_asset_set_subclass','investment_asset_statement','investment_asset_unarchive','investment_asset_update','investment_distribution_record','investment_history','investment_income_by_asset','investment_operation_record','investment_operation_void','investment_portfolio','investment_totals','investment_valuation_record','leave_household',
   'month_projection','monthly_expenses_by_person','net_worth','net_worth_with_assets','period_summary','period_summary_by_currency','prepare_account_deletion','reconcile_account','recurrence_create','recurrence_create_classified','recurrence_delete','recurrence_end','recurrence_materialize','recurrence_set_person','recurrence_summary','recurrence_update','recurrence_update_classified','recurrence_update_from',
-  'reconciliation_undo','remove_member','reset_household','rollback_account_deletion','reset_preview','set_card_cycle','set_card_identity','set_card_limit','set_card_pay_account','transaction_installments_create','transaction_installments_create_classified',
+  'reconciliation_undo','record_reserve_expense','remove_member','reset_household','rollback_account_deletion','reset_preview','set_card_cycle','set_card_identity','set_card_limit','set_card_pay_account','transaction_installments_create','transaction_installments_create_classified',
   'transactions_bulk_mark_paid','transactions_bulk_mark_planned','transactions_bulk_restore','transactions_bulk_set_category','transactions_bulk_trash'],
   'funções do schema public');
 select functions_are('private', array[
   'account_brl_only','account_recurrence_pending','account_tags_limit_guard','account_type_from_legacy','accounts_guard','accounts_period_guard','budgets_guard','card_cycle_closing','card_cycle_closing_day','card_cycle_due','card_cycle_due_day','card_cycle_first','card_day_in_month','card_due_date','card_first_closing','card_pending_by_due','card_recurrence_pending',
   'card_income_items','card_paid_lock_check','card_paid_lock_raise','card_paid_snapshot','card_reopen_invoice','card_void_events','categories_guard','current_household','debt_balance','debt_chk','debt_chk_trg',
   'debt_effect','debt_events_card_payment_date','debt_events_guard','debt_events_period_guard','expense_items','expense_items_basis','family_assets_brl','fx_rates_immutable','debt_installments_card_only','debt_installments_immutable','debt_lock','debt_money_guard','debt_schedule_restore_void','debts_immutable',
-  'ensure_household_person_for_member','handle_new_user','inherit_person_classification','is_member','is_owner','loan_principal_items','loan_schedule_planned','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrence_occurrences','recurrence_slot','recurrence_steps','recurrence_update_from_apply','recurrences_money_guard','seed_default_categories',
-  'shares_household','today_sp','touch_updated_at','transactions_bulk_lock','transactions_guard','transactions_period_guard','transfer_same_currency','validate_person_scope','guard_person_active'],
+  'ensure_household_person_for_member','handle_new_user','inherit_person_classification','is_member','is_owner','loan_principal_items','loan_schedule_planned','members_limit_guard','members_owner_guard','reconciled_until','recurrence_lock','recurrence_occurrences','recurrence_slot','recurrence_steps','recurrence_update_from_apply','recurrences_money_guard','reserve_allocations_guard','reserves_guard','seed_default_categories','shares_household','today_sp','touch_updated_at','transactions_bulk_lock','transactions_guard','transactions_period_guard','transfer_same_currency','validate_person_scope','guard_person_active'],
   'funções do schema private');
 
 -- Nenhuma função com EXECUTE para PUBLIC (ACL nula = padrão do PostgreSQL = PUBLIC)
@@ -157,10 +169,14 @@ select is(
         'public.create_household','public.create_invitation','public.daily_digest','public.daily_expenses','public.dashboard_commitment_matrix','public.debt_anticipate','public.debt_archive','public.debt_balances',
         'public.debt_bill','public.debt_contract_set','public.debt_delete','public.debt_loan_event','public.debt_pay','public.debt_record_payment','public.debt_refund','public.debt_rename','public.debt_return','public.debt_schedule_record_payment','public.debt_set_principal_category','public.debt_set_terms','public.debt_unarchive',
         'public.debt_void','public.delete_household','public.expenses_by_category','public.expenses_by_category_basis','public.family_asset_create','public.family_asset_delete','public.family_asset_end','public.family_asset_valuation_record','public.fx_rate_at','public.get_home_decision_month','public.home_alerts','public.home_indicators','public.income_regularity','public.investment_allocation','public.investment_asset_archive','public.investment_asset_create','public.investment_asset_delete','public.investment_asset_purge','public.investment_asset_set_subclass','public.investment_asset_statement','public.investment_asset_unarchive','public.investment_asset_update','public.investment_distribution_record','public.investment_history','public.investment_income_by_asset','public.investment_operation_record','public.investment_operation_void','public.investment_portfolio','public.investment_totals','public.investment_valuation_record','public.leave_household','public.month_projection','public.monthly_expenses_by_person','public.net_worth',
-        'public.net_worth_with_assets','public.period_summary','public.period_summary_by_currency','public.reconcile_account','public.reconciliation_undo','public.recurrence_create','public.recurrence_create_classified','public.recurrence_delete','public.recurrence_end',
+        'public.net_worth_with_assets','public.period_summary','public.period_summary_by_currency','public.reconcile_account','public.reconciliation_undo','public.record_reserve_expense','public.recurrence_create','public.recurrence_create_classified','public.recurrence_delete','public.recurrence_end',
         'public.recurrence_materialize','public.recurrence_set_person','public.recurrence_summary','public.recurrence_update','public.recurrence_update_classified','public.recurrence_update_from','public.remove_member','public.reset_household','public.reset_preview','public.set_card_cycle','public.set_card_identity','public.set_card_limit','public.set_card_pay_account','public.transaction_installments_create','public.transaction_installments_create_classified',
         'public.transactions_bulk_mark_paid','public.transactions_bulk_mark_planned','public.transactions_bulk_restore','public.transactions_bulk_set_category','public.transactions_bulk_trash']::text[],
   'lista de funções executáveis por authenticated é exatamente a esperada (funções de trigger: nenhuma)');
+
+select ok(not (select prosecdef from pg_proc where oid='private.reserve_allocations_guard()'::regprocedure), 'reserve_allocations_guard permanece SECURITY INVOKER');
+select ok(not (select prosecdef from pg_proc where oid='private.reserves_guard()'::regprocedure), 'reserves_guard permanece SECURITY INVOKER');
+select ok(not (select prosecdef from pg_proc where oid='public.record_reserve_expense(uuid,uuid,uuid,numeric,date,text,uuid,text)'::regprocedure), 'record_reserve_expense permanece SECURITY INVOKER');
 
 -- Toda função tem search_path fixo; SECURITY DEFINER só nas esperadas
 select is_empty($$
@@ -191,7 +207,7 @@ select is(
   array(select p.proname::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
          where n.nspname = 'public' and p.proname in ('account_balances','account_flow_report','balance_totals','period_summary','budget_usage','debt_balances','get_home_decision_month','home_indicators','investment_portfolio','investment_totals','net_worth','net_worth_with_assets')
            and not p.prosecdef order by 1),
-  array['account_balances','account_flow_report','balance_totals','budget_usage','debt_balances','get_home_decision_month','home_indicators','investment_portfolio','investment_totals','net_worth','net_worth_with_assets','period_summary']::text[],
+  array['account_balances','account_flow_report','balance_totals','budget_usage','debt_balances','home_indicators','investment_portfolio','investment_totals','net_worth','net_worth_with_assets','period_summary']::text[],
   'funções de relatório são SECURITY INVOKER (a RLS do chamador decide)');
 
 -- Todas as tabelas de public têm dono = quem roda as migrations (e nenhuma tem FORCE: as RPCs

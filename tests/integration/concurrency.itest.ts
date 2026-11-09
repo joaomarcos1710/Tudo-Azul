@@ -2,14 +2,20 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import pg from 'pg'
 import { assertLocal, DB_URL, HAS_API, HAS_DB, mustRpc, newUser } from './helpers'
 
-// A11: duas sessões reais, com transações abertas ao mesmo tempo. Só o banco local (SUPABASE_DB_URL
-// aponta para o Postgres do stack descartável). Usa o dono do banco local para não depender de JWT:
-// o que se testa aqui são os gatilhos e travas, não a RLS.
+// A11: duas sessões reais, com transações abertas ao mesmo tempo, somente no Postgres local descartável.
+// Os testes preexistentes usam o dono do banco para exercitar gatilhos; os testes de reservas assumem
+// role authenticated e JWT de teste para validar também RLS e privilégios por coluna.
 const run = HAS_API && HAS_DB
 
 describe.skipIf(!run)('concorrência (duas sessões)', () => {
   let h = ''
   let cat = ''
+  let reserveOwnerId = ''
+  let reserveAccount = ''
+  let reserveForResgates = ''
+  let reserveForArchive = ''
+  let reserveForArchiveWins = ''
+  let reserveForIdempotency = ''
   const open: pg.Client[] = []
 
   const session = async () => {
@@ -43,7 +49,42 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
   beforeAll(async () => {
     assertLocal()
     const owner = await newUser('conc')
+    reserveOwnerId = owner.id
     h = await mustRpc<string>(owner, 'create_household', { p_name: 'Concorrência' })
+    const account = await owner.client.from('accounts').insert({
+      household_id: h, name: 'Conta reservas concorrência', type: 'checking',
+      initial_balance: '0.00', opening_date: '2026-01-01', currency_code: 'BRL',
+    }).select('id').single()
+    if (account.error) throw account.error
+    reserveAccount = account.data.id
+    const activeReserve = await owner.client.from('reserves').insert({
+      household_id: h, name: 'Reserva resgates concorrentes', currency_code: 'BRL',
+    }).select('id').single()
+    if (activeReserve.error) throw activeReserve.error
+    reserveForResgates = activeReserve.data.id
+    const initialAllocation = await owner.client.from('reserve_allocations').insert({
+      household_id: h, reserve_id: reserveForResgates, amount: '100.00', description: 'Saldo para concorrência',
+    })
+    if (initialAllocation.error) throw initialAllocation.error
+    const archiveReserve = await owner.client.from('reserves').insert({
+      household_id: h, name: 'Reserva movimentação e arquivo', currency_code: 'BRL',
+    }).select('id').single()
+    if (archiveReserve.error) throw archiveReserve.error
+    reserveForArchive = archiveReserve.data.id
+    const archiveWinsReserve = await owner.client.from('reserves').insert({
+      household_id: h, name: 'Reserva arquivamento primeiro', currency_code: 'BRL',
+    }).select('id').single()
+    if (archiveWinsReserve.error) throw archiveWinsReserve.error
+    reserveForArchiveWins = archiveWinsReserve.data.id
+    const idempotencyReserve = await owner.client.from('reserves').insert({
+      household_id: h, name: 'Reserva idempotência concorrente', currency_code: 'BRL',
+    }).select('id').single()
+    if (idempotencyReserve.error) throw idempotencyReserve.error
+    reserveForIdempotency = idempotencyReserve.data.id
+    const idempotencyAllocation = await owner.client.from('reserve_allocations').insert({
+      household_id: h, reserve_id: reserveForIdempotency, amount: '100.00', description: 'Saldo para idempotência',
+    })
+    if (idempotencyAllocation.error) throw idempotencyAllocation.error
     const c = await session()
     const r = await c.query(`select id from public.categories where household_id = $1 and name = 'Mercado'`, [h])
     cat = r.rows[0].id
@@ -52,6 +93,12 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
   afterAll(async () => {
     for (const c of open) await c.end().catch(() => undefined)
   })
+
+  async function beginAs(c: pg.Client, userId: string) {
+    await c.query('begin')
+    await c.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify({ sub: userId, role: 'authenticated' })])
+    await c.query('set local role authenticated')
+  }
 
   const insertTx = (c: pg.Client, acc: string, status = 'paid') =>
     c.query(
@@ -124,6 +171,130 @@ describe.skipIf(!run)('concorrência (duas sessões)', () => {
     expect(code(err)).toBe('23514')
     const a = await monitor.query(`select active from public.accounts where id = $1`, [acc])
     expect(a.rows[0].active).toBe(true)
+  })
+
+  it('dois resgates concorrentes não consomem saldo além do disponível', async () => {
+    const s1 = await session()
+    const s2 = await session()
+    const monitor = await session()
+    const pid2 = (await s2.query('select pg_backend_pid() as pid')).rows[0].pid
+    const args = [reserveForResgates, reserveAccount, cat, '70.00', '2026-02-01', 'Resgate concorrente']
+    await beginAs(s1, reserveOwnerId)
+    await s1.query(
+      `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [...args, '00000000-0000-0000-0000-000000022721', null],
+    )
+    await beginAs(s2, reserveOwnerId)
+    let err: unknown = null
+    const pending = s2.query(
+      `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [...args, '00000000-0000-0000-0000-000000022722', null],
+    ).catch((e) => { err = e })
+    await waitBlocked(monitor, pid2)
+    await s1.query('commit')
+    await pending
+    await s2.query('rollback')
+    expect(code(err)).toBe('23514')
+    const totals = await monitor.query(
+      `select count(*)::int as n, coalesce(sum(amount),0)::numeric as balance
+         from public.reserve_allocations where reserve_id=$1`, [reserveForResgates],
+    )
+    expect(totals.rows[0].n).toBe(2)
+    expect(Number(totals.rows[0].balance)).toBe(30)
+    const expenses = await monitor.query(
+      `select count(*)::int as n from public.transactions where household_id=$1 and description='Resgate concorrente'`, [h],
+    )
+    expect(expenses.rows[0].n).toBe(1)
+  })
+
+  it('reenvio simultâneo com a mesma chave retorna os mesmos IDs sem duplicar despesa', async () => {
+    const s1 = await session()
+    const s2 = await session()
+    const monitor = await session()
+    const pid2 = (await s2.query('select pg_backend_pid() as pid')).rows[0].pid
+    const key = '00000000-0000-0000-0000-000000022723'
+    const args = [reserveForIdempotency, reserveAccount, cat, '70.00', '2026-02-01', 'Compra idempotente', key, null]
+    await beginAs(s1, reserveOwnerId)
+    const first = await s1.query(
+      `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`, args,
+    )
+    await beginAs(s2, reserveOwnerId)
+    let secondRows: Array<{ transaction_id: string; allocation_id: string }> = []
+    let err: unknown = null
+    const pending = s2.query(
+      `select * from public.record_reserve_expense($1,$2,$3,$4,$5,$6,$7,$8)`, args,
+    ).then((r) => { secondRows = r.rows }).catch((e) => { err = e })
+    await waitBlocked(monitor, pid2)
+    await s1.query('commit')
+    await pending
+    await s2.query('commit')
+    expect(err).toBeNull()
+    expect(secondRows[0]).toEqual(first.rows[0])
+    const totals = await monitor.query(
+      `select count(*)::int as n, coalesce(sum(amount),0)::numeric as balance
+         from public.reserve_allocations where reserve_id=$1`, [reserveForIdempotency],
+    )
+    expect(totals.rows[0].n).toBe(2)
+    expect(Number(totals.rows[0].balance)).toBe(30)
+    const expenses = await monitor.query(
+      `select count(*)::int as n from public.transactions where household_id=$1 and description='Compra idempotente'`, [h],
+    )
+    expect(expenses.rows[0].n).toBe(1)
+  })
+
+  it('movimentação que obtém o lock primeiro impede arquivamento concorrente com saldo não zero', async () => {
+    const s1 = await session()
+    const s2 = await session()
+    const monitor = await session()
+    const pid2 = (await s2.query('select pg_backend_pid() as pid')).rows[0].pid
+    await beginAs(s1, reserveOwnerId)
+    await s1.query(
+      `insert into public.reserve_allocations(household_id,reserve_id,amount,description)
+       values ($1,$2,10,'aporte concorrente com archive')`, [h, reserveForArchive],
+    )
+    await beginAs(s2, reserveOwnerId)
+    let err: unknown = null
+    const pending = s2.query(`update public.reserves set status='archived' where id=$1`, [reserveForArchive])
+      .catch((e) => { err = e })
+    await waitBlocked(monitor, pid2)
+    await s1.query('commit')
+    await pending
+    await s2.query('rollback')
+    expect(code(err)).toBe('23514')
+    const state = await monitor.query(
+      `select r.status, coalesce(sum(a.amount),0)::numeric as balance
+         from public.reserves r left join public.reserve_allocations a on a.reserve_id=r.id
+        where r.id=$1 group by r.id`, [reserveForArchive],
+    )
+    expect(state.rows[0].status).toBe('active')
+    expect(Number(state.rows[0].balance)).toBe(10)
+  })
+
+  it('arquivamento que obtém o lock primeiro bloqueia movimentação concorrente', async () => {
+    const s1 = await session()
+    const s2 = await session()
+    const monitor = await session()
+    const pid2 = (await s2.query('select pg_backend_pid() as pid')).rows[0].pid
+    await beginAs(s1, reserveOwnerId)
+    await s1.query(`update public.reserves set status='archived' where id=$1`, [reserveForArchiveWins])
+    await beginAs(s2, reserveOwnerId)
+    let err: unknown = null
+    const pending = s2.query(
+      `insert into public.reserve_allocations(household_id,reserve_id,amount,description)
+       values ($1,$2,10,'movimentação após archive')`, [h, reserveForArchiveWins],
+    ).catch((e) => { err = e })
+    await waitBlocked(monitor, pid2)
+    await s1.query('commit')
+    await pending
+    await s2.query('rollback')
+    expect(code(err)).toBe('23514')
+    const state = await monitor.query(
+      `select r.status, coalesce(sum(a.amount),0)::numeric as balance
+         from public.reserves r left join public.reserve_allocations a on a.reserve_id=r.id
+        where r.id=$1 group by r.id`, [reserveForArchiveWins],
+    )
+    expect(state.rows[0].status).toBe('archived')
+    expect(Number(state.rows[0].balance)).toBe(0)
   })
 
   it('mudar a abertura da conta enquanto uma transferência é inserida: nunca sobra transferência anterior à abertura', async () => {

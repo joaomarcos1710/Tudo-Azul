@@ -148,6 +148,16 @@ as $$
              filter (where m.commitment_id is not null and not m.already_reserved), '[]'::jsonb) as items
       from matriz_classificada m
   ),
+  reservas_comprometidas as (
+    select coalesce(sum(a.amount), 0)::numeric as total_reservado
+      from public.reserves r
+      left join public.reserve_allocations a
+        on a.household_id = r.household_id
+       and a.reserve_id = r.id
+     where r.household_id = p_household
+       and r.currency_code = 'BRL'
+       and r.status in ('active', 'completed')
+  ),
   alertas as (
     select coalesce(jsonb_agg(jsonb_build_object(
       'kind', a.kind,
@@ -194,6 +204,8 @@ as $$
   ),
   calculo as (
     select p.month_start, p.month_end, p.as_of, t.available,
+           r.total_reservado,
+           (t.available - r.total_reservado) as circulating_balance,
            c.total_pendente, c.items,
            coalesce((select r.income_paid from resumo_realizado r), 0) as income_paid,
            coalesce((select r.income_planned from resumo_mes r), 0) as income_planned,
@@ -203,15 +215,19 @@ as $$
       from periodo p
       cross join tesouraria t
       cross join compromissos c
+      cross join reservas_comprometidas r
       cross join projecao mp
   )
   select jsonb_build_object(
     'monthStart', c.month_start,
     'monthEnd', c.month_end,
     'asOf', least(c.as_of, c.month_end),
-    'moneyFree', round(c.available - c.total_pendente, 2),
+    'availableMoney', round(c.available, 2),
+    'reserveCommitted', round(c.total_reservado, 2),
+    'circulatingBalance', round(c.circulating_balance, 2),
+    'moneyFree', round(c.circulating_balance - c.total_pendente, 2),
     'dailySafeLimit', case when c.days_remaining > 0
-      then round(greatest(c.available - c.total_pendente, 0) / c.days_remaining, 2)
+      then round(greatest(c.circulating_balance - c.total_pendente, 0) / c.days_remaining, 2)
       else 0 end,
     'currentDailyPace', case when c.days_elapsed > 0
       then round(c.spent / c.days_elapsed, 2) else 0 end,
@@ -234,8 +250,10 @@ as $$
     'calculation', jsonb_build_object(
       'method', 'home_indicators + dashboard_commitment_matrix + month_projection',
       'closedCardInvoicesExcluded', true,
-      'reservesIncluded', false,
-      'note', 'Faturas com registro em debt_invoices já descontadas da tesouraria são excluídas dos compromissos para evitar dupla contagem. Reservas manuais ainda não possuem entidade própria.'
+      'reservesIncluded', true,
+      'reserveCurrency', 'BRL',
+      'reserveStatusesIncluded', jsonb_build_array('active', 'completed'),
+      'note', 'Dinheiro Livre = tesouraria disponível menos reservas comprometidas em BRL e menos compromissos futuros não duplicados. Faturas já descontadas da tesouraria são excluídas da matriz.'
     )
   )
     from calculo c

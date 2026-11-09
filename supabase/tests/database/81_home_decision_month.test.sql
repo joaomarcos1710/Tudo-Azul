@@ -38,6 +38,27 @@ insert into fixture select 'expense', id from public.categories
 insert into fixture select 'income', id from public.categories
  where household_id = pg_temp.fx('household') and type = 'income' and system_key = 'uncategorized' limit 1;
 
+insert into public.reserves (household_id, name, currency_code)
+values
+  (pg_temp.fx('household'), 'Reserva ativa BRL', 'BRL'),
+  (pg_temp.fx('household'), 'Reserva concluída BRL', 'BRL'),
+  (pg_temp.fx('household'), 'Reserva em EUR', 'EUR');
+
+insert into fixture select 'reserve_active', id from public.reserves
+ where household_id = pg_temp.fx('household') and name = 'Reserva ativa BRL';
+insert into fixture select 'reserve_completed', id from public.reserves
+ where household_id = pg_temp.fx('household') and name = 'Reserva concluída BRL';
+insert into fixture select 'reserve_eur', id from public.reserves
+ where household_id = pg_temp.fx('household') and name = 'Reserva em EUR';
+
+update public.reserves set status = 'completed' where id = pg_temp.fx('reserve_completed');
+
+insert into public.reserve_allocations (household_id, reserve_id, amount, description)
+values
+  (pg_temp.fx('household'), pg_temp.fx('reserve_active'), 300, 'Compromisso ativo'),
+  (pg_temp.fx('household'), pg_temp.fx('reserve_completed'), 100, 'Compromisso concluído'),
+  (pg_temp.fx('household'), pg_temp.fx('reserve_eur'), 500, 'Moeda estrangeira não entra no BRL');
+
 insert into public.transactions (household_id, account_id, category_id, type, description, amount, date, status)
 values
   (pg_temp.fx('household'), pg_temp.fx('account'), pg_temp.fx('income'), 'income', 'Receita paga', 3000, pg_temp.hoje(), 'paid'),
@@ -52,8 +73,23 @@ select ok(
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->>'moneyFree')::numeric,
-  2300::numeric,
-  'H2 dinheiro livre parte da tesouraria e abate os compromissos pendentes BRL'
+  1900::numeric,
+  'H2 dinheiro livre subtrai reservas BRL ativas/concluídas e compromissos pendentes sem dupla contagem'
+);
+select is(
+  (public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->>'reserveCommitted')::numeric,
+  400::numeric,
+  'H2.2 soma reservas ativas e concluídas em BRL, excluindo EUR'
+);
+select is(
+  (public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->>'circulatingBalance')::numeric,
+  ((public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->'treasury'->>'available')::numeric - 400),
+  'H2.3 saldo circulante é tesouraria disponível menos reservas comprometidas'
+);
+select is(
+  (public.get_home_decision_month(pg_temp.fx('household'), date_trunc('month', pg_temp.hoje())::date)->'calculation'->>'reservesIncluded')::boolean,
+  true,
+  'H2.4 payload declara explicitamente que reservas estão incluídas'
 );
 select ok(
   not exists (
