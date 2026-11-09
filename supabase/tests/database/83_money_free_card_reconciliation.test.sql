@@ -178,6 +178,7 @@ select is((select count(*)::integer from public.reserve_overview(pg_temp.fx('hou
   where reserve_id = pg_temp.fx('reserve_test') and allocation_id is not null), 2,
   'R2 histórico retorna os dois movimentos recentes');
 select is((public.get_home_decision_month(pg_temp.fx('household'),
+  date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
   824.93::numeric,
   'R20 reserva virtual reduz o Dinheiro Livre uma única vez');
 select ok(not (select prosecdef from pg_proc where oid='private.card_months_as_of(uuid,date)'::regprocedure),
