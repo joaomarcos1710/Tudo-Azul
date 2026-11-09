@@ -4,6 +4,7 @@ import { Card } from '../../components/ui/Card'
 import { supabaseConfigurado } from '../../lib/supabase'
 import { Marca } from '../../components/layout/Marca'
 import { Versao } from '../../components/layout/Versao'
+import { Autoria } from '../../components/layout/Autoria'
 
 /** Moldura das telas de acesso: fundo marinho, marca e um cartão central. */
 export function LayoutAuth({ titulo, children }: { titulo: string; children: ReactNode }) {
@@ -27,6 +28,7 @@ export function LayoutAuth({ titulo, children }: { titulo: string; children: Rea
         {children}
       </Card>
       <Versao className="mt-6 text-blue-200/70" />
+      <Autoria className="mt-2 text-center text-blue-200/70" />
     </div>
   )
 }
