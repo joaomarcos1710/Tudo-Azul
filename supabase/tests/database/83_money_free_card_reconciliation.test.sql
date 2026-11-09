@@ -122,7 +122,7 @@ select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'availableMoney')::numeric,
   899.95::numeric,
-  'C13 estornar o crédito aumenta a dívida refletida na tesouraria em 10'
+  'C13 estornar o crédito aumenta a dívida refletida na tesouraria em 10,02'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
