@@ -57,12 +57,15 @@ insert into fixture select 'credit_event', public.card_credit_income(
 -- Segunda compra fecha amanhã: pertence à mesma fatura/mês, mas ainda não foi cobrada.
 select public.set_card_cycle(pg_temp.fx('card'),
   extract(day from pg_temp.hoje())::integer + 1, 31);
+-- Crédito futuro é registrado, mas ainda não pode reduzir a fatura na data de corte.
+insert into fixture select 'future_credit_event', public.card_credit_income(
+  pg_temp.fx('card'), pg_temp.hoje(), 5, pg_temp.fx('income_category'), 'Crédito futuro', pg_temp.hoje() + 1);
 select public.card_purchase(pg_temp.fx('card'), pg_temp.hoje(), 50, 1,
   pg_temp.fx('expense_category'), 'Compra ainda não cobrada');
 select is(public.card_bill_due(pg_temp.hoje()), 1,
   'C1 somente a parcela com fechamento até hoje é cobrada');
 
-insert into fixture select 'invoice', invoice_id from public.card_months(pg_temp.fx('card'))
+insert into fixture select 'invoice', invoice_id from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
  where label = to_char(pg_temp.hoje(), 'YYYY-MM');
 select is((select charged from public.card_months(pg_temp.fx('card'))
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 90::numeric,
@@ -76,6 +79,8 @@ select is((select total from public.card_months(pg_temp.fx('card'))
 
 insert into fixture select 'payment_event', public.debt_pay(
   pg_temp.fx('card'), pg_temp.hoje(), pg_temp.fx('bank'), 40, pg_temp.fx('invoice'), false, null);
+insert into fixture select 'future_payment_event', public.debt_pay(
+  pg_temp.fx('card'), pg_temp.hoje() + 1, pg_temp.fx('bank'), 10, pg_temp.fx('invoice'), false, null);
 select is((select paid from public.card_months(pg_temp.fx('card'))
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 40::numeric,
   'C5 pagamento parcial é conciliado na fatura');
@@ -169,6 +174,8 @@ select is((select min(balance) from public.reserve_overview(pg_temp.fx('househol
 select is((select count(*)::integer from public.reserve_overview(pg_temp.fx('household'))
   where reserve_id = pg_temp.fx('reserve_test') and allocation_id is not null), 2,
   'R2 histórico retorna os dois movimentos recentes');
+select ok(not (select prosecdef from pg_proc where oid='private.card_months_as_of(uuid,date)'::regprocedure),
+  'C16 card_months_as_of permanece SECURITY INVOKER');
 select ok(not (select prosecdef from pg_proc where oid='public.reserve_overview(uuid)'::regprocedure),
   'R3 reserve_overview permanece SECURITY INVOKER');
 
