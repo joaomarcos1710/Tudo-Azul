@@ -5,6 +5,7 @@ atualizado: 2026-11-06
 # Pendências e próximos passos
 
 ## Decisões suas
+- [ ] **Produção: lançamentos bloqueados (42501).** Aplicar a 079 (grants de `person_id` e `is_shared_expense`) é urgente. Ela não pode ir sozinha: o workflow aplica as pendentes 020000 a 060000 junto. Decidir o caminho com o dono e aplicar só com "pode" e `APLICAR`.
 - [x] Versão **2026.2** (feito).
 - [x] Commit na versão: **só na tela Família** (#56).
 - [ ] **Relatórios: usar o espaço** que a exportação liberou (#180): abas como no Organizze (Categorias, Contas) — decidir com o dono o que entra primeiro.
