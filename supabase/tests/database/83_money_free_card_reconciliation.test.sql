@@ -16,9 +16,7 @@ create function pg_temp.mes_anterior(p_dia integer) returns date language sql as
           + make_interval(days => p_dia - 1))::date
 $f$;
 create function pg_temp.fechamento_futuro() returns date language sql stable as $f$
-  select case when extract(day from pg_temp.hoje()) < 20
-    then (date_trunc('month', pg_temp.hoje()::timestamp) + interval '19 days')::date
-    else (date_trunc('month', pg_temp.hoje()::timestamp) + interval '1 month 19 days')::date end
+  select (date_trunc('month', pg_temp.hoje()::timestamp) + interval '1 month')::date
 $f$;
 create function pg_temp.mes_fatura_futura() returns date language sql stable as $f$
   select date_trunc('month', pg_temp.fechamento_futuro()::timestamp)::date
@@ -62,15 +60,13 @@ select public.card_purchase(pg_temp.fx('card'), pg_temp.mes_anterior(15), 100, 1
   pg_temp.fx('expense_category'), 'Compra já cobrada');
 insert into fixture select 'credit_event', public.card_credit_income(
   pg_temp.fx('card'), pg_temp.mes_anterior(20), 10, pg_temp.fx('income_category'), 'Crédito de fatura');
--- Segundo cartão: compra ainda pendente, com crédito e adiantamento registrados para o fechamento futuro.
-insert into fixture select 'card_late', public.create_debt('Cartão Fechamento Futuro', 'card', pg_temp.hoje() - 365, 0);
-select public.set_card_cycle(pg_temp.fx('card_late'), 20, 31);
-select public.card_purchase(pg_temp.fx('card_late'), pg_temp.hoje(), 50, 1,
-  pg_temp.fx('expense_category'), 'Compra ainda não cobrada');
+-- Compra, crédito e adiantamento pertencem ao próximo fechamento, ainda futuro na data de corte.
+select public.card_purchase(pg_temp.fx('card'), pg_temp.hoje(), 50, 1,
+  pg_temp.fx('expense_category'), 'Compra do próximo ciclo');
 insert into fixture select 'future_credit_event', public.card_credit_income(
-  pg_temp.fx('card_late'), pg_temp.hoje(), 5, pg_temp.fx('income_category'), 'Crédito futuro', pg_temp.fechamento_futuro());
+  pg_temp.fx('card'), pg_temp.hoje(), 5, pg_temp.fx('income_category'), 'Crédito futuro', pg_temp.fechamento_futuro());
 insert into fixture select 'future_payment_event', public.debt_pay(
-  pg_temp.fx('card_late'), pg_temp.fechamento_futuro(), pg_temp.fx('bank'), 10, null, false, null);
+  pg_temp.fx('card'), pg_temp.fechamento_futuro(), pg_temp.fx('bank'), 10, null, false, null);
 select is(public.card_bill_due(pg_temp.hoje()), 1,
   'C1 somente a parcela com fechamento até hoje é cobrada');
 
@@ -91,12 +87,12 @@ insert into fixture select 'payment_event', public.debt_pay(
 select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.hoje(), 'YYYY-MM')), 40::numeric,
   'C5 pagamento parcial é conciliado na fatura');
-select is((select pending from private.card_months_as_of(pg_temp.fx('card_late'), pg_temp.hoje())
+select is((select pending from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 50::numeric,
-  'C6 compra futura permanece integralmente pendente na data de corte');
-select is((select paid from private.card_months_as_of(pg_temp.fx('card_late'), pg_temp.hoje())
+  'C6 compra do próximo ciclo permanece integralmente pendente na data de corte');
+select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_temp.hoje())
   where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 0::numeric,
-  'C7 crédito e adiantamento com data futura não são tratados como pagos');
+  'C7 crédito e adiantamento futuros não são tratados como pagos');
 
 
 select is(
