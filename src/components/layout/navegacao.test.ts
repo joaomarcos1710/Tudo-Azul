@@ -10,3 +10,12 @@ describe('navegação de Preferências', () => {
     expect(itemAtivo('/preferencias')?.rotulo).toBe('Preferências')
   })
 })
+
+describe('destino do painel', () => {
+  it('mantém o Início dentro da área autenticada em /painel', () => {
+    const inicio = gruposNavegacao.flatMap((grupo) => grupo.itens).find((item) => item.rotulo === 'Início')
+    expect(inicio?.caminho).toBe('/painel')
+    expect(itemAtivo('/painel')?.rotulo).toBe('Início')
+    expect(itemAtivo('/')?.rotulo).toBeUndefined()
+  })
+})
