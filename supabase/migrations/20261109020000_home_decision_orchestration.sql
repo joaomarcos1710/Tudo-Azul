@@ -85,7 +85,9 @@ as $$
   with periodo as (
     select date_trunc('month', p_month::timestamp)::date as month_start,
            (date_trunc('month', p_month::timestamp) + interval '1 month - 1 day')::date as month_end,
-           p_month as as_of
+           (now() at time zone 'America/Sao_Paulo')::date as today,
+           least((now() at time zone 'America/Sao_Paulo')::date,
+                 (date_trunc('month', p_month::timestamp) + interval '1 month - 1 day')::date) as as_of
   ),
   tesouraria as materialized (
     select h.*
@@ -195,7 +197,7 @@ as $$
            c.total_pendente, c.items,
            coalesce((select r.income_paid from resumo_realizado r), 0) as income_paid,
            coalesce((select r.income_planned from resumo_mes r), 0) as income_planned,
-           case when p.as_of > p.month_end then 0
+           case when p.today > p.month_end then 0
                 else greatest(0, p.month_end - greatest(p.month_start, p.as_of) + 1) end as days_remaining,
            mp.*
       from periodo p
