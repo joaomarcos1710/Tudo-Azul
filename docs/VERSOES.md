@@ -153,3 +153,4 @@ continuam abaixo como histórico.
 | 2026.237 | **Workflow de produção: modo reparar.** Ajusta só o histórico de migrations (seis versões fixas) e simula; não aplica nada. Exige APLICAR. |
 | 2026.238 | **Glossário de métricas do dinheiro.** Documenta saldo, saldo projetado, disponível, patrimônio, Dinheiro Livre, compromissos, fatura, limite, investimentos e moedas, com onde cada um é calculado. Só documentação. |
 | 2026.239 | **Glossário com a equação verificada.** Dinheiro Livre e disponível lidos do banco; registra que aporte em investimento não reduz o Dinheiro Livre. Só documentação. |
+| 2026.241 | **Plano de investimentos vinculados a conta (opção A).** Só documentação; aguarda três decisões do dono antes do código. |
