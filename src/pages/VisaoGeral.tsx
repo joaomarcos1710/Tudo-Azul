@@ -166,7 +166,7 @@ function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-500">Dinheiro Livre</p>
-          <p className="mt-1 tabular-nums text-3xl font-bold" data-sinal={dados.dinheiroLivre < 0 ? 'negativo' : 'positivo'}>{formatBRL(dados.dinheiroLivre)}</p>
+          <p className={"mt-1 tabular-nums text-3xl font-bold " + corDoValor(dados.dinheiroLivre)}>{formatBRL(dados.dinheiroLivre)}</p>
           <p className="mt-1 max-w-2xl text-sm text-slate-500">Saldo disponível após reservas e compromissos futuros, com cartões conciliados pelo valor efetivamente cobrado.</p>
         </div>
         <div className="rounded-xl bg-azul-claro px-4 py-3">
