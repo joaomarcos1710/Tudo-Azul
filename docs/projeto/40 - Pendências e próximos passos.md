@@ -390,6 +390,21 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Novo lançamento com só Despesa / Receita / Transferência; "Conta/Cartão" num seletor só (grupos Contas e Cartões); receita no cartão = estorno/reembolso/pagamento adiantado (pedido do dono, 04/11).
 - [ ] Parcelado: editar ou excluir todas as parcelas de uma vez.
 
+## Revisão geral (09/11/2026) — ver `Auditorias/2026-11-09 Revisão geral.md`
+- [ ] **Produção: aplicar a migration 080** (#244) — Preferências e Aviso diário nunca salvaram (42501 no upsert). `simular` → log → `APLICAR`.
+- [ ] **Patrimônio sem `round(…, 2)`** em `net_worth_with_assets` e `family_assets_brl`: bem com participação quebrada derruba o cartão de patrimônio e a evolução de 12 meses. Migration + pgTAP com 1.000,01 × 50%.
+- [ ] **Orçamentos: total Orçado/Gasto/Saldo somado no front** (`Orcamentos.tsx:136`); trazer do banco e trocar o teste que consagra a soma.
+- [ ] **Bens: "Parte familiar" em ponto flutuante** (`Bens.tsx:29`); banco devolver `household_value` por bem.
+- [ ] **Índices**: `reserve_allocations.linked_transaction_id`, `debt_events.invoice_id`, `category_id` em `debt_events`/`debt_installments`/`recurrences`; front filtrar `debt_events` também por `household_id` (`cartoes.ts:442,615,633`).
+- [ ] **Erros engolidos no front**: `auth.tsx:22` (getSession sem catch), `Lancamentos.tsx:181,207-216`, `Calendario.tsx:72-78,309-314`; usar `opcional()` + aviso na tela.
+- [ ] **Modais sem Esc/foco**: `PessoasFamilia.tsx:167`, `Preferencias.tsx:155,171` → `useFocoPreso`.
+- [ ] **Código morto**: `lib/periodos.ts`, `components/ZerarTudo.tsx`, `ui/SeletorMes.tsx`, `pages/PaginaBase.tsx`, `listarPessoasAtivas`. Duplicados: nome curto do mês (5 lugares), `somarDias`/`diasEntre`/`diasNoMes`.
+- [ ] **Service worker**: limpar `/assets/*` antigos no `activate` ou injetar `__APP_VERSAO__` em `VERSAO`; avisar "nova versão disponível".
+- [ ] **CSP**: trocar `Content-Security-Policy-Report-Only` por `Content-Security-Policy` após 1 semana sem violação (#245).
+- [ ] **Decidir**: remover `supabase-local-validation.yml` (duplica `db-tests.yml`); `APP_ORIGIN` da `delete-account` no painel; recusar JWT `service_role` em `supabase.ts`; Dependabot para `npm`; PRs #197–#199 (Dependabot) e #207/#214/#228/#229 paradas.
+- [ ] **Cobertura de testes** no CI (`vitest --coverage`, só leitura).
+- [ ] **Dividir `Cartoes.tsx` (2022 linhas) e `Lancamentos.tsx` (1262)** nos blocos listados na auditoria, sem mudar comportamento.
+
 ## Auditoria por agentes (04/11/2026)
 - [x] Chave do servidor só lê (migration 049) · Orçamentos/Categorias sem conta de dinheiro na tela · faturas de Cartões sem erro preso · Dívidas com todas as parcelas por dívida e aviso de falha · Entradas × Saídas sem números velhos e em cartões no celular · CSV de qualquer período (#149).
 - [x] **Relatório de gastos por categoria com gráfico** (#168: barras em Análises, 6 maiores + "Outros", do banco). Falta a **comparação entre meses** por categoria.
