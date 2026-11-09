@@ -46,7 +46,7 @@ begin
       select to_char(e.date, 'YYYY-MM') as label, min(e.date) as closing_date, sum(e.amount) as credits
         from public.debt_events e
        where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.voided_at is null
-         and e.kind = 'income_credit' and e.date <= p_as_of
+         and e.kind = 'income_credit' and coalesce(e.credit_date, e.date) <= p_as_of
        group by 1
     ), meses as (
       select coalesce(m.label, c.label) as label, coalesce(m.closing_date, c.closing_date) as closing_date,
