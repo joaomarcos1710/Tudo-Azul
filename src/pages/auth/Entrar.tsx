@@ -12,7 +12,7 @@ export default function Entrar() {
   const { sessao } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const destino = (location.state as { de?: string } | null)?.de ?? '/'
+  const destino = (location.state as { de?: string } | null)?.de ?? '/painel'
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')

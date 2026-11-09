@@ -20,7 +20,7 @@ export default function Cadastro() {
   const [enviando, setEnviando] = useState(false)
   const [confirmarEmail, setConfirmarEmail] = useState(false)
 
-  if (sessao) return <Navigate to="/" replace />
+  if (sessao) return <Navigate to="/painel" replace />
 
   const erroNome = tentou && !nome.trim() ? 'Informe seu nome.' : nome.trim().length > 80 ? 'Use no máximo 80 caracteres.' : undefined
   const erroSenha = tentou && senha.length < SENHA_MINIMA ? `A senha precisa ter pelo menos ${SENHA_MINIMA} caracteres.` : undefined
@@ -40,7 +40,7 @@ export default function Cadastro() {
     })
     setEnviando(false)
     if (error) setErro(mensagemErroAuth(error))
-    else if (data.session) navigate('/', { replace: true })
+    else if (data.session) navigate('/painel', { replace: true })
     else setConfirmarEmail(true) // projeto com confirmação de e-mail ligada
   }
 

@@ -51,7 +51,7 @@ function montar(inicio: string, extra?: ReactNode) {
           <Route path="/entrar" element={<Entrar />} />
           <Route path="/cadastro" element={<Cadastro />} />
           <Route path="/recuperar-senha" element={<RecuperarSenha />} />
-          <Route path="/" element={<RotaProtegida><p>Painel interno</p></RotaProtegida>} />
+          <Route path="/painel" element={<RotaProtegida><p>Painel interno</p></RotaProtegida>} />
           {extra}
         </Routes>
       </MemoryRouter>
@@ -72,18 +72,18 @@ describe('mensagemErroAuth', () => {
 
 describe('RotaProtegida', () => {
   it('sem sessão, manda para /entrar', async () => {
-    montar('/')
+    montar('/painel')
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeTruthy()
     expect(screen.queryByText('Painel interno')).toBeNull()
   })
   it('com sessão, mostra o conteúdo', async () => {
     mock.sessao = sessaoFalsa
-    montar('/')
+    montar('/painel')
     expect(await screen.findByText('Painel interno')).toBeTruthy()
   })
   it('sem Supabase configurado, explica o que falta em vez de quebrar', () => {
     mock.configurado = false
-    montar('/')
+    montar('/painel')
     expect(screen.getByRole('alert').textContent).toMatch(/VITE_SUPABASE_URL/)
   })
 })
