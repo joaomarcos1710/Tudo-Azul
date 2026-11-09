@@ -3,6 +3,7 @@ name: Supabase local database validation
 on:
   push:
     branches:
+      - main
       - test/local-supabase-validation-2026-228
   pull_request:
     branches: [main]
