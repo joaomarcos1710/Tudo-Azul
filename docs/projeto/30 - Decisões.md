@@ -449,3 +449,9 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 - **Privacidade:** reutilizar o estado global já existente em `src/lib/privacidade.ts` e o botão do `AppShell`. Não criar um estado paralelo nem duplicar o botão no cabeçalho da página.
 - **Dados:** não adicionar consultas, cálculos ou migrations na Fase 1. As próximas fases devem reutilizar as RPCs e serviços existentes, com PostgreSQL como fonte de verdade.
 - **Estado:** implementação em PR; ainda não integrada à `main` nem publicada em produção.
+
+## 09/11/2026 — Funções SECURITY DEFINER executáveis por authenticated (Security Advisor)
+- **Contexto:** o Security Advisor de produção aponta 69 funções `SECURITY DEFINER` executáveis pelo papel `authenticated`.
+- **Decisão:** manter as 69 como estão, sem revogar `EXECUTE` e sem trocar para `SECURITY INVOKER`.
+- **Motivo:** 56 são chamadas pelo app. As 13 restantes (`card_set_start`, `create_debt_installments`, `create_debt_invoice`, `debt_anticipate`, `debt_bill`, `debt_loan_event`, `debt_return`, `delete_household`, `leave_household`, `reconcile_account`, `reconciliation_undo`, `recurrence_end`, `remove_member`) aparecem em testes pgTAP que as chamam como usuário autenticado, e a lista esperada do `00_audit` as trata como API. `leave_household` é chamada por `remove_member`, e `delete_household` é a exclusão da família. Revogar exigiria mudar testes e o `00_audit` no mesmo PR.
+- **Reavaliar** se alguma delas deixar de ter teste ou de ser exposta a usuários.

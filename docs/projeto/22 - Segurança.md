@@ -15,3 +15,8 @@ tags: [tudo-azul, seguranca]
 
 ## Ponto em aberto
 Aceitar convite **sem e-mail confirmado** depende da configuração do Supabase de produção. Conferir em *Authentication → Providers → Email → Confirm email* ([[40 - Pendências e próximos passos]]).
+
+## Revisão do Security Advisor (09/11/2026)
+- **69 funções `SECURITY DEFINER` executáveis por `authenticated`:** avisos conhecidos e aceitos. Decisão e motivo em `30 - Decisões` (mesma data). Não há revogação em massa.
+- **Proteção contra senhas vazadas:** desativada. Depende do plano Pro; no plano atual, a alternativa é exigir senha mais longa e caracteres variados em *Authentication*.
+- **Ponto em aberto:** conferir as configurações de *Authentication* em produção (troca de senha segura, exigir senha atual e troca de e-mail segura).
