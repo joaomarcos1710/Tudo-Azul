@@ -25,6 +25,7 @@ vi.mock('../lib/recorrencias', async (o) => ({
   resumoRecorrencias: mock.resumoRecorrencias,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
+vi.mock('../lib/projecaoCompromissos', () => ({ carregarProjecaoCompromissos: vi.fn().mockResolvedValue([]) }))
 vi.mock('../lib/cartoes', async (o) => ({ ...(await o<typeof import('../lib/cartoes')>()), listarCartoes: mock.listarCartoes }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -385,7 +386,7 @@ describe('Recorrentes', () => {
       { id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true },
       { id: 'g3', nome: 'Condomínio', tipo: 'expense', paiId: 'g1', sistema: false, ativa: true },
     ]
-    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => t !== 'Resumo por mês')
+    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => t !== 'Resumo por mês' && t !== 'Projeção de compromissos')
     /** Faixas de frequência (h3) dentro do card de um tipo. */
     const faixas = (card: HTMLElement) => within(card).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
     const card = (titulo: RegExp) => screen.getByRole('region', { name: titulo })
