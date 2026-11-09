@@ -4,11 +4,12 @@ import { AppShell } from './components/layout/AppShell'
 import { RotaProtegida } from './components/layout/RotaProtegida'
 import { ExigeFamilia } from './components/layout/ExigeFamilia'
 import VisaoGeral from './pages/VisaoGeral'
+import BoasVindas from './pages/BoasVindas'
 import Entrar from './pages/auth/Entrar'
 import { useValoresOcultos } from './lib/privacidade'
 import { carregarTela } from './lib/carregarTela'
 
-// Início e Entrar vêm no arquivo principal (primeira tela); as demais, sob demanda.
+// A página pública é leve; as telas internas continuam sob demanda.
 const Lancamentos = carregarTela(() => import('./pages/Lancamentos'))
 const Calendario = carregarTela(() => import('./pages/Calendario'))
 const Recorrentes = carregarTela(() => import('./pages/Recorrentes'))
@@ -33,37 +34,38 @@ export default function App() {
   useValoresOcultos()
   return (
     <Suspense fallback={<p role="status" className="p-4 text-sm text-slate-500">Carregando…</p>}>
-    <Routes>
-      <Route path="entrar" element={<Entrar />} />
-      <Route path="cadastro" element={<Cadastro />} />
-      <Route path="recuperar-senha" element={<RecuperarSenha />} />
-      <Route path="nova-senha" element={<NovaSenha />} />
-      <Route path="convite" element={<RotaProtegida><Convite /></RotaProtegida>} />
-      <Route element={<RotaProtegida><AppShell /></RotaProtegida>}>
-        <Route path="familia" element={<Familia />} />
-        <Route path="preferencias" element={<Preferencias />} />
-        <Route element={<ExigeFamilia />}>
-          <Route index element={<VisaoGeral />} />
-          <Route path="analises" element={<VisaoGeral secao="analises" />} />
-          <Route path="lancamentos" element={<Lancamentos />} />
-          <Route path="calendario" element={<Calendario />} />
-          <Route path="recorrentes" element={<Recorrentes />} />
-          <Route path="contas" element={<Contas />} />
-          {/* #203: lista, página do cartão e página da fatura (o mesmo componente escolhe pelo endereço) */}
-          <Route path="cartoes" element={<Cartoes />} />
-          <Route path="cartoes/:id" element={<Cartoes />} />
-          <Route path="cartoes/:id/fatura/:mes" element={<Cartoes />} />
-          <Route path="dividas" element={<Dividas />} />
-          <Route path="investimentos" element={<Investimentos />} />
-          <Route path="bens" element={<Bens />} />
-          <Route path="categorias" element={<Categorias />} />
-          <Route path="orcamentos" element={<Orcamentos />} />
-          <Route path="relatorios" element={<Relatorios />} />
-          <Route path="exportar" element={<Exportar />} />
+      <Routes>
+        <Route index element={<BoasVindas />} />
+        <Route path="entrar" element={<Entrar />} />
+        <Route path="cadastro" element={<Cadastro />} />
+        <Route path="recuperar-senha" element={<RecuperarSenha />} />
+        <Route path="nova-senha" element={<NovaSenha />} />
+        <Route path="convite" element={<RotaProtegida><Convite /></RotaProtegida>} />
+        <Route element={<RotaProtegida><AppShell /></RotaProtegida>}>
+          <Route path="painel" element={<VisaoGeral />} />
+          <Route path="familia" element={<Familia />} />
+          <Route path="preferencias" element={<Preferencias />} />
+          <Route element={<ExigeFamilia />}>
+            <Route path="analises" element={<VisaoGeral secao="analises" />} />
+            <Route path="lancamentos" element={<Lancamentos />} />
+            <Route path="calendario" element={<Calendario />} />
+            <Route path="recorrentes" element={<Recorrentes />} />
+            <Route path="contas" element={<Contas />} />
+            {/* #203: lista, página do cartão e página da fatura (o mesmo componente escolhe pelo endereço) */}
+            <Route path="cartoes" element={<Cartoes />} />
+            <Route path="cartoes/:id" element={<Cartoes />} />
+            <Route path="cartoes/:id/fatura/:mes" element={<Cartoes />} />
+            <Route path="dividas" element={<Dividas />} />
+            <Route path="investimentos" element={<Investimentos />} />
+            <Route path="bens" element={<Bens />} />
+            <Route path="categorias" element={<Categorias />} />
+            <Route path="orcamentos" element={<Orcamentos />} />
+            <Route path="relatorios" element={<Relatorios />} />
+            <Route path="exportar" element={<Exportar />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/painel" replace />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
+      </Routes>
     </Suspense>
   )
 }
