@@ -151,13 +151,13 @@ select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
   0::numeric,
-  'C14 parcela não cobrada permanece pendente após estorno do pagamento'
+  'C17 estorno do pagamento não recria compromisso já refletido na tesouraria'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
   900::numeric,
-  'C15 estornar pagamento não provoca dupla contagem'
+  'C18 estornar pagamento não provoca dupla contagem'
 );
 
 -- O overview devolve saldo agregado pelo banco e movimentos recentes, sempre isolados por família.
@@ -183,7 +183,7 @@ select is((public.get_home_decision_month(pg_temp.fx('household'),
   date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric, 775::numeric,
   'R20 reserva virtual reduz o Dinheiro Livre uma única vez');
 select ok(not (select prosecdef from pg_proc where oid='private.card_months_as_of(uuid,date)'::regprocedure),
-  'C18 card_months_as_of permanece SECURITY INVOKER');
+  'C19 card_months_as_of permanece SECURITY INVOKER');
 select ok(not (select prosecdef from pg_proc where oid='public.reserve_overview(uuid)'::regprocedure),
   'R4 reserve_overview permanece SECURITY INVOKER');
 
