@@ -47,6 +47,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     titulo: 'Planejamento',
     itens: [
       { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos, descricao: 'Quanto gastar por categoria no mês.', fixoNoCelular: true },
+      { caminho: '/reservas', rotulo: 'Reservas', curto: 'Reservas', Icone: IconeOrcamentos, descricao: 'Envelopes virtuais, aportes e resgates.' },
       { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias, descricao: 'Como receitas e despesas são agrupadas.', atalho: true },
     ],
   },
@@ -80,7 +81,7 @@ export const itensAcessoRapido: ItemNavegacao[] = caminhosAcessoRapido
 /** Destinos secundários exibidos no popover do perfil. */
 export const gruposMenuPerfil: GrupoNavegacao[] = [
   { titulo: 'Gestão', itens: itensNavegacao.filter((i) => ['/contas', '/categorias', '/recorrentes'].includes(i.caminho)) },
-  { titulo: 'Patrimônio & Conta', itens: itensNavegacao.filter((i) => ['/bens', '/dividas', '/familia'].includes(i.caminho)) },
+  { titulo: 'Patrimônio & Conta', itens: itensNavegacao.filter((i) => ['/bens', '/dividas', '/reservas', '/familia'].includes(i.caminho)) },
   { titulo: 'Sistema', itens: itensNavegacao.filter((i) => ['/exportar', '/preferencias'].includes(i.caminho)) },
 ]
 

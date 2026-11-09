@@ -46,6 +46,8 @@ import type { OrcamentoMes } from '../lib/orcamentos'
 import { BARRA_ORCAMENTO, corDoTipo, corDoValor, faixaOrcamento } from '../lib/cores'
 import { carregarIndicadores } from '../lib/indicadores'
 import type { Indicadores } from '../lib/indicadores'
+import { carregarHomeDecisao } from '../lib/homeDecisao'
+import type { HomeDecisao } from '../lib/homeDecisao'
 import { FaixaIndicadores } from '../components/ui/FaixaIndicadores'
 import { opcional, registrarFalhaConsulta } from '../lib/consultaOpcional'
 
@@ -99,6 +101,7 @@ interface Dados {
   avisos: AvisoInicio[] | null
   /** Início: os 7 indicadores do topo (home_indicators, migration 071); null = não carregou ou é Análises. */
   indicadores: Indicadores | null
+  decisao: HomeDecisao | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
   categoriaPorId: Map<string, Categoria>
@@ -154,6 +157,49 @@ function variacao(atual: Cents, anterior: Cents): number | null {
 /** Início ("o que fazer agora") e Análises ("como estou indo"): cada seção carrega e mostra só os seus blocos. */
 export type SecaoResumo = 'inicio' | 'analises'
 
+function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
+  if (!dados) {
+    return <div className="mb-4"><Aviso tipo="info">A visão de Dinheiro Livre está temporariamente indisponível. Os saldos e lançamentos continuam disponíveis.</Aviso></div>
+  }
+  return (
+    <Card className="mb-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-500">Dinheiro Livre</p>
+          <p className={"mt-1 tabular-nums text-3xl font-bold " + corDoValor(dados.dinheiroLivre)}>{formatBRL(dados.dinheiroLivre)}</p>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">Saldo disponível após reservas e compromissos futuros, com cartões conciliados pelo valor efetivamente cobrado.</p>
+        </div>
+        <div className="rounded-xl bg-azul-claro px-4 py-3">
+          <p className="text-xs font-semibold text-slate-600">Limite diário seguro</p>
+          <p className="mt-1 tabular-nums text-xl font-bold text-azul">{formatBRL(dados.limiteDiarioSeguro)}</p>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
+        <div><p className="text-xs text-slate-500">Saldo disponível</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.dinheiroDisponivel)}</p></div>
+        <div><p className="text-xs text-slate-500">Envelopes comprometidos</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.reservasComprometidas)}</p></div>
+        <div><p className="text-xs text-slate-500">Compromissos futuros</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.saidasPlanejadas)}</p></div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+        <p className="text-sm font-semibold text-marinho">Próximos compromissos</p>
+        <Link to="/reservas" className="inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Gerenciar reservas</Link>
+      </div>
+      {dados.compromissos.length === 0 ? <p className="py-3 text-sm text-slate-500">Nenhum compromisso futuro em reais para este mês.</p> : (
+        <ul className="divide-y divide-slate-100">
+          {dados.compromissos.slice(0, 4).map((item) => (
+            <li key={item.id} className="flex items-center justify-between gap-3 py-2">
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-marinho">{item.descricao}</span>
+                <span className="block truncate text-xs text-slate-500">{item.origem} · {formatMonth(item.mes.slice(0, 7))}</span>
+              </span>
+              <span className="shrink-0 tabular-nums text-sm font-semibold text-marinho">{formatBRL(item.valor)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 text-xs text-slate-400">Projeção até {formatDate(dados.fimMes)} · Atualizado até {formatDate(dados.dataCorte)}.</p>
+    </Card>
+  )
+}
 export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }) {
   const noInicio = secao === 'inicio'
   const { familia } = useFamilia()
@@ -202,13 +248,14 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional('totalFaturasDoMes', totalFaturasDoMes(familiaId, mes)),
             // a faixa de indicadores do topo (#188): os 7 números numa chamada só, calculados no banco
             opcional('carregarIndicadores', carregarIndicadores(familiaId, hoje)),
+            opcional('carregarHomeDecisao', carregarHomeDecisao(familiaId, mes)),
             // receita e despesa do mês, com o que ainda vai entrar e sair: só no cabeçalho
             opcional('resumoDoMes', resumoDoMes(familiaId, mes)),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
             opcional('saldosProjetados', saldosProjetados(familiaId, ate, true)), opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)),
             opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)), opcional('avisosDoInicio', avisosDoInicio(familiaId, hoje)),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, resumo, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
-            patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores,
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
+            patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores, decisao,
             categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes,
             saldoPrevisto: projetado?.total ?? null, balanco: null,
@@ -242,7 +289,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             })))),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, porMoeda, mesPorMoeda, balanco]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, decisao: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => {
         if (!ativo) return
@@ -298,6 +345,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
         : <CabecalhoPagina titulo="Análises" descricao={`Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />}
       {noInicio && <>
+        <ResumoDecisao dados={dados.decisao} />
         <NavegacaoCarteira />
         <section id="visao-geral" aria-label="Resumo geral" className="mb-4 scroll-mt-24">
           <FaixaIndicadores dados={dados.indicadores} />

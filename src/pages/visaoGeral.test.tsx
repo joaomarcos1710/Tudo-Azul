@@ -28,6 +28,7 @@ const mock = vi.hoisted(() => ({
   avisosDoInicio: vi.fn(),
   fluxoDeCaixa: vi.fn(),
   carregarIndicadores: vi.fn(),
+  carregarHomeDecisao: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -57,6 +58,7 @@ vi.mock('../lib/orcamentos', () => ({ listarOrcamentos: mock.listarOrcamentos })
 vi.mock('../lib/fluxoCaixa', async (o) => ({ ...(await o<typeof import('../lib/fluxoCaixa')>()), fluxoDeCaixa: mock.fluxoDeCaixa }))
 vi.mock('../lib/avisosInicio', async (o) => ({ ...(await o<typeof import('../lib/avisosInicio')>()), avisosDoInicio: mock.avisosDoInicio }))
 vi.mock('../lib/indicadores', async (o) => ({ ...(await o<typeof import('../lib/indicadores')>()), carregarIndicadores: mock.carregarIndicadores }))
+vi.mock('../lib/homeDecisao', () => ({ carregarHomeDecisao: mock.carregarHomeDecisao }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas, totaisPorMoeda: mock.totaisPorMoeda }))
 
 import { hojeSP } from '../lib/contas'
@@ -80,6 +82,15 @@ const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(<MemoryRouter
 beforeEach(() => {
   window.localStorage.clear()
   mock.carregarIndicadores.mockResolvedValue(IND)
+  mock.carregarHomeDecisao.mockResolvedValue({
+    inicioMes: '2026-11-01', fimMes: '2026-11-30', dataCorte: '2026-11-08',
+    dinheiroDisponivel: c(1195000), reservasComprometidas: c(300000), saldoCirculante: c(895000),
+    dinheiroLivre: c(805000), limiteDiarioSeguro: c(25000), ritmoDiarioAtual: c(12000),
+    receitasPagas: c(600000), receitasPlanejadas: c(0), despesasPagas: c(400000),
+    despesasPlanejadas: c(0), saidasPlanejadas: c(10000),
+    projecao: { diasNoMes: 30, diasDecorridos: 8, diasRestantes: 22, despesasPagas: c(400000), despesasPlanejadas: c(0), variavelAteAgora: c(100000), ritmoDiario: c(12000), extraRitmo: c(0), projetado: c(500000) },
+    compromissos: [{ id: 'card-1', descricao: 'Fatura do cartão', origem: 'Cartão Azul', tipoOrigem: 'Cartão', mes: '2026-11-01', moeda: 'BRL', valor: c(10000) }],
+  })
   mock.totaisPorMoeda.mockResolvedValue([])
   mock.resumoPorMoeda.mockResolvedValue([])
   cobrar.mockResolvedValue(0)
@@ -150,6 +161,10 @@ describe('Visão geral', () => {
     expect(within(cabecalho).getByText('Receita mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
     expect(within(cabecalho).getByText('Despesa mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
     expect(within(cabecalho).getByRole('link', { name: 'Ver análises do mês' }).getAttribute('href')).toBe('/analises')
+    expect(screen.getByText('Dinheiro Livre')).toBeTruthy()
+    expect(screen.getByText('R$ 8.050,00')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Gerenciar reservas' }).getAttribute('href')).toBe('/reservas')
+    expect(mock.carregarHomeDecisao).toHaveBeenCalledWith('h1', hojeSP().slice(0, 7))
     cleanup()
     montar('analises')
     expect(await screen.findByRole('heading', { name: 'Análises' })).toBeTruthy()
