@@ -24,7 +24,7 @@ describe('menu em grupos', () => {
   it('toda tela do app está no menu (inclui Recorrentes, que antes não aparecia) e sem caminhos repetidos', () => {
     const caminhos = itensNavegacao.map((i) => i.caminho)
     expect(new Set(caminhos).size).toBe(caminhos.length)
-    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/relatorios', '/familia', '/exportar']) {
+    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/reservas', '/relatorios', '/familia', '/exportar']) {
       expect(caminhos).toContain(c)
     }
   })
@@ -48,6 +48,7 @@ describe('menu em grupos', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Recorrentes' })).toBeTruthy()
     expect(within(menu).getByRole('menuitem', { name: 'Bens e patrimônio' })).toBeTruthy()
     expect(within(menu).getByRole('menuitem', { name: 'Dívidas e empréstimos' })).toBeTruthy()
+    expect(within(menu).getByRole('menuitem', { name: 'Reservas' })).toBeTruthy()
     expect(within(menu).getByRole('menuitem', { name: 'Família' })).toBeTruthy()
     expect(within(menu).getByRole('menuitem', { name: 'Exportar dados' })).toBeTruthy()
     expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toBeTruthy()
