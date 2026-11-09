@@ -157,6 +157,49 @@ function variacao(atual: Cents, anterior: Cents): number | null {
 /** Início ("o que fazer agora") e Análises ("como estou indo"): cada seção carrega e mostra só os seus blocos. */
 export type SecaoResumo = 'inicio' | 'analises'
 
+function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
+  if (!dados) {
+    return <div className="mb-4"><Aviso tipo="erro">A visão de Dinheiro Livre está temporariamente indisponível. Os saldos e lançamentos continuam disponíveis.</Aviso></div>
+  }
+  return (
+    <Card className="mb-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-500">Dinheiro Livre</p>
+          <p className="mt-1 tabular-nums text-3xl font-bold" data-sinal={dados.dinheiroLivre < 0 ? 'negativo' : 'positivo'}>{formatBRL(dados.dinheiroLivre)}</p>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">Saldo disponível após reservas e compromissos futuros, com cartões conciliados pelo valor efetivamente cobrado.</p>
+        </div>
+        <div className="rounded-xl bg-azul-claro px-4 py-3">
+          <p className="text-xs font-semibold text-slate-600">Limite diário seguro</p>
+          <p className="mt-1 tabular-nums text-xl font-bold text-azul">{formatBRL(dados.limiteDiarioSeguro)}</p>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
+        <div><p className="text-xs text-slate-500">Saldo disponível</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.dinheiroDisponivel)}</p></div>
+        <div><p className="text-xs text-slate-500">Reservas comprometidas</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.reservasComprometidas)}</p></div>
+        <div><p className="text-xs text-slate-500">Compromissos futuros</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.saidasPlanejadas)}</p></div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+        <p className="text-sm font-semibold text-marinho">Próximos compromissos</p>
+        <Link to="/reservas" className="inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Gerenciar reservas</Link>
+      </div>
+      {dados.compromissos.length === 0 ? <p className="py-3 text-sm text-slate-500">Nenhum compromisso futuro em reais para este mês.</p> : (
+        <ul className="divide-y divide-slate-100">
+          {dados.compromissos.slice(0, 4).map((item) => (
+            <li key={item.id} className="flex items-center justify-between gap-3 py-2">
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-marinho">{item.descricao}</span>
+                <span className="block truncate text-xs text-slate-500">{item.origem} · {formatMonth(item.mes.slice(0, 7))}</span>
+              </span>
+              <span className="shrink-0 tabular-nums text-sm font-semibold text-marinho">{formatBRL(item.valor)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 text-xs text-slate-400">Projeção até {formatDate(dados.fimMes)} · Atualizado até {formatDate(dados.dataCorte)}.</p>
+    </Card>
+  )
+}
 export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }) {
   const noInicio = secao === 'inicio'
   const { familia } = useFamilia()
