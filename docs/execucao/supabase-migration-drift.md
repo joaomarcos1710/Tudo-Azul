@@ -25,7 +25,7 @@ Há nove versões locais sem timestamp correspondente no histórico remoto:
 
 As três versões remotas antigas permanecem no histórico. Não devem ser marcadas como reverted: o conteúdo SQL foi comparado com os três arquivos locais e é idêntico. A divergência é de timestamp, não de definição.
 
-As migrations 090400 (integridade/idempotência do ledger) e 090500 (reconciliação do Dinheiro Livre e consulta de reservas) existem somente nesta branch e ainda não aparecem no histórico remoto.
+As migrations 090400 (integridade/idempotência do ledger) e 090500 (reconciliação do Dinheiro Livre, consulta de reservas e helper `private.card_months_as_of`) existem somente nesta branch e ainda não aparecem no histórico remoto. A reconciliação de cartões passa a respeitar a data de corte por mês: pagamentos, créditos, cancelamentos e estornos com data futura não antecipam a liquidação. A matriz e a Home usam o mesmo helper e a mesma data de corte.
 
 ## Sequência segura proposta
 
