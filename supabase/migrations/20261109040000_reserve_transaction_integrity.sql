@@ -104,11 +104,11 @@ begin
 
     if (new.household_id, new.account_id, new.destination_account_id, new.category_id,
         new.type, new.amount, new.date, new.status, new.deleted_at,
-        new.installment_id, new.recurrence_id, new.occurrence_date)
+        new.installment_group, new.installment_number, new.installment_count, new.recurrence_id, new.occurrence_date)
        is distinct from
        (old.household_id, old.account_id, old.destination_account_id, old.category_id,
         old.type, old.amount, old.date, old.status, old.deleted_at,
-        old.installment_id, old.recurrence_id, old.occurrence_date) then
+        old.installment_group, old.installment_number, old.installment_count, old.recurrence_id, old.occurrence_date) then
       raise exception 'dados financeiros de despesa vinculada a envelope são imutáveis; registre correção compensatória'
         using errcode = '23514';
     end if;
