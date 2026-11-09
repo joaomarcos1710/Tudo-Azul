@@ -92,7 +92,7 @@ select is((select paid from private.card_months_as_of(pg_temp.fx('card'), pg_tem
   where label = to_char(pg_temp.fechamento_futuro(), 'YYYY-MM')), 0::numeric,
   'C7 crédito com fechamento futuro não é tratado como já liquidado');
 select is((select sum(amount) from public.dashboard_commitment_matrix(
-  pg_temp.fx('household'), pg_temp.mes_fatura_futura(), 1)
+  pg_temp.fx('household'), pg_temp.mes_fatura_futura(), 3)
   where period_month = pg_temp.mes_fatura_futura() and row_type = 'item'
     and (commitment_id like 'card-purchase:%' or commitment_id like 'card-invoice-adjustment:%')),
   50::numeric, 'C8 matriz futura preserva o valor integral enquanto o crédito ainda não venceu');
