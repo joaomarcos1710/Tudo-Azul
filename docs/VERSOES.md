@@ -151,3 +151,4 @@ continuam abaixo como histórico.
 | 2026.235 | **Família sem o Zerar tudo.** O bloco Zona de perigo · Zerar tudo sai da tela Família; a ação de perigo fica só em Preferências. Sem migration. |
 | 2026.236 | **Lançamentos: criar e editar liberados (42501).** O front grava person_id e is_shared_expense (#205) e o grant de coluna não incluía essas duas. Migration 20261109070000, não aplicada em produção. |
 | 2026.237 | **Workflow de produção: modo reparar.** Ajusta só o histórico de migrations (seis versões fixas) e simula; não aplica nada. Exige APLICAR. |
+| 2026.238 | **Glossário de métricas do dinheiro.** Documenta saldo, saldo projetado, disponível, patrimônio, Dinheiro Livre, compromissos, fatura, limite, investimentos e moedas, com onde cada um é calculado. Só documentação. |
