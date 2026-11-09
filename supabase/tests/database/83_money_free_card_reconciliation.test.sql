@@ -57,7 +57,7 @@ insert into fixture select 'credit_event', public.card_credit_income(
 -- Segunda compra fecha amanhã: pertence à mesma fatura/mês, mas ainda não foi cobrada.
 select public.set_card_cycle(pg_temp.fx('card'),
   extract(day from pg_temp.hoje())::integer + 1, 31);
-select public.card_purchase(pg_temp.fx('card'), pg_temp.mes_anterior(25), 50, 1,
+select public.card_purchase(pg_temp.fx('card'), pg_temp.hoje(), 50, 1,
   pg_temp.fx('expense_category'), 'Compra ainda não cobrada');
 select is(public.card_bill_due(pg_temp.hoje()), 1,
   'C1 somente a parcela com fechamento até hoje é cobrada');
