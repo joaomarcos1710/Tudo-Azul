@@ -1,6 +1,6 @@
 # Ideia 03 — Direitos reservados (aviso de copyright)
 
-**Status:** ideia, não implementada. **Origem:** pedido do dono.
+**Status:** implementada (09/11/2026; PR #243). Ano automático pela data de São Paulo; cor igual à da linha de versão, porque as duas telas têm fundo marinho. **Origem:** pedido do dono.
 
 ## O que pediu
 Uma assinatura discreta e profissional de autoria, em dois lugares:

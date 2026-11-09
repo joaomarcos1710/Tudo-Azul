@@ -7,6 +7,7 @@ import { IconeMais, IconeOlho, IconeOlhoFechado } from './icons'
 import { gruposMenuPerfil, gruposNavegacao, itemAtivo, itensAcessoRapido, itensFixosNoCelular, itensNavegacao } from './navegacao'
 import { Marca } from './Marca'
 import { Versao } from './Versao'
+import { Autoria } from './Autoria'
 
 const base = 'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
 
@@ -160,6 +161,7 @@ function PerfilSidebar({ pathname }: { pathname: string }) {
               <span aria-hidden="true" className="w-[22px] text-center">↪</span>Sair
             </button>
             <Versao className="px-3 pb-1 pt-2 text-[11px] text-blue-200/60" />
+            <Autoria className="px-3 pb-2 text-blue-200/60" />
           </div>
         </div>
       )}

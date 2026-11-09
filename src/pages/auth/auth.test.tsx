@@ -97,6 +97,11 @@ describe('telas de acesso sem Supabase configurado', () => {
 })
 
 describe('Entrar', () => {
+  it('mostra o aviso de autoria no rodapé (ideia 03)', async () => {
+    montar('/entrar')
+    expect(await screen.findByText(/Todos os direitos reservados a João Marcos\./)).toBeTruthy()
+    expect(screen.getByText(/^© \d{4} Tudo Azul\.$/)).toBeTruthy()
+  })
   it('depois de entrar, não segue um destino que sairia do app (open redirect)', async () => {
     mock.sessao = sessaoFalsa
     render(
