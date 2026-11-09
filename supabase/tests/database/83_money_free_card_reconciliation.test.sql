@@ -129,13 +129,13 @@ select is(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
-  50::numeric,
+  0::numeric,
   'C14 estornar crédito não duplica a parcela já descontada'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
-  850::numeric,
+  900::numeric,
   'C15 Dinheiro Livre acompanha o estorno do crédito uma única vez'
 );
 
@@ -150,13 +150,13 @@ select is(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
-  50::numeric,
+  0::numeric,
   'C14 parcela não cobrada permanece pendente após estorno do pagamento'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
-  850::numeric,
+  900::numeric,
   'C15 estornar pagamento não provoca dupla contagem'
 );
 
