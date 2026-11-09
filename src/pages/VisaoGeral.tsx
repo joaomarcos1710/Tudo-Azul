@@ -46,6 +46,8 @@ import type { OrcamentoMes } from '../lib/orcamentos'
 import { BARRA_ORCAMENTO, corDoTipo, corDoValor, faixaOrcamento } from '../lib/cores'
 import { carregarIndicadores } from '../lib/indicadores'
 import type { Indicadores } from '../lib/indicadores'
+import { carregarHomeDecisao } from '../lib/homeDecisao'
+import type { HomeDecisao } from '../lib/homeDecisao'
 import { FaixaIndicadores } from '../components/ui/FaixaIndicadores'
 import { opcional, registrarFalhaConsulta } from '../lib/consultaOpcional'
 
@@ -99,6 +101,7 @@ interface Dados {
   avisos: AvisoInicio[] | null
   /** Início: os 7 indicadores do topo (home_indicators, migration 071); null = não carregou ou é Análises. */
   indicadores: Indicadores | null
+  decisao: HomeDecisao | null
   ultimos: Lancamento[]
   nomeCategoria: Map<string, string>
   categoriaPorId: Map<string, Categoria>
@@ -202,13 +205,14 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional('totalFaturasDoMes', totalFaturasDoMes(familiaId, mes)),
             // a faixa de indicadores do topo (#188): os 7 números numa chamada só, calculados no banco
             opcional('carregarIndicadores', carregarIndicadores(familiaId, hoje)),
+            opcional('carregarHomeDecisao', carregarHomeDecisao(familiaId, mes)),
             // receita e despesa do mês, com o que ainda vai entrar e sair: só no cabeçalho
             opcional('resumoDoMes', resumoDoMes(familiaId, mes)),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
             opcional('saldosProjetados', saldosProjetados(familiaId, ate, true)), opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)),
             opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)), opcional('avisosDoInicio', avisosDoInicio(familiaId, hoje)),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, resumo, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
-            patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores,
+          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
+            patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores, decisao,
             categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes,
             saldoPrevisto: projetado?.total ?? null, balanco: null,
@@ -242,7 +246,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             })))),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, porMoeda, mesPorMoeda, balanco]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, decisao: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => {
         if (!ativo) return
@@ -298,6 +302,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
         : <CabecalhoPagina titulo="Análises" descricao={`Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />}
       {noInicio && <>
+        <ResumoDecisao dados={dados.decisao} />
         <NavegacaoCarteira />
         <section id="visao-geral" aria-label="Resumo geral" className="mb-4 scroll-mt-24">
           <FaixaIndicadores dados={dados.indicadores} />
