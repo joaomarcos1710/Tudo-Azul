@@ -21,6 +21,7 @@ import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeTransferir } from '../components/layout/icons'
 import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
+import { OperacaoRapida } from '../components/investimentos/FormOperacao'
 import { aceitaLancamento, hojeSP, listarContas, listarSaldosDiarios, mesmaMoeda } from '../lib/contas'
 import type { Conta, ContaInterna, SaldoDiario } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
@@ -145,19 +146,27 @@ export default function Lancamentos() {
   ]
   const [naLixeira, setNaLixeira] = useState<Lancamento | null>(null)
   const [pagando, setPagando] = useState<Lancamento | null>(null)
+  // aporte ou resgate de investimento pelo "Novo lançamento" (pedido do dono, 10/11/2026): abre a folha de Investimentos
+  const [operacaoInv, setOperacaoInv] = useState<'buy' | 'sell' | null>(null)
+  const abrirNovo = useCallback((t: EscolhaNovo) => {
+    if (t === 'aporte' || t === 'resgate') { setOperacaoInv(t === 'aporte' ? 'buy' : 'sell'); return }
+    setInicial(t)
+    setEditando('novo')
+  }, [])
 
   useEffect(() => {
     const novo = params.get('novo')
     if (!novo || contas.length === 0) return
-    const tipo = ({ despesa: 'expense', receita: 'income', transferencia: 'transfer', cartao: 'cartao' } as Record<string, InicialForm>)[novo]
+    const tipo = ({ despesa: 'expense', receita: 'income', transferencia: 'transfer', cartao: 'cartao', aporte: 'aporte', resgate: 'resgate' } as Record<string, EscolhaNovo>)[novo]
     // não atropela um lançamento que já está sendo editado
-    if (tipo && editando === null) { setInicial(tipo); setEditando('novo') }
+    if (tipo && editando === null && operacaoInv === null) abrirNovo(tipo)
     setParams((p) => { const n = new URLSearchParams(p); n.delete('novo'); return n }, { replace: true })
-  }, [params, contas.length, setParams, editando])
+  }, [params, contas.length, setParams, editando, operacaoInv, abrirNovo])
 
-  // atalhos de teclado como no Organizze: D despesa, R receita, T transferência, C compra no cartão (fora de campos de texto)
+  // atalhos de teclado como no Organizze: D despesa, R receita, T transferência, C compra no cartão, A aporte e G resgate
+  // (fora de campos de texto)
   useEffect(() => {
-    if (editando !== null || contas.length === 0) return
+    if (editando !== null || operacaoInv !== null || contas.length === 0) return
     function tecla(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
       // com a tela de filtros aberta, a tecla não abre um lançamento por baixo dela
@@ -167,12 +176,11 @@ export default function Lancamentos() {
       const t = ATALHOS[e.key.toLowerCase()]
       if (!t) return
       e.preventDefault()
-      setInicial(t)
-      setEditando('novo')
+      abrirNovo(t)
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [editando, contas.length, filtrosAbertos])
+  }, [editando, operacaoInv, contas.length, filtrosAbertos, abrirNovo])
 
   // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
   const [automaticosProntos, setAutomaticosProntos] = useState(false)
@@ -393,6 +401,13 @@ export default function Lancamentos() {
         </div>
       )}
 
+      {operacaoInv !== null && (
+        <OperacaoRapida familiaId={familiaId} tipo={operacaoInv}
+          contas={contas.filter((c) => c.ativa && aceitaLancamento(c, 'cartao_divida_provento'))}
+          aoSalvar={async () => { setOperacaoInv(null); await carregar() }}
+          aoFechar={() => setOperacaoInv(null)} />
+      )}
+
       {editando !== null && (
         <PainelLancamento aoFechar={() => setEditando(null)}>
         <FormLancamento
@@ -572,7 +587,7 @@ export default function Lancamentos() {
         aviso={filtros.tipo || filtros.categoriaId || filtros.situacao || filtros.cartaoId || filtros.soFixos || filtros.soParcelados
           ? 'Os totais seguem só o filtro de conta (não os de tipo, categoria, situação, cartão, fixos ou parcelados).' : undefined}
         // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
-        acao={<MenuNovo desabilitado={contas.length === 0} aoEscolher={(t) => { setInicial(t); setEditando('novo') }} />} />
+        acao={<MenuNovo desabilitado={contas.length === 0} aoEscolher={abrirNovo} />} />
     </>
   )
 }
@@ -761,6 +776,8 @@ function PerguntaRecorrente({ aoEscolher, aoCancelar, contaMudou }: {
 
 /** Como o formulário novo abre quando vem de um atalho do painel. */
 type InicialForm = TipoLancamento | 'cartao'
+/** O que o "+" oferece: os quatro tipos de lançamento e, de Investimentos, aporte e resgate. */
+type EscolhaNovo = InicialForm | 'aporte' | 'resgate'
 
 interface PropsForm {
   lancamento: Lancamento | null
@@ -1243,10 +1260,13 @@ const PERIODOS: { chave: string; rotulo: string; unidade: 'month' | 'week' | 'da
   { chave: 'dias', rotulo: 'Dias', unidade: 'day', cada: 1 },
 ]
 
-const ATALHOS: Record<string, InicialForm> = { d: 'expense', r: 'income', t: 'transfer', c: 'cartao' }
+const ATALHOS: Record<string, EscolhaNovo> = { d: 'expense', r: 'income', t: 'transfer', c: 'cartao', a: 'aporte', g: 'resgate' }
 
-/** Botão flutuante "+" (pedido do dono, 10/11/2026, como no Organizze): menu com os quatro tipos e a tecla de atalho de cada um. */
-function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscolher: (t: InicialForm) => void }) {
+/**
+ * Botão flutuante "+" (pedido do dono, 10/11/2026, como no Organizze): menu com os quatro tipos de lançamento, mais
+ * aporte e resgate de investimento, e a tecla de atalho de cada um.
+ */
+function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscolher: (t: EscolhaNovo) => void }) {
   const [aberto, setAberto] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -1257,13 +1277,14 @@ function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscol
     document.addEventListener('keydown', esc)
     return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc) }
   }, [aberto])
-  const itens: [InicialForm, string, string][] = [
+  const itens: [EscolhaNovo, string, string][] = [
     ['expense', 'Nova despesa', 'D'], ['income', 'Nova receita', 'R'], ['transfer', 'Nova transferência', 'T'], ['cartao', 'Compra no cartão', 'C'],
+    ['aporte', 'Aporte em investimento', 'A'], ['resgate', 'Resgate de investimento', 'G'],
   ]
   return (
     <div className="relative" ref={ref}>
       <button type="button" onClick={() => setAberto((v) => !v)} disabled={desabilitado} aria-haspopup="menu" aria-expanded={aberto}
-        aria-label="Novo lançamento" title="Novo lançamento (teclas D, R, T, C)"
+        aria-label="Novo lançamento" title="Novo lançamento (teclas D, R, T, C, A, G)"
         className="flex h-14 w-14 items-center justify-center rounded-full bg-azul text-3xl font-light leading-none text-white shadow-card hover:bg-marinho focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul disabled:cursor-not-allowed disabled:opacity-50">
         <span aria-hidden="true">+</span>
       </button>

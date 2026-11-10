@@ -63,14 +63,17 @@ describe('Contas', () => {
     const acoes = { ...corrente, id: 'v1', nome: 'Ações BTG', tipo: 'variable_income' as const, saldo: c(1900000) }
     mock.listarContas.mockResolvedValue({
       contas: [corrente, acoes, { ...acoes, id: 'v2', nome: 'Cripto zerada', tipo: 'crypto' as const, saldo: c(0) },
-        { ...acoes, id: 'v3', nome: 'Stocks', moeda: 'USD' }],
+        { ...acoes, id: 'v3', nome: 'Stocks', moeda: 'USD' },
+        // poupança e cofrinho também são investimento (decisão do dono, 10/11/2026); conta corrente não
+        { ...acoes, id: 'v4', nome: 'Cofrinho', tipo: 'savings' as const, saldo: c(103221) }],
       total: c(0),
     })
     mock.moverContaParaCarteira.mockResolvedValue('ativo-novo')
     const u = userEvent.setup()
     render(<MemoryRouter><Contas /></MemoryRouter>)
     await screen.findByText('Ações BTG')
-    expect(screen.getAllByRole('button', { name: /para a carteira$/ }).map((b) => b.getAttribute('aria-label'))).toEqual(['Mover Ações BTG para a carteira'])
+    // a ordem na tela segue os grupos de tipo de conta; aqui importa quais contas têm o botão
+    expect(screen.getAllByRole('button', { name: /para a carteira$/ }).map((b) => b.getAttribute('aria-label')).sort()).toEqual(['Mover Ações BTG para a carteira', 'Mover Cofrinho para a carteira'])
     await u.click(screen.getByRole('button', { name: 'Mover Ações BTG para a carteira' }))
     const folha = screen.getByRole('dialog', { name: 'Mover para a carteira · Ações BTG' })
     expect(within(folha).getByText('R$ 19.000,00')).toBeTruthy()

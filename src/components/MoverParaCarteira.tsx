@@ -9,15 +9,18 @@ import type { Conta, TipoConta } from '../lib/contas'
 import { formatBRL } from '../lib/format'
 import { mensagemErroBanco } from '../lib/erros'
 
-/** Tipos de conta que guardam dinheiro aplicado: só esses oferecem "Mover para a carteira". */
-export const TIPOS_MOVER_PARA_CARTEIRA: readonly TipoConta[] = ['fixed_income', 'variable_income', 'crypto']
+/**
+ * Tipos de conta que guardam dinheiro aplicado: só esses oferecem "Mover para a carteira". Poupança entrou em 10/11/2026
+ * (decisão do dono: conta é só a conta corrente; cofrinho e poupança são investimento, mesmo quando se usa o dinheiro).
+ */
+export const TIPOS_MOVER_PARA_CARTEIRA: readonly TipoConta[] = ['fixed_income', 'variable_income', 'crypto', 'savings']
 
 /** Conta de investimento antiga, ativa, em reais e com saldo: pode virar ativo da carteira. */
 export function podeMoverParaCarteira(c: Conta): boolean {
   return c.ativa && (c.moeda ?? 'BRL') === 'BRL' && TIPOS_MOVER_PARA_CARTEIRA.includes(c.tipo) && c.saldo !== null && c.saldo > 0
 }
 
-const classePadrao: Partial<Record<TipoConta, ClasseAtivo>> = { fixed_income: 'fixed_income', crypto: 'crypto' }
+const classePadrao: Partial<Record<TipoConta, ClasseAtivo>> = { fixed_income: 'fixed_income', crypto: 'crypto', savings: 'fixed_income' }
 
 /**
  * Leva o saldo de uma conta antiga de investimento para a carteira (migration 100, decisão do dono de 10/11/2026).
