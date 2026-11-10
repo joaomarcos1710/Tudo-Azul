@@ -17,8 +17,9 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
   perform set_config('role', 'authenticated', true);
 end $f$;
-create function pg_temp.tenta(p_sql text) returns text language plpgsql as $f$
-begin execute p_sql; return 'ok'; exception when others then return sqlstate || ' ' || sqlerrm; end $f$;
+-- retorna void de propósito: um 'ok' impresso pela chamada seria lido pelo prove como teste sem número e quebraria a sequência
+create function pg_temp.tenta(p_sql text) returns void language plpgsql as $f$
+begin execute p_sql; exception when others then null; end $f$;
 grant execute on function pg_temp.fx(text), pg_temp.hoje(), pg_temp.login(uuid), pg_temp.tenta(text) to public;
 
 create function pg_temp.card_months_as_of_antiga(p_debt uuid, p_as_of date)
