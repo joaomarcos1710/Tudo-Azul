@@ -533,7 +533,8 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] 099 aplicada em produção em 10/11/2026 (simulação 42868503347, aplicação 42868909899; só ela estava pendente; coluna, funções e permissões conferidas no banco).
 - [x] Exportação CSV dos investimentos leva a coluna Liquidez (#281).
 - [ ] Caminho para zerar uma conta antiga de investimento sem virar despesa (conta arquivada continua no patrimônio). Sem isso, migrar para a carteira conta em dobro.
-- [ ] Contas Nomad Dólar e Euro: recriar em USD e EUR (hoje estão em reais com o número da moeda estrangeira, e entram no Disponível).
+- [ ] Contas Nomad Dólar e Euro (decisão de 10/11/2026, ver 30 - Decisões): o saldo é o custo em reais. Agora: o dono troca o tipo para Renda variável. Depois: virar ativo da carteira em moeda com cotação PTAX, junto com o "mover saldo de conta para a carteira".
+- [ ] Conferir se as 2 receitas (124,63) e a despesa (46,49) dentro da Nomad Euro foram digitadas em euros (estariam misturadas com reais).
 - [ ] Carteira em dólar e euro não entra no Patrimônio em reais (não há conversão de moeda no app).
 - [ ] Desempenho: Análises chama o patrimônio uma vez por mês da evolução, e cada chamada agora calcula a carteira. Medir com dados reais.
 - [ ] Cotação automática (ações e FIIs por API, câmbio pela PTAX), depois da liquidez e das contas em moeda estrangeira.
