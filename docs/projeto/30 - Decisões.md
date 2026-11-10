@@ -552,6 +552,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Motivo:** com o patrimônio somando a carteira (099), mandar o dinheiro para uma corretora comum contaria duas vezes; transferência já é o caminho que nunca vira receita nem despesa.
 - **Escolhas do dono:** conta na compra é opcional; operações antigas não mudam; corretora segue no Disponível; só reais na primeira versão.
 
+## 10/11/2026 — Tracejado do orçamento: "fatura a fechar", não "não pago"
+- **Pedido do dono:** mostrar na barra do orçamento os gastos de cartão já lançados e ainda não pagos, tracejados.
+- **O que o banco permite sem mudar número nenhum:** o orçamento conta o cartão pelo fechamento da fatura. Fatura fechada (paga ou não) já está no gasto. O tracejado mostra o cartão lançado em fatura que ainda não fechou; por isso o rótulo é "Cartão lançado, fatura a fechar".
+- **Se o dono quiser literalmente "não pago"** (fatura fechada e não paga também tracejada), é preciso partir o gasto pelo pagamento da fatura, o que muda números e telas: decisão à parte.
 ## 10/11/2026 — Investimentos na barra de baixo, no lugar de Orçamentos (dono)
 - **Decidido:** no celular, a barra de baixo fica Início, Lançamentos, Cartões, Investimentos e Mais. Orçamentos vira um dos 4 atalhos do "Mais", no lugar de Categorias (que segue na lista).
 - **Também decidido (a partir de prints da XP):** a tela de Investimentos ganha o topo "Investido / Parado na corretora / Investir / Resgatar" e o bloco "Minha carteira" (Classe, Liquidez, Ativos). Ficaram de fora, de propósito: rentabilidade e variação por classe (sem histórico completo, sairiam enganosas, como no próprio print da XP), proventos como se fossem classe e um total investido + corretora somado na tela (os dois números vêm do banco e aparecem lado a lado).

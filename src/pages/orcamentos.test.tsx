@@ -70,6 +70,27 @@ describe('Orçamentos', () => {
     expect(mock.listarOrcamentos).toHaveBeenCalledWith('h1', '2026-10', '2026-10-10')
   })
 
+  it('cartão lançado em fatura a fechar: trecho tracejado depois do gasto, legenda com o valor do banco e o percentual só do pago', async () => {
+    mock.listarOrcamentos.mockResolvedValue([orc({ cartaoLancado: c(25000) })])
+    render(<Orcamentos />)
+    expect(await screen.findByText('Cartão lançado, fatura a fechar: R$ 250,00')).toBeTruthy()
+    const barra = screen.getByRole('img', { name: /Gasto R\$ 300,00 de R\$ 1.000,00, 30% do limite; mais R\$ 250,00 no cartão, lançado em fatura a fechar/ })
+    const tracejado = barra.querySelector('[data-cartao]') as HTMLElement
+    expect(tracejado.style.width).toBe('25%')
+    expect(tracejado.style.backgroundImage).toContain('repeating-linear-gradient')
+    expect(screen.getByText('30%')).toBeTruthy()
+  })
+
+  it('cartão que passaria do limite fica cortado no fim da barra; sem cartão (ou banco sem a coluna), nada tracejado', async () => {
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(90000), restante: c(10000), cartaoLancado: c(50000) }), orc({ categoriaId: 'lazer', nome: 'Lazer', cartaoLancado: null })])
+    render(<Orcamentos />)
+    await screen.findByText('Lazer')
+    const barras = screen.getAllByRole('img', { name: /^Gasto/ })
+    expect((barras[0].querySelector('[data-cartao]') as HTMLElement).style.width).toBe('10%')
+    expect(barras[1].querySelector('[data-cartao]')).toBeNull()
+    expect(screen.getAllByText(/Cartão lançado, fatura a fechar/)).toHaveLength(1)
+  })
+
   it('projeção dentro do limite: mostra quanto sobra', async () => {
     mock.listarOrcamentos.mockResolvedValue([orc({ projetado: c(80000), sobra: c(20000) })])
     render(<Orcamentos />)
