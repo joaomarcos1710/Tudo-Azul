@@ -191,3 +191,4 @@ continuam abaixo como histórico.
 | 2026.276 | **Seletor de categoria como no Organizze.** A categoria abre uma folha com busca, lista ou grade, a principal com ícone e as subcategorias embaixo, e "Criar categoria" sem sair do lançamento. Vale no lançamento, no cartão e nos recorrentes. |
 | 2026.277 | **Categorias funcionando no celular.** Editar abre por cima da tela (antes abria no topo da página, fora da vista). Desativar, Reativar e "Não conta como consumo" mostram uma faixa embaixo com o resultado, e Desativar tem Desfazer. |
 | 2026.278 | **Categorias mais limpas.** Cada categoria mostra só o ícone e o nome; tocar abre a edição, e lá dentro ficam Não conta como consumo (explicado), eventual e Desativar. |
+| — (#241) | **Plano de investimentos vinculados a conta (opção A).** Só documento, mergeado em 10/11/2026 sem versão própria (usar 2026.241 faria a versão voltar); aguarda três decisões do dono antes do código. |
