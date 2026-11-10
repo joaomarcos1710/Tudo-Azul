@@ -49,25 +49,47 @@ values (pg_temp.fx('h1'),'Reserva alternativa','EUR') returning id;
 insert into fixture select 'r2', id from public.reserves
  where household_id=pg_temp.fx('h1') and name='Reserva alternativa';
 
+-- Aporte e resgate manual usam a mesma chave de idempotência em todas as tentativas.
+insert into fixture select 'manual_allocation', public.record_reserve_allocation(
+  pg_temp.fx('r2'),50,pg_temp.hoje(),'Aporte manual',
+  '00000000-0000-0000-0000-000000022729');
+select is(public.record_reserve_allocation(
+  pg_temp.fx('r2'),50,pg_temp.hoje(),'Aporte manual',
+  '00000000-0000-0000-0000-000000022729'),pg_temp.fx('manual_allocation'),
+  'reenvio idêntico de aporte manual retorna o mesmo ID');
+select is(pg_temp.sqlstate_of(format(
+  'select public.record_reserve_allocation(%L,51,%L,%L,%L)',
+  pg_temp.fx('r2'),pg_temp.hoje(),'Aporte manual','00000000-0000-0000-0000-000000022729')),
+  '40900','mesma chave de aporte com valor diferente gera conflito');
+insert into fixture select 'manual_withdrawal', public.record_reserve_allocation(
+  pg_temp.fx('r2'),-10,pg_temp.hoje(),'Resgate manual',
+  '00000000-0000-0000-0000-000000022730');
+select is(public.record_reserve_allocation(
+  pg_temp.fx('r2'),-10,pg_temp.hoje(),'Resgate manual',
+  '00000000-0000-0000-0000-000000022730'),pg_temp.fx('manual_withdrawal'),
+  'reenvio idêntico de resgate manual retorna o mesmo ID');
+select is((select sum(amount) from public.reserve_allocations where reserve_id=pg_temp.fx('r2')),
+  40::numeric,'aporte e resgate manuais alteram o ledger uma única vez');
+
 select is((select status from public.reserves where id=pg_temp.fx('r1')), 'active',
   'reserva nasce ativa');
-insert into public.reserve_allocations (household_id,reserve_id,amount,description)
-values (pg_temp.fx('h1'),pg_temp.fx('r1'),500,'Primeiro aporte');
+insert into public.reserve_allocations (household_id,reserve_id,amount,description,idempotency_key)
+values (pg_temp.fx('h1'),pg_temp.fx('r1'),500,'Primeiro aporte','00000000-0000-0000-0000-000000022721');
 select is((select sum(amount) from public.reserve_allocations where reserve_id=pg_temp.fx('r1')),500::numeric,
   'aporte cria saldo virtual sem criar transação');
 select is((select count(*) from public.transactions where household_id=pg_temp.fx('h1')),0::bigint,
   'aporte não polui o extrato');
 select is(pg_temp.sqlstate_of(format(
-  'insert into public.reserve_allocations(household_id,reserve_id,amount) values (%L,%L,1.005)',
-  pg_temp.fx('h1'),pg_temp.fx('r1'))),'22003','valor com mais de duas casas é recusado');
+  'insert into public.reserve_allocations(household_id,reserve_id,amount,idempotency_key) values (%L,%L,1.005,%L)',
+  pg_temp.fx('h1'),pg_temp.fx('r1'),'00000000-0000-0000-0000-000000022722')),'22003','valor com mais de duas casas é recusado');
 select is(pg_temp.sqlstate_of(format(
-  'insert into public.reserve_allocations(household_id,reserve_id,amount) values (%L,%L,-501)',
-  pg_temp.fx('h1'),pg_temp.fx('r1'))),'23514','resgate acima do saldo é recusado');
+  'insert into public.reserve_allocations(household_id,reserve_id,amount,idempotency_key) values (%L,%L,-501,%L)',
+  pg_temp.fx('h1'),pg_temp.fx('r1'),'00000000-0000-0000-0000-000000022723')),'23514','resgate acima do saldo é recusado');
 
 update public.reserves set status='completed' where id=pg_temp.fx('r1');
 select is(pg_temp.sqlstate_of(format(
-  'insert into public.reserve_allocations(household_id,reserve_id,amount) values (%L,%L,1)',
-  pg_temp.fx('h1'),pg_temp.fx('r1'))),'23514','reserva concluída não recebe aporte');
+  'insert into public.reserve_allocations(household_id,reserve_id,amount,idempotency_key) values (%L,%L,1,%L)',
+  pg_temp.fx('h1'),pg_temp.fx('r1'),'00000000-0000-0000-0000-000000022724')),'23514','reserva concluída não recebe aporte');
 select is((select sum(amount) from public.reserve_allocations where reserve_id=pg_temp.fx('r1')),500::numeric,
   'concluir não libera nem altera saldo reservado');
 select is(pg_temp.sqlstate_of(format(
@@ -86,6 +108,29 @@ insert into fixture select 'rpc_tx', transaction_id from public.record_reserve_e
 insert into fixture select 'rpc_alloc', allocation_id from public.record_reserve_expense(
   pg_temp.fx('r1'),pg_temp.fx('account_eur'),pg_temp.fx('expense_cat'),100,pg_temp.hoje(),
   'Passagens Riga','00000000-0000-0000-0000-000000022711','Compra das passagens');
+
+-- A despesa vinculada não pode ter seus dados financeiros alterados nem ser removida.
+select is(pg_temp.sqlstate_of(format(
+  'update public.transactions set amount=101 where id=%L',pg_temp.fx('rpc_tx'))),
+  '23514','valor de despesa vinculada é imutável');
+select is(pg_temp.sqlstate_of(format(
+  'update public.transactions set account_id=%L where id=%L',
+  pg_temp.fx('account_brl'),pg_temp.fx('rpc_tx'))),
+  '23514','conta de despesa vinculada é imutável');
+select is(pg_temp.sqlstate_of(format(
+  'update public.transactions set deleted_at=now() where id=%L',pg_temp.fx('rpc_tx'))),
+  '23514','despesa vinculada não pode ir para a lixeira');
+select is(pg_temp.sqlstate_of(format(
+  'delete from public.transactions where id=%L',pg_temp.fx('rpc_tx'))),
+  '42501','cliente não tem permissão de excluir despesa vinculada');
+reset role;
+select is(pg_temp.sqlstate_of(format(
+  'delete from public.transactions where id=%L',pg_temp.fx('rpc_tx'))),
+  '23514','mesmo com privilégio de tabela a trigger impede excluir despesa vinculada');
+select pg_temp.login('00000000-0000-0000-0000-000000022701');
+select lives_ok(format(
+  'update public.transactions set description=''Passagens atualizadas'' where id=%L',pg_temp.fx('rpc_tx')),
+  'descrição pode ser corrigida sem alterar a integridade financeira');
 select is((select transaction_id from public.record_reserve_expense(
   pg_temp.fx('r1'),pg_temp.fx('account_eur'),pg_temp.fx('expense_cat'),100,pg_temp.hoje(),
   'Passagens Riga','00000000-0000-0000-0000-000000022711','Compra das passagens')),
@@ -118,7 +163,7 @@ select is((select count(*) from public.transactions where household_id=pg_temp.f
   'reenvios e conflito não duplicam a despesa');
 select is((select sum(amount) from public.reserve_allocations where reserve_id=pg_temp.fx('r1')),400::numeric,
   'resgate reduz saldo do envelope');
-select is((select count(*) from public.transactions where household_id=pg_temp.fx('h1') and description='Passagens Riga'),1::bigint,
+select is((select count(*) from public.transactions where household_id=pg_temp.fx('h1') and id=pg_temp.fx('rpc_tx')),1::bigint,
   'RPC registra uma despesa real');
 select is((select count(*) from public.reserve_allocations a join public.transactions t
   on t.id=a.linked_transaction_id where a.reserve_id=pg_temp.fx('r1') and a.amount=-100 and t.amount=100),1::bigint,
@@ -166,8 +211,8 @@ insert into fixture select 'tx_b', id from public.transactions
  where household_id=pg_temp.fx('h2') and description='Despesa B';
 select pg_temp.login('00000000-0000-0000-0000-000000022701');
 select is(pg_temp.sqlstate_of(format(
-  'insert into public.reserve_allocations(household_id,reserve_id,amount,linked_transaction_id) values (%L,%L,-1,%L)',
-  pg_temp.fx('h1'),pg_temp.fx('r1'),pg_temp.fx('tx_b'))),'23514',
+  'insert into public.reserve_allocations(household_id,reserve_id,amount,linked_transaction_id,idempotency_key) values (%L,%L,-1,%L,%L)',
+  pg_temp.fx('h1'),pg_temp.fx('r1'),pg_temp.fx('tx_b'),'00000000-0000-0000-0000-000000022725')),'23514',
   'despesa de outro household não pode ser vinculada ao resgate');
 
 -- Ledger append-only.
@@ -177,14 +222,14 @@ select is(pg_temp.sqlstate_of(format('delete from public.reserve_allocations whe
   '42501','DELETE no ledger é recusado');
 
 -- Resgate explícito final zera o envelope; somente então pode arquivar.
-insert into public.reserve_allocations(household_id,reserve_id,amount,description)
-values (pg_temp.fx('h1'),pg_temp.fx('r1'),-400,'Resgate final');
+insert into public.reserve_allocations(household_id,reserve_id,amount,description,idempotency_key)
+values (pg_temp.fx('h1'),pg_temp.fx('r1'),-400,'Resgate final','00000000-0000-0000-0000-000000022726');
 update public.reserves set status='archived' where id=pg_temp.fx('r1');
 select is((select status from public.reserves where id=pg_temp.fx('r1')),'archived',
   'reserva zerada pode ser arquivada');
 select is(pg_temp.sqlstate_of(format(
-  'insert into public.reserve_allocations(household_id,reserve_id,amount) values (%L,%L,-1)',
-  pg_temp.fx('h1'),pg_temp.fx('r1'))),'23514','reserva arquivada não recebe alocação');
+  'insert into public.reserve_allocations(household_id,reserve_id,amount,idempotency_key) values (%L,%L,-1,%L)',
+  pg_temp.fx('h1'),pg_temp.fx('r1'),'00000000-0000-0000-0000-000000022727')),'23514','reserva arquivada não recebe alocação');
 select is(pg_temp.sqlstate_of(format('update public.reserves set status=''active'' where id=%L',pg_temp.fx('r1'))),
   '55000','reserva arquivada não pode ser reaberta');
 
@@ -193,8 +238,8 @@ select pg_temp.login('00000000-0000-0000-0000-000000022702');
 select is((select count(*) from public.reserves where household_id=pg_temp.fx('h1')),0::bigint,
   'outra família não enxerga reservas');
 select is(pg_temp.sqlstate_of(format(
-  'insert into public.reserve_allocations(household_id,reserve_id,amount) values (%L,%L,10)',
-  pg_temp.fx('h1'),pg_temp.fx('r1'))),'42501','outra família não aloca em reserva alheia');
+  'insert into public.reserve_allocations(household_id,reserve_id,amount,idempotency_key) values (%L,%L,10,%L)',
+  pg_temp.fx('h1'),pg_temp.fx('r1'),'00000000-0000-0000-0000-000000022728')),'42501','outra família não aloca em reserva alheia');
 select is(pg_temp.sqlstate_of(format(
   'select * from public.record_reserve_expense(%L,%L,%L,10,%L,''Tentativa'',%L)',
   pg_temp.fx('r1'),pg_temp.fx('account_eur'),pg_temp.fx('expense_cat'),pg_temp.hoje(),

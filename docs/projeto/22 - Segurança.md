@@ -15,3 +15,19 @@ tags: [tudo-azul, seguranca]
 
 ## Ponto em aberto
 Aceitar convite **sem e-mail confirmado** depende da configuração do Supabase de produção. Conferir em *Authentication → Providers → Email → Confirm email* ([[40 - Pendências e próximos passos]]).
+
+## Revisão do Security Advisor (09/11/2026)
+- **69 funções `SECURITY DEFINER` executáveis por `authenticated`:** avisos conhecidos e aceitos. Decisão e motivo em `30 - Decisões` (mesma data). Não há revogação em massa.
+- **Proteção contra senhas vazadas:** desativada. Depende do plano Pro; no plano atual, a alternativa é exigir senha mais longa e caracteres variados em *Authentication*.
+- **Ponto em aberto:** conferir as configurações de *Authentication* em produção (troca de senha segura, exigir senha atual e troca de e-mail segura).
+
+## Revisão geral (09/11/2026)
+- **Headers de segurança no Vercel** (`vercel.json`, toda resposta): `X-Content-Type-Options`, `X-Frame-Options: DENY`,
+  `Referrer-Policy`, `Permissions-Policy`, HSTS e uma **CSP em modo relatório** (`Content-Security-Policy-Report-Only`).
+  Em relatório nada é bloqueado; serve para ver no console do navegador o que a CSP real barraria. Trocar para
+  `Content-Security-Policy` só depois de uma semana sem violação legítima (decisão do dono). Teste: `vercelConfig.test.ts`.
+- **Volta depois do login** (`src/lib/destinoSeguro.ts`): o destino guardado pela rota protegida só é aceito se for caminho
+  interno (`/…`, nunca `//…` nem `https://…`). Fecha um open redirect possível via `state.de`.
+- **Workflow `supabase-local-validation.yml`** passou a pinar as actions por SHA e a CLI em `2.122.1`, como os outros.
+- Sem segredo nem dado real no repositório; só a publishable key, a URL do Supabase e o DSN do Sentry vão ao cliente;
+  Sentry sem PII, sem Replay, URLs sem query; service worker não cacheia o Supabase.

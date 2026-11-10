@@ -19,6 +19,7 @@ const Investimentos = carregarTela(() => import('./pages/Investimentos'))
 const Bens = carregarTela(() => import('./pages/Bens'))
 const Categorias = carregarTela(() => import('./pages/Categorias'))
 const Orcamentos = carregarTela(() => import('./pages/Orcamentos'))
+const Reservas = carregarTela(() => import('./pages/Reservas'))
 const Relatorios = carregarTela(() => import('./pages/Relatorios'))
 const Familia = carregarTela(() => import('./pages/Familia'))
 const Exportar = carregarTela(() => import('./pages/Exportar'))
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="bens" element={<Bens />} />
           <Route path="categorias" element={<Categorias />} />
           <Route path="orcamentos" element={<Orcamentos />} />
+          <Route path="reservas" element={<Reservas />} />
           <Route path="relatorios" element={<Relatorios />} />
           <Route path="exportar" element={<Exportar />} />
         </Route>

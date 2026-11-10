@@ -142,8 +142,8 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
         <p className="py-4 text-sm text-slate-500">Nenhum compromisso previsto nos próximos {periodo} meses.</p>
       ) : (
         <div className="-mx-5 overflow-x-auto px-5">
-          <table className="w-full min-w-[660px] border-collapse text-sm">
-            <thead>
+          <table className="block w-full border-collapse text-sm md:table md:min-w-[660px]">
+            <thead className="sr-only md:table-header-group">
               <tr className="border-b border-slate-100 text-xs text-slate-500">
                 <th scope="col" className="w-[34%] min-w-56 py-2 pr-4 text-left font-medium">Despesa / contrato</th>
                 {meses.map((mes) => (
@@ -151,10 +151,10 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="block divide-y divide-slate-100 md:table-row-group">
               {matriz.itens.map((item) => (
-                <tr key={item.id} className="transition-colors hover:bg-slate-50">
-                  <th scope="row" className="py-3 pr-4 text-left font-medium text-slate-800">
+                <tr key={item.id} className="block py-3 transition-colors hover:bg-slate-50 md:table-row md:py-0">
+                  <th scope="row" className="block pb-1 pr-0 text-left font-medium text-slate-800 md:table-cell md:py-3 md:pb-0 md:pr-4">
                     <span className="block truncate">{item.descricao}</span>
                     <span className="mt-0.5 block truncate text-xs font-normal text-slate-500">
                       {item.tipoOrigem}{item.origem ? ` · ${item.origem}` : ''}
@@ -163,7 +163,7 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
                   {meses.map((mes) => {
                     const valor = item.valores.get(mes)
                     return (
-                      <td key={mes} className="px-2 py-3 text-right tabular-nums">
+                      <td key={mes} data-label={rotuloMes(mes)} className="flex items-baseline justify-between gap-3 py-0.5 text-right tabular-nums before:text-xs before:font-normal before:text-slate-500 before:content-[attr(data-label)] md:table-cell md:px-2 md:py-3 md:before:content-none">
                         {valor ? (valoresOcultos ? MASCARA : formatMoeda(valor.valor, item.moeda)) : <span className="text-slate-300">-</span>}
                       </td>
                     )
@@ -171,16 +171,16 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
                 </tr>
               ))}
             </tbody>
-            <tfoot className="border-t-2 border-slate-200">
+            <tfoot className="block border-t-2 border-slate-200 md:table-footer-group">
               {matriz.totais.map(([moeda, porMes]) => (
-                <tr key={moeda} className="bg-slate-50/70 font-semibold">
-                  <th scope="row" className="py-3 pr-4 text-left text-slate-700">
+                <tr key={moeda} className="block bg-slate-50/70 py-2 font-semibold md:table-row md:py-0">
+                  <th scope="row" className="block pr-0 pb-1 text-left text-slate-700 md:table-cell md:py-3 md:pb-0 md:pr-4">
                     Total do mês <span className="ml-1 text-xs font-normal text-slate-500">({moeda})</span>
                   </th>
                   {meses.map((mes) => {
                     const total = porMes.get(mes)
                     return (
-                      <td key={mes} className="px-2 py-3 text-right tabular-nums text-prejuizo">
+                      <td key={mes} data-label={rotuloMes(mes)} className="flex items-baseline justify-between gap-3 py-0.5 text-right tabular-nums text-prejuizo before:text-xs before:font-normal before:text-slate-500 before:content-[attr(data-label)] md:table-cell md:px-2 md:py-3 md:before:content-none">
                         {valoresOcultos ? MASCARA : formatMoeda(total?.valor ?? (0 as LinhaProjecaoCompromisso['valor']), moeda)}
                       </td>
                     )

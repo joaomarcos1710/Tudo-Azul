@@ -6,13 +6,14 @@ import { Button } from '../../components/ui/Button'
 import { Field } from '../../components/ui/Field'
 import { mensagemErroAuth, useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
+import { destinoSeguro } from '../../lib/destinoSeguro'
 import { LayoutAuth } from './LayoutAuth'
 
 export default function Entrar() {
   const { sessao } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const destino = (location.state as { de?: string } | null)?.de ?? '/'
+  const destino = destinoSeguro((location.state as { de?: unknown } | null)?.de)
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')

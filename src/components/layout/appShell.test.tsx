@@ -24,34 +24,42 @@ describe('menu em grupos', () => {
   it('toda tela do app está no menu (inclui Recorrentes, que antes não aparecia) e sem caminhos repetidos', () => {
     const caminhos = itensNavegacao.map((i) => i.caminho)
     expect(new Set(caminhos).size).toBe(caminhos.length)
-    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/relatorios', '/familia', '/exportar']) {
+    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/reservas', '/relatorios', '/familia', '/exportar']) {
       expect(caminhos).toContain(c)
     }
   })
 
-  it('a sidebar desktop mostra somente os módulos de acesso rápido, sem cabeçalhos', () => {
+  it('a sidebar desktop agrupa por categoria todas as telas de uso frequente (inclui Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens)', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
-    expect(within(lateral).getAllByRole('link').map((a) => a.textContent))
-      .toEqual(['Início', 'Lançamentos', 'Cartões', 'Orçamentos', 'Investimentos', 'Análises', 'Relatórios', 'Calendário'])
-    expect(within(lateral).queryByRole('group')).toBeNull()
-    expect(within(lateral).queryByRole('link', { name: 'Contas' })).toBeNull()
+    const grupos = within(lateral).getAllByRole('group').map((g) => ({
+      titulo: g.getAttribute('aria-labelledby') ? document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent : null,
+      links: within(g).getAllByRole('link').map((a) => a.textContent),
+    }))
+    expect(grupos).toEqual([
+      { titulo: 'Visão geral', links: ['Início', 'Análises', 'Relatórios'] },
+      { titulo: 'Movimentações', links: ['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas'] },
+      { titulo: 'Planejamento', links: ['Orçamentos', 'Reservas', 'Categorias'] },
+      { titulo: 'Patrimônio', links: ['Dívidas e empréstimos', 'Investimentos', 'Bens e patrimônio'] },
+    ])
+    // nenhuma tela some: continuam as 14 de antes
+    expect(within(lateral).getAllByRole('link')).toHaveLength(14)
+    // o que é raro continua só no menu do perfil
+    expect(within(lateral).queryByRole('link', { name: 'Família' })).toBeNull()
+    expect(within(lateral).queryByRole('link', { name: 'Exportar dados' })).toBeNull()
   })
 
-  it('perfil abre popover com gestão, patrimônio, sistema, logout e versão', async () => {
+  it('perfil abre popover só com o que é raro (família, exportar, preferências), logout e versão', async () => {
     const u = userEvent.setup()
     montar()
     await u.click(screen.getByRole('button', { name: 'Perfil de Minha conta' }))
     const menu = screen.getByRole('menu', { name: 'Configurações da conta' })
-    expect(within(menu).getByRole('menuitem', { name: 'Contas' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Categorias' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Recorrentes' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Bens e patrimônio' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Dívidas e empréstimos' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Família' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Exportar dados' })).toBeTruthy()
+    expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Família', 'Exportar dados', 'Preferências', '↪Sair'])
     expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toBeTruthy()
     expect(within(menu).getByText(/Versão/)).toBeTruthy()
+    // ideia 03: autoria logo abaixo de Sair, dentro do menu
+    expect(within(menu).getByText(/Todos os direitos reservados a João Marcos\./)).toBeTruthy()
+    expect(within(menu).getByText(/^© \d{4} Tudo Azul\.$/)).toBeTruthy()
   })
 
   it('celular: 4 atalhos fixos + "Mais"; o resto só aparece dentro do Mais', async () => {
