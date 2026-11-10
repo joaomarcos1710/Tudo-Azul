@@ -43,11 +43,11 @@ vi.mock('../lib/FamiliaContext', () => ({
 }))
 vi.mock('../lib/lancamentos', async (original) => ({
   ...(await original<typeof import('../lib/lancamentos')>()),
-  listarLancamentos: mock.listarLancamentos,
+  listarLancamentosNoPeriodo: mock.listarLancamentos,
   criarParcelado: mock.criarParcelado,
-  listarMovimentosDeDivida: mock.listarMovimentosDeDivida,
-  listarFaturasDoMes: mock.listarFaturasDoMes,
-  listarCreditosDeCartao: mock.listarCreditosDeCartao,
+  listarMovimentosDeDividaNoPeriodo: mock.listarMovimentosDeDivida,
+  listarFaturasNoPeriodo: mock.listarFaturasDoMes,
+  listarCreditosDeCartaoNoPeriodo: mock.listarCreditosDeCartao,
   resumoDoMes: mock.resumoDoMes,
   resumoPorMoeda: mock.resumoPorMoeda,
   criarLancamento: mock.criarLancamento,
@@ -202,17 +202,17 @@ describe('Lançamentos', () => {
 
   it('?tipo=receita|despesa (avisos do Início) abre já filtrado pelo tipo, no mês pedido', async () => {
     render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=receita']}><Lancamentos /></MemoryRouter>)
-    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10', { tipo: 'income' }))
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31', { tipo: 'income' }))
     expect((await campoFiltro('Filtrar por tipo')).value).toBe('income')
     cleanup()
     mock.listarLancamentos.mockClear()
     render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=despesa']}><Lancamentos /></MemoryRouter>)
-    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10', { tipo: 'expense' }))
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31', { tipo: 'expense' }))
     cleanup()
     mock.listarLancamentos.mockClear()
     // valor desconhecido não filtra nada
     render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=xyz']}><Lancamentos /></MemoryRouter>)
-    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10', {}))
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31', {}))
   })
 
   it('rodapé como no Organizze (pedido do dono, 10/11/2026): pagos à vista; a seta abre o previsto, tudo do banco (cash_flow_series)', async () => {
@@ -276,7 +276,7 @@ describe('Lançamentos', () => {
     const selos = screen.getByRole('list', { name: 'Filtros ligados' })
     expect(within(selos).getAllByRole('button').map((b) => b.textContent)).toEqual(['Despesa×', 'Mercado×'])
     await u.click(within(selos).getByRole('button', { name: 'Tirar o filtro Mercado' }))
-    await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), { tipo: 'expense', categoriaId: undefined }))
+    await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { tipo: 'expense', categoriaId: undefined }))
     expect(screen.getByRole('button', { name: 'Filtrar (1 ligado)' })).toBeTruthy()
   })
 
@@ -449,7 +449,7 @@ describe('Lançamentos', () => {
     expect(screen.getByText(/Juros e tarifa são despesa/)).toBeTruthy()
     // os filtros chegam ao lib (que decide o que mostrar); a tela não esconde nada por conta própria
     await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'expense')
-    await vi.waitFor(() => expect(mock.listarMovimentosDeDivida).toHaveBeenLastCalledWith('h1', expect.any(String), { tipo: 'expense' }))
+    await vi.waitFor(() => expect(mock.listarMovimentosDeDivida).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { tipo: 'expense' }))
   })
 
   it('lançamento no cartão: esconde conta e situação, registra a compra com parcelas e não cria lançamento de conta', async () => {
@@ -520,7 +520,7 @@ describe('Lançamentos', () => {
       expect(within(item).getByRole('link', { name: 'Ver fatura Nubank em Cartões' }).getAttribute('href')).toBe(`/cartoes/k1/fatura/${mesAtual()}`)
       expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
       expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
-      expect(mock.listarFaturasDoMes).toHaveBeenCalledWith('h1', mesAtual(), {}, hojeSP())
+      expect(mock.listarFaturasDoMes).toHaveBeenCalledWith('h1', ...limitesDoMes(mesAtual()), {}, hojeSP())
     })
 
     it('"Ver compras" abre as compras da fatura com categoria e ícone; o total continua o do banco', async () => {
@@ -591,7 +591,7 @@ describe('Lançamentos', () => {
       expect(within(fone).getByText(/fatura Nubank · compra de 02\/01\/2026 · a despesa conta em 20\/.* \(fechamento da fatura\)/)).toBeTruthy()
       expect(within(fone).getByText('R$ 100,00')).toBeTruthy()
       expect((fone.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/^28\//)
-      expect(mock.listarFaturasDoMes).toHaveBeenLastCalledWith('h1', mesAtual(), { categoriaId: 'mer' }, hojeSP())
+      expect(mock.listarFaturasDoMes).toHaveBeenLastCalledWith('h1', ...limitesDoMes(mesAtual()), { categoriaId: 'mer' }, hojeSP())
     })
 
     it('se as faturas falharem, a lista de conta continua e só o bloco avisa', async () => {
@@ -672,7 +672,7 @@ describe('Lançamentos', () => {
       mock.listarCreditosDeCartao.mockResolvedValue([solto])
       render(<MemoryRouter initialEntries={[`/lancamentos?mes=${mesAtual()}&tipo=receita`]}><Lancamentos /></MemoryRouter>)
       const item = (await screen.findByText('IOF')).closest('li') as HTMLElement
-      expect(mock.listarCreditosDeCartao).toHaveBeenCalledWith('h1', mesAtual(), { tipo: 'income' }, hojeSP())
+      expect(mock.listarCreditosDeCartao).toHaveBeenCalledWith('h1', ...limitesDoMes(mesAtual()), { tipo: 'income' }, hojeSP())
       expect((item.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/^18\//)
       expect(within(item).getByText('Crédito no cartão')).toBeTruthy()
       expect(within(item).getByText('Planejado')).toBeTruthy()
@@ -856,7 +856,7 @@ describe('Lançamentos', () => {
       .mockResolvedValueOnce(outroMes) // mês anterior: resolve primeiro
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    await u.click(await screen.findByRole('button', { name: 'Mês anterior' }))
+    await u.click(await screen.findByRole('button', { name: 'Período anterior' }))
     expect(await screen.findByText('Do mês certo')).toBeTruthy()
     soltar(lancs)
     await new Promise((r) => setTimeout(r, 30))
@@ -894,9 +894,9 @@ describe('Lançamentos', () => {
       await u.selectOptions(await campoFiltro('Filtrar por conta'), 'a2')
       await u.selectOptions(await campoFiltro('Filtrar por categoria'), 'mer')
       await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'expense') // compatível: continua
-      await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), { contaId: 'a2', categoriaId: 'mer', tipo: 'expense' }))
+      await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { contaId: 'a2', categoriaId: 'mer', tipo: 'expense' }))
       await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'income') // incompatível: sai; a conta fica
-      await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), { contaId: 'a2', categoriaId: undefined, tipo: 'income' }))
+      await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { contaId: 'a2', categoriaId: undefined, tipo: 'income' }))
       expect((await campoFiltro('Filtrar por categoria')).value).toBe('')
     })
 
@@ -909,7 +909,7 @@ describe('Lançamentos', () => {
       const categoria = await campoFiltro('Filtrar por categoria') as HTMLSelectElement
       expect(categoria.disabled).toBe(true)
       expect(opcoesDe('Filtrar por categoria')).toEqual(['Transferência não tem categoria'])
-      await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), { categoriaId: undefined, tipo: 'transfer' }))
+      await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { categoriaId: undefined, tipo: 'transfer' }))
       await u.selectOptions(await campoFiltro('Filtrar por tipo'), '') // voltar a "todos" reabilita
       expect((await campoFiltro('Filtrar por categoria')).disabled).toBe(false)
     })
@@ -1059,7 +1059,7 @@ describe('Subcategoria na ordem e no nome', () => {
     expect(within(linha).getByText('−R$ 1.500,00')).toBeTruthy()
     expect(within(linha).getByRole('link', { name: 'Baixar parcela 3 de Financiamento do imóvel' }).getAttribute('href')).toBe('/dividas?baixar=s3')
     expect(screen.getAllByText('−R$ 1.500,00')).toHaveLength(1) // só na linha: os totais continuam os do banco
-    const [de, ate] = limitesDoMes(mock.listarLancamentos.mock.calls[0][1])
+    const [, de, ate] = mock.listarLancamentos.mock.calls[0]
     expect(mock.listarParcelasDivida).toHaveBeenCalledWith('h1', de, ate)
   })
 
@@ -1430,8 +1430,8 @@ describe('auditoria de design e acessibilidade (5h)', () => {
     expect(dica.className).toContain('sm:inline')
     expect(dica.className).toContain('[@media(pointer:coarse)]:hidden')
     // ‹ › do mês com alvo de toque de 44px
-    expect(screen.getByRole('button', { name: 'Mês anterior' }).className).toContain('min-w-11')
-    expect(screen.getByRole('button', { name: 'Próximo mês' }).className).toContain('min-w-11')
+    expect(screen.getByRole('button', { name: 'Período anterior' }).className).toContain('min-w-11')
+    expect(screen.getByRole('button', { name: 'Próximo período' }).className).toContain('min-w-11')
   })
 
   it('lista do celular: planejado com data passada é "Vencido" em vermelho (não "Planejado" verde); o futuro continua Planejado', async () => {
@@ -1461,5 +1461,30 @@ describe('auditoria de design e acessibilidade (5h)', () => {
     expect(categoria.className).toContain('min-w-0')
     expect(categoria.className).toContain('truncate')
     expect(categoria.className).not.toContain('shrink-0')
+  })
+})
+
+describe('Lançamentos: período livre (etapa 3 do Organizze)', () => {
+  it('escolher "Esta semana" carrega só a semana (segunda a domingo) e ‹ › andam uma semana por vez', async () => {
+    const { segundaDaSemana, somarDias } = await import('../lib/periodoRelatorio')
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalled())
+    const hoje = hojeSP()
+    const s = segundaDaSemana(hoje)
+    await u.click(screen.getByRole('button', { name: /Trocar período/ }))
+    await u.click(screen.getByRole('button', { name: /Esta semana/ }))
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', s, somarDias(s, 6), {}))
+    await u.click(screen.getByRole('button', { name: 'Período anterior' }))
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', somarDias(s, -7), somarDias(s, -1), {}))
+    // a lista de faturas e o rodapé seguem o mesmo intervalo, não o mês
+    expect(mock.listarFaturasDoMes).toHaveBeenLastCalledWith('h1', somarDias(s, -7), somarDias(s, -1), {}, hoje)
+  })
+
+  it('o período não tem mais ‹ › de mês: o seletor é o do relatório (Período: …)', async () => {
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalled())
+    expect(screen.queryByRole('button', { name: 'Mês anterior' })).toBeNull()
+    expect(screen.getByRole('button', { name: /Período: .*Trocar período/ })).toBeTruthy()
   })
 })
