@@ -72,17 +72,19 @@ const itemPreferencias: ItemNavegacao = { caminho: '/preferencias', rotulo: 'Pre
 export const itensNavegacao: ItemNavegacao[] = [...gruposNavegacao.flatMap((g) => g.itens), itemPreferencias]
 export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) => i.fixoNoCelular)
 
-/** Acesso rápido no desktop: sem cabeçalhos e sem configurações esporádicas. */
-const caminhosAcessoRapido = ['/', '/lancamentos', '/cartoes', '/orcamentos', '/investimentos', '/analises', '/relatorios', '/calendario']
+/**
+ * Barra lateral do computador: todas as telas de uso frequente (pedido do dono, 10/11/2026: Recorrentes e outras estavam
+ * escondidas no menu do perfil e ele não achava). Sem cabeçalhos; a barra rola se não couber.
+ */
+const caminhosAcessoRapido = ['/', '/lancamentos', '/recorrentes', '/cartoes', '/contas', '/orcamentos', '/reservas', '/categorias',
+  '/investimentos', '/dividas', '/bens', '/analises', '/relatorios', '/calendario']
 export const itensAcessoRapido: ItemNavegacao[] = caminhosAcessoRapido
   .map((caminho) => itensNavegacao.find((item) => item.caminho === caminho))
   .filter((item): item is ItemNavegacao => item !== undefined)
 
-/** Destinos secundários exibidos no popover do perfil. */
+/** Menu do perfil: só o que é raro (família, exportação e preferências); Sair e a versão ficam no próprio menu. */
 export const gruposMenuPerfil: GrupoNavegacao[] = [
-  { titulo: 'Gestão', itens: itensNavegacao.filter((i) => ['/contas', '/categorias', '/recorrentes'].includes(i.caminho)) },
-  { titulo: 'Patrimônio & Conta', itens: itensNavegacao.filter((i) => ['/bens', '/dividas', '/reservas', '/familia'].includes(i.caminho)) },
-  { titulo: 'Sistema', itens: itensNavegacao.filter((i) => ['/exportar', '/preferencias'].includes(i.caminho)) },
+  { titulo: 'Conta', itens: itensNavegacao.filter((i) => ['/familia', '/exportar', '/preferencias'].includes(i.caminho)) },
 ]
 
 /** Item ativo para um caminho (uma subtela como `/contas/abc` conta como "Contas"). */

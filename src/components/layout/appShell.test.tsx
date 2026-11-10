@@ -29,28 +29,24 @@ describe('menu em grupos', () => {
     }
   })
 
-  it('a sidebar desktop mostra somente os módulos de acesso rápido, sem cabeçalhos', () => {
+  it('a sidebar desktop mostra todas as telas de uso frequente (inclui Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens), sem cabeçalhos', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
     expect(within(lateral).getAllByRole('link').map((a) => a.textContent))
-      .toEqual(['Início', 'Lançamentos', 'Cartões', 'Orçamentos', 'Investimentos', 'Análises', 'Relatórios', 'Calendário'])
+      .toEqual(['Início', 'Lançamentos', 'Recorrentes', 'Cartões', 'Contas', 'Orçamentos', 'Reservas', 'Categorias',
+        'Investimentos', 'Dívidas e empréstimos', 'Bens e patrimônio', 'Análises', 'Relatórios', 'Calendário'])
     expect(within(lateral).queryByRole('group')).toBeNull()
-    expect(within(lateral).queryByRole('link', { name: 'Contas' })).toBeNull()
+    // o que é raro continua só no menu do perfil
+    expect(within(lateral).queryByRole('link', { name: 'Família' })).toBeNull()
+    expect(within(lateral).queryByRole('link', { name: 'Exportar dados' })).toBeNull()
   })
 
-  it('perfil abre popover com gestão, patrimônio, sistema, logout e versão', async () => {
+  it('perfil abre popover só com o que é raro (família, exportar, preferências), logout e versão', async () => {
     const u = userEvent.setup()
     montar()
     await u.click(screen.getByRole('button', { name: 'Perfil de Minha conta' }))
     const menu = screen.getByRole('menu', { name: 'Configurações da conta' })
-    expect(within(menu).getByRole('menuitem', { name: 'Contas' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Categorias' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Recorrentes' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Bens e patrimônio' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Dívidas e empréstimos' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Reservas' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Família' })).toBeTruthy()
-    expect(within(menu).getByRole('menuitem', { name: 'Exportar dados' })).toBeTruthy()
+    expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Família', 'Exportar dados', 'Preferências', '↪Sair'])
     expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toBeTruthy()
     expect(within(menu).getByText(/Versão/)).toBeTruthy()
     // ideia 03: autoria logo abaixo de Sair, dentro do menu

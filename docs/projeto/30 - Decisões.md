@@ -461,3 +461,6 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 
 ## 10/11/2026 — Recorrência no cartão: itens agendados (dono)
 - As recorrências de cartão ficam lançadas nas faturas futuras e entram no total da fatura; só ocupam o limite quando a fatura anterior fecha (só recorrência; parcelado segue ocupando desde a compra). Motivo: é como o Organizze faz e o dono planeja pela fatura futura. Horizonte de 12 meses renovando, sem botão "Lançar", cancelar "esta e as próximas" mantém o que já virou parcela. Em aberto: editar o dia depois de virar parcela ("talvez"). Provisório: fatura paga travada empurra para a seguinte ("vamos testar"). Desenho: tabela `card_scheduled_items` (doc 28).
+
+## 10/11/2026 — Barra lateral com as telas frequentes (dono)
+- Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens voltam para a barra lateral do computador; o menu do perfil fica só com o que é raro (Família, Exportar, Preferências, Sair). Motivo: o dono não achava onde lançar assinatura de cartão porque Recorrentes estava escondida no menu do perfil. Substitui a decisão do "acesso rápido" com 8 itens.
