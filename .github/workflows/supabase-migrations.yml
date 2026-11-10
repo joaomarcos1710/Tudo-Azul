@@ -3,6 +3,9 @@ name: Supabase — aplicar migrations (produção)
 # Só roda quando o dono clica em "Run workflow" no GitHub (Actions → este workflow).
 # Primeiro use o modo "simular": mostra quais migrations seriam aplicadas, sem mudar nada.
 # Para aplicar de verdade: modo "aplicar" + digitar APLICAR na confirmação.
+# Modo "reparar": ajusta só a TABELA DE HISTÓRICO (supabase_migrations.schema_migrations) para as seis versões fixas
+# abaixo, depois simula. Não aplica migration nenhuma. Exige APLICAR, como o modo aplicar. Feito para o caso de o
+# histórico remoto e o do repositório não baterem (ver "40 - Pendências", item de produção).
 #
 # Segredos do repositório (Settings → Secrets and variables → Actions), cadastrados pelo dono:
 #   SUPABASE_ACCESS_TOKEN  token pessoal do Supabase (revogar depois de usar)
@@ -12,9 +15,9 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: 'simular (só lista) ou aplicar'
+        description: 'simular (só lista), aplicar, ou reparar (só histórico, exige APLICAR)'
         type: choice
-        options: [simular, aplicar]
+        options: [simular, aplicar, reparar]
         default: simular
       confirmacao:
         description: 'Para aplicar, digite APLICAR'
@@ -50,12 +53,12 @@ jobs:
           if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
             echo "::error::Cadastre os segredos SUPABASE_ACCESS_TOKEN e SUPABASE_DB_PASSWORD."; exit 1
           fi
-          if [ "$MODO" = "aplicar" ] && [ "$CONFIRMACAO" != "APLICAR" ]; then
+          if { [ "$MODO" = "aplicar" ] || [ "$MODO" = "reparar" ]; } && [ "$CONFIRMACAO" != "APLICAR" ]; then
             echo "::error::Para aplicar, digite APLICAR no campo de confirmação."; exit 1
           fi
 
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -82,6 +85,17 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
 
+      # Só o histórico: versões fixas aqui, sem nada digitado pelo usuário. "reverted" tira do histórico remoto as três
+      # versões que não existem no repositório; "applied" registra as três locais que já têm efeito no banco.
+      - name: Reparar histórico (só modo reparar)
+        if: inputs.modo == 'reparar'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase migration repair --status reverted 20261107141328 20261107141359 20261108233942 --linked --password "$SUPABASE_DB_PASSWORD"
+          supabase migration repair --status applied 20261106160100 20261107030000 20261107150000 --linked --password "$SUPABASE_DB_PASSWORD"
+
       - name: Simular (nada é alterado)
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -96,7 +110,7 @@ jobs:
         run: supabase db push --linked --yes --password "$SUPABASE_DB_PASSWORD"
 
       - name: Situação depois
-        if: inputs.modo == 'aplicar'
+        if: inputs.modo == 'aplicar' || inputs.modo == 'reparar'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}

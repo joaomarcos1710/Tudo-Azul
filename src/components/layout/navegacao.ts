@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
-  IconeAnalises, IconeExportar, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens,
+  IconeAnalises, IconeExportar, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens, IconePreferencias,
 } from './icons'
 
 export interface ItemNavegacao {
@@ -10,7 +10,7 @@ export interface ItemNavegacao {
   /** Rótulo curto para a barra inferior do celular. */
   curto: string
   Icone: ComponentType
-  /** Uma linha dizendo para que a tela serve (aparece no "Mais" do celular). */
+  /** Uma linha dizendo para que a tela serve (aparece nos menus secundários). */
   descricao: string
   /** Fica sempre na barra inferior do celular; os demais ficam no "Mais". */
   fixoNoCelular?: boolean
@@ -23,7 +23,7 @@ export interface GrupoNavegacao {
   itens: ItemNavegacao[]
 }
 
-/** O app em grupos (menu lateral no iPad/computador; "Mais" no celular). Toda tela tem de estar aqui. */
+/** Todas as telas do app, usadas também no menu "Mais" do celular. */
 export const gruposNavegacao: GrupoNavegacao[] = [
   {
     titulo: 'Visão geral',
@@ -47,6 +47,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     titulo: 'Planejamento',
     itens: [
       { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos, descricao: 'Quanto gastar por categoria no mês.', fixoNoCelular: true },
+      { caminho: '/reservas', rotulo: 'Reservas', curto: 'Reservas', Icone: IconeOrcamentos, descricao: 'Envelopes virtuais, aportes e resgates.' },
       { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias, descricao: 'Como receitas e despesas são agrupadas.', atalho: true },
     ],
   },
@@ -67,8 +68,25 @@ export const gruposNavegacao: GrupoNavegacao[] = [
   },
 ]
 
-export const itensNavegacao: ItemNavegacao[] = gruposNavegacao.flatMap((g) => g.itens)
+const itemPreferencias: ItemNavegacao = { caminho: '/preferencias', rotulo: 'Preferências', curto: 'Preferências', Icone: IconePreferencias, descricao: 'Personalize a navegação e as opções da sua conta.' }
+export const itensNavegacao: ItemNavegacao[] = [...gruposNavegacao.flatMap((g) => g.itens), itemPreferencias]
 export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) => i.fixoNoCelular)
+
+/**
+ * Barra lateral do computador: todas as telas de uso frequente, agrupadas por categoria (pedido do dono, 10/11/2026:
+ * antes eram 14 links soltos; Recorrentes e outras estavam escondidas no menu do perfil e ele não achava). São os mesmos
+ * grupos do menu "Mais" do celular, sem o grupo "Conta" (família, exportar e preferências ficam no menu do perfil).
+ */
+const caminhosAcessoRapido = ['/', '/lancamentos', '/recorrentes', '/cartoes', '/contas', '/orcamentos', '/reservas', '/categorias',
+  '/investimentos', '/dividas', '/bens', '/analises', '/relatorios', '/calendario']
+export const gruposSidebar: GrupoNavegacao[] = gruposNavegacao
+  .map((g) => ({ ...g, itens: g.itens.filter((i) => caminhosAcessoRapido.includes(i.caminho)) }))
+  .filter((g) => g.itens.length > 0)
+
+/** Menu do perfil: só o que é raro (família, exportação e preferências); Sair e a versão ficam no próprio menu. */
+export const gruposMenuPerfil: GrupoNavegacao[] = [
+  { titulo: 'Conta', itens: itensNavegacao.filter((i) => ['/familia', '/exportar', '/preferencias'].includes(i.caminho)) },
+]
 
 /** Item ativo para um caminho (uma subtela como `/contas/abc` conta como "Contas"). */
 export function itemAtivo(pathname: string): ItemNavegacao | undefined {

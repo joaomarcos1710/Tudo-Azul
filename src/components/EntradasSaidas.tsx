@@ -1,8 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { Aviso } from './ui/Aviso'
-import { Button } from './ui/Button'
 import { Card, CardTitle } from './ui/Card'
-import { Folha } from './ui/Folha'
+import { Chip, Chips, GrupoFiltro, TelaFiltros } from './ui/TelaFiltros'
 import { BalancoMensal } from './graficos/BalancoMensal'
 import type { MesBalanco } from './graficos/BalancoMensal'
 import { COR_RECEITA, COR_SAIDA, COR_SALDO_AREA, COR_SALDO_BORDA } from './graficos/cores'
@@ -307,9 +306,7 @@ function TabelaFluxo({ consulta, comSaldo }: { consulta: Consulta; comSaldo: boo
   )
 }
 
-const pilula = (ativo: boolean) => `min-h-11 flex-1 rounded-md px-3 text-sm font-semibold ${ativo ? 'bg-white text-marinho shadow-card' : 'text-slate-600'}`
-
-/** Folha "Filtros": tudo junto, num rascunho; só vale ao tocar em Aplicar (fechar descarta). */
+/** Tela "Filtros" (tela cheia, como no Organizze): tudo junto, num rascunho; só vale ao tocar em Aplicar (fechar descarta). */
 function FolhaFiltros({ atuais, contas, membros, aoAplicar, aoFechar }: {
   atuais: Filtros
   contas: Conta[]
@@ -318,40 +315,37 @@ function FolhaFiltros({ atuais, contas, membros, aoAplicar, aoFechar }: {
   aoFechar: () => void
 }) {
   const [f, setF] = useState<Filtros>(atuais)
-  const idMembro = useId()
   const mudar = (parcial: Partial<Filtros>) => setF((atual) => ({ ...atual, ...parcial }))
 
   return (
-    <Folha titulo="Filtros" aoFechar={aoFechar}
-      rodape={<>
-        <Button variante="secundario" onClick={aoFechar}>Cancelar</Button>
-        <Button onClick={() => aoAplicar(f)}>Aplicar</Button>
-      </>}>
-      <div className="flex flex-col gap-5">
-        <div>
-          <p className="mb-1 text-sm font-medium" id={`${idMembro}-lanc`}>Considerar lançamentos</p>
-          <div role="group" aria-labelledby={`${idMembro}-lanc`} className="flex rounded-lg bg-slate-100 p-1">
-            <button type="button" aria-pressed={!f.naoPagos} onClick={() => mudar({ naoPagos: false })} className={pilula(!f.naoPagos)}>Pagos</button>
-            <button type="button" aria-pressed={f.naoPagos} onClick={() => mudar({ naoPagos: true })} className={pilula(f.naoPagos)}>Todos</button>
-          </div>
-          <p className="mt-1 text-xs text-slate-500">Todos = pagos e não pagos (planejados, lançamentos fixos ainda não gerados e faturas a pagar com as assinaturas previstas).</p>
+    <TelaFiltros titulo="Filtros" aoFechar={aoFechar} acaoPrincipal={{ rotulo: 'Aplicar', aoAcionar: () => aoAplicar(f) }}>
+      <GrupoFiltro titulo="Considerar lançamentos">
+        <Chips>
+          <Chip pressionado={!f.naoPagos} onClick={() => mudar({ naoPagos: false })}>Pagos</Chip>
+          <Chip pressionado={f.naoPagos} onClick={() => mudar({ naoPagos: true })}>Pagos e não pagos</Chip>
+        </Chips>
+        <p className="mt-2 text-xs text-slate-500">Pagos e não pagos = planejados, lançamentos fixos ainda não gerados e faturas a pagar com as assinaturas previstas.</p>
+      </GrupoFiltro>
+
+      {membros.length > 1 && (
+        <GrupoFiltro titulo="Lançado por">
+          <Chips>
+            <Chip pressionado={f.membro === ''} onClick={() => mudar({ membro: '' })}>Qualquer pessoa</Chip>
+            {membros.map((m) => (
+              <Chip key={m.userId} pressionado={f.membro === m.userId} onClick={() => mudar({ membro: f.membro === m.userId ? '' : m.userId })}>
+                {m.nome || 'Sem nome'}
+              </Chip>
+            ))}
+          </Chips>
+        </GrupoFiltro>
+      )}
+
+      {contas.length > 0 && (
+        <div className="mt-6">
+          <EscolhaDeContas contas={contas} escolhidas={f.contas} aoMudar={(ids) => mudar({ contas: ids })} />
         </div>
-
-        {membros.length > 1 && (
-          <div className="flex flex-col gap-1">
-            <label htmlFor={idMembro} className="text-sm font-medium">Lançado por</label>
-            <select id={idMembro} value={f.membro} onChange={(e) => mudar({ membro: e.target.value })}
-              className="min-h-11 rounded-lg border border-slate-500 bg-white px-3 text-base">
-              <option value="">Todos</option>
-              {membros.map((m) => <option key={m.userId} value={m.userId}>{m.nome || 'Sem nome'}</option>)}
-            </select>
-          </div>
-        )}
-
-        {contas.length > 0 && <EscolhaDeContas contas={contas} escolhidas={f.contas} aoMudar={(ids) => mudar({ contas: ids })} />}
-
-      </div>
-    </Folha>
+      )}
+    </TelaFiltros>
   )
 }
 

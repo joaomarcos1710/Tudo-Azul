@@ -59,11 +59,11 @@ export function itensDaFaixa(d: Indicadores): Item[] {
   return [
     {
       id: 'disponivel', rotulo: 'Disponível', valor: formatBRL(d.disponivel), tom: tomDoValor(d.disponivel), selo: rotuloDoSinal(d.disponivel),
-      explicacao: `Contas ativas em reais ${formatBRL(d.contasAtivas)} − faturas de cartão fechadas a pagar ${formatBRL(d.faturasFechadas)}. A fatura aberta só entra quando fechar.`,
+      explicacao: `Conta corrente, reserva, carteira e saldo na corretora (ativas, em reais) ${formatBRL(d.contasAtivas)} − faturas de cartão fechadas a pagar ${formatBRL(d.faturasFechadas)}. Renda fixa, renda variável e cripto ficam no Patrimônio: precisam de resgate ou venda. A fatura aberta só entra quando fechar.`,
     },
     {
       id: 'patrimonio', rotulo: 'Patrimônio total', valor: formatBRL(d.patrimonio), tom: tomDoValor(d.patrimonio), selo: rotuloDoSinal(d.patrimonio),
-      explicacao: `Contas ${formatBRL(d.contasTodas)}${d.creditoAReceber > 0 ? ` + crédito no cartão ${formatBRL(d.creditoAReceber)}` : ''} + bens ${formatBRL(d.bens)} + investimentos ${formatBRL(d.investimentos)} − dívidas ${formatBRL(d.dividas)}. Previdência e FGTS ainda não entram.`,
+      explicacao: `Contas ${formatBRL(d.contasTodas)}${d.creditoAReceber > 0 ? ` + crédito no cartão ${formatBRL(d.creditoAReceber)}` : ''} + bens ${formatBRL(d.bens)} − dívidas ${formatBRL(d.dividas)}, o mesmo de Análises. As contas de renda fixa, renda variável e cripto já estão nas contas; os investimentos cadastrados na carteira (${formatBRL(d.investimentos)}) aparecem à parte, em Investimentos, para não contar duas vezes. Previdência e FGTS ainda não entram.`,
     },
     {
       id: 'resultado', rotulo: 'Resultado do mês', periodo: 'Até hoje', valor: formatBRL(d.resultado), tom: tomDoValor(d.resultado), selo: rotuloDoSinal(d.resultado),

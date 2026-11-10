@@ -19,6 +19,7 @@ export interface Indicadores {
   /** AAAA-MM-DD: o último mês fechado (taxa de poupança e comprometimento) */
   inicioMesFechado: string
   fimMesFechado: string
+  /** accounts_active: contas LÍQUIDAS ativas em reais (corrente, reserva, carteira, corretora; 076) */
   contasAtivas: Cents
   faturasFechadas: Cents
   disponivel: Cents
@@ -61,14 +62,10 @@ const FAIXAS: Faixa[] = ['saudavel', 'atencao', 'critico']
 const faixa = (v: unknown): Faixa | null => ((FAIXAS as unknown[]).includes(v) ? (v as Faixa) : null)
 const numero = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v))
 
-type Linha = Record<string, number | string | null>
+export type Linha = Record<string, number | string | null>
 
-export async function carregarIndicadores(familiaId: string, hoje: string): Promise<Indicadores> {
-  if (!supabase) throw new Error('Supabase não configurado')
-  const { data, error } = await supabase.rpc('home_indicators', { p_household: familiaId, p_as_of: hoje })
-  if (error) throw error
-  const r = ((data ?? []) as Linha[])[0]
-  if (!r) throw new Error('indicadores indisponíveis')
+/** Converte a linha de public.home_indicators (da RPC ou do campo `treasury` de get_home_decision_month). */
+export function indicadoresDaLinha(r: Linha): Indicadores {
   const c = (k: string) => centsFromDb((r[k] ?? 0) as number | string)
   return {
     inicioMes: String(r.month_start), fimMes: String(r.month_end),
@@ -86,4 +83,13 @@ export async function carregarIndicadores(familiaId: string, hoje: string): Prom
     rendaRegular: c('regular_income'), fonteRenda: r.regular_income_source === 'recurring' ? 'recorrente' : 'recebida',
     comprometimento: numero(r.commitment_pct), faixaComprometimento: faixa(r.commitment_band),
   }
+}
+
+export async function carregarIndicadores(familiaId: string, hoje: string): Promise<Indicadores> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const { data, error } = await supabase.rpc('home_indicators', { p_household: familiaId, p_as_of: hoje })
+  if (error) throw error
+  const r = ((data ?? []) as Linha[])[0]
+  if (!r) throw new Error('indicadores indisponíveis')
+  return indicadoresDaLinha(r)
 }

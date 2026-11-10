@@ -6,7 +6,6 @@ import { Button } from '../components/ui/Button'
 import { Card, CardTitle } from '../components/ui/Card'
 import { Field } from '../components/ui/Field'
 import { Versao } from '../components/layout/Versao'
-import { ZerarTudo } from '../components/ZerarTudo'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
   criarConvite, criarFamilia, linkDoConvite, listarConvitesPendentes, listarMembros, mensagemErroBanco, tokenDoTexto,
@@ -15,6 +14,7 @@ import type { ConvitePendente, Membro } from '../lib/familia'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { AvisoDiario } from '../components/AvisoDiario'
 import { useAuth } from '../lib/auth'
+import { PessoasFamilia } from './PessoasFamilia'
 
 export default function Familia() {
   const { familia, carregando } = useFamilia()
@@ -131,9 +131,9 @@ function MinhaFamilia() {
           </>
         )}
       </Card>
+      <div className="md:col-span-2"><PessoasFamilia familiaId={familia.id} /></div>
       {dono && <Convidar aoConvidar={carregarListas} />}
       {sessao?.user.id && <AvisoDiario userId={sessao.user.id} familiaId={familia.id} email={sessao.user.email ?? null} />}
-      {dono && <div className="md:col-span-2"><ZerarTudo /></div>}
     </div>
   )
 }
