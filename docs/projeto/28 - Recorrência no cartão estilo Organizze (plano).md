@@ -3,7 +3,7 @@ tags: [tudo-azul, plano, cartao, recorrencia]
 ---
 # Recorrência no cartão estilo Organizze (plano)
 
-**Status:** plano, sem código. Pedido do dono em 10/11/2026. Duas das quatro perguntas já têm resposta (seção "Decisões do dono"); falta a do limite.
+**Status:** plano, sem código. Pedido do dono em 10/11/2026. Todas as perguntas respondidas em 10/11/2026 (seção "Decisões do dono"). Desenho fechado abaixo; a implementação segue em PRs separadas.
 
 ## O pedido (nas palavras do dono)
 "Nas faturas do cartão o que é recorrente não está aparecendo, deveria ser automático, já está lá lançado no dia certo e eu
@@ -52,10 +52,29 @@ dinheiro em vários lugares e merece desenho e testes próprios.
   regra a partir dali). Vale para mudar o dia e para cancelar.
 - Isso confirma a opção **B** como destino. A opção A fica só como passo intermediário, se o dono quiser ver algo antes.
 
-## Perguntas ao dono (abertas)
+- **Limite:** o item futuro **não ocupa o limite** do cartão antes da data (igual ao previsto de hoje).
+- **Caminho:** "ir direto para a B" (resposta de 10/11/2026), com o desenho abaixo.
+
+## Desenho escolhido (leitura de `recurrence_materialize` e `card_recurrence_pending`, 10/11/2026)
+Em vez de gravar parcelas futuras (imutáveis e que contariam no limite e no saldo da dívida), as ocorrências futuras
+continuam **derivadas da regra**, como já são hoje para o total "Assinaturas previstas". O que muda:
+1. **Mostrar:** `private.card_recurrence_pending(household, primeiro, último)` já devolve, para qualquer intervalo de
+   faturas, cada ocorrência ainda não materializada (valor, categoria, data, fechamento). Uma função pública nova lista
+   essas linhas por cartão e fatura (com descrição e id da regra), e a fatura passa a mostrá-las como "prevista". O total
+   já vem da mesma conta, então não duplica. Não ocupam limite (continuam fora das parcelas).
+2. **Exceções:** tabela `recurrence_exceptions (recurrence_id, occurrence_date, ação, nova data/valor/descrição/categoria)`.
+   "Só esta" = grava uma exceção (excluir ou editar). `card_recurrence_pending` e `recurrence_materialize` passam a
+   respeitar a exceção, e o par único `(recurrence_id, occurrence_date)` continua impedindo duplicar.
+3. **Esta e as próximas:** como a migration 074 faz para conta, a MESMA regra é reancorada na ocorrência (mudar o dia
+   ou o valor, ou encerrar com `end_date`). Só vale para ocorrências ainda não materializadas (as já cobradas são parcelas
+   imutáveis, e o valor delas só muda por `card_installment_edit`).
+4. **Janela móvel:** o cartão gera a compra no dia, como hoje; o que o dono vê para frente vem da regra, sem limite
+   enquanto a regra existir. Não há corte para o dono perceber.
+
+## Perguntas ao dono (respondidas)
 1. ~~A, B ou C?~~ Respondida: destino é B. Falta saber se quer A antes, como passo rápido, ou ir direto para B.
 2. ~~Quantos meses à frente?~~ Respondida: enquanto não cancelar (janela móvel).
-3. **Aberta:** item futuro de cartão ocupa o limite do cartão antes da data? (Hoje não ocupa.)
+3. ~~Item futuro~~ Respondida: não ocupa o limite. (Era: item futuro de cartão ocupa o limite do cartão antes da data? (Hoje não ocupa.))
 4. ~~Cancelar~~ Respondida: as duas, no diálogo.
 
 ## Riscos e o que não foi verificado
@@ -65,10 +84,10 @@ dinheiro em vários lugares e merece desenho e testes próprios.
 - Em B, ocorrência editada à mão e regra podem divergir (já acontece na conta, resolvido pela chave
   `(recurrence_id, occurrence_date)`); no cartão isso precisa de teste próprio.
 
-## Divisão proposta do trabalho (cada item = uma PR; B só começa depois da resposta da pergunta 3)
-1. Leitura de `card_months`, `card_limits`, `card_pending_subscriptions` e `card_installment_edit` e desenho fechado do item
-   planejado de cartão (documento, sem código).
-2. Migration: ocorrências futuras de cartão como itens editáveis da fatura, com janela móvel, sem duplicar o previsto;
-   testes pgTAP que falham sem ela. Produção só pelo workflow, com o "pode" do dono.
-3. RPC "este e as próximas" / "só esta" / "excluir" para cartão (análoga à `recurrence_update_from`, migration 074).
-4. Front: linhas na fatura e o diálogo de escolha.
+## Divisão do trabalho (cada item = uma PR; migration só vai a produção pelo workflow, com o "pode" do dono)
+1. (esta PR) Plano e decisões.
+2. **Ver:** função de leitura das ocorrências previstas por fatura + linhas "previstas" na fatura (resolve "não aparece").
+   Teste pgTAP que falha sem ela.
+3. **Mudar:** tabela de exceções, `card_recurrence_pending` e `recurrence_materialize` respeitando-as, RPC "só esta"
+   (excluir/editar) e "esta e as próximas" (reancorar/encerrar), com testes.
+4. **Diálogo** no app: "Atualizar só esta · Esta e as próximas · Cancelar", em Recorrentes e na linha da fatura.
