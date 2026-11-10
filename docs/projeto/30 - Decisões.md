@@ -577,3 +577,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Motivo:** o financiamento é SAC (parcela cai todo mês) e há seguros, tarifas e TR; uma fórmula do app divergiria do banco.
 - **Limite conhecido:** a agenda do app usa parcela fixa; na SAC a parcela real cai todo mês. Corrigir ao confirmar cada parcela (já está em `40 - Pendências`).
 
+## 10/11/2026 — Conta é só a conta corrente; o que rende é investimento, mesmo que se use (dono)
+- **Decidido pelo dono:** nas contas ficam a conta corrente e a carteira; cofrinho, CDB, reserva, corretora e previdência são investimento, mesmo quando o dinheiro vai e volta toda semana.
+- **Como o app sustenta isso sem contar duas vezes:** aporte e resgate são transferências com a conta interna "Carteira de investimentos" (migration 100), fora de todas as somas. Rendimento entra por "Registrar avaliação", não por receita.
+- **O que faltava (migration 104):** aporte e resgate só pelo valor. O banco converte reais em unidades pelo valor atual do ativo, como a cota de um fundo; quem usa nunca vê unidade nem preço em ativo sem ticker.
+- **Regra de tela que saiu da revisão de dinheiro:** ativo sem ticker é só por valor; com ticker, quantidade e preço (podendo usar valor). Motivo: num ativo sem cota, "1 × R$ 500" depois de uma avaliação vira o preço da avaliação e o patrimônio sobe num número que ninguém digitou.
+- **Preço da escolha, avisado ao dono:** o Disponível passa a mostrar só as contas correntes; o dinheiro "à mão" é Disponível + investimentos líquidos (já aparecem separados). O rendimento só aparece quando a avaliação é registrada.
+- **Ordem combinada:** (1) esta função; (2) "Aporte" e "Resgate" no Novo lançamento; (3) instituição por ativo (XP, Mercado Pago), para ver a corretora separada por ativos; (4) arrumar as contas: arquivar as zeradas e mover para a carteira as que têm saldo, uma a uma com o "pode" do dono.
+

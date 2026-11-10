@@ -541,7 +541,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Formulários de Investimentos (10/11/2026, #282)
 - [x] Compra e venda em folha, no desenho de Lançamentos, com "Só o valor" para a primeira posição.
-- [ ] "Só o valor" vale só para a primeira compra. Aporte seguinte num ativo sem cota (previdência com contribuição mensal) não tem caminho exato: precisa de uma função do banco para ativo "por valor". Enquanto isso, o valor se atualiza por avaliação e o custo não acompanha os aportes.
+- [x] "Só o valor" valia só para a primeira compra: resolvido na migration 104 (#294), aporte, resgate e avaliação só pelo valor.
 - [x] Novo ativo, avaliação e provento também em folha (#283). Editar ativo e subclasse continuam dentro da linha do ativo.
 - [ ] Conferir a folha no iPhone (você): teclado numérico, rolagem e botões do pé.
 
@@ -567,7 +567,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Migration 101 (cartão lançado no orçamento) aplicada em produção em 10/11/2026 (simulação 42882544482, aplicação 42882719495).
 - [x] Consignado e financiamento cadastrados (o financiamento estava fora do app; o patrimônio estava inflado em cerca de R$ 139 mil).
 - [x] Migration 102 aplicada em 10/11/2026. A amortização com FGTS de 26/10/2026 (R$ 18.009,57) **não** deve ser lançada: o saldo cadastrado (06/11) já a considera.
-- [ ] Migration 103 (amortização que reduz prazo ou parcela, PR #292): simular, ler o log e aplicar, cada passo com o "pode" do dono. Depois, o dono usa em "Amortização extra" com o número do banco.
+- [x] Migration 103 aplicada em 10/11/2026 (simulação listou só ela). Falta o dono fazer a primeira amortização real com o extrato da Caixa.
 - [ ] A prestação do financiamento muda todo mês (SAC + TR + uso do FGTS): o valor fixo da dívida é aproximado; corrigir ao confirmar cada parcela.
 - [ ] Empréstimo liberado entra como receita (categoria Empréstimos, "não conta como consumo"): o ideal é cadastrar a dívida já com o valor liberado, sem receita. Sem pressa.
 - [ ] Conferir no celular (você): a tela nova de Dívidas.
@@ -577,3 +577,24 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Numeração das migrations: tabela da 078 à 102 em `21 - Banco de dados`; a próxima é a 103; o nome do arquivo é o identificador oficial.
 - [x] **Proteção contra senha vazada** (Supabase Auth): **risco aceito** em 10/11/2026. O painel recusou ligar ("available on Pro Plans and up"); o projeto está no plano gratuito. Ver `30 - Decisões`. Compensação gratuita: senha mínima de 12 caracteres com letras maiúsculas, minúsculas, números e símbolos (Authentication → Sign In / Providers → Email), configurada pelo dono. Rever se o projeto for para o Pro.
 - [ ] O Security Advisor também lista 77 funções SECURITY DEFINER executáveis por usuário logado: é o desenho do app (cada uma confere a família) e já foi decidido na #234; não é pendência nova.
+
+## Conta só conta corrente; o resto é investimento (10/11/2026, #294, migration 104)
+- [ ] Aplicar a migration 104: simular, ler o log e aplicar, cada passo com o "pode" do dono. Até lá, "Só o valor" dá erro ao gravar.
+- [ ] **Aporte e Resgate no "Novo lançamento"** (pedido do dono): ao lado de Despesa, Receita, Transferência e Cartão. Abrem a operação por valor (migration 104).
+- [ ] **Instituição por ativo** (pedido do dono): a XP tem ações e FIIs, o Mercado Pago tem cofrinhos com taxas diferentes; ver a corretora separada por ativos. Precisa de um campo novo no ativo (migration) e de uma aba "Instituição" em Minha carteira. Desenho a aprovar.
+- [ ] **Arrumar as contas** (pedido do dono): ficam conta corrente e carteira; as zeradas são arquivadas e as com saldo viram investimento ("Mover para a carteira"). Uma a uma, com o "pode" do dono, depois da 104 aplicada.
+- [ ] Sem tarifas no modo "Só o valor"; quem precisa de tarifa usa "Quantidade e preço".
+- [ ] "Só o valor" não aceita data anterior ao último movimento do ativo (trava da 104, para o valor nunca mudar num número diferente do digitado). Em ativo sem ticker não há outro caminho: o lançamento esquecido entra com a data do último movimento ou de hoje, e a transferência na conta fica com essa data (o saldo do dia e a conferência com o extrato podem divergir nesses dias). Decidir se vale uma função para lançamento retroativo que recalcule as unidades.
+- [ ] **Bug antigo CONFIRMADO, em produção desde a migration 100 (corrigir em PR própria, migration 105):** `investment_operation_record` (venda por unidades) só confere a posição até a data da venda. Uma venda com data anterior a uma venda total já gravada é aceita: a posição fica negativa e, com conta escolhida, o dinheiro volta duas vezes (caso mínimo: compra de 10 × 100 em 10/01, venda de 10 em 10/03, venda de 10 em 10/02 → conta +1.000 e patrimônio +1.000). Achado pelo teste da 104 em 10/11/2026. Correção: recusar (23514) quando o saldo acumulado por data ficar negativo em qualquer data, a mesma conta de mínimo acumulado que `investment_operation_void` já usa. O caminho "por valor" (104) não tem o problema, porque não aceita data retroativa.
+- [ ] Limites conhecidos do investimento por valor (achados pelo teste da 104, nenhum grava valor errado sem aviso, salvo o primeiro):
+  - Anular um aporte que já tem avaliação depois dele tira do ativo a proporção de unidades, não o valor aportado (ex.: 1.000 + 500, "vale 1.600", anular os 500 → ativo 1.066,67 e conta +500). Vale também por unidades. Depois de anular, registrar a avaliação de novo. Decidir se o app deve avisar ou recusar.
+  - Ativo misto (comprado por unidades com preço de 3 casas ou mais e depois movimentado por valor) pode perder ou ganhar 1 centavo no valor de mercado quando quantidade × preço cai em meio centavo exato. O resgate que deixaria unidades valendo R$ 0,00 é recusado, com o total a resgatar na mensagem.
+  - Avaliação pelo total é recusada (com mensagem) quando o ativo passa de cerca de 100 milhões de unidades; só ocorre se a primeira posição foi de centavos e o saldo depois chegou a milhões.
+  - Avaliação não tem como ser anulada: uma avaliação com data errada passa a ser o "último movimento" e impede lançar por valor antes dela. Corrige-se registrando outra avaliação.
+  - "Quantidade e preço" (só em ativo com ticker) continua aceitando data retroativa, por desenho.
+  - Avaliar e depois aportar no mesmo dia soma o aporte ao valor avaliado. Se o valor digitado já incluía o depósito, ele conta duas vezes até a próxima avaliação; a tela orienta a lançar o aporte antes.
+- [ ] O rendimento de ativo sem cota só aparece quando a avaliação é registrada; não há cálculo automático (CDI).
+
+## Para depois (pedidos do dono sem data)
+- [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
+

@@ -24,7 +24,7 @@ import { COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../components/graficos/cor
 import {
   CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirLiquidezAtivo, definirSubclasseAtivo, listarLiquidezInvestimentos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
-  reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento, registrarProventoInvestimento,
+  reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarAvaliacaoTotal, registrarOperacaoInvestimento, registrarOperacaoPorValor, registrarProventoInvestimento,
 } from '../lib/investimentos'
 import type {
   AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, LinhaExtratoAtivo, LinhaLiquidez, Liquidez, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
@@ -167,17 +167,17 @@ export default function Investimentos() {
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
-  async function salvarOperacao(d: {
-    ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string;
-    precoUnitario: string; tarifas: Cents; observacao: string; contaId?: string
-  }) {
+  async function salvarOperacao(d: DadosOperacao) {
     // o erro sobe para a folha da operação, que fica aberta e o mostra junto dos campos
-    await registrarOperacaoInvestimento(d)
+    // "só o valor" (migration 104): o banco converte o valor em unidades; aqui não há conta
+    if ('valor' in d) await registrarOperacaoPorValor(d)
+    else await registrarOperacaoInvestimento(d)
     setNovaOperacao(false)
     await carregar()
   }
-  async function salvarAvaliacao(d: { ativoId: string; data: string; precoUnitario: string; fonte: string }) {
-    await registrarAvaliacaoInvestimento(d)
+  async function salvarAvaliacao(d: DadosAvaliacao) {
+    if ('valor' in d) await registrarAvaliacaoTotal(d)
+    else await registrarAvaliacaoInvestimento(d)
     setNovaAvaliacao(false)
     await carregar()
   }
@@ -575,6 +575,7 @@ function ExtratoAtivo({ familiaId, ativo, aoMudar, aoFechar }: {
   const [anulando, setAnulando] = useState<string | null>(null)
   const [motivo, setMotivo] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const semCota = !ativo.ticker
 
   const ler = useCallback(async () => {
     try { setLinhas(await listarExtratoAtivo(familiaId, ativo.id)) }
@@ -612,11 +613,13 @@ function ExtratoAtivo({ familiaId, ativo, aoMudar, aoFechar }: {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className={l.anulada ? 'text-slate-500 line-through' : ''}>
                     <p className="font-medium">{rotuloLinhaExtrato[l.tipo]} · {formatDate(l.data)}</p>
-                    {operacao && l.quantidade && l.precoUnitario && (
+                    {/* ativo sem cota (migration 104): unidade e preço são contas internas do banco, não se mostram;
+                        o valor de cada linha (inclusive o total da avaliação) vem pronto do banco, à direita */}
+                    {operacao && !semCota && l.quantidade && l.precoUnitario && (
                       <p className="text-xs text-slate-600">{quantidade(l.quantidade)} × {preco(l.precoUnitario, ativo.moeda)}{l.taxa ? ` · taxa ${moeda(l.taxa, ativo.moeda)}` : ''}</p>
                     )}
                     {l.tipo === 'valuation' && l.precoUnitario && (
-                      <p className="text-xs text-slate-600">Preço {preco(l.precoUnitario, ativo.moeda)}{l.fonte ? ` · ${l.fonte}` : ''}</p>
+                      <p className="text-xs text-slate-600">{semCota ? (l.fonte ?? '') : `Preço ${preco(l.precoUnitario, ativo.moeda)}${l.fonte ? ` · ${l.fonte}` : ''}`}</p>
                     )}
                     {l.tipo === 'distribution' && (
                       <p className="text-xs text-slate-600">{TIPOS_PROVENTO.find((t) => t.chave === l.tipoProvento)?.rotulo ?? 'Provento'} · {l.statusProvento === 'planned' ? <span className="font-medium text-agendado">Planejado</span> : 'Recebido'}</p>
@@ -624,7 +627,7 @@ function ExtratoAtivo({ familiaId, ativo, aoMudar, aoFechar }: {
                   </div>
                   <div className="text-right">
                     {l.valor !== null && <p className={`font-semibold ${l.anulada ? 'text-slate-500 line-through' : ''}`}>{moeda(l.valor, ativo.moeda)}</p>}
-                    {l.saldoQuantidade !== null && <p className="text-xs text-slate-500">Saldo: {quantidade(l.saldoQuantidade)}</p>}
+                    {l.saldoQuantidade !== null && !semCota && <p className="text-xs text-slate-500">Saldo: {quantidade(l.saldoQuantidade)}</p>}
                   </div>
                 </div>
                 {l.anulada && (
@@ -640,6 +643,10 @@ function ExtratoAtivo({ familiaId, ativo, aoMudar, aoFechar }: {
                   <form className="mt-2 grid gap-2" onSubmit={(e) => void confirmarAnulacao(e, l.id)}>
                     <Field rotulo="Motivo da exclusão" value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} />
                     <p className="text-xs text-slate-600">A operação não é apagada: fica no extrato como anulada, com o motivo, e sai da posição e do custo.</p>
+                    {/* a avaliação vale por unidade: sem as unidades desta operação, o valor do ativo muda numa proporção, não no valor dela */}
+                    {linhas.some((x) => x.tipo === 'valuation' && x.data >= l.data) && (
+                      <Aviso tipo="info">Este investimento tem avaliação depois desta operação. Ao excluir, o valor dele muda numa proporção, não exatamente no valor da operação: registre a avaliação de novo em seguida.</Aviso>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       <Button type="submit" variante="perigo" carregando={enviando}>Confirmar exclusão</Button>
                       <Button variante="secundario" onClick={() => { setAnulando(null); setErro('') }}>Cancelar</Button>
@@ -745,12 +752,20 @@ function Posicao({ p }: { p: PosicaoInvestimento }) {
         <div><p className="font-semibold">{p.nome}{p.ticker ? ` · ${p.ticker}` : ''}</p><p className="text-sm text-slate-500">{classes.find(([v]) => v === p.classe)?.[1] ?? p.classe} · {p.moeda}</p></div>
         <div className="text-right"><p className="text-xs text-slate-500">Valor de mercado estimado</p><p className="text-xl font-bold tabular-nums">{moeda(p.valorAtual, p.moeda)}</p></div>
       </div>
-      <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div><p className="text-xs text-slate-500">Quantidade</p><p className="font-semibold tabular-nums">{quantidade(p.quantidade)}</p></div>
-        <div><p className="text-xs text-slate-500">Custo médio por unidade</p><p className="font-semibold tabular-nums">{preco(p.custoMedio, p.moeda)}</p></div>
-        <div><p className="text-xs text-slate-500">Preço de referência</p><p className="font-semibold tabular-nums">{preco(p.precoAtual, p.moeda)}</p></div>
-        <div><p className="text-xs text-slate-500">Resultado não realizado</p><p className={`font-semibold tabular-nums ${corDoValor(p.resultado)}`}>{moeda(p.resultado, p.moeda)}</p></div>
-      </div>
+      {p.ticker ? (
+        <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div><p className="text-xs text-slate-500">Quantidade</p><p className="font-semibold tabular-nums">{quantidade(p.quantidade)}</p></div>
+          <div><p className="text-xs text-slate-500">Custo médio por unidade</p><p className="font-semibold tabular-nums">{preco(p.custoMedio, p.moeda)}</p></div>
+          <div><p className="text-xs text-slate-500">Preço de referência</p><p className="font-semibold tabular-nums">{preco(p.precoAtual, p.moeda)}</p></div>
+          <div><p className="text-xs text-slate-500">Resultado não realizado</p><p className={`font-semibold tabular-nums ${corDoValor(p.resultado)}`}>{moeda(p.resultado, p.moeda)}</p></div>
+        </div>
+      ) : (
+        // ativo sem cota (cofrinho, CDB, previdência): quem usa pensa em reais, não em unidade e preço (migration 104)
+        <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2">
+          <div><p className="text-xs text-slate-500">Aplicado (custo)</p><p className="font-semibold tabular-nums">{moeda(p.custoTotal, p.moeda)}</p></div>
+          <div><p className="text-xs text-slate-500">Rendimento não realizado</p><p className={`font-semibold tabular-nums ${corDoValor(p.resultado)}`}>{moeda(p.resultado, p.moeda)}</p></div>
+        </div>
+      )}
       <p className="mt-3 text-xs text-slate-500">
         {p.dataAvaliacao
           ? `Avaliação em ${new Date(p.dataAvaliacao + 'T12:00:00').toLocaleDateString('pt-BR')} · Fonte: ${p.fonteAvaliacao}`
@@ -844,31 +859,37 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
           </LinhaFolha>
         </div>
         <datalist id={`${id}-sugestoes`}>{(classe ? SUGESTOES_SUBCLASSE[classe] : []).map((x) => <option key={x} value={x} />)}</datalist>
-        <p className="text-sm text-slate-600">Sem ticker (previdência, reserva, FGTS), a primeira compra pede só o valor de hoje.</p>
+        <p className="text-sm text-slate-600">Sem ticker (cofrinho, CDB, previdência, reserva), tudo é lançado só pelo valor em reais. Para lançar por quantidade e preço (ação, FII, fundo com cotas), informe o ticker ou um código.</p>
       </form>
     </Folha>
   )
 }
 
-/** Centavos como texto decimal exato ("1234.56"), sem passar por número de ponto flutuante. */
-function decimalDeCentavos(c: Cents): string {
-  return `${Math.floor(c / 100)}.${String(c % 100).padStart(2, '0')}`
-}
 
 /**
  * Compra ou venda numa folha por cima da tela, no desenho do formulário de Lançamentos (pedido do dono, 10/11/2026):
  * tipo em duas abas, o ativo e o número principal em destaque, o resto em linhas.
- * "Só o valor": para a primeira posição de um ativo que não tem cota (previdência, reserva, FGTS). Grava 1 unidade pelo
- * valor informado; nenhuma conta é feita aqui.
- * atalho: "só o valor" vale só para a primeira posição (ativo sem histórico); aportes seguintes num ativo sem cota pedem
- * uma função do banco, ver 40 - Pendências.
+ * "Só o valor" (migration 104): aporte e resgate em reais, para ativo que não tem cota (cofrinho, CDB, reserva,
+ * previdência). O banco converte o valor em unidades pelo valor atual do ativo; nenhuma conta é feita aqui. Sem tarifas
+ * neste modo.
+ * Ativo sem ticker é SÓ por valor: "Quantidade e preço" não aparece. Num ativo sem cota, digitar "1 × R$ 500" depois de uma
+ * avaliação gravaria 1 unidade ao preço da avaliação, e o valor subiria num número que ninguém digitou (achado da revisão
+ * de dinheiro da #294). Quem tem um fundo com cotas informa um ticker ou código no ativo.
+ * Ativo com ticker começa em "Quantidade e preço" e pode trocar para "Só o valor".
  */
+type DadosOperacao =
+  | { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string; precoUnitario: string; tarifas: Cents; observacao: string; contaId?: string }
+  | { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; valor: Cents; observacao: string; contaId?: string }
+type DadosAvaliacao =
+  | { ativoId: string; data: string; precoUnitario: string; fonte: string }
+  | { ativoId: string; data: string; valor: Cents; fonte: string }
+
 function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancelar }: {
   ativos: AtivoInvestimento[]
   tipoInicial?: TipoOperacaoInvestimento
   /** contas em reais, ativas: de onde sai a compra ou para onde volta a venda (opcional) */
   contas: Conta[]
-  aoSalvar: (d: { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string; precoUnitario: string; tarifas: Cents; observacao: string; contaId?: string }) => Promise<void>
+  aoSalvar: (d: DadosOperacao) => Promise<void>
   aoCancelar: () => void
 }) {
   const [ativoId, setAtivoId] = useState(ativos[0]?.id ?? '')
@@ -888,28 +909,36 @@ function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancela
   const ativo = ativos.find((a) => a.id === ativoId)
   const codigo = ativo?.moeda ?? 'BRL'
   const semHistorico = !!ativo && ativo.quantidadeOperacoes === 0 && ativo.quantidadeAvaliacoes === 0
-  // só o valor: apenas na primeira compra; ativo sem ticker (previdência, reserva) já começa nesse modo
-  const podeSoValor = semHistorico && tipo === 'buy'
-  const modoAtual = !podeSoValor ? 'unidades' : modo ?? (ativo?.ticker ? 'unidades' : 'valor')
+  // ativo sem ticker (cofrinho, previdência, reserva) é só por valor; com ticker, começa em unidades e pode trocar
+  const semCota = !ativo?.ticker
+  const modoAtual = semCota ? 'valor' : modo ?? 'unidades'
+  // primeira posição: o valor digitado é quanto já existe no investimento, não um aporte novo
+  const primeiraPosicao = semHistorico && tipo === 'buy'
+  const rotuloValor = primeiraPosicao ? 'Valor de hoje' : tipo === 'buy' ? 'Valor do aporte' : 'Valor do resgate'
   const tarifas = parseBRL(tarifaTexto)
   const valor = parseBRL(valorTexto)
 
   async function enviar(e: FormEvent) {
     e.preventDefault()
     if (!ativoId || !data) { setErro('Escolha o ativo e a data.'); return }
-    let quantidade = qtd, precoUnitario = precoTexto
+    // conta só para ativo em reais (o banco também recusa outra moeda)
+    const conta = codigo === 'BRL' && contaId ? contaId : undefined
     if (modoAtual === 'valor') {
-      if (valor === null || valor <= 0) { setErro('Informe o valor de hoje.'); return }
-      quantidade = '1'; precoUnitario = decimalDeCentavos(valor)
-    } else if (!/^\d{1,12}(?:[.,]\d{1,12})?$/.test(qtd.trim()) || Number(qtd.replace(',', '.')) <= 0 ||
+      if (valor === null || valor <= 0) { setErro(`Informe o ${rotuloValor.toLowerCase()}.`); return }
+      setErro(''); setEnviando(true)
+      try { await aoSalvar({ ativoId, data, tipo, valor, observacao, ...(conta ? { contaId: conta } : {}) }) }
+      catch (e2) { setErro(mensagemErroBanco(e2)) }
+      finally { setEnviando(false) }
+      return
+    }
+    const quantidade = qtd, precoUnitario = precoTexto
+    if (!/^\d{1,12}(?:[.,]\d{1,12})?$/.test(qtd.trim()) || Number(qtd.replace(',', '.')) <= 0 ||
         !/^\d{1,12}(?:[.,]\d{1,10})?$/.test(precoTexto.trim()) || Number(precoTexto.replace(',', '.')) <= 0) {
       setErro('Confira a quantidade e o preço por unidade.'); return
     }
     if (tarifas === null || tarifas < 0) { setErro('Confira as tarifas.'); return }
     setErro(''); setEnviando(true)
     // o erro do banco aparece aqui dentro: a folha cobre o aviso do topo da página
-    // conta só para ativo em reais (o banco também recusa outra moeda)
-    const conta = codigo === 'BRL' && contaId ? contaId : undefined
     try { await aoSalvar({ ativoId, data, tipo, quantidade, precoUnitario, tarifas, observacao, ...(conta ? { contaId: conta } : {}) }) }
     catch (e2) { setErro(mensagemErroBanco(e2)) }
     finally { setEnviando(false) }
@@ -940,7 +969,7 @@ function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancela
             {ativos.map((a) => <option key={a.id} value={a.id}>{a.nome} · {a.moeda}</option>)}
           </select>
 
-          {podeSoValor && (
+          {ativo && !semCota && (
             <div role="radiogroup" aria-label="Como informar" className="mt-3 flex gap-1 rounded-lg bg-white p-1">
               <button type="button" role="radio" aria-checked={modoAtual === 'valor'} onClick={() => setModo('valor')} className={aba(modoAtual === 'valor', 'bg-azul-claro text-azul')}>Só o valor</button>
               <button type="button" role="radio" aria-checked={modoAtual === 'unidades'} onClick={() => setModo('unidades')} className={aba(modoAtual === 'unidades', 'bg-azul-claro text-azul')}>Quantidade e preço</button>
@@ -951,10 +980,14 @@ function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancela
             <>
               <div className="mt-2 flex items-baseline gap-1 text-marinho">
                 <span aria-hidden="true" className="text-xl font-semibold">{simboloMoeda(codigo)}</span>
-                <label htmlFor={`${idForm}-valor`} className="sr-only">Valor de hoje ({codigo})</label>
+                <label htmlFor={`${idForm}-valor`} className="sr-only">{rotuloValor} ({codigo})</label>
                 <input id={`${idForm}-valor`} inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} className={grande} />
               </div>
-              <p className="mt-1 text-sm text-slate-600">Quanto você tem hoje neste investimento. Para atualizar depois, use "Registrar avaliação" com o valor novo.</p>
+              <p className="mt-1 text-sm text-slate-600">
+                {primeiraPosicao ? 'Quanto você tem hoje neste investimento. Para atualizar depois, use "Registrar avaliação" com o valor novo.'
+                  : tipo === 'buy' ? 'Quanto você está colocando agora. O rendimento não entra aqui: use "Registrar avaliação". Se você já atualizou o valor de hoje e ele incluía este depósito, registre a avaliação de novo depois.'
+                  : 'Quanto você está tirando. Se o saldo rendeu, registre a avaliação antes; para resgatar tudo, informe o valor total de hoje.'}
+              </p>
             </>
           ) : (
             <div className="mt-2 flex items-baseline gap-1 text-marinho">
@@ -985,10 +1018,12 @@ function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancela
             <label htmlFor={`${idForm}-data`} className="shrink-0 text-base text-marinho">Data</label>
             <input id={`${idForm}-data`} type="date" value={data} onChange={(e) => setData(e.target.value)} className={`${controle} appearance-none`} />
           </div>
-          <div className={linha}>
-            <label htmlFor={`${idForm}-tarifas`} className="shrink-0 text-base text-marinho">Tarifas ({codigo})</label>
-            <input id={`${idForm}-tarifas`} inputMode="decimal" value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} className={controle} />
-          </div>
+          {modoAtual === 'unidades' && (
+            <div className={linha}>
+              <label htmlFor={`${idForm}-tarifas`} className="shrink-0 text-base text-marinho">Tarifas ({codigo})</label>
+              <input id={`${idForm}-tarifas`} inputMode="decimal" value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} className={controle} />
+            </div>
+          )}
           <div className={linha}>
             <label htmlFor={`${idForm}-obs`} className="shrink-0 text-base text-marinho">Observação</label>
             <input id={`${idForm}-obs`} value={observacao} onChange={(e) => setObservacao(e.target.value)} maxLength={500} placeholder="Opcional" className={controle} />
@@ -996,7 +1031,9 @@ function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancela
         </div>
 
         <p className="text-sm text-slate-600">
-          {tipo === 'sell' ? 'A venda não pode superar a quantidade que você tem.' : 'As tarifas da compra entram no custo de aquisição.'}{' '}
+          {modoAtual === 'valor'
+            ? (tipo === 'sell' ? 'O resgate não pode superar o valor de hoje do investimento.' : '')
+            : (tipo === 'sell' ? 'A venda não pode superar a quantidade que você tem.' : 'As tarifas da compra entram no custo de aquisição.')}{' '}
           {contaId && codigo === 'BRL'
             ? (tipo === 'buy' ? 'O valor sai da conta escolhida e vai para a carteira, sem virar despesa.' : 'O valor líquido volta para a conta escolhida, sem virar receita.')
             : 'Sem conta escolhida, nenhuma conta muda.'}
@@ -1007,14 +1044,15 @@ function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancela
 }
 
 /**
- * Avaliação manual numa folha. Ativo com exatamente 1 unidade (registrado por "Só o valor": previdência, reserva) pede
- * o valor de hoje; os outros, o preço por unidade. O número vai para o banco como digitado, sem conta aqui.
+ * Avaliação manual numa folha. Ativo sem ticker (cofrinho, previdência, reserva) ou com exatamente 1 unidade pede o
+ * valor de hoje, e o banco divide pelo número de unidades (migration 104); os outros, o preço por unidade. O número vai
+ * para o banco como digitado, sem conta aqui.
  */
 function FormAvaliacao({ ativos, quantidades, aoSalvar, aoCancelar }: {
   ativos: AtivoInvestimento[]
   /** quantidade em carteira por ativo (texto do banco) */
   quantidades: Map<string, string>
-  aoSalvar: (d: { ativoId: string; data: string; precoUnitario: string; fonte: string }) => Promise<void>
+  aoSalvar: (d: DadosAvaliacao) => Promise<void>
   aoCancelar: () => void
 }) {
   const [ativoId, setAtivoId] = useState(ativos[0]?.id ?? '')
@@ -1026,15 +1064,18 @@ function FormAvaliacao({ ativos, quantidades, aoSalvar, aoCancelar }: {
   const id = useId()
   const ativo = ativos.find((a) => a.id === ativoId)
   const codigo = ativo?.moeda ?? 'BRL'
-  const umaUnidade = Number(quantidades.get(ativoId) ?? '0') === 1
+  const umaUnidade = !!ativo && (!ativo.ticker || Number(quantidades.get(ativoId) ?? '0') === 1)
   const rotuloValor = umaUnidade ? `Valor de hoje (${codigo})` : `Preço atual por unidade (${codigo})`
   async function enviar(e: FormEvent) {
     e.preventDefault()
-    if (!ativoId || !data || !/^\d{1,12}(?:[.,]\d{1,10})?$/.test(precoTexto.trim()) || Number(precoTexto.replace(',', '.')) <= 0 || !fonte.trim()) {
+    const total = umaUnidade ? parseBRL(precoTexto) : null
+    if (!ativoId || !data || !fonte.trim() ||
+        (umaUnidade ? total === null || total <= 0
+          : !/^\d{1,12}(?:[.,]\d{1,10})?$/.test(precoTexto.trim()) || Number(precoTexto.replace(',', '.')) <= 0)) {
       setErro(umaUnidade ? 'Informe o valor de hoje, a data e a fonte.' : 'Informe o preço por unidade, a data e a fonte.'); return
     }
     setErro(''); setEnviando(true)
-    try { await aoSalvar({ ativoId, data, precoUnitario: precoTexto, fonte }) }
+    try { await aoSalvar(umaUnidade && total !== null ? { ativoId, data, valor: total, fonte } : { ativoId, data, precoUnitario: precoTexto, fonte }) }
     catch (e2) { setErro(mensagemErroBanco(e2)) }
     finally { setEnviando(false) }
   }
@@ -1064,7 +1105,10 @@ function FormAvaliacao({ ativos, quantidades, aoSalvar, aoCancelar }: {
             <input id={`${id}-fonte`} value={fonte} onChange={(e) => setFonte(e.target.value)} maxLength={80} placeholder="Extrato da corretora" className={CONTROLE_FOLHA} />
           </LinhaFolha>
         </div>
-        <p className="text-sm text-slate-600">Cada avaliação fica guardada no histórico; a mais recente define o valor de mercado.</p>
+        <p className="text-sm text-slate-600">
+          Cada avaliação fica guardada no histórico; a mais recente define o valor de mercado.
+          {umaUnidade ? ' Lance antes os aportes e resgates do dia: o valor de hoje deve ser o saldo já com eles.' : ''}
+        </p>
       </form>
     </Folha>
   )
