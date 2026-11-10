@@ -73,14 +73,15 @@ export const itensNavegacao: ItemNavegacao[] = [...gruposNavegacao.flatMap((g) =
 export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) => i.fixoNoCelular)
 
 /**
- * Barra lateral do computador: todas as telas de uso frequente (pedido do dono, 10/11/2026: Recorrentes e outras estavam
- * escondidas no menu do perfil e ele não achava). Sem cabeçalhos; a barra rola se não couber.
+ * Barra lateral do computador: todas as telas de uso frequente, agrupadas por categoria (pedido do dono, 10/11/2026:
+ * antes eram 14 links soltos; Recorrentes e outras estavam escondidas no menu do perfil e ele não achava). São os mesmos
+ * grupos do menu "Mais" do celular, sem o grupo "Conta" (família, exportar e preferências ficam no menu do perfil).
  */
 const caminhosAcessoRapido = ['/', '/lancamentos', '/recorrentes', '/cartoes', '/contas', '/orcamentos', '/reservas', '/categorias',
   '/investimentos', '/dividas', '/bens', '/analises', '/relatorios', '/calendario']
-export const itensAcessoRapido: ItemNavegacao[] = caminhosAcessoRapido
-  .map((caminho) => itensNavegacao.find((item) => item.caminho === caminho))
-  .filter((item): item is ItemNavegacao => item !== undefined)
+export const gruposSidebar: GrupoNavegacao[] = gruposNavegacao
+  .map((g) => ({ ...g, itens: g.itens.filter((i) => caminhosAcessoRapido.includes(i.caminho)) }))
+  .filter((g) => g.itens.length > 0)
 
 /** Menu do perfil: só o que é raro (família, exportação e preferências); Sair e a versão ficam no próprio menu. */
 export const gruposMenuPerfil: GrupoNavegacao[] = [
