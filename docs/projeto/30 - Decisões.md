@@ -506,3 +506,12 @@ O dono viu em produção a faixa "Contas a pagar — Você tem 1 conta a pagar n
 - **Mantidos:** Vencidos e Orçamentos do mês em Análises (ele não pediu para tirar); a RPC `home_alerts` continua no banco porque `get_home_decision_month` a usa por dentro.
 - **Risco aceito:** sem a faixa, nada avisa de conta a pagar nos próximos 7 dias, de fatura perto de vencer nem de receita a receber; só os Vencidos de Análises (itens que já passaram da data). Se ele sentir falta, a faixa pode voltar com outro formato.
 
+## 10/11/2026 — Lançamentos no visual do Organizze, em três etapas (dono)
+
+Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com os lançamentos separados por dia, botão de filtrar em cima, separar o período, selecionar lançamentos, botão para lançar e rodapé com o que entrou e saiu.
+
+- **Computador:** lista por dia, igual ao celular (a tabela sai), com seleção em massa (etapa 2).
+- **Rodapé em regime de caixa**, como no Organizze: a fatura conta no vencimento, igual à linha da fatura na lista e ao Relatório Entradas x Saídas com "Pagos e não pagos". Os números vêm de `cash_flow_series` (uma linha "total" do mês, com e sem os não pagos); o front não soma nada. Isso troca o critério dos totais desta tela: antes eram os de `period_summary` (compra no fechamento da fatura).
+- **Período livre já** (etapa 3), além do mês.
+- Etapa 1 (#268): topo com Filtrar, botão "+" flutuante e rodapé. O rodapé segue só o filtro de conta (o banco não filtra por tipo/categoria nessa função; com filtro de conta não devolve saldo); com tipo ou categoria, avisa em vez de mostrar um número que não seria o filtrado.
+

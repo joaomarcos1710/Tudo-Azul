@@ -30,26 +30,31 @@ import type { Cents } from '../lib/format'
 import {
   criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, limitesDoMes, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
   listarMovimentosDeDivida, marcarComoPago,
-  moverParaLixeira, perguntaSeRepete, restaurarDaLixeira, resumoDoMes, resumoPorMoeda, somarMeses, valoresDasParcelas,
+  moverParaLixeira, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, somarMeses, valoresDasParcelas,
 } from '../lib/lancamentos'
 // import à parte para não conflitar com outras branches que mexem na lista acima
 import { situacaoDoLancamento } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
-import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { ComprasDaFatura, NomeCategoria, TabelaLancamentos, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, useTelaGrande, valorComSinal } from './LancamentosTabela'
 import type { ItemLista } from './LancamentosTabela'
 import { criarRecorrencia, definirPessoaRecorrencia, frequencias } from '../lib/recorrencias'
-import { SELO, corDoValor } from '../lib/cores'
+import { SELO } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
+import { RodapeLancamentos } from '../components/RodapeLancamentos'
+import type { TotaisCaixa } from '../components/RodapeLancamentos'
+import { serieFluxo } from '../lib/fluxoCaixa'
+import type { SerieFluxo } from '../lib/fluxoCaixa'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 
-const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
-const totalRotulo = 'shrink-0 text-sm text-slate-500'
-const totalValor = 'whitespace-nowrap tabular-nums text-base font-bold sm:text-xl'
+/** Totais de uma linha de cash_flow_series ('total'): entradas, saídas e o saldo no fim do período, como o banco devolve. */
+function totaisDe(s: SerieFluxo): TotaisCaixa {
+  return { entradas: s.totalEntradas, saidas: s.totalSaidas, saldo: s.linhas[s.linhas.length - 1]?.saldo ?? null }
+}
 
 export default function Lancamentos() {
   const { familia } = useFamilia()
@@ -107,7 +112,9 @@ export default function Lancamentos() {
   const [creditosCartao, setCreditosCartao] = useState<CreditoDeCartao[]>([])
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [comprasFalharam, setComprasFalharam] = useState(false)
-  const [resumo, setResumo] = useState<ResumoMes | null>(null)
+  // rodapé (regime de caixa, do banco): undefined = carregando, null = não carregou (a lista segue)
+  const [totais, setTotais] = useState<{ realizado: TotaisCaixa; previsto: TotaisCaixa } | null | undefined>(undefined)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   // receitas e despesas pagas em outras moedas (multimoeda F2): à parte, nunca somadas ao resumo em reais
   const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
   const [contas, setContas] = useState<Conta[]>([])
@@ -120,6 +127,12 @@ export default function Lancamentos() {
 
   /** Categorias oferecidas no filtro: só as do tipo escolhido; transferência não tem categoria. */
   const categoriasDoFiltro = filtros.tipo === 'transfer' ? [] : categorias.filter((c) => !filtros.tipo || c.tipo === filtros.tipo)
+  /** O que está ligado, para os selos de cima (cada um sai sozinho). Tirar o tipo não mexe na categoria: ela já combinava. */
+  const filtrosLigados: { chave: string; rotulo: string; tirar: () => void }[] = [
+    ...(filtros.contaId ? [{ chave: 'conta', rotulo: contas.find((c) => c.id === filtros.contaId)?.nome ?? 'Conta', tirar: () => setFiltros((f) => ({ ...f, contaId: undefined })) }] : []),
+    ...(filtros.tipo ? [{ chave: 'tipo', rotulo: rotuloTipo[filtros.tipo], tirar: () => setFiltros((f) => ({ ...f, tipo: undefined })) }] : []),
+    ...(filtros.categoriaId ? [{ chave: 'categoria', rotulo: nomesCompletos(categorias).get(filtros.categoriaId) ?? 'Categoria', tirar: () => setFiltros((f) => ({ ...f, categoriaId: undefined })) }] : []),
+  ]
   /** Trocar o tipo limpa a categoria que deixou de combinar (e a de qualquer categoria, em transferência); o resto do filtro fica. */
   function mudarTipoDoFiltro(v: string) {
     const tipo = (v || undefined) as TipoLancamento | undefined
@@ -214,8 +227,15 @@ export default function Lancamentos() {
         : Promise.resolve([] as CreditoDeCartao[])
       // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
       const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(() => [] as ResumoPorMoeda[])
+      // rodapé: o mesmo número do Relatório Entradas x Saídas (pagos / pagos e não pagos), seguindo só o filtro de conta;
+      // se falhar, a lista continua e só o rodapé avisa
+      const doFluxo = { contas: filtros.contaId ? [filtros.contaId] : undefined }
+      const totaisDoMes = Promise.all([
+        serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: false }),
+        serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: true }),
+      ]).then(([pago, comPlanejado]) => ({ realizado: totaisDe(pago), previsto: totaisDe(comPlanejado) })).catch(() => null)
       const [l, r, md, cc, pc, cr, pm] = await Promise.all([
-        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), cartao, parcelas,
+        listarLancamentos(familiaId, mes, filtros), totaisDoMes, listarMovimentosDeDivida(familiaId, mes, filtros), cartao, parcelas,
         creditos, porMoedaDoMes,
       ])
       if (meu !== pedido.current) return
@@ -226,7 +246,7 @@ export default function Lancamentos() {
       setFaturas(cc?.faturas ?? [])
       setComprasCategoria(cc?.compras ?? [])
       setComprasFalharam(cc === null)
-      setResumo(r)
+      setTotais(r)
       setPorMoeda(pm)
       setErro('')
     } catch (err) {
@@ -291,42 +311,38 @@ export default function Lancamentos() {
 
   return (
     <>
-      <CabecalhoPagina titulo="Lançamentos" descricao="Receitas, despesas e transferências do mês, pagas e planejadas."
-        // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
-        acoes={<MenuNovo desabilitado={contas.length === 0} aoEscolher={(t) => { setInicial(t); setEditando('novo') }} />} />
+      <CabecalhoPagina titulo="Lançamentos" descricao="Receitas, despesas e transferências do mês, pagas e planejadas." />
 
       {contas.length === 0 && lancamentos !== null && (
         <div className="mb-4"><Aviso tipo="info">Cadastre uma conta em <strong>Contas</strong> antes do primeiro lançamento.</Aviso></div>
       )}
 
-      <div className="sticky top-0 z-20 -mx-4 mb-4 flex items-center gap-2 border-b border-slate-100 bg-white/85 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/75">
-        <Button variante="secundario" className="min-w-11" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
-        <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
-        <Button variante="secundario" className="min-w-11" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
+      <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-slate-100 bg-white/85 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+        <div className="flex items-center gap-2">
+          <Button variante="secundario" className="min-w-11" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
+          <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
+          <Button variante="secundario" className="min-w-11" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
+          {/* os três filtros moram numa folha (pedido do dono, 10/11/2026: "esses botões feios"); aqui só o botão e o que está ligado */}
+          <button type="button" onClick={() => setFiltrosAbertos(true)} disabled={editando !== null} aria-haspopup="dialog" aria-expanded={filtrosAbertos}
+            aria-label={filtrosLigados.length > 0 ? `Filtrar (${filtrosLigados.length} ligado${filtrosLigados.length > 1 ? 's' : ''})` : 'Filtrar'}
+            className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro disabled:opacity-50">
+            <IconeFiltro />Filtrar{filtrosLigados.length > 0 && <span className="rounded-full bg-azul px-1.5 text-xs text-white">{filtrosLigados.length}</span>}
+          </button>
+        </div>
+        {filtrosLigados.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-2" aria-label="Filtros ligados">
+            {filtrosLigados.map((f) => (
+              <li key={f.chave}>
+                <button type="button" onClick={f.tirar} aria-label={`Tirar o filtro ${f.rotulo}`}
+                  className="inline-flex min-h-9 items-center gap-1 rounded-full bg-azul-claro px-3 text-xs font-semibold text-marinho hover:ring-1 hover:ring-azul">
+                  {f.rotulo}<span aria-hidden="true">×</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      {resumo && (
-        <div className="mb-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
-          {/* celular: uma linha por total (rótulo à esquerda, valor à direita); a partir de sm: três painéis */}
-          <Card semPadding className={totalCard}><p className={totalRotulo}>Receitas pagas</p><p className={`${totalValor} text-lucro`}>+{formatBRL(resumo.receitas)}</p></Card>
-          <Card semPadding className={totalCard}><p className={totalRotulo}>Despesas pagas</p><p className={`${totalValor} text-neutro`}>−{formatBRL(resumo.despesas)}</p></Card>
-          <Card semPadding className={totalCard}>
-            <p className={totalRotulo}>Resultado do mês</p>
-            <div className="min-w-0 text-right sm:text-left">
-              <p className={`${totalValor} ${corDoValor(resumo.resultado)}`}>{formatBRL(resumo.resultado)}</p>
-              {(resumo.receitasPrevistas > 0 || resumo.despesasPrevistas > 0) && (
-                // cada valor é indivisível (nowrap) e a linha quebra entre eles: no celular o valor nunca fica cortado
-                <p className="mt-1 flex flex-wrap justify-end gap-x-1.5 text-xs text-agendado sm:justify-start">
-                  <span>Planejado:</span>
-                  <span className="whitespace-nowrap">+{formatBRL(resumo.receitasPrevistas)}</span>
-                  <span aria-hidden="true">/</span>
-                  <span className="whitespace-nowrap">−{formatBRL(resumo.despesasPrevistas)}</span>
-                </p>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
       <ResultadoEmOutrasMoedas porMoeda={porMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
 
       {movimentosDivida.length > 0 && (
@@ -338,19 +354,25 @@ export default function Lancamentos() {
       )}
 
 
-      {/* Filtros só com o formulário fechado: criar/editar ocupa o foco e "Novo lançamento" não deve mostrar filtro.
-          Tipo vem antes da categoria porque ele decide quais categorias existem (receita × despesa; transferência não tem). */}
-      {editando === null && (
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
-          <Selecao rotulo="Filtrar por conta" valor={filtros.contaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, contaId: v || undefined })}
-            opcoes={contas.map((c) => [c.id, c.nome])} todos="Todas as contas" />
-          <Selecao rotulo="Filtrar por tipo" valor={filtros.tipo ?? ''} aoMudar={mudarTipoDoFiltro}
-            opcoes={Object.entries(rotuloTipo)} todos="Todos os tipos" />
-          <Selecao rotulo="Filtrar por categoria" valor={filtros.categoriaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, categoriaId: v || undefined })}
-            opcoes={opcoesDeCategoria(categoriasDoFiltro, categorias).map((o) => [o.id, filtros.tipo ? o.rotulo : `${o.rotulo} (${categorias.find((c) => c.id === o.id)?.tipo === 'income' ? 'receita' : 'despesa'})`])}
-            todos={filtros.tipo === 'transfer' ? 'Transferência não tem categoria' : 'Todas as categorias'}
-            desabilitado={filtros.tipo === 'transfer'} />
-        </div>
+      {/* Tipo vem antes da categoria porque ele decide quais categorias existem (receita × despesa; transferência não tem).
+          Os filtros valem na hora; o botão só fecha a folha. */}
+      {filtrosAbertos && editando === null && (
+        <Folha titulo="Filtrar lançamentos" aoFechar={() => setFiltrosAbertos(false)}
+          rodape={<>
+            <Button variante="fantasma" onClick={() => setFiltros({})} disabled={filtrosLigados.length === 0}>Limpar filtros</Button>
+            <Button onClick={() => setFiltrosAbertos(false)}>Ver lançamentos</Button>
+          </>}>
+          <div className="grid gap-3">
+            <Selecao rotulo="Filtrar por conta" valor={filtros.contaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, contaId: v || undefined })}
+              opcoes={contas.map((c) => [c.id, c.nome])} todos="Todas as contas" />
+            <Selecao rotulo="Filtrar por tipo" valor={filtros.tipo ?? ''} aoMudar={mudarTipoDoFiltro}
+              opcoes={Object.entries(rotuloTipo)} todos="Todos os tipos" />
+            <Selecao rotulo="Filtrar por categoria" valor={filtros.categoriaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, categoriaId: v || undefined })}
+              opcoes={opcoesDeCategoria(categoriasDoFiltro, categorias).map((o) => [o.id, filtros.tipo ? o.rotulo : `${o.rotulo} (${categorias.find((c) => c.id === o.id)?.tipo === 'income' ? 'receita' : 'despesa'})`])}
+              todos={filtros.tipo === 'transfer' ? 'Transferência não tem categoria' : 'Todas as categorias'}
+              desabilitado={filtros.tipo === 'transfer'} />
+          </div>
+        </Folha>
       )}
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
@@ -528,7 +550,22 @@ export default function Lancamentos() {
           </Button>
         </div>
       )}
+
+      <RodapeLancamentos realizado={totais === undefined ? undefined : totais?.realizado ?? null}
+        previsto={totais === undefined ? undefined : totais?.previsto ?? null}
+        aviso={filtros.tipo || filtros.categoriaId ? 'Os totais seguem só o filtro de conta (não o de tipo nem o de categoria).' : undefined}
+        // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
+        acao={<MenuNovo desabilitado={contas.length === 0} aoEscolher={(t) => { setInicial(t); setEditando('novo') }} />} />
     </>
+  )
+}
+
+/** Ícone do botão Filtrar (dois controles deslizantes), no traço dos ícones do menu. */
+function IconeFiltro() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
+    </svg>
   )
 }
 
@@ -1189,7 +1226,7 @@ const PERIODOS: { chave: string; rotulo: string; unidade: 'month' | 'week' | 'da
 
 const ATALHOS: Record<string, InicialForm> = { d: 'expense', r: 'income', t: 'transfer', c: 'cartao' }
 
-/** "+ Lançamento": menu com os quatro tipos e a tecla de atalho de cada um. */
+/** Botão flutuante "+" (pedido do dono, 10/11/2026, como no Organizze): menu com os quatro tipos e a tecla de atalho de cada um. */
 function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscolher: (t: InicialForm) => void }) {
   const [aberto, setAberto] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -1206,12 +1243,16 @@ function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscol
   ]
   return (
     <div className="relative" ref={ref}>
-      <Button onClick={() => setAberto((v) => !v)} disabled={desabilitado} aria-haspopup="menu" aria-expanded={aberto}>+ Lançamento</Button>
+      <button type="button" onClick={() => setAberto((v) => !v)} disabled={desabilitado} aria-haspopup="menu" aria-expanded={aberto}
+        aria-label="Novo lançamento" title="Novo lançamento (teclas D, R, T, C)"
+        className="flex h-14 w-14 items-center justify-center rounded-full bg-azul text-3xl font-light leading-none text-white shadow-card hover:bg-marinho focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul disabled:cursor-not-allowed disabled:opacity-50">
+        <span aria-hidden="true">+</span>
+      </button>
       {aberto && (
-        <div role="menu" aria-label="Novo lançamento" className="absolute left-0 z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-marinho p-2 shadow-card sm:left-auto sm:right-0">
+        <div role="menu" aria-label="Novo lançamento" className="absolute bottom-full right-0 z-40 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-marinho p-2 shadow-card">
           {itens.map(([t, rotulo, tecla]) => (
             <button key={t} type="button" role="menuitem"
-              // o foco volta ao "+ Lançamento" antes do painel abrir: o painel o guarda como origem e o devolve ao fechar
+              // o foco volta ao "+" antes do painel abrir: o painel o guarda como origem e o devolve ao fechar
               onClick={() => { setAberto(false); ref.current?.querySelector<HTMLButtonElement>('button')?.focus(); aoEscolher(t) }}
               className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm font-semibold text-white hover:bg-white/10">
               {rotulo}
