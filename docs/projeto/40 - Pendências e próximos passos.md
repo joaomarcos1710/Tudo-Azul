@@ -574,5 +574,5 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Dívidas pequenas (10/11/2026, #288)
 - [x] Linha do tempo em dia: 78 PRs que faltavam desde 28/10, do histórico do `main`.
 - [x] Numeração das migrations: tabela da 078 à 102 em `21 - Banco de dados`; a próxima é a 103; o nome do arquivo é o identificador oficial.
-- [ ] **Proteção contra senha vazada** (Supabase Auth): desligada, o Security Advisor ainda aponta em 10/11/2026. Só o dono liga, no painel do Supabase (Authentication → Sign In / Providers → Email → "Prevent use of leaked passwords"; pode exigir plano Pro).
+- [x] **Proteção contra senha vazada** (Supabase Auth): **risco aceito** em 10/11/2026. O painel recusou ligar ("available on Pro Plans and up"); o projeto está no plano gratuito. Ver `30 - Decisões`. Compensação gratuita: senha mínima de 12 caracteres com letras maiúsculas, minúsculas, números e símbolos (Authentication → Sign In / Providers → Email), configurada pelo dono. Rever se o projeto for para o Pro.
 - [ ] O Security Advisor também lista 77 funções SECURITY DEFINER executáveis por usuário logado: é o desenho do app (cada uma confere a família) e já foi decidido na #234; não é pendência nova.
