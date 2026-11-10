@@ -54,25 +54,33 @@ export async function carregarPatrimonio(familiaId: string, dataRef: string): Pr
   }
 }
 
-/** Próximos lançamentos e parcelas planejadas a partir de hoje. */
-export async function proximosPlanejados(familiaId: string, deData: string, limite = 5): Promise<ProximoPlanejado[]> {
+/**
+ * Próximos lançamentos e parcelas planejadas a partir de hoje.
+ * Com `tipo` ('income' = a receber, 'expense' = a pagar) o filtro e o limite valem para aquele tipo, na mesma regra dos
+ * avisos do topo (home_alerts): parcela de dívida é sempre saída, então só entra em 'expense'; transferência não entra
+ * em nenhum dos dois. Sem `tipo`, devolve tudo misturado, como antes.
+ */
+export async function proximosPlanejados(
+  familiaId: string, deData: string, limite = 5, tipo?: 'income' | 'expense',
+): Promise<ProximoPlanejado[]> {
   const db = cliente()
+  const consultaLancamentos = db.from('transactions')
+    .select('id, type, description, amount, date, category_id, account_id, destination_account_id')
+    .eq('household_id', familiaId)
+    .eq('status', 'planned')
+    .is('deleted_at', null)
+    .gte('date', deData)
   const [lancamentos, agenda] = await Promise.all([
-    db.from('transactions')
-      .select('id, type, description, amount, date, category_id, account_id, destination_account_id')
-      .eq('household_id', familiaId)
-      .eq('status', 'planned')
-      .is('deleted_at', null)
-      .gte('date', deData)
-      .order('date')
-      .limit(limite),
-    db.from('debt_payment_schedule')
-      .select('id, debt_id, installment_number, due_date, amount')
-      .eq('household_id', familiaId)
-      .eq('status', 'planned')
-      .gte('due_date', deData)
-      .order('due_date')
-      .limit(limite),
+    (tipo ? consultaLancamentos.eq('type', tipo) : consultaLancamentos).order('date').limit(limite),
+    tipo === 'income'
+      ? Promise.resolve({ data: [] as { id: string; debt_id: string; installment_number: number; due_date: string; amount: number | string }[], error: null })
+      : db.from('debt_payment_schedule')
+        .select('id, debt_id, installment_number, due_date, amount')
+        .eq('household_id', familiaId)
+        .eq('status', 'planned')
+        .gte('due_date', deData)
+        .order('due_date')
+        .limit(limite),
   ])
   if (lancamentos.error) throw lancamentos.error
   // Compatibilidade durante deploy gradual do front e da migration 038.

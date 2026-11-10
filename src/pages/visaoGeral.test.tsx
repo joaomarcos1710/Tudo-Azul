@@ -203,15 +203,14 @@ describe('Visão geral', () => {
       total: c(150000),
     })
 
-    it('próximos planejados: a transferência mostra "De → Para" com o nome (e a logo) de cada conta', async () => {
+    it('transferência planejada não entra em "a receber" nem em "a pagar" (mesma regra dos avisos do topo)', async () => {
       contasComNubank()
       mock.proximosPlanejados.mockResolvedValue([
-        { id: 't9', tipo: 'transfer', descricao: 'Reserva', valor: c(30000), data: '2026-10-20', categoriaId: null, contaId: 'a1', destinoId: 'a3' },
+        { id: 't9', tipo: 'transfer', descricao: 'ReservaXYZ', valor: c(30000), data: '2026-10-20', categoriaId: null, contaId: 'a1', destinoId: 'a3' },
       ])
       montar()
-      const item = (await screen.findByText(/Reserva/)).closest('li')!
-      expect(item.textContent).toMatch(/De\s*Itaú\s*→\s*Para\s*Nubank/)
-      expect(item.querySelectorAll('[data-banco], img, svg').length).toBeGreaterThan(0)
+      await screen.findByText('Despesas a pagar')
+      expect(screen.queryByText(/ReservaXYZ/)).toBeNull()
     })
 
     it('vencidos: a transferência também mostra De → Para', async () => {
@@ -224,12 +223,14 @@ describe('Visão geral', () => {
       expect(item.textContent).toMatch(/De\s*Nubank\s*→\s*Para\s*Itaú/)
     })
 
-    it('conta arquivada aparece com o nome dela; só conta desconhecida vira "outra conta"', async () => {
+    it('conta arquivada aparece com o nome dela; só conta desconhecida vira "outra conta" (nos vencidos)', async () => {
       contasComNubank()
-      mock.proximosPlanejados.mockResolvedValue([
-        { id: 't8', tipo: 'transfer', descricao: 'Saque', valor: c(5000), data: '2026-10-21', categoriaId: null, contaId: 'a1', destinoId: 'a2' },
-        { id: 't7', tipo: 'transfer', descricao: 'Sumida', valor: c(5000), data: '2026-10-22', categoriaId: null, contaId: 'a1', destinoId: 'zz' },
-      ])
+      mock.vencidosPlanejados.mockResolvedValue({
+        itens: [
+          { id: 'v8', tipo: 'transfer', descricao: 'Saque', valor: c(5000), data: '2026-10-01', categoriaId: null, contaId: 'a1', destinoId: 'a2' },
+          { id: 'v7', tipo: 'transfer', descricao: 'Sumida', valor: c(5000), data: '2026-10-02', categoriaId: null, contaId: 'a1', destinoId: 'zz' },
+        ], total: 2,
+      })
       montar()
       expect((await screen.findByText(/Saque/)).closest('li')!.textContent).toMatch(/De\s*Itaú\s*→\s*Para\s*Antiga/)
       expect(screen.getByText(/Sumida/).closest('li')!.textContent).toMatch(/Para\s*outra conta/)
@@ -302,7 +303,7 @@ describe('Visão geral', () => {
     expect(await screen.findByText('Comparação com o ano passado')).toBeTruthy()
     soltarInicio({ contas: [], total: c(0) })
     await new Promise((r) => setTimeout(r, 20))
-    expect(screen.queryByText('Próximos planejados')).toBeNull()
+    expect(screen.queryByText('Despesas a pagar')).toBeNull()
     expect(screen.getByText('Comparação com o ano passado')).toBeTruthy()
   })
   it('mostra a equação do patrimônio com os valores do banco', async () => {
@@ -341,7 +342,7 @@ describe('Visão geral', () => {
     gerar.mockRejectedValue(new Error('x'))
     render(<MemoryRouter><VisaoGeral /></MemoryRouter>)
     expect(await screen.findByText(/Não foi possível lançar os recorrentes/)).toBeTruthy()
-    expect(screen.getByText('Próximos planejados')).toBeTruthy() // o Início segue de pé mesmo com o aviso
+    expect(screen.getByText('Despesas a pagar')).toBeTruthy() // o Início segue de pé mesmo com o aviso
     expect(cobrar).toHaveBeenCalled() // uma falha não impede a outra
   })
   it('se a cobrança das faturas falhar, mostra aviso e mantém o painel', async () => {
@@ -503,12 +504,12 @@ describe('Visão geral', () => {
 
   it('sem vencidos, a seção não aparece; se a consulta falhar, o resto do painel aparece', async () => {
     montar()
-    await screen.findByText('Próximos planejados')
+    await screen.findByText('Despesas a pagar')
     expect(screen.queryByText('Vencidos e precisam de atenção')).toBeNull()
     cleanup()
     mock.vencidosPlanejados.mockRejectedValue(new Error('x'))
     montar()
-    expect(await screen.findByText('Próximos planejados')).toBeTruthy() // o Início segue de pé com a consulta de vencidos falhando
+    expect(await screen.findByText('Despesas a pagar')).toBeTruthy() // o Início segue de pé com a consulta de vencidos falhando
     // mas avisa: sem aviso, "Vencidos" ausente pareceria "nada vencido"
     expect(screen.getByRole('alert').textContent).toMatch(/Não foi possível verificar agora os vencidos/)
   })
@@ -791,7 +792,7 @@ describe('Visão geral', () => {
     expect(faixa.compareDocumentPosition(vencidos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('Início em duas colunas: contas, investimentos e dívidas à esquerda; cartões e próximos planejados à direita; últimos lançamentos largo', async () => {
+  it('Início em duas colunas: contas, investimentos e dívidas à esquerda; cartões, receitas a receber e despesas a pagar à direita; últimos lançamentos largo', async () => {
     montar()
     await screen.findByText('Minhas contas')
     const esquerda = document.querySelector('[data-coluna="esquerda"]') as HTMLElement
@@ -802,13 +803,71 @@ describe('Visão geral', () => {
     expect(within(esquerda).getByText('Meus investimentos')).toBeTruthy()
     expect(within(esquerda).getByText('Empréstimos e dívidas')).toBeTruthy()
     expect(within(direita).getByText('Cartões')).toBeTruthy()
-    expect(within(direita).getByText('Próximos planejados')).toBeTruthy()
+    expect(within(direita).getByText('Receitas a receber')).toBeTruthy()
+    expect(within(direita).getByText('Despesas a pagar')).toBeTruthy()
     // "Últimos lançamentos" ocupa as duas colunas: fica fora das duas
     const ultimos = screen.getByText('Últimos lançamentos')
     expect(esquerda.contains(ultimos) || direita.contains(ultimos)).toBe(false)
     // nada trocou de lugar para baixo da faixa de indicadores
     const faixa = screen.getByRole('region', { name: 'Indicadores do mês' })
     expect(faixa.compareDocumentPosition(esquerda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  describe('Receitas a receber e Despesas a pagar (etapa 2 do painel)', () => {
+    const item = (id: string, tipo: 'income' | 'expense' | 'transfer', descricao: string, valor: number, data = '2026-10-20') =>
+      ({ id, tipo, descricao, valor: c(valor), data, categoriaId: null, contaId: null, destinoId: null })
+    const card = (titulo: string) => screen.getByText(titulo).closest('div[class*="rounded"]') as HTMLElement
+
+    it('cada lista é pedida ao banco com o seu tipo e o limite de 10; entrada só em "a receber", saída só em "a pagar"', async () => {
+      mock.proximosPlanejados.mockImplementation(async (_f: string, _h: string, _l: number, tipo?: string) =>
+        tipo === 'income' ? [item('r1', 'income', 'Salário', 500000)] : [item('d1', 'expense', 'Internet', 12000)])
+      montar()
+      await screen.findByText('Salário')
+      expect(mock.proximosPlanejados).toHaveBeenCalledWith(expect.anything(), expect.any(String), 10, 'income')
+      expect(mock.proximosPlanejados).toHaveBeenCalledWith(expect.anything(), expect.any(String), 10, 'expense')
+      expect(within(card('Receitas a receber')).getByText('Salário')).toBeTruthy()
+      expect(within(card('Receitas a receber')).queryByText('Internet')).toBeNull()
+      expect(within(card('Despesas a pagar')).getByText('Internet')).toBeTruthy()
+      expect(within(card('Despesas a pagar')).queryByText('Salário')).toBeNull()
+      // valor com sinal e cor do tipo: receita +, despesa −
+      expect(within(card('Receitas a receber')).getByText(/^\+/).className).toMatch(/text-lucro/)
+      expect(within(card('Despesas a pagar')).getByText(/^−/).className).toMatch(/text-prejuizo/)
+    })
+
+    it('mesmo que o banco devolva misturado, cada lista só mostra o seu tipo (e transferência some)', async () => {
+      mock.proximosPlanejados.mockResolvedValue([
+        item('r1', 'income', 'Salário', 500000), item('d1', 'expense', 'Internet', 12000), item('t1', 'transfer', 'ReservaABC', 3000),
+      ])
+      montar()
+      await screen.findByText('Salário')
+      expect(within(card('Receitas a receber')).queryByText('Internet')).toBeNull()
+      expect(within(card('Despesas a pagar')).queryByText('Salário')).toBeNull()
+      expect(screen.queryByText(/ReservaABC/)).toBeNull()
+    })
+
+    it('mostra 5 e abre o resto com "Ver mais", que vira "Ver menos"', async () => {
+      const sete = Array.from({ length: 7 }, (_, i) => item(`d${i}`, 'expense', `Conta ${i + 1}`, 1000 * (i + 1), `2026-10-${String(20 + i).padStart(2, '0')}`))
+      mock.proximosPlanejados.mockImplementation(async (_f: string, _h: string, _l: number, tipo?: string) => (tipo === 'expense' ? sete : []))
+      montar()
+      await screen.findByText('Conta 1')
+      const pagar = () => within(card('Despesas a pagar'))
+      expect(pagar().getAllByRole('listitem')).toHaveLength(5)
+      expect(pagar().queryByText('Conta 6')).toBeNull()
+      fireEvent.click(pagar().getByRole('button', { name: 'Ver mais (2)' }))
+      expect(pagar().getAllByRole('listitem')).toHaveLength(7)
+      expect(pagar().getByText('Conta 7')).toBeTruthy()
+      fireEvent.click(pagar().getByRole('button', { name: 'Ver menos' }))
+      expect(pagar().getAllByRole('listitem')).toHaveLength(5)
+      // com 5 ou menos itens não há botão
+      expect(within(card('Receitas a receber')).queryByRole('button')).toBeNull()
+    })
+
+    it('sem itens, cada lista diz que não há nada planejado', async () => {
+      mock.proximosPlanejados.mockResolvedValue([])
+      montar()
+      expect(await screen.findByText('Nenhuma receita planejada a partir de hoje.')).toBeTruthy()
+      expect(screen.getByText('Nenhuma despesa planejada a partir de hoje.')).toBeTruthy()
+    })
   })
 
   it('Análises: patrimônio e saldo mês a mês em dois gráficos, com tabela dos valores do banco', async () => {
@@ -849,7 +908,7 @@ describe('Visão geral', () => {
     expect(mock.evolucaoPatrimonio).toHaveBeenCalledTimes(2)
     cleanup(); mock.evolucaoPatrimonio.mockClear()
     montar()
-    await screen.findByText('Próximos planejados')
+    await screen.findByText('Despesas a pagar')
     expect(mock.evolucaoPatrimonio).not.toHaveBeenCalled()
   })
 
@@ -1048,7 +1107,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
     mock.carregarIndicadores.mockRejectedValue(new Error('rede'))
     montar()
     expect(await screen.findByText('Indicadores indisponíveis agora. O resto do Início continua.')).toBeTruthy()
-    expect(screen.getByText('Próximos planejados')).toBeTruthy()
+    expect(screen.getByText('Despesas a pagar')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -1063,7 +1122,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
 describe('Início × Análises: cada seção mostra só os seus blocos', () => {
   it('Início mostra a faixa de indicadores, sem os blocos detalhados de Análises', async () => {
     montar()
-    await screen.findByText('Próximos planejados')
+    await screen.findByText('Despesas a pagar')
     expect(screen.getByRole('region', { name: 'Indicadores do mês' })).toBeTruthy()
     expect(screen.getByText('Patrimônio total')).toBeTruthy()
     expect(screen.queryByText('Entradas do mês')).toBeNull()
@@ -1086,7 +1145,7 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     expect(screen.queryByRole('link', { name: 'Despesa' })).toBeNull()
     expect(screen.queryByText('Vencidos e precisam de atenção')).toBeNull()
     expect(screen.queryByText('Nubank')).toBeNull()
-    expect(screen.queryByText('Próximos planejados')).toBeNull()
+    expect(screen.queryByText('Despesas a pagar')).toBeNull()
     expect(screen.queryByText('Contas')).toBeNull()
     // e o Início continua com tudo isso
     cleanup()
@@ -1099,7 +1158,7 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     mock.carregarIndicadores.mockRejectedValue(new Error('rede'))
     mock.resumoDoMes.mockRejectedValue(new Error('rede'))
     montar()
-    expect(await screen.findByText('Próximos planejados')).toBeTruthy()
+    expect(await screen.findByText('Despesas a pagar')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
     expect(mock.carregarIndicadores).toHaveBeenCalled()
     expect(mock.resumoDoMes).toHaveBeenCalled()

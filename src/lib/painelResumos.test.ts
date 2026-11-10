@@ -10,7 +10,7 @@ const fake = vi.hoisted(() => {
   function from(tabela: string) {
     const b: Record<string, unknown> = {}
     const eq: Record<string, unknown> = {}
-    for (const op of ['select', 'eq', 'is', 'lt', 'in', 'order', 'limit']) {
+    for (const op of ['select', 'eq', 'is', 'lt', 'gte', 'in', 'order', 'limit']) {
       b[op] = (...args: unknown[]) => { e.filtros.push({ tabela, op, args }); if (op === 'eq') eq[args[0] as string] = args[1]; return b }
     }
     b.then = (ok: (r: unknown) => unknown) => {
@@ -24,12 +24,35 @@ const fake = vi.hoisted(() => {
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
 import { resumoDosCartoes } from './cartoes'
-import { EVOLUCAO_EM_VOO, evolucaoPatrimonio, vencidosPlanejados } from './painel'
+import { EVOLUCAO_EM_VOO, evolucaoPatrimonio, proximosPlanejados, vencidosPlanejados } from './painel'
 
 beforeEach(() => {
   fake.e.tabelas = {}
   fake.e.rpc = {}
   fake.e.filtros = []
+})
+
+describe('proximosPlanejados por tipo (Receitas a receber / Despesas a pagar)', () => {
+  const eqs = (tabela: string) => fake.e.filtros.filter((x) => x.tabela === tabela && x.op === 'eq').map((x) => x.args)
+
+  it('"income" filtra receitas no banco e nem consulta o cronograma de dívidas (parcela é sempre despesa)', async () => {
+    await proximosPlanejados('h1', '2026-10-25', 10, 'income')
+    expect(eqs('transactions')).toContainEqual(['type', 'income'])
+    expect(eqs('transactions')).toContainEqual(['status', 'planned'])
+    expect(fake.e.filtros.some((x) => x.tabela === 'debt_payment_schedule')).toBe(false)
+  })
+
+  it('"expense" filtra despesas no banco e continua incluindo as parcelas de dívida', async () => {
+    await proximosPlanejados('h1', '2026-10-25', 10, 'expense')
+    expect(eqs('transactions')).toContainEqual(['type', 'expense'])
+    expect(fake.e.filtros.some((x) => x.tabela === 'debt_payment_schedule')).toBe(true)
+  })
+
+  it('sem tipo, nada muda: sem filtro de type e com o cronograma', async () => {
+    await proximosPlanejados('h1', '2026-10-25', 5)
+    expect(eqs('transactions').some(([c]) => c === 'type')).toBe(false)
+    expect(fake.e.filtros.some((x) => x.tabela === 'debt_payment_schedule')).toBe(true)
+  })
 })
 
 describe('vencidosPlanejados', () => {
