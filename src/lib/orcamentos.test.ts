@@ -39,8 +39,15 @@ describe('listarOrcamentos', () => {
     // o "restante" (limite − gasto) vem do banco (budget_usage.remaining): a tela não faz essa conta
     fake.e.rpc.budget_usage = { data: [{ category_id: 'c1', remaining: '700.00' }], error: null }
     const r = await listarOrcamentos('h1', '2026-10', '2026-10-10')
-    expect(r).toEqual([{ categoriaId: 'c1', nome: 'Mercado', limite: 100000, gasto: 30000, previsto: 20000, ritmo: 63000, projetado: 113000, sobra: -13000, restante: 70000 }])
+    expect(r).toEqual([{ categoriaId: 'c1', nome: 'Mercado', limite: 100000, gasto: 30000, previsto: 20000, cartaoLancado: null, ritmo: 63000, projetado: 113000, sobra: -13000, restante: 70000 }])
     expect(fake.e.chamadas[0]).toMatchObject({ op: 'rpc:budget_projection', payload: { p_household: 'h1', p_month: '2026-10-01', p_today: '2026-10-10' } })
+  })
+
+  it('com a migration 101, lê o cartão lançado e a pagar à parte (planned_card), em centavos', async () => {
+    fake.e.rpc.budget_projection = { data: [{ ...linhaProj, planned_card: '150.25' }], error: null }
+    fake.e.rpc.budget_usage = { data: [{ category_id: 'c1', remaining: '700.00' }], error: null }
+    const r = await listarOrcamentos('h1', '2026-10', '2026-10-10')
+    expect(r[0]).toMatchObject({ previsto: 20000, cartaoLancado: 15025 })
   })
 
   it('banco ainda sem a projeção (migration 013): cai para budget_usage, só com o gasto', async () => {
