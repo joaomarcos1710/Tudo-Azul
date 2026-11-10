@@ -481,3 +481,12 @@ O dono autorizou o `EXPLAIN (ANALYZE, BUFFERS)` em produção e a investigação
 - **Adiado de propósito:** reescrever `private.card_months_as_of` (3 subconsultas por parcela, ~120 ms por cartão). É a conta oficial da fatura e acabou de passar pelas 4 etapas da recorrência; só com medição por dentro e comparação linha a linha.
 - **Corrida corrigida junto:** `invalidarDadosHome` durante a primeira carga não refazia a leitura (o TanStack reaproveita a busca em curso quando ainda não há dado). Agora cancela a primeira carga em andamento e lê de novo.
 
+## 10/11/2026 — Início enxuto; o resto vai para Análises (dono)
+
+Pedido do dono, com prazo de uso em 20/11/2026: o Início fica só com **Minha Carteira** (ele escolheu manter o topo inteiro: cabeçalho, Dinheiro Livre, atalhos e os 7 indicadores), **Minhas contas**, **Meus cartões**, **Maiores gastos**, **Receitas a receber** e **Despesas a pagar** ("receitas a pagar" lido como despesas a pagar). "O restante realoca": ele escolheu **Análises** como destino.
+
+- **Foram para Análises:** os avisos do topo, "Vencidos e precisam de atenção", "Orçamentos do mês" e "Últimos lançamentos". Análises passa a consultar o que eles precisam (contas para nomear as pontas de transferência, lançamentos, categorias, vencidos, orçamentos e avisos), cada consulta opcional: se uma falhar, só o bloco dela some, e o aviso de vencidos indisponíveis continua.
+- **Saíram sem destino:** "Meus investimentos" e "Empréstimos e dívidas" do Início, que eram só um texto "será integrado nas próximas etapas" e um link para a tela completa (os dois estão na barra lateral). Os atalhos de Investimentos e Dívidas do topo saíram junto (apontavam para esses cartões).
+- **Risco aceito:** os avisos de vencidos e de faturas deixam de estar na primeira tela que o dono vê. Se ele sentir falta, a alternativa barata é voltar só a faixa de avisos ao Início.
+- **Efeito colateral bom:** o Início deixa de fazer 4 consultas (vencidos, avisos, orçamentos e lançamentos), inclusive `home_alerts`, uma das mais pesadas.
+

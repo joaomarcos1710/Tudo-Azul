@@ -106,7 +106,8 @@ interface Dados {
   /** Início: os 7 indicadores do topo (home_indicators, migration 071); null = não carregou ou é Análises. */
   indicadores: Indicadores | null
   decisao: HomeDecisao | null
-  ultimos: Lancamento[]
+  /** Análises: últimos lançamentos pagos do mês; null = não carregou (o bloco some) ou é o Início. */
+  ultimos: Lancamento[] | null
   nomeCategoria: Map<string, string>
   categoriaPorId: Map<string, Categoria>
 }
@@ -244,8 +245,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         ? Promise.all([
             // essenciais do Início: se falharem, a tela inteira avisa o erro
             listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'income'), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'expense'),
-            listarLancamentos(familiaId, mes), listarCategorias(familiaId),
-            opcional('vencidosPlanejados', vencidosPlanejados(familiaId, hoje, 5)), opcional('resumoDosCartoes', resumoDosCartoes(familiaId, hoje)),
+            listarCategorias(familiaId),
+            opcional('resumoDosCartoes', resumoDosCartoes(familiaId, hoje)),
             opcional('totalFaturasDoMes', totalFaturasDoMes(familiaId, mes)),
             // a faixa de indicadores do topo (#188): os 7 números numa chamada só, calculados no banco
             indicadoresDoTopo,
@@ -253,18 +254,18 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             // receita e despesa do mês, com o que ainda vai entrar e sair: só no cabeçalho
             opcional('resumoDoMes', resumoDoMes(familiaId, mes)),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
-            opcional('saldosProjetados', saldosProjetados(familiaId, ate, true)), opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)),
-            opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)), opcional('avisosDoInicio', avisosDoInicio(familiaId, hoje)),
+            opcional('saldosProjetados', saldosProjetados(familiaId, ate, true)),
+            opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)),
             // maiores gastos: as 4 maiores categorias + "Outros" (somado no banco), na base de cartão escolhida em Análises
             opcional('despesasPorCategoria', despesasPorCategoria(familiaId, de, ate, 4, baseCartaoRef.current)),
-          ]).then(([c, entradas, saidas, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, orcamentos, mesPorMoeda, avisos, maioresGastos]): Dados => ({
+          ]).then(([c, entradas, saidas, cats, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, mesPorMoeda, maioresGastos]): Dados => ({
             patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores, decisao,
             categorias: maioresGastos, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], vencidos, cartoes, faturasDoMes,
+            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], vencidos: null, cartoes, faturasDoMes,
             aReceber: entradas.filter((x) => x.tipo === 'income'), aPagar: saidas.filter((x) => x.tipo === 'expense'),
             saldoPrevisto: projetado?.total ?? null, balanco: null,
-            orcamentos, avisos,
-            ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
+            orcamentos: null, avisos: null,
+            ultimos: null,
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
           }))
@@ -291,9 +292,15 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional('fluxoDeCaixa', fluxoDeCaixa(familiaId, limitesDoMes(somarMeses(mes, -5))[0], ate, 'month').then((f): MesBalanco[] => f.linhas.map((l) => ({
               mes: l.inicio.slice(0, 7), receitas: l.entradas, despesas: l.saidas, resultado: l.saldo,
             })))),
-          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, porMoeda, mesPorMoeda, balanco]): Dados => ({
+            // blocos que saíram do Início (pedido do dono, 10/11/2026) e moraram aqui: avisos, vencidos, orçamentos e últimos lançamentos
+            opcional('listarContas', listarContas(familiaId, hoje)), opcional('vencidosPlanejados', vencidosPlanejados(familiaId, hoje, 5)),
+            opcional('listarLancamentos', listarLancamentos(familiaId, mes)), opcional('listarCategorias', listarCategorias(familiaId)),
+            opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)), opcional('avisosDoInicio', avisosDoInicio(familiaId, hoje)),
+          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, porMoeda, mesPorMoeda, balanco, contasTodas, vencidos, lancs, cats, orcamentos, avisos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], aReceber: [], aPagar: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, decisao: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: contasTodas?.contas ?? [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], aReceber: [], aPagar: [], vencidos, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos, avisos, indicadores: null, decisao: null,
+            ultimos: lancs ? lancs.filter((l) => l.status === 'paid').slice(0, 6) : null,
+            nomeCategoria: cats ? nomesCompletos(cats) : new Map(), categoriaPorId: cats ? new Map(cats.map((x) => [x.id, x])) : new Map(),
           })))
   }
   const clienteConsultas = useQueryClient()
@@ -363,8 +370,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const comparadoAteHoje = `${mesAnteriorCurto} até dia ${Number(mesmoDiaMesAnterior(hoje).slice(8))}`
   return (
     <>
-      {/* avisos do topo (a receber, a pagar, fatura e vencidos): só aparecem quando há algo a dizer */}
-      {noInicio && dados.avisos && <AvisosInicio avisos={dados.avisos} hoje={hoje} />}
+      {/* avisos do topo (a receber, a pagar, fatura e vencidos): só aparecem quando há algo a dizer. Moraram no Início até 10/11/2026; o dono pediu o Início enxuto e eles foram para Análises */}
+      {!noInicio && dados.avisos && <AvisosInicio avisos={dados.avisos} hoje={hoje} />}
       {noInicio
         ? <CabecalhoInicio nome={nome} receitas={m?.receitas ?? null} despesas={m?.despesas ?? null}
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
@@ -389,17 +396,20 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </div>
       )}
 
-      {noInicio && (dados.vencidos === null || dados.cartoes === null) && (
-        // card que falhou não pode simplesmente sumir: sem aviso, "Vencidos" ausente parece "nada vencido"
+      {noInicio && dados.cartoes === null && (
+        // card que falhou não pode simplesmente sumir: sem aviso, "Cartões" ausente parece "nenhum cartão"
         <div className="mb-4">
-          <Aviso tipo="erro">
-            Não foi possível verificar agora {dados.vencidos === null && dados.cartoes === null ? 'os vencidos e os cartões' : dados.vencidos === null ? 'os vencidos' : 'os cartões'}.
-            Recarregue a página em instantes.
-          </Aviso>
+          <Aviso tipo="erro">Não foi possível verificar agora os cartões. Recarregue a página em instantes.</Aviso>
+        </div>
+      )}
+      {!noInicio && dados.vencidos === null && (
+        // sem aviso, "Vencidos" ausente parece "nada vencido"
+        <div className="mb-4">
+          <Aviso tipo="erro">Não foi possível verificar agora os vencidos. Recarregue a página em instantes.</Aviso>
         </div>
       )}
 
-      {noInicio && dados.vencidos && dados.vencidos.total > 0 && (
+      {!noInicio && dados.vencidos && dados.vencidos.total > 0 && (
         <Card id="vencidos" className="mb-4 scroll-mt-4 !border !border-prejuizo-borda">
           <CardTitle>Vencidos e precisam de atenção</CardTitle>
           <p className="mb-2 text-sm text-slate-600">
@@ -434,9 +444,9 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
 
       {noInicio && <div id="cartoes" className="scroll-mt-24" />}
       {noInicio && <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-        {/* No celular os dois blocos viram "display: contents" e cada cartão segue a ordem de sempre (order-*); no computador são duas colunas. */}
+        {/* No celular os dois blocos viram "display: contents" e cada cartão segue a ordem pedida pelo dono (10/11/2026: contas, cartões, maiores gastos, a receber, a pagar); no computador são duas colunas. */}
         <div data-coluna="esquerda" className="contents lg:block lg:space-y-4">
-          <Card id="contas" className="order-5 scroll-mt-24">
+          <Card id="contas" className="order-1 scroll-mt-24">
             <div className="flex items-start justify-between gap-3">
               <CardTitle>Minhas contas</CardTitle>
               {dados.saldoGeral !== null && dados.contas.length > 0 && (
@@ -482,20 +492,26 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               </div>
             )}
           </Card>
-          <Card id="investimentos" className="order-6 scroll-mt-24">
-            <CardTitle>Meus investimentos</CardTitle>
-            <p className="text-sm text-slate-500">A visão consolidada da carteira será integrada aqui nas próximas etapas. Seus ativos, operações e avaliações continuam disponíveis no módulo completo.</p>
-            <Link to="/investimentos" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Abrir investimentos</Link>
-          </Card>
-          <Card id="dividas" className="order-7 scroll-mt-24">
-            <CardTitle>Empréstimos e dívidas</CardTitle>
-            <p className="text-sm text-slate-500">O resumo dos contratos e compromissos será integrado aqui nas próximas etapas. Os saldos e pagamentos continuam disponíveis no módulo completo.</p>
-            <Link to="/dividas" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Abrir dívidas</Link>
-          </Card>
+          {dados.categorias && (
+            <Card className="order-3">
+              <div className="flex items-center justify-between">
+                <CardTitle>Maiores gastos</CardTitle>
+                <Link to="/analises" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver análises</Link>
+              </div>
+              {dados.categorias.length === 0 ? (
+                <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
+              ) : (
+                <>
+                  <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida em Análises'}.</p>
+                  <RoscaCategorias fatias={dados.categorias} mes={mes} />
+                </>
+              )}
+            </Card>
+          )}
         </div>
         <div data-coluna="direita" className="contents lg:block lg:space-y-4">
           {dados.cartoes && (
-            <Card className="order-1">
+            <Card className="order-2">
               <div className="flex items-center justify-between">
                 <CardTitle>Cartões</CardTitle>
                 <Link to="/cartoes" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver cartões</Link>
@@ -537,56 +553,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               </ul>}
             </Card>
           )}
-          {dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
-          {dados.categorias && (
-            <Card className="order-4">
-              <div className="flex items-center justify-between">
-                <CardTitle>Maiores gastos</CardTitle>
-                <Link to="/analises" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver análises</Link>
-              </div>
-              {dados.categorias.length === 0 ? (
-                <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
-              ) : (
-                <>
-                  <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida em Análises'}.</p>
-                  <RoscaCategorias fatias={dados.categorias} mes={mes} />
-                </>
-              )}
-            </Card>
-          )}
           <ListaPlanejada className="order-4" titulo="Receitas a receber" vazio="Nenhuma receita planejada a partir de hoje."
             itens={dados.aReceber} moedaDe={moedaDe} categoriaPorId={dados.categoriaPorId} />
-          <ListaPlanejada className="order-4" titulo="Despesas a pagar" vazio="Nenhuma despesa planejada a partir de hoje."
+          <ListaPlanejada className="order-5" titulo="Despesas a pagar" vazio="Nenhuma despesa planejada a partir de hoje."
             itens={dados.aPagar} moedaDe={moedaDe} categoriaPorId={dados.categoriaPorId} />
         </div>
-        <Card semPadding className="order-3 lg:col-span-2">
-          <div className="flex items-center justify-between px-5 pt-5">
-            <CardTitle>Últimos lançamentos</CardTitle>
-            <Link to="/lancamentos" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todos</Link>
-          </div>
-          {dados.ultimos.length === 0 ? (
-            <p className="px-5 pb-5 text-sm text-slate-500">Nenhum lançamento pago neste mês ainda.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {dados.ultimos.map((l) => (
-                <li key={l.id} className="flex items-center gap-3 px-5 py-3 text-sm">
-                  <span className="w-12 shrink-0 text-xs text-slate-500">{formatDate(l.data).slice(0, 5)}</span>
-                  <IconeDaLinha tipo={l.tipo} categoriaId={l.categoriaId} porId={dados.categoriaPorId} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{l.descricao || (l.tipo === 'income' ? 'Receita' : l.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
-                    {l.tipo === 'transfer' && <RotaTransferencia contaId={l.contaId} destinoId={l.destinoId} contas={dados.todasContas} />}
-                  </span>
-                  {l.categoriaId && (
-                    <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 sm:inline">{dados.nomeCategoria.get(l.categoriaId) ?? 'Sem categoria'}</span>
-                  )}
-                  <span className={`w-28 text-right tabular-nums font-semibold ${corDoTipo(l.tipo)}`}>
-                    {l.tipo === 'income' ? '+' : l.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(l.valor, moedaDe(l.contaId))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
       </div>}
 
 
@@ -776,6 +747,37 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </Card>
         )}
 
+        {dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
+        <Card semPadding className="lg:col-span-2">
+          <div className="flex items-center justify-between px-5 pt-5">
+            <CardTitle>Últimos lançamentos</CardTitle>
+            <Link to="/lancamentos" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todos</Link>
+          </div>
+          {dados.ultimos === null ? (
+            <p className="px-5 pb-5 text-sm text-slate-500" role="status">Últimos lançamentos indisponíveis agora.</p>
+          ) : dados.ultimos.length === 0 ? (
+            <p className="px-5 pb-5 text-sm text-slate-500">Nenhum lançamento pago neste mês ainda.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {dados.ultimos.map((l) => (
+                <li key={l.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+                  <span className="w-12 shrink-0 text-xs text-slate-500">{formatDate(l.data).slice(0, 5)}</span>
+                  <IconeDaLinha tipo={l.tipo} categoriaId={l.categoriaId} porId={dados.categoriaPorId} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{l.descricao || (l.tipo === 'income' ? 'Receita' : l.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
+                    {l.tipo === 'transfer' && <RotaTransferencia contaId={l.contaId} destinoId={l.destinoId} contas={dados.todasContas} />}
+                  </span>
+                  {l.categoriaId && (
+                    <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 sm:inline">{dados.nomeCategoria.get(l.categoriaId) ?? 'Sem categoria'}</span>
+                  )}
+                  <span className={`w-28 text-right tabular-nums font-semibold ${corDoTipo(l.tipo)}`}>
+                    {l.tipo === 'income' ? '+' : l.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(l.valor, moedaDe(l.contaId))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </div>}
     </>
   )
