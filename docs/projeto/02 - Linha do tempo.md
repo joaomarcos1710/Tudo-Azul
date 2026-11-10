@@ -285,6 +285,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#292** (10/11/2026): Amortização extra reduz o prazo ou a parcela, como o banco informou (migration 103, ainda não aplicada).
 - **#293** (10/11/2026): Contas: nova conta, editar e excluir abrem num painel por cima da lista.
 - **#294** (10/11/2026): Investimentos: aporte, resgate e avaliação só pelo valor (migration 104, ainda não aplicada).
+- **#295** (10/11/2026): Venda de investimento não deixa a posição negativa em nenhuma data (migration 105, ainda não aplicada).
 
 ## Ainda abertos
 Em 10/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
