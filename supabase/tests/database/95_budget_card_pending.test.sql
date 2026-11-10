@@ -99,7 +99,7 @@ create function pg_temp.diferencas() returns text[] language sql as $f$
     union all
     (select 'fora de 0..planned: ' || b::text
        from casos c cross join lateral public.budget_projection(pg_temp.fx('h'), c.mes, c.hoje) b
-      where not ((to_jsonb(b)->>'planned_card')::numeric between 0 and b.planned))
+      where not (coalesce((to_jsonb(b)->>'planned_card')::numeric, -1) between 0 and b.planned))
   )
   select coalesce(array_agg(x order by x), '{}') from dif d(x) $f$;
 grant execute on function pg_temp.fx(text), pg_temp.login(uuid), pg_temp.sqlstate_of(text), pg_temp.bp(uuid, date, date),
