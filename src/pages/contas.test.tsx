@@ -166,6 +166,29 @@ describe('Contas', () => {
     expect(mock.criarConta.mock.calls[0][1]).not.toHaveProperty('banco')
   })
 
+  it('nova conta, editar e excluir abrem num painel (dialog) por cima da lista, não no topo da página', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [corrente], total: c(125050) })
+    const u = userEvent.setup()
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Editar' }))
+    let painel = screen.getByRole('dialog')
+    expect(within(painel).getByRole('heading', { name: `Editar ${corrente.nome}` })).toBeTruthy()
+    await u.click(within(painel).getByRole('button', { name: 'Fechar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await u.click(screen.getByRole('button', { name: 'Nova conta' }))
+    painel = screen.getByRole('dialog')
+    expect(within(painel).getByRole('heading', { name: 'Nova conta' })).toBeTruthy()
+    await u.click(within(painel).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    await u.click(screen.getByRole('button', { name: 'Excluir' }))
+    painel = screen.getByRole('dialog')
+    expect(within(painel).getByRole('heading', { name: `Excluir ${corrente.nome}` })).toBeTruthy()
+    await u.click(within(painel).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('editar uma conta que tinha banco e escolher "Automático" apaga o banco; sem banco antes e depois, nem toca na coluna', async () => {
     mock.listarContas.mockResolvedValue({ contas: [{ ...corrente, banco: 'itau' }], total: c(125050) })
     const u = userEvent.setup()
