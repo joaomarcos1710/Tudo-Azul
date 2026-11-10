@@ -1,6 +1,6 @@
 # Ideia 02 — Painel inicial: "Contas a receber" e "Contas a pagar"
 
-**Status:** em andamento, em etapas aprovadas pelo dono em 10/11/2026: (1) layout em duas colunas, só reposicionando — feita; (2) separar "Próximos planejados" em "Receitas a receber" e "Despesas a pagar" — feita (aguarda conferência visual do dono); (3) "Maiores gastos" com rosca no Início; (4) botões rápidos no topo. **Origem:** pedido do dono, colado com duas partes. A primeira descreve os dois painéis. A segunda é um prompt para refatorar o painel inicial inteiro em cards e grades. Esta nota junta as duas.
+**Status:** em andamento, em etapas aprovadas pelo dono em 10/11/2026: (1) layout em duas colunas, só reposicionando — feita; (2) separar "Próximos planejados" em "Receitas a receber" e "Despesas a pagar" — feita (aguarda conferência visual do dono); (3) "Maiores gastos" com rosca no Início — feita (aguarda conferência visual); (4) botões rápidos no topo. **Origem:** pedido do dono, colado com duas partes. A primeira descreve os dois painéis. A segunda é um prompt para refatorar o painel inicial inteiro em cards e grades. Esta nota junta as duas.
 
 ## O que já existe (não reinventar)
 A tela `src/pages/VisaoGeral.tsx` já tem:
