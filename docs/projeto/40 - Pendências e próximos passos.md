@@ -495,3 +495,5 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Os cartões de Investimentos e Dívidas saíram do Início; se o dono quiser um resumo deles, desenhar com números reais (hoje não há).
 
 - [ ] Confirmar com o dono se Últimos lançamentos também sai de Análises (hoje só saiu do Início) e se "contas a pagar" era mesmo o card Despesas a pagar.
+- [x] Faixa de avisos do topo e Últimos lançamentos removidos do app (#266). Se o dono sentir falta de um aviso de conta a pagar/fatura perto de vencer, desenhar de novo (o Calendário e os Vencidos de Análises cobrem parte).
+- [ ] A pergunta anterior ("Últimos lançamentos também sai de Análises?") está respondida: sim.
