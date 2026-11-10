@@ -496,7 +496,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Categorias no celular (10/11/2026)
 - [x] #277: Editar em folha; faixa fixa com o resultado de Desativar/Reativar/Não conta como consumo (e os erros).
-- [ ] Cada linha tem 3 botões (Não conta como consumo, Editar, Desativar) e ocupa muito espaço no celular. Proposta: tocar na linha abre a folha de edição, e "Não conta como consumo" e "Desativar" vão para dentro dela. Esperando o dono.
+- [x] #278: linha só com ícone e nome; tocar abre a edição com Não conta como consumo, eventual e Desativar dentro (o dono aprovou).
 
 ## Seletor de categoria em folha (10/11/2026)
 - [x] #276: busca, lista ou grade, subcategorias embaixo e "Criar categoria" nos formulários de lançamento, cartão e recorrente.

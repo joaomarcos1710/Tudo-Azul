@@ -119,6 +119,14 @@ export default function Categorias() {
           familiaId={familiaId}
           aoSalvar={async () => { setEditando(null); await carregar() }}
           aoCancelar={() => setEditando(null)}
+          // as ações de cada categoria moram aqui (pedido do dono, 10/11/2026: a linha fica só com ícone e nome); fecham a
+          // folha e o resultado aparece na faixa embaixo
+          acoes={editando === 'nova' ? undefined : {
+            herdaEventual: editando.paiId ? porId.get(editando.paiId)?.eventual === true : false,
+            aoEventual: () => { const c = editando; setEditando(null); void alternarEventual(c) },
+            aoNaoConsumo: () => { const c = editando; setEditando(null); void alternarNaoConsumo(c) },
+            aoAlternar: () => { const c = editando; setEditando(null); void alternarAtiva(c) },
+          }}
         />
         </Folha>
       )}
@@ -160,12 +168,12 @@ export default function Categorias() {
         {grupos.map((g) => (
           <li key={g.id}>
             <Card semPadding>
-              <Linha categoria={g} porId={porId} aoEditar={() => setEditando(g)} aoAlternar={() => alternarAtiva(g)} aoEventual={() => alternarEventual(g)} aoNaoConsumo={() => alternarNaoConsumo(g)} herdaEventual={false} />
+              <Linha categoria={g} porId={porId} aoAbrir={() => setEditando(g)} herdaEventual={false} />
               {g.filhas.length > 0 && (
                 <ul className="border-t border-slate-100">
                   {g.filhas.map((f) => (
                     <li key={f.id} className="pl-6">
-                      <Linha categoria={f} porId={porId} aoEditar={() => setEditando(f)} aoAlternar={() => alternarAtiva(f)} aoEventual={() => alternarEventual(f)} aoNaoConsumo={() => alternarNaoConsumo(f)} herdaEventual={g.eventual} />
+                      <Linha categoria={f} porId={porId} aoAbrir={() => setEditando(f)} herdaEventual={g.eventual} />
                     </li>
                   ))}
                 </ul>
@@ -178,13 +186,17 @@ export default function Categorias() {
   )
 }
 
-function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, aoNaoConsumo, herdaEventual }: {
-  categoria: Categoria; porId: Map<string, Categoria>; aoEditar: () => void; aoAlternar: () => void; aoEventual: () => void; aoNaoConsumo: () => void; herdaEventual: boolean
+/**
+ * Uma categoria na lista: só ícone, nome e selos (pedido do dono, 10/11/2026, como no Organizze). Tocar abre a folha de
+ * edição, onde ficam também "Não conta como consumo", "eventual" e Desativar. "Sem categoria" não abre (o banco recusa).
+ */
+function Linha({ categoria: c, porId, aoAbrir, herdaEventual }: {
+  categoria: Categoria; porId: Map<string, Categoria>; aoAbrir: () => void; herdaEventual: boolean
 }) {
-  return (
+  const conteudo = (
     // desativada: nome em cinza neutro e ícone sem cor, sem opacidade no texto (a opacidade derrubava o contraste dos
-    // selos e dos botões abaixo de 4,5:1; auditoria 5h)
-    <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3" data-ativa={c.ativa}>
+    // selos abaixo de 4,5:1; auditoria 5h)
+    <div className="flex min-w-0 flex-1 items-center justify-between gap-2" data-ativa={c.ativa}>
       <span className={`flex min-w-0 items-center gap-3 ${c.paiId ? 'text-sm' : 'font-semibold'} ${c.ativa ? '' : 'text-neutro'}`}>
         <span className={`flex shrink-0 ${c.ativa ? '' : 'grayscale'}`}><IconeCategoria visual={visualDaCategoria(c, porId)} tamanho={c.paiId ? 'pequeno' : 'normal'} /></span>
         <span className="min-w-0">
@@ -196,21 +208,17 @@ function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, aoNaoCon
         {c.naoConsumo && <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${SELO.neutro}`}>não conta como consumo</span>}
         </span>
       </span>
-      {!c.sistema && (
-        <span className="flex flex-wrap items-center gap-1">
-          {c.tipo === 'income' && (!herdaEventual || c.eventual) && (
-            <Button variante="fantasma" onClick={aoEventual}>{c.eventual ? 'Marcar como regular' : 'Marcar como eventual'}</Button>
-          )}
-          <Button variante="fantasma" aria-pressed={c.naoConsumo === true} onClick={aoNaoConsumo}
-            title="Sai da taxa de poupança, da reserva e do comprometimento do Início; só esta categoria">Não conta como consumo</Button>
-          <Button variante="fantasma" onClick={aoEditar}>Editar</Button>
-          <Button variante="fantasma" onClick={aoAlternar}>{c.ativa ? 'Desativar' : 'Reativar'}</Button>
-        </span>
-      )}
+      {!c.sistema && <span aria-hidden="true" className="shrink-0 text-lg text-slate-400">›</span>}
     </div>
   )
+  if (c.sistema) return <div className="flex min-h-14 items-center px-5 py-3">{conteudo}</div>
+  return (
+    <button type="button" onClick={aoAbrir} aria-label={`Editar ${c.nome}${c.ativa ? '' : ', desativada'}`}
+      className="flex min-h-14 w-full items-center px-5 py-3 text-left hover:bg-slate-50 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-azul">
+      {conteudo}
+    </button>
+  )
 }
-
 
 interface PropsForm {
   categoria: Categoria | null
@@ -220,9 +228,11 @@ interface PropsForm {
   familiaId: string
   aoSalvar: () => Promise<void>
   aoCancelar: () => void
+  /** Só ao editar: as ações que antes eram botões na linha. */
+  acoes?: { herdaEventual: boolean; aoEventual: () => void; aoNaoConsumo: () => void; aoAlternar: () => void }
 }
 
-function FormCategoria({ categoria, tipo, possiveisPais, porId, familiaId, aoSalvar, aoCancelar }: PropsForm) {
+function FormCategoria({ categoria, tipo, possiveisPais, porId, familiaId, aoSalvar, aoCancelar, acoes }: PropsForm) {
   const [nome, setNome] = useState(categoria?.nome ?? '')
   const [paiId, setPaiId] = useState<string>(categoria?.paiId ?? '')
   // null = automático (sugestão pelo nome, ou o da principal na subcategoria)
@@ -306,6 +316,26 @@ function FormCategoria({ categoria, tipo, possiveisPais, porId, familiaId, aoSal
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
+      {categoria && acoes && !categoria.sistema && (
+        <section aria-label="Mais opções" className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-4">
+          {categoria.tipo === 'income' && (!acoes.herdaEventual || categoria.eventual) && (
+            <div>
+              <Button variante="secundario" onClick={acoes.aoEventual}>{categoria.eventual ? 'Marcar como regular' : 'Marcar como eventual'}</Button>
+              <p className="mt-1 text-xs text-slate-500">Eventual: receita que não se repete todo mês (13º, férias, PLR).</p>
+            </div>
+          )}
+          <div>
+            <Button variante="secundario" aria-pressed={categoria.naoConsumo === true} onClick={acoes.aoNaoConsumo}>Não conta como consumo</Button>
+            <p className="mt-1 text-xs text-slate-500">
+              Para quitação de dívida, empréstimo recebido ou repasse entre familiares: sai da taxa de poupança, da reserva e do
+              comprometimento do Início. Relatórios e orçamento não mudam.
+            </p>
+          </div>
+          <div>
+            <Button variante={categoria.ativa ? 'perigo' : 'secundario'} onClick={acoes.aoAlternar}>{categoria.ativa ? 'Desativar' : 'Reativar'}</Button>
+          </div>
+        </section>
+      )}
     </>
   )
 }

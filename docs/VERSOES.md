@@ -190,3 +190,4 @@ continuam abaixo como histórico.
 | 2026.275 | **Sem a regra 50-30-20.** Saem de Categorias o seletor de grupo (Necessidades, Desejos, Investir e poupar), a sugestão pelo nome e o card do mês. Nada muda nos valores; a classificação antiga fica guardada no banco. |
 | 2026.276 | **Seletor de categoria como no Organizze.** A categoria abre uma folha com busca, lista ou grade, a principal com ícone e as subcategorias embaixo, e "Criar categoria" sem sair do lançamento. Vale no lançamento, no cartão e nos recorrentes. |
 | 2026.277 | **Categorias funcionando no celular.** Editar abre por cima da tela (antes abria no topo da página, fora da vista). Desativar, Reativar e "Não conta como consumo" mostram uma faixa embaixo com o resultado, e Desativar tem Desfazer. |
+| 2026.278 | **Categorias mais limpas.** Cada categoria mostra só o ícone e o nome; tocar abre a edição, e lá dentro ficam Não conta como consumo (explicado), eventual e Desativar. |
