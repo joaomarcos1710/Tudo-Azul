@@ -14,7 +14,7 @@ import { useFamilia } from '../lib/FamiliaContext'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { atualizarAutomaticos } from '../lib/automaticos'
-import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
+import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import { listarCartoes, novaChave, registrarCompra, rotaFatura } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
 import type { Categoria } from '../lib/categorias'
@@ -49,6 +49,7 @@ import type { TotaisCaixa } from '../components/RodapeLancamentos'
 import { serieFluxo } from '../lib/fluxoCaixa'
 import { SeletorPeriodo } from '../components/ui/SeletorPeriodo'
 import { FiltrosLancamentos } from './FiltrosLancamentos'
+import { SeletorCategoria } from '../components/SeletorCategoria'
 import { periodoDoMes } from '../lib/periodoRelatorio'
 import type { Periodo as PeriodoLista } from '../lib/periodoRelatorio'
 import type { SerieFluxo } from '../lib/fluxoCaixa'
@@ -400,6 +401,7 @@ export default function Lancamentos() {
           aoSalvar={async () => { setEditando(null); await carregar() }}
           aoRegistrarOutro={carregar}
           aoCancelar={() => setEditando(null)}
+          aoCategoriaCriada={(c) => setCategorias((atual) => [...atual, c])}
         />
         </PainelLancamento>
       )}
@@ -762,6 +764,8 @@ interface PropsForm {
   /** "Registrar e lançar outro": recarrega a lista sem fechar o formulário. */
   aoRegistrarOutro: () => Promise<void>
   aoCancelar: () => void
+  /** Categoria criada pelo seletor: a página acrescenta à lista dela (ícones e nomes da lista por dia). */
+  aoCategoriaCriada: (c: Categoria) => void
 }
 
 const rotuloAcao: Record<TipoLancamento | 'cartao', string> = {
@@ -791,7 +795,7 @@ function Linha({ icone, rotulo, dica, htmlFor, fixo = false, children }: {
 const controleLinha = 'min-h-11 min-w-0 max-w-full appearance-none truncate rounded-md bg-transparent px-1 text-right text-base text-slate-700 focus:outline focus:outline-2 focus:outline-azul'
 const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</span>
 
-function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
+function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar, aoCategoriaCriada }: PropsForm) {
   const { sessao: sessaoAtual } = useAuth()
   const hoje = hojeSP()
   // multimoeda F2: receita, despesa e transferência aceitam conta em qualquer moeda (o destino da transferência, só na
@@ -1076,10 +1080,10 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             </Linha>
           ) : (
             <Linha icone={<IconeCategorias />} rotulo="Categoria" htmlFor="lanc-categoria">
-              <select id="lanc-categoria" value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={controleLinha}>
-                <option value="">Escolher</option>
-                {opcoesDeCategoria(categoriasDoTipo, categorias).map((o) => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
-              </select>{seta}
+              {/* folha com busca, lista ou grade e "Criar categoria" (pedido do dono, 10/11/2026, como no Organizze) */}
+              <SeletorCategoria id="lanc-categoria" rotulo="Categoria" rotuloVisivel={false} valor={categoriaId} aoMudar={setCategoriaId}
+                opcoes={categoriasDoTipo} categorias={categorias} tipo={tipo === 'income' ? 'income' : 'expense'} aoCriada={aoCategoriaCriada}
+                classeBotao="flex min-h-11 min-w-0 max-w-full items-center justify-end gap-2 rounded-md px-1 text-right text-base text-slate-700 focus:outline focus:outline-2 focus:outline-azul" />{seta}
             </Linha>
           )}
           {!transferencia && tipo === 'expense' && (

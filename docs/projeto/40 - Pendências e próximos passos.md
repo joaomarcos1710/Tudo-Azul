@@ -494,6 +494,12 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 - [x] Faixa de avisos do topo e Últimos lançamentos removidos do app (#266). Se o dono sentir falta de um aviso de conta a pagar/fatura perto de vencer, desenhar de novo (o Calendário e os Vencidos de Análises cobrem parte).
 
+## Seletor de categoria em folha (10/11/2026)
+- [x] #276: busca, lista ou grade, subcategorias embaixo e "Criar categoria" nos formulários de lançamento, cartão e recorrente.
+- [ ] Conferir no celular (você): a folha, a grade de 4 colunas e o "Criar categoria".
+- [ ] "Criar categoria" cria só principal; criar subcategoria dali ficou de fora. Orçamentos segue com o seletor nativo.
+- [ ] Lembrar a escolha lista/grade entre aberturas (hoje volta para a lista).
+
 ## Lançamentos no visual do Organizze (10/11/2026)
 - [x] Etapa 1 (#268): botão Filtrar com folha e selos, "+" flutuante, rodapé (pagos e previsto) em regime de caixa.
 - [x] Etapa 2 (#269): lista por dia também no computador (a tabela saiu) e seleção em massa pelo ⋯ do topo, no celular e no computador (mudar categoria, marcar como pago, excluir).

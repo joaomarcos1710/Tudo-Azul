@@ -187,3 +187,4 @@ continuam abaixo como histórico.
 | 2026.272 | **Filtros em tela cheia também no Entradas x Saídas.** A casca e os chips saem para um componente compartilhado (`TelaFiltros`). Pagos e Lançado por viram chips; contas seguem com busca e arquivadas. Continua em rascunho: só vale ao Aplicar. |
 | 2026.273 | **Filtros de Investimentos em tela cheia.** Macroclasse e Subclasse saem dos seletores e vão para a mesma tela de filtros de Lançamentos, em chips; os ligados aparecem como selos. |
 | 2026.274 | **Filtro por etiqueta de Contas em tela cheia.** O seletor sai; o botão Filtrar abre a mesma tela de Lançamentos com as etiquetas em chips, e a escolhida vira um selo. |
+| 2026.276 | **Seletor de categoria como no Organizze.** A categoria abre uma folha com busca, lista ou grade, a principal com ícone e as subcategorias embaixo, e "Criar categoria" sem sair do lançamento. Vale no lançamento, no cartão e nos recorrentes. |
