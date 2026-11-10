@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { LinhaAcumulada } from '../components/graficos/LinhaAcumulada'
 import { BarrasCategorias } from '../components/graficos/BarrasCategorias'
+import { RoscaCategorias } from '../components/graficos/RoscaCategorias'
 import { BalancoMensal } from '../components/graficos/BalancoMensal'
 import type { MesBalanco } from '../components/graficos/BalancoMensal'
 import { Aviso } from '../components/ui/Aviso'
@@ -256,9 +257,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
             opcional('saldosProjetados', saldosProjetados(familiaId, ate, true)), opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)),
             opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)), opcional('avisosDoInicio', avisosDoInicio(familiaId, hoje)),
-          ]).then(([c, entradas, saidas, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
+            // maiores gastos: as 4 maiores categorias + "Outros" (somado no banco), na base de cartão escolhida em Análises
+            opcional('despesasPorCategoria', despesasPorCategoria(familiaId, de, ate, 4, baseCartaoRef.current)),
+          ]).then(([c, entradas, saidas, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, orcamentos, mesPorMoeda, avisos, maioresGastos]): Dados => ({
             patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores, decisao,
-            categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
+            categorias: maioresGastos, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], vencidos, cartoes, faturasDoMes,
             aReceber: entradas.filter((x) => x.tipo === 'income'), aPagar: saidas.filter((x) => x.tipo === 'expense'),
             saldoPrevisto: projetado?.total ?? null, balanco: null,
@@ -516,6 +519,22 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             </Card>
           )}
           {dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
+          {dados.categorias && (
+            <Card className="order-4">
+              <div className="flex items-center justify-between">
+                <CardTitle>Maiores gastos</CardTitle>
+                <Link to="/analises" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver análises</Link>
+              </div>
+              {dados.categorias.length === 0 ? (
+                <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
+              ) : (
+                <>
+                  <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida em Análises'}.</p>
+                  <RoscaCategorias fatias={dados.categorias} mes={mes} />
+                </>
+              )}
+            </Card>
+          )}
           <ListaPlanejada className="order-4" titulo="Receitas a receber" vazio="Nenhuma receita planejada a partir de hoje."
             itens={dados.aReceber} moedaDe={moedaDe} categoriaPorId={dados.categoriaPorId} />
           <ListaPlanejada className="order-4" titulo="Despesas a pagar" vazio="Nenhuma despesa planejada a partir de hoje."

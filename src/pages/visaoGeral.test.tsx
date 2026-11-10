@@ -792,6 +792,43 @@ describe('Visão geral', () => {
     expect(faixa.compareDocumentPosition(vencidos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  describe('Maiores gastos (etapa 3 do painel)', () => {
+    it('Início mostra a rosca com as 4 maiores + Outros do banco, legenda com nome, valor e %, e link para as despesas do mês', async () => {
+      montar()
+      const titulo = await screen.findByText('Maiores gastos')
+      const card = titulo.closest('div[class*="rounded"]') as HTMLElement
+      expect(mock.despesasPorCategoria).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(String), 4, expect.anything())
+      expect(within(card).getAllByTestId('fatia-categoria')).toHaveLength(2)
+      const moradia = within(card).getByRole('link', { name: /Moradia: .*57,7% das despesas/ })
+      expect(moradia.getAttribute('href')).toMatch(/^\/lancamentos\?mes=\d{4}-\d{2}&tipo=despesa$/)
+      expect(within(card).getAllByText('R$ 5.000,00').length).toBeGreaterThan(0) // valor do banco, nada somado no front
+      expect(within(card).getByText('Ver como tabela')).toBeTruthy()
+    })
+
+    it('"Outros" é cinza e as demais usam as cores validadas, na ordem', async () => {
+      mock.despesasPorCategoria.mockResolvedValue([
+        { categoriaId: 'g1', nome: 'Moradia', valor: c(500000), percentual: 50 },
+        { categoriaId: 'g2', nome: 'Mercado', valor: c(300000), percentual: 30 },
+        { categoriaId: null, nome: 'Outros', valor: c(200000), percentual: 20 },
+      ])
+      montar()
+      await screen.findByText('Maiores gastos')
+      const fatias = screen.getAllByTestId('fatia-categoria')
+      expect(fatias.map((f) => f.getAttribute('stroke'))).toEqual(['#1D4ED8', '#0891B2', '#94A3B8'])
+    })
+
+    it('sem despesa paga no mês, o card diz isso; se a consulta falhar, o card some e o resto segue', async () => {
+      mock.despesasPorCategoria.mockResolvedValue([])
+      montar()
+      expect(await screen.findByText('Nenhuma despesa paga neste mês ainda.')).toBeTruthy()
+      cleanup()
+      mock.despesasPorCategoria.mockRejectedValue(new Error('boom'))
+      montar()
+      await screen.findByText('Despesas a pagar')
+      expect(screen.queryByText('Maiores gastos')).toBeNull()
+    })
+  })
+
   it('Início em duas colunas: contas, investimentos e dívidas à esquerda; cartões, receitas a receber e despesas a pagar à direita; últimos lançamentos largo', async () => {
     montar()
     await screen.findByText('Minhas contas')
