@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { clienteConsultas } from './consultas'
 import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
@@ -22,7 +23,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data }) => {
       if (ativo) setEstado({ sessao: data.session, carregando: false })
     })
-    const { data } = supabase.auth.onAuthStateChange((_evento, sessao) => {
+    const { data } = supabase.auth.onAuthStateChange((evento, sessao) => {
+      // saiu da conta: nada do que estava em memória (saldos, faturas) fica para quem entrar depois neste aparelho
+      if (evento === 'SIGNED_OUT') clienteConsultas.clear()
       if (ativo) setEstado({ sessao, carregando: false })
     })
     return () => {

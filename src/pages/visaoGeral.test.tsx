@@ -2,6 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClientProvider } from '@tanstack/react-query'
+import type { ReactElement } from 'react'
+import { criarClienteConsultas } from '../lib/consultas'
 import type { Cents } from '../lib/format'
 
 const mock = vi.hoisted(() => ({
@@ -77,7 +80,12 @@ const IND = {
   parcelasDividas: c(100000), rendaEsperada: c(0), rendaRecebida: c(500000), rendaRegular: c(500000), fonteRenda: 'recebida' as const,
   comprometimento: 20, faixaComprometimento: 'saudavel' as const,
 }
-const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(<MemoryRouter><VisaoGeral secao={secao} /></MemoryRouter>)
+// um cache novo por teste (nada vaza de um teste para o outro); os testes de cache passam o mesmo cliente de propósito
+let cliente = criarClienteConsultas()
+const comCache = (el: ReactElement) => <QueryClientProvider client={cliente}><MemoryRouter>{el}</MemoryRouter></QueryClientProvider>
+const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(comCache(<VisaoGeral secao={secao} />))
+/** Como um F5: desmonta a tela e zera o cache em memória (a próxima montagem carrega do zero, como antes do cache). */
+const recarregarPagina = () => { cleanup(); cliente = criarClienteConsultas() }
 
 beforeEach(() => {
   window.localStorage.clear()
@@ -149,6 +157,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  cliente = criarClienteConsultas()
   vi.clearAllMocks()
 })
 
@@ -165,7 +174,7 @@ describe('Visão geral', () => {
     expect(screen.getByText('R$ 8.050,00')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Gerenciar reservas' }).getAttribute('href')).toBe('/reservas')
     expect(mock.carregarHomeDecisao).toHaveBeenCalledWith('h1', hojeSP().slice(0, 7))
-    cleanup()
+    recarregarPagina()
     montar('analises')
     expect(await screen.findByRole('heading', { name: 'Análises' })).toBeTruthy()
     expect(screen.queryByRole('heading', { name: 'Minha Carteira' })).toBeNull()
@@ -298,8 +307,8 @@ describe('Visão geral', () => {
   it('uma carga antiga que chega depois da nova é descartada (Início → Análises)', async () => {
     let soltarInicio: (v: unknown) => void = () => {}
     mock.listarContas.mockReturnValueOnce(new Promise((r) => { soltarInicio = r }))
-    const tela = render(<MemoryRouter><VisaoGeral secao="inicio" /></MemoryRouter>)
-    tela.rerender(<MemoryRouter><VisaoGeral secao="analises" /></MemoryRouter>)
+    const tela = render(comCache(<VisaoGeral secao="inicio" />))
+    tela.rerender(comCache(<VisaoGeral secao="analises" />))
     expect(await screen.findByText('Comparação com o ano passado')).toBeTruthy()
     soltarInicio({ contas: [], total: c(0) })
     await new Promise((r) => setTimeout(r, 20))
@@ -312,7 +321,7 @@ describe('Visão geral', () => {
     expect(await screen.findByText('Patrimônio líquido')).toBeTruthy()
     expect(screen.getByText('R$ 10.875,60')).toBeTruthy()
     expect(screen.getByText('R$ 4.820,00')).toBeTruthy() // compromissos à parte
-    cleanup()
+    recarregarPagina()
     montar()
     // #188: o card à parte saiu do Início; desde a 075 (#196) a carteira fica fora do Patrimônio total (o (i) mostra o valor à parte)
     await screen.findByRole('region', { name: 'Indicadores do mês' })
@@ -340,7 +349,7 @@ describe('Visão geral', () => {
 
   it('se a geração dos recorrentes falhar, avisa e mantém o painel', async () => {
     gerar.mockRejectedValue(new Error('x'))
-    render(<MemoryRouter><VisaoGeral /></MemoryRouter>)
+    render(comCache(<VisaoGeral />))
     expect(await screen.findByText(/Não foi possível lançar os recorrentes/)).toBeTruthy()
     expect(screen.getByText('Despesas a pagar')).toBeTruthy() // o Início segue de pé mesmo com o aviso
     expect(cobrar).toHaveBeenCalled() // uma falha não impede a outra
@@ -506,7 +515,7 @@ describe('Visão geral', () => {
     montar()
     await screen.findByText('Despesas a pagar')
     expect(screen.queryByText('Vencidos e precisam de atenção')).toBeNull()
-    cleanup()
+    recarregarPagina()
     mock.vencidosPlanejados.mockRejectedValue(new Error('x'))
     montar()
     expect(await screen.findByText('Despesas a pagar')).toBeTruthy() // o Início segue de pé com a consulta de vencidos falhando
@@ -647,11 +656,11 @@ describe('Visão geral', () => {
     const faixa = await screen.findByRole('region', { name: 'Avisos' })
     expect(within(faixa).getByRole('link', { name: /Você tem 1 conta a receber no total de R\$ 200,00/ }).getAttribute('href'))
       .toBe('/lancamentos?mes=2026-10&tipo=receita')
-    cleanup()
+    recarregarPagina()
     montar('analises')
     await screen.findByRole('heading', { name: 'Análises' })
     expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
-    cleanup()
+    recarregarPagina()
     mock.avisosDoInicio.mockRejectedValue(new Error('sem a migration 057'))
     montar()
     expect(await screen.findByRole('heading', { name: 'Minha Carteira' })).toBeTruthy()
@@ -792,6 +801,62 @@ describe('Visão geral', () => {
     expect(faixa.compareDocumentPosition(vencidos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  describe('cache em memória do Início (TanStack Query)', () => {
+    it('voltar ao Início mostra na hora o que já estava carregado e revalida no banco por trás', async () => {
+      montar()
+      await screen.findByText('Despesas a pagar')
+      expect(mock.listarContas).toHaveBeenCalledTimes(1)
+      cleanup() // saiu do Início (foi para outra aba do app); o cache continua
+      let soltar: (v: unknown) => void = () => {}
+      mock.listarContas.mockReturnValueOnce(new Promise((r) => { soltar = r })) // a revalidação fica pendurada
+      montar()
+      // sem "Carregando…": a tela já aparece com os dados da visita anterior, mesmo com o banco ainda respondendo
+      expect(screen.getByText('Despesas a pagar')).toBeTruthy()
+      expect(screen.queryByText('Carregando…')).toBeNull()
+      expect(mock.listarContas).toHaveBeenCalledTimes(2) // e revalidou (staleTime 0)
+      soltar({ contas: [], total: c(0) })
+    })
+
+    it('a revalidação troca os números sem voltar ao "Carregando…"', async () => {
+      montar()
+      await screen.findByText('Internet')
+      cleanup()
+      mock.proximosPlanejados.mockImplementation(async (_f: string, _h: string, _l: number, tipo?: string) =>
+        (tipo === 'expense' ? [{ id: 'n9', tipo: 'expense', descricao: 'Conta nova', valor: c(4200), data: '2026-10-29', categoriaId: null, contaId: null, destinoId: null }] : []))
+      montar()
+      expect(screen.getByText('Internet')).toBeTruthy() // o antigo, na hora
+      expect(await screen.findByText('Conta nova')).toBeTruthy() // o novo, quando o banco responde
+      expect(screen.queryByText('Carregando…')).toBeNull()
+    })
+
+    it('se a revalidação falhar, fica o que já estava na tela (sem derrubar o Início)', async () => {
+      montar()
+      await screen.findByText('Despesas a pagar')
+      cleanup()
+      mock.listarContas.mockRejectedValue(new Error('rede caiu'))
+      montar()
+      await waitFor(() => expect(mock.listarContas).toHaveBeenCalledTimes(2))
+      await new Promise((r) => setTimeout(r, 20))
+      expect(screen.getByText('Despesas a pagar')).toBeTruthy()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('primeira visita (cache vazio) com falha continua avisando o erro, como antes', async () => {
+      mock.listarContas.mockRejectedValue(new Error('rede caiu'))
+      montar()
+      expect(await screen.findByRole('alert')).toBeTruthy()
+    })
+
+    it('Início e Análises não dividem a mesma entrada do cache', async () => {
+      montar('inicio')
+      await screen.findByText('Despesas a pagar')
+      cleanup()
+      montar('analises')
+      // primeira vez em Análises: não há dado guardado dessa seção, então carrega do zero
+      expect(screen.getByText('Carregando…')).toBeTruthy()
+    })
+  })
+
   describe('carga sem bloqueio (tarefas automáticas fora do caminho do primeiro desenho)', () => {
     it('a tela aparece mesmo com as tarefas automáticas ainda rodando', async () => {
       gerar.mockReturnValue(new Promise(() => {})) // nunca termina
@@ -849,7 +914,7 @@ describe('Visão geral', () => {
       mock.despesasPorCategoria.mockResolvedValue([])
       montar()
       expect(await screen.findByText('Nenhuma despesa paga neste mês ainda.')).toBeTruthy()
-      cleanup()
+      recarregarPagina()
       mock.despesasPorCategoria.mockRejectedValue(new Error('boom'))
       montar()
       await screen.findByText('Despesas a pagar')
@@ -971,7 +1036,7 @@ describe('Visão geral', () => {
     fireEvent.click(within(secao).getByRole('button', { name: 'Tentar de novo' }))
     expect(await within(secao).findByText('Patrimônio líquido mês a mês')).toBeTruthy()
     expect(mock.evolucaoPatrimonio).toHaveBeenCalledTimes(2)
-    cleanup(); mock.evolucaoPatrimonio.mockClear()
+    recarregarPagina(); mock.evolucaoPatrimonio.mockClear()
     montar()
     await screen.findByText('Despesas a pagar')
     expect(mock.evolucaoPatrimonio).not.toHaveBeenCalled()
@@ -1213,7 +1278,7 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     expect(screen.queryByText('Despesas a pagar')).toBeNull()
     expect(screen.queryByText('Contas')).toBeNull()
     // e o Início continua com tudo isso
-    cleanup()
+    recarregarPagina()
     montar()
     expect(await screen.findByText('Vencidos e precisam de atenção')).toBeTruthy()
     expect(screen.getByRole('navigation', { name: 'Ações rápidas' })).toBeTruthy()
@@ -1469,7 +1534,7 @@ describe('Análises: base dos gastos de cartão no gráfico por categoria (PR #1
     expect((within(grupo).getByRole('radio', { name: 'Data da parcela' }) as HTMLInputElement).checked).toBe(true)
     await waitFor(() => expect(mock.despesasPorCategoria).toHaveBeenCalled())
     expect(mock.despesasPorCategoria.mock.calls[0][4]).toBe('installment')
-    cleanup()
+    recarregarPagina()
     mock.despesasPorCategoria.mockClear()
     window.localStorage.setItem('tudoazul:base-gastos-cartao', 'vencimento')
     montar('analises')
