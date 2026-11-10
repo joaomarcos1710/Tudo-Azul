@@ -29,13 +29,21 @@ describe('menu em grupos', () => {
     }
   })
 
-  it('a sidebar desktop mostra todas as telas de uso frequente (inclui Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens), sem cabeçalhos', () => {
+  it('a sidebar desktop agrupa por categoria todas as telas de uso frequente (inclui Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens)', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
-    expect(within(lateral).getAllByRole('link').map((a) => a.textContent))
-      .toEqual(['Início', 'Lançamentos', 'Recorrentes', 'Cartões', 'Contas', 'Orçamentos', 'Reservas', 'Categorias',
-        'Investimentos', 'Dívidas e empréstimos', 'Bens e patrimônio', 'Análises', 'Relatórios', 'Calendário'])
-    expect(within(lateral).queryByRole('group')).toBeNull()
+    const grupos = within(lateral).getAllByRole('group').map((g) => ({
+      titulo: g.getAttribute('aria-labelledby') ? document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent : null,
+      links: within(g).getAllByRole('link').map((a) => a.textContent),
+    }))
+    expect(grupos).toEqual([
+      { titulo: 'Visão geral', links: ['Início', 'Análises', 'Relatórios'] },
+      { titulo: 'Movimentações', links: ['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas'] },
+      { titulo: 'Planejamento', links: ['Orçamentos', 'Reservas', 'Categorias'] },
+      { titulo: 'Patrimônio', links: ['Dívidas e empréstimos', 'Investimentos', 'Bens e patrimônio'] },
+    ])
+    // nenhuma tela some: continuam as 14 de antes
+    expect(within(lateral).getAllByRole('link')).toHaveLength(14)
     // o que é raro continua só no menu do perfil
     expect(within(lateral).queryByRole('link', { name: 'Família' })).toBeNull()
     expect(within(lateral).queryByRole('link', { name: 'Exportar dados' })).toBeNull()
