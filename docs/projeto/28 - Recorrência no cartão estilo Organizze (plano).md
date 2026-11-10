@@ -3,7 +3,7 @@ tags: [tudo-azul, plano, cartao, recorrencia]
 ---
 # Recorrência no cartão estilo Organizze (plano)
 
-**Status:** plano, sem código. Pedido do dono em 10/11/2026. Aguarda as decisões da seção "Perguntas".
+**Status:** plano, sem código. Pedido do dono em 10/11/2026. Duas das quatro perguntas já têm resposta (seção "Decisões do dono"); falta a do limite.
 
 ## O pedido (nas palavras do dono)
 "Nas faturas do cartão o que é recorrente não está aparecendo, deveria ser automático, já está lá lançado no dia certo e eu
@@ -44,11 +44,19 @@ pergunta "só esta" ou "esta e as próximas"; e cancelar uma ocorrência é poss
 Recomendação: **C**. A resolve a queixa visível em uma PR pequena e segura; B é a funcionalidade completa, mas muda
 dinheiro em vários lugares e merece desenho e testes próprios.
 
-## Perguntas ao dono
-1. A, B ou C? (O dono já disse que quer o diálogo "só esta / esta e as próximas", que só existe em B.)
-2. Quantos meses à frente as ocorrências de cartão aparecem? (Conta usa 12.)
-3. Item futuro de cartão ocupa o limite do cartão antes da data? (Hoje não ocupa.)
-4. Cancelar uma ocorrência (ex.: assinatura cancelada em dezembro) = "excluir só esta" ou "encerrar a regra a partir daqui"?
+## Decisões do dono (10/11/2026)
+- **Até quando aparece:** "enquanto eu não cancelar". Sem data final fixa para o dono. Na prática o banco não gera infinito:
+  a regra de conta já gera uma janela móvel (12 meses, estendida toda vez que o app abre). O cartão faria igual, e o
+  dono nunca vê o corte. Isso vira o caminho B (ocorrências de verdade), não A.
+- **Cancelar:** o mesmo diálogo do Organizze, com as duas saídas: "só esta ocorrência" ou "esta e as próximas" (encerrar a
+  regra a partir dali). Vale para mudar o dia e para cancelar.
+- Isso confirma a opção **B** como destino. A opção A fica só como passo intermediário, se o dono quiser ver algo antes.
+
+## Perguntas ao dono (abertas)
+1. ~~A, B ou C?~~ Respondida: destino é B. Falta saber se quer A antes, como passo rápido, ou ir direto para B.
+2. ~~Quantos meses à frente?~~ Respondida: enquanto não cancelar (janela móvel).
+3. **Aberta:** item futuro de cartão ocupa o limite do cartão antes da data? (Hoje não ocupa.)
+4. ~~Cancelar~~ Respondida: as duas, no diálogo.
 
 ## Riscos e o que não foi verificado
 - Não li `card_months`, `card_limits` nem `card_pending_subscriptions` por inteiro; o efeito exato em limite, Dinheiro
@@ -56,3 +64,11 @@ dinheiro em vários lugares e merece desenho e testes próprios.
 - Não vi a tela de fatura rodando; a descrição acima vem do código e da consulta ao banco.
 - Em B, ocorrência editada à mão e regra podem divergir (já acontece na conta, resolvido pela chave
   `(recurrence_id, occurrence_date)`); no cartão isso precisa de teste próprio.
+
+## Divisão proposta do trabalho (cada item = uma PR; B só começa depois da resposta da pergunta 3)
+1. Leitura de `card_months`, `card_limits`, `card_pending_subscriptions` e `card_installment_edit` e desenho fechado do item
+   planejado de cartão (documento, sem código).
+2. Migration: ocorrências futuras de cartão como itens editáveis da fatura, com janela móvel, sem duplicar o previsto;
+   testes pgTAP que falham sem ela. Produção só pelo workflow, com o "pode" do dono.
+3. RPC "este e as próximas" / "só esta" / "excluir" para cartão (análoga à `recurrence_update_from`, migration 074).
+4. Front: linhas na fatura e o diálogo de escolha.

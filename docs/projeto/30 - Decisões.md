@@ -455,3 +455,6 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 - **Decisão:** manter as 69 como estão, sem revogar `EXECUTE` e sem trocar para `SECURITY INVOKER`.
 - **Motivo:** 56 são chamadas pelo app. As 13 restantes (`card_set_start`, `create_debt_installments`, `create_debt_invoice`, `debt_anticipate`, `debt_bill`, `debt_loan_event`, `debt_return`, `delete_household`, `leave_household`, `reconcile_account`, `reconciliation_undo`, `recurrence_end`, `remove_member`) aparecem em testes pgTAP que as chamam como usuário autenticado, e a lista esperada do `00_audit` as trata como API. `leave_household` é chamada por `remove_member`, e `delete_household` é a exclusão da família. Revogar exigiria mudar testes e o `00_audit` no mesmo PR.
 - **Reavaliar** se alguma delas deixar de ter teste ou de ser exposta a usuários.
+
+## 10/11/2026 — Recorrência no cartão (dono)
+- Ocorrências de cartão devem aparecer na fatura "enquanto eu não cancelar" (janela móvel, como a conta) e, ao mudar o dia ou cancelar, perguntar "só esta" ou "esta e as próximas", como o Organizze. Motivo: hoje só viram item no dia e o dono não consegue ajustar antes. Plano em `28 - Recorrência no cartão estilo Organizze (plano).md`; falta decidir se o item futuro ocupa o limite.

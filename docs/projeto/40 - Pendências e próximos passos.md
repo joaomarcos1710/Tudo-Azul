@@ -457,4 +457,4 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - Migration 083: `20261108210000_people_active_and_fk_indexes.sql`. Ainda não aplicada no Supabase hospedado.
 
 ## Recorrência no cartão estilo Organizze (10/11/2026)
-- [ ] Dono decidir A, B ou C e responder as 4 perguntas de `28 - Recorrência no cartão estilo Organizze (plano).md`. Hoje a recorrência no cartão só vira item de fatura no dia; antes disso aparece só o total "Assinaturas previstas".
+- [ ] Dono responder se o item futuro de cartão ocupa o limite (única pergunta aberta) e se quer a opção A como passo rápido antes da B. Decidido em 10/11: aparece enquanto não cancelar e o diálogo "só esta / esta e as próximas" (`28 - Recorrência no cartão estilo Organizze (plano).md`). Hoje a recorrência no cartão só vira item de fatura no dia; antes disso aparece só o total "Assinaturas previstas".
