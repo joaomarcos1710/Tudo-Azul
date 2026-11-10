@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
+import { Chip, Chips, GrupoFiltro, TelaFiltros } from '../components/ui/TelaFiltros'
 import { BANCOS_POR_NOME, tipoSemBanco } from '../lib/bancos'
 import { IconeConta } from '../components/ui/IconeConta'
 import { EmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
@@ -336,6 +337,8 @@ function GerenciarEtiquetas({ familiaId, tags, filtro, aoFiltrar, aoMudar }: Pro
   const [apagando, setApagando] = useState<Etiqueta | null>(null)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
+  const nomeFiltro = tags.etiquetas.find((t) => t.id === filtro)?.nome
   const uso = (id: string) => [...tags.porConta.values()].filter((ids) => ids.includes(id)).length
   const textoUso = (id: string) => {
     const n = uso(id)
@@ -384,10 +387,34 @@ function GerenciarEtiquetas({ familiaId, tags, filtro, aoFiltrar, aoMudar }: Pro
   return (
     <div className="mb-4 flex flex-col gap-3">
       {tags.etiquetas.length > 0 && (
-        <div className="max-w-sm">
-          <Selecao rotulo="Filtrar por etiqueta" valor={filtro} aoMudar={aoFiltrar} todos="Todas as contas"
-            opcoes={tags.etiquetas.map((t) => [t.id, t.nome])} />
+        // filtro na tela cheia compartilhada (pedido do dono, 10/11/2026, como em Lançamentos): só esconde contas da lista,
+        // nenhum valor muda; cada toque vale na hora
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setFiltrosAbertos(true)} aria-haspopup="dialog" aria-expanded={filtrosAbertos}
+            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">
+            Filtrar{filtro && <span className="ml-1.5 rounded-full bg-azul px-1.5 text-xs text-white">1</span>}
+          </button>
+          {nomeFiltro && (
+            <button type="button" onClick={() => aoFiltrar('')} aria-label={`Tirar o filtro ${nomeFiltro}`}
+              className="inline-flex min-h-9 items-center gap-1 rounded-full bg-azul-claro px-3 text-xs font-semibold text-marinho">
+              {nomeFiltro}<span aria-hidden="true">×</span>
+            </button>
+          )}
         </div>
+      )}
+      {filtrosAbertos && (
+        <TelaFiltros titulo="Filtrar contas" aoFechar={() => setFiltrosAbertos(false)}
+          acaoPrincipal={{ rotulo: 'Filtrar', nomeAcessivel: 'Filtrar: ver as contas', aoAcionar: () => setFiltrosAbertos(false) }}
+          rodape={<button type="button" onClick={() => aoFiltrar('')} disabled={!filtro}
+            className="min-h-11 text-sm font-semibold text-azul hover:underline disabled:text-slate-400 disabled:no-underline">Limpar filtros</button>}>
+          <GrupoFiltro titulo="Etiquetas">
+            <Chips>
+              {tags.etiquetas.map((t) => (
+                <Chip key={t.id} pressionado={filtro === t.id} onClick={() => aoFiltrar(filtro === t.id ? '' : t.id)}>{t.nome}</Chip>
+              ))}
+            </Chips>
+          </GrupoFiltro>
+        </TelaFiltros>
       )}
       <details className="rounded-lg border border-slate-200 bg-white">
         <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-marinho">
