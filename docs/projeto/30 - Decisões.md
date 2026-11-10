@@ -570,3 +570,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Decidido:** não pagar o Pro só por isso. O app é usado só pela família; o ganho é pequeno perto do custo mensal.
 - **Compensação:** senha mínima de 12 caracteres com maiúsculas, minúsculas, números e símbolos (configuração gratuita, na mesma tela), senha única por pessoa, guardada num gerenciador de senhas.
 - **Consequência:** o aviso `auth_leaked_password_protection` continua no Security Advisor de propósito, como os SECURITY DEFINER da #234. Rever se o projeto mudar para o Pro.
+
+## 10/11/2026 — Amortização extra: o dono informa se reduziu o prazo ou a parcela (dono)
+- **Pedido:** em todos os contratos a amortização pode ser abatida no prazo (mesma parcela) ou na parcela (mesmo prazo).
+- **Decidido (opção A):** o app **não calcula**. Depois da amortização o formulário pergunta "reduziu o prazo" ou "reduziu a parcela" e pede o número novo, tirado do extrato ou da simulação da Caixa; o banco só grava e refaz as parcelas futuras (migration 103). Sem escolha padrão: o dono marca a que o banco usou.
+- **Motivo:** o financiamento é SAC (parcela cai todo mês) e há seguros, tarifas e TR; uma fórmula do app divergiria do banco.
+- **Limite conhecido:** a agenda do app usa parcela fixa; na SAC a parcela real cai todo mês. Corrigir ao confirmar cada parcela (já está em `40 - Pendências`).
+

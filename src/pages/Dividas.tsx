@@ -520,6 +520,10 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   const [tarifaTexto, setTarifaTexto] = useState('0,00')
   const [categoriaId, setCategoriaId] = useState(categoriaJurosPadrao?.id ?? '')
   const [extra, setExtra] = useState(extraObrigatorio)
+  // (103) depois de uma amortização extra com parcelas em aberto, o banco reduz o prazo ou a parcela: o dono informa o que veio no extrato
+  const [modo, setModo] = useState<'' | 'term' | 'installment'>('')
+  const [prazoTexto, setPrazoTexto] = useState('')
+  const [novaParcelaTexto, setNovaParcelaTexto] = useState('')
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
   const total = parseBRL(totalTexto)
@@ -530,6 +534,9 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   // amortização extra paga fora das contas do app (ex.: FGTS): nenhuma conta muda, só o saldo da dívida (migration 102)
   const podeSemConta = !parcela && extra
   const semConta = podeSemConta && contaId === SEM_CONTA
+  const ajusta = !parcela && extra && divida.parcelasRestantes !== null && divida.parcelasRestantes > 0 && divida.valorParcela !== null
+  const prazoNovo = /^\d+$/.test(prazoTexto.trim()) ? Number(prazoTexto.trim()) : null
+  const parcelaNova = parseBRL(novaParcelaTexto)
 
   async function enviar(e: FormEvent) {
     e.preventDefault()
@@ -543,6 +550,23 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
       setErro('Confira a conta, a data e os valores. Juros e tarifas não podem superar o pagamento.')
       return
     }
+    let ajuste: Parameters<typeof registrarPagamentoDivida>[0]['ajuste']
+    if (ajusta) {
+      if (modo === '') { setErro('Informe se a amortização reduziu o prazo ou a parcela.'); return }
+      if (modo === 'term') {
+        if (prazoNovo === null || prazoNovo > (divida.parcelasRestantes ?? 0)) {
+          setErro(`Informe as parcelas restantes depois da amortização (de 0 a ${divida.parcelasRestantes}).`)
+          return
+        }
+        ajuste = { modo: 'term', parcelasRestantes: prazoNovo }
+      } else {
+        if (parcelaNova === null || parcelaNova <= 0 || divida.valorParcela === null || parcelaNova > divida.valorParcela) {
+          setErro(`Informe a parcela nova, maior que zero e não maior que a atual (${(divida.valorParcela === null ? '—' : formatBRL(divida.valorParcela))}).`)
+          return
+        }
+        ajuste = { modo: 'installment', valorParcela: parcelaNova }
+      }
+    }
     setErro('')
     setEnviando(true)
     try {
@@ -554,7 +578,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
       } else {
         await aoSalvar({
           dividaId: divida.id, data, contaId: semConta ? null : contaId, principal, juros, tarifa,
-          categoriaId: precisaCategoria ? categoriaId : null, extra,
+          categoriaId: precisaCategoria ? categoriaId : null, extra, ajuste,
         })
       }
     } finally { setEnviando(false) }
@@ -598,6 +622,28 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
               Amortização extraordinária de principal
             </label>
           )
+        )}
+        {ajusta && (
+          <fieldset className="grid gap-3 rounded-lg border border-slate-200 p-3 md:col-span-2">
+            <legend className="px-1 text-sm font-semibold">Depois da amortização, o banco…</legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name="modo-amortizacao" checked={modo === 'term'} onChange={() => setModo('term')} />
+              reduziu o prazo (a parcela continua a mesma)
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="radio" name="modo-amortizacao" checked={modo === 'installment'} onChange={() => setModo('installment')} />
+              reduziu a parcela (o prazo continua o mesmo)
+            </label>
+            {modo === 'term' && (
+              <Field rotulo={`Parcelas restantes agora (hoje ${divida.parcelasRestantes})`} inputMode="numeric"
+                value={prazoTexto} onChange={(e) => setPrazoTexto(e.target.value)} />
+            )}
+            {modo === 'installment' && (
+              <Field rotulo={`Parcela nova (R$, hoje ${(divida.valorParcela === null ? '—' : formatBRL(divida.valorParcela))})`} inputMode="decimal"
+                value={novaParcelaTexto} onChange={(e) => setNovaParcelaTexto(e.target.value)} />
+            )}
+            <p className="text-xs text-slate-600">Use o número do extrato ou da simulação do banco: o app não calcula. As parcelas futuras são refeitas com ele; as já pagas não mudam.</p>
+          </fieldset>
         )}
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando} disabled={!consignado && contas.length === 0}>Confirmar baixa</Button>
