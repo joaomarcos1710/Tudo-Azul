@@ -28,6 +28,12 @@ import Categorias from './Categorias'
 import { agrupar, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 
+/** A linha só mostra ícone e nome; tocar abre a folha de edição, onde ficam as ações (pedido do dono, 10/11/2026). */
+async function abrir(u: ReturnType<typeof userEvent.setup>, nome: string) {
+  await u.click(screen.getByRole('button', { name: new RegExp(`^Editar ${nome}(,|$)`) }))
+  return screen.getByRole('dialog', { name: `Editar ${nome}` })
+}
+
 const cat = (id: string, nome: string, extra: Partial<Categoria> = {}): Categoria =>
   ({ id, nome, tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false, ...extra })
 
@@ -65,11 +71,27 @@ describe('agrupar', () => {
 })
 
 describe('Categorias', () => {
-  it('Editar abre numa folha por cima da tela (no celular o formulário no topo ficava fora da vista)', async () => {
+  it('a linha só tem ícone e nome (pedido do dono, 10/11/2026); tocar abre a folha com as ações em "Mais opções"', async () => {
     const u = userEvent.setup()
     render(<Categorias />)
     const linha = (await screen.findByText('Moradia')).closest('div')!
-    await u.click(within(linha).getByRole('button', { name: 'Editar' }))
+    expect(within(linha).queryByRole('button', { name: 'Não conta como consumo' })).toBeNull()
+    expect(within(linha).queryByRole('button', { name: 'Desativar' })).toBeNull()
+    const folha = await abrir(u, 'Moradia')
+    const mais = within(folha).getByRole('region', { name: 'Mais opções' })
+    expect(within(mais).getAllByRole('button').map((b) => b.textContent)).toEqual(['Não conta como consumo', 'Desativar'])
+    // receita tem também a marca de eventual
+    await u.click(within(folha).getByRole('button', { name: 'Cancelar' }))
+    await u.click(screen.getByRole('tab', { name: 'Receitas' }))
+    const maisReceita = within(await abrir(u, 'Salário')).getByRole('region', { name: 'Mais opções' })
+    expect(within(maisReceita).getAllByRole('button').map((b) => b.textContent)).toEqual(['Marcar como eventual', 'Não conta como consumo', 'Desativar'])
+  })
+
+  it('Editar abre numa folha por cima da tela (no celular o formulário no topo ficava fora da vista)', async () => {
+    const u = userEvent.setup()
+    render(<Categorias />)
+    await screen.findByText('Moradia')
+    await abrir(u, 'Moradia')
     const folha = screen.getByRole('dialog', { name: 'Editar Moradia' })
     expect((within(folha).getByLabelText('Nome') as HTMLInputElement).value).toBe('Moradia')
     await u.click(within(folha).getByRole('button', { name: 'Cancelar' }))
@@ -79,8 +101,8 @@ describe('Categorias', () => {
   it('Desativar mostra uma faixa fixa com Desfazer; Desfazer reativa', async () => {
     const u = userEvent.setup()
     render(<Categorias />)
-    const linha = (await screen.findByText('Moradia')).closest('div')!
-    await u.click(within(linha).getByRole('button', { name: 'Desativar' }))
+    await screen.findByText('Moradia')
+    await u.click(within(await abrir(u, 'Moradia')).getByRole('button', { name: 'Desativar' }))
     expect(mock.definirCategoriaAtiva).toHaveBeenCalledWith('m', false)
     const faixa = await screen.findByRole('status', { name: '' })
     expect(faixa.textContent).toContain('Moradia desativada.')
@@ -92,8 +114,8 @@ describe('Categorias', () => {
     mock.definirCategoriaAtiva.mockRejectedValueOnce({ code: '23514', message: 'a categoria "Sem categoria" não pode ser alterada' })
     const u = userEvent.setup()
     render(<Categorias />)
-    const linha = (await screen.findByText('Moradia')).closest('div')!
-    await u.click(within(linha).getByRole('button', { name: 'Desativar' }))
+    await screen.findByText('Moradia')
+    await u.click(within(await abrir(u, 'Moradia')).getByRole('button', { name: 'Desativar' }))
     const alertas = await screen.findAllByRole('alert')
     expect(alertas.some((a) => a.className.includes('fixed'))).toBe(true)
   })
@@ -138,8 +160,9 @@ describe('Categorias', () => {
 
   it('reativa categoria desativada', async () => {
     render(<Categorias />)
-    const linha = (await screen.findByText('Lazer')).closest('div')!
-    await userEvent.setup().click(within(linha).getByRole('button', { name: 'Reativar' }))
+    const u = userEvent.setup()
+    await screen.findByText('Lazer')
+    await u.click(within(await abrir(u, 'Lazer')).getByRole('button', { name: 'Reativar' }))
     expect(mock.definirCategoriaAtiva).toHaveBeenCalledWith('l', true)
   })
 
@@ -158,8 +181,8 @@ describe('Categorias', () => {
     mock.editarCategoria.mockRejectedValue({ code: '23514', message: 'categoria com subcategorias não pode virar subcategoria' })
     render(<Categorias />)
     const u = userEvent.setup()
-    const linha = (await screen.findByText('Moradia')).closest('div')!
-    await u.click(within(linha).getByRole('button', { name: 'Editar' }))
+    await screen.findByText('Moradia')
+    await abrir(u, 'Moradia')
     await u.selectOptions(screen.getByLabelText('Dentro de (opcional)'), 'l')
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(mock.editarCategoria).toHaveBeenCalledWith('m', { nome: 'Moradia', paiId: 'l', icone: null, cor: null })
@@ -174,8 +197,7 @@ describe('Receita eventual', () => {
     await screen.findByText('Moradia')
     expect(screen.queryByRole('button', { name: /eventual/ })).toBeNull()
     await u.click(screen.getByRole('tab', { name: 'Receitas' }))
-    const sal = screen.getByText('Salário').closest('div')!
-    await u.click(within(sal).getByRole('button', { name: 'Marcar como eventual' }))
+    await u.click(within(await abrir(u, 'Salário')).getByRole('button', { name: 'Marcar como eventual' }))
     expect(mock.definirCategoriaEventual).toHaveBeenCalledWith('sal', true)
   })
 
@@ -186,11 +208,11 @@ describe('Receita eventual', () => {
     await u.click(screen.getByRole('tab', { name: 'Receitas' }))
     const mae = screen.getByText('13º salário').closest('div')!
     expect(within(mae).getByText('eventual')).toBeTruthy()
-    await u.click(within(mae).getByRole('button', { name: 'Marcar como regular' }))
+    await u.click(within(await abrir(u, '13º salário')).getByRole('button', { name: 'Marcar como regular' }))
     expect(mock.definirCategoriaEventual).toHaveBeenCalledWith('d13', false)
     const filha = screen.getByText('Bônus').closest('div')!
     expect(within(filha).getByText('eventual (da principal)')).toBeTruthy()
-    expect(within(filha).queryByRole('button', { name: /eventual|regular/ })).toBeNull()
+    expect(within(await abrir(u, 'Bônus')).queryByRole('button', { name: /eventual|regular/ })).toBeNull()
   })
 })
 
@@ -201,13 +223,12 @@ describe('Não conta como consumo (migration 071)', () => {
     await screen.findByText('Moradia')
     expect(screen.getByText(/sai da taxa de poupança, da reserva e do comprometimento do\s+Início/)).toBeTruthy()
     expect(screen.getByText('só para a categoria marcada')).toBeTruthy()
-    const mor = screen.getByText('Moradia').closest('div')!
-    const botao = within(mor).getByRole('button', { name: 'Não conta como consumo' })
+    const botao = within(await abrir(u, 'Moradia')).getByRole('button', { name: 'Não conta como consumo' })
     expect(botao.getAttribute('aria-pressed')).toBe('false')
     await u.click(botao)
     expect(mock.definirCategoriaNaoConsumo).toHaveBeenCalledWith('m', true)
     await u.click(screen.getByRole('tab', { name: 'Receitas' }))
-    await u.click(within(screen.getByText('Salário').closest('div')!).getByRole('button', { name: 'Não conta como consumo' }))
+    await u.click(within(await abrir(u, 'Salário')).getByRole('button', { name: 'Não conta como consumo' }))
     expect(mock.definirCategoriaNaoConsumo).toHaveBeenCalledWith('sal', true)
   })
 
@@ -218,13 +239,14 @@ describe('Não conta como consumo (migration 071)', () => {
     await screen.findByText('Moradia')
     const mae = screen.getByText('Moradia').closest('div')!
     expect(within(mae).getByText('não conta como consumo')).toBeTruthy()
-    expect(within(mae).getByRole('button', { name: 'Não conta como consumo' }).getAttribute('aria-pressed')).toBe('true')
+    const botaoMae = within(await abrir(u, 'Moradia')).getByRole('button', { name: 'Não conta como consumo' })
+    expect(botaoMae.getAttribute('aria-pressed')).toBe('true')
+    await u.click(botaoMae)
+    expect(mock.definirCategoriaNaoConsumo).toHaveBeenCalledWith('m', false)
     const filha = screen.getByText('Aluguel').closest('div')!
     expect(within(filha).queryByText(/não conta como consumo/)).toBeNull()
-    const botaoFilha = within(filha).getByRole('button', { name: 'Não conta como consumo' })
+    const botaoFilha = within(await abrir(u, 'Aluguel')).getByRole('button', { name: 'Não conta como consumo' })
     expect(botaoFilha.getAttribute('aria-pressed')).toBe('false')
-    await u.click(within(mae).getByRole('button', { name: 'Não conta como consumo' }))
-    expect(mock.definirCategoriaNaoConsumo).toHaveBeenCalledWith('m', false)
     await u.click(botaoFilha)
     expect(mock.definirCategoriaNaoConsumo).toHaveBeenCalledWith('al', true)
   })
@@ -232,7 +254,8 @@ describe('Não conta como consumo (migration 071)', () => {
   it('"Sem categoria" não tem o botão (o banco recusa a marca)', async () => {
     render(<Categorias />)
     await screen.findByText('Moradia')
-    expect(within(screen.getByText('Sem categoria').closest('div')!).queryByRole('button', { name: 'Não conta como consumo' })).toBeNull()
+    // "Sem categoria" nem abre a edição: não há onde marcar
+    expect(screen.queryByRole('button', { name: /^Editar Sem categoria/ })).toBeNull()
   })
 })
 
@@ -253,16 +276,16 @@ describe('Ícone e cor', () => {
     mock.listarCategorias.mockResolvedValue([...base, cat('mer', 'Mercado', { icone: 'sacola', cor: '#9333EA' })])
     render(<Categorias />)
     const u = userEvent.setup()
-    const linha = (await screen.findByText('Moradia')).closest('div')!
-    await u.click(within(linha).getByRole('button', { name: 'Editar' }))
+    await screen.findByText('Moradia')
+    await abrir(u, 'Moradia')
     expect(screen.getByRole('button', { name: 'Ícone sugerido pelo nome' }).getAttribute('aria-pressed')).toBe('true')
     await u.click(screen.getByRole('button', { name: 'Coração' }))
     await u.click(screen.getByRole('button', { name: 'Rosa' }))
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(mock.editarCategoria).toHaveBeenCalledWith('m', { nome: 'Moradia', paiId: null, icone: 'coracao', cor: '#DB2777' })
 
-    const mercado = (await screen.findByText('Mercado')).closest('div')!
-    await u.click(within(mercado).getByRole('button', { name: 'Editar' }))
+    await screen.findByText('Mercado')
+    await abrir(u, 'Mercado')
     expect(screen.getByRole('button', { name: 'Compras' }).getAttribute('aria-pressed')).toBe('true')
     await u.click(screen.getByRole('button', { name: 'Ícone sugerido pelo nome' }))
     await u.click(screen.getByRole('button', { name: 'Cor sugerida pelo nome' }))
@@ -273,8 +296,8 @@ describe('Ícone e cor', () => {
   it('na subcategoria, o automático é o da principal', async () => {
     render(<Categorias />)
     const u = userEvent.setup()
-    const linha = (await screen.findByText('Aluguel')).closest('div')!
-    await u.click(within(linha).getByRole('button', { name: 'Editar' }))
+    await screen.findByText('Aluguel')
+    await abrir(u, 'Aluguel')
     expect(screen.getByRole('button', { name: 'Ícone igual ao da principal' })).toBeTruthy()
     expect(screen.getByText(/usa o ícone e a cor da principal/)).toBeTruthy()
   })
