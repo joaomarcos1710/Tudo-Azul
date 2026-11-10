@@ -22,7 +22,7 @@ import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 import { IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeTransferir } from '../components/layout/icons'
 import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
 import { aceitaLancamento, hojeSP, listarContas, listarSaldosDiarios, mesmaMoeda } from '../lib/contas'
-import type { Conta, SaldoDiario } from '../lib/contas'
+import type { Conta, ContaInterna, SaldoDiario } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
@@ -123,6 +123,8 @@ export default function Lancamentos() {
   // receitas e despesas pagas em outras moedas (multimoeda F2): à parte, nunca somadas ao resumo em reais
   const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
   const [contas, setContas] = useState<Conta[]>([])
+  // contas internas (carteira de investimentos): só para dar nome às transferências de aporte e resgate
+  const [internas, setInternas] = useState<ContaInterna[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
@@ -191,7 +193,7 @@ export default function Lancamentos() {
   useEffect(() => {
     if (!familiaId) return
     Promise.all([listarContas(familiaId), listarCategorias(familiaId)])
-      .then(([c, cat]) => { setContas(c.contas); setCategorias(cat) })
+      .then(([c, cat]) => { setContas(c.contas); setInternas(c.internas ?? []); setCategorias(cat) })
       .catch((err) => setErro(mensagemErroBanco(err)))
     // cartões à parte: falha deles não tira contas e categorias da tela
     listarCartoes(familiaId).then(setCartoes).catch(() => setCartoes([]))
@@ -259,7 +261,8 @@ export default function Lancamentos() {
 
   useEffect(() => { void carregar() }, [carregar])
 
-  const nomeConta = useMemo(() => new Map(contas.map((c) => [c.id, c.nome])), [contas])
+  const nomeConta = useMemo(() => new Map([...contas, ...internas].map((c) => [c.id, c.nome])), [contas, internas])
+  const idsInternas = useMemo(() => new Set(internas.map((c) => c.id)), [internas])
   const moedaConta = useMemo(() => new Map(contas.map((c) => [c.id, c.moeda ?? 'BRL'])), [contas])
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
   const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
@@ -307,7 +310,8 @@ export default function Lancamentos() {
 
   // a seleção em lote vale para os lançamentos visíveis, na ordem da tela (o Shift marca o intervalo nessa ordem)
   const lote = useSelecaoLote({
-    lancamentos: itensVisiveis.flatMap((it) => (it.origem === 'lancamento' ? [it.l] : [])), hoje, categorias, aoAlterar: carregar,
+    // aporte e resgate da carteira ficam fora do lote: só se alteram pela operação em Investimentos
+    lancamentos: itensVisiveis.flatMap((it) => (it.origem === 'lancamento' && !idsInternas.has(it.l.contaId) && !idsInternas.has(it.l.destinoId ?? '') ? [it.l] : [])), hoje, categorias, aoAlterar: carregar,
     chave: `${periodo.de}|${periodo.ate}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`,
   })
 
@@ -504,6 +508,8 @@ export default function Lancamentos() {
                   const l = item.l
                   const v = valorComSinal(l, moedaConta.get(l.contaId) ?? 'BRL')
                   const nome = l.descricao || rotuloTipo[l.tipo]
+                  // aporte ou resgate da carteira (migration 100): só se altera pela operação em Investimentos (o banco trava)
+                  const daCarteira = idsInternas.has(l.contaId) || idsInternas.has(l.destinoId ?? '')
                   // abaixo de 1024px: a ação principal (marcar pago) num botão compacto de 1 toque; tudo também no menu ⋯
                   const acoes: AcaoMenu[] = [
                     ...(l.status === 'planned' ? [{ rotulo: 'Marcar pago', aoEscolher: () => { setEditando(null); setPagando(l) }, desabilitado: pagando !== null }] : []),
@@ -513,7 +519,7 @@ export default function Lancamentos() {
                   return (
                     <LinhaLista key={l.id}
                       // no modo de seleção a caixa entra no lugar do ícone e as ações de um só saem (evita o toque errado)
-                      icone={lote.ligada ? (
+                      icone={lote.ligada && !daCarteira ? (
                         <label className="-m-2 inline-flex min-h-11 min-w-11 items-center justify-center">
                           <input type="checkbox" className="h-5 w-5 accent-azul" aria-label={`Selecionar ${nome}`} checked={lote.marcado(l.id)}
                             onChange={(e) => lote.alternar(l.id, (e.nativeEvent as MouseEvent).shiftKey === true)} />
@@ -529,10 +535,13 @@ export default function Lancamentos() {
                         ...(l.status === 'planned' ? [situacaoDoLancamento(false, l.data, hoje) === 'vencido'
                           ? <Etiqueta key="p" estilo={SELO.vencido}>Vencido</Etiqueta>
                           : <Etiqueta key="p" estilo={SELO.planejado}>Planejado</Etiqueta>] : []),
+                        ...(daCarteira ? [<Etiqueta key="i" estilo="bg-azul-claro text-azul">Investimento</Etiqueta>] : []),
                         ...(l.recorrente ? [<span key="r" className="shrink-0" title="Gerado por um recorrente"><span aria-hidden="true">↻</span><span className="sr-only">recorrente</span></span>] : []),
                       ]}
                       valor={v.texto} corValor={v.cor}
-                      acoes={lote.ligada ? undefined : <>
+                      acoes={lote.ligada ? undefined : daCarteira
+                        ? <Link to="/investimentos" aria-label={`Ver em Investimentos: ${nome}`} title="Alterar pela operação em Investimentos" className={linkCompacto}>Investimentos</Link>
+                        : <>
                         {l.status === 'planned' && (
                           <button type="button" aria-label="Marcar pago" title={`Marcar pago: ${nome}`} disabled={pagando !== null}
                             onClick={() => { setEditando(null); setPagando(l) }}

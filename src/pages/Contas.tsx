@@ -19,6 +19,7 @@ import type { Etiqueta, EtiquetasDaFamilia } from '../lib/etiquetas'
 import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { MoverParaCarteira, podeMoverParaCarteira } from '../components/MoverParaCarteira'
 import { corDoValor } from '../lib/cores'
 
 /** Saldo na moeda da conta (BRL continua com formatBRL). */
@@ -84,6 +85,7 @@ export default function Contas() {
   // null = formulário fechado; 'nova' = criando; Conta = editando
   const [editando, setEditando] = useState<Conta | 'nova' | null>(null)
   const [excluindo, setExcluindo] = useState<Conta | null>(null)
+  const [movendo, setMovendo] = useState<Conta | null>(null)
   const [tags, setTags] = useState<EtiquetasDaFamilia>(SEM_ETIQUETAS)
   // '' = todas as contas; senão, o id da etiqueta escolhida no filtro
   const [filtro, setFiltro] = useState('')
@@ -206,6 +208,10 @@ export default function Contas() {
             <p className="mt-1 text-xs text-slate-500">Inclui contas arquivadas: o dinheiro continua lá.</p>
             <EmOutrasMoedas porMoeda={porMoeda} className="mt-3 border-t border-slate-200 pt-3" />
           </Card>
+          {movendo && (
+            <MoverParaCarteira conta={movendo} aoCancelar={() => setMovendo(null)}
+              aoConcluir={() => { setMovendo(null); void carregar() }} />
+          )}
           {excluindo && (
             <div className="mb-4 rounded-lg border border-negativo-borda bg-negativo-fundo p-4" role="group" aria-label="Excluir conta">
               <p className="text-sm">
@@ -269,6 +275,9 @@ export default function Contas() {
                           <Button variante="fantasma" compacto onClick={() => alternarAtiva(c)}>Arquivar</Button>
                           <Button variante="perigoTexto" compacto onClick={() => setExcluindo(c)}>Excluir</Button>
                         </div>
+                        {podeMoverParaCarteira(c) && (
+                          <Button variante="pilula" compacto onClick={() => setMovendo(c)} aria-label={`Mover ${c.nome} para a carteira`}>Mover para a carteira</Button>
+                        )}
                       </div>
                     </Card>
                   </li>

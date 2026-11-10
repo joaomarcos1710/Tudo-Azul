@@ -546,3 +546,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Decidido (opção A, agora):** o dono troca o tipo das duas contas de Conta corrente para **Renda variável**, na tela de Contas. Saem do Disponível e ficam no Patrimônio pelo custo em reais. Sem código.
 - **Depois (opção B):** dólar e euro viram ativos da carteira (quantidade em moeda × cotação do dia, cotação pela PTAX do Banco Central), o que exige mover o saldo de uma conta para a carteira sem virar despesa; a mesma peça resolve as contas antigas de investimento.
 - **Por que não recriar em USD/EUR já:** o banco recusa transferência entre moedas diferentes (056) até existir cotação, e o histórico de transferências ficaria sem par.
+
+## 10/11/2026 — Carteira como conta interna (dono)
+- **Decidido:** aporte e resgate são transferências para uma conta interna "Carteira de investimentos", fora de todas as somas; contas antigas de investimento vão para a carteira por "Mover para a carteira" (cria o ativo, zera a conta sem despesa e arquiva). Detalhes em `27 - Investimentos vinculados a conta`.
+- **Motivo:** com o patrimônio somando a carteira (099), mandar o dinheiro para uma corretora comum contaria duas vezes; transferência já é o caminho que nunca vira receita nem despesa.
+- **Escolhas do dono:** conta na compra é opcional; operações antigas não mudam; corretora segue no Disponível; só reais na primeira versão.

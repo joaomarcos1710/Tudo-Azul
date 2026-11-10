@@ -126,7 +126,7 @@ export function hojeSP(agora: Date = new Date()): string {
 /** Código do PostgreSQL para coluna inexistente: o banco ainda sem a migration 017 (banco da conta). */
 export const COLUNA_INEXISTENTE = '42703'
 
-interface LinhaConta { id: string; name: string; type: TipoConta; initial_balance: number | string; opening_date: string; active: boolean; bank?: string | null; currency_code?: string }
+interface LinhaConta { id: string; name: string; type: TipoConta; initial_balance: number | string; opening_date: string; active: boolean; bank?: string | null; currency_code?: string; system_role?: string | null }
 
 const COLUNAS_BASE = 'id, name, type, initial_balance, opening_date, active'
 
@@ -137,8 +137,9 @@ const COLUNAS_BASE = 'id, name, type, initial_balance, opening_date, active'
 async function lerContas(db: NonNullable<typeof supabase>, familiaId: string): Promise<{ data: LinhaConta[]; error: { code?: string } | null }> {
   const ler = async (colunas: string): Promise<{ data: unknown; error: { code?: string } | null }> =>
     db.from('accounts').select(colunas).eq('household_id', familiaId).order('name')
-  let r = await ler(`${COLUNAS_BASE}, bank, currency_code`)
-  for (const colunas of [`${COLUNAS_BASE}, bank`, COLUNAS_BASE]) {
+  // system_role (migration 100): a conta interna da carteira de investimentos
+  let r = await ler(`${COLUNAS_BASE}, bank, currency_code, system_role`)
+  for (const colunas of [`${COLUNAS_BASE}, bank, currency_code`, `${COLUNAS_BASE}, bank`, COLUNAS_BASE]) {
     if (r.error?.code !== COLUNA_INEXISTENTE) break
     r = await ler(colunas)
   }
@@ -174,7 +175,10 @@ export async function totaisPorMoeda(familiaId: string, dataRef: string = hojeSP
     .map((m) => ({ moeda: m.currency_code, total: centsFromDb(m.total), totalAtivas: centsFromDb(m.total_active) }))
 }
 
-export async function listarContas(familiaId: string, dataRef: string = hojeSP()): Promise<{ contas: Conta[]; total: Cents; porTipo: TotalPorTipo[]; porMoeda: TotalPorMoeda[] }> {
+/** Conta interna do sistema (a carteira de investimentos, migration 100): só o nome, para mostrar transferências. */
+export interface ContaInterna { id: string; nome: string }
+
+export async function listarContas(familiaId: string, dataRef: string = hojeSP()): Promise<{ contas: Conta[]; total: Cents; porTipo: TotalPorTipo[]; porMoeda: TotalPorMoeda[]; internas: ContaInterna[] }> {
   const db = cliente()
   const [contas, saldos, totais, porTipo, porMoeda] = await Promise.all([
     lerContas(db, familiaId),
@@ -191,7 +195,8 @@ export async function listarContas(familiaId: string, dataRef: string = hojeSP()
   )
   const linhaTotal = ((totais.data ?? []) as { total: number | string }[])[0]
   return {
-    contas: contas.data.map((c) => ({
+    // a conta interna da carteira nunca aparece em lista, escolha nem soma; vem à parte, só com o nome
+    contas: contas.data.filter((c) => !c.system_role).map((c) => ({
       id: c.id,
       nome: c.name,
       tipo: c.type,
@@ -206,6 +211,7 @@ export async function listarContas(familiaId: string, dataRef: string = hojeSP()
     porTipo: porTipo.error ? [] : ((porTipo.data ?? []) as { account_type: TipoConta; total: number | string; total_active: number | string }[])
       .map((t) => ({ tipo: t.account_type, total: centsFromDb(t.total), totalAtivas: centsFromDb(t.total_active) })),
     porMoeda,
+    internas: contas.data.filter((c) => !!c.system_role).map((c) => ({ id: c.id, nome: c.name })),
   }
 }
 

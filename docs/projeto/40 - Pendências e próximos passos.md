@@ -544,3 +544,10 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] "Só o valor" vale só para a primeira compra. Aporte seguinte num ativo sem cota (previdência com contribuição mensal) não tem caminho exato: precisa de uma função do banco para ativo "por valor". Enquanto isso, o valor se atualiza por avaliação e o custo não acompanha os aportes.
 - [x] Novo ativo, avaliação e provento também em folha (#283). Editar ativo e subclasse continuam dentro da linha do ativo.
 - [ ] Conferir a folha no iPhone (você): teclado numérico, rolagem e botões do pé.
+
+## Carteira como conta interna (10/11/2026, #284, migration 100)
+- [x] Desenho aprovado (ver 27 - Investimentos vinculados a conta).
+- [ ] Aplicar a migration 100 em produção (simular, ler o log, aplicar), com o "pode" do dono em cada passo.
+- [ ] Depois de aplicada: o dono move as contas antigas de investimento (renda variável, renda fixa, cripto) para a carteira e atualiza o valor por avaliação.
+- [ ] Contas Nomad (dólar e euro): ativo em moeda com cotação PTAX, usando o mesmo mover; exige transferência entre moedas ou mover por valor em reais.
+- [ ] Conciliação e exportação mostram a conta interna nas transferências; conferir se o texto ajuda ou confunde.
