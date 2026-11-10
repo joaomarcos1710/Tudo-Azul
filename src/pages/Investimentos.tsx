@@ -20,12 +20,12 @@ import { mensagemErroBanco } from '../lib/erros'
 import { corDoValor } from '../lib/cores'
 import { COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../components/graficos/cores'
 import {
-  MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirSubclasseAtivo, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
+  LIQUIDEZES, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirLiquidezAtivo, definirSubclasseAtivo, listarLiquidezInvestimentos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
   reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento, registrarProventoInvestimento,
 } from '../lib/investimentos'
 import type {
-  AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, LinhaExtratoAtivo, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
+  AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, LinhaExtratoAtivo, LinhaLiquidez, Liquidez, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
   TipoOperacaoInvestimento, TipoProvento, TotalInvestimento,
 } from '../lib/investimentos'
 
@@ -61,6 +61,8 @@ export default function Investimentos() {
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   // vazio também quando o banco ainda não tem a migration 034: a seção de alocação só some, o resto da tela segue
   const [alocacao, setAlocacao] = useState<LinhaAlocacao[]>([])
+  // vazio quando o banco ainda não tem a migration da liquidez: o bloco some, o resto da tela segue
+  const [liquidez, setLiquidez] = useState<LinhaLiquidez[]>([])
   const [filtroMacro, setFiltroMacro] = useState('')
   const [filtroSub, setFiltroSub] = useState('')
   const [filtrosAbertos, setFiltrosAbertos] = useState(false)
@@ -92,6 +94,7 @@ export default function Investimentos() {
       setHistorico(serie)
       setErro('')
       try { setAlocacao(await listarAlocacaoInvestimentos(familia.id, hojeSP())) } catch { setAlocacao([]) }
+      try { setLiquidez(await listarLiquidezInvestimentos(familia.id, hoje)) } catch { setLiquidez([]) }
       // proventos: 12 meses para trás e 6 para frente (os planejados). Sem a migration 035, a seção só some.
       try {
         const mes = currentMonth()
@@ -109,15 +112,21 @@ export default function Investimentos() {
   const familiaId = familia?.id ?? ''
   if (!familiaId) return null
 
-  async function salvarAtivo(d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string }) {
+  async function salvarAtivo(d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string; liquidez: Liquidez }) {
     try {
-      const { subclasse, ...ativo } = d
+      const { subclasse, liquidez: liq, ...ativo } = d
       const id = await criarAtivoInvestimento({ familiaId, ...ativo })
       setNovoAtivo(false)
       let avisoSub = ''
       if (subclasse.trim()) {
         try { await definirSubclasseAtivo(id, subclasse) } catch (e) {
           avisoSub = `Ativo cadastrado, mas a subclasse não foi salva: ${mensagemErroBanco(e)}`
+        }
+      }
+      // o ativo nasce líquido no banco; só o restrito precisa da segunda chamada
+      if (liq === 'restricted') {
+        try { await definirLiquidezAtivo(id, liq) } catch (e) {
+          avisoSub = `Ativo cadastrado como líquido: não foi possível marcar como restrito. ${mensagemErroBanco(e)}`
         }
       }
       await carregar() // recarregar limpa o erro; por isso o aviso da subclasse entra depois
@@ -258,6 +267,28 @@ export default function Investimentos() {
         )}
       </section>
 
+      {liquidez.length > 0 && (
+        <section className="mt-8" aria-labelledby="titulo-liquidez-investimentos">
+          <h2 id="titulo-liquidez-investimentos" className="mb-1 text-lg font-semibold">Por liquidez</h2>
+          <p className="mb-3 text-sm text-slate-500">Líquido dá para resgatar ou vender. Restrito (previdência, FGTS) conta no patrimônio, mas não é dinheiro disponível.</p>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {([...new Set(liquidez.map((l) => l.moeda))] as MoedaInvestimento[]).map((codigo) => (
+              <Card key={codigo}>
+                <p className="text-sm font-medium text-slate-500">{codigo}</p>
+                <dl className="mt-2 grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">
+                  {LIQUIDEZES.map(([chave]) => (
+                    <div key={chave} className="contents">
+                      <dt className="text-slate-500">{chave === 'liquid' ? 'Líquido' : 'Restrito'}</dt>
+                      <dd className="m-0 text-right font-bold tabular-nums">{moeda(liquidez.find((l) => l.moeda === codigo && l.liquidez === chave)?.valor ?? (0 as Cents), codigo)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
         <h2 id="titulo-evolucao-investimentos" className="mb-1 text-lg font-semibold">Evolução dos investimentos</h2>
         <p className="mb-3 text-sm text-slate-500">Valor estimado no fechamento de cada mês, por moeda, nos últimos 12 meses. Registre avaliações periódicas para acompanhar a valorização real.</p>
@@ -345,12 +376,16 @@ export default function Investimentos() {
               const semHistorico = a.quantidadeOperacoes === 0 && a.quantidadeAvaliacoes === 0 && a.quantidadeProventos === 0
               return (
                 <li key={a.id} className={`flex flex-wrap items-center justify-between gap-2 p-3 ${a.ativo ? '' : 'opacity-70'}`}>
-                  <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda} · {a.subclasse ?? 'sem subclasse'}</p></div>
+                  <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda} · {a.subclasse ?? 'sem subclasse'}{a.liquidez === 'restricted' ? ' · restrito' : ''}</p></div>
                   <span className="flex flex-wrap items-center gap-1">
                     <span className="mr-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{situacao}</span>
                     <Button compacto variante="fantasma" onClick={() => setEditandoAtivo(a)} aria-label={`Editar ${a.nome}`}>Editar</Button>
                     <Button compacto variante="fantasma" aria-expanded={extratoDe === a.id} onClick={() => setExtratoDe(extratoDe === a.id ? null : a.id)} aria-label={`Extrato de ${a.nome}`}>Extrato</Button>
                     <Button compacto variante="fantasma" onClick={() => setEditandoSub(editandoSub === a.id ? null : a.id)}>Subclasse de {a.nome}</Button>
+                    <Button compacto variante="fantasma" aria-label={a.liquidez === 'restricted' ? `Marcar ${a.nome} como líquido` : `Marcar ${a.nome} como restrito`}
+                      onClick={() => void acaoNoAtivo(() => definirLiquidezAtivo(a.id, a.liquidez === 'restricted' ? 'liquid' : 'restricted'))}>
+                      {a.liquidez === 'restricted' ? 'Marcar como líquido' : 'Marcar como restrito'}
+                    </Button>
                     {a.ativo && !comPosicao && (
                       <Button compacto variante="fantasma" onClick={() => void acaoNoAtivo(() => arquivarAtivoInvestimento(a.id))} aria-label={`Arquivar ${a.nome}`}>Arquivar</Button>
                     )}
@@ -698,10 +733,11 @@ function Posicao({ p }: { p: PosicaoInvestimento }) {
 }
 
 function FormAtivo({ aoSalvar, aoCancelar }: {
-  aoSalvar: (d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string }) => Promise<void>
+  aoSalvar: (d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string; liquidez: Liquidez }) => Promise<void>
   aoCancelar: () => void
 }) {
   const [subclasse, setSubclasse] = useState('')
+  const [liquidez, setLiquidez] = useState<Liquidez>('liquid')
   const [nome, setNome] = useState('')
   const [ticker, setTicker] = useState('')
   // sem classe pré-escolhida: começar em "Renda fixa" fez um FII ser gravado como renda fixa (o dono não trocou o campo)
@@ -714,7 +750,7 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
     if (!nome.trim()) { setErro('Informe o nome do ativo.'); return }
     if (!classe) { setErro('Escolha a classe do ativo (ex.: FIIs / REITs para fundo imobiliário, Renda fixa para CDB e Tesouro).'); return }
     setEnviando(true); setErro('')
-    try { await aoSalvar({ nome, ticker, classe, moeda: moedaAtivo, subclasse }) }
+    try { await aoSalvar({ nome, ticker, classe, moeda: moedaAtivo, subclasse, liquidez }) }
     finally { setEnviando(false) }
   }
   return <Card className="mb-5"><h2 className="mb-3 text-lg font-semibold">Cadastrar ativo</h2>
@@ -725,6 +761,7 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
       <Selecao rotulo="Classe" valor={classe} aoMudar={(v) => setClasse(v as ClasseAtivo | '')} opcoes={classes} todos="Escolha a classe" />
       <Selecao rotulo="Moeda do ativo" valor={moedaAtivo} aoMudar={(v) => setMoedaAtivo(v as MoedaInvestimento)} opcoes={moedas} />
       <Field rotulo="Subclasse (opcional)" value={subclasse} onChange={(e) => setSubclasse(e.target.value)} maxLength={40} list="sugestoes-subclasse-novo" placeholder="Ex.: Tesouro Direto, CDB, FIIs" />
+      <Selecao rotulo="Liquidez" valor={liquidez} aoMudar={(v) => setLiquidez(v === 'restricted' ? 'restricted' : 'liquid')} opcoes={LIQUIDEZES} />
       <datalist id="sugestoes-subclasse-novo">{(classe ? SUGESTOES_SUBCLASSE[classe] : []).map((x) => <option key={x} value={x} />)}</datalist>
       <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Salvar ativo</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
     </form>

@@ -27,6 +27,9 @@ export interface Indicadores {
   creditoAReceber: Cents
   bens: Cents
   investimentos: Cents
+  /** null = banco ainda na regra antiga (patrimônio sem a carteira). Com valor, a carteira em reais já está no patrimônio. */
+  investimentosLiquidos: Cents | null
+  investimentosRestritos: Cents | null
   dividas: Cents
   compromissos: Cents
   patrimonio: Cents
@@ -72,7 +75,10 @@ export function indicadoresDaLinha(r: Linha): Indicadores {
     inicioMesFechado: String(r.closed_month_start), fimMesFechado: String(r.closed_month_end),
     contasAtivas: c('accounts_active'), faturasFechadas: c('card_bills_closed'), disponivel: c('available'),
     contasTodas: c('accounts_total'), creditoAReceber: c('credit_receivable'), bens: c('family_assets'),
-    investimentos: c('investments'), dividas: c('debt_total'), compromissos: c('planned_commitments'), patrimonio: c('net_worth'),
+    investimentos: c('investments'),
+    investimentosLiquidos: r.investments_liquid === undefined || r.investments_liquid === null ? null : c('investments_liquid'),
+    investimentosRestritos: r.investments_restricted === undefined || r.investments_restricted === null ? null : c('investments_restricted'),
+    dividas: c('debt_total'), compromissos: c('planned_commitments'), patrimonio: c('net_worth'),
     receitas: c('income'), despesas: c('expense'), resultado: c('result'),
     receitasPoupanca: c('savings_income'), despesasPoupanca: c('savings_expense'), resultadoPoupanca: c('savings_result'),
     taxaPoupanca: numero(r.savings_rate), faixaPoupanca: faixa(r.savings_band),

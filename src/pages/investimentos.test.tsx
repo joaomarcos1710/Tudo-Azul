@@ -9,6 +9,8 @@ const mock = vi.hoisted(() => ({
   listarAlocacaoInvestimentos: vi.fn(),
   criarAtivoInvestimento: vi.fn(),
   definirSubclasseAtivo: vi.fn(),
+  definirLiquidezAtivo: vi.fn(),
+  listarLiquidezInvestimentos: vi.fn(),
   listarProventosPorAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
   listarContas: vi.fn(),
@@ -30,6 +32,8 @@ vi.mock('../lib/investimentos', async (o) => ({
   listarAlocacaoInvestimentos: mock.listarAlocacaoInvestimentos,
   criarAtivoInvestimento: mock.criarAtivoInvestimento,
   definirSubclasseAtivo: mock.definirSubclasseAtivo,
+  definirLiquidezAtivo: mock.definirLiquidezAtivo,
+  listarLiquidezInvestimentos: mock.listarLiquidezInvestimentos,
   listarProventosPorAtivo: mock.listarProventosPorAtivo,
   registrarProventoInvestimento: mock.registrarProventoInvestimento,
   editarAtivoInvestimento: mock.editarAtivoInvestimento,
@@ -47,7 +51,7 @@ import type { Cents } from '../lib/format'
 
 const c = (n: number) => n as Cents
 const ativo = (id: string, nome: string, classe: string, extra: Record<string, unknown> = {}) =>
-  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null,
+  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null, liquidez: 'liquid',
     // contadores de histórico (#125): 0 = nunca teve movimento, então pode ser excluído
     quantidadeOperacoes: 0, quantidadeAvaliacoes: 0, quantidadeProventos: 0, ...extra })
 const posicao = (assetId: string, nome: string, classe: string, valor: number) => ({
@@ -90,6 +94,8 @@ beforeEach(() => {
   for (const f of [mock.editarAtivoInvestimento, mock.arquivarAtivoInvestimento, mock.reativarAtivoInvestimento, mock.excluirAtivoInvestimento]) f.mockResolvedValue(undefined)
   mock.criarAtivoInvestimento.mockResolvedValue('novo-id')
   mock.definirSubclasseAtivo.mockResolvedValue(undefined)
+  mock.definirLiquidezAtivo.mockResolvedValue(undefined)
+  mock.listarLiquidezInvestimentos.mockResolvedValue([])
   mock.anularOperacaoInvestimento.mockResolvedValue(undefined)
   mock.listarExtratoAtivo.mockResolvedValue(extratoBase())
 })
@@ -145,6 +151,55 @@ describe('Investimentos × macroclasse e subclasse', () => {
     expect(mock.criarAtivoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ familiaId: 'h1', nome: 'CDB Banco X', classe: 'fixed_income' }))
     expect(mock.criarAtivoInvestimento.mock.calls[0][0]).not.toHaveProperty('subclasse')
     expect(mock.definirSubclasseAtivo).toHaveBeenCalledWith('novo-id', 'CDB')
+  })
+
+  describe('liquidez (opção C, 10/11/2026)', () => {
+    it('cadastrar previdência como restrito: cria o ativo e depois marca a liquidez; líquido não faz a segunda chamada', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      await u.type(screen.getByLabelText('Nome do ativo'), 'Previdência')
+      await u.selectOptions(screen.getByLabelText('Classe'), 'other')
+      await u.selectOptions(screen.getByLabelText('Liquidez'), 'restricted')
+      await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
+      expect(mock.criarAtivoInvestimento.mock.calls[0][0]).not.toHaveProperty('liquidez')
+      expect(mock.definirLiquidezAtivo).toHaveBeenCalledWith('novo-id', 'restricted')
+
+      mock.definirLiquidezAtivo.mockClear()
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      await u.type(screen.getByLabelText('Nome do ativo'), 'CDB')
+      await u.selectOptions(screen.getByLabelText('Classe'), 'fixed_income')
+      await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(2))
+      expect(mock.definirLiquidezAtivo).not.toHaveBeenCalled()
+    })
+
+    it('o bloco "Por liquidez" mostra Líquido e Restrito com os valores do banco, por moeda', async () => {
+      mock.listarLiquidezInvestimentos.mockResolvedValue([
+        { moeda: 'BRL', liquidez: 'liquid', valor: c(123456) },
+        { moeda: 'BRL', liquidez: 'restricted', valor: c(5000000) },
+      ])
+      render(<Investimentos />)
+      const bloco = (await screen.findByRole('heading', { name: 'Por liquidez' })).closest('section') as HTMLElement
+      const linhas = Array.from(bloco.querySelectorAll('dt')).map((dt) => `${dt.textContent} ${dt.nextElementSibling?.textContent}`)
+      expect(linhas.map((l) => l.replace(/\s/g, ' '))).toEqual(['Líquido R$ 1.234,56', 'Restrito R$ 50.000,00'])
+    })
+
+    it('banco sem a migration da liquidez: a tela segue, sem o bloco', async () => {
+      mock.listarLiquidezInvestimentos.mockRejectedValue(new Error('PGRST202'))
+      render(<Investimentos />)
+      await screen.findByText('Custo de aquisição')
+      expect(screen.queryByRole('heading', { name: 'Por liquidez' })).toBeNull()
+    })
+
+    it('ativo restrito diz "restrito" e o botão troca a liquidez', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('p1', 'Previdência', 'other', { liquidez: 'restricted' })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Marcar Previdência como líquido' }))
+      expect(mock.definirLiquidezAtivo).toHaveBeenCalledWith('p1', 'liquid')
+      expect(screen.getByText(/· restrito$/)).toBeTruthy()
+    })
   })
 
   it('sem subclasse digitada, não chama a RPC de subclasse', async () => {
