@@ -74,7 +74,9 @@ interface Dados {
   porMoeda: TotalPorMoeda[]
   /** Receitas e despesas pagas do mês em outras moedas, sem conversão (period_summary_by_currency); vazio = só reais ou não carregou. */
   mesPorMoeda: ResumoPorMoeda[]
-  proximos: ProximoPlanejado[]
+  /** Planejados de entrada e de saída a partir de hoje (mesma regra dos avisos do topo); transferência fica de fora das duas. */
+  aReceber: ProximoPlanejado[]
+  aPagar: ProximoPlanejado[]
   /** null = os gráficos não carregaram (ex.: banco ainda sem as consultas novas); o resto da tela segue normal */
   categorias: DespesaCategoria[] | null
   dias: DespesaDia[] | null
@@ -242,7 +244,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       .then(() => noInicio
         ? Promise.all([
             // essenciais do Início: se falharem, a tela inteira avisa o erro
-            listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje), listarLancamentos(familiaId, mes), listarCategorias(familiaId),
+            listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'income'), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'expense'),
+            listarLancamentos(familiaId, mes), listarCategorias(familiaId),
             opcional('vencidosPlanejados', vencidosPlanejados(familiaId, hoje, 5)), opcional('resumoDosCartoes', resumoDosCartoes(familiaId, hoje)),
             opcional('totalFaturasDoMes', totalFaturasDoMes(familiaId, mes)),
             // a faixa de indicadores do topo (#188): os 7 números numa chamada só, calculados no banco
@@ -253,10 +256,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
             opcional('saldosProjetados', saldosProjetados(familiaId, ate, true)), opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)),
             opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)), opcional('avisosDoInicio', avisosDoInicio(familiaId, hoje)),
-          ]).then(([c, proximos, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
+          ]).then(([c, entradas, saidas, lancs, cats, vencidos, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, orcamentos, mesPorMoeda, avisos]): Dados => ({
             patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores, decisao,
             categorias: null, dias: null, regularidade: null, anoPassado: null, projecao: null,
-            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos, vencidos, cartoes, faturasDoMes,
+            contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], vencidos, cartoes, faturasDoMes,
+            aReceber: entradas.filter((x) => x.tipo === 'income'), aPagar: saidas.filter((x) => x.tipo === 'expense'),
             saldoPrevisto: projetado?.total ?? null, balanco: null,
             orcamentos, avisos,
             ultimos: lancs.filter((l) => l.status === 'paid').slice(0, 6),
@@ -288,7 +292,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             })))),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, porMoeda, mesPorMoeda, balanco]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], proximos: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, decisao: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
+            contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], aReceber: [], aPagar: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, decisao: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
       .then((d) => {
         if (!ativo) return
@@ -512,27 +516,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             </Card>
           )}
           {dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
-          <Card className="order-4">
-            <CardTitle>Próximos planejados</CardTitle>
-            {dados.proximos.length === 0 ? (
-              <p className="text-sm text-slate-500">Nada planejado a partir de hoje.</p>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {dados.proximos.map((x) => (
-                  <li key={x.id} className="flex items-center gap-3 py-2 text-sm">
-                    <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
-                    <span className="min-w-0 flex-1">
-                      {formatDate(x.data)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
-                      {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.todasContas} />}
-                    </span>
-                    <span className={`tabular-nums font-semibold ${corDoTipo(x.tipo)}`}>
-                      {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(x.valor, moedaDe(x.contaId))}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+          <ListaPlanejada className="order-4" titulo="Receitas a receber" vazio="Nenhuma receita planejada a partir de hoje."
+            itens={dados.aReceber} moedaDe={moedaDe} categoriaPorId={dados.categoriaPorId} />
+          <ListaPlanejada className="order-4" titulo="Despesas a pagar" vazio="Nenhuma despesa planejada a partir de hoje."
+            itens={dados.aPagar} moedaDe={moedaDe} categoriaPorId={dados.categoriaPorId} />
         </div>
         <Card semPadding className="order-3 lg:col-span-2">
           <div className="flex items-center justify-between px-5 pt-5">
@@ -878,6 +865,53 @@ function RotaTransferencia({ contaId, destinoId, contas }: { contaId: string | n
 }
 
 /** Ícone da linha: transferência com setas; receita/despesa com o da categoria. */
+/** Quantos itens cada lista carrega do banco e quantos mostra antes do "Ver mais". */
+const LIMITE_CARREGADO = 10
+const LIMITE_VISIVEL = 5
+
+/**
+ * "Receitas a receber" e "Despesas a pagar" (etapa 2 do painel). Os itens e a ordem vêm do banco; a tela só mostra os
+ * primeiros e deixa abrir o resto, sem somar nada.
+ */
+function ListaPlanejada({ titulo, vazio, itens, moedaDe, categoriaPorId, className = '' }: {
+  titulo: string; vazio: string; itens: ProximoPlanejado[]; moedaDe: (contaId: string | null) => string
+  categoriaPorId: Map<string, Categoria>; className?: string
+}) {
+  const [aberta, setAberta] = useState(false)
+  const visiveis = aberta ? itens : itens.slice(0, LIMITE_VISIVEL)
+  return (
+    <Card className={className}>
+      <CardTitle>{titulo}</CardTitle>
+      {itens.length === 0 ? (
+        <p className="text-sm text-slate-500">{vazio}</p>
+      ) : (
+        <>
+          <ul className="divide-y divide-slate-100">
+            {visiveis.map((x) => (
+              <li key={x.id} className="flex items-center gap-3 py-2 text-sm">
+                <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={categoriaPorId} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">{x.descricao || (x.tipo === 'income' ? 'Receita' : 'Despesa')}</span>
+                  <span className="block text-xs text-slate-500">{formatDate(x.data)}</span>
+                </span>
+                <span className={`tabular-nums font-semibold ${corDoTipo(x.tipo)}`}>
+                  {x.tipo === 'income' ? '+' : '−'}{formatMoeda(x.valor, moedaDe(x.contaId))}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {itens.length > LIMITE_VISIVEL && (
+            <button type="button" aria-expanded={aberta} onClick={() => setAberta((v) => !v)}
+              className="mt-2 inline-flex min-h-11 w-full items-center justify-center text-sm font-semibold text-azul hover:underline">
+              {aberta ? 'Ver menos' : `Ver mais (${itens.length - LIMITE_VISIVEL})`}
+            </button>
+          )}
+        </>
+      )}
+    </Card>
+  )
+}
+
 function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense' | 'transfer'; categoriaId: string | null; porId: Map<string, Categoria> }) {
   return tipo === 'transfer'
     ? <IconeCategoria fixo="transferencia" tamanho="pequeno" />
