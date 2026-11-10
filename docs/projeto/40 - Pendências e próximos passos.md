@@ -465,6 +465,14 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Fatia 2 "Mudar" (agora etapa 4): tabela de exceções, `card_recurrence_pending`/`recurrence_materialize` respeitando-as e RPC "só esta" / "esta e as próximas".
 - [ ] Fatia 3: diálogo no app.
 - [ ] Decidir (dono, "talvez"): mudar o dia de uma assinatura já convertida em parcela. Hoje não é possível; só o valor (`card_installment_edit`).
-- [x] Etapa 4: "só esta" e "esta e as próximas" (editar e cancelar), com as previstas e a geração no dia respeitando as exceções (código e teste prontos; **migration 20261110050000 ainda não aplicada em produção**).
+- [x] Etapa 4: "só esta" e "esta e as próximas" (editar e cancelar), com as previstas e a geração no dia respeitando as exceções (código e teste prontos; migration 20261110050000 aplicada em produção em 10/11/2026).
 - [ ] Abrir a fatura futura que só tem assinaturas e somar as agendadas ao total dela (hoje a fatura só existe em `card_months` com parcela).
 - [ ] "Esta e as próximas" mudando cria uma segunda regra em Recorrentes (a antiga termina na véspera): decidir se isso incomoda ou se vale esconder as encerradas.
+
+## Velocidade do Início (medido em 10/11/2026, `pg_stat_statements`)
+- [x] Tarefas automáticas fora do caminho do primeiro desenho (Início e Análises).
+- [ ] O Início ainda espera TODAS as consultas para desenhar; a mais lenta manda. Médias no banco: `get_home_decision_month` 7,7 s (só 4 chamadas na amostra), `dashboard_commitment_matrix` 4,9 s, `home_indicators` 3,8 s, `home_alerts` 3,2 s, `balance_totals_projected` 2,7 s, `card_overview` 2,5 s. Próximo passo: carregar por bloco, com esqueleto do tamanho final.
+- [ ] `EXPLAIN ANALYZE` em `get_home_decision_month` e ver o que ela recalcula que `home_indicators` também calcula; avaliar uma RPC única para o topo.
+- [ ] `card_limits` e `debt_balances` são chamadas demais por dentro de outras funções (1.275 e 1.476 chamadas na amostra).
+- [ ] Cartões, Lançamentos e Calendário ainda rodam as tarefas automáticas antes de carregar; avaliar o mesmo tratamento.
+- [ ] Sem cache no front: cada visita refaz tudo.

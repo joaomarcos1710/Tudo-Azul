@@ -239,10 +239,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
     setDados(null)
     setEvolucao(null)
     setErro('')
-    // gera recorrentes e cobra faturas fechadas; se falhar, o painel mostra o que já está gravado, com aviso
-    atualizarAutomaticos()
-      .then((r) => { setCobrancaFalhou(!r.faturasOk); setRecorrentesFalhou(!r.recorrentesOk) })
-      .then(() => noInicio
+    // A tela mostra primeiro o que já está gravado; as tarefas automáticas (gerar recorrentes, cobrar faturas fechadas,
+    // assinaturas do cartão) rodam ao mesmo tempo, sem segurar o primeiro desenho. Antes elas rodavam em fila ANTES de
+    // qualquer consulta (4 idas ao banco). Se alguma mudou um valor, a tela recarrega sozinha, sem piscar.
+    const carregarTela = (): Promise<Dados> => (noInicio
         ? Promise.all([
             // essenciais do Início: se falharem, a tela inteira avisa o erro
             listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'income'), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'expense'),
@@ -297,6 +297,14 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
             contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], aReceber: [], aPagar: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, decisao: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
+    atualizarAutomaticos().then((r) => {
+      if (!ativo) return
+      setCobrancaFalhou(!r.faturasOk)
+      setRecorrentesFalhou(!r.recorrentesOk)
+      // recarga silenciosa: se falhar, fica o que já estava na tela (a carga principal é quem avisa erro)
+      if (r.mudou) carregarTela().then((d) => { if (ativo) setDados(d) }).catch(() => undefined)
+    })
+    carregarTela()
       .then((d) => {
         if (!ativo) return
         setDados(d)

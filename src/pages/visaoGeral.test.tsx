@@ -792,6 +792,34 @@ describe('Visão geral', () => {
     expect(faixa.compareDocumentPosition(vencidos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  describe('carga sem bloqueio (tarefas automáticas fora do caminho do primeiro desenho)', () => {
+    it('a tela aparece mesmo com as tarefas automáticas ainda rodando', async () => {
+      gerar.mockReturnValue(new Promise(() => {})) // nunca termina
+      montar()
+      expect(await screen.findByText('Despesas a pagar')).toBeTruthy()
+      expect(mock.listarContas).toHaveBeenCalledTimes(1)
+    })
+
+    it('se as tarefas gravaram algo (ex.: recorrente gerado), a tela recarrega sozinha com os dados novos', async () => {
+      gerar.mockResolvedValue(2)
+      mock.proximosPlanejados
+        .mockResolvedValueOnce([]).mockResolvedValueOnce([]) // 1ª carga: nada a receber nem a pagar
+        .mockImplementation(async (_f: string, _h: string, _l: number, tipo?: string) =>
+          (tipo === 'expense' ? [{ id: 'n1', tipo: 'expense', descricao: 'Recém-gerada', valor: c(9900), data: '2026-10-28', categoriaId: null, contaId: null, destinoId: null }] : []))
+      montar()
+      expect(await screen.findByText('Recém-gerada')).toBeTruthy()
+      expect(mock.listarContas).toHaveBeenCalledTimes(2)
+    })
+
+    it('se nada mudou, não recarrega', async () => {
+      montar()
+      await screen.findByText('Despesas a pagar')
+      await waitFor(() => expect(cobrar).toHaveBeenCalled())
+      await new Promise((r) => setTimeout(r, 20))
+      expect(mock.listarContas).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('Maiores gastos (etapa 3 do painel)', () => {
     it('Início mostra a rosca com as 4 maiores + Outros do banco, legenda com nome, valor e %, e link para as despesas do mês', async () => {
       montar()
