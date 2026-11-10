@@ -187,3 +187,4 @@ continuam abaixo como histórico.
 | 2026.272 | **Filtros em tela cheia também no Entradas x Saídas.** A casca e os chips saem para um componente compartilhado (`TelaFiltros`). Pagos e Lançado por viram chips; contas seguem com busca e arquivadas. Continua em rascunho: só vale ao Aplicar. |
 | 2026.273 | **Filtros de Investimentos em tela cheia.** Macroclasse e Subclasse saem dos seletores e vão para a mesma tela de filtros de Lançamentos, em chips; os ligados aparecem como selos. |
 | 2026.274 | **Filtro por etiqueta de Contas em tela cheia.** O seletor sai; o botão Filtrar abre a mesma tela de Lançamentos com as etiquetas em chips, e a escolhida vira um selo. |
+| 2026.275 | **Sem a regra 50-30-20.** Saem de Categorias o seletor de grupo (Necessidades, Desejos, Investir e poupar), a sugestão pelo nome e o card do mês. Nada muda nos valores; a classificação antiga fica guardada no banco. |

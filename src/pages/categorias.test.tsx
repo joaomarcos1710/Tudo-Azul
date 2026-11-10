@@ -65,6 +65,14 @@ describe('agrupar', () => {
 })
 
 describe('Categorias', () => {
+  it('a regra 50-30-20 saiu (pedido do dono, 10/11/2026): sem card do mês, sem seletor de grupo e sem sugestão', async () => {
+    render(<Categorias />)
+    await screen.findByText('Moradia')
+    expect(screen.queryByText(/50-30-20/)).toBeNull()
+    expect(screen.queryByRole('combobox', { name: /^Grupo de / })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Sugestão:/ })).toBeNull()
+  })
+
   it('mostra despesas com subcategorias; "Sem categoria" não tem ações', async () => {
     render(<Categorias />)
     expect(await screen.findByText('Moradia')).toBeTruthy()
