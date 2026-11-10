@@ -79,6 +79,24 @@ describe('Dívidas', () => {
     expect(opcoes).toEqual(['Selecione a conta', 'Itaú'])
   })
 
+  it('as ações do ⋯ abrem num painel (dialog) por cima da lista, não no topo da página', async () => {
+    render(<Dividas />)
+    const u = userEvent.setup()
+    await screen.findByText('Financiamento do imóvel')
+    for (const [rotulo, titulo] of [
+      ['Registrar pagamento', /Registrar pagamento: Financiamento do imóvel/],
+      ['Parâmetros da dívida', /Parâmetros: Financiamento do imóvel/],
+      ['Contrato e parcelas', /Contrato e parcelas: Financiamento do imóvel/],
+      ['Renomear', /Renomear Financiamento do imóvel/],
+    ] as const) {
+      await acao('Financiamento do imóvel', rotulo, u)
+      const painel = screen.getByRole('dialog')
+      expect(within(painel).getByRole('heading', { name: titulo })).toBeTruthy()
+      await u.click(within(painel).getByRole('button', { name: 'Fechar' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+    }
+  })
+
   it('amortização extra com FGTS: "Nenhuma (FGTS ou fora do app)" manda conta nula; juros ou tarifa sem conta são recusados na tela', async () => {
     mock.listarDividas.mockImplementation(porSituacao([{ ...ativas()[0], parcelasRestantes: 353 }]))
     mock.listarContas.mockResolvedValue({ contas: [
