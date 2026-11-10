@@ -5,6 +5,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
+import { Folha } from '../components/ui/Folha'
 import { Selecao } from '../components/ui/Selecao'
 import { Chip, Chips, GrupoFiltro, TelaFiltros } from '../components/ui/TelaFiltros'
 import { BANCOS_POR_NOME, tipoSemBanco } from '../lib/bancos'
@@ -213,16 +214,18 @@ export default function Contas() {
               aoConcluir={() => { setMovendo(null); void carregar() }} />
           )}
           {excluindo && (
-            <div className="mb-4 rounded-lg border border-negativo-borda bg-negativo-fundo p-4" role="group" aria-label="Excluir conta">
-              <p className="text-sm">
-                Excluir a conta <strong>{excluindo.nome}</strong> de vez. Só é possível se ela nunca teve lançamento, transferência
-                nem recorrente; se tiver, o app avisa e você pode <strong>arquivar</strong> em vez de excluir. Não dá para desfazer.
-              </p>
-              <div className="mt-3 flex gap-2">
-                <Button variante="perigo" onClick={() => void confirmarExclusao(excluindo)}>Excluir conta</Button>
-                <Button variante="secundario" onClick={() => setExcluindo(null)}>Cancelar</Button>
+            <Folha titulo={`Excluir ${excluindo.nome}`} aoFechar={() => setExcluindo(null)}>
+              <div role="group" aria-label="Excluir conta">
+                <p className="text-sm">
+                  Excluir a conta <strong>{excluindo.nome}</strong> de vez. Só é possível se ela nunca teve lançamento, transferência
+                  nem recorrente; se tiver, o app avisa e você pode <strong>arquivar</strong> em vez de excluir. Não dá para desfazer.
+                </p>
+                <div className="mt-3 flex gap-2">
+                  <Button variante="perigo" onClick={() => void confirmarExclusao(excluindo)}>Excluir conta</Button>
+                  <Button variante="secundario" onClick={() => setExcluindo(null)}>Cancelar</Button>
+                </div>
               </div>
-            </div>
+            </Folha>
           )}
           {tags.disponivel && (
             <GerenciarEtiquetas
@@ -575,8 +578,7 @@ function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoC
   }
 
   return (
-    <Card className="mb-6">
-      <h2 className="mb-4 text-lg font-semibold">{conta ? `Editar ${conta.nome}` : 'Nova conta'}</h2>
+    <Folha titulo={conta ? `Editar ${conta.nome}` : 'Nova conta'} aoFechar={aoCancelar}>
       <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Nome" maxLength={60} placeholder="Ex.: Itaú João" value={nome} onChange={(e) => setNome(e.target.value)} erro={erroNome} />
@@ -663,6 +665,6 @@ function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoC
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+    </Folha>
   )
 }

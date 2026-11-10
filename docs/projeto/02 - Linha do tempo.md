@@ -283,6 +283,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#290** (10/11/2026): Autoria logo abaixo do Sair, centralizada e em cinza.
 - **#291** (10/11/2026): Dívidas: ações do ⋯ abrem num painel por cima da lista.
 - **#292** (10/11/2026): Amortização extra reduz o prazo ou a parcela, como o banco informou (migration 103, ainda não aplicada).
+- **#293** (10/11/2026): Contas: nova conta, editar e excluir abrem num painel por cima da lista.
 
 ## Ainda abertos
 Em 10/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
