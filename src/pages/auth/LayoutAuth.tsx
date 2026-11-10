@@ -27,8 +27,8 @@ export function LayoutAuth({ titulo, children }: { titulo: string; children: Rea
         )}
         {children}
       </Card>
-      <Versao className="mt-6 text-blue-200/70" />
-      <Autoria className="mt-2 text-center text-blue-200/70" />
+      <Autoria className="mt-6 text-center text-slate-400" />
+      <Versao className="mt-1 text-center text-slate-400" />
     </div>
   )
 }
