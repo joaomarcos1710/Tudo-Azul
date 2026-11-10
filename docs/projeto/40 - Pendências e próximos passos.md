@@ -557,3 +557,8 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Aplicar a migration 101 (simular, ler o log, aplicar), com o "pode" do dono.
 - [ ] O resumo de orçamentos em Análises (barras menores) ainda não mostra o tracejado.
 - [ ] Se o dono quiser o tracejado como "fatura fechada e não paga", é outra regra (ver 30 - Decisões).
+## Investimentos no estilo da XP (10/11/2026, #286)
+- [x] Topo com investido, parado na corretora, Investir e Resgatar; Minha carteira com abas; Investimentos na barra de baixo.
+- [ ] Total "investido + parado na corretora" num número só: precisa vir somado do banco (regra: a tela não soma dinheiro).
+- [ ] Rentabilidade e variação: só depois de cotação automática e histórico de operações.
+- [ ] Conferir no celular (você): topo, rosca e abas, e a barra de baixo nova.

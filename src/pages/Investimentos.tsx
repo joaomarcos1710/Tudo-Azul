@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
+import { MinhaCarteira } from '../components/investimentos/MinhaCarteira'
 import { Selecao } from '../components/ui/Selecao'
 import { Chip, Chips, GrupoFiltro, TelaFiltros } from '../components/ui/TelaFiltros'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
@@ -21,7 +22,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { corDoValor } from '../lib/cores'
 import { COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../components/graficos/cores'
 import {
-  CLASSES_ATIVO, LIQUIDEZES, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirLiquidezAtivo, definirSubclasseAtivo, listarLiquidezInvestimentos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
+  CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirLiquidezAtivo, definirSubclasseAtivo, listarLiquidezInvestimentos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
   reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento, registrarProventoInvestimento,
 } from '../lib/investimentos'
@@ -69,11 +70,14 @@ export default function Investimentos() {
   const [extratoDe, setExtratoDe] = useState<string | null>(null)
   const [proventos, setProventos] = useState<ProventoAtivo[]>([])
   const [contas, setContas] = useState<Conta[]>([])
+  // saldo das contas de corretora ativas em reais (balance_totals_by_type, do banco); null = não leu
+  const [paradoCorretora, setParadoCorretora] = useState<Cents | null>(null)
   const [novoProvento, setNovoProvento] = useState(false)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(true)
   const [novoAtivo, setNovoAtivo] = useState(false)
-  const [novaOperacao, setNovaOperacao] = useState(false)
+  // false = fechado; 'buy'/'sell' = aberto já na aba (Investir, Resgatar); true = aberto em Compra
+  const [novaOperacao, setNovaOperacao] = useState<boolean | TipoOperacaoInvestimento>(false)
   const [novaAvaliacao, setNovaAvaliacao] = useState(false)
 
   const carregar = useCallback(async () => {
@@ -98,7 +102,11 @@ export default function Investimentos() {
         const mes = currentMonth()
         setProventos(await listarProventosPorAtivo(familia.id, limitesDoMes(somarMeses(mes, -11))[0], limitesDoMes(somarMeses(mes, 6))[1]))
       } catch { setProventos([]) }
-      try { setContas((await listarContas(familia.id)).contas) } catch { setContas([]) }
+      try {
+        const lidas = await listarContas(familia.id)
+        setContas(lidas.contas)
+        setParadoCorretora(lidas.porTipo?.find((t) => t.tipo === 'brokerage')?.totalAtivas ?? null)
+      } catch { setContas([]); setParadoCorretora(null) }
     } catch (e) {
       setErro(mensagemErroBanco(e))
     } finally {
@@ -217,12 +225,12 @@ export default function Investimentos() {
       />
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       <Aviso tipo="info">
-        Nesta primeira etapa, o livro de investimentos registra compras, vendas e avaliações manuais em BRL, USD ou EUR. Os valores ficam separados por moeda. As operações ainda não movimentam as contas bancárias nem entram como receita ou despesa; a integração de caixa será feita numa etapa própria para evitar dupla contagem. Não há cotação automática nesta versão.
+        Compras, vendas e avaliações em BRL, USD ou EUR, separadas por moeda e sem conversão. Ao escolher a conta numa compra ou venda em reais, o dinheiro sai ou volta como transferência para a carteira, sem virar despesa nem receita. Não há cotação automática: o valor de mercado vem das avaliações.
       </Aviso>
 
       {novoAtivo && <FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
-        <FormOperacao ativos={ativosAtivos} contas={contasAtivas} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
+        <FormOperacao ativos={ativosAtivos} contas={contasAtivas} tipoInicial={novaOperacao === 'sell' ? 'sell' : 'buy'} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
       )}
       {novoProvento && (
         <FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} />
@@ -246,42 +254,38 @@ export default function Investimentos() {
         {totais.length > 0 && (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {totais.map((t) => (
-              <Card key={t.moeda}>
-                <p className="text-sm font-medium text-slate-500">Valor de mercado em {t.moeda}</p>
-                <p className="mt-1 text-2xl font-bold tabular-nums">{moeda(t.valorAtual, t.moeda)}</p>
-                {/* uma grade só para os dois pares: os rótulos ficam na mesma coluna e os valores terminam na mesma borda direita */}
-                <dl className="mt-3 grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">
+              <Card key={t.moeda} className={t.moeda === 'BRL' ? 'sm:col-span-2 xl:col-span-3' : ''}>
+                <p className="text-sm font-medium text-slate-500">{t.moeda === 'BRL' ? 'Investido (valor de mercado em BRL)' : `Valor de mercado em ${t.moeda}`}</p>
+                <p className={`mt-1 font-bold tabular-nums ${t.moeda === 'BRL' ? 'text-4xl text-marinho' : 'text-2xl'}`}>{moeda(t.valorAtual, t.moeda)}</p>
+                {/* uma grade só para os pares: os rótulos ficam na mesma coluna e os valores terminam na mesma borda direita */}
+                <dl className="mt-3 grid max-w-md grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">
+                  {t.moeda === 'BRL' && paradoCorretora !== null && (
+                    <>
+                      <dt className="text-slate-500">Parado na corretora</dt>
+                      <dd className="m-0 text-right font-bold tabular-nums">{moeda(paradoCorretora, 'BRL')}</dd>
+                    </>
+                  )}
                   <dt className="text-slate-500">Custo de aquisição</dt>
                   <dd className="m-0 text-right font-bold tabular-nums">{moeda(t.custoTotal, t.moeda)}</dd>
                   <dt className="text-slate-500">Resultado não realizado</dt>
                   <dd className={`m-0 text-right font-bold tabular-nums ${corDoValor(t.resultado)}`}>{moeda(t.resultado, t.moeda)}</dd>
                 </dl>
+                {t.moeda === 'BRL' && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button onClick={() => setNovaOperacao('buy')} disabled={ativosAtivos.length === 0}>Investir</Button>
+                    <Button variante="secundario" onClick={() => setNovaOperacao('sell')} disabled={ativosAtivos.length === 0}>Resgatar</Button>
+                  </div>
+                )}
               </Card>
             ))}
           </div>
         )}
       </section>
 
-      {liquidez.length > 0 && (
-        <section className="mt-8" aria-labelledby="titulo-liquidez-investimentos">
-          <h2 id="titulo-liquidez-investimentos" className="mb-1 text-lg font-semibold">Por liquidez</h2>
-          <p className="mb-3 text-sm text-slate-500">Líquido dá para resgatar ou vender. Restrito (previdência, FGTS) conta no patrimônio, mas não é dinheiro disponível.</p>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {([...new Set(liquidez.map((l) => l.moeda))] as MoedaInvestimento[]).map((codigo) => (
-              <Card key={codigo}>
-                <p className="text-sm font-medium text-slate-500">{codigo}</p>
-                <dl className="mt-2 grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">
-                  {LIQUIDEZES.map(([chave]) => (
-                    <div key={chave} className="contents">
-                      <dt className="text-slate-500">{chave === 'liquid' ? 'Líquido' : 'Restrito'}</dt>
-                      <dd className="m-0 text-right font-bold tabular-nums">{moeda(liquidez.find((l) => l.moeda === codigo && l.liquidez === chave)?.valor ?? (0 as Cents), codigo)}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </Card>
-            ))}
-          </div>
-        </section>
+      {totais.some((t) => t.moeda === 'BRL') && (
+        <MinhaCarteira total={totais.find((t) => t.moeda === 'BRL')!.valorAtual}
+          alocacao={alocacao.filter((l) => l.moeda === 'BRL')} liquidez={liquidez.filter((l) => l.moeda === 'BRL')}
+          posicoes={posicoes.filter((p) => p.moeda === 'BRL')} formatar={(c) => moeda(c, 'BRL')} />
       )}
 
       <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
@@ -298,7 +302,8 @@ export default function Investimentos() {
         </p>}
       </section>
 
-      {alocacao.length > 0 && <SecaoAlocacao linhas={alocacao} />}
+      {/* em reais, a alocação está em Minha carteira; aqui só as outras moedas */}
+      {alocacao.some((l) => l.moeda !== 'BRL') && <SecaoAlocacao linhas={alocacao.filter((l) => l.moeda !== 'BRL')} />}
       {proventos.length > 0 && <SecaoProventos linhas={proventos} />}
 
       <section className="mt-8" aria-labelledby="titulo-posicoes">
@@ -858,8 +863,9 @@ function decimalDeCentavos(c: Cents): string {
  * atalho: "só o valor" vale só para a primeira posição (ativo sem histórico); aportes seguintes num ativo sem cota pedem
  * uma função do banco, ver 40 - Pendências.
  */
-function FormOperacao({ ativos, contas, aoSalvar, aoCancelar }: {
+function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancelar }: {
   ativos: AtivoInvestimento[]
+  tipoInicial?: TipoOperacaoInvestimento
   /** contas em reais, ativas: de onde sai a compra ou para onde volta a venda (opcional) */
   contas: Conta[]
   aoSalvar: (d: { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string; precoUnitario: string; tarifas: Cents; observacao: string; contaId?: string }) => Promise<void>
@@ -867,7 +873,7 @@ function FormOperacao({ ativos, contas, aoSalvar, aoCancelar }: {
 }) {
   const [ativoId, setAtivoId] = useState(ativos[0]?.id ?? '')
   const [data, setData] = useState(hojeSP())
-  const [tipo, setTipo] = useState<TipoOperacaoInvestimento>('buy')
+  const [tipo, setTipo] = useState<TipoOperacaoInvestimento>(tipoInicial)
   const [modo, setModo] = useState<'valor' | 'unidades' | null>(null)
   const [valorTexto, setValorTexto] = useState('')
   const [qtd, setQtd] = useState('')

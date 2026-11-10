@@ -23,7 +23,11 @@ export interface GrupoNavegacao {
   itens: ItemNavegacao[]
 }
 
-/** Todas as telas do app, usadas também no menu "Mais" do celular. */
+/**
+ * Todas as telas do app, usadas também no menu "Mais" do celular. Barra de baixo (pedido do dono, 10/11/2026):
+ * Investimentos entrou no lugar de Orçamentos, que virou atalho no "Mais" (no lugar de
+ * Categorias, que segue na lista).
+ */
 export const gruposNavegacao: GrupoNavegacao[] = [
   {
     titulo: 'Visão geral',
@@ -46,16 +50,16 @@ export const gruposNavegacao: GrupoNavegacao[] = [
   {
     titulo: 'Planejamento',
     itens: [
-      { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos, descricao: 'Quanto gastar por categoria no mês.', fixoNoCelular: true },
+      { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos, descricao: 'Quanto gastar por categoria no mês.', atalho: true },
       { caminho: '/reservas', rotulo: 'Reservas', curto: 'Reservas', Icone: IconeOrcamentos, descricao: 'Envelopes virtuais, aportes e resgates.' },
-      { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias, descricao: 'Como receitas e despesas são agrupadas.', atalho: true },
+      { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias, descricao: 'Como receitas e despesas são agrupadas.' },
     ],
   },
   {
     titulo: 'Patrimônio',
     itens: [
       { caminho: '/dividas', rotulo: 'Dívidas e empréstimos', curto: 'Dívidas', Icone: IconeDividas, descricao: 'Saldo devedor, pagamentos e estratégias de quitação.' },
-      { caminho: '/investimentos', rotulo: 'Investimentos', curto: 'Invest.', Icone: IconeInvestimentos, descricao: 'Carteira e operações de ativos da família.' },
+      { caminho: '/investimentos', rotulo: 'Investimentos', curto: 'Invest.', Icone: IconeInvestimentos, descricao: 'Carteira e operações de ativos da família.', fixoNoCelular: true },
       { caminho: '/bens', rotulo: 'Bens e patrimônio', curto: 'Bens', Icone: IconeBens, descricao: 'Imóveis, veículos e outros bens da família.' },
     ],
   },
