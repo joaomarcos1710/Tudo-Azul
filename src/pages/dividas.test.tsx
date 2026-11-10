@@ -14,11 +14,12 @@ const mock = vi.hoisted(() => ({
   reativarDivida: vi.fn(),
   excluirDivida: vi.fn(),
   definirCategoriaPrincipal: vi.fn(),
+  registrarPagamentoDivida: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -26,6 +27,11 @@ import Dividas from './Dividas'
 import type { Cents } from '../lib/format'
 
 const c = (n: number) => n as Cents
+/** As ações de cada dívida moram no ⋯ (pedido do dono, 10/11/2026): abre o menu da dívida e escolhe a ação. */
+async function acao(nomeDivida: string, rotulo: string, u: ReturnType<typeof userEvent.setup> = userEvent.setup()) {
+  await u.click(await screen.findByRole('button', { name: `Ações de ${nomeDivida}` }))
+  await u.click(screen.getByRole('menuitem', { name: rotulo }))
+}
 
 const ativas = () => [
   { id: 'd1', nome: 'Financiamento do imóvel', tipo: 'financing', saldo: c(25000000), compromissos: c(0), ativa: true, taxaMensalBps: 90, pagamentoMinimo: c(250000) },
@@ -47,6 +53,7 @@ beforeEach(() => {
   mock.renomearDivida.mockResolvedValue(undefined)
   mock.listarParcelasDivida.mockResolvedValue([])
   mock.registrarPagamentoParcela.mockResolvedValue(undefined)
+  mock.registrarPagamentoDivida.mockResolvedValue(undefined)
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
@@ -67,9 +74,61 @@ describe('Dívidas', () => {
     render(<Dividas />)
     const u = userEvent.setup()
     await screen.findByText('Financiamento do imóvel')
-    await u.click(screen.getAllByRole('button', { name: 'Registrar pagamento' })[0])
+    await acao('Financiamento do imóvel', 'Registrar pagamento', u)
     const opcoes = Array.from((screen.getByLabelText('Conta de saída') as HTMLSelectElement).options).map((o) => o.textContent)
     expect(opcoes).toEqual(['Selecione a conta', 'Itaú'])
+  })
+
+  it('amortização extra com FGTS: "Nenhuma (FGTS ou fora do app)" manda conta nula; juros ou tarifa sem conta são recusados na tela', async () => {
+    mock.listarDividas.mockImplementation(porSituacao([{ ...ativas()[0], parcelasRestantes: 353 }]))
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'CAIXA', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+    ], total: c(0) })
+    render(<Dividas />)
+    const u = userEvent.setup()
+    await acao('Financiamento do imóvel', 'Amortização extra', u)
+    await u.selectOptions(screen.getByLabelText('Conta de saída'), '__sem_conta__')
+    expect(screen.getByText(/Nenhuma conta muda: só o saldo da dívida diminui/)).toBeTruthy()
+    await u.type(screen.getByLabelText('Valor total pago (R$)'), '18.009,57')
+    await u.clear(screen.getByLabelText('Juros incluídos (R$)'))
+    await u.type(screen.getByLabelText('Juros incluídos (R$)'), '10,00')
+    await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+    expect(screen.getByText(/Sem conta \(ex\.: FGTS\), registre só a amortização/)).toBeTruthy()
+    expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
+    await u.clear(screen.getByLabelText('Juros incluídos (R$)'))
+    await u.type(screen.getByLabelText('Juros incluídos (R$)'), '0,00')
+    await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+    expect(mock.registrarPagamentoDivida).toHaveBeenCalledWith(expect.objectContaining({ dividaId: 'd1', contaId: null, principal: 1800957, juros: 0, tarifa: 0, extra: true }))
+  })
+
+  it('pagamento comum (sem ser amortização extra) não oferece "sem conta"', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'CAIXA', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+    ], total: c(0) })
+    render(<Dividas />)
+    const u = userEvent.setup()
+    await screen.findByText('Financiamento do imóvel')
+    await acao('Financiamento do imóvel', 'Registrar pagamento', u)
+    const opcoes = Array.from((screen.getByLabelText('Conta de saída') as HTMLSelectElement).options).map((o) => o.textContent)
+    expect(opcoes).not.toContain('Nenhuma (FGTS ou fora do app)')
+  })
+
+  it('linha compacta: tipo, credor e forma; parcela, restam e próxima; "Confirmar parcela" abre a baixa da próxima', async () => {
+    mock.listarDividas.mockImplementation(porSituacao([{ ...ativas()[0], credor: 'Caixa', formaPagamento: 'account_debit', contaPagamentoId: 'a1',
+      valorParcela: c(119922), parcelasRestantes: 353, parcelasOriginais: 412 }]))
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'CAIXA', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+    ], total: c(0) })
+    mock.listarParcelasDivida.mockResolvedValue([{ id: 'p1', dividaId: 'd1', nomeDivida: 'Financiamento do imóvel', numero: 1,
+      vencimento: '2026-12-06', valor: c(119922), formaPagamento: 'account_debit', contaPagamentoId: 'a1' }])
+    const u = userEvent.setup()
+    render(<Dividas />)
+    expect(await screen.findByText('Financiamento · Caixa · débito em CAIXA')).toBeTruthy()
+    const linha = screen.getByRole('button', { name: 'Ações de Financiamento do imóvel' }).closest('li') as HTMLElement
+    const pares = Array.from(linha.querySelectorAll('dl')[0].querySelectorAll('dt')).map((dt) => `${dt.textContent} ${dt.nextElementSibling?.textContent}`)
+    expect(pares).toEqual(['Parcela R$ 1.199,22', 'Restam 353 de 412', 'Próxima 06/12/2026'])
+    await u.click(within(linha).getByRole('button', { name: 'Confirmar a parcela de 06/12/2026, Financiamento do imóvel' }))
+    expect(screen.getByRole('heading', { name: 'Baixar parcela: Financiamento do imóvel' })).toBeTruthy()
   })
 
   it('não oferece o simulador de quitação (removido a pedido do dono)', async () => {
@@ -80,8 +139,10 @@ describe('Dívidas', () => {
     expect(screen.queryByText(/avalanche/i)).toBeNull()
     expect(screen.queryByLabelText(/Orçamento mensal total/)).toBeNull()
     // o que continua: registrar pagamento e os parâmetros do contrato
-    expect(screen.getAllByRole('button', { name: 'Registrar pagamento' }).length).toBe(2)
-    expect(screen.getAllByRole('button', { name: 'Parâmetros da dívida' }).length).toBe(2)
+    expect(screen.getAllByRole('button', { name: /^Ações de / })).toHaveLength(2)
+    await userEvent.click(screen.getByRole('button', { name: 'Ações de Financiamento do imóvel' }))
+    expect(screen.getByRole('menuitem', { name: 'Registrar pagamento' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: 'Parâmetros da dívida' })).toBeTruthy()
   })
 
   it('renomear: corrige o nome de um financiamento cadastrado com erro de digitação', async () => {
@@ -90,7 +151,7 @@ describe('Dívidas', () => {
     ]))
     const u = userEvent.setup()
     render(<Dividas />)
-    await u.click(await screen.findByRole('button', { name: 'Renomear Financiamenyo' }))
+    await acao('Financiamenyo', 'Renomear', u)
     const campo = screen.getByLabelText('Nome')
     await u.clear(campo)
     await u.type(campo, '  Financiamento do imóvel ')
@@ -101,7 +162,7 @@ describe('Dívidas', () => {
   it('renomear: nome vazio não chama o banco', async () => {
     const u = userEvent.setup()
     render(<Dividas />)
-    await u.click(await screen.findByRole('button', { name: 'Renomear Empréstimo pessoal' }))
+    await acao('Empréstimo pessoal', 'Renomear', u)
     await u.clear(screen.getByLabelText('Nome'))
     await u.click(screen.getByRole('button', { name: 'Salvar nome' }))
     expect(screen.getByText('Informe o nome.')).toBeTruthy()
@@ -112,7 +173,7 @@ describe('Dívidas', () => {
     mock.renomearDivida.mockRejectedValue(new Error('nome inválido: use de 1 a 60 caracteres'))
     const u = userEvent.setup()
     render(<Dividas />)
-    await u.click(await screen.findByRole('button', { name: 'Renomear Empréstimo pessoal' }))
+    await acao('Empréstimo pessoal', 'Renomear', u)
     await u.type(screen.getByLabelText('Nome'), ' novo')
     await u.click(screen.getByRole('button', { name: 'Salvar nome' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
@@ -135,9 +196,9 @@ describe('Dívidas', () => {
   })
   it('arquivar: confirma dentro do card da própria dívida e recarrega a lista', async () => {
     render(<Dividas />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Arquivar Empréstimo pessoal' }))
+    await acao('Empréstimo pessoal', 'Arquivar')
     const painel = screen.getByRole('group', { name: 'Arquivar Empréstimo pessoal' })
-    expect(painel.closest('li')).toBe(screen.getByRole('button', { name: 'Arquivar Empréstimo pessoal' }).closest('li'))
+    expect(painel.closest('li')).toBe(screen.getByRole('button', { name: 'Ações de Empréstimo pessoal' }).closest('li'))
     const antes = mock.listarDividas.mock.calls.length
     await userEvent.click(within(painel).getByRole('button', { name: 'Arquivar dívida' }))
     expect(mock.arquivarDivida).toHaveBeenCalledWith('d2')
@@ -147,7 +208,7 @@ describe('Dívidas', () => {
   it('arquivar com saldo: a recusa do banco aparece no próprio card, não no topo da página', async () => {
     mock.arquivarDivida.mockRejectedValue({ code: '23514', message: 'tem saldo ou parcelas a vencer: quite ou cancele antes de arquivar' })
     render(<Dividas />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Arquivar Financiamento do imóvel' }))
+    await acao('Financiamento do imóvel', 'Arquivar')
     const painel = screen.getByRole('group', { name: 'Arquivar Financiamento do imóvel' })
     await userEvent.click(within(painel).getByRole('button', { name: 'Arquivar dívida' }))
     expect(await within(painel).findByText(/quite ou cancele antes de arquivar/)).toBeTruthy()
@@ -155,7 +216,7 @@ describe('Dívidas', () => {
 
   it('excluir chama o banco com a dívida certa', async () => {
     render(<Dividas />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Excluir Financiamento do imóvel' }))
+    await acao('Financiamento do imóvel', 'Excluir')
     await userEvent.click(within(screen.getByRole('group', { name: 'Excluir Financiamento do imóvel' })).getByRole('button', { name: 'Excluir dívida' }))
     expect(mock.excluirDivida).toHaveBeenCalledWith('d1')
   })
@@ -214,7 +275,10 @@ describe('Dívidas', () => {
     ])
     const u = userEvent.setup()
     render(<Dividas />)
-    const agenda = (await screen.findByRole('heading', { name: 'Próximas parcelas' })).closest('section') as HTMLElement
+    // a agenda completa fica recolhida; cada dívida mostra a próxima parcela no próprio card
+    expect(await screen.findByRole('button', { name: 'Confirmar a parcela de 05/01/2027, Financiamento do imóvel' })).toBeTruthy()
+    const agenda = (await screen.findByText('Todas as próximas parcelas (17)')).closest('details') as HTMLDetailsElement
+    agenda.open = true
     const imovel = within(agenda).getByRole('heading', { name: /Financiamento do imóvel/ }).closest('div[class*="rounded"]') as HTMLElement
     const emprestimo = within(agenda).getByRole('heading', { name: /Empréstimo pessoal/ }).closest('div[class*="rounded"]') as HTMLElement
     expect(within(emprestimo).getAllByRole('listitem')).toHaveLength(2) // a segunda dívida não some
