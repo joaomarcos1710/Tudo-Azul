@@ -64,8 +64,12 @@ export interface Filtros {
   tipo?: TipoLancamento
 }
 
-export async function listarLancamentos(familiaId: string, mes: string, f: Filtros = {}): Promise<Lancamento[]> {
-  const [de, ate] = limitesDoMes(mes)
+export function listarLancamentos(familiaId: string, mes: string, f: Filtros = {}): Promise<Lancamento[]> {
+  return listarLancamentosNoPeriodo(familiaId, ...limitesDoMes(mes), f)
+}
+
+/** Lançamentos com data entre `de` e `ate` (inclusive): o período livre da tela de Lançamentos (etapa 3). */
+export async function listarLancamentosNoPeriodo(familiaId: string, de: string, ate: string, f: Filtros = {}): Promise<Lancamento[]> {
   const consultar = async (colunas: string[]) => {
     let consulta = cliente().from('transactions').select(colunas.join(', '))
       .eq('household_id', familiaId).is('deleted_at', null).gte('date', de).lte('date', ate)
@@ -146,9 +150,12 @@ const rotuloEventoConta: Record<string, string> = {
  * Receita e transferência não os incluem; com filtro de despesa ou de categoria, só o que é despesa: juros, tarifa e
  * principal de empréstimo/financiamento (este na categoria da dívida); sem filtro, todos.
  */
-export async function listarMovimentosDeDivida(familiaId: string, mes: string, f: Filtros = {}): Promise<MovimentoDivida[]> {
+export function listarMovimentosDeDivida(familiaId: string, mes: string, f: Filtros = {}): Promise<MovimentoDivida[]> {
+  return listarMovimentosDeDividaNoPeriodo(familiaId, ...limitesDoMes(mes), f)
+}
+
+export async function listarMovimentosDeDividaNoPeriodo(familiaId: string, de: string, ate: string, f: Filtros = {}): Promise<MovimentoDivida[]> {
   if (f.tipo === 'income' || f.tipo === 'transfer') return []
-  const [de, ate] = limitesDoMes(mes)
   const soDespesa = Boolean(f.categoriaId) || f.tipo === 'expense'
   const tipos = soDespesa ? ['interest', 'fee', 'payment', 'extra_principal'] : [...eventosDeConta]
   const db = cliente()
@@ -244,9 +251,13 @@ export function situacaoDaFatura(f: Fatura, hoje: string): SituacaoDaFatura {
  * cartões cuja conta de pagamento é aquela (a mesma regra do saldo projetado e da parcela de contrato planejada); cartão
  * sem conta de pagamento não aparece. A categoria não filtra aqui: quem filtra é listarComprasDasFaturas.
  */
-export async function listarFaturasDoMes(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<FaturaDoMes[]> {
+export function listarFaturasDoMes(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<FaturaDoMes[]> {
+  return listarFaturasNoPeriodo(familiaId, ...limitesDoMes(mes), f, hoje)
+}
+
+/** Faturas com vencimento entre `de` e `ate`: o mesmo critério do mês, para qualquer período. */
+export async function listarFaturasNoPeriodo(familiaId: string, de: string, ate: string, f: Filtros, hoje: string): Promise<FaturaDoMes[]> {
   if (f.tipo === 'income' || f.tipo === 'transfer') return []
-  const [de, ate] = limitesDoMes(mes)
   const { data, error } = await cliente().from('debts').select('id, name, pay_account_id').eq('household_id', familiaId).eq('kind', 'card')
   if (error) throw error
   const cartoes = ((data ?? []) as { id: string; name: string; pay_account_id: string | null }[])
@@ -326,9 +337,12 @@ export interface CreditoDeCartao {
 const COLUNA_INEXISTENTE = '42703'
 
 /** Sem conta (o dinheiro não passou por conta): some com filtro de conta, de despesa ou de transferência. */
-export async function listarCreditosDeCartao(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<CreditoDeCartao[]> {
+export function listarCreditosDeCartao(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<CreditoDeCartao[]> {
+  return listarCreditosDeCartaoNoPeriodo(familiaId, ...limitesDoMes(mes), f, hoje)
+}
+
+export async function listarCreditosDeCartaoNoPeriodo(familiaId: string, de: string, ate: string, f: Filtros, hoje: string): Promise<CreditoDeCartao[]> {
   if (f.contaId || f.tipo === 'expense' || f.tipo === 'transfer') return []
-  const [de, ate] = limitesDoMes(mes)
   const db = cliente()
   let q = db.from('debt_events').select('id, debt_id, date, credit_date, amount, category_id, note')
     .eq('household_id', familiaId).eq('kind', 'income_credit').is('voided_at', null).gte('date', de).lte('date', ate)

@@ -31,10 +31,10 @@ vi.mock('../lib/FamiliaContext', () => ({
 }))
 vi.mock('../lib/lancamentos', async (original) => ({
   ...(await original<typeof import('../lib/lancamentos')>()),
-  listarLancamentos: mock.listarLancamentos,
-  listarMovimentosDeDivida: mock.listarMovimentosDeDivida,
-  listarFaturasDoMes: mock.listarFaturasDoMes,
-  listarCreditosDeCartao: mock.listarCreditosDeCartao,
+  listarLancamentosNoPeriodo: mock.listarLancamentos,
+  listarMovimentosDeDividaNoPeriodo: mock.listarMovimentosDeDivida,
+  listarFaturasNoPeriodo: mock.listarFaturasDoMes,
+  listarCreditosDeCartaoNoPeriodo: mock.listarCreditosDeCartao,
   listarComprasDaFatura: mock.listarComprasDaFatura,
   listarCreditosDaFaturaDoMes: mock.listarCreditosDaFaturaDoMes,
   resumoDoMes: mock.resumoDoMes,
@@ -250,7 +250,7 @@ describe('Lançamentos: seleção em lote na lista por dia', () => {
     await abrir()
     await u.click(caixa('Luz'))
     expect(screen.getByText('1 selecionado')).toBeTruthy()
-    await u.click(screen.getByRole('button', { name: 'Próximo mês' }))
+    await u.click(screen.getByRole('button', { name: 'Próximo período' }))
     await waitFor(() => expect(screen.getByText('Marque os lançamentos')).toBeTruthy())
     expect(caixa('Luz').checked).toBe(false)
   })

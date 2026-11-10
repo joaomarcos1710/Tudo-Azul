@@ -25,12 +25,12 @@ import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
 import { aceitaLancamento, hojeSP, listarContas, listarSaldosDiarios, mesmaMoeda } from '../lib/contas'
 import type { Conta, SaldoDiario } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, parseBRL, primeiraMaiuscula, simboloMoeda } from '../lib/format'
+import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, limitesDoMes, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
-  listarMovimentosDeDivida, marcarComoPago,
-  moverParaLixeira, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, somarMeses, valoresDasParcelas,
+  criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
+  listarMovimentosDeDividaNoPeriodo, marcarComoPago,
+  moverParaLixeira, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, valoresDasParcelas,
 } from '../lib/lancamentos'
 // import à parte para não conflitar com outras branches que mexem na lista acima
 import { situacaoDoLancamento } from '../lib/lancamentos'
@@ -48,6 +48,9 @@ import { PessoaSelectField } from '../components/PessoaSelectField'
 import { RodapeLancamentos } from '../components/RodapeLancamentos'
 import type { TotaisCaixa } from '../components/RodapeLancamentos'
 import { serieFluxo } from '../lib/fluxoCaixa'
+import { SeletorPeriodo } from '../components/ui/SeletorPeriodo'
+import { periodoDoMes } from '../lib/periodoRelatorio'
+import type { Periodo as PeriodoLista } from '../lib/periodoRelatorio'
 import type { SerieFluxo } from '../lib/fluxoCaixa'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
@@ -80,9 +83,10 @@ export default function Lancamentos() {
 
   const [params, setParams] = useSearchParams()
   // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
-  const [mes, setMes] = useState(() => {
+  // o período da lista (etapa 3 do Organizze): começa no mês do link ou no atual; "Escolher período" pode ser livre
+  const [periodo, setPeriodo] = useState<PeriodoLista>(() => {
     const m = params.get('mes')
-    return m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
+    return periodoDoMes(m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth())
   })
   useEffect(() => {
     let ativo = true
@@ -90,12 +94,11 @@ export default function Lancamentos() {
       setSaldosDiarios([])
       return
     }
-    const [de, ate] = limitesDoMes(mes)
-    void listarSaldosDiarios(familiaId, de, ate)
+    void listarSaldosDiarios(familiaId, periodo.de, periodo.ate)
       .then((valores) => { if (ativo) setSaldosDiarios(valores) })
       .catch(() => { if (ativo) setSaldosDiarios([]) })
     return () => { ativo = false }
-  }, [familiaId, mes, mostrarSaldoDiario])
+  }, [familiaId, periodo, mostrarSaldoDiario])
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
   // ?tipo=receita|despesa (avisos do Início): abre já filtrado pelo tipo; o filtro continua editável na tela
   const [filtros, setFiltros] = useState<Filtros>(() => {
@@ -124,7 +127,7 @@ export default function Lancamentos() {
   const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
   // Renderização progressiva: mantém o mês completo no estado, mas limita o DOM a 50 linhas por etapa.
   const [limiteVisivel, setLimiteVisivel] = useState(50)
-  useEffect(() => { setLimiteVisivel(50) }, [mes, filtros.contaId, filtros.tipo, filtros.categoriaId])
+  useEffect(() => { setLimiteVisivel(50) }, [periodo, filtros.contaId, filtros.tipo, filtros.categoriaId])
 
   /** Categorias oferecidas no filtro: só as do tipo escolhido; transferência não tem categoria. */
   const categoriasDoFiltro = filtros.tipo === 'transfer' ? [] : categorias.filter((c) => !filtros.tipo || c.tipo === filtros.tipo)
@@ -205,7 +208,7 @@ export default function Lancamentos() {
       // Com filtro de categoria, as compras e os créditos daquela categoria saem um a um (o total da fatura mistura categorias).
       const categoria = filtros.categoriaId
       const hoje = hojeSP()
-      const cartao = listarFaturasDoMes(familiaId, mes, filtros, hoje)
+      const cartao = listarFaturasNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje)
         .then(async (fs) => (categoria
           ? {
               faturas: [], compras: await listarComprasDasFaturas(fs, categoria),
@@ -215,7 +218,7 @@ export default function Lancamentos() {
           : { faturas: fs, compras: [], creditos: [] as CreditoDeCartao[] }))
         .catch(() => null)
       // parcela de contrato não tem categoria nem é receita/transferência; com filtro de conta, só as debitadas nela
-      const [deMes, ateMes] = limitesDoMes(mes)
+      const [deMes, ateMes] = [periodo.de, periodo.ate]
       const parcelas = filtros.categoriaId || (filtros.tipo && filtros.tipo !== 'expense')
         ? Promise.resolve([] as ParcelaDivida[])
         : listarParcelasDivida(familiaId, deMes, ateMes).catch(() => [] as ParcelaDivida[])
@@ -224,7 +227,7 @@ export default function Lancamentos() {
       // (no fechamento, o dia em que contam; a fatura não aparece em Receita, então não duplica) ou de categoria (acima).
       // Falha nos créditos não derruba a lista.
       const creditos = filtros.tipo === 'income'
-        ? listarCreditosDeCartao(familiaId, mes, filtros, hoje).catch(() => [] as CreditoDeCartao[])
+        ? listarCreditosDeCartaoNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje).catch(() => [] as CreditoDeCartao[])
         : Promise.resolve([] as CreditoDeCartao[])
       // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
       const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(() => [] as ResumoPorMoeda[])
@@ -236,7 +239,7 @@ export default function Lancamentos() {
         serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: true }),
       ]).then(([pago, comPlanejado]) => ({ realizado: totaisDe(pago), previsto: totaisDe(comPlanejado) })).catch(() => null)
       const [l, r, md, cc, pc, cr, pm] = await Promise.all([
-        listarLancamentos(familiaId, mes, filtros), totaisDoMes, listarMovimentosDeDivida(familiaId, mes, filtros), cartao, parcelas,
+        listarLancamentosNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), totaisDoMes, listarMovimentosDeDividaNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), cartao, parcelas,
         creditos, porMoedaDoMes,
       ])
       if (meu !== pedido.current) return
@@ -253,7 +256,7 @@ export default function Lancamentos() {
     } catch (err) {
       if (meu === pedido.current) setErro(mensagemErroBanco(err))
     }
-  }, [familiaId, mes, filtros, automaticosProntos])
+  }, [familiaId, periodo, filtros, automaticosProntos])
 
   useEffect(() => { void carregar() }, [carregar])
 
@@ -300,7 +303,7 @@ export default function Lancamentos() {
   // a seleção em lote vale para os lançamentos visíveis, na ordem da tela (o Shift marca o intervalo nessa ordem)
   const lote = useSelecaoLote({
     lancamentos: itensVisiveis.flatMap((it) => (it.origem === 'lancamento' ? [it.l] : [])), hoje, categorias, aoAlterar: carregar,
-    chave: `${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`,
+    chave: `${periodo.de}|${periodo.ate}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`,
   })
 
   if (!familiaId) return null
@@ -324,9 +327,8 @@ export default function Lancamentos() {
 
       <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-slate-100 bg-white/85 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/75">
         <div className="flex items-center gap-2">
-          <Button variante="secundario" className="min-w-11" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
-          <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
-          <Button variante="secundario" className="min-w-11" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
+          {/* mês, semana, dia, últimos N meses ou um período livre (‹ › andam pelo tamanho do período escolhido) */}
+          <SeletorPeriodo periodo={periodo} hoje={hojeSP()} aoMudar={setPeriodo} />
           {/* os três filtros moram numa folha (pedido do dono, 10/11/2026: "esses botões feios"); aqui só o botão e o que está ligado */}
           <button type="button" onClick={() => setFiltrosAbertos(true)} disabled={editando !== null} aria-haspopup="dialog" aria-expanded={filtrosAbertos}
             aria-label={filtrosLigados.length > 0 ? `Filtrar (${filtrosLigados.length} ligado${filtrosLigados.length > 1 ? 's' : ''})` : 'Filtrar'}
