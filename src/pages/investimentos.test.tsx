@@ -163,7 +163,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
       await u.type(screen.getByLabelText('Nome do ativo'), 'Previdência')
       await u.selectOptions(screen.getByLabelText('Classe'), 'other')
-      await u.selectOptions(screen.getByLabelText('Liquidez'), 'restricted')
+      await u.click(screen.getByRole('radio', { name: 'Restrito' }))
       await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
       expect(mock.criarAtivoInvestimento.mock.calls[0][0]).not.toHaveProperty('liquidez')
       expect(mock.definirLiquidezAtivo).toHaveBeenCalledWith('novo-id', 'restricted')
@@ -615,6 +615,40 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.click(within(folha).getByRole('radio', { name: 'Venda' }))
       expect(within(folha).queryByRole('radio', { name: 'Só o valor' })).toBeNull()
       expect(within(folha).getByLabelText('Quantidade')).toBeTruthy()
+    })
+
+    it('novo ativo, avaliação e provento também abrem em folha; o erro do banco aparece dentro dela', async () => {
+      mock.criarAtivoInvestimento.mockRejectedValue(new Error('já existe um ativo com esse nome'))
+      mock.registrarProventoInvestimento.mockRejectedValue(new Error('conta arquivada'))
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      let folha = screen.getByRole('dialog', { name: 'Novo ativo' })
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'Tesouro Selic')
+      await u.selectOptions(within(folha).getByLabelText('Classe'), 'fixed_income')
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      expect(await within(folha).findByRole('alert')).toBeTruthy()
+      await u.click(within(folha).getByRole('button', { name: 'Cancelar' }))
+
+      await u.click(screen.getByRole('button', { name: 'Registrar provento' }))
+      folha = screen.getByRole('dialog', { name: 'Registrar provento' })
+      await u.type(within(folha).getByLabelText('Valor líquido recebido (R$)'), '10')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar provento' }))
+      expect(await within(folha).findByRole('alert')).toBeTruthy()
+    })
+
+    it('avaliação de ativo com 1 unidade (registrado por "Só o valor") pede o valor de hoje; com mais unidades, o preço por unidade', async () => {
+      const u = userEvent.setup()
+      mock.listarCarteiraInvestimentos.mockResolvedValue({
+        posicoes: [{ ...posicao('a1', 'Tesouro Selic', 'fixed_income', 60000), quantidade: '1' }, { ...posicao('a2', 'Ação Y', 'equity', 10000), quantidade: '20' }],
+        totais: [],
+      })
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar avaliação' }))
+      const folha = screen.getByRole('dialog', { name: 'Registrar avaliação' })
+      expect(within(folha).getByLabelText('Valor de hoje (BRL)')).toBeTruthy()
+      await u.selectOptions(within(folha).getByLabelText('Ativo'), 'a2')
+      expect(within(folha).getByLabelText('Preço atual por unidade (BRL)')).toBeTruthy()
     })
 
     it('campo vazio ou erro do banco aparecem dentro da folha, que continua aberta', async () => {

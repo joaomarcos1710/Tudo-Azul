@@ -540,3 +540,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Liquidez:** atributo atual do ativo (`liquid` ou `restricted`), sem histórico. Restrito conta no patrimônio e nunca no Disponível.
 - **Respostas do dono no mesmo dia:** as contas Nomad em dólar e euro têm o saldo digitado em moeda estrangeira (hoje aparecem como reais: recriar na moeda certa); a carteira começa da posição de hoje, sem importar histórico; cotação automática antes de 20/11 só se couber; as contas antigas migram depois da regra nova.
 - **Conta arquivada continua no patrimônio** (o saldo segue lá). Migrar para a carteira exige zerar o saldo da conta, não só arquivar.
+
+## 10/11/2026 — Contas Nomad em dólar e euro: ficam em reais por enquanto (dono)
+- **Fato conferido:** as transferências do BB, Caixa, Inter e Nubank para a Nomad Dólar e a Nomad Euro foram lançadas em **reais** (o dono conferiu uma de 2.518,37 no extrato). O saldo dessas contas é o **custo em reais** do que foi enviado, não o valor em dólar ou euro. As contas de origem estão certas.
+- **Decidido (opção A, agora):** o dono troca o tipo das duas contas de Conta corrente para **Renda variável**, na tela de Contas. Saem do Disponível e ficam no Patrimônio pelo custo em reais. Sem código.
+- **Depois (opção B):** dólar e euro viram ativos da carteira (quantidade em moeda × cotação do dia, cotação pela PTAX do Banco Central), o que exige mover o saldo de uma conta para a carteira sem virar despesa; a mesma peça resolve as contas antigas de investimento.
+- **Por que não recriar em USD/EUR já:** o banco recusa transferência entre moedas diferentes (056) até existir cotação, e o histórico de transferências ficaria sem par.
