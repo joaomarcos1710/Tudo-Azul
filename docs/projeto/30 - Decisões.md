@@ -567,6 +567,6 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 
 ## 10/11/2026 — Proteção contra senha vazada fica desligada (risco aceito)
 - **Fato:** o Supabase só liga a checagem no HaveIBeenPwned no plano Pro; o painel recusou no plano gratuito ("available on Pro Plans and up").
-- **Decidido:** não pagar o Pro só por isso. O app tem dois usuários da família, com cadastro fechado; o ganho é pequeno perto do custo mensal.
+- **Decidido:** não pagar o Pro só por isso. O app é usado só pela família; o ganho é pequeno perto do custo mensal.
 - **Compensação:** senha mínima de 12 caracteres com maiúsculas, minúsculas, números e símbolos (configuração gratuita, na mesma tela), senha única por pessoa, guardada num gerenciador de senhas.
 - **Consequência:** o aviso `auth_leaked_password_protection` continua no Security Advisor de propósito, como os SECURITY DEFINER da #234. Rever se o projeto mudar para o Pro.
