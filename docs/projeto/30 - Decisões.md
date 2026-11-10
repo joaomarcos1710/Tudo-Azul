@@ -472,3 +472,12 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 - **Chave com seção, família, mês e dia**; ao sair da conta o cache é limpo.
 - **Tarefas automáticas**: falha continua virando aviso na tela; se gravaram algo, chamam `invalidarDadosHome`.
 - O cache não resolve a primeira carga: a função `get_home_decision_month` (7,7 s de média) precisa de `EXPLAIN (ANALYZE, BUFFERS)` e correção no banco (ver "40 - Pendências").
+
+## 10/11/2026 — Desempenho do Início: cortar trabalho repetido antes de reescrever a conta do cartão (dono)
+
+O dono autorizou o `EXPLAIN (ANALYZE, BUFFERS)` em produção e a investigação. Resultado (uma execução, cache quente, com RLS): `get_home_decision_month` levou 3,75 s lendo ~527 mil páginas, tudo da memória, num banco com ~4 mil lançamentos. Não é disco nem índice: é trabalho repetido.
+
+- **Feito agora (sem mudar regra de valor):** (A) a matriz chama a conta de faturas uma vez por cartão e por data de corte distinta; (B) o Início usa os indicadores que `get_home_decision_month` já devolve em `treasury` quando a data de corte é hoje, em vez de chamar `home_indicators` de novo; se a decisão falhar ou o corte for outro, pede à parte como antes.
+- **Adiado de propósito:** reescrever `private.card_months_as_of` (3 subconsultas por parcela, ~120 ms por cartão). É a conta oficial da fatura e acabou de passar pelas 4 etapas da recorrência; só com medição por dentro e comparação linha a linha.
+- **Corrida corrigida junto:** `invalidarDadosHome` durante a primeira carga não refazia a leitura (o TanStack reaproveita a busca em curso quando ainda não há dado). Agora cancela a primeira carga em andamento e lê de novo.
+

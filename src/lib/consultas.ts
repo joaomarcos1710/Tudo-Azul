@@ -30,6 +30,10 @@ export function chaveVisaoGeral(secao: string, familiaId: string, mes: string, h
  * Chame depois de qualquer gravação que mude saldos, lançamentos, parcelas ou faturas com o Início montado (ex.: as
  * tarefas automáticas): os blocos revalidam em segundo plano, sem voltar ao "Carregando…".
  */
-export function invalidarDadosHome(cliente: QueryClient, familiaId: string): Promise<void> {
-  return cliente.invalidateQueries({ queryKey: [RAIZ_HOME, familiaId] })
+export async function invalidarDadosHome(cliente: QueryClient, familiaId: string): Promise<void> {
+  const queryKey = [RAIZ_HOME, familiaId]
+  // Uma PRIMEIRA carga ainda em andamento pode ter lido o banco antes da gravação, e o TanStack não a refaz ao
+  // invalidar (sem dado guardado, ele reaproveita a busca em curso): cancelar força uma leitura nova.
+  await cliente.cancelQueries({ queryKey, predicate: (q) => q.state.data === undefined })
+  return cliente.invalidateQueries({ queryKey })
 }

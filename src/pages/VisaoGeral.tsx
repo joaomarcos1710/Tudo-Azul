@@ -234,6 +234,12 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       resumoDoPeriodo(familiaId, de, hoje),
       resumoDoPeriodo(familiaId, `${somarMeses(mes, -1)}-01`, mesmoDiaMesAnterior(hoje)),
     ]).then(([atual, anterior]) => ({ atual, anterior })))
+    // A decisão do mês já calcula os indicadores por dentro, na data de corte dela. Quando o corte é hoje, o Início
+    // usa esses e não pede home_indicators de novo (era a mesma conta duas vezes por abertura); senão, pede à parte.
+    const decisaoDoMes = noInicio ? opcional('carregarHomeDecisao', carregarHomeDecisao(familiaId, mes)) : Promise.resolve(null)
+    const indicadoresDoTopo = decisaoDoMes.then((d) => (d?.tesouraria && d.dataCorte === hoje
+      ? d.tesouraria
+      : noInicio ? opcional('carregarIndicadores', carregarIndicadores(familiaId, hoje)) : null))
     return (noInicio
         ? Promise.all([
             // essenciais do Início: se falharem, a tela inteira avisa o erro
@@ -242,8 +248,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional('vencidosPlanejados', vencidosPlanejados(familiaId, hoje, 5)), opcional('resumoDosCartoes', resumoDosCartoes(familiaId, hoje)),
             opcional('totalFaturasDoMes', totalFaturasDoMes(familiaId, mes)),
             // a faixa de indicadores do topo (#188): os 7 números numa chamada só, calculados no banco
-            opcional('carregarIndicadores', carregarIndicadores(familiaId, hoje)),
-            opcional('carregarHomeDecisao', carregarHomeDecisao(familiaId, mes)),
+            indicadoresDoTopo,
+            decisaoDoMes,
             // receita e despesa do mês, com o que ainda vai entrar e sair: só no cabeçalho
             opcional('resumoDoMes', resumoDoMes(familiaId, mes)),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês

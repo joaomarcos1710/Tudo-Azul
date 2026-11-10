@@ -1241,6 +1241,33 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('quando a decisão do mês já traz os indicadores na data de hoje, usa esses e não pede home_indicators de novo', async () => {
+    const decisao = await mock.carregarHomeDecisao()
+    mock.carregarHomeDecisao.mockResolvedValue({ ...decisao, dataCorte: hojeSP(), tesouraria: { ...IND, patrimonio: c(123456) } })
+    mock.carregarHomeDecisao.mockClear()
+    montar()
+    const el = await indicador('patrimonio')
+    expect(el.textContent).toContain('1.234,56')
+    expect(mock.carregarHomeDecisao).toHaveBeenCalledTimes(1)
+    expect(mock.carregarIndicadores).not.toHaveBeenCalled()
+  })
+
+  it('indicadores da decisão com outra data de corte não servem: pede home_indicators com hoje', async () => {
+    const decisao = await mock.carregarHomeDecisao()
+    mock.carregarHomeDecisao.mockResolvedValue({ ...decisao, dataCorte: '2000-01-31', tesouraria: { ...IND, patrimonio: c(123456) } })
+    montar()
+    const el = await indicador('patrimonio')
+    expect(el.textContent).not.toContain('1.234,56')
+    expect(mock.carregarIndicadores).toHaveBeenCalledWith('h1', hojeSP())
+  })
+
+  it('se a decisão do mês falhar, os indicadores ainda são pedidos à parte', async () => {
+    mock.carregarHomeDecisao.mockRejectedValue(new Error('rede'))
+    montar()
+    await indicador('patrimonio')
+    expect(mock.carregarIndicadores).toHaveBeenCalledWith('h1', hojeSP())
+  })
+
   it('Análises não mostra a faixa nem consulta os indicadores', async () => {
     montar('analises')
     await screen.findByRole('heading', { name: 'Análises' })
