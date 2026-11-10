@@ -232,7 +232,28 @@ export async function registrarPagamentoDivida(d: {
   tarifa: Cents
   categoriaId: string | null
   extra: boolean
+  /**
+   * Amortização extra com parcelas em aberto (migration 103): o que o banco informou depois dela. 'term' = reduziu o prazo
+   * (parcelas restantes novas); 'installment' = reduziu a parcela (valor novo). O app não calcula: grava o que veio do extrato.
+   */
+  ajuste?: { modo: 'term'; parcelasRestantes: number } | { modo: 'installment'; valorParcela: Cents }
 }): Promise<void> {
+  if (d.ajuste) {
+    const { error } = await cliente().rpc('debt_extra_amortize', {
+      p_debt: d.dividaId,
+      p_date: d.data,
+      p_account: d.contaId,
+      p_principal: centsToDecimal(d.principal),
+      p_mode: d.ajuste.modo,
+      p_remaining: d.ajuste.modo === 'term' ? d.ajuste.parcelasRestantes : null,
+      p_installment: d.ajuste.modo === 'installment' ? centsToDecimal(d.ajuste.valorParcela) : null,
+      p_interest: centsToDecimal(d.juros),
+      p_fee: centsToDecimal(d.tarifa),
+      p_category: d.categoriaId,
+    })
+    if (error) throw error
+    return
+  }
   const { error } = await cliente().rpc('debt_record_payment', {
     p_debt: d.dividaId,
     p_date: d.data,

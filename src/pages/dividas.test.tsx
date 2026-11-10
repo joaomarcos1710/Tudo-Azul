@@ -80,7 +80,7 @@ describe('Dívidas', () => {
   })
 
   it('amortização extra com FGTS: "Nenhuma (FGTS ou fora do app)" manda conta nula; juros ou tarifa sem conta são recusados na tela', async () => {
-    mock.listarDividas.mockImplementation(porSituacao([{ ...ativas()[0], parcelasRestantes: 353 }]))
+    mock.listarDividas.mockImplementation(porSituacao([{ ...ativas()[0], parcelasRestantes: 353, parcelasOriginais: 412, valorParcela: c(119922) }]))
     mock.listarContas.mockResolvedValue({ contas: [
       { id: 'a1', nome: 'CAIXA', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
     ], total: c(0) })
@@ -97,8 +97,71 @@ describe('Dívidas', () => {
     expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
     await u.clear(screen.getByLabelText('Juros incluídos (R$)'))
     await u.type(screen.getByLabelText('Juros incluídos (R$)'), '0,00')
+    await u.click(screen.getByLabelText(/reduziu o prazo/))
+    await u.type(screen.getByLabelText(/Parcelas restantes agora/), '300')
     await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
-    expect(mock.registrarPagamentoDivida).toHaveBeenCalledWith(expect.objectContaining({ dividaId: 'd1', contaId: null, principal: 1800957, juros: 0, tarifa: 0, extra: true }))
+    expect(mock.registrarPagamentoDivida).toHaveBeenCalledWith(expect.objectContaining({ dividaId: 'd1', contaId: null, principal: 1800957, juros: 0, tarifa: 0, extra: true,
+      ajuste: { modo: 'term', parcelasRestantes: 300 } }))
+  })
+
+  describe('amortização extra: reduz o prazo ou a parcela (migration 103; o dono digita o que o banco informou)', () => {
+    async function abrir() {
+      mock.listarDividas.mockImplementation(porSituacao([{ ...ativas()[0], parcelasRestantes: 353, parcelasOriginais: 412, valorParcela: c(119922) }]))
+      mock.listarContas.mockResolvedValue({ contas: [
+        { id: 'a1', nome: 'CAIXA', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+      ], total: c(0) })
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await screen.findByText('Financiamento do imóvel')
+      await acao('Financiamento do imóvel', 'Amortização extra', u)
+      await u.selectOptions(screen.getByLabelText('Conta de saída'), 'a1')
+      await u.type(screen.getByLabelText('Valor total pago (R$)'), '10.000,00')
+      return u
+    }
+
+    it('sem escolher prazo ou parcela, não grava', async () => {
+      const u = await abrir()
+      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      expect(screen.getByText('Informe se a amortização reduziu o prazo ou a parcela.')).toBeTruthy()
+      expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
+    })
+
+    it('reduziu o prazo: manda as parcelas restantes novas; prazo maior que o atual é recusado', async () => {
+      const u = await abrir()
+      await u.click(screen.getByLabelText(/reduziu o prazo/))
+      await u.type(screen.getByLabelText(/Parcelas restantes agora/), '400')
+      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      expect(screen.getByText(/de 0 a 353/)).toBeTruthy()
+      expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
+      await u.clear(screen.getByLabelText(/Parcelas restantes agora/))
+      await u.type(screen.getByLabelText(/Parcelas restantes agora/), '310')
+      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      expect(mock.registrarPagamentoDivida).toHaveBeenCalledWith(expect.objectContaining({ contaId: 'a1', principal: 1000000, extra: true,
+        ajuste: { modo: 'term', parcelasRestantes: 310 } }))
+    })
+
+    it('reduziu a parcela: manda o valor novo em centavos; parcela maior que a atual é recusada', async () => {
+      const u = await abrir()
+      await u.click(screen.getByLabelText(/reduziu a parcela/))
+      await u.type(screen.getByLabelText(/Parcela nova/), '1.500,00')
+      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      expect(screen.getByText(/não maior que a atual/)).toBeTruthy()
+      expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
+      await u.clear(screen.getByLabelText(/Parcela nova/))
+      await u.type(screen.getByLabelText(/Parcela nova/), '1.050,10')
+      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      expect(mock.registrarPagamentoDivida).toHaveBeenCalledWith(expect.objectContaining({ extra: true,
+        ajuste: { modo: 'installment', valorParcela: 105010 } }))
+    })
+
+    it('dívida sem parcelas em aberto não pergunta nada (pagamento comum)', async () => {
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await screen.findByText('Financiamento do imóvel')
+      await acao('Financiamento do imóvel', 'Registrar pagamento', u)
+      await u.click(screen.getByLabelText('Amortização extraordinária de principal'))
+      expect(screen.queryByText(/Depois da amortização, o banco/)).toBeNull()
+    })
   })
 
   it('pagamento comum (sem ser amortização extra) não oferece "sem conta"', async () => {
