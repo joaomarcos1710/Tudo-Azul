@@ -299,6 +299,42 @@ export async function registrarOperacaoInvestimento(d: {
 }
 
 /**
+ * Aporte ou resgate só pelo valor (migration 104), para ativo sem cota (cofrinho, CDB, reserva, previdência): o banco
+ * converte o valor em unidades pelo valor atual do ativo, como a cota de um fundo. Nenhuma conta é feita no front.
+ * Na primeira posição grava 1 unidade pelo valor. Resgatar o valor todo zera a posição.
+ */
+export async function registrarOperacaoPorValor(d: {
+  ativoId: string
+  data: string
+  tipo: TipoOperacaoInvestimento
+  valor: Cents
+  observacao: string
+  /** Conta de onde saiu (aporte) ou para onde volta (resgate); vazio = não passou por conta do app. */
+  contaId?: string
+}): Promise<void> {
+  const { error } = await db().rpc('investment_operation_record_by_value', {
+    p_asset: d.ativoId,
+    p_date: d.data,
+    p_kind: d.tipo,
+    p_amount: centsToDecimal(d.valor),
+    p_notes: d.observacao.trim() || null,
+    p_account: d.contaId ?? null,
+  })
+  if (error) throw error
+}
+
+/** "Hoje este investimento vale R$ X" (migration 104): o banco divide pelo número de unidades; o front não faz conta. */
+export async function registrarAvaliacaoTotal(d: { ativoId: string; data: string; valor: Cents; fonte: string }): Promise<void> {
+  const { error } = await db().rpc('investment_valuation_record_total', {
+    p_asset: d.ativoId,
+    p_date: d.data,
+    p_total: centsToDecimal(d.valor),
+    p_source: d.fonte.trim(),
+  })
+  if (error) throw error
+}
+
+/**
  * Move o saldo de uma conta para a carteira (migration 100): o banco cria o ativo com o saldo de hoje da conta, transfere
  * esse saldo para a carteira (a conta zera sem despesa) e arquiva a conta. O valor sai do banco, nunca do front.
  */

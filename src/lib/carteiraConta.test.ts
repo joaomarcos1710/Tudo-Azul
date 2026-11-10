@@ -26,7 +26,7 @@ const fake = vi.hoisted(() => {
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
 import { listarContas } from './contas'
-import { moverContaParaCarteira, registrarOperacaoInvestimento } from './investimentos'
+import { moverContaParaCarteira, registrarAvaliacaoTotal, registrarOperacaoInvestimento, registrarOperacaoPorValor } from './investimentos'
 import type { Cents } from './format'
 
 const linha = (id: string, nome: string, extra: Record<string, unknown> = {}) => ({
@@ -65,6 +65,27 @@ describe('compra e venda com conta', () => {
     expect(fake.e.rpcs[0][0]).toBe('investment_operation_record')
     expect(fake.e.rpcs[0][1]).toMatchObject({ p_account: 'c1' })
     expect(fake.e.rpcs[1][1]).not.toHaveProperty('p_account')
+  })
+})
+
+describe('aporte, resgate e avaliação só pelo valor (migration 104)', () => {
+  it('manda o valor como texto decimal exato; nem quantidade nem preço saem do front', async () => {
+    await registrarOperacaoPorValor({ ativoId: 'a1', data: '2026-11-10', tipo: 'buy', valor: 50007 as Cents, observacao: ' aporte ', contaId: 'c1' })
+    await registrarOperacaoPorValor({ ativoId: 'a1', data: '2026-11-11', tipo: 'sell', valor: 1 as Cents, observacao: '' })
+    expect(fake.e.rpcs).toEqual([
+      ['investment_operation_record_by_value', { p_asset: 'a1', p_date: '2026-11-10', p_kind: 'buy', p_amount: '500.07', p_notes: 'aporte', p_account: 'c1' }],
+      ['investment_operation_record_by_value', { p_asset: 'a1', p_date: '2026-11-11', p_kind: 'sell', p_amount: '0.01', p_notes: null, p_account: null }],
+    ])
+  })
+
+  it('avaliação pelo total: o banco divide pelas unidades', async () => {
+    await registrarAvaliacaoTotal({ ativoId: 'a1', data: '2026-11-10', valor: 103661 as Cents, fonte: ' Extrato ' })
+    expect(fake.e.rpcs).toEqual([['investment_valuation_record_total', { p_asset: 'a1', p_date: '2026-11-10', p_total: '1036.61', p_source: 'Extrato' }]])
+  })
+
+  it('erro do banco sobe para a tela', async () => {
+    fake.e.respostaRpc.investment_operation_record_by_value = { data: null, error: new Error('resgate maior que o valor do ativo') }
+    await expect(registrarOperacaoPorValor({ ativoId: 'a1', data: '2026-11-10', tipo: 'sell', valor: 100 as Cents, observacao: '' })).rejects.toThrow(/resgate maior/)
   })
 })
 

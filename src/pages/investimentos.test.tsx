@@ -11,6 +11,9 @@ const mock = vi.hoisted(() => ({
   definirSubclasseAtivo: vi.fn(),
   definirLiquidezAtivo: vi.fn(),
   registrarOperacaoInvestimento: vi.fn(),
+  registrarOperacaoPorValor: vi.fn(),
+  registrarAvaliacaoInvestimento: vi.fn(),
+  registrarAvaliacaoTotal: vi.fn(),
   listarLiquidezInvestimentos: vi.fn(),
   listarProventosPorAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
@@ -35,6 +38,9 @@ vi.mock('../lib/investimentos', async (o) => ({
   definirSubclasseAtivo: mock.definirSubclasseAtivo,
   definirLiquidezAtivo: mock.definirLiquidezAtivo,
   registrarOperacaoInvestimento: mock.registrarOperacaoInvestimento,
+  registrarOperacaoPorValor: mock.registrarOperacaoPorValor,
+  registrarAvaliacaoInvestimento: mock.registrarAvaliacaoInvestimento,
+  registrarAvaliacaoTotal: mock.registrarAvaliacaoTotal,
   listarLiquidezInvestimentos: mock.listarLiquidezInvestimentos,
   listarProventosPorAtivo: mock.listarProventosPorAtivo,
   registrarProventoInvestimento: mock.registrarProventoInvestimento,
@@ -98,6 +104,7 @@ beforeEach(() => {
   mock.definirSubclasseAtivo.mockResolvedValue(undefined)
   mock.definirLiquidezAtivo.mockResolvedValue(undefined)
   mock.registrarOperacaoInvestimento.mockResolvedValue(undefined)
+  for (const f of [mock.registrarOperacaoPorValor, mock.registrarAvaliacaoInvestimento, mock.registrarAvaliacaoTotal]) f.mockResolvedValue(undefined)
   mock.listarLiquidezInvestimentos.mockResolvedValue([])
   mock.anularOperacaoInvestimento.mockResolvedValue(undefined)
   mock.listarExtratoAtivo.mockResolvedValue(extratoBase())
@@ -536,7 +543,9 @@ describe('Investimentos × macroclasse e subclasse', () => {
         const lista = await abrir(u)
         expect(mock.listarExtratoAtivo).toHaveBeenCalledWith('h1', 'a1')
         expect(lista.textContent).toMatch(/101,00/)
-        expect(lista.textContent).toMatch(/Saldo: 6/)
+        // a1 não tem ticker (ativo sem cota, migration 104): unidade, preço e saldo em unidades não aparecem
+        expect(lista.textContent).not.toMatch(/Saldo: 6/)
+        expect(lista.textContent).not.toMatch(/10 × /)
         expect(lista.textContent).toMatch(/3,50/)
         expect(lista.textContent).toMatch(/Dividendos · Recebido/)
         const anulada = within(lista).getByText('Anulada').closest('li') as HTMLElement
@@ -611,16 +620,17 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(screen.getByRole('dialog', { name: 'Registrar compra ou venda' })).toBeTruthy()
     })
 
-    it('ativo sem cota e sem histórico: "Só o valor" grava 1 unidade pelo valor digitado, sem conta no front', async () => {
+    it('ativo sem cota e sem histórico: "Só o valor" manda só o valor ao banco, sem conta no front', async () => {
       mock.listarAtivosInvestimento.mockResolvedValue([ativo('p1', 'Previdência', 'other', { liquidez: 'restricted' })])
       const u = userEvent.setup()
       const folha = await abrir(u)
       expect(within(folha).getByRole('radio', { name: 'Só o valor' }).getAttribute('aria-checked')).toBe('true')
       await u.type(within(folha).getByLabelText('Valor de hoje (BRL)'), '193.636,78')
       await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
-      expect(mock.registrarOperacaoInvestimento).toHaveBeenCalledWith(expect.objectContaining({
-        ativoId: 'p1', tipo: 'buy', quantidade: '1', precoUnitario: '193636.78', tarifas: 0,
-      }))
+      expect(mock.registrarOperacaoPorValor).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'p1', tipo: 'buy', valor: 19363678 }))
+      // nem quantidade nem preço saem do front: quem converte é o banco (migration 104)
+      expect(mock.registrarOperacaoPorValor.mock.lastCall?.[0]).not.toHaveProperty('quantidade')
+      expect(mock.registrarOperacaoInvestimento).not.toHaveBeenCalled()
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     })
 
@@ -633,13 +643,13 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(within(folha).getByText(/sai da conta escolhida e vai para a carteira, sem virar despesa/)).toBeTruthy()
       await u.type(within(folha).getByLabelText('Valor de hoje (BRL)'), '100,00')
       await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
-      expect(mock.registrarOperacaoInvestimento).toHaveBeenLastCalledWith(expect.objectContaining({ ativoId: 'p1', contaId: 'c1' }))
+      expect(mock.registrarOperacaoPorValor).toHaveBeenLastCalledWith(expect.objectContaining({ ativoId: 'p1', contaId: 'c1' }))
 
       await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
       const outra = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
       await u.type(within(outra).getByLabelText('Valor de hoje (BRL)'), '50,00')
       await u.click(within(outra).getByRole('button', { name: 'Registrar compra' }))
-      expect(mock.registrarOperacaoInvestimento.mock.lastCall?.[0]).not.toHaveProperty('contaId')
+      expect(mock.registrarOperacaoPorValor.mock.lastCall?.[0]).not.toHaveProperty('contaId')
 
       await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
       const usd = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
@@ -647,19 +657,45 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(within(usd).queryByLabelText('Saiu da conta')).toBeNull()
     })
 
-    it('ativo com histórico não oferece "Só o valor"; quantidade e preço vão como digitados; venda troca o botão', async () => {
+    it('ativo com ticker começa em "Quantidade e preço"; quantidade e preço vão como digitados; venda troca o botão', async () => {
       mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', quantidadeOperacoes: 2 })])
       const u = userEvent.setup()
       const folha = await abrir(u)
-      expect(within(folha).queryByRole('radio', { name: 'Só o valor' })).toBeNull()
+      expect(within(folha).getByRole('radio', { name: 'Quantidade e preço' }).getAttribute('aria-checked')).toBe('true')
       await u.click(within(folha).getByRole('radio', { name: 'Venda' }))
       await u.type(within(folha).getByLabelText('Quantidade'), '10,5')
       await u.type(within(folha).getByLabelText('Preço por unidade (BRL)'), '25,75')
       await u.click(within(folha).getByRole('button', { name: 'Registrar venda' }))
       expect(mock.registrarOperacaoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'a2', tipo: 'sell', quantidade: '10,5', precoUnitario: '25,75' }))
+      expect(mock.registrarOperacaoPorValor).not.toHaveBeenCalled()
     })
 
-    it('ativo novo com ticker começa em "Quantidade e preço", mas pode trocar para "Só o valor"; na venda a opção some', async () => {
+    it('ativo sem cota COM histórico (cofrinho): aporte e resgate só pelo valor, com a conta; sem tarifas nem unidades (migration 104)', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('k1', 'Cofrinho 140% CDI', 'fixed_income', { quantidadeOperacoes: 3, quantidadeAvaliacoes: 2 })])
+      const u = userEvent.setup()
+      let folha = await abrir(u)
+      expect(within(folha).getByRole('radio', { name: 'Só o valor' }).getAttribute('aria-checked')).toBe('true')
+      expect(within(folha).queryByLabelText('Quantidade')).toBeNull()
+      expect(within(folha).queryByLabelText('Tarifas (BRL)')).toBeNull()
+      await u.selectOptions(within(folha).getByLabelText('Saiu da conta'), 'c1')
+      await u.type(within(folha).getByLabelText('Valor do aporte (BRL)'), '500,00')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
+      expect(mock.registrarOperacaoPorValor).toHaveBeenLastCalledWith(expect.objectContaining({ ativoId: 'k1', tipo: 'buy', valor: 50000, contaId: 'c1' }))
+
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      await u.click(within(folha).getByRole('radio', { name: 'Venda' }))
+      expect(within(folha).getByRole('radio', { name: 'Só o valor' }).getAttribute('aria-checked')).toBe('true')
+      await u.selectOptions(within(folha).getByLabelText('Volta para a conta'), 'c1')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar venda' }))
+      expect(within(folha).getByText('Informe o valor do resgate.')).toBeTruthy()
+      await u.type(within(folha).getByLabelText('Valor do resgate (BRL)'), '200,10')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar venda' }))
+      expect(mock.registrarOperacaoPorValor).toHaveBeenLastCalledWith(expect.objectContaining({ ativoId: 'k1', tipo: 'sell', valor: 20010, contaId: 'c1' }))
+      expect(mock.registrarOperacaoInvestimento).not.toHaveBeenCalled()
+    })
+
+    it('ativo novo com ticker começa em "Quantidade e preço", mas pode trocar para "Só o valor"; na venda vira "Valor do resgate"', async () => {
       mock.listarAtivosInvestimento.mockResolvedValue([ativo('a9', 'FII Z', 'reit', { ticker: 'FIIZ11' })])
       const u = userEvent.setup()
       const folha = await abrir(u)
@@ -667,7 +703,8 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.click(within(folha).getByRole('radio', { name: 'Só o valor' }))
       expect(within(folha).getByLabelText('Valor de hoje (BRL)')).toBeTruthy()
       await u.click(within(folha).getByRole('radio', { name: 'Venda' }))
-      expect(within(folha).queryByRole('radio', { name: 'Só o valor' })).toBeNull()
+      expect(within(folha).getByLabelText('Valor do resgate (BRL)')).toBeTruthy()
+      await u.click(within(folha).getByRole('radio', { name: 'Quantidade e preço' }))
       expect(within(folha).getByLabelText('Quantidade')).toBeTruthy()
     })
 
@@ -691,28 +728,56 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(await within(folha).findByRole('alert')).toBeTruthy()
     })
 
-    it('avaliação de ativo com 1 unidade (registrado por "Só o valor") pede o valor de hoje; com mais unidades, o preço por unidade', async () => {
+    it('avaliação: ativo sem cota pede o valor de hoje e manda o TOTAL ao banco, mesmo com unidades quebradas; com ticker, o preço por unidade', async () => {
       const u = userEvent.setup()
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a1', 'Cofrinho 140% CDI', 'fixed_income'), ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3' })])
       mock.listarCarteiraInvestimentos.mockResolvedValue({
-        posicoes: [{ ...posicao('a1', 'Tesouro Selic', 'fixed_income', 60000), quantidade: '1' }, { ...posicao('a2', 'Ação Y', 'equity', 10000), quantidade: '20' }],
+        // 1,002538105337 unidades: é o que sobra depois de um aporte por valor (o banco converte)
+        posicoes: [{ ...posicao('a1', 'Cofrinho 140% CDI', 'fixed_income', 60000), quantidade: '1.002538105337' }, { ...posicao('a2', 'Ação Y', 'equity', 10000), ticker: 'ACAO3', quantidade: '20' }],
         totais: [],
       })
       render(<Investimentos />)
       await u.click(await screen.findByRole('button', { name: 'Registrar avaliação' }))
-      const folha = screen.getByRole('dialog', { name: 'Registrar avaliação' })
-      expect(within(folha).getByLabelText('Valor de hoje (BRL)')).toBeTruthy()
+      let folha = screen.getByRole('dialog', { name: 'Registrar avaliação' })
+      await u.type(within(folha).getByLabelText('Valor de hoje (BRL)'), '1.036,61')
+      await u.click(within(folha).getByRole('button', { name: 'Salvar avaliação' }))
+      expect(mock.registrarAvaliacaoTotal).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'a1', valor: 103661 }))
+      expect(mock.registrarAvaliacaoInvestimento).not.toHaveBeenCalled()
+
+      await u.click(await screen.findByRole('button', { name: 'Registrar avaliação' }))
+      folha = screen.getByRole('dialog', { name: 'Registrar avaliação' })
       await u.selectOptions(within(folha).getByLabelText('Ativo'), 'a2')
-      expect(within(folha).getByLabelText('Preço atual por unidade (BRL)')).toBeTruthy()
+      await u.type(within(folha).getByLabelText('Preço atual por unidade (BRL)'), '25,7512')
+      await u.click(within(folha).getByRole('button', { name: 'Salvar avaliação' }))
+      expect(mock.registrarAvaliacaoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'a2', precoUnitario: '25,7512' }))
+      expect(mock.registrarAvaliacaoTotal).toHaveBeenCalledTimes(1)
+    })
+
+    it('posição de ativo sem cota mostra Aplicado e Rendimento em reais, sem Quantidade nem preço por unidade; com ticker continua como era', async () => {
+      mock.listarCarteiraInvestimentos.mockResolvedValue({
+        posicoes: [
+          { ...posicao('a1', 'Cofrinho 140% CDI', 'fixed_income', 103661), quantidade: '1.002538105337', custoTotal: c(100000), resultado: c(3661) },
+          { ...posicao('a2', 'Ação Y', 'equity', 10000), ticker: 'ACAO3', quantidade: '20' },
+        ],
+        totais: [],
+      })
+      render(<Investimentos />)
+      const cofrinho = (await screen.findAllByText('Valor de mercado estimado'))[0].closest('li') as HTMLElement
+      expect(cofrinho.textContent).toMatch(/Cofrinho 140% CDI/)
+      expect(cofrinho.textContent).toMatch(/Aplicado \(custo\)R\$\s1\.000,00/)
+      expect(cofrinho.textContent).toMatch(/Rendimento não realizado/)
+      expect(cofrinho.textContent).not.toMatch(/Quantidade|Preço de referência|1,0025/)
+      expect(screen.getAllByText('Quantidade')).toHaveLength(1)
     })
 
     it('campo vazio ou erro do banco aparecem dentro da folha, que continua aberta', async () => {
       mock.listarAtivosInvestimento.mockResolvedValue([ativo('p1', 'Previdência', 'other')])
-      mock.registrarOperacaoInvestimento.mockRejectedValue(new Error('a venda supera a quantidade disponível'))
+      mock.registrarOperacaoPorValor.mockRejectedValue(new Error('resgate maior que o valor do ativo'))
       const u = userEvent.setup()
       const folha = await abrir(u)
       await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
       expect(within(folha).getByText('Informe o valor de hoje.')).toBeTruthy()
-      expect(mock.registrarOperacaoInvestimento).not.toHaveBeenCalled()
+      expect(mock.registrarOperacaoPorValor).not.toHaveBeenCalled()
       await u.type(within(folha).getByLabelText('Valor de hoje (BRL)'), '100,00')
       await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
       expect(await within(folha).findByRole('alert')).toBeTruthy()
