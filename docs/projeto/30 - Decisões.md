@@ -458,3 +458,6 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 
 ## 10/11/2026 — Recorrência no cartão (dono)
 - Ocorrências de cartão devem aparecer na fatura "enquanto eu não cancelar" (janela móvel, como a conta) e, ao mudar o dia ou cancelar, perguntar "só esta" ou "esta e as próximas", como o Organizze. Motivo: hoje só viram item no dia e o dono não consegue ajustar antes. Plano em `28 - Recorrência no cartão estilo Organizze (plano).md`; falta decidir se o item futuro ocupa o limite.
+
+## 10/11/2026 — Recorrência no cartão: itens agendados (dono)
+- As recorrências de cartão ficam lançadas nas faturas futuras e entram no total da fatura; só ocupam o limite quando a fatura anterior fecha (só recorrência; parcelado segue ocupando desde a compra). Motivo: é como o Organizze faz e o dono planeja pela fatura futura. Horizonte de 12 meses renovando, sem botão "Lançar", cancelar "esta e as próximas" mantém o que já virou parcela. Em aberto: editar o dia depois de virar parcela ("talvez"). Provisório: fatura paga travada empurra para a seguinte ("vamos testar"). Desenho: tabela `card_scheduled_items` (doc 28).
