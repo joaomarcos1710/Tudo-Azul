@@ -26,6 +26,7 @@ const mock = vi.hoisted(() => ({
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
   listarOcorrenciasPrevistas: vi.fn(),
+  excluirRecorrencia: vi.fn(),
   pagarFatura: vi.fn(),
   reabrirFatura: vi.fn(),
   previaExclusao: vi.fn(),
@@ -52,7 +53,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
   visaoDosCartoes: mock.visaoDosCartoes,
 }))
-vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0) }))
+vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0), excluirRecorrencia: mock.excluirRecorrencia }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -229,6 +230,30 @@ describe('Cartões', () => {
     expect(within(bloco).getByText('Agendado')).toBeTruthy()
     // não é compra: as previstas ficam fora do bloco de saídas
     expect(within(screen.getByTestId('bloco-saidas')).queryByText('Streaming')).toBeNull()
+  })
+
+  it('recorrência no cartão: assinatura cancelada pode ser excluída pela própria linha da fatura (pedido do dono)', async () => {
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+    mock.listarOcorrenciasPrevistas.mockResolvedValue([
+      { recorrenciaId: 'r1', data: '2099-04-05', descricao: 'Academia', valor: c(8999), categoriaId: 'g1' },
+    ])
+    mock.excluirRecorrencia.mockResolvedValue(0)
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const u = userEvent.setup()
+    montar('/cartoes/k1/fatura/2099-04')
+    await screen.findByTestId('bloco-previstas')
+    // cancelar a confirmação não exclui nada
+    await u.click(screen.getByRole('button', { name: 'Ações de Academia' }))
+    await u.click(await screen.findByRole('menuitem', { name: 'Excluir assinatura' }))
+    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining('Excluir a assinatura "Academia"'))
+    expect(mock.excluirRecorrencia).not.toHaveBeenCalled()
+    // confirmando, exclui a regra daquela linha e recarrega
+    confirmar.mockReturnValue(true)
+    mock.listarOcorrenciasPrevistas.mockResolvedValue([])
+    await u.click(screen.getByRole('button', { name: 'Ações de Academia' }))
+    await u.click(await screen.findByRole('menuitem', { name: 'Excluir assinatura' }))
+    expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r1')
+    await vi.waitFor(() => expect(screen.queryByTestId('bloco-previstas')).toBeNull())
   })
 
   it('recorrência no cartão: sem previstas, o bloco não aparece; se a consulta falhar, a fatura segue normal', async () => {
