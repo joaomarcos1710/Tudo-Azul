@@ -407,51 +407,163 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
 
       {noInicio && <div id="cartoes" className="scroll-mt-24" />}
-      {noInicio && dados.cartoes && (
-        <Card className="mb-4">
-          <div className="flex items-center justify-between">
-            <CardTitle>Cartões</CardTitle>
-            <Link to="/cartoes" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver cartões</Link>
+      {noInicio && <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        {/* No celular os dois blocos viram "display: contents" e cada cartão segue a ordem de sempre (order-*); no computador são duas colunas. */}
+        <div data-coluna="esquerda" className="contents lg:block lg:space-y-4">
+          <Card id="contas" className="order-5 scroll-mt-24">
+            <div className="flex items-start justify-between gap-3">
+              <CardTitle>Minhas contas</CardTitle>
+              {dados.saldoGeral !== null && dados.contas.length > 0 && (
+                <p className="text-right"><span className="block text-xs text-slate-500">{outrasMoedas(dados.porMoeda).length > 0 ? 'Saldo geral em reais' : 'Saldo geral'}</span>
+                  <span className={`tabular-nums font-bold ${corDoValor(dados.saldoGeral)}`}>{formatBRL(dados.saldoGeral)}</span></p>
+              )}
+            </div>
+            {dados.contas.length === 0 ? (
+              <p className="text-sm text-slate-500">Nenhuma conta ativa. <Link to="/contas" className="font-semibold text-azul hover:underline">Cadastrar conta</Link></p>
+            ) : contasComSaldo.length === 0 ? (
+              <p className="text-sm text-slate-500">Todas as contas estão zeradas.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {contasComSaldo.map((c) => (
+                  // só o saldo de hoje, numa linha (pedido do dono, 05/11/2026: "Hoje · Fim do mês" por conta ficava poluído);
+                  // o previsto do mês continua no total ("posso gastar?") e no Calendário
+                  <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                    <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="pequeno" />
+                      <span className="truncate">{c.nome}</span></span>
+                    {c.saldo === null ? (
+                      <span className="shrink-0 tabular-nums font-semibold">abre em {formatDate(c.abertura)}</span>
+                    ) : (
+                      <span data-testid="saldos-da-conta" className={`shrink-0 whitespace-nowrap tabular-nums font-semibold ${corDoValor(c.saldo)}`}>
+                        {formatMoeda(c.saldo, c.moeda ?? 'BRL')}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* #188: o previsto do fim do mês ("posso gastar?") saiu do card "Saldo hoje e previsto" e ficou aqui, uma linha */}
+            {dados.saldoPrevisto && dados.contas.length > 0 && (
+              <p className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 border-t border-slate-100 pt-2 text-sm">
+                <span className="text-slate-500">Previsto em {formatDate(limitesDoMes(mes)[1]).slice(0, 5)}
+                  <span className="block text-xs">com planejados, fixos e faturas até o fim do mês</span></span>
+                <span className={`ml-auto whitespace-nowrap tabular-nums font-semibold ${corDoValor(dados.saldoPrevisto.saldo)}`}>{formatBRL(dados.saldoPrevisto.saldo)}</span>
+              </p>
+            )}
+            <EmOutrasMoedas porMoeda={dados.porMoeda} className="mt-2 border-t border-slate-100 pt-2" />
+            {dados.contas.length > 0 && (
+              <div className="flex flex-wrap gap-x-4">
+                <Link to="/contas" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todas as contas</Link>
+                <Link to="/calendario" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver no calendário</Link>
+              </div>
+            )}
+          </Card>
+          <Card id="investimentos" className="order-6 scroll-mt-24">
+            <CardTitle>Meus investimentos</CardTitle>
+            <p className="text-sm text-slate-500">A visão consolidada da carteira será integrada aqui nas próximas etapas. Seus ativos, operações e avaliações continuam disponíveis no módulo completo.</p>
+            <Link to="/investimentos" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Abrir investimentos</Link>
+          </Card>
+          <Card id="dividas" className="order-7 scroll-mt-24">
+            <CardTitle>Empréstimos e dívidas</CardTitle>
+            <p className="text-sm text-slate-500">O resumo dos contratos e compromissos será integrado aqui nas próximas etapas. Os saldos e pagamentos continuam disponíveis no módulo completo.</p>
+            <Link to="/dividas" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Abrir dívidas</Link>
+          </Card>
+        </div>
+        <div data-coluna="direita" className="contents lg:block lg:space-y-4">
+          {dados.cartoes && (
+            <Card className="order-1">
+              <div className="flex items-center justify-between">
+                <CardTitle>Cartões</CardTitle>
+                <Link to="/cartoes" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver cartões</Link>
+              </div>
+              <FaturasDoMes mes={mes} dados={dados.faturasDoMes} className="mb-3" />
+              {dados.cartoes.length === 0 ? (
+                <p className="text-sm text-slate-500">Nenhum cartão cadastrado. <Link to="/cartoes" className="font-semibold text-azul hover:underline">Adicionar cartão</Link></p>
+              ) : <ul className="space-y-3">
+                {dados.cartoes.map((c) => (
+                  <li key={c.id} className="rounded-lg border border-slate-100 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2 font-medium">
+                        <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />{c.nome}<BandeiraCartao bandeira={c.bandeira} />
+                      </span>
+                      {/* #203: direto na página da fatura atual do cartão (sem fatura aberta, na página do cartão) */}
+                      <Link to={c.proxima ? rotaFatura(c.id, c.proxima.mes) : rotaCartao(c.id)} aria-label={`Ver fatura ${c.nome}`}
+                        className="inline-flex min-h-11 items-center text-xs font-semibold text-azul hover:underline">Ver fatura</Link>
+                    </div>
+                    {/* como no Organizze: limite disponível ao lado da fatura atual (aberta) */}
+                    <dl className="mt-1 grid grid-cols-2 gap-3 rounded-lg bg-fundo p-2">
+                      <div className="min-w-0">
+                        <dt className="text-xs text-slate-500">Limite disponível</dt>
+                        <dd className="tabular-nums font-semibold">{c.limiteDisponivel === null ? '—' : formatBRL(c.limiteDisponivel)}</dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-xs text-slate-500">Fatura atual{c.proxima?.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}</dt>
+                        <dd className="tabular-nums font-semibold">{c.proxima ? formatBRL(c.proxima.total) : '—'}</dd>
+                      </div>
+                    </dl>
+                    {c.divida > 0 && (
+                      <p className={`mt-2 text-xs ${c.vencida ? 'font-semibold text-prejuizo' : 'text-atencao'}`}>
+                        Fatura fechada a pagar <strong className="tabular-nums">{formatBRL(c.divida)}</strong>
+                        {c.vencimento && (c.vencida ? ` · venceu em ${formatDate(c.vencimento)}` : ` · vence em ${formatDate(c.vencimento).slice(0, 5)}`)}
+                      </p>
+                    )}
+                    {c.divida === 0 && c.credito > 0 && <p className="mt-2 text-xs text-slate-500">Crédito no cartão de {formatBRL(c.credito)}</p>}
+                  </li>
+                ))}
+              </ul>}
+            </Card>
+          )}
+          {dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
+          <Card className="order-4">
+            <CardTitle>Próximos planejados</CardTitle>
+            {dados.proximos.length === 0 ? (
+              <p className="text-sm text-slate-500">Nada planejado a partir de hoje.</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {dados.proximos.map((x) => (
+                  <li key={x.id} className="flex items-center gap-3 py-2 text-sm">
+                    <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
+                    <span className="min-w-0 flex-1">
+                      {formatDate(x.data)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
+                      {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.todasContas} />}
+                    </span>
+                    <span className={`tabular-nums font-semibold ${corDoTipo(x.tipo)}`}>
+                      {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(x.valor, moedaDe(x.contaId))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+        <Card semPadding className="order-3 lg:col-span-2">
+          <div className="flex items-center justify-between px-5 pt-5">
+            <CardTitle>Últimos lançamentos</CardTitle>
+            <Link to="/lancamentos" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todos</Link>
           </div>
-          <FaturasDoMes mes={mes} dados={dados.faturasDoMes} className="mb-3" />
-          {dados.cartoes.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhum cartão cadastrado. <Link to="/cartoes" className="font-semibold text-azul hover:underline">Adicionar cartão</Link></p>
-          ) : <ul className="space-y-3">
-            {dados.cartoes.map((c) => (
-              <li key={c.id} className="rounded-lg border border-slate-100 p-3 text-sm">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-2 font-medium">
-                    <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />{c.nome}<BandeiraCartao bandeira={c.bandeira} />
+          {dados.ultimos.length === 0 ? (
+            <p className="px-5 pb-5 text-sm text-slate-500">Nenhum lançamento pago neste mês ainda.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {dados.ultimos.map((l) => (
+                <li key={l.id} className="flex items-center gap-3 px-5 py-3 text-sm">
+                  <span className="w-12 shrink-0 text-xs text-slate-500">{formatDate(l.data).slice(0, 5)}</span>
+                  <IconeDaLinha tipo={l.tipo} categoriaId={l.categoriaId} porId={dados.categoriaPorId} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{l.descricao || (l.tipo === 'income' ? 'Receita' : l.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
+                    {l.tipo === 'transfer' && <RotaTransferencia contaId={l.contaId} destinoId={l.destinoId} contas={dados.todasContas} />}
                   </span>
-                  {/* #203: direto na página da fatura atual do cartão (sem fatura aberta, na página do cartão) */}
-                  <Link to={c.proxima ? rotaFatura(c.id, c.proxima.mes) : rotaCartao(c.id)} aria-label={`Ver fatura ${c.nome}`}
-                    className="inline-flex min-h-11 items-center text-xs font-semibold text-azul hover:underline">Ver fatura</Link>
-                </div>
-                {/* como no Organizze: limite disponível ao lado da fatura atual (aberta) */}
-                <dl className="mt-1 grid grid-cols-2 gap-3 rounded-lg bg-fundo p-2">
-                  <div className="min-w-0">
-                    <dt className="text-xs text-slate-500">Limite disponível</dt>
-                    <dd className="tabular-nums font-semibold">{c.limiteDisponivel === null ? '—' : formatBRL(c.limiteDisponivel)}</dd>
-                  </div>
-                  <div className="min-w-0">
-                    <dt className="text-xs text-slate-500">Fatura atual{c.proxima?.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}</dt>
-                    <dd className="tabular-nums font-semibold">{c.proxima ? formatBRL(c.proxima.total) : '—'}</dd>
-                  </div>
-                </dl>
-                {c.divida > 0 && (
-                  <p className={`mt-2 text-xs ${c.vencida ? 'font-semibold text-prejuizo' : 'text-atencao'}`}>
-                    Fatura fechada a pagar <strong className="tabular-nums">{formatBRL(c.divida)}</strong>
-                    {c.vencimento && (c.vencida ? ` · venceu em ${formatDate(c.vencimento)}` : ` · vence em ${formatDate(c.vencimento).slice(0, 5)}`)}
-                  </p>
-                )}
-                {c.divida === 0 && c.credito > 0 && <p className="mt-2 text-xs text-slate-500">Crédito no cartão de {formatBRL(c.credito)}</p>}
-              </li>
-            ))}
-          </ul>}
+                  {l.categoriaId && (
+                    <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 sm:inline">{dados.nomeCategoria.get(l.categoriaId) ?? 'Sem categoria'}</span>
+                  )}
+                  <span className={`w-28 text-right tabular-nums font-semibold ${corDoTipo(l.tipo)}`}>
+                    {l.tipo === 'income' ? '+' : l.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(l.valor, moedaDe(l.contaId))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
-      )}
+      </div>}
 
-      {noInicio && dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
 
       {!noInicio && <>
       {(m || p) ? (
@@ -640,115 +752,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         )}
 
       </div>}
-      {noInicio && <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card semPadding className="lg:col-span-2">
-          <div className="flex items-center justify-between px-5 pt-5">
-            <CardTitle>Últimos lançamentos</CardTitle>
-            <Link to="/lancamentos" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todos</Link>
-          </div>
-          {dados.ultimos.length === 0 ? (
-            <p className="px-5 pb-5 text-sm text-slate-500">Nenhum lançamento pago neste mês ainda.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {dados.ultimos.map((l) => (
-                <li key={l.id} className="flex items-center gap-3 px-5 py-3 text-sm">
-                  <span className="w-12 shrink-0 text-xs text-slate-500">{formatDate(l.data).slice(0, 5)}</span>
-                  <IconeDaLinha tipo={l.tipo} categoriaId={l.categoriaId} porId={dados.categoriaPorId} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{l.descricao || (l.tipo === 'income' ? 'Receita' : l.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
-                    {l.tipo === 'transfer' && <RotaTransferencia contaId={l.contaId} destinoId={l.destinoId} contas={dados.todasContas} />}
-                  </span>
-                  {l.categoriaId && (
-                    <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 sm:inline">{dados.nomeCategoria.get(l.categoriaId) ?? 'Sem categoria'}</span>
-                  )}
-                  <span className={`w-28 text-right tabular-nums font-semibold ${corDoTipo(l.tipo)}`}>
-                    {l.tipo === 'income' ? '+' : l.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(l.valor, moedaDe(l.contaId))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card>
-          <CardTitle>Próximos planejados</CardTitle>
-          {dados.proximos.length === 0 ? (
-            <p className="text-sm text-slate-500">Nada planejado a partir de hoje.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {dados.proximos.map((x) => (
-                <li key={x.id} className="flex items-center gap-3 py-2 text-sm">
-                  <IconeDaLinha tipo={x.tipo} categoriaId={x.categoriaId} porId={dados.categoriaPorId} />
-                  <span className="min-w-0 flex-1">
-                    {formatDate(x.data)} · {x.descricao || (x.tipo === 'income' ? 'Receita' : x.tipo === 'expense' ? 'Despesa' : 'Transferência')}
-                    {x.tipo === 'transfer' && <RotaTransferencia contaId={x.contaId} destinoId={x.destinoId} contas={dados.todasContas} />}
-                  </span>
-                  <span className={`tabular-nums font-semibold ${corDoTipo(x.tipo)}`}>
-                    {x.tipo === 'income' ? '+' : x.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(x.valor, moedaDe(x.contaId))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card id="contas" className="scroll-mt-24">
-          <div className="flex items-start justify-between gap-3">
-            <CardTitle>Minhas contas</CardTitle>
-            {dados.saldoGeral !== null && dados.contas.length > 0 && (
-              <p className="text-right"><span className="block text-xs text-slate-500">{outrasMoedas(dados.porMoeda).length > 0 ? 'Saldo geral em reais' : 'Saldo geral'}</span>
-                <span className={`tabular-nums font-bold ${corDoValor(dados.saldoGeral)}`}>{formatBRL(dados.saldoGeral)}</span></p>
-            )}
-          </div>
-          {dados.contas.length === 0 ? (
-            <p className="text-sm text-slate-500">Nenhuma conta ativa. <Link to="/contas" className="font-semibold text-azul hover:underline">Cadastrar conta</Link></p>
-          ) : contasComSaldo.length === 0 ? (
-            <p className="text-sm text-slate-500">Todas as contas estão zeradas.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {contasComSaldo.map((c) => (
-                // só o saldo de hoje, numa linha (pedido do dono, 05/11/2026: "Hoje · Fim do mês" por conta ficava poluído);
-                // o previsto do mês continua no total ("posso gastar?") e no Calendário
-                <li key={c.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <span className="flex min-w-0 items-center gap-2"><IconeConta nome={c.nome} tipo={c.tipo} banco={c.banco} tamanho="pequeno" />
-                    <span className="truncate">{c.nome}</span></span>
-                  {c.saldo === null ? (
-                    <span className="shrink-0 tabular-nums font-semibold">abre em {formatDate(c.abertura)}</span>
-                  ) : (
-                    <span data-testid="saldos-da-conta" className={`shrink-0 whitespace-nowrap tabular-nums font-semibold ${corDoValor(c.saldo)}`}>
-                      {formatMoeda(c.saldo, c.moeda ?? 'BRL')}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-          {/* #188: o previsto do fim do mês ("posso gastar?") saiu do card "Saldo hoje e previsto" e ficou aqui, uma linha */}
-          {dados.saldoPrevisto && dados.contas.length > 0 && (
-            <p className="mt-2 flex flex-wrap items-baseline justify-between gap-x-3 border-t border-slate-100 pt-2 text-sm">
-              <span className="text-slate-500">Previsto em {formatDate(limitesDoMes(mes)[1]).slice(0, 5)}
-                <span className="block text-xs">com planejados, fixos e faturas até o fim do mês</span></span>
-              <span className={`ml-auto whitespace-nowrap tabular-nums font-semibold ${corDoValor(dados.saldoPrevisto.saldo)}`}>{formatBRL(dados.saldoPrevisto.saldo)}</span>
-            </p>
-          )}
-          <EmOutrasMoedas porMoeda={dados.porMoeda} className="mt-2 border-t border-slate-100 pt-2" />
-          {dados.contas.length > 0 && (
-            <div className="flex flex-wrap gap-x-4">
-              <Link to="/contas" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todas as contas</Link>
-              <Link to="/calendario" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver no calendário</Link>
-            </div>
-          )}
-        </Card>
-        <Card id="investimentos" className="scroll-mt-24">
-          <CardTitle>Meus investimentos</CardTitle>
-          <p className="text-sm text-slate-500">A visão consolidada da carteira será integrada aqui nas próximas etapas. Seus ativos, operações e avaliações continuam disponíveis no módulo completo.</p>
-          <Link to="/investimentos" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Abrir investimentos</Link>
-        </Card>
-        <Card id="dividas" className="scroll-mt-24">
-          <CardTitle>Empréstimos e dívidas</CardTitle>
-          <p className="text-sm text-slate-500">O resumo dos contratos e compromissos será integrado aqui nas próximas etapas. Os saldos e pagamentos continuam disponíveis no módulo completo.</p>
-          <Link to="/dividas" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Abrir dívidas</Link>
-        </Card>
-      </div>}
     </>
   )
 }
@@ -886,7 +889,7 @@ function OrcamentosDoInicio({ orcamentos }: { orcamentos: OrcamentoMes[] }) {
   const usado = (o: OrcamentoMes) => (o.limite > 0 ? o.gasto / o.limite : Infinity)
   const lista = [...orcamentos].sort((x, y) => usado(y) - usado(x)).slice(0, 4)
   return (
-    <Card className="mb-4">
+    <Card className="order-2">
       <div className="flex items-center justify-between">
         <CardTitle>Orçamentos do mês</CardTitle>
         <Link to="/orcamentos" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todos</Link>

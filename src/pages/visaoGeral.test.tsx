@@ -791,6 +791,26 @@ describe('Visão geral', () => {
     expect(faixa.compareDocumentPosition(vencidos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
+  it('Início em duas colunas: contas, investimentos e dívidas à esquerda; cartões e próximos planejados à direita; últimos lançamentos largo', async () => {
+    montar()
+    await screen.findByText('Minhas contas')
+    const esquerda = document.querySelector('[data-coluna="esquerda"]') as HTMLElement
+    const direita = document.querySelector('[data-coluna="direita"]') as HTMLElement
+    expect(esquerda).toBeTruthy()
+    expect(direita).toBeTruthy()
+    expect(within(esquerda).getByText('Minhas contas')).toBeTruthy()
+    expect(within(esquerda).getByText('Meus investimentos')).toBeTruthy()
+    expect(within(esquerda).getByText('Empréstimos e dívidas')).toBeTruthy()
+    expect(within(direita).getByText('Cartões')).toBeTruthy()
+    expect(within(direita).getByText('Próximos planejados')).toBeTruthy()
+    // "Últimos lançamentos" ocupa as duas colunas: fica fora das duas
+    const ultimos = screen.getByText('Últimos lançamentos')
+    expect(esquerda.contains(ultimos) || direita.contains(ultimos)).toBe(false)
+    // nada trocou de lugar para baixo da faixa de indicadores
+    const faixa = screen.getByRole('region', { name: 'Indicadores do mês' })
+    expect(faixa.compareDocumentPosition(esquerda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('Análises: patrimônio e saldo mês a mês em dois gráficos, com tabela dos valores do banco', async () => {
     mock.evolucaoPatrimonio.mockResolvedValue({ pontos: [
       { mes: '2026-09', data: '2026-09-30', patrimonio: c(13000000), disponivel: c(-50000) },
