@@ -551,3 +551,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Decidido:** aporte e resgate são transferências para uma conta interna "Carteira de investimentos", fora de todas as somas; contas antigas de investimento vão para a carteira por "Mover para a carteira" (cria o ativo, zera a conta sem despesa e arquiva). Detalhes em `27 - Investimentos vinculados a conta`.
 - **Motivo:** com o patrimônio somando a carteira (099), mandar o dinheiro para uma corretora comum contaria duas vezes; transferência já é o caminho que nunca vira receita nem despesa.
 - **Escolhas do dono:** conta na compra é opcional; operações antigas não mudam; corretora segue no Disponível; só reais na primeira versão.
+
+## 10/11/2026 — Tracejado do orçamento: "fatura a fechar", não "não pago"
+- **Pedido do dono:** mostrar na barra do orçamento os gastos de cartão já lançados e ainda não pagos, tracejados.
+- **O que o banco permite sem mudar número nenhum:** o orçamento conta o cartão pelo fechamento da fatura. Fatura fechada (paga ou não) já está no gasto. O tracejado mostra o cartão lançado em fatura que ainda não fechou; por isso o rótulo é "Cartão lançado, fatura a fechar".
+- **Se o dono quiser literalmente "não pago"** (fatura fechada e não paga também tracejada), é preciso partir o gasto pelo pagamento da fatura, o que muda números e telas: decisão à parte.

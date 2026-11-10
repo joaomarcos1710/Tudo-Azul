@@ -162,8 +162,14 @@ export default function Orcamentos() {
                     {saldoPositivo ? '+ ' : '− '}{formatBRL(Math.abs(o.restante) as Cents)}
                   </p>
                 </div>
-                <Barra gasto={o.gasto} limite={o.limite} />
+                <Barra gasto={o.gasto} limite={o.limite} cartao={o.cartaoLancado ?? (0 as Cents)} />
                 <p className="mt-2 text-xs text-slate-500 tabular-nums">{formatBRL(o.gasto)} gastos de {formatBRL(o.limite)}</p>
+                {o.cartaoLancado !== null && o.cartaoLancado > 0 && (
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 tabular-nums">
+                    <span aria-hidden="true" className="inline-block h-2 w-4 rounded-sm text-marinho" style={TRACEJADO} />
+                    Cartão lançado, fatura a fechar: {formatBRL(o.cartaoLancado)}
+                  </p>
+                )}
                 <Situacao o={o} emAndamento={emAndamento} />
                 {editando === o.categoriaId ? (
                   <FormOrcamento
@@ -195,16 +201,28 @@ export default function Orcamentos() {
   )
 }
 
-/** A proporção só desenha a barra e o percentual; gasto e limite vêm do banco. A cor segue faixaOrcamento (lib/cores). */
-function Barra({ gasto, limite }: { gasto: Cents; limite: Cents }) {
+/** Listras diagonais na cor do texto (marinho): o tracejado do cartão lançado, na barra e na legenda. */
+const TRACEJADO = { backgroundImage: 'repeating-linear-gradient(135deg, currentColor 0 3px, transparent 3px 6px)' }
+
+/**
+ * A proporção só desenha a barra e o percentual; gasto, cartão e limite vêm do banco. A cor segue faixaOrcamento
+ * (lib/cores). Depois do trecho sólido (gasto), o tracejado marinho é o cartão já lançado em fatura que ainda não fechou
+ * (pedido do dono, 10/11/2026; a fatura fechada já está no gasto, porque o orçamento conta o cartão pelo fechamento); o percentual continua só do gasto pago. O que passa do limite fica cortado no fim da barra.
+ */
+function Barra({ gasto, limite, cartao }: { gasto: Cents; limite: Cents; cartao: Cents }) {
   const pct = Math.max(0, Math.min(100, (gasto / limite) * 100))
+  const pctCartao = Math.max(0, Math.min(100 - pct, (cartao / limite) * 100))
   const usado = Math.floor((Math.max(0, gasto) * 100) / limite)
   const faixa = faixaOrcamento(gasto, limite)
   return (
     <div className="mt-3 flex items-center gap-3">
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100" role="img"
-        aria-label={`Gasto ${formatBRL(gasto)} de ${formatBRL(limite)}, ${usado}% do limite`}>
-        <div data-faixa={faixa} className={`h-full rounded-full ${BARRA_ORCAMENTO[faixa]}`} style={{ width: `${pct}%` }} />
+      <div className="flex h-2 flex-1 overflow-hidden rounded-full bg-slate-100" role="img"
+        aria-label={`Gasto ${formatBRL(gasto)} de ${formatBRL(limite)}, ${usado}% do limite${cartao > 0 ? `; mais ${formatBRL(cartao)} no cartão, lançado em fatura a fechar` : ''}`}>
+        <div data-faixa={faixa} className={`h-full shrink-0 rounded-full ${BARRA_ORCAMENTO[faixa]}`} style={{ width: `${pct}%` }} />
+        {pctCartao > 0 && (
+          // 2px de separação do trecho sólido, como entre fatias de gráfico empilhado
+          <div data-cartao className="h-full shrink-0 rounded-r-full text-marinho opacity-60" style={{ ...TRACEJADO, width: `${pctCartao}%`, marginLeft: pct > 0 ? 2 : 0 }} />
+        )}
       </div>
       <span aria-hidden="true" className={`w-12 shrink-0 text-right text-sm font-semibold tabular-nums ${faixa === 'estourou' || faixa === 'perto' ? 'text-prejuizo' : faixa === 'atencao' ? 'text-atencao' : 'text-slate-600'}`}>{usado}%</span>
     </div>
