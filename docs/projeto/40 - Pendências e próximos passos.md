@@ -472,7 +472,13 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Velocidade do Início (medido em 10/11/2026, `pg_stat_statements`)
 - [x] Tarefas automáticas fora do caminho do primeiro desenho (Início e Análises).
 - [ ] O Início ainda espera TODAS as consultas para desenhar; a mais lenta manda. Médias no banco: `get_home_decision_month` 7,7 s (só 4 chamadas na amostra), `dashboard_commitment_matrix` 4,9 s, `home_indicators` 3,8 s, `home_alerts` 3,2 s, `balance_totals_projected` 2,7 s, `card_overview` 2,5 s. Próximo passo: carregar por bloco, com esqueleto do tamanho final.
-- [ ] `EXPLAIN ANALYZE` em `get_home_decision_month` e ver o que ela recalcula que `home_indicators` também calcula; avaliar uma RPC única para o topo.
+- [x] `EXPLAIN (ANALYZE, BUFFERS)` em `get_home_decision_month` (10/11/2026): 3,75 s e ~527 mil páginas, tudo da memória. Matriz 1,63 s; `home_indicators` 0,88 s; `home_alerts` 0,50 s; faturas dos cartões 0,48 s; `budget_projection` 0,20 s.
+- [x] Matriz calcula as faturas uma vez por cartão e data de corte (migration 20261110060000, teste 91) e o Início não pede `home_indicators` duas vezes.
+- [ ] **Aplicar a migration 20261110060000** em produção (simular, ler o log, aplicar; só com o "pode" do dono) e medir de novo.
+- [ ] Reescrever `private.card_months_as_of` sem subconsulta por parcela (~120 ms por cartão): medir por dentro antes, comparar a saída antiga e a nova linha a linha. É a conta oficial da fatura.
+- [ ] `get_home_decision_month` ainda chama `card_months_as_of` mais uma vez por cartão (a matriz já calculou com a mesma data) e `home_alerts` roda duas vezes por abertura (a função só devolve os avisos de atraso; o Início precisa da lista inteira).
+- [ ] `ProjecaoCompromissos` pede a matriz com 6 meses: conferir em que tela aparece e se concorre com a carga do Início.
+- [ ] `account_balances_daily` (6,7 s de média) e `card_overview` ainda não foram medidas por dentro.
 - [ ] `card_limits` e `debt_balances` são chamadas demais por dentro de outras funções (1.275 e 1.476 chamadas na amostra).
 - [ ] Cartões, Lançamentos e Calendário ainda rodam as tarefas automáticas antes de carregar; avaliar o mesmo tratamento.
 - [x] Cache em memória no Início e em Análises (TanStack Query, `src/lib/consultas.ts`): volta instantânea e revalidação por trás.
