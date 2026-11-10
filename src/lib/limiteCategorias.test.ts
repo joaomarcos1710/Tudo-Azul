@@ -41,40 +41,28 @@ describe('listarCategorias e a migration 012', () => {
   it('pedindo "eventual" e o banco ainda sem a coluna: lê sem ela, tudo regular', async () => {
     fake.estado.respostas = [
       { data: null, error: { message: 'column categories.non_consumption does not exist' } },
-      { data: null, error: { message: 'column categories.budget_group does not exist' } },
       { data: null, error: { message: 'column categories.eventual does not exist' } },
       { data: [linha], error: null },
     ]
     const r = await listarCategorias('h1', { comEventual: true })
-    expect(fake.estado.colunas).toHaveLength(4)
-    expect(r.map((c) => c.eventual)).toEqual([false])
-    expect(r.map((c) => c.grupo)).toEqual([null])
-  })
-
-  it('banco com a 012 mas sem a 032: lê a marca "eventual" e o grupo fica vazio (nunca inventado)', async () => {
-    fake.estado.respostas = [
-      { data: null, error: { message: 'column categories.non_consumption does not exist' } },
-      { data: null, error: { message: 'column categories.budget_group does not exist' } },
-      { data: [{ ...linha, eventual: true }], error: null },
-    ]
-    const r = await listarCategorias('h1', { comEventual: true })
     expect(fake.estado.colunas).toHaveLength(3)
-    expect([r[0].eventual, r[0].grupo]).toEqual([true, null])
+    expect(r.map((c) => c.eventual)).toEqual([false])
   })
 
-  it('com a 032, traz o grupo da regra 50-30-20', async () => {
-    fake.estado.respostas = [{ data: [{ ...linha, type: 'expense', eventual: false, budget_group: 'lifestyle' }], error: null }]
-    expect((await listarCategorias('h1', { comEventual: true }))[0].grupo).toBe('lifestyle')
+  it('a regra 50-30-20 saiu da tela: budget_group não é mais pedido ao banco', async () => {
+    fake.estado.respostas = [{ data: [{ ...linha, eventual: false, non_consumption: false }], error: null }]
+    await listarCategorias('h1', { comEventual: true })
+    expect(fake.estado.colunas.join(' ')).not.toMatch(/budget_group/)
   })
 
   it('com a 071, pede e traz "não conta como consumo"; sem a 071, cai para a leitura de antes e a marca fica false', async () => {
-    fake.estado.respostas = [{ data: [{ ...linha, eventual: false, budget_group: null, non_consumption: true }], error: null }]
+    fake.estado.respostas = [{ data: [{ ...linha, eventual: false, non_consumption: true }], error: null }]
     expect((await listarCategorias('h1', { comEventual: true }))[0].naoConsumo).toBe(true)
     expect(fake.estado.colunas[0]).toMatch(/, non_consumption$/)
     fake.estado.colunas = []
     fake.estado.respostas = [
       { data: null, error: { message: 'column categories.non_consumption does not exist' } },
-      { data: [{ ...linha, eventual: true, budget_group: null }], error: null },
+      { data: [{ ...linha, eventual: true }], error: null },
     ]
     const r = await listarCategorias('h1', { comEventual: true })
     expect([r[0].eventual, r[0].naoConsumo]).toEqual([true, false])
@@ -87,7 +75,7 @@ describe('listarCategorias e a migration 012', () => {
   })
 
   it('erro que não é da coluna (sem o retry resolver) continua sendo erro', async () => {
-    fake.estado.respostas = [{ data: null, error: { message: 'w' } }, { data: null, error: { message: 'x' } }, { data: null, error: { message: 'y' } }, { data: null, error: { message: 'rede' } }]
+    fake.estado.respostas = [{ data: null, error: { message: 'x' } }, { data: null, error: { message: 'y' } }, { data: null, error: { message: 'rede' } }]
     await expect(listarCategorias('h1', { comEventual: true })).rejects.toMatchObject({ message: 'rede' })
   })
 })
