@@ -3,6 +3,13 @@
 -- mesmo dinheiro de uma conta de renda fixa/variável/cripto (070). O campo `investments` continua sendo devolvido, à
 -- parte. A tabela public."Teste1" (criada à mão no painel) não existe depois. Permissões e forma da função não mudam.
 -- Dados inventados; datas relativas a hoje em São Paulo. Sem a migration, N1–N3 falham (o Início dava 2X).
+--
+-- REGRA MUDOU na migration 099 (20261110080000_investment_liquidity.sql, decisão do dono de 10/11/2026, "opção C"): o
+-- Patrimônio total volta a SOMAR a carteira em reais, no Início E em Análises (a 075 foi revogada nesse ponto). O que
+-- continua valendo daqui: um número só no app (Início = net_worth_with_assets), `investments` devolvido, a tabela
+-- "Teste1" fora, forma e permissões. N2, N3 e N7 tiveram a expectativa trocada (antes: 1.000, sem investimentos, 16.000).
+-- N2 fica como registro do efeito colateral conhecido: a MESMA aplicação cadastrada como conta de renda fixa e como
+-- ativo da carteira conta duas vezes; o banco não sabe que são o mesmo dinheiro.
 begin;
 create extension if not exists pgtap with schema extensions;
 select * from no_plan();
@@ -53,17 +60,17 @@ create temp view nw with (security_invoker = true) as select * from public.net_w
 grant select on nw to public;
 
 select is((select net_worth from hi), (select net_worth from nw), 'N1 patrimônio do Início = net_worth_with_assets (Análises)');
-select is((select net_worth from hi), 1000.00, 'N2 a conta de renda fixa conta uma vez: R$ 1.000 (não R$ 2.000)');
-select is((select net_worth from hi), (select accounts_total + credit_receivable + family_assets - debt_total from hi),
-          'N3 patrimônio = contas + crédito a receber + bens − dívidas (sem investimentos)');
-select is((select investments from hi), 1000.00, 'N4 a carteira continua sendo devolvida, à parte');
+select is((select net_worth from hi), 2000.00, 'N2 (099) conta de renda fixa 1.000 + carteira 1.000 = 2.000: cadastrado nos dois lugares, soma duas vezes');
+select is((select net_worth from hi), (select accounts_total + credit_receivable + family_assets + investments - debt_total from hi),
+          'N3 (099) patrimônio = contas + crédito a receber + bens + carteira em reais − dívidas');
+select is((select investments from hi), 1000.00, 'N4 a carteira continua sendo devolvida no campo próprio');
 select is((select accounts_total from hi), 1000.00, 'N5 a conta de renda fixa está em "todas as contas"');
 
 -- com bem e dívida, continua igual a Análises
 select public.family_asset_create(pg_temp.fx('h'), 'Carro de teste', 'vehicle', null, 'BRL', 'Família', 100, pg_temp.hoje() - 10, 20000, pg_temp.hoje() - 9, 'Avaliação de teste');
 select public.create_debt('Empréstimo de teste', 'loan', pg_temp.hoje() - 10, 5000);
 select is((select net_worth from hi), (select net_worth from nw), 'N6 com bem e dívida, ainda = net_worth_with_assets');
-select is((select net_worth from hi), 16000.00, 'N7 1.000 + 20.000 − 5.000 (a carteira de 1.000 fora)');
+select is((select net_worth from hi), 17000.00, 'N7 (099) 1.000 + 20.000 + 1.000 da carteira − 5.000');
 
 -- ---- isolamento ----
 select pg_temp.login('00000000-0000-0000-0000-0000000075a2');
