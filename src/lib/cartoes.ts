@@ -437,11 +437,11 @@ export async function listarItens(cartaoId: string, mes: string): Promise<ItemFa
 export async function listarOcorrenciasPrevistas(cartaoId: string, mes: string): Promise<OcorrenciaPrevista[]> {
   const { data, error } = await cliente().rpc('card_subscription_previews', { p_debt: cartaoId, p_label: mes })
   if (error) throw error
-  return ((data ?? []) as Record<string, string | number | null>[]).map((o) => ({
+  return ((data ?? []) as Record<string, string | number | boolean | null>[]).map((o) => ({
     recorrenciaId: o.recurrence_id as string,
     data: o.occurrence_date as string,
     descricao: (o.description as string | null) ?? 'Assinatura',
-    valor: centsFromDb(o.amount ?? 0),
+    valor: centsFromDb((o.amount as string | number | null) ?? 0),
     categoriaId: o.category_id as string,
     itemId: (o.item_id as string | null) ?? null,
     editada: o.edited === true,
