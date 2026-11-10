@@ -48,18 +48,21 @@ describe('antes da migration 017 (colunas novas inexistentes)', () => {
     expect(r.contas).toHaveLength(1)
     expect(r.contas[0]).toMatchObject({ nome: 'Corrente', banco: null, moeda: 'BRL' })
     const colunas = fake.e.selects.filter((s) => s.tabela === 'accounts').map((s) => s.colunas)
-    expect(colunas).toHaveLength(3)
-    expect(colunas[0]).toMatch(/bank.*currency_code/)
-    expect(colunas[1]).toContain('bank')
-    expect(colunas[1]).not.toContain('currency_code')
-    expect(colunas[2]).not.toMatch(/bank|currency_code/)
+    // 1ª leitura pede também system_role (migration 100); depois cai uma coluna por vez
+    expect(colunas).toHaveLength(4)
+    expect(colunas[0]).toMatch(/bank.*currency_code.*system_role/)
+    expect(colunas[1]).toMatch(/bank.*currency_code/)
+    expect(colunas[1]).not.toContain('system_role')
+    expect(colunas[2]).toContain('bank')
+    expect(colunas[2]).not.toContain('currency_code')
+    expect(colunas[3]).not.toMatch(/bank|currency_code/)
   })
 
   it('Contas com a 017 mas sem a 055 lê o banco e trata tudo como BRL', async () => {
     fake.e.migration017 = true
     const r = await listarContas('h1', '2026-10-29')
     expect(r.contas[0]).toMatchObject({ banco: 'caixa', moeda: 'BRL' })
-    expect(fake.e.selects.filter((s) => s.tabela === 'accounts')).toHaveLength(2)
+    expect(fake.e.selects.filter((s) => s.tabela === 'accounts')).toHaveLength(3)
   })
 
   it('Contas com a 055 lê a moeda da conta', async () => {

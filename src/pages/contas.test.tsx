@@ -11,6 +11,11 @@ const mock = vi.hoisted(() => ({
   editarConta: vi.fn(),
   definirAtiva: vi.fn(),
   excluirConta: vi.fn(),
+  moverContaParaCarteira: vi.fn(),
+}))
+vi.mock('../lib/investimentos', async (original) => ({
+  ...(await original<typeof import('../lib/investimentos')>()),
+  moverContaParaCarteira: mock.moverContaParaCarteira,
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -54,6 +59,43 @@ describe('hojeSP', () => {
 })
 
 describe('Contas', () => {
+  it('"Mover para a carteira" só em conta de investimento ativa, em reais e com saldo; manda conta, nome, classe e liquidez', async () => {
+    const acoes = { ...corrente, id: 'v1', nome: 'Ações BTG', tipo: 'variable_income' as const, saldo: c(1900000) }
+    mock.listarContas.mockResolvedValue({
+      contas: [corrente, acoes, { ...acoes, id: 'v2', nome: 'Cripto zerada', tipo: 'crypto' as const, saldo: c(0) },
+        { ...acoes, id: 'v3', nome: 'Stocks', moeda: 'USD' }],
+      total: c(0),
+    })
+    mock.moverContaParaCarteira.mockResolvedValue('ativo-novo')
+    const u = userEvent.setup()
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    await screen.findByText('Ações BTG')
+    expect(screen.getAllByRole('button', { name: /para a carteira$/ }).map((b) => b.getAttribute('aria-label'))).toEqual(['Mover Ações BTG para a carteira'])
+    await u.click(screen.getByRole('button', { name: 'Mover Ações BTG para a carteira' }))
+    const folha = screen.getByRole('dialog', { name: 'Mover para a carteira · Ações BTG' })
+    expect(within(folha).getByText('R$ 19.000,00')).toBeTruthy()
+    await u.click(within(folha).getByRole('button', { name: 'Mover para a carteira' }))
+    expect(within(folha).getByText('Escolha a classe do ativo.')).toBeTruthy()
+    await u.selectOptions(within(folha).getByLabelText('Classe'), 'equity')
+    await u.click(within(folha).getByRole('radio', { name: 'Restrito' }))
+    await u.click(within(folha).getByRole('button', { name: 'Mover para a carteira' }))
+    expect(mock.moverContaParaCarteira).toHaveBeenCalledWith({ contaId: 'v1', nome: 'Ações BTG', classe: 'equity', liquidez: 'restricted', subclasse: '' })
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(mock.listarContas).toHaveBeenCalledTimes(2) // recarrega: a conta sai arquivada e zerada pelo banco
+  })
+
+  it('erro do banco ao mover aparece dentro da folha, que fica aberta', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [{ ...corrente, id: 'v1', nome: 'Renda fixa XP', tipo: 'fixed_income' as const }], total: c(0) })
+    mock.moverContaParaCarteira.mockRejectedValue(new Error('x'))
+    const u = userEvent.setup()
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Mover Renda fixa XP para a carteira' }))
+    const folha = screen.getByRole('dialog')
+    expect((within(folha).getByLabelText('Classe') as HTMLSelectElement).value).toBe('fixed_income') // renda fixa já vem escolhida
+    await u.click(within(folha).getByRole('button', { name: 'Mover para a carteira' }))
+    expect(await within(folha).findByRole('alert')).toBeTruthy()
+  })
+
   it('sem contas, convida a cadastrar a primeira', async () => {
     render(<MemoryRouter><Contas /></MemoryRouter>)
     expect(await screen.findByText('Nenhuma conta ainda')).toBeTruthy()

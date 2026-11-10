@@ -593,6 +593,29 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     })
 
+    it('conta da compra é opcional: escolhida, vai junto; sem escolher, não vai; ativo em dólar não pede conta', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('p1', 'Previdência', 'other'), ativo('u1', 'Stock', 'equity', { moeda: 'USD', ticker: 'AAPL' })])
+      const u = userEvent.setup()
+      const folha = await abrir(u)
+      expect((within(folha).getByLabelText('Saiu da conta') as HTMLSelectElement).value).toBe('')
+      await u.selectOptions(within(folha).getByLabelText('Saiu da conta'), 'c1')
+      expect(within(folha).getByText(/sai da conta escolhida e vai para a carteira, sem virar despesa/)).toBeTruthy()
+      await u.type(within(folha).getByLabelText('Valor de hoje (BRL)'), '100,00')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
+      expect(mock.registrarOperacaoInvestimento).toHaveBeenLastCalledWith(expect.objectContaining({ ativoId: 'p1', contaId: 'c1' }))
+
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      const outra = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      await u.type(within(outra).getByLabelText('Valor de hoje (BRL)'), '50,00')
+      await u.click(within(outra).getByRole('button', { name: 'Registrar compra' }))
+      expect(mock.registrarOperacaoInvestimento.mock.lastCall?.[0]).not.toHaveProperty('contaId')
+
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      const usd = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      await u.selectOptions(within(usd).getByLabelText('Ativo'), 'u1')
+      expect(within(usd).queryByLabelText('Saiu da conta')).toBeNull()
+    })
+
     it('ativo com histórico não oferece "Só o valor"; quantidade e preço vão como digitados; venda troca o botão', async () => {
       mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', quantidadeOperacoes: 2 })])
       const u = userEvent.setup()
