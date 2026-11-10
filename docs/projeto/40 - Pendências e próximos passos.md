@@ -519,3 +519,11 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Rodapé com filtro de tipo ou categoria: hoje avisa que não segue o filtro. Seguir de verdade exige uma função do banco com esses filtros.
 - [ ] Conferir no celular (você): o "+" e o rodapé não tampam o último lançamento da lista; o rodapé fica acima da barra de baixo.
 
+
+## Investimentos em três baldes (opção C, 10/11/2026)
+- [x] Nomes: "Contas (todas)" em Análises e "Valor de mercado" na carteira (#279).
+- [ ] Liquidez por item no banco (migration nova): hoje não existe campo; previdência e FGTS não têm tipo próprio.
+- [ ] Contas em dólar e euro estão cadastradas como conta corrente em reais: o saldo aparece como R$ e entra no Disponível. Decidir com o dono se o número digitado é em moeda estrangeira ou já convertido, e recadastrar na moeda certa (a moeda de uma conta com lançamentos não se troca por edição).
+- [ ] Contas antigas de investimento (renda variável, renda fixa, cripto): o dono pensa em zerar e arquivar e recriar na carteira. Arquivar tira o saldo do patrimônio; fazer só depois de o ativo existir na carteira, na mesma data, para o patrimônio não cair e voltar.
+- [ ] Página Investimentos no formato de painel de carteira (total, investido, lucro em aberto, proventos, alocação por classe, posições). Cotação automática não existe: o valor de mercado depende de avaliação manual.
+- [ ] Decisão #196 (Início não soma a carteira) precisa ser revista quando os ativos migrarem das contas para a carteira; senão o patrimônio do Início encolhe.

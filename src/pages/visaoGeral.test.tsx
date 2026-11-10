@@ -1036,13 +1036,13 @@ describe('Visão geral', () => {
     })))
   })
 
-  it('Análises: card de patrimônio com Disponível, Bens e Dívida em linhas', async () => {
+  it('Análises: card de patrimônio com Contas (todas), Bens e Dívida em linhas', async () => {
     mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(249449), creditoAReceber: c(0), divida: c(28193112), bens: c(42000000), patrimonio: c(14056337), compromissos: c(0) })
     montar('analises')
     const patrimonio = (await screen.findAllByText('Patrimônio líquido')).map((el) => el.closest('div[class*="rounded"]') as HTMLElement).find((el) => el?.querySelector('dl'))!
     expect(within(patrimonio).getByText('R$ 140.563,37')).toBeTruthy()
     const linhas = Array.from(patrimonio.querySelectorAll('dt')).map((dt) => `${dt.textContent} ${dt.nextElementSibling?.textContent}`)
-    expect(linhas).toEqual(['Disponível R$ 2.494,49', 'Bens R$ 420.000,00', 'Dívida R$ 281.931,12'])
+    expect(linhas).toEqual(['Contas (todas) R$ 2.494,49', 'Bens R$ 420.000,00', 'Dívida R$ 281.931,12'])
     expect(screen.queryByText(/Dívida atual/)).toBeNull()
     expect(screen.queryByText(/· bens/)).toBeNull()
   })

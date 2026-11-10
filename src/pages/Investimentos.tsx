@@ -243,7 +243,7 @@ export default function Investimentos() {
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {totais.map((t) => (
               <Card key={t.moeda}>
-                <p className="text-sm font-medium text-slate-500">Patrimônio em {t.moeda}</p>
+                <p className="text-sm font-medium text-slate-500">Valor de mercado em {t.moeda}</p>
                 <p className="mt-1 text-2xl font-bold tabular-nums">{moeda(t.valorAtual, t.moeda)}</p>
                 {/* uma grade só para os dois pares: os rótulos ficam na mesma coluna e os valores terminam na mesma borda direita */}
                 <dl className="mt-3 grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">

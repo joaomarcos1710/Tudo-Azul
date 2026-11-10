@@ -524,3 +524,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - Etapa 3 (#270): o período da lista é o mesmo seletor do relatório (`SeletorPeriodo`), não um seletor de mês novo: um só jeito de escolher período no app. As consultas de lançamentos, faturas, créditos e dívidas passaram a receber o intervalo (`*NoPeriodo`); as versões por mês continuam para o Calendário e não mudam.
 - Etapa 2 (#269): a tabela do computador saiu; a seleção mora num modo ligado pelo ⋯ do topo ("Selecionar lançamentos"), com a caixa no lugar do ícone e sem o ⋯ de cada linha enquanto ligado (evita tocar a ação errada). Ficou de fora o que só a tabela tinha: ordenar por valor e a coluna Conta. Fatura, compra de cartão, dívida e contrato continuam sem caixa (não são `transactions`).
 
+
+## 10/11/2026 — Investimentos: três baldes por liquidez (opção C, dono)
+- **Decidido:** o dinheiro da família passa a ser lido em três baldes, com a liquidez dita em cada item: **Disponível** (conta corrente, poupança, dinheiro, saldo na corretora), **Investimentos líquidos** (renda fixa resgatável, renda variável, cripto, moeda) e **Restrito** (previdência, FGTS). O Patrimônio é a soma dos três, com a quebra à vista.
+- **Motivo:** previdência e FGTS não viram dinheiro rápido; somados ao disponível dão falsa expectativa de saldo. É também o que `docs/ARQUITETURA-PATRIMONIO.md` já pedia (liquidez explícita por produto).
+- **Regra contra dupla contagem:** cada aplicação vive numa conta **ou** num ativo da carteira, nunca nos dois.
+- **Referência de tela:** o dono quer a página Investimentos no formato de um painel de carteira (total, investido, lucro em aberto, proventos, alocação por classe, tabela de posições).
+- **Primeiro passo (#279), sem mexer em número:** "Disponível" de Análises virou "Contas (todas)" e "Patrimônio em <moeda>" da carteira virou "Valor de mercado em <moeda>".
+- **Ainda não decidido:** o destino das contas antigas de investimento, a moeda das contas em dólar e euro e a lista real de ativos (ver `40 - Pendências`).
