@@ -7,7 +7,6 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
 import { useFocoPreso } from '../components/ui/useFocoPreso'
-import { Selecao } from '../components/ui/Selecao'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import type { AcaoMenu } from '../components/ui/MenuAcoes'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -49,6 +48,7 @@ import { RodapeLancamentos } from '../components/RodapeLancamentos'
 import type { TotaisCaixa } from '../components/RodapeLancamentos'
 import { serieFluxo } from '../lib/fluxoCaixa'
 import { SeletorPeriodo } from '../components/ui/SeletorPeriodo'
+import { FiltrosLancamentos } from './FiltrosLancamentos'
 import { periodoDoMes } from '../lib/periodoRelatorio'
 import type { Periodo as PeriodoLista } from '../lib/periodoRelatorio'
 import type { SerieFluxo } from '../lib/fluxoCaixa'
@@ -130,20 +130,16 @@ export default function Lancamentos() {
   useEffect(() => { setLimiteVisivel(50) }, [periodo, filtros.contaId, filtros.tipo, filtros.categoriaId])
 
   /** Categorias oferecidas no filtro: só as do tipo escolhido; transferência não tem categoria. */
-  const categoriasDoFiltro = filtros.tipo === 'transfer' ? [] : categorias.filter((c) => !filtros.tipo || c.tipo === filtros.tipo)
   /** O que está ligado, para os selos de cima (cada um sai sozinho). Tirar o tipo não mexe na categoria: ela já combinava. */
   const filtrosLigados: { chave: string; rotulo: string; tirar: () => void }[] = [
     ...(filtros.contaId ? [{ chave: 'conta', rotulo: contas.find((c) => c.id === filtros.contaId)?.nome ?? 'Conta', tirar: () => setFiltros((f) => ({ ...f, contaId: undefined })) }] : []),
     ...(filtros.tipo ? [{ chave: 'tipo', rotulo: rotuloTipo[filtros.tipo], tirar: () => setFiltros((f) => ({ ...f, tipo: undefined })) }] : []),
     ...(filtros.categoriaId ? [{ chave: 'categoria', rotulo: nomesCompletos(categorias).get(filtros.categoriaId) ?? 'Categoria', tirar: () => setFiltros((f) => ({ ...f, categoriaId: undefined })) }] : []),
+    ...(filtros.cartaoId ? [{ chave: 'cartao', rotulo: cartoes.find((c) => c.id === filtros.cartaoId)?.nome ?? 'Cartão', tirar: () => setFiltros((f) => ({ ...f, cartaoId: undefined })) }] : []),
+    ...(filtros.situacao ? [{ chave: 'situacao', rotulo: filtros.situacao === 'paid' ? 'Resolvido' : 'Pendente', tirar: () => setFiltros((f) => ({ ...f, situacao: undefined })) }] : []),
+    ...(filtros.soFixos ? [{ chave: 'fixos', rotulo: 'Fixos', tirar: () => setFiltros((f) => ({ ...f, soFixos: undefined })) }] : []),
+    ...(filtros.soParcelados ? [{ chave: 'parcelados', rotulo: 'Parcelados', tirar: () => setFiltros((f) => ({ ...f, soParcelados: undefined })) }] : []),
   ]
-  /** Trocar o tipo limpa a categoria que deixou de combinar (e a de qualquer categoria, em transferência); o resto do filtro fica. */
-  function mudarTipoDoFiltro(v: string) {
-    const tipo = (v || undefined) as TipoLancamento | undefined
-    const categoria = categorias.find((c) => c.id === filtros.categoriaId)
-    const incompativel = tipo === 'transfer' || (tipo !== undefined && categoria !== undefined && categoria.tipo !== tipo)
-    setFiltros({ ...filtros, tipo, categoriaId: incompativel ? undefined : filtros.categoriaId })
-  }
   const [naLixeira, setNaLixeira] = useState<Lancamento | null>(null)
   const [pagando, setPagando] = useState<Lancamento | null>(null)
 
@@ -161,6 +157,8 @@ export default function Lancamentos() {
     if (editando !== null || contas.length === 0) return
     function tecla(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
+      // com a tela de filtros aberta, a tecla não abre um lançamento por baixo dela
+      if (filtrosAbertos) return
       const alvo = e.target as HTMLElement | null
       if (alvo && (alvo.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(alvo.tagName))) return
       const t = ATALHOS[e.key.toLowerCase()]
@@ -171,7 +169,7 @@ export default function Lancamentos() {
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [editando, contas.length])
+  }, [editando, contas.length, filtrosAbertos])
 
   // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
   const [automaticosProntos, setAutomaticosProntos] = useState(false)
@@ -281,13 +279,19 @@ export default function Lancamentos() {
 
   // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
   type Item = ItemLista
+  // filtro de cartão: só as faturas dele (a compra e o crédito vivem na fatura). Situação, fixos e parcelados valem só para
+  // lançamentos: quem não é lançamento some com eles. Tipo e categoria seguem como antes, dentro de cada consulta.
+  const soCartao = Boolean(filtros.cartaoId)
+  const soLancamento = Boolean(filtros.situacao || filtros.soFixos || filtros.soParcelados)
+  const mostraLancamentos = !soCartao
+  const mostraOutrosMovimentos = !soCartao && !soLancamento
   const itens: ItemLista[] = [
-    ...(lancamentos ?? []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
-    ...movimentosDivida.map((m) => ({ origem: 'divida' as const, m, data: m.data })),
-    ...faturas.map((f) => ({ origem: 'fatura' as const, f, data: f.vencimento })),
-    ...comprasCategoria.map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
-    ...parcelasContrato.map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
-    ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
+    ...(mostraLancamentos ? lancamentos ?? [] : []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
+    ...(mostraOutrosMovimentos ? movimentosDivida : []).map((m) => ({ origem: 'divida' as const, m, data: m.data })),
+    ...(soLancamento ? [] : faturas.filter((f) => !soCartao || f.cartaoId === filtros.cartaoId)).map((f) => ({ origem: 'fatura' as const, f, data: f.vencimento })),
+    ...(mostraOutrosMovimentos ? comprasCategoria : []).map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
+    ...(mostraOutrosMovimentos ? parcelasContrato : []).map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
+    ...(mostraOutrosMovimentos ? creditosCartao : []).map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
   ].sort((x, y) => ordemPreferida === 'asc'
     ? (x.data < y.data ? -1 : x.data > y.data ? 1 : 0)
     : (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
@@ -370,22 +374,8 @@ export default function Lancamentos() {
       {/* Tipo vem antes da categoria porque ele decide quais categorias existem (receita × despesa; transferência não tem).
           Os filtros valem na hora; o botão só fecha a folha. */}
       {filtrosAbertos && editando === null && (
-        <Folha titulo="Filtrar lançamentos" aoFechar={() => setFiltrosAbertos(false)}
-          rodape={<>
-            <Button variante="fantasma" onClick={() => setFiltros({})} disabled={filtrosLigados.length === 0}>Limpar filtros</Button>
-            <Button onClick={() => setFiltrosAbertos(false)}>Ver lançamentos</Button>
-          </>}>
-          <div className="grid gap-3">
-            <Selecao rotulo="Filtrar por conta" valor={filtros.contaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, contaId: v || undefined })}
-              opcoes={contas.map((c) => [c.id, c.nome])} todos="Todas as contas" />
-            <Selecao rotulo="Filtrar por tipo" valor={filtros.tipo ?? ''} aoMudar={mudarTipoDoFiltro}
-              opcoes={Object.entries(rotuloTipo)} todos="Todos os tipos" />
-            <Selecao rotulo="Filtrar por categoria" valor={filtros.categoriaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, categoriaId: v || undefined })}
-              opcoes={opcoesDeCategoria(categoriasDoFiltro, categorias).map((o) => [o.id, filtros.tipo ? o.rotulo : `${o.rotulo} (${categorias.find((c) => c.id === o.id)?.tipo === 'income' ? 'receita' : 'despesa'})`])}
-              todos={filtros.tipo === 'transfer' ? 'Transferência não tem categoria' : 'Todas as categorias'}
-              desabilitado={filtros.tipo === 'transfer'} />
-          </div>
-        </Folha>
+        <FiltrosLancamentos filtros={filtros} aoMudar={setFiltros} contas={contas} cartoes={cartoes} categorias={categorias}
+          aoFechar={() => setFiltrosAbertos(false)} />
       )}
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
@@ -568,7 +558,8 @@ export default function Lancamentos() {
 
       <RodapeLancamentos realizado={totais === undefined ? undefined : totais?.realizado ?? null}
         previsto={totais === undefined ? undefined : totais?.previsto ?? null}
-        aviso={filtros.tipo || filtros.categoriaId ? 'Os totais seguem só o filtro de conta (não o de tipo nem o de categoria).' : undefined}
+        aviso={filtros.tipo || filtros.categoriaId || filtros.situacao || filtros.cartaoId || filtros.soFixos || filtros.soParcelados
+          ? 'Os totais seguem só o filtro de conta (não os de tipo, categoria, situação, cartão, fixos ou parcelados).' : undefined}
         // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
         acao={<MenuNovo desabilitado={contas.length === 0} aoEscolher={(t) => { setInicial(t); setEditando('novo') }} />} />
     </>

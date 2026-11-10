@@ -498,6 +498,8 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Etapa 1 (#268): botão Filtrar com folha e selos, "+" flutuante, rodapé (pagos e previsto) em regime de caixa.
 - [x] Etapa 2 (#269): lista por dia também no computador (a tabela saiu) e seleção em massa pelo ⋯ do topo, no celular e no computador (mudar categoria, marcar como pago, excluir).
 - [ ] Depois da etapa 2: no computador não há mais ordenar por valor nem a coluna Conta (a conta só aparece na transferência). Se o dono sentir falta, pôr a conta nos metadados da linha ou um "ordenar" no ⋯ do topo.
+- [ ] Filtros em tela cheia (#271): conferir no celular a tela (chips, cartões que rolam de lado, o pé com Limpar filtros). Os testes não calculam layout.
+- [ ] Filtros em tela cheia: a conta de cartão e a fatura do cartão ficam só no filtro de cartão; a contagem "Tipo (n)" conta tipo e fixos/parcelados juntos.
 - [ ] Conferir no celular (você): o modo de seleção (⋯ do topo → Selecionar lançamentos), as caixas no lugar do ícone e a barra presa no topo.
 - [x] Etapa 3 (#270): período livre pelo seletor do relatório (dia, semana, mês, últimos 3/6/12 meses, ano ou período escolhido); a lista, as faturas, os créditos e o rodapé carregam pelo intervalo.
 - [ ] Lançamentos com período longo: a lista vem toda de uma vez (sem paginação no banco). Um ano inteiro pode passar do limite de linhas do Supabase; medir antes de mexer.
