@@ -280,6 +280,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#285** (10/11/2026): Orçamentos: trecho tracejado com o cartão lançado em fatura a fechar.
 - **#286** (10/11/2026): Investimentos no estilo da XP e na barra de baixo no lugar de Orçamentos.
 - **#287** (10/11/2026): Dívidas mais simples e amortização extra com FGTS (sem conta).
+- **#290** (10/11/2026): Autoria logo abaixo do Sair, centralizada e em cinza.
 - **#291** (10/11/2026): Dívidas: ações do ⋯ abrem num painel por cima da lista.
 
 ## Ainda abertos
