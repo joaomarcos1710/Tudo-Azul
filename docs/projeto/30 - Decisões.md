@@ -532,3 +532,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Referência de tela:** o dono quer a página Investimentos no formato de um painel de carteira (total, investido, lucro em aberto, proventos, alocação por classe, tabela de posições).
 - **Primeiro passo (#279), sem mexer em número:** "Disponível" de Análises virou "Contas (todas)" e "Patrimônio em <moeda>" da carteira virou "Valor de mercado em <moeda>".
 - **Ainda não decidido:** o destino das contas antigas de investimento, a moeda das contas em dólar e euro e a lista real de ativos (ver `40 - Pendências`).
+
+## 10/11/2026 — O Patrimônio volta a somar a carteira (revoga a #196, dono)
+- **Decidido:** Patrimônio = contas + crédito no cartão + bens + **carteira de investimentos em reais** − dívidas, no Início e em Análises (migration 099). O Disponível não muda.
+- **Motivo:** com os investimentos saindo das contas e indo para a carteira (opção C), o patrimônio encolheria se a carteira ficasse de fora.
+- **O que se perde:** a proteção da 075 contra dupla contagem. A mesma aplicação cadastrada como conta e como ativo conta duas vezes; o banco não tem como saber. A regra passa a ser de uso (conta **ou** carteira) e o (i) do Patrimônio avisa.
+- **Liquidez:** atributo atual do ativo (`liquid` ou `restricted`), sem histórico. Restrito conta no patrimônio e nunca no Disponível.
+- **Respostas do dono no mesmo dia:** as contas Nomad em dólar e euro têm o saldo digitado em moeda estrangeira (hoje aparecem como reais: recriar na moeda certa); a carteira começa da posição de hoje, sem importar histórico; cotação automática antes de 20/11 só se couber; as contas antigas migram depois da regra nova.
+- **Conta arquivada continua no patrimônio** (o saldo segue lá). Migrar para a carteira exige zerar o saldo da conta, não só arquivar.

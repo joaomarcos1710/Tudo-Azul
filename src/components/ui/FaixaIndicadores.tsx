@@ -63,7 +63,9 @@ export function itensDaFaixa(d: Indicadores): Item[] {
     },
     {
       id: 'patrimonio', rotulo: 'Patrimônio total', valor: formatBRL(d.patrimonio), tom: tomDoValor(d.patrimonio), selo: rotuloDoSinal(d.patrimonio),
-      explicacao: `Contas ${formatBRL(d.contasTodas)}${d.creditoAReceber > 0 ? ` + crédito no cartão ${formatBRL(d.creditoAReceber)}` : ''} + bens ${formatBRL(d.bens)} − dívidas ${formatBRL(d.dividas)}, o mesmo de Análises. As contas de renda fixa, renda variável e cripto já estão nas contas; os investimentos cadastrados na carteira (${formatBRL(d.investimentos)}) aparecem à parte, em Investimentos, para não contar duas vezes. Previdência e FGTS ainda não entram.`,
+      explicacao: d.investimentosLiquidos == null // null ou ausente = banco na regra antiga
+        ? `Contas ${formatBRL(d.contasTodas)}${d.creditoAReceber > 0 ? ` + crédito no cartão ${formatBRL(d.creditoAReceber)}` : ''} + bens ${formatBRL(d.bens)} − dívidas ${formatBRL(d.dividas)}, o mesmo de Análises. As contas de renda fixa, renda variável e cripto já estão nas contas; os investimentos cadastrados na carteira (${formatBRL(d.investimentos)}) aparecem à parte, em Investimentos, para não contar duas vezes. Previdência e FGTS ainda não entram.`
+        : `Contas ${formatBRL(d.contasTodas)}${d.creditoAReceber > 0 ? ` + crédito no cartão ${formatBRL(d.creditoAReceber)}` : ''} + bens ${formatBRL(d.bens)} + investimentos líquidos ${formatBRL(d.investimentosLiquidos)} + restritos ${formatBRL(d.investimentosRestritos ?? (0 as Cents))} − dívidas ${formatBRL(d.dividas)}, o mesmo de Análises. Restrito é previdência e FGTS: conta no patrimônio, não no Disponível. Cada aplicação deve estar numa conta ou na carteira, nunca nas duas. Investimentos em outra moeda ficam à parte.`,
     },
     {
       id: 'resultado', rotulo: 'Resultado do mês', periodo: 'Até hoje', valor: formatBRL(d.resultado), tom: tomDoValor(d.resultado), selo: rotuloDoSinal(d.resultado),

@@ -170,9 +170,10 @@ select is((select planned_commitments from hi), 900.00, 'D7 fica nos compromisso
 -- ---- Patrimônio total ----
 select is((select accounts_total || '|' || family_assets || '|' || investments || '|' || debt_total from hi),
           '-9450.00|50000.00|1000.00|35300.00', 'W1 componentes: contas (com a inativa), bens (50%), investimentos em reais, dívidas');
--- 075 (#196): a carteira de investimentos fica à parte (não soma ao patrimônio; evita contar em dobro com as contas de
--- renda fixa/variável/cripto da 070)
-select is((select net_worth from hi), 5250.00, 'W2 patrimônio = −9450 + 50000 − 35300 (os 1000 da carteira à parte)');
+-- 075 (#196) deixava a carteira de investimentos à parte (para não contar em dobro com as contas de renda
+-- fixa/variável/cripto da 070). A 099 (20261110080000_investment_liquidity.sql, decisão do dono de 10/11/2026) REVOGA
+-- isso: o patrimônio soma a carteira em reais (os 100 em dólar continuam fora). Antes: 5.250; agora: 6.250.
+select is((select net_worth from hi), 6250.00, 'W2 patrimônio = −9450 + 50000 + 1000 da carteira em reais − 35300 (099)');
 select is((select net_worth from hi), (select net_worth from public.net_worth_with_assets(pg_temp.fx('h'), pg_temp.hoje())),
           'W3 é o mesmo de net_worth_with_assets (Análises)');
 select is((select debt_total from hi), (select sum(debt) from public.debt_balances(pg_temp.fx('h'), pg_temp.hoje())),

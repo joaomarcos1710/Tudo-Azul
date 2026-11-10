@@ -68,6 +68,25 @@ describe('formatação das razões', () => {
   })
 })
 
+describe('(i) do Patrimônio total com a carteira (opção C, 10/11/2026)', () => {
+  it('banco na regra nova: a conta mostra investimentos líquidos e restritos somados, e avisa da dupla contagem', async () => {
+    fake.e.resposta = { data: [{ ...LINHA, net_worth: '28350.00', investments_liquid: '400.00', investments_restricted: '600.00' }], error: null }
+    const d = await carregarIndicadores('h1', '2026-11-10')
+    expect([d.investimentosLiquidos, d.investimentosRestritos]).toEqual([40000, 60000])
+    const p = itensDaFaixa(d).find((i) => i.id === 'patrimonio')!
+    const texto = p.explicacao.replace(/\s/g, ' ')
+    expect(texto).toContain('+ investimentos líquidos R$ 400,00 + restritos R$ 600,00 − dívidas R$ 35.300,00')
+    expect(texto).toContain('numa conta ou na carteira, nunca nas duas')
+    expect(texto).not.toContain('aparecem à parte, em Investimentos')
+  })
+
+  it('banco na regra antiga (sem as colunas novas): a explicação antiga continua, sem dizer que soma', async () => {
+    const d = await carregarIndicadores('h1', '2026-11-10')
+    expect(d.investimentosLiquidos).toBeNull()
+    expect(itensDaFaixa(d).find((i) => i.id === 'patrimonio')!.explicacao).not.toMatch(/\+ investimentos/)
+  })
+})
+
 describe('(i) do Patrimônio total (migration 075, #196)', () => {
   it('a carteira de investimentos aparece à parte, fora da soma; as contas de renda fixa/variável/cripto já estão nas contas', async () => {
     const d = await carregarIndicadores('h1', '2026-11-06')

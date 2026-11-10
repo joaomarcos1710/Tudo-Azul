@@ -13,6 +13,8 @@ export interface Patrimonio {
   bens: Cents
   /** Parcelas de cartão ainda não cobradas: aparecem à parte e não entram no patrimônio. */
   compromissos: Cents
+  /** Carteira de investimentos em reais, já somada no patrimônio. null = banco na regra antiga (não soma a carteira). */
+  investimentos?: Cents | null
 }
 
 export interface ProximoPlanejado {
@@ -51,6 +53,7 @@ export async function carregarPatrimonio(familiaId: string, dataRef: string): Pr
     patrimonio: centsFromDb(r.net_worth ?? 0),
     bens: centsFromDb(r.family_assets_brl ?? 0),
     compromissos: centsFromDb(r.planned_commitments ?? 0),
+    investimentos: r.investments_brl === undefined || r.investments_brl === null ? null : centsFromDb(r.investments_brl),
   }
 }
 

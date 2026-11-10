@@ -1036,6 +1036,14 @@ describe('Visão geral', () => {
     })))
   })
 
+  it('Análises: com o banco somando a carteira, o card ganha a linha Investimentos (o valor vem do banco)', async () => {
+    mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(249449), creditoAReceber: c(0), divida: c(28193112), bens: c(42000000), patrimonio: c(14156337), compromissos: c(0), investimentos: c(100000) })
+    montar('analises')
+    const patrimonio = (await screen.findAllByText('Patrimônio líquido')).map((el) => el.closest('div[class*="rounded"]') as HTMLElement).find((el) => el?.querySelector('dl'))!
+    const linhas = Array.from(patrimonio.querySelectorAll('dt')).map((dt) => `${dt.textContent} ${dt.nextElementSibling?.textContent}`)
+    expect(linhas).toEqual(['Contas (todas) R$ 2.494,49', 'Investimentos R$ 1.000,00', 'Bens R$ 420.000,00', 'Dívida R$ 281.931,12'])
+  })
+
   it('Análises: card de patrimônio com Contas (todas), Bens e Dívida em linhas', async () => {
     mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(249449), creditoAReceber: c(0), divida: c(28193112), bens: c(42000000), patrimonio: c(14056337), compromissos: c(0) })
     montar('analises')

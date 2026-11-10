@@ -560,7 +560,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           </>}
           {p && (
             <Indicador rotulo="Patrimônio líquido" valor={p.patrimonio} icone={<Cofre />} corIcone="bg-marinho text-celeste" destaque
-              detalhes={[['Contas (todas)', p.disponivel], ['Bens', p.bens], ['Dívida', p.divida]]} />
+              detalhes={[['Contas (todas)', p.disponivel], ...(p.investimentos != null ? [['Investimentos', p.investimentos] as [string, Cents]] : []), ['Bens', p.bens], ['Dívida', p.divida]]} />
           )}
         </section>
       ) : null}

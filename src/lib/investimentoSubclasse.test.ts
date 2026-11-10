@@ -55,16 +55,31 @@ describe('listarAtivosInvestimento e a migration 034', () => {
     expect(r[0].subclasse).toBe('Tesouro Direto')
   })
 
-  it('banco sem a coluna: lê sem ela e a subclasse fica vazia (nunca inventada)', async () => {
-    fake.estado.respostas = [{ data: null, error: { message: 'column investment_assets.subclass does not exist' } }, { data: [linha], error: null }]
+  it('banco sem a coluna liquidity (antes da migration da liquidez): lê com a subclasse e o ativo fica líquido', async () => {
+    fake.estado.respostas = [{ data: null, error: { message: 'column investment_assets.liquidity does not exist' } }, { data: [{ ...linha, subclass: 'Tesouro Direto' }], error: null }]
     const r = await listarAtivosInvestimento('h1')
-    expect(fake.estado.colunas).toHaveLength(5)
-    expect(fake.estado.colunas[1]).not.toContain('subclass')
+    expect(fake.estado.colunas[0]).toContain('liquidity')
+    expect(fake.estado.colunas[1]).toContain('subclass')
+    expect(fake.estado.colunas[1]).not.toContain('liquidity')
+    expect([r[0].subclasse, r[0].liquidez]).toEqual(['Tesouro Direto', 'liquid'])
+  })
+
+  it('ativo restrito vem como restrito; qualquer outro valor é líquido', async () => {
+    fake.estado.respostas = [{ data: [{ ...linha, liquidity: 'restricted' }], error: null }]
+    expect((await listarAtivosInvestimento('h1'))[0].liquidez).toBe('restricted')
+  })
+
+  it('banco sem a coluna subclass: lê sem ela e a subclasse fica vazia (nunca inventada)', async () => {
+    const semColuna = { data: null, error: { message: 'column investment_assets.subclass does not exist' } }
+    fake.estado.respostas = [semColuna, semColuna, { data: [linha], error: null }]
+    const r = await listarAtivosInvestimento('h1')
+    expect(fake.estado.colunas).toHaveLength(6)
+    expect(fake.estado.colunas[2]).not.toContain('subclass')
     expect(r[0].subclasse).toBeNull()
   })
 
   it('erro que não é da coluna continua sendo erro', async () => {
-    fake.estado.respostas = [{ data: null, error: { message: 'x' } }, { data: null, error: { message: 'rede' } }]
+    fake.estado.respostas = [{ data: null, error: { message: 'x' } }, { data: null, error: { message: 'y' } }, { data: null, error: { message: 'rede' } }]
     await expect(listarAtivosInvestimento('h1')).rejects.toMatchObject({ message: 'rede' })
   })
 })
