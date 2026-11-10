@@ -85,3 +85,5 @@ PWA instalável · versão `AAAA.E` · ocultar valores · valores sempre vindos 
 - Cabeçalho da fatura: pagar, nova despesa, nova receita e imprimir. Os lançamentos rápidos reaproveitam os formulários existentes e ficam associados ao cartão/fatura pelas regras do banco.
 - O agrupamento diário e as setas de navegação entre faturas são preservados.
 - Resumo agregado por categoria, edição completa de lançamentos e movimentação entre faturas continuam fora desta fase, pois exigem RPCs e auditoria no banco.
+
+**Fatura do cartão (10/11/2026):** abaixo das Saídas, o bloco **Assinaturas previstas** (selo Agendado) lista cada ocorrência de recorrência de cartão ainda não cobrada, com data e valor do banco (`card_subscription_previews`); não é compra e não entra no total da fatura. Some se não houver previstas ou se a consulta falhar. Mudar ou cancelar ainda é editando a regra em Recorrentes (o diálogo "só esta / esta e as próximas" vem na fatia seguinte).

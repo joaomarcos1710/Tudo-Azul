@@ -25,6 +25,7 @@ const mock = vi.hoisted(() => ({
   trocarCategoriaDoCredito: vi.fn(),
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
+  listarOcorrenciasPrevistas: vi.fn(),
   pagarFatura: vi.fn(),
   reabrirFatura: vi.fn(),
   previaExclusao: vi.fn(),
@@ -45,7 +46,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
-  listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
+  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
@@ -122,6 +123,7 @@ beforeEach(() => {
   ])
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
+  mock.listarOcorrenciasPrevistas.mockResolvedValue([])
   mock.previaExclusao.mockResolvedValue([])
   mock.listarCreditosDaFatura.mockResolvedValue([])
   mock.lancarCreditoNoCartao.mockResolvedValue('ev1')
@@ -205,6 +207,43 @@ describe('Cartões', () => {
     expect(screen.getByRole('link', { name: 'Abrir cartão Nubank' }).getAttribute('href')).toBe('/cartoes/k1')
     // com dívida (fatura fechada a pagar, a de março), "Abrir fatura" leva à fatura que o pagamento quita
     expect((await botaoVerFatura()).getAttribute('href')).toMatch(/^\/cartoes\/k1\/fatura\/\d{4}-\d{2}$/)
+  })
+
+  it('recorrência no cartão: a fatura lista cada assinatura prevista (do banco), com data e valor, sem somar nada no navegador', async () => {
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+    mock.listarItens.mockResolvedValue([
+      { parcelaId: 'p1', compra: 'x', parcela: 1, deParcelas: 1, descricao: 'TV', dataCompra: '2099-03-15', valor: c(18000), falta: c(18000), categoriaId: 'g1' },
+    ])
+    mock.listarOcorrenciasPrevistas.mockResolvedValue([
+      { recorrenciaId: 'r1', data: '2099-04-05', descricao: 'Streaming', valor: c(5000), categoriaId: 'g1' },
+      { recorrenciaId: 'r2', data: '2099-04-12', descricao: 'Academia', valor: c(12000), categoriaId: 'g1' },
+    ])
+    montar('/cartoes/k1/fatura/2099-04')
+    const bloco = await screen.findByTestId('bloco-previstas')
+    expect(mock.listarOcorrenciasPrevistas).toHaveBeenCalledWith('k1', '2099-04')
+    expect(within(bloco).getAllByTestId('assinatura-prevista')).toHaveLength(2)
+    expect(within(bloco).getByText('Streaming')).toBeTruthy()
+    expect(within(bloco).getByText('−R$ 50,00')).toBeTruthy()
+    expect(within(bloco).getByText(/cobrança em 05\/04\/2099/)).toBeTruthy()
+    expect(within(bloco).getByText('Agendado')).toBeTruthy()
+    // não é compra: as previstas ficam fora do bloco de saídas
+    expect(within(screen.getByTestId('bloco-saidas')).queryByText('Streaming')).toBeNull()
+  })
+
+  it('recorrência no cartão: sem previstas, o bloco não aparece; se a consulta falhar, a fatura segue normal', async () => {
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+    mock.listarItens.mockResolvedValue([
+      { parcelaId: 'p1', compra: 'x', parcela: 1, deParcelas: 1, descricao: 'TV', dataCompra: '2099-03-15', valor: c(18000), falta: c(18000), categoriaId: 'g1' },
+    ])
+    montar('/cartoes/k1/fatura/2099-04')
+    expect(await screen.findByText('TV')).toBeTruthy()
+    expect(screen.queryByTestId('bloco-previstas')).toBeNull()
+    cleanup()
+    mock.listarOcorrenciasPrevistas.mockRejectedValue(new Error('function does not exist'))
+    montar('/cartoes/k1/fatura/2099-04')
+    expect(await screen.findByText('TV')).toBeTruthy()
+    expect(screen.queryByTestId('bloco-previstas')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('#203: link direto para a fatura (recarregar a página) renderiza o extrato, com o título da aba do navegador', async () => {
