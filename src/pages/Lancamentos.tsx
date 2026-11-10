@@ -39,8 +39,9 @@ import type { ParcelaDivida } from '../lib/dividas'
 import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
-import { ComprasDaFatura, NomeCategoria, TabelaLancamentos, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, useTelaGrande, valorComSinal } from './LancamentosTabela'
-import type { ItemLista } from './LancamentosTabela'
+import { ComprasDaFatura, NomeCategoria, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, valorComSinal } from './LancamentosItens'
+import { useSelecaoLote } from './SelecaoEmLote'
+import type { ItemLista } from './LancamentosItens'
 import { criarRecorrencia, definirPessoaRecorrencia, frequencias } from '../lib/recorrencias'
 import { SELO } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
@@ -260,8 +261,6 @@ export default function Lancamentos() {
   const moedaConta = useMemo(() => new Map(contas.map((c) => [c.id, c.moeda ?? 'BRL'])), [contas])
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
   const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
-  // computador (lg): tabela com seleção de vários; celular: a lista por dia de sempre
-  const telaGrande = useTelaGrande()
 
   async function agir(acao: () => Promise<void>) {
     try {
@@ -276,8 +275,6 @@ export default function Lancamentos() {
     if (!window.confirm(`Enviar "${l.descricao || rotuloTipo[l.tipo]}" de ${formatMoeda(l.valor, moedaConta.get(l.contaId) ?? 'BRL')} para a lixeira?`)) return
     await agir(async () => { await moverParaLixeira(l.id); setNaLixeira(l) })
   }
-
-  if (!familiaId) return null
 
   // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
   type Item = ItemLista
@@ -299,6 +296,14 @@ export default function Lancamentos() {
     if (ultimo && ultimo[0] === it.data) ultimo[1].push(it)
     else porDia.push([it.data, [it]])
   }
+
+  // a seleção em lote vale para os lançamentos visíveis, na ordem da tela (o Shift marca o intervalo nessa ordem)
+  const lote = useSelecaoLote({
+    lancamentos: itensVisiveis.flatMap((it) => (it.origem === 'lancamento' ? [it.l] : [])), hoje, categorias, aoAlterar: carregar,
+    chave: `${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`,
+  })
+
+  if (!familiaId) return null
 
   const saldosPorData = new Map<string, SaldoDiario[]>()
   for (const saldo of saldosDiarios) {
@@ -328,7 +333,13 @@ export default function Lancamentos() {
             className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro disabled:opacity-50">
             <IconeFiltro />Filtrar{filtrosLigados.length > 0 && <span className="rounded-full bg-azul px-1.5 text-xs text-white">{filtrosLigados.length}</span>}
           </button>
+          {/* ⋯ do topo (como no Organizze): por ora só "Selecionar lançamentos"; ali entram as próximas ações da lista */}
+          {!lote.ligada && (
+            <MenuAcoes rotulo="Mais ações da lista" desabilitado={editando !== null || !itensVisiveis.some((it) => it.origem === 'lancamento')}
+              acoes={[{ rotulo: 'Selecionar lançamentos', aoEscolher: lote.ligar }]} />
+          )}
         </div>
+        {lote.barra}
         {filtrosLigados.length > 0 && (
           <ul className="mt-2 flex flex-wrap gap-2" aria-label="Filtros ligados">
             {filtrosLigados.map((f) => (
@@ -431,12 +442,9 @@ export default function Lancamentos() {
           acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
       )}
 
-      {telaGrande ? (
-        <TabelaLancamentos itens={itensVisiveis} hoje={hoje} ordemInicial={ordemPreferida} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
-          categorias={categorias} nomeConta={nomeConta} moedaConta={moedaConta} nomeCategoria={nomeCategoria} categoriaPorId={categoriaPorId}
-          ocupado={pagando !== null} aoEditar={(l) => { setPagando(null); setEditando(l) }} aoPagar={(l) => { setEditando(null); setPagando(l) }}
-          aoExcluir={excluir} aoAlterar={carregar} />
-      ) : (
+      {lote.confirmacao}
+      {lote.desfazer}
+
       <div className="flex flex-col gap-4">
         {porDia.map(([data, itens]) => (
           <section key={data} aria-label={formatDate(data)}>
@@ -510,7 +518,13 @@ export default function Lancamentos() {
                   ]
                   return (
                     <LinhaLista key={l.id}
-                      icone={l.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" /> : <IconeCategoria visual={visualPorId(l.categoriaId, categoriaPorId, l.tipo)} />}
+                      // no modo de seleção a caixa entra no lugar do ícone e as ações de um só saem (evita o toque errado)
+                      icone={lote.ligada ? (
+                        <label className="-m-2 inline-flex min-h-11 min-w-11 items-center justify-center">
+                          <input type="checkbox" className="h-5 w-5 accent-azul" aria-label={`Selecionar ${nome}`} checked={lote.marcado(l.id)}
+                            onChange={(e) => lote.alternar(l.id, (e.nativeEvent as MouseEvent).shiftKey === true)} />
+                        </label>
+                      ) : l.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" /> : <IconeCategoria visual={visualPorId(l.categoriaId, categoriaPorId, l.tipo)} />}
                       titulo={nome}
                       // só a categoria (a folha); a transferência não tem categoria, então mostra de qual conta para qual
                       categoria={l.tipo === 'transfer'
@@ -524,7 +538,7 @@ export default function Lancamentos() {
                         ...(l.recorrente ? [<span key="r" className="shrink-0" title="Gerado por um recorrente"><span aria-hidden="true">↻</span><span className="sr-only">recorrente</span></span>] : []),
                       ]}
                       valor={v.texto} corValor={v.cor}
-                      acoes={<>
+                      acoes={lote.ligada ? undefined : <>
                         {l.status === 'planned' && (
                           <button type="button" aria-label="Marcar pago" title={`Marcar pago: ${nome}`} disabled={pagando !== null}
                             onClick={() => { setEditando(null); setPagando(l) }}
@@ -541,7 +555,6 @@ export default function Lancamentos() {
           </section>
         ))}
       </div>
-      )}
       {itens.length > limiteVisivel && (
         <div className="flex flex-col items-center gap-2 py-4">
           <p className="text-xs text-slate-500">Mostrando {itensVisiveis.length} de {itens.length} lançamentos e movimentos</p>

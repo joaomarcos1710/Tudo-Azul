@@ -235,7 +235,7 @@ atualizado: 2026-11-06
 - [ ] **#172: abrir a fatura com créditos faz 2 consultas** (compras e créditos, só quando o banco diz que há créditos). Junto da função por família da #164, se ficar lento.
 - [ ] **#172: crédito com filtro de categoria × Receita**: com categoria, o crédito aparece no **vencimento** da fatura (como as compras); com Receita, no **fechamento**. Quando fechamento e vencimento caem em meses diferentes, o crédito muda de mês conforme o filtro (mesma questão da #164 com as compras).
 - [ ] **#172: tabela (≥1024px)**: a linha da fatura ainda tem "Ver compras" e "Cartões" lado a lado; em 1024px a descrição quebra em 2 linhas. Trocar pelo mesmo ▸/▾ da lista se incomodar.
-- [ ] **Atalho da #167: desfazer de categoria em várias chamadas** (`TabelaLancamentos` em `src/pages/LancamentosTabela.tsx`): uma chamada de `transactions_bulk_set_category` por categoria antiga; se a 2ª falhar, a 1ª já voltou. Melhorar com uma função de pares (id, categoria) no banco se acontecer.
+- [ ] **Atalho da #167: desfazer de categoria em várias chamadas** (`useSelecaoLote` em `src/pages/SelecaoEmLote.tsx`): uma chamada de `transactions_bulk_set_category` por categoria antiga; se a 2ª falhar, a 1ª já voltou. Melhorar com uma função de pares (id, categoria) no banco se acontecer.
 - [ ] **#167: seleção de vários no celular** (fora do pedido): hoje só no computador.
 - [ ] **#167: ordenação por valor mistura moedas** (só exibição): conta em dólar e em reais são ordenadas pelo número, sem conversão.
 - [ ] **Atalho da #164: `card_months` por cartão** (`listarFaturasDoMes` em `src/lib/lancamentos.ts`): a lista chama a função uma vez por cartão, com o histórico inteiro, e escolhe o mês na tela. Melhorar com uma função do banco por família e período (como `card_invoices_due`, mas com fechamento e situação) se ficar lento.
@@ -496,7 +496,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Lançamentos no visual do Organizze (10/11/2026)
 - [x] Etapa 1 (#268): botão Filtrar com folha e selos, "+" flutuante, rodapé (pagos e previsto) em regime de caixa.
-- [ ] Etapa 2: computador com lista por dia (a tabela sai) e seleção em massa pelo menu ⋮, no celular e no computador (mudar categoria, marcar como pago, excluir).
+- [x] Etapa 2 (#269): lista por dia também no computador (a tabela saiu) e seleção em massa pelo ⋯ do topo, no celular e no computador (mudar categoria, marcar como pago, excluir).
+- [ ] Depois da etapa 2: no computador não há mais ordenar por valor nem a coluna Conta (a conta só aparece na transferência). Se o dono sentir falta, pôr a conta nos metadados da linha ou um "ordenar" no ⋯ do topo.
+- [ ] Conferir no celular (você): o modo de seleção (⋯ do topo → Selecionar lançamentos), as caixas no lugar do ícone e a barra presa no topo.
 - [ ] Etapa 3: período livre ("Alterar período de visualização": semana, meses, período escolhido), com a lista, as faturas e o rodapé carregando pelo intervalo.
 - [ ] Rodapé com filtro de tipo ou categoria: hoje avisa que não segue o filtro. Seguir de verdade exige uma função do banco com esses filtros.
 - [ ] Conferir no celular (você): o "+" e o rodapé não tampam o último lançamento da lista; o rodapé fica acima da barra de baixo.
