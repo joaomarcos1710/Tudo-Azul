@@ -105,13 +105,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('Investimentos × macroclasse e subclasse', () => {
-  it('mostra a alocação por moeda com valores e % do banco, e "Sem subclasse" para o que não tem', async () => {
+  it('Minha carteira, aba Classe: rosca e lista com valores e % do banco, subclasses embaixo e "Sem subclasse"', async () => {
     render(<Investimentos />)
-    const secao = (await screen.findByRole('heading', { name: 'Alocação da carteira' })).closest('section') as HTMLElement
+    const secao = (await screen.findByRole('heading', { name: 'Minha carteira' })).closest('section') as HTMLElement
+    expect(within(secao).getByRole('tab', { name: 'Classe' }).getAttribute('aria-selected')).toBe('true')
+    expect(within(secao).getAllByRole('img')[0].querySelectorAll('[data-fatia]')).toHaveLength(3)
     expect(within(secao).getByText('Renda fixa')).toBeTruthy()
     expect(within(secao).getByText('Renda variável')).toBeTruthy()
     expect(within(secao).getByText('Fundos e outros')).toBeTruthy()
-    expect(secao.textContent).toMatch(/600,00 · 80%/)
+    expect(secao.textContent).toMatch(/600,0080%/)
     expect(secao.textContent).toMatch(/50,00 · 6,7%/)
     expect(within(secao).getByText('Tesouro Direto')).toBeTruthy()
     expect(within(secao).getByText('Sem subclasse')).toBeTruthy()
@@ -120,7 +122,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
   it('filtra as posições por macroclasse e por subclasse', async () => {
     const u = userEvent.setup()
     render(<Investimentos />)
-    await screen.findByText('Alocação da carteira')
+    await screen.findByText('Minha carteira')
     const posicoes = () => (screen.getByRole('heading', { name: 'Ativos e posições' }).closest('section') as HTMLElement)
     expect(within(posicoes()).getAllByRole('listitem')).toHaveLength(3)
 
@@ -177,22 +179,32 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(mock.definirLiquidezAtivo).not.toHaveBeenCalled()
     })
 
-    it('o bloco "Por liquidez" mostra Líquido e Restrito com os valores do banco, por moeda', async () => {
+    it('Minha carteira, aba Liquidez: Líquido e Restrito com os valores do banco; aba Ativos: lista do maior para o menor', async () => {
       mock.listarLiquidezInvestimentos.mockResolvedValue([
-        { moeda: 'BRL', liquidez: 'liquid', valor: c(123456) },
-        { moeda: 'BRL', liquidez: 'restricted', valor: c(5000000) },
+        { moeda: 'BRL', liquidez: 'liquid', valor: c(15000) },
+        { moeda: 'BRL', liquidez: 'restricted', valor: c(60000) },
+        { moeda: 'USD', liquidez: 'liquid', valor: c(999) },
       ])
+      const u = userEvent.setup()
       render(<Investimentos />)
-      const bloco = (await screen.findByRole('heading', { name: 'Por liquidez' })).closest('section') as HTMLElement
-      const linhas = Array.from(bloco.querySelectorAll('dt')).map((dt) => `${dt.textContent} ${dt.nextElementSibling?.textContent}`)
-      expect(linhas.map((l) => l.replace(/\s/g, ' '))).toEqual(['Líquido R$ 1.234,56', 'Restrito R$ 50.000,00'])
+      const secao = (await screen.findByRole('heading', { name: 'Minha carteira' })).closest('section') as HTMLElement
+      await u.click(within(secao).getByRole('tab', { name: 'Liquidez' }))
+      const linhas = within(secao).getByRole('list', { name: 'Lista da carteira por liquidez' })
+      expect(within(linhas).getAllByRole('listitem').map((li) => li.textContent?.replace(/\s/g, ' '))).toEqual([
+        'LíquidoR$ 150,0020%', 'Restrito (previdência, FGTS)R$ 600,0080%',
+      ])
+      await u.click(within(secao).getByRole('tab', { name: 'Ativos' }))
+      const ativos = within(secao).getByRole('list', { name: 'Lista da carteira por ativos' })
+      expect(within(ativos).getAllByRole('listitem').map((li) => li.textContent?.split('R$')[0])).toEqual(['Tesouro Selic', 'Ação Y', 'Fundo W'])
     })
 
-    it('banco sem a migration da liquidez: a tela segue, sem o bloco', async () => {
+    it('banco sem a migration da liquidez: a tela segue, a aba Liquidez fica vazia', async () => {
       mock.listarLiquidezInvestimentos.mockRejectedValue(new Error('PGRST202'))
+      const u = userEvent.setup()
       render(<Investimentos />)
       await screen.findByText('Custo de aquisição')
-      expect(screen.queryByRole('heading', { name: 'Por liquidez' })).toBeNull()
+      await u.click(screen.getByRole('tab', { name: 'Liquidez' }))
+      expect(screen.getByText('Nada para mostrar ainda.')).toBeTruthy()
     })
 
     it('ativo restrito diz "restrito" e o botão troca a liquidez', async () => {
@@ -343,7 +355,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
     const grade = rotuloCusto.parentElement!
     const rotuloResultado = within(grade).getByText('Resultado não realizado')
     // o card da carteira não usa a palavra "Patrimônio": ela é do Patrimônio total (decisão de 10/11/2026)
-    expect(screen.getByText(/^Valor de mercado em /)).toBeTruthy()
+    expect(screen.getByText('Investido (valor de mercado em BRL)')).toBeTruthy()
     expect(screen.queryByText(/^Patrimônio em /)).toBeNull()
     expect(rotuloCusto.tagName).toBe('DT')
     expect(rotuloResultado.tagName).toBe('DT')
@@ -572,6 +584,25 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
       return screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
     }
+
+    it('topo: investido em destaque, parado na corretora (do banco), e Investir/Resgatar abrem a folha já em Compra ou Venda', async () => {
+      mock.listarContas.mockResolvedValue({ contas: [{ id: 'c1', nome: 'Corretora', ativa: true }], total: c(0),
+        porTipo: [{ tipo: 'brokerage', total: c(9999), totalAtivas: c(1304) }, { tipo: 'checking', total: c(5), totalAtivas: c(5) }] })
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      const titulo = await screen.findByText('Investido (valor de mercado em BRL)')
+      const card = titulo.parentElement as HTMLElement
+      expect(titulo.nextElementSibling?.textContent).toBe('R$ 750,00') // o número em destaque; o custo também é 750
+      const parado = within(card).getByText('Parado na corretora')
+      expect(parado.nextElementSibling?.textContent).toBe('R$ 13,04')
+      await u.click(within(card).getByRole('button', { name: 'Resgatar' }))
+      let folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(within(folha).getByRole('radio', { name: 'Venda' }).getAttribute('aria-checked')).toBe('true')
+      await u.click(within(folha).getByRole('button', { name: 'Cancelar' }))
+      await u.click(within(card).getByRole('button', { name: 'Investir' }))
+      folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(within(folha).getByRole('radio', { name: 'Compra' }).getAttribute('aria-checked')).toBe('true')
+    })
 
     it('"Registrar compra" lá embaixo abre a folha por cima da tela (não um formulário no topo)', async () => {
       mock.listarCarteiraInvestimentos.mockResolvedValue({ posicoes: [], totais: [] })

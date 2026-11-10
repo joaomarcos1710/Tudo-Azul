@@ -551,3 +551,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Depois de aplicada: o dono move as contas antigas de investimento (renda variável, renda fixa, cripto) para a carteira e atualiza o valor por avaliação.
 - [ ] Contas Nomad (dólar e euro): ativo em moeda com cotação PTAX, usando o mesmo mover; exige transferência entre moedas ou mover por valor em reais.
 - [ ] Conciliação e exportação mostram a conta interna nas transferências; conferir se o texto ajuda ou confunde.
+
+## Investimentos no estilo da XP (10/11/2026, #286)
+- [x] Topo com investido, parado na corretora, Investir e Resgatar; Minha carteira com abas; Investimentos na barra de baixo.
+- [ ] Total "investido + parado na corretora" num número só: precisa vir somado do banco (regra: a tela não soma dinheiro).
+- [ ] Rentabilidade e variação: só depois de cotação automática e histórico de operações.
+- [ ] Conferir no celular (você): topo, rosca e abas, e a barra de baixo nova.
