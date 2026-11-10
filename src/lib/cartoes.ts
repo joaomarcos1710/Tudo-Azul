@@ -83,6 +83,16 @@ export interface ItemFatura {
   categoriaId: string
 }
 
+/** Uma ocorrência prevista de assinatura numa fatura (card_subscription_previews): ainda não virou parcela. */
+export interface OcorrenciaPrevista {
+  recorrenciaId: string
+  /** Dia em que a assinatura será cobrada (a compra). */
+  data: string
+  descricao: string
+  valor: Cents
+  categoriaId: string
+}
+
 /** Uma linha da prévia de exclusão: o que será desfeito (cobrança, pagamento devolvido, cancelamento). */
 export interface ItemPrevia {
   tipo: 'charge' | 'credit' | 'payment' | 'extra_principal' | 'cancel' | string
@@ -403,6 +413,22 @@ export async function listarItens(cartaoId: string, mes: string): Promise<ItemFa
     valor: centsFromDb(i.face ?? 0),
     falta: centsFromDb(i.remaining ?? 0),
     categoriaId: i.category_id as string,
+  }))
+}
+
+/**
+ * As assinaturas (recorrências de cartão) previstas numa fatura, uma linha por ocorrência, ainda sem virar parcela.
+ * Vêm do banco (card_subscription_previews); nada é somado aqui. `mes` = AAAA-MM do fechamento da fatura.
+ */
+export async function listarOcorrenciasPrevistas(cartaoId: string, mes: string): Promise<OcorrenciaPrevista[]> {
+  const { data, error } = await cliente().rpc('card_subscription_previews', { p_debt: cartaoId, p_label: mes })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number | null>[]).map((o) => ({
+    recorrenciaId: o.recurrence_id as string,
+    data: o.occurrence_date as string,
+    descricao: (o.description as string | null) ?? 'Assinatura',
+    valor: centsFromDb(o.amount ?? 0),
+    categoriaId: o.category_id as string,
   }))
 }
 

@@ -14,13 +14,13 @@ import { MenuAcoes } from '../components/ui/MenuAcoes'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, proximaFatura, reativarCartao, renomearCartao,
+  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
   inicioDaTroca, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
   visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura,
 } from '../lib/cartoes'
-import type { Cartao, CreditoFatura, Fatura, ItemFatura, ItemPrevia, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
+import type { Cartao, CreditoFatura, Fatura, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
 import { IconeCadeadoAberto, IconeCadeadoFechado, IconeCadeadoPago, IconeCadeadoVencido } from '../components/layout/icons'
 import { somarMeses } from '../lib/lancamentos'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
@@ -1130,6 +1130,8 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const idBase = useId()
   const [faturas, setFaturas] = useState<Fatura[] | null>(null)
   const [itens, setItens] = useState<ItemFatura[] | null>(null)
+  // assinaturas ainda não cobradas desta fatura (só leitura; se a consulta falhar, a seção some e o resto segue)
+  const [previstas, setPrevistas] = useState<OcorrenciaPrevista[]>([])
   const [creditos, setCreditos] = useState<CreditoFatura[]>([])
   const [pagamentos, setPagamentos] = useState<PagamentoFatura[]>([])
   const [erroPagamentos, setErroPagamentos] = useState('')
@@ -1157,6 +1159,15 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
     listarItens(cartaoId, mes)
       .then((i) => { if (vivo) setItens(i) })
       .catch((err) => { if (vivo) setErroItens(mensagemErroBanco(err)) })
+    return () => { vivo = false }
+  }, [cartaoId, mes, versao])
+
+  useEffect(() => {
+    let vivo = true
+    setPrevistas([])
+    listarOcorrenciasPrevistas(cartaoId, mes)
+      .then((o) => { if (vivo) setPrevistas(o) })
+      .catch(() => { /* opcional: sem a função no banco, a fatura segue sem a lista de previstas */ })
     return () => { vivo = false }
   }, [cartaoId, mes, versao])
 
@@ -1415,6 +1426,22 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
             </div>
           )}
         </section>
+
+        {previstas.length > 0 && (
+          <section className="mt-4 border-t border-slate-100 pt-4" aria-label="Assinaturas previstas nesta fatura" data-testid="bloco-previstas">
+            <h2 className="mb-1 text-sm font-semibold text-slate-600">Assinaturas previstas <SeloAgendado /></h2>
+            <p className="mb-1 text-xs text-slate-500">Ainda não cobradas: entram nesta fatura no dia indicado. Para mudar ou cancelar, edite a assinatura em Recorrentes.</p>
+            <ul className="divide-y divide-slate-100">
+              {previstas.map((o) => (
+                <LinhaDaFatura key={`${o.recorrenciaId}-${o.data}`} testId="assinatura-prevista"
+                  icone={<IconeCategoria visual={visualPorId(o.categoriaId, categoriaPorId, 'expense')} tamanho="pequeno" />}
+                  titulo={o.descricao}
+                  detalhe={`${nomeCategoria.get(o.categoriaId) ?? 'Sem categoria'} · cobrança em ${formatDate(o.data)}`}
+                  valor={`−${formatBRL(o.valor)}`} corValor="text-agendado" acoes={null} />
+              ))}
+            </ul>
+          </section>
+        )}
       </Card>
     </>
   )
