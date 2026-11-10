@@ -481,6 +481,9 @@ function FormTermos({ divida, aoSalvar, aoCancelar }: {
   )
 }
 
+/** Valor da opção "Nenhuma (FGTS ou fora do app)" na conta de saída da amortização extra. */
+const SEM_CONTA = '__sem_conta__'
+
 function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parcela, aoSalvarParcela, extraObrigatorio = false }: {
   divida: Divida
   contas: Conta[]
@@ -512,9 +515,16 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   const tarifa = parseBRL(tarifaTexto)
   const principal = total !== null && juros !== null && tarifa !== null ? asCents(total - juros - tarifa) : null
   const precisaCategoria = !consignado && ((juros ?? 0) > 0 || (tarifa ?? 0) > 0)
+  // amortização extra paga fora das contas do app (ex.: FGTS): nenhuma conta muda, só o saldo da dívida (migration 102)
+  const podeSemConta = !parcela && extra
+  const semConta = podeSemConta && contaId === SEM_CONTA
 
   async function enviar(e: FormEvent) {
     e.preventDefault()
+    if (semConta && ((juros ?? 0) > 0 || (tarifa ?? 0) > 0)) {
+      setErro('Sem conta (ex.: FGTS), registre só a amortização: juros e tarifas ficam em zero.')
+      return
+    }
     if (!data || (!consignado && !contaId) || total === null || total <= 0 || juros === null || juros < 0 ||
         tarifa === null || tarifa < 0 || principal === null || principal < 0 ||
         (precisaCategoria && !categoriaId)) {
@@ -531,7 +541,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
         })
       } else {
         await aoSalvar({
-          dividaId: divida.id, data, contaId, principal, juros, tarifa,
+          dividaId: divida.id, data, contaId: semConta ? null : contaId, principal, juros, tarifa,
           categoriaId: precisaCategoria ? categoriaId : null, extra,
         })
       }
@@ -549,7 +559,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
         <Field rotulo="Data do pagamento" type="date" value={data} onChange={(e) => setData(e.target.value)} />
         {!consignado && (
           <Selecao rotulo="Conta de saída" valor={contaId} aoMudar={setContaId} todos="Selecione a conta"
-            opcoes={contas.map((c) => [c.id, c.nome])} />
+            opcoes={[...contas.map((c): [string, string] => [c.id, c.nome]), ...(podeSemConta ? [[SEM_CONTA, 'Nenhuma (FGTS ou fora do app)'] as [string, string]] : [])]} />
         )}
         <Field rotulo={consignado ? 'Valor da parcela descontada (R$)' : 'Valor total pago (R$)'} inputMode="decimal"
           placeholder="Ex.: 1.250,00" value={totalTexto} onChange={(e) => setTotalTexto(e.target.value)} />
@@ -560,6 +570,9 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
             <Selecao rotulo="Categoria para juros/tarifas" valor={categoriaId} aoMudar={setCategoriaId} todos={precisaCategoria ? 'Selecione a categoria' : 'Não necessária'}
               opcoes={categorias.map((c) => [c.id, normalizarCategoria(c.nome) === 'financiamyto' ? 'Financiamento' : c.nome])} desabilitado={!precisaCategoria} />
           </>
+        )}
+        {semConta && (
+          <p className="text-sm text-slate-600 md:col-span-2">Nenhuma conta muda: só o saldo da dívida diminui. Use para amortização com FGTS ou outro dinheiro que não passa pelo app.</p>
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           Principal a amortizar: <strong>{principal === null || principal < 0 ? '—' : formatBRL(principal)}</strong>.

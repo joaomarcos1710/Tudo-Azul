@@ -14,11 +14,12 @@ const mock = vi.hoisted(() => ({
   reativarDivida: vi.fn(),
   excluirDivida: vi.fn(),
   definirCategoriaPrincipal: vi.fn(),
+  registrarPagamentoDivida: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -47,6 +48,7 @@ beforeEach(() => {
   mock.renomearDivida.mockResolvedValue(undefined)
   mock.listarParcelasDivida.mockResolvedValue([])
   mock.registrarPagamentoParcela.mockResolvedValue(undefined)
+  mock.registrarPagamentoDivida.mockResolvedValue(undefined)
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
@@ -70,6 +72,40 @@ describe('Dívidas', () => {
     await u.click(screen.getAllByRole('button', { name: 'Registrar pagamento' })[0])
     const opcoes = Array.from((screen.getByLabelText('Conta de saída') as HTMLSelectElement).options).map((o) => o.textContent)
     expect(opcoes).toEqual(['Selecione a conta', 'Itaú'])
+  })
+
+  it('amortização extra com FGTS: "Nenhuma (FGTS ou fora do app)" manda conta nula; juros ou tarifa sem conta são recusados na tela', async () => {
+    mock.listarDividas.mockImplementation(porSituacao([{ ...ativas()[0], parcelasRestantes: 353 }]))
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'CAIXA', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+    ], total: c(0) })
+    render(<Dividas />)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Amortização extra' }))
+    await u.selectOptions(screen.getByLabelText('Conta de saída'), '__sem_conta__')
+    expect(screen.getByText(/Nenhuma conta muda: só o saldo da dívida diminui/)).toBeTruthy()
+    await u.type(screen.getByLabelText('Valor total pago (R$)'), '18.009,57')
+    await u.clear(screen.getByLabelText('Juros incluídos (R$)'))
+    await u.type(screen.getByLabelText('Juros incluídos (R$)'), '10,00')
+    await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+    expect(screen.getByText(/Sem conta \(ex\.: FGTS\), registre só a amortização/)).toBeTruthy()
+    expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
+    await u.clear(screen.getByLabelText('Juros incluídos (R$)'))
+    await u.type(screen.getByLabelText('Juros incluídos (R$)'), '0,00')
+    await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+    expect(mock.registrarPagamentoDivida).toHaveBeenCalledWith(expect.objectContaining({ dividaId: 'd1', contaId: null, principal: 1800957, juros: 0, tarifa: 0, extra: true }))
+  })
+
+  it('pagamento comum (sem ser amortização extra) não oferece "sem conta"', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [
+      { id: 'a1', nome: 'CAIXA', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
+    ], total: c(0) })
+    render(<Dividas />)
+    const u = userEvent.setup()
+    await screen.findByText('Financiamento do imóvel')
+    await u.click(screen.getAllByRole('button', { name: 'Registrar pagamento' })[0])
+    const opcoes = Array.from((screen.getByLabelText('Conta de saída') as HTMLSelectElement).options).map((o) => o.textContent)
+    expect(opcoes).not.toContain('Nenhuma (FGTS ou fora do app)')
   })
 
   it('não oferece o simulador de quitação (removido a pedido do dono)', async () => {
