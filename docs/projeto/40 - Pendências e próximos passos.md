@@ -541,5 +541,5 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Formulários de Investimentos (10/11/2026, #282)
 - [x] Compra e venda em folha, no desenho de Lançamentos, com "Só o valor" para a primeira posição.
 - [ ] "Só o valor" vale só para a primeira compra. Aporte seguinte num ativo sem cota (previdência com contribuição mensal) não tem caminho exato: precisa de uma função do banco para ativo "por valor". Enquanto isso, o valor se atualiza por avaliação e o custo não acompanha os aportes.
-- [ ] Os outros formulários da tela (novo ativo, avaliação, provento) ainda abrem no topo da página, no desenho antigo.
+- [x] Novo ativo, avaliação e provento também em folha (#283). Editar ativo e subclasse continuam dentro da linha do ativo.
 - [ ] Conferir a folha no iPhone (você): teclado numérico, rolagem e botões do pé.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
@@ -114,10 +114,11 @@ export default function Investimentos() {
   if (!familiaId) return null
 
   async function salvarAtivo(d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string; liquidez: Liquidez }) {
+    const { subclasse, liquidez: liq, ...ativo } = d
+    // se criar falhar, o erro sobe para a folha, que fica aberta; depois de criado, os avisos vão para a página
+    const id = await criarAtivoInvestimento({ familiaId, ...ativo })
+    setNovoAtivo(false)
     try {
-      const { subclasse, liquidez: liq, ...ativo } = d
-      const id = await criarAtivoInvestimento({ familiaId, ...ativo })
-      setNovoAtivo(false)
       let avisoSub = ''
       if (subclasse.trim()) {
         try { await definirSubclasseAtivo(id, subclasse) } catch (e) {
@@ -137,11 +138,10 @@ export default function Investimentos() {
   async function salvarProvento(d: {
     ativoId: string; tipo: TipoProvento; data: string; valor: Cents; contaId: string; status: 'paid' | 'planned'; observacao: string
   }) {
-    try {
-      await registrarProventoInvestimento(d)
-      setNovoProvento(false)
-      await carregar()
-    } catch (e) { setErro(mensagemErroBanco(e)) }
+    // o erro sobe para a folha, que fica aberta e o mostra junto dos campos
+    await registrarProventoInvestimento(d)
+    setNovoProvento(false)
+    await carregar()
   }
   async function acaoNoAtivo(acao: () => Promise<void>) {
     try {
@@ -172,11 +172,9 @@ export default function Investimentos() {
     await carregar()
   }
   async function salvarAvaliacao(d: { ativoId: string; data: string; precoUnitario: string; fonte: string }) {
-    try {
-      await registrarAvaliacaoInvestimento(d)
-      setNovaAvaliacao(false)
-      await carregar()
-    } catch (e) { setErro(mensagemErroBanco(e)) }
+    await registrarAvaliacaoInvestimento(d)
+    setNovaAvaliacao(false)
+    await carregar()
   }
 
   async function excluirAtivo(id: string, nome: string) {
@@ -225,15 +223,15 @@ export default function Investimentos() {
         Nesta primeira etapa, o livro de investimentos registra compras, vendas e avaliações manuais em BRL, USD ou EUR. Os valores ficam separados por moeda. As operações ainda não movimentam as contas bancárias nem entram como receita ou despesa; a integração de caixa será feita numa etapa própria para evitar dupla contagem. Não há cotação automática nesta versão.
       </Aviso>
 
-      {novoAtivo && <RolarAoAbrir><FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} /></RolarAoAbrir>}
+      {novoAtivo && <FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
         <FormOperacao ativos={ativosAtivos} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
       )}
       {novoProvento && (
-        <RolarAoAbrir><FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} /></RolarAoAbrir>
+        <FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} />
       )}
       {novaAvaliacao && (
-        <RolarAoAbrir><FormAvaliacao ativos={ativosAtivos} aoSalvar={salvarAvaliacao} aoCancelar={() => setNovaAvaliacao(false)} /></RolarAoAbrir>
+        <FormAvaliacao ativos={ativosAtivos} quantidades={new Map(posicoes.map((p) => [p.assetId, p.quantidade]))} aoSalvar={salvarAvaliacao} aoCancelar={() => setNovaAvaliacao(false)} />
       )}
 
       <section className="mt-6" aria-labelledby="titulo-totais-investimentos">
@@ -503,6 +501,7 @@ function FormProvento({ ativos, contas, aoSalvar, aoCancelar }: {
   const [observacao, setObservacao] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
+  const id = useId()
   const valor = parseBRL(valorTexto)
   async function enviar(e: FormEvent) {
     e.preventDefault()
@@ -510,25 +509,52 @@ function FormProvento({ ativos, contas, aoSalvar, aoCancelar }: {
     if (status === 'paid' && data > hojeSP()) { setErro('Provento pago não pode ter data futura: marque como planejado.'); return }
     setErro(''); setEnviando(true)
     try { await aoSalvar({ ativoId, tipo, data, valor, contaId, status, observacao }) }
+    catch (e2) { setErro(mensagemErroBanco(e2)) }
     finally { setEnviando(false) }
   }
-  return <Card className="mb-5"><h2 className="mb-3 text-lg font-semibold">Registrar provento</h2>
-    <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
-      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
-      <Selecao rotulo="Ativo" valor={ativoId} aoMudar={setAtivoId} opcoes={ativos.map((a) => [a.id, a.nome])} />
-      <Selecao rotulo="Tipo" valor={tipo} aoMudar={(v) => setTipo(v as TipoProvento)} opcoes={TIPOS_PROVENTO.map((t) => [t.chave, t.rotulo])} />
-      <Field rotulo="Data" type="date" value={data} onChange={(e) => setData(e.target.value)} />
-      <Field rotulo="Valor líquido recebido (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} placeholder="Ex.: 120,50" />
-      <Selecao rotulo="Conta que recebe" valor={contaId} aoMudar={setContaId} opcoes={contas.map((c) => [c.id, c.nome])} />
-      <Selecao rotulo="Situação" valor={status} aoMudar={(v) => setStatus(v as 'paid' | 'planned')} opcoes={[['paid', 'Já recebido'], ['planned', 'Planejado']]} />
-      <Field rotulo="Observação (opcional)" value={observacao} onChange={(e) => setObservacao(e.target.value)} maxLength={500} />
-      <p className="text-sm text-slate-600 md:col-span-2">
-        Informe o valor <strong>líquido</strong>, o que caiu na conta (no JCP, já sem o imposto retido). O provento entra como receita na categoria Rendimentos e muda o saldo da conta.
-        Só ativos em reais por enquanto.
-      </p>
-      <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Registrar provento</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
-    </form>
-  </Card>
+  const aba = (ativa: boolean) => `min-h-11 min-w-0 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors ${ativa ? 'bg-lucro text-white' : 'text-slate-600 hover:bg-white'}`
+  return (
+    <Folha titulo="Registrar provento" aoFechar={aoCancelar} rodape={<PeFolha idForm={id} rotulo="Registrar provento" enviando={enviando} aoCancelar={aoCancelar} />}>
+      <form id={id} onSubmit={(e) => void enviar(e)} className="flex flex-col gap-4" noValidate>
+        {erro && <Aviso tipo="erro">{erro}</Aviso>}
+        <div role="radiogroup" aria-label="Situação" className="flex gap-1 rounded-xl bg-slate-100 p-1">
+          <button type="button" role="radio" aria-checked={status === 'paid'} onClick={() => setStatus('paid')} className={aba(status === 'paid')}>Já recebido</button>
+          <button type="button" role="radio" aria-checked={status === 'planned'} onClick={() => setStatus('planned')} className={aba(status === 'planned')}>Planejado</button>
+        </div>
+        <div className="rounded-xl bg-fundo p-4">
+          <label htmlFor={`${id}-ativo`} className="sr-only">Ativo</label>
+          <select id={`${id}-ativo`} value={ativoId} onChange={(e) => setAtivoId(e.target.value)} className={TITULO_FOLHA}>
+            {ativos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+          </select>
+          <div className="mt-2 flex items-baseline gap-1 text-lucro">
+            <span aria-hidden="true" className="text-xl font-semibold">+R$</span>
+            <label htmlFor={`${id}-valor`} className="sr-only">Valor líquido recebido (R$)</label>
+            <input id={`${id}-valor`} inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} className={`${GRANDE_FOLHA} text-lucro`} />
+          </div>
+          <p className="mt-1 text-sm text-slate-600">O valor <strong>líquido</strong>, o que caiu na conta (no JCP, já sem o imposto retido).</p>
+        </div>
+        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+          <LinhaFolha id={`${id}-tipo`} rotulo="Tipo">
+            <select id={`${id}-tipo`} value={tipo} onChange={(e) => setTipo(e.target.value as TipoProvento)} className={CONTROLE_FOLHA}>
+              {TIPOS_PROVENTO.map((t) => <option key={t.chave} value={t.chave}>{t.rotulo}</option>)}
+            </select>
+          </LinhaFolha>
+          <LinhaFolha id={`${id}-data`} rotulo="Data">
+            <input id={`${id}-data`} type="date" value={data} onChange={(e) => setData(e.target.value)} className={`${CONTROLE_FOLHA} appearance-none`} />
+          </LinhaFolha>
+          <LinhaFolha id={`${id}-conta`} rotulo="Conta que recebe">
+            <select id={`${id}-conta`} value={contaId} onChange={(e) => setContaId(e.target.value)} className={CONTROLE_FOLHA}>
+              {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </LinhaFolha>
+          <LinhaFolha id={`${id}-obs`} rotulo="Observação">
+            <input id={`${id}-obs`} value={observacao} onChange={(e) => setObservacao(e.target.value)} maxLength={500} placeholder="Opcional" className={CONTROLE_FOLHA} />
+          </LinhaFolha>
+        </div>
+        <p className="text-sm text-slate-600">Entra como receita na categoria Rendimentos e muda o saldo da conta. Só ativos em reais por enquanto.</p>
+      </form>
+    </Folha>
+  )
 }
 
 const rotuloLinhaExtrato: Record<LinhaExtratoAtivo['tipo'], string> = {
@@ -732,6 +758,30 @@ function Posicao({ p }: { p: PosicaoInvestimento }) {
   )
 }
 
+/* Peças das folhas de Investimentos, no desenho do formulário de Lançamentos: o principal num bloco claro em destaque,
+ * o resto em linhas (nome do campo à esquerda, controle à direita; select e data nativos abrem a roda no iPhone). */
+const LINHA_FOLHA = 'flex min-h-14 items-center justify-between gap-3 px-4'
+const CONTROLE_FOLHA = 'min-h-11 min-w-0 flex-1 rounded-md bg-transparent px-1 text-right text-base text-slate-700 tabular-nums focus:outline focus:outline-2 focus:outline-azul'
+const GRANDE_FOLHA = 'min-h-14 w-full min-w-0 rounded-md bg-transparent px-1 text-4xl font-bold tabular-nums tracking-tight text-marinho placeholder:text-current placeholder:opacity-40 focus:outline focus:outline-2 focus:outline-azul'
+const TITULO_FOLHA = 'min-h-11 w-full min-w-0 rounded-md bg-transparent px-1 text-lg font-medium text-marinho placeholder:text-slate-500 focus:outline focus:outline-2 focus:outline-azul'
+
+function LinhaFolha({ id, rotulo, children }: { id: string; rotulo: string; children: ReactNode }) {
+  return (
+    <div className={LINHA_FOLHA}>
+      <label htmlFor={id} className="shrink-0 text-base text-marinho">{rotulo}</label>
+      {children}
+    </div>
+  )
+}
+
+/** Cancelar e a ação principal no pé da folha; o botão principal envia o formulário pelo id. */
+function PeFolha({ idForm, rotulo, enviando, aoCancelar }: { idForm: string; rotulo: string; enviando: boolean; aoCancelar: () => void }) {
+  return <>
+    <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
+    <Button type="submit" form={idForm} carregando={enviando}>{rotulo}</Button>
+  </>
+}
+
 function FormAtivo({ aoSalvar, aoCancelar }: {
   aoSalvar: (d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string; liquidez: Liquidez }) => Promise<void>
   aoCancelar: () => void
@@ -745,35 +795,57 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
   const [moedaAtivo, setMoedaAtivo] = useState<MoedaInvestimento>('BRL')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
+  const id = useId()
   async function enviar(e: FormEvent) {
     e.preventDefault()
     if (!nome.trim()) { setErro('Informe o nome do ativo.'); return }
     if (!classe) { setErro('Escolha a classe do ativo (ex.: FIIs / REITs para fundo imobiliário, Renda fixa para CDB e Tesouro).'); return }
     setEnviando(true); setErro('')
+    // o erro do banco aparece aqui dentro: a folha cobre o aviso do topo da página
     try { await aoSalvar({ nome, ticker, classe, moeda: moedaAtivo, subclasse, liquidez }) }
+    catch (e2) { setErro(mensagemErroBanco(e2)) }
     finally { setEnviando(false) }
   }
-  return <Card className="mb-5"><h2 className="mb-3 text-lg font-semibold">Cadastrar ativo</h2>
-    <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
-      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
-      <Field rotulo="Nome do ativo" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={100} placeholder="Ex.: Tesouro Selic 2029" />
-      <Field rotulo="Ticker ou código (opcional)" value={ticker} onChange={(e) => setTicker(e.target.value)} maxLength={20} placeholder="Ex.: PETR4, IVVB11, BTC" />
-      <Selecao rotulo="Classe" valor={classe} aoMudar={(v) => setClasse(v as ClasseAtivo | '')} opcoes={classes} todos="Escolha a classe" />
-      <Selecao rotulo="Moeda do ativo" valor={moedaAtivo} aoMudar={(v) => setMoedaAtivo(v as MoedaInvestimento)} opcoes={moedas} />
-      <Field rotulo="Subclasse (opcional)" value={subclasse} onChange={(e) => setSubclasse(e.target.value)} maxLength={40} list="sugestoes-subclasse-novo" placeholder="Ex.: Tesouro Direto, CDB, FIIs" />
-      <Selecao rotulo="Liquidez" valor={liquidez} aoMudar={(v) => setLiquidez(v === 'restricted' ? 'restricted' : 'liquid')} opcoes={LIQUIDEZES} />
-      <datalist id="sugestoes-subclasse-novo">{(classe ? SUGESTOES_SUBCLASSE[classe] : []).map((x) => <option key={x} value={x} />)}</datalist>
-      <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Salvar ativo</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
-    </form>
-  </Card>
-}
-
-/** Os formulários de cadastro abrem no topo da página; quem tocou num botão lá embaixo (ex.: "Registrar compra"
- * em "Ativos e posições", no celular) não via nada acontecer. Ao abrir, a tela rola até o formulário. */
-function RolarAoAbrir({ children }: { children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => { ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }) }, [])
-  return <div ref={ref} className="scroll-mt-4">{children}</div>
+  const aba = (ativa: boolean) => `min-h-11 min-w-0 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors ${ativa ? 'bg-azul-claro text-azul' : 'text-slate-600 hover:bg-slate-50'}`
+  return (
+    <Folha titulo="Novo ativo" aoFechar={aoCancelar} rodape={<PeFolha idForm={id} rotulo="Salvar ativo" enviando={enviando} aoCancelar={aoCancelar} />}>
+      <form id={id} onSubmit={(e) => void enviar(e)} className="flex flex-col gap-4" noValidate>
+        {erro && <Aviso tipo="erro">{erro}</Aviso>}
+        <div className="rounded-xl bg-fundo p-4">
+          <label htmlFor={`${id}-nome`} className="sr-only">Nome do ativo</label>
+          <input id={`${id}-nome`} value={nome} onChange={(e) => setNome(e.target.value)} maxLength={100} placeholder="Ex.: Previdência, Tesouro Selic 2029" className={TITULO_FOLHA} />
+          <div role="radiogroup" aria-label="Liquidez" className="mt-3 flex gap-1 rounded-lg bg-white p-1">
+            <button type="button" role="radio" aria-checked={liquidez === 'liquid'} onClick={() => setLiquidez('liquid')} className={aba(liquidez === 'liquid')}>Líquido</button>
+            <button type="button" role="radio" aria-checked={liquidez === 'restricted'} onClick={() => setLiquidez('restricted')} className={aba(liquidez === 'restricted')}>Restrito</button>
+          </div>
+          <p className="mt-1 text-sm text-slate-600">
+            {liquidez === 'restricted' ? 'Previdência, FGTS: conta no patrimônio, mas não no Disponível.' : 'Dá para resgatar ou vender.'}
+          </p>
+        </div>
+        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+          <LinhaFolha id={`${id}-classe`} rotulo="Classe">
+            <select id={`${id}-classe`} value={classe} onChange={(e) => setClasse(e.target.value as ClasseAtivo | '')} className={CONTROLE_FOLHA}>
+              <option value="">Escolha a classe</option>
+              {classes.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+            </select>
+          </LinhaFolha>
+          <LinhaFolha id={`${id}-moeda`} rotulo="Moeda do ativo">
+            <select id={`${id}-moeda`} value={moedaAtivo} onChange={(e) => setMoedaAtivo(e.target.value as MoedaInvestimento)} className={CONTROLE_FOLHA}>
+              {moedas.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+            </select>
+          </LinhaFolha>
+          <LinhaFolha id={`${id}-ticker`} rotulo="Ticker ou código (opcional)">
+            <input id={`${id}-ticker`} value={ticker} onChange={(e) => setTicker(e.target.value)} maxLength={20} placeholder="PETR4, BTC" className={CONTROLE_FOLHA} />
+          </LinhaFolha>
+          <LinhaFolha id={`${id}-sub`} rotulo="Subclasse (opcional)">
+            <input id={`${id}-sub`} value={subclasse} onChange={(e) => setSubclasse(e.target.value)} maxLength={40} list={`${id}-sugestoes`} placeholder="CDB, FIIs" className={CONTROLE_FOLHA} />
+          </LinhaFolha>
+        </div>
+        <datalist id={`${id}-sugestoes`}>{(classe ? SUGESTOES_SUBCLASSE[classe] : []).map((x) => <option key={x} value={x} />)}</datalist>
+        <p className="text-sm text-slate-600">Sem ticker (previdência, reserva, FGTS), a primeira compra pede só o valor de hoje.</p>
+      </form>
+    </Folha>
+  )
 }
 
 /** Centavos como texto decimal exato ("1234.56"), sem passar por número de ponto flutuante. */
@@ -836,9 +908,7 @@ function FormOperacao({ ativos, aoSalvar, aoCancelar }: {
 
   const aba = (ativa: boolean, cor: string) =>
     `min-h-11 min-w-0 flex-1 rounded-lg px-3 text-sm font-semibold transition-colors ${ativa ? cor : 'text-slate-600 hover:bg-white'}`
-  const linha = 'flex min-h-14 items-center justify-between gap-3 px-4'
-  const controle = 'min-h-11 min-w-0 flex-1 rounded-md bg-transparent px-1 text-right text-base text-slate-700 tabular-nums focus:outline focus:outline-2 focus:outline-azul'
-  const grande = 'min-h-14 w-full min-w-0 rounded-md bg-transparent px-1 text-4xl font-bold tabular-nums tracking-tight text-marinho placeholder:text-current placeholder:opacity-40 focus:outline focus:outline-2 focus:outline-azul'
+  const linha = LINHA_FOLHA, controle = CONTROLE_FOLHA, grande = GRANDE_FOLHA
 
   return (
     <Folha titulo="Registrar compra ou venda" aoFechar={aoCancelar}
@@ -915,8 +985,14 @@ function FormOperacao({ ativos, aoSalvar, aoCancelar }: {
   )
 }
 
-function FormAvaliacao({ ativos, aoSalvar, aoCancelar }: {
+/**
+ * Avaliação manual numa folha. Ativo com exatamente 1 unidade (registrado por "Só o valor": previdência, reserva) pede
+ * o valor de hoje; os outros, o preço por unidade. O número vai para o banco como digitado, sem conta aqui.
+ */
+function FormAvaliacao({ ativos, quantidades, aoSalvar, aoCancelar }: {
   ativos: AtivoInvestimento[]
+  /** quantidade em carteira por ativo (texto do banco) */
+  quantidades: Map<string, string>
   aoSalvar: (d: { ativoId: string; data: string; precoUnitario: string; fonte: string }) => Promise<void>
   aoCancelar: () => void
 }) {
@@ -926,25 +1002,49 @@ function FormAvaliacao({ ativos, aoSalvar, aoCancelar }: {
   const [fonte, setFonte] = useState('Informado manualmente')
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
+  const id = useId()
   const ativo = ativos.find((a) => a.id === ativoId)
+  const codigo = ativo?.moeda ?? 'BRL'
+  const umaUnidade = Number(quantidades.get(ativoId) ?? '0') === 1
+  const rotuloValor = umaUnidade ? `Valor de hoje (${codigo})` : `Preço atual por unidade (${codigo})`
   async function enviar(e: FormEvent) {
     e.preventDefault()
     if (!ativoId || !data || !/^\d{1,12}(?:[.,]\d{1,10})?$/.test(precoTexto.trim()) || Number(precoTexto.replace(',', '.')) <= 0 || !fonte.trim()) {
-      setErro('Informe ativo, data, preço unitário e fonte da avaliação.'); return
+      setErro(umaUnidade ? 'Informe o valor de hoje, a data e a fonte.' : 'Informe o preço por unidade, a data e a fonte.'); return
     }
     setErro(''); setEnviando(true)
     try { await aoSalvar({ ativoId, data, precoUnitario: precoTexto, fonte }) }
+    catch (e2) { setErro(mensagemErroBanco(e2)) }
     finally { setEnviando(false) }
   }
-  return <Card className="mb-5"><h2 className="mb-3 text-lg font-semibold">Registrar avaliação manual</h2>
-    <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
-      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
-      <Selecao rotulo="Ativo" valor={ativoId} aoMudar={setAtivoId} opcoes={ativos.map((a) => [a.id, `${a.nome} · ${a.moeda}`])} />
-      <Field rotulo="Data da avaliação" type="date" value={data} onChange={(e) => setData(e.target.value)} />
-      <Field rotulo={`Preço atual por unidade (${ativo?.moeda ?? ''})`} inputMode="decimal" value={precoTexto} onChange={(e) => setPrecoTexto(e.target.value)} placeholder="Ex.: 31,42" />
-      <Field rotulo="Fonte" value={fonte} onChange={(e) => setFonte(e.target.value)} maxLength={80} placeholder="Ex.: extrato da corretora" />
-      <p className="text-sm text-slate-600 md:col-span-2">A avaliação guarda um histórico imutável. O preço informado é por unidade, não o valor total da posição.</p>
-      <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Salvar avaliação</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
-    </form>
-  </Card>
+  return (
+    <Folha titulo="Registrar avaliação" aoFechar={aoCancelar} rodape={<PeFolha idForm={id} rotulo="Salvar avaliação" enviando={enviando} aoCancelar={aoCancelar} />}>
+      <form id={id} onSubmit={(e) => void enviar(e)} className="flex flex-col gap-4" noValidate>
+        {erro && <Aviso tipo="erro">{erro}</Aviso>}
+        <div className="rounded-xl bg-fundo p-4">
+          <label htmlFor={`${id}-ativo`} className="sr-only">Ativo</label>
+          <select id={`${id}-ativo`} value={ativoId} onChange={(e) => setAtivoId(e.target.value)} className={TITULO_FOLHA}>
+            {ativos.map((a) => <option key={a.id} value={a.id}>{a.nome} · {a.moeda}</option>)}
+          </select>
+          <div className="mt-2 flex items-baseline gap-1 text-marinho">
+            <span aria-hidden="true" className="text-xl font-semibold">{simboloMoeda(codigo)}</span>
+            <label htmlFor={`${id}-preco`} className="sr-only">{rotuloValor}</label>
+            <input id={`${id}-preco`} inputMode="decimal" placeholder="0,00" value={precoTexto} onChange={(e) => setPrecoTexto(e.target.value)} className={GRANDE_FOLHA} />
+          </div>
+          <p className="mt-1 text-sm text-slate-600">
+            {umaUnidade ? 'Quanto você tem hoje neste investimento.' : 'O preço de uma unidade, não o valor total da posição.'}
+          </p>
+        </div>
+        <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+          <LinhaFolha id={`${id}-data`} rotulo="Data da avaliação">
+            <input id={`${id}-data`} type="date" value={data} onChange={(e) => setData(e.target.value)} className={`${CONTROLE_FOLHA} appearance-none`} />
+          </LinhaFolha>
+          <LinhaFolha id={`${id}-fonte`} rotulo="Fonte">
+            <input id={`${id}-fonte`} value={fonte} onChange={(e) => setFonte(e.target.value)} maxLength={80} placeholder="Extrato da corretora" className={CONTROLE_FOLHA} />
+          </LinhaFolha>
+        </div>
+        <p className="text-sm text-slate-600">Cada avaliação fica guardada no histórico; a mais recente define o valor de mercado.</p>
+      </form>
+    </Folha>
+  )
 }
