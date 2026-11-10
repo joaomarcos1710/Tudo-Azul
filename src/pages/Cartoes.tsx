@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { excluirRecorrencia } from '../lib/recorrencias'
 import type { FormEvent, ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BandeiraCartao, IconeEmissor } from '../components/ui/IconeConta'
@@ -1132,6 +1133,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const [itens, setItens] = useState<ItemFatura[] | null>(null)
   // assinaturas ainda não cobradas desta fatura (só leitura; se a consulta falhar, a seção some e o resto segue)
   const [previstas, setPrevistas] = useState<OcorrenciaPrevista[]>([])
+  const [erroPrevistas, setErroPrevistas] = useState('')
   const [creditos, setCreditos] = useState<CreditoFatura[]>([])
   const [pagamentos, setPagamentos] = useState<PagamentoFatura[]>([])
   const [erroPagamentos, setErroPagamentos] = useState('')
@@ -1197,6 +1199,18 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
 
   // trocar de fatura (setas, link) fecha o que estava aberto numa linha da outra
   useEffect(() => { setAcaoBruta(null) }, [mes])
+
+  // assinatura cancelada na vida real: exclui a regra inteira (o que já foi cobrado continua no histórico)
+  async function excluirAssinatura(o: OcorrenciaPrevista) {
+    if (!window.confirm(`Excluir a assinatura "${o.descricao}"? Ela deixa de ser cobrada daqui em diante; o que já foi lançado no cartão continua no histórico.`)) return
+    setErroPrevistas('')
+    try {
+      await excluirRecorrencia(o.recorrenciaId)
+      await carregar()
+    } catch (err) {
+      setErroPrevistas(mensagemErroBanco(err))
+    }
+  }
 
   async function anularCredito(c: CreditoFatura) {
     if (!window.confirm(`Anular o crédito "${c.descricao}" de ${formatBRL(c.valor)}? A fatura e a receita do mês são recalculadas. Fica registrado.`)) return
@@ -1430,14 +1444,21 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         {previstas.length > 0 && (
           <section className="mt-4 border-t border-slate-100 pt-4" aria-label="Assinaturas previstas nesta fatura" data-testid="bloco-previstas">
             <h2 className="mb-1 text-sm font-semibold text-slate-600">Assinaturas previstas <SeloAgendado /></h2>
-            <p className="mb-1 text-xs text-slate-500">Ainda não cobradas: entram nesta fatura no dia indicado. Para mudar ou cancelar, edite a assinatura em Recorrentes.</p>
+            <p className="mb-1 text-xs text-slate-500">Ainda não cobradas: entram nesta fatura no dia indicado. Cancelou? Use ⋯ na linha para excluir a assinatura; para mudar valor ou descrição, abra Recorrentes.</p>
+            {erroPrevistas && <div className="mb-2"><Aviso tipo="erro">{erroPrevistas}</Aviso></div>}
             <ul className="divide-y divide-slate-100">
               {previstas.map((o) => (
                 <LinhaDaFatura key={`${o.recorrenciaId}-${o.data}`} testId="assinatura-prevista"
                   icone={<IconeCategoria visual={visualPorId(o.categoriaId, categoriaPorId, 'expense')} tamanho="pequeno" />}
                   titulo={o.descricao}
                   detalhe={`${nomeCategoria.get(o.categoriaId) ?? 'Sem categoria'} · cobrança em ${formatDate(o.data)}`}
-                  valor={`−${formatBRL(o.valor)}`} corValor="text-prejuizo" acoes={null} />
+                  valor={`−${formatBRL(o.valor)}`} corValor="text-prejuizo"
+                  acoes={(
+                    <MenuAcoes rotulo={`Ações de ${o.descricao}`} desabilitado={acao !== null} acoes={[
+                      { rotulo: 'Abrir Recorrentes', aoEscolher: () => navigate('/recorrentes') },
+                      { rotulo: 'Excluir assinatura', aoEscolher: () => { void excluirAssinatura(o) }, perigo: true },
+                    ]} />
+                  )} />
               ))}
             </ul>
           </section>
