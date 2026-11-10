@@ -62,6 +62,14 @@ export interface Filtros {
   contaId?: string
   categoriaId?: string
   tipo?: TipoLancamento
+  /** Resolvido = paid; Pendente = planned (só lançamentos). */
+  situacao?: StatusLancamento
+  /** Só as faturas desse cartão (cartão não tem lançamento próprio: a compra vive na fatura). */
+  cartaoId?: string
+  /** Só lançamentos gerados por um recorrente (recurrence_id). */
+  soFixos?: boolean
+  /** Só lançamentos de uma compra parcelada (installment_group). */
+  soParcelados?: boolean
 }
 
 export function listarLancamentos(familiaId: string, mes: string, f: Filtros = {}): Promise<Lancamento[]> {
@@ -77,6 +85,9 @@ export async function listarLancamentosNoPeriodo(familiaId: string, de: string, 
     if (f.contaId) consulta = consulta.or(`account_id.eq.${f.contaId},destination_account_id.eq.${f.contaId}`)
     if (f.categoriaId) consulta = consulta.eq('category_id', f.categoriaId)
     if (f.tipo) consulta = consulta.eq('type', f.tipo)
+    if (f.situacao) consulta = consulta.eq('status', f.situacao)
+    if (f.soFixos) consulta = consulta.not('recurrence_id', 'is', null)
+    if (f.soParcelados) consulta = consulta.not('installment_group', 'is', null)
     return consulta.order('date', { ascending: false }).order('created_at', { ascending: false })
   }
   type LinhaLancamentoDb = {

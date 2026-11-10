@@ -136,10 +136,31 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-/** Os filtros moram numa folha (pedido do dono, 10/11/2026): abre pelo botão Filtrar se ainda não estiver aberta. */
+/** A tela de filtros (tela cheia, pedido do dono, 10/11/2026): abre pelo botão Filtrar se ainda não estiver aberta. */
+async function abrirFiltros() {
+  if (!screen.queryByRole('dialog', { name: 'Filtrar lançamentos' })) fireEvent.click(await screen.findByRole('button', { name: /^Filtrar/ }))
+}
+/** Categoria segue no seletor; tipo e conta são chips e cartões (toque liga e desliga). */
 async function campoFiltro(rotulo: string): Promise<HTMLSelectElement> {
-  if (!screen.queryByLabelText(rotulo)) fireEvent.click(await screen.findByRole('button', { name: /^Filtrar/ }))
+  await abrirFiltros()
   return screen.getByLabelText(rotulo) as HTMLSelectElement
+}
+const ROTULO_TIPO: Record<string, string> = { income: 'Receitas', expense: 'Despesas', transfer: 'Transferências' }
+/** Escolhe o tipo: '' tira o que estiver ligado. */
+async function escolherTipo(u: ReturnType<typeof userEvent.setup>, valor: string) {
+  await abrirFiltros()
+  if (valor === '') {
+    const ligado = Object.values(ROTULO_TIPO).map((r) => screen.getByRole('button', { name: r })).find((b) => b.getAttribute('aria-pressed') === 'true')
+    if (ligado) await u.click(ligado)
+    return
+  }
+  const chip = screen.getByRole('button', { name: ROTULO_TIPO[valor] })
+  if (chip.getAttribute('aria-pressed') !== 'true') await u.click(chip)
+}
+/** Toca num cartão de conta (liga; tocar de novo desliga). */
+async function escolherConta(u: ReturnType<typeof userEvent.setup>, nome: string) {
+  await abrirFiltros()
+  await u.click(within(screen.getByRole('group', { name: 'Contas' })).getByRole('button', { name: nome }))
 }
 
 /** O "+" flutuante abre o menu; "Nova despesa" abre o painel (o formulário troca de aba depois, se o teste quiser). */
@@ -203,7 +224,8 @@ describe('Lançamentos', () => {
   it('?tipo=receita|despesa (avisos do Início) abre já filtrado pelo tipo, no mês pedido', async () => {
     render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=receita']}><Lancamentos /></MemoryRouter>)
     await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31', { tipo: 'income' }))
-    expect((await campoFiltro('Filtrar por tipo')).value).toBe('income')
+    await abrirFiltros()
+    expect(screen.getByRole('button', { name: 'Receitas' }).getAttribute('aria-pressed')).toBe('true')
     cleanup()
     mock.listarLancamentos.mockClear()
     render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=despesa']}><Lancamentos /></MemoryRouter>)
@@ -244,12 +266,12 @@ describe('Lançamentos', () => {
     mock.serieFluxo.mockResolvedValue({ linhas: [{ inicio: '', fim: '', entradas: c(100), saidas: c(200), resultado: c(-100), saldo: null }], totalEntradas: c(100), totalSaidas: c(200), totalResultado: c(-100) })
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
-    await u.selectOptions(await campoFiltro('Filtrar por conta'), 'a1')
+    await escolherConta(u, 'Itaú')
     await vi.waitFor(() => expect(mock.serieFluxo).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), 'total', { contas: ['a1'], incluirNaoPagos: true }))
     const rodape = screen.getByRole('region', { name: 'Totais do mês' })
     expect(within(rodape).getAllByText('—')[0].getAttribute('title')).toMatch(/sem filtro de conta/)
     expect(within(rodape).queryByText(/não o de tipo/)).toBeNull()
-    await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'expense')
+    await escolherTipo(u, 'expense')
     expect(await within(rodape).findByText(/seguem só o filtro de conta/)).toBeTruthy()
   })
 
@@ -265,12 +287,12 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
     // os três seletores não ficam mais soltos na tela
-    expect(screen.queryByLabelText('Filtrar por conta')).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Filtrar lançamentos' })).toBeNull()
     await u.click(screen.getByRole('button', { name: 'Filtrar' }))
-    const folha = screen.getByRole('dialog', { name: 'Filtrar lançamentos' })
-    await u.selectOptions(within(folha).getByLabelText('Filtrar por tipo'), 'expense')
-    await u.selectOptions(within(folha).getByLabelText('Filtrar por categoria'), 'mer')
-    await u.click(within(folha).getByRole('button', { name: 'Ver lançamentos' }))
+    const tela = screen.getByRole('dialog', { name: 'Filtrar lançamentos' })
+    await u.click(within(tela).getByRole('button', { name: 'Despesas' }))
+    await u.selectOptions(within(tela).getByLabelText('Filtrar por categoria'), 'mer')
+    await u.click(within(tela).getByRole('button', { name: 'Filtrar: ver os lançamentos' }))
     expect(screen.queryByRole('dialog', { name: 'Filtrar lançamentos' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Filtrar (2 ligados)' })).toBeTruthy()
     const selos = screen.getByRole('list', { name: 'Filtros ligados' })
@@ -448,7 +470,7 @@ describe('Lançamentos', () => {
     expect(within(tarifa).getByText('Cartão/dívida · já em despesas')).toBeTruthy()
     expect(screen.getByText(/Juros e tarifa são despesa/)).toBeTruthy()
     // os filtros chegam ao lib (que decide o que mostrar); a tela não esconde nada por conta própria
-    await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'expense')
+    await escolherTipo(u, 'expense')
     await vi.waitFor(() => expect(mock.listarMovimentosDeDivida).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { tipo: 'expense' }))
   })
 
@@ -870,9 +892,11 @@ describe('Lançamentos', () => {
     it('tipo vem antes da categoria', async () => {
       render(<MemoryRouter><Lancamentos /></MemoryRouter>)
       await screen.findByText('Supermercado')
-      await campoFiltro('Filtrar por conta')
-      const ordem = screen.getAllByLabelText(/^Filtrar por/).map((e) => e.previousElementSibling?.textContent)
-      expect(ordem).toEqual(['Filtrar por conta', 'Filtrar por tipo', 'Filtrar por categoria'])
+      await abrirFiltros()
+      // Tipo, Situação, Contas e Cartões de crédito em grupos (chips e cartões); a categoria é o seletor no fim
+      const grupos = within(screen.getByRole('dialog', { name: 'Filtrar lançamentos' })).getAllByRole('group').map((g) => g.querySelector('h3')?.textContent?.replace(/ \(\d\)$/, ''))
+      expect(grupos).toEqual(['Tipo', 'Situação', 'Contas', 'Cartões de crédito'])
+      expect(screen.getByLabelText('Filtrar por categoria')).toBeTruthy()
     })
 
     it('sem tipo mostra todas as categorias; com Despesa ou Receita, só as do tipo', async () => {
@@ -881,9 +905,9 @@ describe('Lançamentos', () => {
       await screen.findByText('Supermercado')
       await campoFiltro('Filtrar por categoria')
       expect(opcoesDe('Filtrar por categoria')).toEqual(['Todas as categorias', 'Mercado (despesa)', 'Salário (receita)'])
-      await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'expense')
+      await escolherTipo(u, 'expense')
       expect(opcoesDe('Filtrar por categoria')).toEqual(['Todas as categorias', 'Mercado'])
-      await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'income')
+      await escolherTipo(u, 'income')
       expect(opcoesDe('Filtrar por categoria')).toEqual(['Todas as categorias', 'Salário'])
     })
 
@@ -891,11 +915,11 @@ describe('Lançamentos', () => {
       const u = userEvent.setup()
       render(<MemoryRouter><Lancamentos /></MemoryRouter>)
       await screen.findByText('Supermercado')
-      await u.selectOptions(await campoFiltro('Filtrar por conta'), 'a2')
+      await escolherConta(u, 'Nubank')
       await u.selectOptions(await campoFiltro('Filtrar por categoria'), 'mer')
-      await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'expense') // compatível: continua
+      await escolherTipo(u, 'expense') // compatível: continua
       await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { contaId: 'a2', categoriaId: 'mer', tipo: 'expense' }))
-      await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'income') // incompatível: sai; a conta fica
+      await escolherTipo(u, 'income') // incompatível: sai; a conta fica
       await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { contaId: 'a2', categoriaId: undefined, tipo: 'income' }))
       expect((await campoFiltro('Filtrar por categoria')).value).toBe('')
     })
@@ -905,12 +929,12 @@ describe('Lançamentos', () => {
       render(<MemoryRouter><Lancamentos /></MemoryRouter>)
       await screen.findByText('Supermercado')
       await u.selectOptions(await campoFiltro('Filtrar por categoria'), 'mer')
-      await u.selectOptions(await campoFiltro('Filtrar por tipo'), 'transfer')
+      await escolherTipo(u, 'transfer')
       const categoria = await campoFiltro('Filtrar por categoria') as HTMLSelectElement
       expect(categoria.disabled).toBe(true)
       expect(opcoesDe('Filtrar por categoria')).toEqual(['Transferência não tem categoria'])
       await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { categoriaId: undefined, tipo: 'transfer' }))
-      await u.selectOptions(await campoFiltro('Filtrar por tipo'), '') // voltar a "todos" reabilita
+      await escolherTipo(u, '') // voltar a "todos" reabilita
       expect((await campoFiltro('Filtrar por categoria')).disabled).toBe(false)
     })
 
@@ -918,13 +942,12 @@ describe('Lançamentos', () => {
       const u = userEvent.setup()
       render(<MemoryRouter><Lancamentos /></MemoryRouter>)
       await screen.findByText('Supermercado')
-      expect(await campoFiltro('Filtrar por tipo')).toBeTruthy()
+      await abrirFiltros()
       await abrirNovo(u)
-      expect(screen.queryByLabelText('Filtrar por conta')).toBeNull()
-      expect(screen.queryByLabelText('Filtrar por tipo')).toBeNull()
-      expect(screen.queryByLabelText('Filtrar por categoria')).toBeNull()
+      expect(screen.queryByRole('dialog', { name: 'Filtrar lançamentos' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Receitas' })).toBeNull()
       await u.click(screen.getByRole('button', { name: 'Cancelar' }))
-      expect(await campoFiltro('Filtrar por tipo')).toBeTruthy()
+      await abrirFiltros()
     })
   })
 })
@@ -1099,7 +1122,7 @@ describe('painel de lançamento (como no Organizze)', () => {
     await u.keyboard('c')
     expect(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Cartão de crédito' }).getAttribute('aria-checked')).toBe('true')
     await u.keyboard('{Escape}')
-    await u.click(await campoFiltro('Filtrar por conta'))
+    await u.click(await screen.findByRole('button', { name: /^Filtrar/ }))
     await u.keyboard('d')
     // só a folha de filtros continua aberta: o formulário de lançamento não abriu
     expect(screen.queryByText('Novo lançamento', { selector: 'h2' })).toBeNull()
@@ -1486,5 +1509,58 @@ describe('Lançamentos: período livre (etapa 3 do Organizze)', () => {
     await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalled())
     expect(screen.queryByRole('button', { name: 'Mês anterior' })).toBeNull()
     expect(screen.getByRole('button', { name: /Período: .*Trocar período/ })).toBeTruthy()
+  })
+})
+
+describe('Lançamentos: filtros em tela cheia (situação, cartão, fixos e parcelados)', () => {
+  it('Pendente e Resolvido filtram os lançamentos pelo status (o banco faz a conta)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await abrirFiltros()
+    await u.click(screen.getByRole('button', { name: 'Pendente' }))
+    await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { situacao: 'planned' }))
+    await u.click(screen.getByRole('button', { name: 'Resolvido' }))
+    await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { situacao: 'paid' }))
+    expect(screen.getByRole('button', { name: 'Resolvido' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Pendente' }).getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('Lançamentos fixos e parcelados viram filtros; o selo mostra e tira', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await abrirFiltros()
+    await u.click(screen.getByRole('button', { name: 'Lançamentos fixos' }))
+    await u.click(screen.getByRole('button', { name: 'Lançamentos parcelados' }))
+    await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { soFixos: true, soParcelados: true }))
+    await u.click(screen.getByRole('button', { name: 'Filtrar: ver os lançamentos' }))
+    const selos = screen.getByRole('list', { name: 'Filtros ligados' })
+    expect(within(selos).getAllByRole('button').map((b) => b.textContent)).toEqual(['Fixos×', 'Parcelados×'])
+    await u.click(within(selos).getByRole('button', { name: 'Tirar o filtro Fixos' }))
+    await vi.waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), { soParcelados: true }))
+  })
+
+  it('com um cartão escolhido, a tela mostra só as faturas dele: os lançamentos e as outras linhas somem', async () => {
+    const u = userEvent.setup()
+    mock.listarFaturasDoMes.mockResolvedValue([{ cartaoId: 'k1', cartaoNome: 'Nubank', mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', total: c(45000), pago: c(0), itens: 2, creditos: c(0), situacao: 'fechada', contaPagamentoId: 'a1' }])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await abrirFiltros()
+    await u.click(within(screen.getByRole('group', { name: 'Cartões de crédito' })).getByRole('button', { name: 'Nubank' }))
+    await vi.waitFor(() => expect(screen.queryByText('Supermercado')).toBeNull())
+    expect(screen.getByText('Fatura Nubank')).toBeTruthy()
+    expect(screen.queryByText('Luz')).toBeNull()
+  })
+
+  it('situação, cartão, fixos e parcelados avisam que os totais do rodapé não seguem esses filtros', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await abrirFiltros()
+    await u.click(screen.getByRole('button', { name: 'Pendente' }))
+    await u.click(screen.getByRole('button', { name: 'Filtrar: ver os lançamentos' }))
+    const rodape = screen.getByRole('region', { name: 'Totais do mês' })
+    expect(await within(rodape).findByText(/não os de tipo, categoria, situação, cartão, fixos ou parcelados/)).toBeTruthy()
   })
 })
