@@ -28,6 +28,7 @@ const mock = vi.hoisted(() => ({
   listarOcorrenciasPrevistas: vi.fn(),
   listarFaturasAgendadas: vi.fn(),
   sincronizarAgendados: vi.fn(),
+  converterAgendados: vi.fn(),
   excluirRecorrencia: vi.fn(),
   pagarFatura: vi.fn(),
   reabrirFatura: vi.fn(),
@@ -49,7 +50,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
-  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, sincronizarAgendados: mock.sincronizarAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
+  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
@@ -129,6 +130,7 @@ beforeEach(() => {
   mock.listarOcorrenciasPrevistas.mockResolvedValue([])
   mock.listarFaturasAgendadas.mockResolvedValue([])
   mock.sincronizarAgendados.mockResolvedValue(0)
+  mock.converterAgendados.mockResolvedValue(0)
   mock.previaExclusao.mockResolvedValue([])
   mock.listarCreditosDaFatura.mockResolvedValue([])
   mock.lancarCreditoNoCartao.mockResolvedValue('ev1')
