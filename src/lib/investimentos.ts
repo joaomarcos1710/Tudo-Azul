@@ -24,6 +24,12 @@ export interface AtivoInvestimento {
 
 export type Liquidez = 'liquid' | 'restricted'
 
+/** Classes do ativo, na ordem dos formulários. */
+export const CLASSES_ATIVO: [ClasseAtivo, string][] = [
+  ['fixed_income', 'Renda fixa'], ['equity', 'Ações'], ['fund', 'Fundos de investimento'],
+  ['reit', 'FIIs / REITs'], ['etf', 'ETFs'], ['crypto', 'Criptoativos'], ['other', 'Outros'],
+]
+
 export const LIQUIDEZES: [Liquidez, string][] = [
   ['liquid', 'Líquido: dá para resgatar ou vender'],
   ['restricted', 'Restrito: previdência, FGTS'],
@@ -274,8 +280,13 @@ export async function registrarOperacaoInvestimento(d: {
   precoUnitario: string
   tarifas: Cents
   observacao: string
+  /** Conta de onde saiu (compra) ou para onde volta (venda); o banco cria a transferência com a carteira (migration 100).
+   * Vazio = não passou por conta do app (ex.: previdência): só a operação, como antes. */
+  contaId?: string
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
+    // só envia a conta quando há uma: assim a gravação segue funcionando no banco sem a migration 100
+    ...(d.contaId ? { p_account: d.contaId } : {}),
     p_asset: d.ativoId,
     p_date: d.data,
     p_kind: d.tipo,
@@ -285,6 +296,28 @@ export async function registrarOperacaoInvestimento(d: {
     p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
+}
+
+/**
+ * Move o saldo de uma conta para a carteira (migration 100): o banco cria o ativo com o saldo de hoje da conta, transfere
+ * esse saldo para a carteira (a conta zera sem despesa) e arquiva a conta. O valor sai do banco, nunca do front.
+ */
+export async function moverContaParaCarteira(d: {
+  contaId: string
+  nome: string
+  classe: ClasseAtivo
+  liquidez: Liquidez
+  subclasse: string
+}): Promise<string> {
+  const { data, error } = await db().rpc('account_move_to_portfolio', {
+    p_account: d.contaId,
+    p_name: d.nome.trim(),
+    p_class: d.classe,
+    p_liquidity: d.liquidez,
+    p_subclass: d.subclasse.trim() || null,
+  })
+  if (error) throw error
+  return data as string
 }
 
 export async function registrarAvaliacaoInvestimento(d: {

@@ -79,7 +79,8 @@ export default function Calendario() {
       ]))
       .then(([lancs, movs, contas, cats, res, faturas, parcelasDivida, pm]) => {
         if (!vivo()) return
-        const nomeConta = new Map((contas?.contas ?? []).map((c) => [c.id, c.nome]))
+        // a conta interna da carteira (aporte e resgate) também tem nome nas transferências
+        const nomeConta = new Map([...(contas?.contas ?? []), ...(contas?.internas ?? [])].map((c) => [c.id, c.nome]))
         const moedaConta = new Map((contas?.contas ?? []).map((c) => [c.id, c.moeda ?? 'BRL']))
         const nomeCategoria = nomesCompletos(cats ?? [])
         const doMes: ItemDoDia[] = [

@@ -21,7 +21,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { corDoValor } from '../lib/cores'
 import { COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../components/graficos/cores'
 import {
-  LIQUIDEZES, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirLiquidezAtivo, definirSubclasseAtivo, listarLiquidezInvestimentos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
+  CLASSES_ATIVO, LIQUIDEZES, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirLiquidezAtivo, definirSubclasseAtivo, listarLiquidezInvestimentos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
   reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarOperacaoInvestimento, registrarProventoInvestimento,
 } from '../lib/investimentos'
@@ -30,10 +30,7 @@ import type {
   TipoOperacaoInvestimento, TipoProvento, TotalInvestimento,
 } from '../lib/investimentos'
 
-const classes: [ClasseAtivo, string][] = [
-  ['fixed_income', 'Renda fixa'], ['equity', 'Ações'], ['fund', 'Fundos de investimento'],
-  ['reit', 'FIIs / REITs'], ['etf', 'ETFs'], ['crypto', 'Criptoativos'], ['other', 'Outros'],
-]
+const classes = CLASSES_ATIVO
 const moedas: [MoedaInvestimento, string][] = [['BRL', 'Real (BRL)'], ['USD', 'Dólar (USD)'], ['EUR', 'Euro (EUR)']]
 
 function moeda(valor: Cents, codigo: MoedaInvestimento): string {
@@ -164,7 +161,7 @@ export default function Investimentos() {
   }
   async function salvarOperacao(d: {
     ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string;
-    precoUnitario: string; tarifas: Cents; observacao: string
+    precoUnitario: string; tarifas: Cents; observacao: string; contaId?: string
   }) {
     // o erro sobe para a folha da operação, que fica aberta e o mostra junto dos campos
     await registrarOperacaoInvestimento(d)
@@ -225,7 +222,7 @@ export default function Investimentos() {
 
       {novoAtivo && <FormAtivo aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
-        <FormOperacao ativos={ativosAtivos} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
+        <FormOperacao ativos={ativosAtivos} contas={contasAtivas} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
       )}
       {novoProvento && (
         <FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} />
@@ -861,9 +858,11 @@ function decimalDeCentavos(c: Cents): string {
  * atalho: "só o valor" vale só para a primeira posição (ativo sem histórico); aportes seguintes num ativo sem cota pedem
  * uma função do banco, ver 40 - Pendências.
  */
-function FormOperacao({ ativos, aoSalvar, aoCancelar }: {
+function FormOperacao({ ativos, contas, aoSalvar, aoCancelar }: {
   ativos: AtivoInvestimento[]
-  aoSalvar: (d: { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string; precoUnitario: string; tarifas: Cents; observacao: string }) => Promise<void>
+  /** contas em reais, ativas: de onde sai a compra ou para onde volta a venda (opcional) */
+  contas: Conta[]
+  aoSalvar: (d: { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string; precoUnitario: string; tarifas: Cents; observacao: string; contaId?: string }) => Promise<void>
   aoCancelar: () => void
 }) {
   const [ativoId, setAtivoId] = useState(ativos[0]?.id ?? '')
@@ -875,6 +874,8 @@ function FormOperacao({ ativos, aoSalvar, aoCancelar }: {
   const [precoTexto, setPrecoTexto] = useState('')
   const [tarifaTexto, setTarifaTexto] = useState('0,00')
   const [observacao, setObservacao] = useState('')
+  // vazio = não passou por conta do app (ex.: previdência): só a operação
+  const [contaId, setContaId] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
   const idForm = useId()
@@ -901,7 +902,9 @@ function FormOperacao({ ativos, aoSalvar, aoCancelar }: {
     if (tarifas === null || tarifas < 0) { setErro('Confira as tarifas.'); return }
     setErro(''); setEnviando(true)
     // o erro do banco aparece aqui dentro: a folha cobre o aviso do topo da página
-    try { await aoSalvar({ ativoId, data, tipo, quantidade, precoUnitario, tarifas, observacao }) }
+    // conta só para ativo em reais (o banco também recusa outra moeda)
+    const conta = codigo === 'BRL' && contaId ? contaId : undefined
+    try { await aoSalvar({ ativoId, data, tipo, quantidade, precoUnitario, tarifas, observacao, ...(conta ? { contaId: conta } : {}) }) }
     catch (e2) { setErro(mensagemErroBanco(e2)) }
     finally { setEnviando(false) }
   }
@@ -963,6 +966,15 @@ function FormOperacao({ ativos, aoSalvar, aoCancelar }: {
               <input id={`${idForm}-preco`} inputMode="decimal" placeholder="Ex.: 25,75" value={precoTexto} onChange={(e) => setPrecoTexto(e.target.value)} className={controle} />
             </div>
           )}
+          {codigo === 'BRL' && (
+            <div className={linha}>
+              <label htmlFor={`${idForm}-conta`} className="shrink-0 text-base text-marinho">{tipo === 'buy' ? 'Saiu da conta' : 'Volta para a conta'}</label>
+              <select id={`${idForm}-conta`} value={contaId} onChange={(e) => setContaId(e.target.value)} className={controle}>
+                <option value="">Nenhuma (fora do app)</option>
+                {contas.filter((c) => (c.moeda ?? 'BRL') === 'BRL').map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+          )}
           <div className={linha}>
             <label htmlFor={`${idForm}-data`} className="shrink-0 text-base text-marinho">Data</label>
             <input id={`${idForm}-data`} type="date" value={data} onChange={(e) => setData(e.target.value)} className={`${controle} appearance-none`} />
@@ -978,7 +990,10 @@ function FormOperacao({ ativos, aoSalvar, aoCancelar }: {
         </div>
 
         <p className="text-sm text-slate-600">
-          {tipo === 'sell' ? 'A venda não pode superar a quantidade que você tem.' : 'As tarifas da compra entram no custo de aquisição.'} A operação não movimenta nenhuma conta.
+          {tipo === 'sell' ? 'A venda não pode superar a quantidade que você tem.' : 'As tarifas da compra entram no custo de aquisição.'}{' '}
+          {contaId && codigo === 'BRL'
+            ? (tipo === 'buy' ? 'O valor sai da conta escolhida e vai para a carteira, sem virar despesa.' : 'O valor líquido volta para a conta escolhida, sem virar receita.')
+            : 'Sem conta escolhida, nenhuma conta muda.'}
         </p>
       </form>
     </Folha>

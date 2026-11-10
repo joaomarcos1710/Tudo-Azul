@@ -215,6 +215,18 @@ describe('Lançamentos', () => {
     expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
   })
 
+  it('aporte para a carteira (migration 100): nome da conta interna, selo Investimento, só um link para Investimentos e fora do lote', async () => {
+    mock.listarContas.mockResolvedValue({ contas, total: c(0), internas: [{ id: 'k9', nome: 'Carteira de investimentos' }] })
+    mock.listarLancamentos.mockResolvedValue([
+      { id: 'ap', tipo: 'transfer', contaId: 'a1', destinoId: 'k9', categoriaId: null, descricao: 'Aporte: Tesouro', valor: c(50000), data: '2026-10-05', status: 'paid', notas: '' },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const linha = (await screen.findByText('Itaú → Carteira de investimentos')).closest('li') as HTMLElement
+    expect(within(linha).getByText('Investimento')).toBeTruthy()
+    expect(within(linha).getByRole('link', { name: 'Ver em Investimentos: Aporte: Tesouro' }).getAttribute('href')).toBe('/investimentos')
+    expect(within(linha).queryByRole('button', { name: /Ações de/ })).toBeNull()
+  })
+
   it('no computador não há o card "Saldo ao final de cada dia" (pedido do dono, 10/11/2026)', async () => {
     const original = window.matchMedia
     window.matchMedia = ((q: string) => ({ matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
