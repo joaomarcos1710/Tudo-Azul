@@ -25,10 +25,20 @@ vi.mock('../lib/recorrencias', async (o) => ({
   resumoRecorrencias: mock.resumoRecorrencias,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
+vi.mock('../lib/projecaoCompromissos', () => ({ carregarProjecaoCompromissos: vi.fn().mockResolvedValue([]) }))
 vi.mock('../lib/cartoes', async (o) => ({ ...(await o<typeof import('../lib/cartoes')>()), listarCartoes: mock.listarCartoes }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
 import Recorrentes from './Recorrentes'
+
+/** Categoria agora é um seletor em folha (como no Organizze): abre pelo botão e toca na categoria. */
+async function escolherCategoria(u: ReturnType<typeof userEvent.setup>, campo: HTMLElement, id: string) {
+  await u.click(campo)
+  const folhas = screen.getAllByRole('dialog', { name: 'Selecionar uma categoria' })
+  const folha = folhas[folhas.length - 1]
+  await u.click(folha.querySelector(`[data-categoria-id="${id}"]`) as HTMLElement)
+}
+
 
 const c = (n: number) => n as Cents
 const luz = {
@@ -93,7 +103,7 @@ describe('Recorrentes', () => {
     await u.type(screen.getByLabelText('Descrição'), 'Luz')
     await u.type(screen.getByLabelText('Valor estimado (R$)'), '180,00')
     await u.selectOptions(screen.getByLabelText('Dia do mês'), '10')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
     expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({
       tipo: 'expense', descricao: 'Luz', valor: 18000, dia: 10, contaId: 'a1', destinoId: null, cartaoId: null, categoriaId: 'g1',
@@ -110,7 +120,7 @@ describe('Recorrentes', () => {
     await u.type(screen.getByLabelText('Descrição'), 'Netflix')
     await u.type(screen.getByLabelText('Valor (R$)'), '55,90')
     await u.selectOptions(screen.getByLabelText('Dia do mês'), '5')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
     expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({
       tipo: 'card', valor: 5590, dia: 5, contaId: null, cartaoId: 'k1', categoriaId: 'g1',
@@ -122,8 +132,11 @@ describe('Recorrentes', () => {
     montar()
     await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
     await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
-    expect(screen.queryByRole('option', { name: 'Moradia' })).toBeNull()
-    expect(screen.getByRole('option', { name: 'Salário' })).toBeTruthy()
+    // a categoria abre a folha do seletor: só as de receita aparecem
+    await u.click(screen.getByLabelText('Categoria'))
+    const folha = screen.getByRole('dialog', { name: 'Selecionar uma categoria' })
+    expect(within(folha).queryByRole('button', { name: 'Moradia' })).toBeNull()
+    expect(within(folha).getByRole('button', { name: 'Salário' })).toBeTruthy()
   })
 
   it('transferência exige destino diferente e não tem categoria', async () => {
@@ -240,7 +253,7 @@ describe('Recorrentes', () => {
     await u.type(screen.getByLabelText('Até (opcional)'), '2027-03-31')
     expect(screen.getByText(/Repete toda sexta, a cada 14 dias\./)).toBeTruthy()
     expect(screen.getByText('30/10/2026 · 13/11/2026 · 27/11/2026')).toBeTruthy()
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g2')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g2')
     await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
     expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({
       tipo: 'income', unidade: 'week', cada: 2, dia: null, inicio: '2026-10-30', fim: '2027-03-31',
@@ -263,7 +276,7 @@ describe('Recorrentes', () => {
     await u.clear(inicio)
     await u.type(inicio, '2027-02-01')
     expect(screen.getByText('20/02/2027 · 20/02/2028 · 20/02/2029')).toBeTruthy()
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g2')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g2')
     await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
     expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ unidade: 'month', cada: 12, dia: 20, inicio: '2027-02-01', fim: null }))
     vi.useRealTimers()
@@ -286,7 +299,7 @@ describe('Recorrentes', () => {
     await u.clear(primeira)
     await u.type(primeira, '2026-09-01')
     expect(screen.getByText(/Datas antes de hoje não são criadas\./)).toBeTruthy()
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
     expect(screen.getByText('Use de 1 a 4 semanas.')).toBeTruthy()
     expect(mock.criarRecorrencia).not.toHaveBeenCalled()
@@ -308,7 +321,7 @@ describe('Recorrentes', () => {
     await u.clear(inicio)
     await u.type(inicio, '2027-01-01')
     await u.type(screen.getByLabelText('Até (opcional)'), '2026-12-01')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
     expect(screen.getByText('A data final não pode ser antes do início.')).toBeTruthy()
     expect(mock.criarRecorrencia).not.toHaveBeenCalled()
@@ -334,7 +347,7 @@ describe('Recorrentes', () => {
       await u.type(screen.getByLabelText('Descrição'), 'Assinatura')
       await u.type(screen.getByLabelText('Valor estimado (€)'), '9,90')
       await u.selectOptions(screen.getByLabelText('Dia do mês'), '5')
-      await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+      await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
       await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
       expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', contaId: 'a3', valor: 990 }))
     })
@@ -385,7 +398,7 @@ describe('Recorrentes', () => {
       { id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true },
       { id: 'g3', nome: 'Condomínio', tipo: 'expense', paiId: 'g1', sistema: false, ativa: true },
     ]
-    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => t !== 'Resumo por mês')
+    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => t !== 'Resumo por mês' && t !== 'Projeção de compromissos')
     /** Faixas de frequência (h3) dentro do card de um tipo. */
     const faixas = (card: HTMLElement) => within(card).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
     const card = (titulo: RegExp) => screen.getByRole('region', { name: titulo })

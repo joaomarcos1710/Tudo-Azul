@@ -7,7 +7,6 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
 import { useFocoPreso } from '../components/ui/useFocoPreso'
-import { Selecao } from '../components/ui/Selecao'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import type { AcaoMenu } from '../components/ui/MenuAcoes'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -15,7 +14,7 @@ import { useFamilia } from '../lib/FamiliaContext'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { atualizarAutomaticos } from '../lib/automaticos'
-import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
+import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import { listarCartoes, novaChave, registrarCompra, rotaFatura } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
 import type { Categoria } from '../lib/categorias'
@@ -25,31 +24,42 @@ import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
 import { aceitaLancamento, hojeSP, listarContas, listarSaldosDiarios, mesmaMoeda } from '../lib/contas'
 import type { Conta, SaldoDiario } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, parseBRL, primeiraMaiuscula, simboloMoeda } from '../lib/format'
+import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, limitesDoMes, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartao, listarFaturasDoMes, listarLancamentos,
-  listarMovimentosDeDivida, marcarComoPago,
-  moverParaLixeira, perguntaSeRepete, restaurarDaLixeira, resumoDoMes, resumoPorMoeda, somarMeses, valoresDasParcelas,
+  criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
+  listarMovimentosDeDividaNoPeriodo, marcarComoPago,
+  moverParaLixeira, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, valoresDasParcelas,
 } from '../lib/lancamentos'
 // import à parte para não conflitar com outras branches que mexem na lista acima
 import { situacaoDoLancamento } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
-import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoMes, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
-import { ComprasDaFatura, NomeCategoria, TabelaLancamentos, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, useTelaGrande, valorComSinal } from './LancamentosTabela'
-import type { ItemLista } from './LancamentosTabela'
+import { ComprasDaFatura, NomeCategoria, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, valorComSinal } from './LancamentosItens'
+import { useSelecaoLote } from './SelecaoEmLote'
+import type { ItemLista } from './LancamentosItens'
 import { criarRecorrencia, definirPessoaRecorrencia, frequencias } from '../lib/recorrencias'
-import { SELO, corDoValor } from '../lib/cores'
+import { SELO } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
+import { RodapeLancamentos } from '../components/RodapeLancamentos'
+import type { TotaisCaixa } from '../components/RodapeLancamentos'
+import { serieFluxo } from '../lib/fluxoCaixa'
+import { SeletorPeriodo } from '../components/ui/SeletorPeriodo'
+import { FiltrosLancamentos } from './FiltrosLancamentos'
+import { SeletorCategoria } from '../components/SeletorCategoria'
+import { periodoDoMes } from '../lib/periodoRelatorio'
+import type { Periodo as PeriodoLista } from '../lib/periodoRelatorio'
+import type { SerieFluxo } from '../lib/fluxoCaixa'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 
-const totalCard = 'flex items-start justify-between gap-3 px-4 py-3 sm:block sm:p-5'
-const totalRotulo = 'shrink-0 text-sm text-slate-500'
-const totalValor = 'whitespace-nowrap tabular-nums text-base font-bold sm:text-xl'
+/** Totais de uma linha de cash_flow_series ('total'): entradas, saídas e o saldo no fim do período, como o banco devolve. */
+function totaisDe(s: SerieFluxo): TotaisCaixa {
+  return { entradas: s.totalEntradas, saidas: s.totalSaidas, saldo: s.linhas[s.linhas.length - 1]?.saldo ?? null }
+}
 
 export default function Lancamentos() {
   const { familia } = useFamilia()
@@ -74,9 +84,10 @@ export default function Lancamentos() {
 
   const [params, setParams] = useSearchParams()
   // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
-  const [mes, setMes] = useState(() => {
+  // o período da lista (etapa 3 do Organizze): começa no mês do link ou no atual; "Escolher período" pode ser livre
+  const [periodo, setPeriodo] = useState<PeriodoLista>(() => {
     const m = params.get('mes')
-    return m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth()
+    return periodoDoMes(m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth())
   })
   useEffect(() => {
     let ativo = true
@@ -84,12 +95,11 @@ export default function Lancamentos() {
       setSaldosDiarios([])
       return
     }
-    const [de, ate] = limitesDoMes(mes)
-    void listarSaldosDiarios(familiaId, de, ate)
+    void listarSaldosDiarios(familiaId, periodo.de, periodo.ate)
       .then((valores) => { if (ativo) setSaldosDiarios(valores) })
       .catch(() => { if (ativo) setSaldosDiarios([]) })
     return () => { ativo = false }
-  }, [familiaId, mes, mostrarSaldoDiario])
+  }, [familiaId, periodo, mostrarSaldoDiario])
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
   // ?tipo=receita|despesa (avisos do Início): abre já filtrado pelo tipo; o filtro continua editável na tela
   const [filtros, setFiltros] = useState<Filtros>(() => {
@@ -107,7 +117,9 @@ export default function Lancamentos() {
   const [creditosCartao, setCreditosCartao] = useState<CreditoDeCartao[]>([])
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [comprasFalharam, setComprasFalharam] = useState(false)
-  const [resumo, setResumo] = useState<ResumoMes | null>(null)
+  // rodapé (regime de caixa, do banco): undefined = carregando, null = não carregou (a lista segue)
+  const [totais, setTotais] = useState<{ realizado: TotaisCaixa; previsto: TotaisCaixa } | null | undefined>(undefined)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   // receitas e despesas pagas em outras moedas (multimoeda F2): à parte, nunca somadas ao resumo em reais
   const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
   const [contas, setContas] = useState<Conta[]>([])
@@ -116,17 +128,19 @@ export default function Lancamentos() {
   const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
   // Renderização progressiva: mantém o mês completo no estado, mas limita o DOM a 50 linhas por etapa.
   const [limiteVisivel, setLimiteVisivel] = useState(50)
-  useEffect(() => { setLimiteVisivel(50) }, [mes, filtros.contaId, filtros.tipo, filtros.categoriaId])
+  useEffect(() => { setLimiteVisivel(50) }, [periodo, filtros.contaId, filtros.tipo, filtros.categoriaId])
 
   /** Categorias oferecidas no filtro: só as do tipo escolhido; transferência não tem categoria. */
-  const categoriasDoFiltro = filtros.tipo === 'transfer' ? [] : categorias.filter((c) => !filtros.tipo || c.tipo === filtros.tipo)
-  /** Trocar o tipo limpa a categoria que deixou de combinar (e a de qualquer categoria, em transferência); o resto do filtro fica. */
-  function mudarTipoDoFiltro(v: string) {
-    const tipo = (v || undefined) as TipoLancamento | undefined
-    const categoria = categorias.find((c) => c.id === filtros.categoriaId)
-    const incompativel = tipo === 'transfer' || (tipo !== undefined && categoria !== undefined && categoria.tipo !== tipo)
-    setFiltros({ ...filtros, tipo, categoriaId: incompativel ? undefined : filtros.categoriaId })
-  }
+  /** O que está ligado, para os selos de cima (cada um sai sozinho). Tirar o tipo não mexe na categoria: ela já combinava. */
+  const filtrosLigados: { chave: string; rotulo: string; tirar: () => void }[] = [
+    ...(filtros.contaId ? [{ chave: 'conta', rotulo: contas.find((c) => c.id === filtros.contaId)?.nome ?? 'Conta', tirar: () => setFiltros((f) => ({ ...f, contaId: undefined })) }] : []),
+    ...(filtros.tipo ? [{ chave: 'tipo', rotulo: rotuloTipo[filtros.tipo], tirar: () => setFiltros((f) => ({ ...f, tipo: undefined })) }] : []),
+    ...(filtros.categoriaId ? [{ chave: 'categoria', rotulo: nomesCompletos(categorias).get(filtros.categoriaId) ?? 'Categoria', tirar: () => setFiltros((f) => ({ ...f, categoriaId: undefined })) }] : []),
+    ...(filtros.cartaoId ? [{ chave: 'cartao', rotulo: cartoes.find((c) => c.id === filtros.cartaoId)?.nome ?? 'Cartão', tirar: () => setFiltros((f) => ({ ...f, cartaoId: undefined })) }] : []),
+    ...(filtros.situacao ? [{ chave: 'situacao', rotulo: filtros.situacao === 'paid' ? 'Resolvido' : 'Pendente', tirar: () => setFiltros((f) => ({ ...f, situacao: undefined })) }] : []),
+    ...(filtros.soFixos ? [{ chave: 'fixos', rotulo: 'Fixos', tirar: () => setFiltros((f) => ({ ...f, soFixos: undefined })) }] : []),
+    ...(filtros.soParcelados ? [{ chave: 'parcelados', rotulo: 'Parcelados', tirar: () => setFiltros((f) => ({ ...f, soParcelados: undefined })) }] : []),
+  ]
   const [naLixeira, setNaLixeira] = useState<Lancamento | null>(null)
   const [pagando, setPagando] = useState<Lancamento | null>(null)
 
@@ -144,6 +158,8 @@ export default function Lancamentos() {
     if (editando !== null || contas.length === 0) return
     function tecla(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
+      // com a tela de filtros aberta, a tecla não abre um lançamento por baixo dela
+      if (filtrosAbertos) return
       const alvo = e.target as HTMLElement | null
       if (alvo && (alvo.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(alvo.tagName))) return
       const t = ATALHOS[e.key.toLowerCase()]
@@ -154,7 +170,7 @@ export default function Lancamentos() {
     }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [editando, contas.length])
+  }, [editando, contas.length, filtrosAbertos])
 
   // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
   const [automaticosProntos, setAutomaticosProntos] = useState(false)
@@ -191,7 +207,7 @@ export default function Lancamentos() {
       // Com filtro de categoria, as compras e os créditos daquela categoria saem um a um (o total da fatura mistura categorias).
       const categoria = filtros.categoriaId
       const hoje = hojeSP()
-      const cartao = listarFaturasDoMes(familiaId, mes, filtros, hoje)
+      const cartao = listarFaturasNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje)
         .then(async (fs) => (categoria
           ? {
               faturas: [], compras: await listarComprasDasFaturas(fs, categoria),
@@ -201,7 +217,7 @@ export default function Lancamentos() {
           : { faturas: fs, compras: [], creditos: [] as CreditoDeCartao[] }))
         .catch(() => null)
       // parcela de contrato não tem categoria nem é receita/transferência; com filtro de conta, só as debitadas nela
-      const [deMes, ateMes] = limitesDoMes(mes)
+      const [deMes, ateMes] = [periodo.de, periodo.ate]
       const parcelas = filtros.categoriaId || (filtros.tipo && filtros.tipo !== 'expense')
         ? Promise.resolve([] as ParcelaDivida[])
         : listarParcelasDivida(familiaId, deMes, ateMes).catch(() => [] as ParcelaDivida[])
@@ -210,12 +226,19 @@ export default function Lancamentos() {
       // (no fechamento, o dia em que contam; a fatura não aparece em Receita, então não duplica) ou de categoria (acima).
       // Falha nos créditos não derruba a lista.
       const creditos = filtros.tipo === 'income'
-        ? listarCreditosDeCartao(familiaId, mes, filtros, hoje).catch(() => [] as CreditoDeCartao[])
+        ? listarCreditosDeCartaoNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje).catch(() => [] as CreditoDeCartao[])
         : Promise.resolve([] as CreditoDeCartao[])
       // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
       const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(() => [] as ResumoPorMoeda[])
+      // rodapé: o mesmo número do Relatório Entradas x Saídas (pagos / pagos e não pagos), seguindo só o filtro de conta;
+      // se falhar, a lista continua e só o rodapé avisa
+      const doFluxo = { contas: filtros.contaId ? [filtros.contaId] : undefined }
+      const totaisDoMes = Promise.all([
+        serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: false }),
+        serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: true }),
+      ]).then(([pago, comPlanejado]) => ({ realizado: totaisDe(pago), previsto: totaisDe(comPlanejado) })).catch(() => null)
       const [l, r, md, cc, pc, cr, pm] = await Promise.all([
-        listarLancamentos(familiaId, mes, filtros), resumoDoMes(familiaId, mes), listarMovimentosDeDivida(familiaId, mes, filtros), cartao, parcelas,
+        listarLancamentosNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), totaisDoMes, listarMovimentosDeDividaNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), cartao, parcelas,
         creditos, porMoedaDoMes,
       ])
       if (meu !== pedido.current) return
@@ -226,13 +249,13 @@ export default function Lancamentos() {
       setFaturas(cc?.faturas ?? [])
       setComprasCategoria(cc?.compras ?? [])
       setComprasFalharam(cc === null)
-      setResumo(r)
+      setTotais(r)
       setPorMoeda(pm)
       setErro('')
     } catch (err) {
       if (meu === pedido.current) setErro(mensagemErroBanco(err))
     }
-  }, [familiaId, mes, filtros, automaticosProntos])
+  }, [familiaId, periodo, filtros, automaticosProntos])
 
   useEffect(() => { void carregar() }, [carregar])
 
@@ -240,8 +263,6 @@ export default function Lancamentos() {
   const moedaConta = useMemo(() => new Map(contas.map((c) => [c.id, c.moeda ?? 'BRL'])), [contas])
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
   const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
-  // computador (lg): tabela com seleção de vários; celular: a lista por dia de sempre
-  const telaGrande = useTelaGrande()
 
   async function agir(acao: () => Promise<void>) {
     try {
@@ -257,17 +278,21 @@ export default function Lancamentos() {
     await agir(async () => { await moverParaLixeira(l.id); setNaLixeira(l) })
   }
 
-  if (!familiaId) return null
-
   // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
   type Item = ItemLista
+  // filtro de cartão: só as faturas dele (a compra e o crédito vivem na fatura). Situação, fixos e parcelados valem só para
+  // lançamentos: quem não é lançamento some com eles. Tipo e categoria seguem como antes, dentro de cada consulta.
+  const soCartao = Boolean(filtros.cartaoId)
+  const soLancamento = Boolean(filtros.situacao || filtros.soFixos || filtros.soParcelados)
+  const mostraLancamentos = !soCartao
+  const mostraOutrosMovimentos = !soCartao && !soLancamento
   const itens: ItemLista[] = [
-    ...(lancamentos ?? []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
-    ...movimentosDivida.map((m) => ({ origem: 'divida' as const, m, data: m.data })),
-    ...faturas.map((f) => ({ origem: 'fatura' as const, f, data: f.vencimento })),
-    ...comprasCategoria.map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
-    ...parcelasContrato.map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
-    ...creditosCartao.map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
+    ...(mostraLancamentos ? lancamentos ?? [] : []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
+    ...(mostraOutrosMovimentos ? movimentosDivida : []).map((m) => ({ origem: 'divida' as const, m, data: m.data })),
+    ...(soLancamento ? [] : faturas.filter((f) => !soCartao || f.cartaoId === filtros.cartaoId)).map((f) => ({ origem: 'fatura' as const, f, data: f.vencimento })),
+    ...(mostraOutrosMovimentos ? comprasCategoria : []).map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
+    ...(mostraOutrosMovimentos ? parcelasContrato : []).map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
+    ...(mostraOutrosMovimentos ? creditosCartao : []).map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
   ].sort((x, y) => ordemPreferida === 'asc'
     ? (x.data < y.data ? -1 : x.data > y.data ? 1 : 0)
     : (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
@@ -280,6 +305,14 @@ export default function Lancamentos() {
     else porDia.push([it.data, [it]])
   }
 
+  // a seleção em lote vale para os lançamentos visíveis, na ordem da tela (o Shift marca o intervalo nessa ordem)
+  const lote = useSelecaoLote({
+    lancamentos: itensVisiveis.flatMap((it) => (it.origem === 'lancamento' ? [it.l] : [])), hoje, categorias, aoAlterar: carregar,
+    chave: `${periodo.de}|${periodo.ate}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`,
+  })
+
+  if (!familiaId) return null
+
   const saldosPorData = new Map<string, SaldoDiario[]>()
   for (const saldo of saldosDiarios) {
     const grupo = saldosPorData.get(saldo.data) ?? []
@@ -288,46 +321,46 @@ export default function Lancamentos() {
   }
   const rotuloSaldoDoDia = (data: string) => (saldosPorData.get(data) ?? [])
     .map((saldo) => formatMoeda(saldo.saldo, saldo.moeda)).join(' · ')
-  const gruposSaldosDiarios = [...saldosPorData.entries()]
 
   return (
     <>
-      <CabecalhoPagina titulo="Lançamentos" descricao="Receitas, despesas e transferências do mês, pagas e planejadas."
-        // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
-        acoes={<MenuNovo desabilitado={contas.length === 0} aoEscolher={(t) => { setInicial(t); setEditando('novo') }} />} />
+      <CabecalhoPagina titulo="Lançamentos" descricao="Receitas, despesas e transferências do mês, pagas e planejadas." />
 
       {contas.length === 0 && lancamentos !== null && (
         <div className="mb-4"><Aviso tipo="info">Cadastre uma conta em <strong>Contas</strong> antes do primeiro lançamento.</Aviso></div>
       )}
 
-      <div className="sticky top-0 z-20 -mx-4 mb-4 flex items-center gap-2 border-b border-slate-100 bg-white/85 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/75">
-        <Button variante="secundario" className="min-w-11" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
-        <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
-        <Button variante="secundario" className="min-w-11" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
+      <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-slate-100 bg-white/85 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-white/75">
+        <div className="flex items-center gap-2">
+          {/* mês, semana, dia, últimos N meses ou um período livre (‹ › andam pelo tamanho do período escolhido) */}
+          <SeletorPeriodo periodo={periodo} hoje={hojeSP()} aoMudar={setPeriodo} />
+          {/* os três filtros moram numa folha (pedido do dono, 10/11/2026: "esses botões feios"); aqui só o botão e o que está ligado */}
+          <button type="button" onClick={() => setFiltrosAbertos(true)} disabled={editando !== null} aria-haspopup="dialog" aria-expanded={filtrosAbertos}
+            aria-label={filtrosLigados.length > 0 ? `Filtrar (${filtrosLigados.length} ligado${filtrosLigados.length > 1 ? 's' : ''})` : 'Filtrar'}
+            className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro disabled:opacity-50">
+            <IconeFiltro />Filtrar{filtrosLigados.length > 0 && <span className="rounded-full bg-azul px-1.5 text-xs text-white">{filtrosLigados.length}</span>}
+          </button>
+          {/* ⋯ do topo (como no Organizze): por ora só "Selecionar lançamentos"; ali entram as próximas ações da lista */}
+          {!lote.ligada && (
+            <MenuAcoes rotulo="Mais ações da lista" desabilitado={editando !== null || !itensVisiveis.some((it) => it.origem === 'lancamento')}
+              acoes={[{ rotulo: 'Selecionar lançamentos', aoEscolher: lote.ligar }]} />
+          )}
+        </div>
+        {lote.barra}
+        {filtrosLigados.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-2" aria-label="Filtros ligados">
+            {filtrosLigados.map((f) => (
+              <li key={f.chave}>
+                <button type="button" onClick={f.tirar} aria-label={`Tirar o filtro ${f.rotulo}`}
+                  className="inline-flex min-h-9 items-center gap-1 rounded-full bg-azul-claro px-3 text-xs font-semibold text-marinho hover:ring-1 hover:ring-azul">
+                  {f.rotulo}<span aria-hidden="true">×</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      {resumo && (
-        <div className="mb-4 grid gap-2 sm:grid-cols-3 sm:gap-3">
-          {/* celular: uma linha por total (rótulo à esquerda, valor à direita); a partir de sm: três painéis */}
-          <Card semPadding className={totalCard}><p className={totalRotulo}>Receitas pagas</p><p className={`${totalValor} text-lucro`}>+{formatBRL(resumo.receitas)}</p></Card>
-          <Card semPadding className={totalCard}><p className={totalRotulo}>Despesas pagas</p><p className={`${totalValor} text-neutro`}>−{formatBRL(resumo.despesas)}</p></Card>
-          <Card semPadding className={totalCard}>
-            <p className={totalRotulo}>Resultado do mês</p>
-            <div className="min-w-0 text-right sm:text-left">
-              <p className={`${totalValor} ${corDoValor(resumo.resultado)}`}>{formatBRL(resumo.resultado)}</p>
-              {(resumo.receitasPrevistas > 0 || resumo.despesasPrevistas > 0) && (
-                // cada valor é indivisível (nowrap) e a linha quebra entre eles: no celular o valor nunca fica cortado
-                <p className="mt-1 flex flex-wrap justify-end gap-x-1.5 text-xs text-agendado sm:justify-start">
-                  <span>Planejado:</span>
-                  <span className="whitespace-nowrap">+{formatBRL(resumo.receitasPrevistas)}</span>
-                  <span aria-hidden="true">/</span>
-                  <span className="whitespace-nowrap">−{formatBRL(resumo.despesasPrevistas)}</span>
-                </p>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
       <ResultadoEmOutrasMoedas porMoeda={porMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
 
       {movimentosDivida.length > 0 && (
@@ -339,19 +372,11 @@ export default function Lancamentos() {
       )}
 
 
-      {/* Filtros só com o formulário fechado: criar/editar ocupa o foco e "Novo lançamento" não deve mostrar filtro.
-          Tipo vem antes da categoria porque ele decide quais categorias existem (receita × despesa; transferência não tem). */}
-      {editando === null && (
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
-          <Selecao rotulo="Filtrar por conta" valor={filtros.contaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, contaId: v || undefined })}
-            opcoes={contas.map((c) => [c.id, c.nome])} todos="Todas as contas" />
-          <Selecao rotulo="Filtrar por tipo" valor={filtros.tipo ?? ''} aoMudar={mudarTipoDoFiltro}
-            opcoes={Object.entries(rotuloTipo)} todos="Todos os tipos" />
-          <Selecao rotulo="Filtrar por categoria" valor={filtros.categoriaId ?? ''} aoMudar={(v) => setFiltros({ ...filtros, categoriaId: v || undefined })}
-            opcoes={opcoesDeCategoria(categoriasDoFiltro, categorias).map((o) => [o.id, filtros.tipo ? o.rotulo : `${o.rotulo} (${categorias.find((c) => c.id === o.id)?.tipo === 'income' ? 'receita' : 'despesa'})`])}
-            todos={filtros.tipo === 'transfer' ? 'Transferência não tem categoria' : 'Todas as categorias'}
-            desabilitado={filtros.tipo === 'transfer'} />
-        </div>
+      {/* Tipo vem antes da categoria porque ele decide quais categorias existem (receita × despesa; transferência não tem).
+          Os filtros valem na hora; o botão só fecha a folha. */}
+      {filtrosAbertos && editando === null && (
+        <FiltrosLancamentos filtros={filtros} aoMudar={setFiltros} contas={contas} cartoes={cartoes} categorias={categorias}
+          aoFechar={() => setFiltrosAbertos(false)} />
       )}
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
@@ -376,6 +401,7 @@ export default function Lancamentos() {
           aoSalvar={async () => { setEditando(null); await carregar() }}
           aoRegistrarOutro={carregar}
           aoCancelar={() => setEditando(null)}
+          aoCategoriaCriada={(c) => setCategorias((atual) => [...atual, c])}
         />
         </PainelLancamento>
       )}
@@ -404,35 +430,15 @@ export default function Lancamentos() {
         </Explicacao>
       )}
 
-      {telaGrande && mostrarSaldoDiario && gruposSaldosDiarios.length > 0 && (
-        <Card>
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-sm font-semibold text-marinho">Saldo ao final de cada dia</h2>
-            <span className="text-xs text-slate-500">Por moeda, sem conversão</span>
-          </div>
-          <div className="grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-            {gruposSaldosDiarios.map(([data, valores]) => (
-              <div key={data} className="flex items-center justify-between gap-3 border-b border-slate-100 py-1 text-sm">
-                <span className="text-slate-500">{formatDate(data)}</span>
-                <strong className="text-right tabular-nums text-marinho">{valores.map((s) => formatMoeda(s.saldo, s.moeda)).join(' · ')}</strong>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
       {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && creditosCartao.length === 0 && faturas.length === 0
         && comprasCategoria.length === 0 && editando === null && contas.length > 0 && (
         <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
           acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
       )}
 
-      {telaGrande ? (
-        <TabelaLancamentos itens={itensVisiveis} hoje={hoje} ordemInicial={ordemPreferida} chaveSelecao={`${mes}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`}
-          categorias={categorias} nomeConta={nomeConta} moedaConta={moedaConta} nomeCategoria={nomeCategoria} categoriaPorId={categoriaPorId}
-          ocupado={pagando !== null} aoEditar={(l) => { setPagando(null); setEditando(l) }} aoPagar={(l) => { setEditando(null); setPagando(l) }}
-          aoExcluir={excluir} aoAlterar={carregar} />
-      ) : (
+      {lote.confirmacao}
+      {lote.desfazer}
+
       <div className="flex flex-col gap-4">
         {porDia.map(([data, itens]) => (
           <section key={data} aria-label={formatDate(data)}>
@@ -506,7 +512,13 @@ export default function Lancamentos() {
                   ]
                   return (
                     <LinhaLista key={l.id}
-                      icone={l.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" /> : <IconeCategoria visual={visualPorId(l.categoriaId, categoriaPorId, l.tipo)} />}
+                      // no modo de seleção a caixa entra no lugar do ícone e as ações de um só saem (evita o toque errado)
+                      icone={lote.ligada ? (
+                        <label className="-m-2 inline-flex min-h-11 min-w-11 items-center justify-center">
+                          <input type="checkbox" className="h-5 w-5 accent-azul" aria-label={`Selecionar ${nome}`} checked={lote.marcado(l.id)}
+                            onChange={(e) => lote.alternar(l.id, (e.nativeEvent as MouseEvent).shiftKey === true)} />
+                        </label>
+                      ) : l.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" /> : <IconeCategoria visual={visualPorId(l.categoriaId, categoriaPorId, l.tipo)} />}
                       titulo={nome}
                       // só a categoria (a folha); a transferência não tem categoria, então mostra de qual conta para qual
                       categoria={l.tipo === 'transfer'
@@ -520,7 +532,7 @@ export default function Lancamentos() {
                         ...(l.recorrente ? [<span key="r" className="shrink-0" title="Gerado por um recorrente"><span aria-hidden="true">↻</span><span className="sr-only">recorrente</span></span>] : []),
                       ]}
                       valor={v.texto} corValor={v.cor}
-                      acoes={<>
+                      acoes={lote.ligada ? undefined : <>
                         {l.status === 'planned' && (
                           <button type="button" aria-label="Marcar pago" title={`Marcar pago: ${nome}`} disabled={pagando !== null}
                             onClick={() => { setEditando(null); setPagando(l) }}
@@ -537,7 +549,6 @@ export default function Lancamentos() {
           </section>
         ))}
       </div>
-      )}
       {itens.length > limiteVisivel && (
         <div className="flex flex-col items-center gap-2 py-4">
           <p className="text-xs text-slate-500">Mostrando {itensVisiveis.length} de {itens.length} lançamentos e movimentos</p>
@@ -546,7 +557,23 @@ export default function Lancamentos() {
           </Button>
         </div>
       )}
+
+      <RodapeLancamentos realizado={totais === undefined ? undefined : totais?.realizado ?? null}
+        previsto={totais === undefined ? undefined : totais?.previsto ?? null}
+        aviso={filtros.tipo || filtros.categoriaId || filtros.situacao || filtros.cartaoId || filtros.soFixos || filtros.soParcelados
+          ? 'Os totais seguem só o filtro de conta (não os de tipo, categoria, situação, cartão, fixos ou parcelados).' : undefined}
+        // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
+        acao={<MenuNovo desabilitado={contas.length === 0} aoEscolher={(t) => { setInicial(t); setEditando('novo') }} />} />
     </>
+  )
+}
+
+/** Ícone do botão Filtrar (dois controles deslizantes), no traço dos ícones do menu. */
+function IconeFiltro() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
+    </svg>
   )
 }
 
@@ -737,6 +764,8 @@ interface PropsForm {
   /** "Registrar e lançar outro": recarrega a lista sem fechar o formulário. */
   aoRegistrarOutro: () => Promise<void>
   aoCancelar: () => void
+  /** Categoria criada pelo seletor: a página acrescenta à lista dela (ícones e nomes da lista por dia). */
+  aoCategoriaCriada: (c: Categoria) => void
 }
 
 const rotuloAcao: Record<TipoLancamento | 'cartao', string> = {
@@ -766,7 +795,7 @@ function Linha({ icone, rotulo, dica, htmlFor, fixo = false, children }: {
 const controleLinha = 'min-h-11 min-w-0 max-w-full appearance-none truncate rounded-md bg-transparent px-1 text-right text-base text-slate-700 focus:outline focus:outline-2 focus:outline-azul'
 const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</span>
 
-function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar }: PropsForm) {
+function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar, aoCategoriaCriada }: PropsForm) {
   const { sessao: sessaoAtual } = useAuth()
   const hoje = hojeSP()
   // multimoeda F2: receita, despesa e transferência aceitam conta em qualquer moeda (o destino da transferência, só na
@@ -1051,10 +1080,10 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             </Linha>
           ) : (
             <Linha icone={<IconeCategorias />} rotulo="Categoria" htmlFor="lanc-categoria">
-              <select id="lanc-categoria" value={categoriaId} onChange={(e) => setCategoriaId(e.target.value)} className={controleLinha}>
-                <option value="">Escolher</option>
-                {opcoesDeCategoria(categoriasDoTipo, categorias).map((o) => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
-              </select>{seta}
+              {/* folha com busca, lista ou grade e "Criar categoria" (pedido do dono, 10/11/2026, como no Organizze) */}
+              <SeletorCategoria id="lanc-categoria" rotulo="Categoria" rotuloVisivel={false} valor={categoriaId} aoMudar={setCategoriaId}
+                opcoes={categoriasDoTipo} categorias={categorias} tipo={tipo === 'income' ? 'income' : 'expense'} aoCriada={aoCategoriaCriada}
+                classeBotao="flex min-h-11 min-w-0 max-w-full items-center justify-end gap-2 rounded-md px-1 text-right text-base text-slate-700 focus:outline focus:outline-2 focus:outline-azul" />{seta}
             </Linha>
           )}
           {!transferencia && tipo === 'expense' && (
@@ -1207,7 +1236,7 @@ const PERIODOS: { chave: string; rotulo: string; unidade: 'month' | 'week' | 'da
 
 const ATALHOS: Record<string, InicialForm> = { d: 'expense', r: 'income', t: 'transfer', c: 'cartao' }
 
-/** "+ Lançamento": menu com os quatro tipos e a tecla de atalho de cada um. */
+/** Botão flutuante "+" (pedido do dono, 10/11/2026, como no Organizze): menu com os quatro tipos e a tecla de atalho de cada um. */
 function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscolher: (t: InicialForm) => void }) {
   const [aberto, setAberto] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -1224,12 +1253,16 @@ function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscol
   ]
   return (
     <div className="relative" ref={ref}>
-      <Button onClick={() => setAberto((v) => !v)} disabled={desabilitado} aria-haspopup="menu" aria-expanded={aberto}>+ Lançamento</Button>
+      <button type="button" onClick={() => setAberto((v) => !v)} disabled={desabilitado} aria-haspopup="menu" aria-expanded={aberto}
+        aria-label="Novo lançamento" title="Novo lançamento (teclas D, R, T, C)"
+        className="flex h-14 w-14 items-center justify-center rounded-full bg-azul text-3xl font-light leading-none text-white shadow-card hover:bg-marinho focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul disabled:cursor-not-allowed disabled:opacity-50">
+        <span aria-hidden="true">+</span>
+      </button>
       {aberto && (
-        <div role="menu" aria-label="Novo lançamento" className="absolute left-0 z-40 mt-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-marinho p-2 shadow-card sm:left-auto sm:right-0">
+        <div role="menu" aria-label="Novo lançamento" className="absolute bottom-full right-0 z-40 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-marinho p-2 shadow-card">
           {itens.map(([t, rotulo, tecla]) => (
             <button key={t} type="button" role="menuitem"
-              // o foco volta ao "+ Lançamento" antes do painel abrir: o painel o guarda como origem e o devolve ao fechar
+              // o foco volta ao "+" antes do painel abrir: o painel o guarda como origem e o devolve ao fechar
               onClick={() => { setAberto(false); ref.current?.querySelector<HTMLButtonElement>('button')?.focus(); aoEscolher(t) }}
               className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm font-semibold text-white hover:bg-white/10">
               {rotulo}

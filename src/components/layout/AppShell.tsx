@@ -4,9 +4,10 @@ import { definirValoresOcultos, useValoresOcultos } from '../../lib/privacidade'
 import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
 import { IconeMais, IconeOlho, IconeOlhoFechado } from './icons'
-import { gruposMenuPerfil, gruposNavegacao, itemAtivo, itensAcessoRapido, itensFixosNoCelular, itensNavegacao } from './navegacao'
+import { gruposMenuPerfil, gruposNavegacao, gruposSidebar, itemAtivo, itensFixosNoCelular, itensNavegacao } from './navegacao'
 import { Marca } from './Marca'
 import { Versao } from './Versao'
+import { Autoria } from './Autoria'
 
 const base = 'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
 
@@ -160,6 +161,7 @@ function PerfilSidebar({ pathname }: { pathname: string }) {
               <span aria-hidden="true" className="w-[22px] text-center">↪</span>Sair
             </button>
             <Versao className="px-3 pb-1 pt-2 text-[11px] text-blue-200/60" />
+            <Autoria className="px-3 pb-2 text-blue-200/60" />
           </div>
         </div>
       )}
@@ -203,17 +205,22 @@ export function AppShell() {
           <Marca claro />
           <BotaoOcultarValores claro />
         </div>
-        <nav aria-label="Principal" className="flex flex-col gap-2">
-          <ul className="flex flex-col gap-2">
-            {itensAcessoRapido.map(({ caminho, rotulo, Icone }) => (
-              <li key={caminho}>
-                <NavLink to={caminho} end={caminho === '/'}
-                  className={({ isActive }) => `${base} ${isActive ? 'bg-azul text-white shadow-sm' : 'text-blue-100 hover:bg-white/10'}`}>
-                  <Icone />{rotulo === 'Análises' || rotulo === 'Relatórios' ? rotulo : rotulo}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
+        <nav aria-label="Principal" className="flex flex-col gap-4">
+          {gruposSidebar.map((grupo, i) => (
+            <div key={grupo.titulo} role="group" aria-labelledby={`nav-grupo-${i}`}>
+              <p id={`nav-grupo-${i}`} className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-blue-200">{grupo.titulo}</p>
+              <ul className="flex flex-col gap-1">
+                {grupo.itens.map(({ caminho, rotulo, Icone }) => (
+                  <li key={caminho}>
+                    <NavLink to={caminho} end={caminho === '/'}
+                      className={({ isActive }) => `${base} ${isActive ? 'bg-azul text-white shadow-sm' : 'text-blue-100 hover:bg-white/10'}`}>
+                      <Icone />{rotulo}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </nav>
         <PerfilSidebar pathname={pathname} />
       </aside>

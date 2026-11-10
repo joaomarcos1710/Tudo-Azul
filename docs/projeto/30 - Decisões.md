@@ -455,3 +455,72 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 - **Decisão:** manter as 69 como estão, sem revogar `EXECUTE` e sem trocar para `SECURITY INVOKER`.
 - **Motivo:** 56 são chamadas pelo app. As 13 restantes (`card_set_start`, `create_debt_installments`, `create_debt_invoice`, `debt_anticipate`, `debt_bill`, `debt_loan_event`, `debt_return`, `delete_household`, `leave_household`, `reconcile_account`, `reconciliation_undo`, `recurrence_end`, `remove_member`) aparecem em testes pgTAP que as chamam como usuário autenticado, e a lista esperada do `00_audit` as trata como API. `leave_household` é chamada por `remove_member`, e `delete_household` é a exclusão da família. Revogar exigiria mudar testes e o `00_audit` no mesmo PR.
 - **Reavaliar** se alguma delas deixar de ter teste ou de ser exposta a usuários.
+
+## 10/11/2026 — Recorrência no cartão (dono)
+- Ocorrências de cartão devem aparecer na fatura "enquanto eu não cancelar" (janela móvel, como a conta) e, ao mudar o dia ou cancelar, perguntar "só esta" ou "esta e as próximas", como o Organizze. Motivo: hoje só viram item no dia e o dono não consegue ajustar antes. Plano em `28 - Recorrência no cartão estilo Organizze (plano).md`; falta decidir se o item futuro ocupa o limite.
+
+## 10/11/2026 — Recorrência no cartão: itens agendados (dono)
+- As recorrências de cartão ficam lançadas nas faturas futuras e entram no total da fatura; só ocupam o limite quando a fatura anterior fecha (só recorrência; parcelado segue ocupando desde a compra). Motivo: é como o Organizze faz e o dono planeja pela fatura futura. Horizonte de 12 meses renovando, sem botão "Lançar", cancelar "esta e as próximas" mantém o que já virou parcela. Em aberto: editar o dia depois de virar parcela ("talvez"). Provisório: fatura paga travada empurra para a seguinte ("vamos testar"). Desenho: tabela `card_scheduled_items` (doc 28).
+
+## 10/11/2026 — Barra lateral com as telas frequentes (dono)
+- Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens voltam para a barra lateral do computador; o menu do perfil fica só com o que é raro (Família, Exportar, Preferências, Sair). Motivo: o dono não achava onde lançar assinatura de cartão porque Recorrentes estava escondida no menu do perfil. Substitui a decisão do "acesso rápido" com 8 itens.
+
+## 10/11/2026 — Cache das consultas com TanStack Query, só no Início (dono)
+- **Adotar `@tanstack/react-query`**, contido no Início e em Análises por enquanto. Motivo: mostrar o valor guardado enquanto revalida, evitar pedidos repetidos e cancelar pedido em voo, feito à mão, vira um mini-framework frágil. As outras telas seguem como estão até validarmos.
+- **Cache só em memória.** Nada de saldo, dívida ou fatura gravado no aparelho (navegador compartilhado ou inspecionado exporia o patrimônio da família). F5 ou aba nova mostra "Carregando…"; navegar pelo app e voltar ao Início é instantâneo. Persistir no aparelho fica para depois, se o dono decidir.
+- **`staleTime: 0`**: o guardado aparece na hora, mas toda volta à tela revalida no banco. Número financeiro não fica congelado.
+- **Chave com seção, família, mês e dia**; ao sair da conta o cache é limpo.
+- **Tarefas automáticas**: falha continua virando aviso na tela; se gravaram algo, chamam `invalidarDadosHome`.
+- O cache não resolve a primeira carga: a função `get_home_decision_month` (7,7 s de média) precisa de `EXPLAIN (ANALYZE, BUFFERS)` e correção no banco (ver "40 - Pendências").
+
+## 10/11/2026 — Desempenho do Início: cortar trabalho repetido antes de reescrever a conta do cartão (dono)
+
+O dono autorizou o `EXPLAIN (ANALYZE, BUFFERS)` em produção e a investigação. Resultado (uma execução, cache quente, com RLS): `get_home_decision_month` levou 3,75 s lendo ~527 mil páginas, tudo da memória, num banco com ~4 mil lançamentos. Não é disco nem índice: é trabalho repetido.
+
+- **Feito agora (sem mudar regra de valor):** (A) a matriz chama a conta de faturas uma vez por cartão e por data de corte distinta; (B) o Início usa os indicadores que `get_home_decision_month` já devolve em `treasury` quando a data de corte é hoje, em vez de chamar `home_indicators` de novo; se a decisão falhar ou o corte for outro, pede à parte como antes.
+- **Adiado de propósito:** reescrever `private.card_months_as_of` (3 subconsultas por parcela, ~120 ms por cartão). É a conta oficial da fatura e acabou de passar pelas 4 etapas da recorrência; só com medição por dentro e comparação linha a linha.
+- **Corrida corrigida junto:** `invalidarDadosHome` durante a primeira carga não refazia a leitura (o TanStack reaproveita a busca em curso quando ainda não há dado). Agora cancela a primeira carga em andamento e lê de novo.
+
+## 10/11/2026 — Conta da fatura: reescrever a soma antes de mexer na política de segurança (dono)
+
+O perfil de `card_months_as_of` (cartão com ~4,7 mil parcelas) mostrou que o custo é quase todo das 3 buscas por parcela (~13,5 mil por chamada), com a política de linha (`is_member` por linha) encarecendo cada uma. Em banco local: reescrever a soma corta ~50%; trocar só a política corta ~50%; juntas, ~90%.
+
+- **Feito:** a reescrita da soma (migration `20261110070000`), por ser verificável por comparação de saída com a função antiga e não mexer em segurança.
+- **Adiado de propósito:** reescrever as políticas de `debt_events`/`debt_installments` (`household_id in (select private.my_households())`). Mexe em segurança entre famílias, o padrão se repete em ~60 políticas e o ganho adicional só vale a pena se, depois de aplicar a reescrita, o Início ainda estiver lento. O protótipo local manteve o isolamento (A, B e quem não é da família veem o esperado; membro removido deixa de ver na hora), mas não testou o ramo `service_read`.
+
+## 10/11/2026 — Início enxuto; o resto vai para Análises (dono)
+
+Pedido do dono, com prazo de uso em 20/11/2026: o Início fica só com **Minha Carteira** (ele escolheu manter o topo inteiro: cabeçalho, Dinheiro Livre, atalhos e os 7 indicadores), **Minhas contas**, **Meus cartões**, **Maiores gastos**, **Receitas a receber** e **Despesas a pagar** ("receitas a pagar" lido como despesas a pagar). "O restante realoca": ele escolheu **Análises** como destino.
+
+- **Foram para Análises:** os avisos do topo, "Vencidos e precisam de atenção", "Orçamentos do mês" e "Últimos lançamentos". Análises passa a consultar o que eles precisam (contas para nomear as pontas de transferência, lançamentos, categorias, vencidos, orçamentos e avisos), cada consulta opcional: se uma falhar, só o bloco dela some, e o aviso de vencidos indisponíveis continua.
+- **Saíram sem destino:** "Meus investimentos" e "Empréstimos e dívidas" do Início, que eram só um texto "será integrado nas próximas etapas" e um link para a tela completa (os dois estão na barra lateral). Os atalhos de Investimentos e Dívidas do topo saíram junto (apontavam para esses cartões).
+- **Despesas a pagar também saiu do Início** (pedido do dono logo depois, 10/11/2026: "o card contas a pagar pode sair"); o Início deixa de consultar as saídas planejadas. Ele também disse que Últimos lançamentos, Meus investimentos e Empréstimos e dívidas "podem sair": os dois últimos já saíram; Últimos lançamentos ficou em Análises (leitura mais estreita de "dashboard" = Início), a confirmar.
+- **Risco aceito:** os avisos de vencidos e de faturas deixam de estar na primeira tela que o dono vê. Se ele sentir falta, a alternativa barata é voltar só a faixa de avisos ao Início.
+- **Efeito colateral bom:** o Início deixa de fazer 4 consultas (vencidos, avisos, orçamentos e lançamentos), inclusive `home_alerts`, uma das mais pesadas.
+
+## 10/11/2026 — A faixa de avisos e os Últimos lançamentos saem de vez (dono)
+
+O dono viu em produção a faixa "Contas a pagar — Você tem 1 conta a pagar no total de R$ 60,00 nos próximos 7 dias" e pediu que saísse, e repetiu que "Últimos lançamentos também pode sair". Na #265 eu os tinha movido para Análises em vez de apagá-los; ele queria fora do app (Lançamentos continua listando tudo).
+
+- **Removidos** do Início e de Análises: a faixa de avisos (`AvisosInicio`, `avisosDoInicio`) e o card Últimos lançamentos. Análises deixa de consultar lançamentos e `home_alerts`.
+- **Mantidos:** Vencidos e Orçamentos do mês em Análises (ele não pediu para tirar); a RPC `home_alerts` continua no banco porque `get_home_decision_month` a usa por dentro.
+- **Risco aceito:** sem a faixa, nada avisa de conta a pagar nos próximos 7 dias, de fatura perto de vencer nem de receita a receber; só os Vencidos de Análises (itens que já passaram da data). Se ele sentir falta, a faixa pode voltar com outro formato.
+
+## 10/11/2026 — Lançamentos no visual do Organizze, em três etapas (dono)
+
+Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com os lançamentos separados por dia, botão de filtrar em cima, separar o período, selecionar lançamentos, botão para lançar e rodapé com o que entrou e saiu.
+
+- **Computador:** lista por dia, igual ao celular (a tabela sai), com seleção em massa (etapa 2).
+- **Rodapé em regime de caixa**, como no Organizze: a fatura conta no vencimento, igual à linha da fatura na lista e ao Relatório Entradas x Saídas com "Pagos e não pagos". Os números vêm de `cash_flow_series` (uma linha "total" do mês, com e sem os não pagos); o front não soma nada. Isso troca o critério dos totais desta tela: antes eram os de `period_summary` (compra no fechamento da fatura).
+- **Período livre já** (etapa 3), além do mês.
+- Etapa 1 (#268): topo com Filtrar, botão "+" flutuante e rodapé. O rodapé segue só o filtro de conta (o banco não filtra por tipo/categoria nessa função; com filtro de conta não devolve saldo); com tipo ou categoria, avisa em vez de mostrar um número que não seria o filtrado.
+- Regra 50-30-20 sai do app (#275, dono, 10/11/2026: "acabar com isso"): só 22 de 132 categorias de despesa tinham grupo, e o relatório depende de classificar uma a uma. Sai a tela; a coluna e a função ficam no banco, sem migration, para não perder a classificação e poder voltar sem custo. Orçamentos cobre o "quanto posso gastar".
+- Contas (#274): o seletor "Filtrar por etiqueta" vai para a tela de filtros compartilhada, ao vivo, porque só esconde contas da lista.
+- Categorias com linha limpa (#278, dono, 10/11/2026): as ações saem da linha e vão para a folha de edição. "Não conta como consumo" quase nunca se usa (quitação, empréstimo, repasse) e, num botão em cada linha, só ocupava espaço e confundia.
+- Seletor de categoria em folha (#276, dono, 10/11/2026, print do Organizze): um componente só (`SeletorCategoria`) troca o seletor nativo nos formulários de lançamento, compra no cartão, cobrança agendada, crédito do cartão e recorrente. "Criar categoria" entra (resposta do dono) só onde o formulário consegue acrescentar a categoria nova à sua lista (lançamento, compra no cartão, recorrente); cria só categoria principal. A ordem é a mesma do seletor antigo (`opcoesDeCategoria`). Orçamentos continua com o seletor nativo.
+- Investimentos (#273): os dois seletores (Macroclasse e Subclasse) vão para a tela de filtros compartilhada, ao vivo como Lançamentos, porque só filtram a lista na tela.
+- Tela de filtros compartilhada (#272): a casca, os chips e os cartões de filtro saíram de Lançamentos para `components/ui/TelaFiltros.tsx`, usada também no Entradas x Saídas. O Entradas x Saídas continua em rascunho (Aplicar), porque cada toque ali consulta o banco; Lançamentos segue ao vivo.
+- Filtros em tela cheia (#271): a tela de filtros é tela inteira, como no Organizze, com as cores do app. Cartão de crédito não tem lançamento próprio (a compra vive na fatura), então filtrar por cartão mostra só as faturas dele; situação, fixos e parcelados valem só para lançamentos (fatura, dívida e contrato somem com eles). O rodapé segue só o filtro de conta e avisa dos outros.
+- Etapa 3 (#270): o período da lista é o mesmo seletor do relatório (`SeletorPeriodo`), não um seletor de mês novo: um só jeito de escolher período no app. As consultas de lançamentos, faturas, créditos e dívidas passaram a receber o intervalo (`*NoPeriodo`); as versões por mês continuam para o Calendário e não mudam.
+- Etapa 2 (#269): a tabela do computador saiu; a seleção mora num modo ligado pelo ⋯ do topo ("Selecionar lançamentos"), com a caixa no lugar do ícone e sem o ⋯ de cada linha enquanto ligado (evita tocar a ação errada). Ficou de fora o que só a tabela tinha: ordenar por valor e a coluna Conta. Fatura, compra de cartão, dívida e contrato continuam sem caixa (não são `transactions`).
+

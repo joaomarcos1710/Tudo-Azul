@@ -83,6 +83,30 @@ export interface ItemFatura {
   categoriaId: string
 }
 
+/** Uma ocorrência prevista de assinatura numa fatura (card_subscription_previews): ainda não virou parcela. */
+export interface OcorrenciaPrevista {
+  recorrenciaId: string
+  /** Dia em que a assinatura será cobrada (a compra); é a data editada, se a pessoa mudou só esta. */
+  data: string
+  descricao: string
+  valor: Cents
+  categoriaId: string
+  /** Id do item agendado; null enquanto o app ainda não gerou os itens (então só dá para excluir a assinatura). */
+  itemId: string | null
+  /** A pessoa mudou só esta ocorrência. */
+  editada: boolean
+}
+
+/** Uma fatura futura com assinaturas agendadas (card_scheduled_invoices): total e quantidade somados no banco. */
+export interface FaturaAgendada {
+  /** AAAA-MM do fechamento da fatura. */
+  mes: string
+  fechamento: string
+  vencimento: string
+  total: Cents
+  itens: number
+}
+
 /** Uma linha da prévia de exclusão: o que será desfeito (cobrança, pagamento devolvido, cancelamento). */
 export interface ItemPrevia {
   tipo: 'charge' | 'credit' | 'payment' | 'extra_principal' | 'cancel' | string
@@ -403,6 +427,86 @@ export async function listarItens(cartaoId: string, mes: string): Promise<ItemFa
     valor: centsFromDb(i.face ?? 0),
     falta: centsFromDb(i.remaining ?? 0),
     categoriaId: i.category_id as string,
+  }))
+}
+
+/**
+ * As assinaturas (recorrências de cartão) previstas numa fatura, uma linha por ocorrência, ainda sem virar parcela.
+ * Vêm do banco (card_subscription_previews); nada é somado aqui. `mes` = AAAA-MM do fechamento da fatura.
+ */
+export async function listarOcorrenciasPrevistas(cartaoId: string, mes: string): Promise<OcorrenciaPrevista[]> {
+  const { data, error } = await cliente().rpc('card_subscription_previews', { p_debt: cartaoId, p_label: mes })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number | boolean | null>[]).map((o) => ({
+    recorrenciaId: o.recurrence_id as string,
+    data: o.occurrence_date as string,
+    descricao: (o.description as string | null) ?? 'Assinatura',
+    valor: centsFromDb((o.amount as string | number | null) ?? 0),
+    categoriaId: o.category_id as string,
+    itemId: (o.item_id as string | null) ?? null,
+    editada: o.edited === true,
+  }))
+}
+
+export interface DadosAgendada { data: string; valor: Cents; descricao: string; categoriaId: string }
+
+/** "Só esta": muda a data, o valor, a descrição e a categoria de uma cobrança ainda agendada (card_scheduled_item_update). */
+export async function editarAgendada(itemId: string, d: DadosAgendada): Promise<void> {
+  const { error } = await cliente().rpc('card_scheduled_item_update', {
+    p_item: itemId, p_charge_date: d.data, p_amount: centsToDecimal(d.valor), p_description: d.descricao.trim(), p_category: d.categoriaId,
+  })
+  if (error) throw error
+}
+
+/** "Só esta": cancela uma cobrança ainda agendada; as outras seguem (card_scheduled_item_cancel). */
+export async function cancelarAgendada(itemId: string): Promise<void> {
+  const { error } = await cliente().rpc('card_scheduled_item_cancel', { p_item: itemId })
+  if (error) throw error
+}
+
+/**
+ * "Esta e as próximas": encerra daqui em diante ('end') ou muda daqui em diante ('update', com os dados novos).
+ * O que já virou compra fica como está. Devolve quantas cobranças agendadas saíram (card_scheduled_from_here).
+ */
+export async function aPartirDaqui(itemId: string, acao: 'end' | 'update', d?: DadosAgendada): Promise<number> {
+  const { data, error } = await cliente().rpc('card_scheduled_from_here', {
+    p_item: itemId, p_action: acao,
+    ...(acao === 'update' && d ? { p_charge_date: d.data, p_amount: centsToDecimal(d.valor), p_description: d.descricao.trim(), p_category: d.categoriaId } : {}),
+  })
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
+/**
+ * Gera (ou atualiza) os itens agendados das assinaturas de cartão para os próximos 12 meses (card_scheduled_sync).
+ * O app chama ao abrir, depois de gerar os recorrentes. Devolve quantas linhas mudaram.
+ */
+export async function sincronizarAgendados(): Promise<number> {
+  const { data, error } = await cliente().rpc('card_scheduled_sync')
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
+/**
+ * Converte em parcela os itens agendados cuja fatura já é a aberta, ou seja, quando a fatura anterior fechou
+ * (card_scheduled_convert). É aí que a assinatura passa a ocupar o limite e a valer na fatura. Devolve quantos converteu.
+ */
+export async function converterAgendados(): Promise<number> {
+  const { data, error } = await cliente().rpc('card_scheduled_convert')
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
+/** Faturas futuras do cartão com assinaturas agendadas; totais do banco, nada é somado aqui. */
+export async function listarFaturasAgendadas(cartaoId: string): Promise<FaturaAgendada[]> {
+  const { data, error } = await cliente().rpc('card_scheduled_invoices', { p_debt: cartaoId })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number | null>[]).map((f) => ({
+    mes: f.label as string,
+    fechamento: f.closing_date as string,
+    vencimento: f.due_date as string,
+    total: centsFromDb(f.total ?? 0),
+    itens: Number(f.items ?? 0),
   }))
 }
 

@@ -2,8 +2,6 @@ const SECOES = [
   { id: 'visao-geral', rotulo: 'Visão geral', principal: true },
   { id: 'contas', rotulo: 'Contas', principal: false },
   { id: 'cartoes', rotulo: 'Cartões', principal: false },
-  { id: 'investimentos', rotulo: 'Investimentos', principal: false },
-  { id: 'dividas', rotulo: 'Dívidas', principal: false },
 ] as const
 
 /**

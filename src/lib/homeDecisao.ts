@@ -1,5 +1,7 @@
 import { centsFromDb } from './format'
 import type { Cents } from './format'
+import { indicadoresDaLinha } from './indicadores'
+import type { Indicadores, Linha } from './indicadores'
 import { supabase } from './supabase'
 
 export interface CompromissoDecisao {
@@ -41,6 +43,11 @@ export interface HomeDecisao {
   saidasPlanejadas: Cents
   projecao: ProjecaoDecisao
   compromissos: CompromissoDecisao[]
+  /**
+   * Os indicadores que a função já calculou por dentro (public.home_indicators na data de corte), para o Início
+   * não pedir a mesma conta duas vezes; null = não veio ou veio ilegível (o Início pede à parte).
+   */
+  tesouraria: Indicadores | null
 }
 
 type Registro = Record<string, unknown>
@@ -57,6 +64,15 @@ function texto(v: unknown): string {
 function numero(v: unknown): number {
   const n = Number(v ?? 0)
   return Number.isFinite(n) ? n : 0
+}
+
+function tesouraria(v: unknown): Indicadores | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null
+  try {
+    return indicadoresDaLinha(v as Linha)
+  } catch {
+    return null
+  }
 }
 
 /** A decisão de caixa e a projeção vêm de uma única RPC; o cliente só converte para centavos e apresenta. */
@@ -101,6 +117,7 @@ export async function carregarHomeDecisao(familiaId: string, mes: string): Promi
       extraRitmo: dinheiro(p.paceExtra),
       projetado: dinheiro(p.projected),
     },
+    tesouraria: tesouraria(r.treasury),
     compromissos: compromissos.map((item) => {
       const i = item as Registro
       return {

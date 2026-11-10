@@ -34,13 +34,15 @@ foram lidos e estão marcados como pendentes.
 
 ## Patrimônio líquido (Início)
 
-- A tela escreve: `disponível + crédito a receber + bens em BRL − dívida`
-  (`src/pages/VisaoGeral.tsx`, linha ~479).
-- **Divergência [verificado]:** o cálculo em `home_indicators` é `todas + cr + bens − debt`, em que `todas` é o saldo
-  de **todas** as contas BRL (incluindo as inativas e outros tipos) e `debt` inclui as faturas de cartão. A fórmula
-  escrita na tela usa `disponível`, que é diferente de `todas`. A diferença é `(todas − ativas) + cartao_fechadas`.
-  - **Pendente:** confirmar qual RPC alimenta o `p.patrimonio` mostrado em `VisaoGeral.tsx`. Se for a `home_indicators`,
-    o texto da tela está errado. Não corrigir antes de confirmar.
+- O cartão de patrimônio (`src/pages/VisaoGeral.tsx`) vem de `net_worth_with_assets` (`src/lib/painel.ts`, com
+  `net_worth` como fallback). **[verificado]** A fórmula no banco é `available + cr + bens BRL − debt`, e a frase da
+  tela (`disponível + crédito a receber + bens em BRL − dívida`) bate com ela.
+- **`available` aqui é a soma de todos os saldos BRL** (`account_balances`, sem filtrar tipo nem faturas de cartão).
+  Não é o mesmo "Disponível" do Dinheiro Livre (ver abaixo). Os dois aparecem na mesma tela de Início com nomes iguais.
+- `home_indicators` (faixa de indicadores do topo) calcula o patrimônio com a mesma base, `todas + cr + bens − debt`.
+  Numericamente bate com o cartão, mas é outra RPC: se uma mudar, a outra precisa mudar junto.
+- **Pendente:** o campo `available` de `net_worth_with_assets` inclui contas inativas? A função `account_balances` não
+  foi lida.
 - Bens em USD/EUR e contas em outras moedas não entram no consolidado. Aparecem à parte (`EmOutrasMoedas`).
 - Investimentos aparecem separados, fora do disponível e do patrimônio consolidado (`inv` existe em `home_indicators`
   mas não entra em `todas + cr + bens − debt`).
@@ -109,7 +111,7 @@ moneyFree          = circulatingBalance − compromissos pendentes do mês
 3. Se assinaturas de cartão previstas entram em `planejado` e em `faturas` ao mesmo tempo (risco de abatimento duplo).
 4. Regras de dívidas: pagamento antecipado, encerramento e lançamento na conta.
 5. Testes automatizados de aporte e resgate.
-6. Divergência de rótulos entre "Disponível do Início" e "Disponível em Análises".
+6. Duas definições de "Disponível" no Início: a do cartão de patrimônio (soma de todos os saldos BRL) e a do Dinheiro Livre (contas ativas menos faturas fechadas). Confirmar se é intencional e rotular de forma diferente.
 
 ## Decisão pendente do dono
 

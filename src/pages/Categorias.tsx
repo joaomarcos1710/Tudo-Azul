@@ -3,15 +3,12 @@ import type { FormEvent, ReactNode } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { Folha } from '../components/ui/Folha'
 import { Field } from '../components/ui/Field'
 import { useFamilia } from '../lib/FamiliaContext'
-import { agrupar, criarCategoria, definirCategoriaAtiva, definirCategoriaEventual, definirCategoriaGrupo, definirCategoriaNaoConsumo, editarCategoria, listarCategorias } from '../lib/categorias'
+import { agrupar, criarCategoria, definirCategoriaAtiva, definirCategoriaEventual, definirCategoriaNaoConsumo, editarCategoria, listarCategorias } from '../lib/categorias'
 import type { Categoria, TipoCategoria } from '../lib/categorias'
 import { mensagemErroBanco } from '../lib/erros'
-import { asCents, currentMonth, formatBRL, formatMonth, primeiraMaiuscula } from '../lib/format'
-import { limitesDoMes } from '../lib/lancamentos'
-import { GRUPOS, relatorioRegra, rotuloGrupo, sugerirGrupo } from '../lib/regra503020'
-import type { GrupoOrcamento, LinhaRegra } from '../lib/regra503020'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { CORES, ICONES, IconeCategoria, sugerirVisual, visualDaCategoria } from '../lib/visualCategoria'
 import type { ChaveIcone } from '../lib/visualCategoria'
@@ -30,9 +27,14 @@ export default function Categorias() {
   const [erro, setErro] = useState('')
   // null = fechado; 'nova' = criando; Categoria = editando
   const [editando, setEditando] = useState<Categoria | 'nova' | null>(null)
-  // null = ainda não carregou ou o banco ainda não tem a migration 032 (o cartão simplesmente não aparece)
-  const [regra, setRegra] = useState<LinhaRegra[] | null>(null)
-  const mes = currentMonth()
+  // faixa fixa embaixo (pedido do dono, 10/11/2026: "Editar e desativar não funcionam"): no celular, o retorno no topo da
+  // página ficava fora da vista e parecia que o botão não fazia nada
+  const [faixa, setFaixa] = useState<{ texto: string; erro?: boolean; desfazer?: () => void } | null>(null)
+  useEffect(() => {
+    if (!faixa) return
+    const t = window.setTimeout(() => setFaixa(null), 8000)
+    return () => window.clearTimeout(t)
+  }, [faixa])
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
@@ -46,33 +48,17 @@ export default function Categorias() {
 
   useEffect(() => { void carregar() }, [carregar])
 
-  const carregarRegra = useCallback(async () => {
-    if (!familiaId) return
-    try {
-      const [de, ate] = limitesDoMes(mes)
-      setRegra(await relatorioRegra(familiaId, de, ate))
-    } catch {
-      setRegra(null)
-    }
-  }, [familiaId, mes])
-
-  useEffect(() => { void carregarRegra() }, [carregarRegra])
-
-  async function mudarGrupo(c: Categoria, grupo: GrupoOrcamento | null) {
-    try {
-      await definirCategoriaGrupo(c.id, grupo)
-      await Promise.all([carregar(), carregarRegra()])
-    } catch (err) {
-      setErro(mensagemErroBanco(err))
-    }
-  }
-
-  async function alternarAtiva(c: Categoria) {
+  async function alternarAtiva(c: Categoria, comDesfazer = true) {
     try {
       await definirCategoriaAtiva(c.id, !c.ativa)
       await carregar()
+      setFaixa({
+        texto: `${c.nome} ${c.ativa ? 'desativada' : 'reativada'}.`,
+        desfazer: comDesfazer ? () => { void alternarAtiva({ ...c, ativa: !c.ativa }, false) } : undefined,
+      })
     } catch (err) {
       setErro(mensagemErroBanco(err))
+      setFaixa({ texto: mensagemErroBanco(err), erro: true })
     }
   }
 
@@ -80,8 +66,10 @@ export default function Categorias() {
     try {
       await definirCategoriaNaoConsumo(c.id, !c.naoConsumo)
       await carregar()
+      setFaixa({ texto: c.naoConsumo ? `${c.nome} volta a contar como consumo.` : `${c.nome} não conta mais como consumo.` })
     } catch (err) {
       setErro(mensagemErroBanco(err))
+      setFaixa({ texto: mensagemErroBanco(err), erro: true })
     }
   }
 
@@ -121,6 +109,8 @@ export default function Categorias() {
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
 
       {editando !== null && categorias && (
+        <Folha titulo={editando === 'nova' ? `Nova categoria de ${tipo === 'expense' ? 'despesa' : 'receita'}` : `Editar ${editando.nome}`}
+          aoFechar={() => setEditando(null)}>
         <FormCategoria
           categoria={editando === 'nova' ? null : editando}
           tipo={tipo}
@@ -129,20 +119,37 @@ export default function Categorias() {
           familiaId={familiaId}
           aoSalvar={async () => { setEditando(null); await carregar() }}
           aoCancelar={() => setEditando(null)}
+          // as ações de cada categoria moram aqui (pedido do dono, 10/11/2026: a linha fica só com ícone e nome); fecham a
+          // folha e o resultado aparece na faixa embaixo
+          acoes={editando === 'nova' ? undefined : {
+            herdaEventual: editando.paiId ? porId.get(editando.paiId)?.eventual === true : false,
+            aoEventual: () => { const c = editando; setEditando(null); void alternarEventual(c) },
+            aoNaoConsumo: () => { const c = editando; setEditando(null); void alternarNaoConsumo(c) },
+            aoAlternar: () => { const c = editando; setEditando(null); void alternarAtiva(c) },
+          }}
         />
+        </Folha>
+      )}
+
+      {faixa && (
+        <div role={faixa.erro ? 'alert' : 'status'}
+          className={`fixed inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex items-center gap-3 rounded-xl px-4 py-3 text-sm shadow-card md:bottom-6 md:left-auto md:right-6 md:w-96 ${faixa.erro ? 'bg-prejuizo-fundo text-prejuizo' : 'bg-marinho text-white'}`}>
+          <span className="min-w-0 flex-1">{faixa.texto}</span>
+          {faixa.desfazer && (
+            <button type="button" onClick={() => { const d = faixa.desfazer; setFaixa(null); d?.() }}
+              className="min-h-11 shrink-0 rounded-lg px-3 font-semibold underline">Desfazer</button>
+          )}
+          <button type="button" aria-label="Fechar aviso" onClick={() => setFaixa(null)}
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-lg">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
       )}
 
       {tipo === 'income' && (
         <p className="mb-4 text-sm text-slate-600">
           Marque como <strong>eventual</strong> a receita que não se repete todo mês (13º, férias, PLR, restituição, FGTS).
           A Visão geral mostra se a renda <strong>regular</strong> cobre as despesas. Os totais do mês não mudam.
-        </p>
-      )}
-
-      {tipo === 'expense' && categorias && (
-        <p className="mb-4 text-sm text-slate-600">
-          Classifique cada despesa em <strong>Necessidades</strong>, <strong>Desejos</strong> ou <strong>Investir e poupar</strong> para ver a
-          regra 50-30-20. O app só sugere pelo nome; nada é classificado sem você escolher. Os totais do mês não mudam.
         </p>
       )}
 
@@ -155,20 +162,18 @@ export default function Categorias() {
         </p>
       )}
 
-      {tipo === 'expense' && regra && <CartaoRegra linhas={regra} mes={mes} />}
-
       {categorias === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
       <ul className="flex flex-col gap-3">
         {grupos.map((g) => (
           <li key={g.id}>
             <Card semPadding>
-              <Linha categoria={g} porId={porId} aoEditar={() => setEditando(g)} aoAlternar={() => alternarAtiva(g)} aoEventual={() => alternarEventual(g)} aoNaoConsumo={() => alternarNaoConsumo(g)} herdaEventual={false} aoGrupo={(gr) => mudarGrupo(g, gr)} grupoHerdado={null} />
+              <Linha categoria={g} porId={porId} aoAbrir={() => setEditando(g)} herdaEventual={false} />
               {g.filhas.length > 0 && (
                 <ul className="border-t border-slate-100">
                   {g.filhas.map((f) => (
                     <li key={f.id} className="pl-6">
-                      <Linha categoria={f} porId={porId} aoEditar={() => setEditando(f)} aoAlternar={() => alternarAtiva(f)} aoEventual={() => alternarEventual(f)} aoNaoConsumo={() => alternarNaoConsumo(f)} herdaEventual={g.eventual} aoGrupo={(gr) => mudarGrupo(f, gr)} grupoHerdado={g.grupo ?? null} />
+                      <Linha categoria={f} porId={porId} aoAbrir={() => setEditando(f)} herdaEventual={g.eventual} />
                     </li>
                   ))}
                 </ul>
@@ -181,86 +186,37 @@ export default function Categorias() {
   )
 }
 
-function Linha({ categoria: c, porId, aoEditar, aoAlternar, aoEventual, aoNaoConsumo, herdaEventual, aoGrupo, grupoHerdado }: {
-  categoria: Categoria; porId: Map<string, Categoria>; aoEditar: () => void; aoAlternar: () => void; aoEventual: () => void; aoNaoConsumo: () => void; herdaEventual: boolean
-  aoGrupo: (g: GrupoOrcamento | null) => void; grupoHerdado: GrupoOrcamento | null
+/**
+ * Uma categoria na lista: só ícone, nome e selos (pedido do dono, 10/11/2026, como no Organizze). Tocar abre a folha de
+ * edição, onde ficam também "Não conta como consumo", "eventual" e Desativar. "Sem categoria" não abre (o banco recusa).
+ */
+function Linha({ categoria: c, porId, aoAbrir, herdaEventual }: {
+  categoria: Categoria; porId: Map<string, Categoria>; aoAbrir: () => void; herdaEventual: boolean
 }) {
-  const sugestao = c.tipo === 'expense' && !c.sistema && !c.grupo && !grupoHerdado ? sugerirGrupo(c.nome) : null
-  return (
+  const conteudo = (
     // desativada: nome em cinza neutro e ícone sem cor, sem opacidade no texto (a opacidade derrubava o contraste dos
-    // selos e dos botões abaixo de 4,5:1; auditoria 5h)
-    <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3" data-ativa={c.ativa}>
+    // selos abaixo de 4,5:1; auditoria 5h)
+    <div className="flex min-w-0 flex-1 items-center justify-between gap-2" data-ativa={c.ativa}>
       <span className={`flex min-w-0 items-center gap-3 ${c.paiId ? 'text-sm' : 'font-semibold'} ${c.ativa ? '' : 'text-neutro'}`}>
         <span className={`flex shrink-0 ${c.ativa ? '' : 'grayscale'}`}><IconeCategoria visual={visualDaCategoria(c, porId)} tamanho={c.paiId ? 'pequeno' : 'normal'} /></span>
         <span className="min-w-0">
         {c.nome}
         {!c.ativa && <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${SELO.neutro}`}>desativada</span>}
         {c.sistema && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">padrão</span>}
-        {c.grupo && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(c.grupo)}</span>}
-        {!c.grupo && grupoHerdado && <span className="ml-2 rounded bg-azul-claro px-2 py-0.5 text-xs font-medium text-marinho">{rotuloGrupo(grupoHerdado)} (da principal)</span>}
         {(c.eventual || herdaEventual) && <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${SELO.neutro}`}>eventual{herdaEventual && !c.eventual ? ' (da principal)' : ''}</span>}
         {/* só a própria marca: a subcategoria não herda a da principal (decisão do dono, 06/11/2026) */}
         {c.naoConsumo && <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${SELO.neutro}`}>não conta como consumo</span>}
         </span>
       </span>
-      {!c.sistema && (
-        <span className="flex flex-wrap items-center gap-1">
-          {c.tipo === 'expense' && (
-            <>
-              <select aria-label={`Grupo de ${c.nome}`} value={c.grupo ?? ''} onChange={(e) => aoGrupo((e.target.value || null) as GrupoOrcamento | null)}
-                className="min-h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm">
-                <option value="">{grupoHerdado ? 'Igual à principal' : 'Sem grupo'}</option>
-                {GRUPOS.map((g) => <option key={g.chave} value={g.chave}>{g.rotulo}</option>)}
-              </select>
-              {sugestao && <Button variante="fantasma" onClick={() => aoGrupo(sugestao)}>Sugestão: {rotuloGrupo(sugestao)}</Button>}
-            </>
-          )}
-          {c.tipo === 'income' && (!herdaEventual || c.eventual) && (
-            <Button variante="fantasma" onClick={aoEventual}>{c.eventual ? 'Marcar como regular' : 'Marcar como eventual'}</Button>
-          )}
-          <Button variante="fantasma" aria-pressed={c.naoConsumo === true} onClick={aoNaoConsumo}
-            title="Sai da taxa de poupança, da reserva e do comprometimento do Início; só esta categoria">Não conta como consumo</Button>
-          <Button variante="fantasma" onClick={aoEditar}>Editar</Button>
-          <Button variante="fantasma" onClick={aoAlternar}>{c.ativa ? 'Desativar' : 'Reativar'}</Button>
-        </span>
-      )}
+      {!c.sistema && <span aria-hidden="true" className="shrink-0 text-lg text-slate-400">›</span>}
     </div>
   )
-}
-
-/** Despesa do mês por grupo. Valores e percentuais vêm do banco (budget_rule_report); aqui só se apresenta. */
-function CartaoRegra({ linhas, mes }: { linhas: LinhaRegra[]; mes: string }) {
-  // só para saber se há algo a mostrar: nenhum valor em reais é somado aqui
-  if (!linhas.some((l) => l.valor > 0)) return null
+  if (c.sistema) return <div className="flex min-h-14 items-center px-5 py-3">{conteudo}</div>
   return (
-    <Card className="mb-4">
-      <h2 className="mb-1 text-lg font-semibold">Regra 50-30-20 em {primeiraMaiuscula(formatMonth(mes))}</h2>
-      <p className="mb-3 text-sm text-slate-600">Quanto da sua renda paga no mês foi para cada grupo (meta: 50% / 30% / 20%).</p>
-      <ul className="flex flex-col gap-2">
-        {GRUPOS.map((g) => {
-          const l = linhas.find((x) => x.grupo === g.chave)
-          return (
-            <li key={g.chave} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-              <span><strong>{g.rotulo}</strong> <span className="text-slate-600">· meta {g.meta}%</span></span>
-              <span>
-                {formatBRL(l?.valor ?? asCents(0)!)}
-                {' · '}
-                {l?.percentualRenda === null || l === undefined ? 'sem renda no mês' : `${l.percentualRenda.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% da renda`}
-              </span>
-            </li>
-          )
-        })}
-        {(() => {
-          const sem = linhas.find((x) => x.grupo === 'none')
-          return sem && sem.valor > 0 ? (
-            <li className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-slate-600">
-              <span>Sem grupo</span>
-              <span>{formatBRL(sem.valor)} · classifique abaixo para entrar na conta</span>
-            </li>
-          ) : null
-        })()}
-      </ul>
-    </Card>
+    <button type="button" onClick={aoAbrir} aria-label={`Editar ${c.nome}${c.ativa ? '' : ', desativada'}`}
+      className="flex min-h-14 w-full items-center px-5 py-3 text-left hover:bg-slate-50 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-azul">
+      {conteudo}
+    </button>
   )
 }
 
@@ -272,9 +228,11 @@ interface PropsForm {
   familiaId: string
   aoSalvar: () => Promise<void>
   aoCancelar: () => void
+  /** Só ao editar: as ações que antes eram botões na linha. */
+  acoes?: { herdaEventual: boolean; aoEventual: () => void; aoNaoConsumo: () => void; aoAlternar: () => void }
 }
 
-function FormCategoria({ categoria, tipo, possiveisPais, porId, familiaId, aoSalvar, aoCancelar }: PropsForm) {
+function FormCategoria({ categoria, tipo, possiveisPais, porId, familiaId, aoSalvar, aoCancelar, acoes }: PropsForm) {
   const [nome, setNome] = useState(categoria?.nome ?? '')
   const [paiId, setPaiId] = useState<string>(categoria?.paiId ?? '')
   // null = automático (sugestão pelo nome, ou o da principal na subcategoria)
@@ -306,10 +264,7 @@ function FormCategoria({ categoria, tipo, possiveisPais, porId, familiaId, aoSal
   }
 
   return (
-    <Card className="mb-6">
-      <h2 className="mb-4 text-lg font-semibold">
-        {categoria ? `Editar ${categoria.nome}` : `Nova categoria de ${tipo === 'expense' ? 'despesa' : 'receita'}`}
-      </h2>
+    <>
       <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Nome" maxLength={60} value={nome} onChange={(e) => setNome(e.target.value)} erro={tentou && !nome.trim() ? 'Informe o nome.' : undefined} />
@@ -361,7 +316,27 @@ function FormCategoria({ categoria, tipo, possiveisPais, porId, familiaId, aoSal
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+      {categoria && acoes && !categoria.sistema && (
+        <section aria-label="Mais opções" className="mt-6 flex flex-col gap-3 border-t border-slate-100 pt-4">
+          {categoria.tipo === 'income' && (!acoes.herdaEventual || categoria.eventual) && (
+            <div>
+              <Button variante="secundario" onClick={acoes.aoEventual}>{categoria.eventual ? 'Marcar como regular' : 'Marcar como eventual'}</Button>
+              <p className="mt-1 text-xs text-slate-500">Eventual: receita que não se repete todo mês (13º, férias, PLR).</p>
+            </div>
+          )}
+          <div>
+            <Button variante="secundario" aria-pressed={categoria.naoConsumo === true} onClick={acoes.aoNaoConsumo}>Não conta como consumo</Button>
+            <p className="mt-1 text-xs text-slate-500">
+              Para quitação de dívida, empréstimo recebido ou repasse entre familiares: sai da taxa de poupança, da reserva e do
+              comprometimento do Início. Relatórios e orçamento não mudam.
+            </p>
+          </div>
+          <div>
+            <Button variante={categoria.ativa ? 'perigo' : 'secundario'} onClick={acoes.aoAlternar}>{categoria.ativa ? 'Desativar' : 'Reativar'}</Button>
+          </div>
+        </section>
+      )}
+    </>
   )
 }
 

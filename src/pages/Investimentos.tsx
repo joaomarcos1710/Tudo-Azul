@@ -6,6 +6,7 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
+import { Chip, Chips, GrupoFiltro, TelaFiltros } from '../components/ui/TelaFiltros'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { useFamilia } from '../lib/FamiliaContext'
 import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
@@ -62,6 +63,7 @@ export default function Investimentos() {
   const [alocacao, setAlocacao] = useState<LinhaAlocacao[]>([])
   const [filtroMacro, setFiltroMacro] = useState('')
   const [filtroSub, setFiltroSub] = useState('')
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   const [editandoSub, setEditandoSub] = useState<string | null>(null)
   const [editandoAtivo, setEditandoAtivo] = useState<AtivoInvestimento | null>(null)
   const [extratoDe, setExtratoDe] = useState<string | null>(null)
@@ -276,10 +278,49 @@ export default function Investimentos() {
       <section className="mt-8" aria-labelledby="titulo-posicoes">
         <h2 id="titulo-posicoes" className="mb-3 text-lg font-semibold">Ativos e posições</h2>
         {posicoes.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-3">
-            <Selecao rotulo="Macroclasse" valor={filtroMacro} aoMudar={setFiltroMacro} todos="Todas" opcoes={MACROS.map((m) => [m.chave, m.rotulo])} />
-            <Selecao rotulo="Subclasse" valor={filtroSub} aoMudar={setFiltroSub} todos="Todas" opcoes={subclassesExistentes.map((x) => [x, x])} />
+          // filtros na tela cheia compartilhada (pedido do dono, 10/11/2026, como em Lançamentos); aqui só o botão e os selos.
+          // Filtra só a lista na tela: nenhum valor muda e nada é pedido ao banco, então cada toque vale na hora.
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setFiltrosAbertos(true)} aria-haspopup="dialog" aria-expanded={filtrosAbertos}
+              className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">
+              Filtrar{(filtroMacro || filtroSub) && <span className="ml-1.5 rounded-full bg-azul px-1.5 text-xs text-white">{[filtroMacro, filtroSub].filter(Boolean).length}</span>}
+            </button>
+            {filtroMacro && (
+              <button type="button" onClick={() => setFiltroMacro('')} aria-label={`Tirar o filtro ${MACROS.find((m) => m.chave === filtroMacro)?.rotulo}`}
+                className="inline-flex min-h-9 items-center gap-1 rounded-full bg-azul-claro px-3 text-xs font-semibold text-marinho">
+                {MACROS.find((m) => m.chave === filtroMacro)?.rotulo}<span aria-hidden="true">×</span>
+              </button>
+            )}
+            {filtroSub && (
+              <button type="button" onClick={() => setFiltroSub('')} aria-label={`Tirar o filtro ${filtroSub}`}
+                className="inline-flex min-h-9 items-center gap-1 rounded-full bg-azul-claro px-3 text-xs font-semibold text-marinho">
+                {filtroSub}<span aria-hidden="true">×</span>
+              </button>
+            )}
           </div>
+        )}
+        {filtrosAbertos && (
+          <TelaFiltros titulo="Filtrar posições" aoFechar={() => setFiltrosAbertos(false)}
+            acaoPrincipal={{ rotulo: 'Filtrar', nomeAcessivel: 'Filtrar: ver as posições', aoAcionar: () => setFiltrosAbertos(false) }}
+            rodape={<button type="button" onClick={() => { setFiltroMacro(''); setFiltroSub('') }} disabled={!filtroMacro && !filtroSub}
+              className="min-h-11 text-sm font-semibold text-azul hover:underline disabled:text-slate-400 disabled:no-underline">Limpar filtros</button>}>
+            <GrupoFiltro titulo="Macroclasse">
+              <Chips>
+                {MACROS.map((m) => (
+                  <Chip key={m.chave} pressionado={filtroMacro === m.chave} onClick={() => setFiltroMacro(filtroMacro === m.chave ? '' : m.chave)}>{m.rotulo}</Chip>
+                ))}
+              </Chips>
+            </GrupoFiltro>
+            {subclassesExistentes.length > 0 && (
+              <GrupoFiltro titulo="Subclasse">
+                <Chips>
+                  {subclassesExistentes.map((x) => (
+                    <Chip key={x} pressionado={filtroSub === x} onClick={() => setFiltroSub(filtroSub === x ? '' : x)}>{x}</Chip>
+                  ))}
+                </Chips>
+              </GrupoFiltro>
+            )}
+          </TelaFiltros>
         )}
         {posicoes.length > 0 && posicoesFiltradas.length === 0 && (
           <p className="text-sm text-slate-600">Nenhuma posição com esse filtro.</p>
