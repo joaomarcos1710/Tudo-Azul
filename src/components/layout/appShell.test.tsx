@@ -60,6 +60,12 @@ describe('menu em grupos', () => {
     // ideia 03: autoria logo abaixo de Sair, dentro do menu
     expect(within(menu).getByText(/Todos os direitos reservados a João Marcos\./)).toBeTruthy()
     expect(within(menu).getByText(/^© \d{4} Tudo Azul\.$/)).toBeTruthy()
+    // ordem: Sair, depois a autoria, e só então a versão
+    const sair = within(menu).getByRole('menuitem', { name: 'Sair' })
+    const autoria = within(menu).getByText(/^© \d{4} Tudo Azul\.$/)
+    const versao = within(menu).getByText(/Versão/)
+    expect(sair.compareDocumentPosition(autoria) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(autoria.compareDocumentPosition(versao) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('celular: 4 atalhos fixos + "Mais"; o resto só aparece dentro do Mais', async () => {

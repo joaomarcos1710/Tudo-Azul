@@ -160,8 +160,8 @@ function PerfilSidebar({ pathname }: { pathname: string }) {
               className="flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-blue-50 transition-colors hover:bg-white/10">
               <span aria-hidden="true" className="w-[22px] text-center">↪</span>Sair
             </button>
-            <Versao className="px-3 pb-1 pt-2 text-[11px] text-blue-200/60" />
-            <Autoria className="px-3 pb-2 text-blue-200/60" />
+            <Autoria className="px-3 pt-2 text-center text-slate-400" />
+            <Versao className="px-3 pb-2 pt-1 text-center text-[11px] text-slate-400" />
           </div>
         </div>
       )}
