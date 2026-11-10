@@ -567,7 +567,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Migration 101 (cartão lançado no orçamento) aplicada em produção em 10/11/2026 (simulação 42882544482, aplicação 42882719495).
 - [x] Consignado e financiamento cadastrados (o financiamento estava fora do app; o patrimônio estava inflado em cerca de R$ 139 mil).
 - [x] Migration 102 aplicada em 10/11/2026. A amortização com FGTS de 26/10/2026 (R$ 18.009,57) **não** deve ser lançada: o saldo cadastrado (06/11) já a considera.
-- [ ] Migration 103 (amortização que reduz prazo ou parcela, PR #NNN): simular, ler o log e aplicar, cada passo com o "pode" do dono. Depois, o dono usa em "Amortização extra" com o número do banco.
+- [ ] Migration 103 (amortização que reduz prazo ou parcela, PR #292): simular, ler o log e aplicar, cada passo com o "pode" do dono. Depois, o dono usa em "Amortização extra" com o número do banco.
 - [ ] A prestação do financiamento muda todo mês (SAC + TR + uso do FGTS): o valor fixo da dívida é aproximado; corrigir ao confirmar cada parcela.
 - [ ] Empréstimo liberado entra como receita (categoria Empréstimos, "não conta como consumo"): o ideal é cadastrar a dívida já com o valor liberado, sem receita. Sem pressa.
 - [ ] Conferir no celular (você): a tela nova de Dívidas.

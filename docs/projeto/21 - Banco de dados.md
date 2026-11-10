@@ -122,7 +122,7 @@ Todas abaixo estão aplicadas em produção (conferido na simulação de 10/11/2
 | 100 | `20261110090000_investment_portfolio_account.sql` | #284 |
 | 101 | `20261110100000_budget_card_pending.sql` | #285 |
 | 102 | `20261110110000_debt_extra_without_account.sql` | #287 |
-| 103 | `20261110120000_debt_extra_amortize_terms.sql` | #NNN |
+| 103 | `20261110120000_debt_extra_amortize_terms.sql` | #292 |
 
 A próxima migration é a **104**. Escreva o número no cabeçalho do arquivo novo.
 
@@ -243,7 +243,7 @@ Arquivo `20261110110000_debt_extra_without_account.sql`.
 - Efeito: só o saldo da dívida cai; nenhuma conta muda; não vira despesa (`private.loan_principal_items` já exige conta) nem saída no fluxo de caixa. Amortização **com** conta continua sendo despesa do mês (regra da 046).
 - Teste `96_debt_extra_without_account` (59 asserções; falha sem a migration). A troca do check revalida `debt_events` ao aplicar (tabela pequena).
 
-## Amortização que reduz prazo ou parcela (migration 103, PR #NNN, não aplicada)
+## Amortização que reduz prazo ou parcela (migration 103, PR #292, não aplicada)
 Arquivo `20261110120000_debt_extra_amortize_terms.sql`.
 - Função nova `public.debt_extra_amortize(p_debt, p_date, p_account, p_principal, p_mode, p_remaining, p_installment, p_interest, p_fee, p_category)`. Só empréstimo/financiamento com contrato e parcela em aberto.
 - Numa transação só: registra a amortização com `debt_record_payment(..., p_extra => true)` (aceita conta nula, ex.: FGTS) e ajusta o contrato com `debt_contract_set`. `p_mode = 'term'`: o prazo restante passa a `p_remaining` (não pode ser maior que o atual; o total do contrato cai na mesma medida, então a numeração da próxima parcela não muda); `p_mode = 'installment'`: a parcela passa a `p_installment` (maior que zero, não maior que a atual, 2 casas). As parcelas planejadas são refeitas a partir da próxima em aberto; as pagas não mudam.
