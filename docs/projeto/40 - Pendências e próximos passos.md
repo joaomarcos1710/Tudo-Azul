@@ -487,3 +487,11 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] A carga ainda é uma entrada só (a tela inteira): a primeira visita continua esperando a consulta mais lenta. Próximo passo: uma consulta por bloco, com esqueleto do tamanho final.
 - [ ] Gravações feitas com o Início aberto (fora as tarefas automáticas) ainda não chamam `invalidarDadosHome`; hoje não há gravação na própria tela, mas ao criar uma, chamar o helper.
 - [ ] Revalidar ao focar a janela está desligado enquanto as consultas forem pesadas; religar depois de acelerar o banco.
+
+## Início enxuto (10/11/2026, PR #265)
+- [x] Início só com Minha Carteira, contas, cartões, maiores gastos, a receber e a pagar; avisos, vencidos, orçamentos e últimos lançamentos em Análises.
+- [ ] Conferir no navegador o novo Início (desktop e celular) e Análises com os blocos novos.
+- [ ] Decidir se os avisos de vencidos/fatura voltam ao Início (hoje só em Análises).
+- [ ] Os cartões de Investimentos e Dívidas saíram do Início; se o dono quiser um resumo deles, desenhar com números reais (hoje não há).
+
+- [ ] Confirmar com o dono se Últimos lançamentos também sai de Análises (hoje só saiu do Início) e se "contas a pagar" era mesmo o card Despesas a pagar.

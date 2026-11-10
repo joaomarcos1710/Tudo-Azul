@@ -12,8 +12,6 @@ describe('NavegacaoCarteira', () => {
       ['Visão geral', '#visao-geral'],
       ['Contas', '#contas'],
       ['Cartões', '#cartoes'],
-      ['Investimentos', '#investimentos'],
-      ['Dívidas', '#dividas'],
     ])
   })
 })

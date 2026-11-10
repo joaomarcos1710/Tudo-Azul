@@ -488,3 +488,13 @@ O perfil de `card_months_as_of` (cartão com ~4,7 mil parcelas) mostrou que o cu
 - **Feito:** a reescrita da soma (migration `20261110070000`), por ser verificável por comparação de saída com a função antiga e não mexer em segurança.
 - **Adiado de propósito:** reescrever as políticas de `debt_events`/`debt_installments` (`household_id in (select private.my_households())`). Mexe em segurança entre famílias, o padrão se repete em ~60 políticas e o ganho adicional só vale a pena se, depois de aplicar a reescrita, o Início ainda estiver lento. O protótipo local manteve o isolamento (A, B e quem não é da família veem o esperado; membro removido deixa de ver na hora), mas não testou o ramo `service_read`.
 
+## 10/11/2026 — Início enxuto; o resto vai para Análises (dono)
+
+Pedido do dono, com prazo de uso em 20/11/2026: o Início fica só com **Minha Carteira** (ele escolheu manter o topo inteiro: cabeçalho, Dinheiro Livre, atalhos e os 7 indicadores), **Minhas contas**, **Meus cartões**, **Maiores gastos**, **Receitas a receber** e **Despesas a pagar** ("receitas a pagar" lido como despesas a pagar). "O restante realoca": ele escolheu **Análises** como destino.
+
+- **Foram para Análises:** os avisos do topo, "Vencidos e precisam de atenção", "Orçamentos do mês" e "Últimos lançamentos". Análises passa a consultar o que eles precisam (contas para nomear as pontas de transferência, lançamentos, categorias, vencidos, orçamentos e avisos), cada consulta opcional: se uma falhar, só o bloco dela some, e o aviso de vencidos indisponíveis continua.
+- **Saíram sem destino:** "Meus investimentos" e "Empréstimos e dívidas" do Início, que eram só um texto "será integrado nas próximas etapas" e um link para a tela completa (os dois estão na barra lateral). Os atalhos de Investimentos e Dívidas do topo saíram junto (apontavam para esses cartões).
+- **Despesas a pagar também saiu do Início** (pedido do dono logo depois, 10/11/2026: "o card contas a pagar pode sair"); o Início deixa de consultar as saídas planejadas. Ele também disse que Últimos lançamentos, Meus investimentos e Empréstimos e dívidas "podem sair": os dois últimos já saíram; Últimos lançamentos ficou em Análises (leitura mais estreita de "dashboard" = Início), a confirmar.
+- **Risco aceito:** os avisos de vencidos e de faturas deixam de estar na primeira tela que o dono vê. Se ele sentir falta, a alternativa barata é voltar só a faixa de avisos ao Início.
+- **Efeito colateral bom:** o Início deixa de fazer 4 consultas (vencidos, avisos, orçamentos e lançamentos), inclusive `home_alerts`, uma das mais pesadas.
+
