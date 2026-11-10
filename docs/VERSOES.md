@@ -166,3 +166,4 @@ continuam abaixo como histórico.
 | 2026.251 | **Plano: recorrência no cartão estilo Organizze.** Só documentação (doc 28 e pendências); nenhuma mudança de código ou banco. |
 | 2026.252 | **Recorrência no cartão, fatia "Ver".** A fatura lista cada assinatura prevista (data e valor do banco), em bloco próprio com selo Agendado. Migration só de leitura (`card_subscription_previews`), ainda não aplicada em produção. |
 | 2026.253 | **Recorrência no cartão, etapa 1: tabela de itens agendados.** `card_scheduled_items` com leitura pela família e sem escrita pelo app; nada a preenche ainda. Decisões do dono no doc 28 e em Decisões. Migration ainda não aplicada em produção. |
+| 2026.254 | **Fatura: assinaturas previstas em vermelho.** O valor de cada assinatura prevista passa a vermelho, como toda despesa; o selo Agendado continua verde. |

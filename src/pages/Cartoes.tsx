@@ -1437,7 +1437,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                   icone={<IconeCategoria visual={visualPorId(o.categoriaId, categoriaPorId, 'expense')} tamanho="pequeno" />}
                   titulo={o.descricao}
                   detalhe={`${nomeCategoria.get(o.categoriaId) ?? 'Sem categoria'} · cobrança em ${formatDate(o.data)}`}
-                  valor={`−${formatBRL(o.valor)}`} corValor="text-agendado" acoes={null} />
+                  valor={`−${formatBRL(o.valor)}`} corValor="text-prejuizo" acoes={null} />
               ))}
             </ul>
           </section>

@@ -458,8 +458,8 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Recorrência no cartão estilo Organizze (10/11/2026)
 - [ ] Todas as perguntas respondidas em 10/11: não ocupa o limite, vai direto para a B; aparece enquanto não cancelar e o diálogo "só esta / esta e as próximas" (`28 - Recorrência no cartão estilo Organizze (plano).md`). Hoje a recorrência no cartão só vira item de fatura no dia; antes disso aparece só o total "Assinaturas previstas".
-- [x] Fatia 1 "Ver": lista das assinaturas previstas na fatura (código e teste prontos; **migration 20261110010000 ainda não aplicada em produção**).
-- [x] Etapa 1 do novo desenho: tabela `card_scheduled_items` (código e teste prontos; **migration 20261110020000 ainda não aplicada em produção**).
+- [x] Fatia 1 "Ver": lista das assinaturas previstas na fatura (código e teste prontos; migration 20261110010000 aplicada em produção em 10/11/2026).
+- [x] Etapa 1 do novo desenho: tabela `card_scheduled_items` (código e teste prontos; migration 20261110020000 aplicada em produção em 10/11/2026).
 - [ ] Etapa 2: gerar os itens a partir da regra e mostrar nas faturas futuras (total em SQL).
 - [ ] Etapa 3: converter em parcela no fechamento da fatura anterior (limite passa a seguir a regra do dono).
 - [ ] Fatia 2 "Mudar" (agora etapa 4): tabela de exceções, `card_recurrence_pending`/`recurrence_materialize` respeitando-as e RPC "só esta" / "esta e as próximas".
