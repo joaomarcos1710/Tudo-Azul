@@ -72,7 +72,7 @@ continuam **derivadas da regra**, como já são hoje para o total "Assinaturas p
    enquanto a regra existir. Não há corte para o dono perceber.
 
 ## Perguntas ao dono (respondidas)
-1. ~~A, B ou C?~~ Respondida: destino é B. Falta saber se quer A antes, como passo rápido, ou ir direto para B.
+1. ~~A, B ou C?~~ Respondida: direto para a B (sem passo A isolado); a fatia "Ver" é a primeira PR da B.
 2. ~~Quantos meses à frente?~~ Respondida: enquanto não cancelar (janela móvel).
 3. ~~Item futuro~~ Respondida: não ocupa o limite. (Era: item futuro de cartão ocupa o limite do cartão antes da data? (Hoje não ocupa.))
 4. ~~Cancelar~~ Respondida: as duas, no diálogo.
