@@ -584,6 +584,8 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Instituição por ativo** (pedido do dono): a XP tem ações e FIIs, o Mercado Pago tem cofrinhos com taxas diferentes; ver a corretora separada por ativos. Precisa de um campo novo no ativo (migration) e de uma aba "Instituição" em Minha carteira. Desenho a aprovar.
 - [ ] **Arrumar as contas** (pedido do dono): ficam conta corrente e carteira; as zeradas são arquivadas e as com saldo viram investimento ("Mover para a carteira"). Uma a uma, com o "pode" do dono, depois da 104 aplicada.
 - [ ] Sem tarifas no modo "Só o valor"; quem precisa de tarifa usa "Quantidade e preço".
+- [ ] "Só o valor" não aceita data anterior ao último movimento do ativo (trava da 104, para o valor nunca mudar num número diferente do digitado). Lançamento antigo: "Quantidade e preço".
+- [ ] **Conferir e corrigir (bug antigo, fora da 104):** `investment_operation_record` por unidades só confere a posição até a data da venda; uma venda retroativa depois de uma venda total pode deixar a posição negativa e devolver dinheiro duas vezes. Achado pelo teste da 104 em 10/11/2026; correção em PR própria, com teste.
 - [ ] O rendimento de ativo sem cota só aparece quando a avaliação é registrada; não há cálculo automático (CDI).
 
 ## Para depois (pedidos do dono sem data)

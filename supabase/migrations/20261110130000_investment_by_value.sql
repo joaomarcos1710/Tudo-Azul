@@ -22,6 +22,11 @@
 -- As duas conferem que quantidade × preço, arredondado a 2 casas, dá exatamente o valor pedido; se não der (números
 -- absurdos), recusam em vez de gravar um centavo diferente.
 --
+-- Sem data retroativa: as duas recusam data anterior ao último movimento do ativo (operação não anulada ou avaliação).
+-- O preço usado é o da data; um aporte ou uma avaliação "no passado" converteria pelo preço antigo e o valor de hoje
+-- mudaria num número diferente do digitado, e um resgate no passado poderia tirar de novo o que já foi resgatado depois.
+-- Quem precisa lançar algo antigo usa "Quantidade e preço", que não faz conversão.
+--
 -- Extrato do ativo (investment_asset_statement, corpo da 043): a linha de avaliação passa a trazer em `amount` o valor
 -- total (unidades na data × preço). Antes vinha nulo e a tela mostrava o preço por unidade, que num ativo sem cota não
 -- diz nada a quem usa. Mesma assinatura e mesmos grants; as outras linhas não mudam.
@@ -39,6 +44,7 @@ declare
   v_price numeric;
   v_qty numeric;
   v_market numeric;
+  v_last date;
 begin
   if auth.uid() is null then raise exception 'não autenticado' using errcode = '42501'; end if;
   select * into v_asset from public.investment_assets where id = p_asset for update;
@@ -48,6 +54,18 @@ begin
   if p_date is null or p_kind is null or p_kind not in ('buy','sell')
      or p_amount is null or p_amount <= 0 or p_amount <> round(p_amount, 2) or p_amount >= 1e12 then
     raise exception 'dados da operação inválidos' using errcode = '22023';
+  end if;
+
+  -- último movimento do ativo: operação não anulada ou avaliação
+  select greatest(
+    (select max(o.operation_date) from public.investment_operations o
+      where o.asset_id = v_asset.id and o.household_id = v_asset.household_id and o.voided_at is null),
+    (select max(x.valuation_date) from public.investment_valuations x
+      where x.asset_id = v_asset.id and x.household_id = v_asset.household_id))
+    into v_last;
+  if v_last is not null and p_date < v_last then
+    raise exception 'este investimento já tem movimento em %; pelo valor, use essa data ou uma posterior', to_char(v_last, 'DD/MM/YYYY')
+      using errcode = '22023';
   end if;
 
   select coalesce(sum(case when o.kind = 'buy' then o.quantity else -o.quantity end), 0)
@@ -67,15 +85,9 @@ begin
   v_price := round(v_price, 10);
 
   if v_price is null or v_price <= 0 then
-    -- primeira posição: 1 unidade pelo valor. Com operação mais nova já gravada, as unidades não teriam a mesma base.
+    -- primeira posição: 1 unidade pelo valor
     if p_kind = 'sell' then
       raise exception 'este ativo não tem posição nesta data para resgatar' using errcode = '23514';
-    end if;
-    if exists (select 1 from public.investment_operations o
-                where o.asset_id = v_asset.id and o.household_id = v_asset.household_id
-                  and o.voided_at is null and o.operation_date > p_date) then
-      raise exception 'já existe operação depois desta data; use uma data igual ou posterior à da primeira operação'
-        using errcode = '22023';
     end if;
     return public.investment_operation_record(p_asset, p_date, 'buy', 1, p_amount, 0, p_notes, p_account);
   end if;
@@ -107,6 +119,7 @@ declare
   v_asset public.investment_assets%rowtype;
   v_held numeric;
   v_price numeric;
+  v_last date;
 begin
   if auth.uid() is null then raise exception 'não autenticado' using errcode = '42501'; end if;
   select * into v_asset from public.investment_assets where id = p_asset for update;
@@ -115,6 +128,18 @@ begin
   end if;
   if p_date is null or p_total is null or p_total <= 0 or p_total <> round(p_total, 2) or p_total >= 1e12 then
     raise exception 'dados da avaliação inválidos' using errcode = '22023';
+  end if;
+
+  -- último movimento do ativo: operação não anulada ou avaliação
+  select greatest(
+    (select max(o.operation_date) from public.investment_operations o
+      where o.asset_id = v_asset.id and o.household_id = v_asset.household_id and o.voided_at is null),
+    (select max(x.valuation_date) from public.investment_valuations x
+      where x.asset_id = v_asset.id and x.household_id = v_asset.household_id))
+    into v_last;
+  if v_last is not null and p_date < v_last then
+    raise exception 'este investimento já tem movimento em %; pelo valor, use essa data ou uma posterior', to_char(v_last, 'DD/MM/YYYY')
+      using errcode = '22023';
   end if;
 
   select coalesce(sum(case when o.kind = 'buy' then o.quantity else -o.quantity end), 0)
