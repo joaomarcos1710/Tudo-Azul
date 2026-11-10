@@ -168,6 +168,21 @@ describe('Lançamentos', () => {
     expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
   })
 
+  it('no computador não há o card "Saldo ao final de cada dia" (pedido do dono, 10/11/2026)', async () => {
+    const original = window.matchMedia
+    window.matchMedia = ((q: string) => ({ matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia
+    mock.listarSaldosDiarios.mockResolvedValue([{ data: '2026-10-05', moeda: 'BRL', saldo: c(920000) }])
+    try {
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findAllByText('−R$ 250,50')
+      await waitFor(() => expect(mock.listarSaldosDiarios).toHaveBeenCalled())
+      expect(screen.queryByText('Saldo ao final de cada dia')).toBeNull()
+      expect(screen.queryByText('Por moeda, sem conversão')).toBeNull()
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
   it('?tipo=receita|despesa (avisos do Início) abre já filtrado pelo tipo, no mês pedido', async () => {
     render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=receita']}><Lancamentos /></MemoryRouter>)
     await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10', { tipo: 'income' }))
