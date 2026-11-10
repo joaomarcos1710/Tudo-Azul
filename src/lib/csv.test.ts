@@ -154,8 +154,8 @@ describe('exportacaoCompleta: investimentos e bens (arquivos 7 e 8)', () => {
   it('ativo com operações (inclusive anulada), avaliação e provento; bem com avaliações; valores do banco, sem conta no front', async () => {
     Object.assign(fake.tabelas, {
       investment_assets: [
-        { id: 'ia1', name: 'FII Teste', ticker: 'TSTE11', asset_class: 'reit', subclass: 'Tijolo', currency_code: 'BRL', active: true },
-        { id: 'ia2', name: 'ETF Global', ticker: null, asset_class: 'etf', subclass: null, currency_code: 'USD', active: false },
+        { id: 'ia1', name: 'FII Teste', ticker: 'TSTE11', asset_class: 'reit', subclass: 'Tijolo', currency_code: 'BRL', liquidity: 'liquid', active: true },
+        { id: 'ia2', name: 'ETF Global', ticker: null, asset_class: 'etf', subclass: null, currency_code: 'USD', liquidity: 'restricted', active: false },
       ],
       investment_operations: [
         { id: 'o1', asset_id: 'ia1', operation_date: '2026-10-02', kind: 'buy', quantity: '10.5', unit_price: '100.1234567891', fees: '1.90', notes: 'compra', voided_at: null, void_reason: null },
@@ -176,14 +176,14 @@ describe('exportacaoCompleta: investimentos e bens (arquivos 7 e 8)', () => {
     })
     const arqs = await exportacaoCompleta('h1', '2026-10-31')
     expect(ARQ(arqs, 'investimentos')).toEqual([
-      '\uFEFFRegistro;Ativo;Ticker;Classe;Subclasse;Moeda;Data;Tipo;Quantidade;Preço unitário;Taxas;Valor do provento;Conta;Situação;Observação',
-      'Ativo;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;;;;;;;;Ativo;',
-      'Operação;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;02/10/2026;Compra;10,5;100,1234567891;1,90;;;Válida;compra',
-      'Avaliação;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;10/10/2026;Avaliação;;105,5;;;;;Extrato',
-      'Provento;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;15/10/2026;Dividendos;;;;12,34;Itaú;Pago;',
-      'Operação;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;20/10/2026;Venda;4;110;0,00;;;Anulada;Anulada: lançada em dobro',
-      'Provento;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;25/10/2026;JCP;;;;5,00;Itaú;Na lixeira;',
-      'Ativo;ETF Global;;ETFs;;USD;;;;;;;;Arquivado;',
+      '\uFEFFRegistro;Ativo;Ticker;Classe;Subclasse;Moeda;Liquidez;Data;Tipo;Quantidade;Preço unitário;Taxas;Valor do provento;Conta;Situação;Observação',
+      'Ativo;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;Líquido;;;;;;;;Ativo;',
+      'Operação;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;Líquido;02/10/2026;Compra;10,5;100,1234567891;1,90;;;Válida;compra',
+      'Avaliação;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;Líquido;10/10/2026;Avaliação;;105,5;;;;;Extrato',
+      'Provento;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;Líquido;15/10/2026;Dividendos;;;;12,34;Itaú;Pago;',
+      'Operação;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;Líquido;20/10/2026;Venda;4;110;0,00;;;Anulada;Anulada: lançada em dobro',
+      'Provento;FII Teste;TSTE11;FIIs / REITs;Tijolo;BRL;Líquido;25/10/2026;JCP;;;;5,00;Itaú;Na lixeira;',
+      'Ativo;ETF Global;;ETFs;;USD;Restrito;;;;;;;;Arquivado;',
     ])
     expect(arqs.find((a) => a.nome.includes('investimentos'))?.linhas).toBe(7)
     expect(ARQ(arqs, '8-bens')).toEqual([

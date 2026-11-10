@@ -529,9 +529,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Decisão #196 (Início não soma a carteira) precisa ser revista quando os ativos migrarem das contas para a carteira; senão o patrimônio do Início encolhe.
 
 ## Investimentos por liquidez (10/11/2026, #280)
-- [x] Liquidez por ativo no banco e na tela (migration 099, ainda **não aplicada** em produção).
-- [ ] Aplicar a 099 em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono em cada passo.
-- [ ] Exportação CSV dos investimentos ainda não leva a liquidez: pedir a coluna antes de a 099 estar em produção quebraria a exportação. Acrescentar depois de aplicada.
+- [x] Liquidez por ativo no banco e na tela (migration 099).
+- [x] 099 aplicada em produção em 10/11/2026 (simulação 42868503347, aplicação 42868909899; só ela estava pendente; coluna, funções e permissões conferidas no banco).
+- [x] Exportação CSV dos investimentos leva a coluna Liquidez (#281).
 - [ ] Caminho para zerar uma conta antiga de investimento sem virar despesa (conta arquivada continua no patrimônio). Sem isso, migrar para a carteira conta em dobro.
 - [ ] Contas Nomad Dólar e Euro: recriar em USD e EUR (hoje estão em reais com o número da moeda estrangeira, e entram no Disponível).
 - [ ] Carteira em dólar e euro não entra no Patrimônio em reais (não há conversão de moeda no app).

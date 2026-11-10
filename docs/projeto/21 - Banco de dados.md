@@ -174,7 +174,7 @@ A série numerada chega à **080** (a 080 ainda não aplicada; 078 e 079 aplicad
 - **Migration `20261110070000_card_months_as_of_events_once`** (10/11/2026, desempenho do cartão, **não aplicada**): `private.card_months_as_of` (create or replace, mesma assinatura) troca as três subconsultas correlacionadas por parcela (cobrado, resta, cancelado) por uma soma única dos eventos (`debt_events` agrupado por `installment_id`, com `filter`) ligada às parcelas; corpo igual ao da 20261109050000 fora a CTE `parc`. Cria `debt_events_invoice_idx (invoice_id) where invoice_id is not null and voided_at is null` (o laço lia todos os eventos do cartão uma vez por fatura). Medição em banco local com dados sintéticos (4.500 parcelas): consulta principal 190 ms → 94 ms só com a reescrita (63 mil → 18 mil páginas); com a política de linha candidata junto, 18 ms. Teste `92_card_months_as_of_eventos_agregados.test.sql` compara a função nova com uma cópia da antiga em 4 cartões x 10 datas de corte (idêntica) e confere que os cenários existem; a mutação "esquecer de ignorar evento anulado" faz o teste falhar (7 combinações).
 
 
-## Liquidez dos investimentos (migration 099, PR #280, não aplicada)
+## Liquidez dos investimentos (migration 099, PR #280, aplicada em 10/11/2026, execução 42868909899)
 Arquivo `20261110080000_investment_liquidity.sql`. O número 099 vem da contagem em sequência dos arquivos; a tabela acima parou na 080 e está desatualizada.
 - `investment_assets.liquidity` (`liquid` por padrão, ou `restricted`); nenhum ativo existente é reclassificado.
 - `investment_asset_set_liquidity(p_asset, p_liquidity)`: troca a liquidez (42501 sem acesso, 22023 valor inválido).
