@@ -193,3 +193,4 @@ continuam abaixo como histórico.
 | 2026.278 | **Categorias mais limpas.** Cada categoria mostra só o ícone e o nome; tocar abre a edição, e lá dentro ficam Não conta como consumo (explicado), eventual e Desativar. |
 | — (#241) | **Plano de investimentos vinculados a conta (opção A).** Só documento, mergeado em 10/11/2026 sem versão própria (usar 2026.241 faria a versão voltar); aguarda três decisões do dono antes do código. |
 | — (#228) | **Diagnóstico LGPD e plano de adequação** (`docs/legal/`). Só documento, mergeado em 10/11/2026 sem versão própria (usar 2026.228 faria a versão voltar). Não declara conformidade. |
+| 2026.279 | **Nomes que não confundem.** Em Análises, a linha do card de patrimônio passou de "Disponível" para "Contas (todas)" (ela soma todas as contas, inclusive renda fixa, variável e cripto; o Disponível do Início não). Em Investimentos, "Patrimônio em BRL" virou "Valor de mercado em BRL". Nenhum número mudou. |

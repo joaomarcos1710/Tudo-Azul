@@ -95,7 +95,7 @@ moneyFree          = circulatingBalance − compromissos pendentes do mês
 
 ## Investimentos
 
-- **Patrimônio em investimentos** é mostrado por moeda (`src/pages/Investimentos.tsx`).
+- **Valor de mercado da carteira** é mostrado por moeda (`src/pages/Investimentos.tsx`; até a #279 o card dizia "Patrimônio em <moeda>", nome que confundia com o Patrimônio total).
 - Aporte e resgate **não** são despesa nem receita. Hoje não geram lançamento (ver "Dinheiro Livre").
 - **Pendente:** teste automatizado para "aporte não reduz indevidamente o Dinheiro Livre" e "resgate não cria receita".
 

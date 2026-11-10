@@ -284,6 +284,9 @@ describe('Investimentos × macroclasse e subclasse', () => {
     // "Resultado não realizado" também é rótulo em cada posição: aqui só vale o do cartão de totais
     const grade = rotuloCusto.parentElement!
     const rotuloResultado = within(grade).getByText('Resultado não realizado')
+    // o card da carteira não usa a palavra "Patrimônio": ela é do Patrimônio total (decisão de 10/11/2026)
+    expect(screen.getByText(/^Valor de mercado em /)).toBeTruthy()
+    expect(screen.queryByText(/^Patrimônio em /)).toBeNull()
     expect(rotuloCusto.tagName).toBe('DT')
     expect(rotuloResultado.tagName).toBe('DT')
     expect(rotuloCusto.parentElement).toBe(rotuloResultado.parentElement) // mesma grade
