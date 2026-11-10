@@ -163,3 +163,4 @@ continuam abaixo como histórico.
 | 2026.248 | **Início: Receitas a receber e Despesas a pagar (etapa 2).** O antigo "Próximos planejados" virou duas listas, filtradas no banco por tipo (mesma regra dos avisos do topo), 5 visíveis e "Ver mais". Transferência planejada não aparece nelas. |
 | 2026.249 | **Lançamentos: sai o card "Saldo ao final de cada dia" no computador.** Pedido do dono (ficou pesado). O "Saldo final" por dia no celular continua. |
 | 2026.250 | **Início: Maiores gastos em rosca (etapa 3).** As 4 maiores categorias + Outros do mês, com valores e % do banco, cores validadas e legenda com link para as despesas do mês. |
+| 2026.251 | **Plano: recorrência no cartão estilo Organizze.** Só documentação (doc 28 e pendências); nenhuma mudança de código ou banco. |

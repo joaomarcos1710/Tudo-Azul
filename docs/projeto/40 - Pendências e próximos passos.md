@@ -455,3 +455,6 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Bloqueio no banco de novas atribuições de pessoas inativas em lançamentos, parcelas de dívidas e recorrências; classificações históricas permanecem preservadas.
 - [x] Índices compostos começam por `(household_id, person_id)`, cobrindo as FKs e as consultas por período.
 - Migration 083: `20261108210000_people_active_and_fk_indexes.sql`. Ainda não aplicada no Supabase hospedado.
+
+## Recorrência no cartão estilo Organizze (10/11/2026)
+- [ ] Todas as perguntas respondidas em 10/11: não ocupa o limite, vai direto para a B; aparece enquanto não cancelar e o diálogo "só esta / esta e as próximas" (`28 - Recorrência no cartão estilo Organizze (plano).md`). Hoje a recorrência no cartão só vira item de fatura no dia; antes disso aparece só o total "Assinaturas previstas".
