@@ -124,8 +124,9 @@ Todas abaixo estão aplicadas em produção (conferido na simulação de 10/11/2
 | 102 | `20261110110000_debt_extra_without_account.sql` | #287 |
 | 103 | `20261110120000_debt_extra_amortize_terms.sql` | #292 |
 | 104 | `20261110130000_investment_by_value.sql` | #294 |
+| 105 | `20261110140000_investment_sell_never_negative.sql` | #295 |
 
-A próxima migration é a **105**. Escreva o número no cabeçalho do arquivo novo.
+A próxima migration é a **106**. Escreva o número no cabeçalho do arquivo novo.
 
 
 ## Detalhes da 019
@@ -261,4 +262,11 @@ Arquivo `20261110130000_investment_by_value.sql`. Para ativo sem cota (cofrinho,
 - `investment_asset_statement` (mesma assinatura): a linha de avaliação traz em `amount` o total (unidades em carteira no momento da avaliação × preço); antes vinha nulo. "No momento": operações de dias anteriores e as do mesmo dia gravadas até a avaliação; um aporte feito depois, no mesmo dia, não entra.
 - Sem tarifas no caminho por valor. Execução só para `authenticated`.
 - Teste `98_investment_by_value` (falha sem a migration); `00_audit` atualizado.
+
+## Venda não deixa a posição negativa (migration 105, PR #295, não aplicada)
+Arquivo `20261110140000_investment_sell_never_negative.sql`. Conserto de bug em produção desde a migration 100.
+- **O bug:** `investment_operation_record` conferia a venda só contra a posição até a data dela. Venda com data anterior a outra venda já gravada era aceita (compra de 10 em 10/01, venda de 10 em 10/03, venda de 10 em 10/02): posição −10 e, com conta, o resgate voltava duas vezes.
+- **A correção:** `create or replace` com o corpo da 100 e um acréscimo: na venda, a quantidade acumulada ao fim de cada data, já com a venda nova, não pode ficar negativa em nenhuma data (23514). Mesma conta de mínimo acumulado de `investment_operation_void`. Mesma assinatura e grants. Cobre também o caminho por valor (104).
+- Nenhum dado é alterado. Em produção não havia posição negativa (só um ativo, com 1 unidade).
+- Teste `99_investment_sell_never_negative` (19 asserções; falha sem a migration).
 
