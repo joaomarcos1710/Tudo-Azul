@@ -30,6 +30,9 @@ const mock = vi.hoisted(() => ({
   sincronizarAgendados: vi.fn(),
   converterAgendados: vi.fn(),
   excluirRecorrencia: vi.fn(),
+  editarAgendada: vi.fn(),
+  cancelarAgendada: vi.fn(),
+  aPartirDaqui: vi.fn(),
   pagarFatura: vi.fn(),
   reabrirFatura: vi.fn(),
   previaExclusao: vi.fn(),
@@ -50,7 +53,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
-  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
+  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
@@ -131,6 +134,9 @@ beforeEach(() => {
   mock.listarFaturasAgendadas.mockResolvedValue([])
   mock.sincronizarAgendados.mockResolvedValue(0)
   mock.converterAgendados.mockResolvedValue(0)
+  mock.editarAgendada.mockResolvedValue(undefined)
+  mock.cancelarAgendada.mockResolvedValue(undefined)
+  mock.aPartirDaqui.mockResolvedValue(0)
   mock.previaExclusao.mockResolvedValue([])
   mock.listarCreditosDaFatura.mockResolvedValue([])
   mock.lancarCreditoNoCartao.mockResolvedValue('ev1')
@@ -289,6 +295,100 @@ describe('Cartões', () => {
     await u.click(await screen.findByRole('menuitem', { name: 'Excluir assinatura' }))
     expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r1')
     await vi.waitFor(() => expect(screen.queryByTestId('bloco-previstas')).toBeNull())
+  })
+
+  describe('recorrência no cartão, etapa 4: só esta / esta e as próximas', () => {
+    const prevista = { recorrenciaId: 'r1', data: '2099-04-05', descricao: 'Academia', valor: c(8999), categoriaId: 'g1', itemId: 'i1', editada: false }
+    const abrir = async (u: ReturnType<typeof userEvent.setup>, acao: string) => {
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+      mock.listarOcorrenciasPrevistas.mockResolvedValue([prevista])
+      montar('/cartoes/k1/fatura/2099-04')
+      await screen.findByTestId('bloco-previstas')
+      await acaoDaLinha(u, 'Ações de Academia', acao)
+    }
+
+    it('Editar: "só esta" chama a edição do item com os dados do formulário e recarrega', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      expect(within(form).getByRole('radio', { name: 'Só esta cobrança' })).toHaveProperty('checked', true)
+      const valor = within(form).getByLabelText('Valor (R$)')
+      await u.clear(valor)
+      await u.type(valor, '95,50')
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      await vi.waitFor(() => expect(mock.editarAgendada).toHaveBeenCalledTimes(1))
+      expect(mock.editarAgendada).toHaveBeenCalledWith('i1', { data: '2099-04-05', valor: c(9550), descricao: 'Academia', categoriaId: 'g1' })
+      expect(mock.aPartirDaqui).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Editar Academia' })).toBeNull())
+    })
+
+    it('Editar: "esta e as próximas" divide a assinatura (ação update)', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      await u.click(within(form).getByRole('radio', { name: 'Esta e as próximas' }))
+      expect(within(form).getByText(/a assinatura antiga termina na véspera/)).toBeTruthy()
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      await vi.waitFor(() => expect(mock.aPartirDaqui).toHaveBeenCalledTimes(1))
+      expect(mock.aPartirDaqui).toHaveBeenCalledWith('i1', 'update', { data: '2099-04-05', valor: c(8999), descricao: 'Academia', categoriaId: 'g1' })
+      expect(mock.editarAgendada).not.toHaveBeenCalled()
+    })
+
+    it('Editar: valor inválido ou data de hoje/passada não envia nada', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      await u.clear(within(form).getByLabelText('Valor (R$)'))
+      await u.type(within(form).getByLabelText('Valor (R$)'), 'abc')
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      expect(await within(form).findByText(/Valor inválido/)).toBeTruthy()
+      expect(mock.editarAgendada).not.toHaveBeenCalled()
+    })
+
+    it('Cancelar cobrança: "só esta" cancela o item; "esta e as próximas" encerra daqui', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Cancelar cobrança…')
+      let form = await screen.findByRole('form', { name: 'Cancelar Academia' })
+      await u.click(within(form).getByRole('button', { name: 'Cancelar cobrança' }))
+      await vi.waitFor(() => expect(mock.cancelarAgendada).toHaveBeenCalledWith('i1'))
+      expect(mock.aPartirDaqui).not.toHaveBeenCalled()
+      cleanup()
+      mock.cancelarAgendada.mockClear()
+      await abrir(u, 'Cancelar cobrança…')
+      form = await screen.findByRole('form', { name: 'Cancelar Academia' })
+      await u.click(within(form).getByRole('radio', { name: 'Esta e as próximas' }))
+      await u.click(within(form).getByRole('button', { name: 'Cancelar cobrança' }))
+      await vi.waitFor(() => expect(mock.aPartirDaqui).toHaveBeenCalledWith('i1', 'end'))
+      expect(mock.cancelarAgendada).not.toHaveBeenCalled()
+    })
+
+    it('erro do banco aparece no próprio painel e o painel continua aberto', async () => {
+      const u = userEvent.setup()
+      mock.cancelarAgendada.mockRejectedValue({ code: '55000', message: 'esta cobrança já não está agendada' })
+      await abrir(u, 'Cancelar cobrança…')
+      const form = await screen.findByRole('form', { name: 'Cancelar Academia' })
+      await u.click(within(form).getByRole('button', { name: 'Cancelar cobrança' }))
+      expect(await within(form).findByRole('alert')).toBeTruthy()
+      expect(screen.getByRole('form', { name: 'Cancelar Academia' })).toBeTruthy()
+    })
+
+    it('linha ainda sem item agendado (app não gerou): só excluir assinatura e abrir Recorrentes', async () => {
+      const u = userEvent.setup()
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+      mock.listarOcorrenciasPrevistas.mockResolvedValue([{ ...prevista, itemId: null }])
+      montar('/cartoes/k1/fatura/2099-04')
+      await screen.findByTestId('bloco-previstas')
+      await u.click(await screen.findByRole('button', { name: 'Ações de Academia' }))
+      const menu = screen.getByRole('menu', { name: 'Ações de Academia' })
+      expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Abrir Recorrentes', 'Excluir assinatura'])
+    })
+
+    it('a linha editada à mão mostra "alterada"', async () => {
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+      mock.listarOcorrenciasPrevistas.mockResolvedValue([{ ...prevista, editada: true }])
+      montar('/cartoes/k1/fatura/2099-04')
+      expect(await screen.findByText(/cobrança em 05\/04\/2099 · alterada/)).toBeTruthy()
+    })
   })
 
   it('recorrência no cartão: sem previstas, o bloco não aparece; se a consulta falhar, a fatura segue normal', async () => {
