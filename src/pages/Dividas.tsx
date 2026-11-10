@@ -16,6 +16,7 @@ import { listarCategorias } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { asCents, formatBRL, formatBRLCampo, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
+import { Folha } from '../components/ui/Folha'
 import { mensagemErroBanco } from '../lib/erros'
 import {
   criarDivida, definirTermosDivida, definirContratoDivida, listarDividas, listarParcelasDivida,
@@ -350,8 +351,7 @@ function FormNovaDivida({ aoSalvar, aoCancelar }: {
   }
 
   return (
-    <Card className="mb-5">
-      <h2 className="mb-3 text-lg font-semibold">Cadastrar empréstimo ou financiamento</h2>
+    <Folha titulo="Cadastrar empréstimo ou financiamento" aoFechar={aoCancelar}>
       <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Nome" placeholder="Ex.: Financiamento do imóvel" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={60} />
@@ -364,7 +364,7 @@ function FormNovaDivida({ aoSalvar, aoCancelar }: {
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+    </Folha>
   )
 }
 
@@ -422,8 +422,7 @@ function FormContrato({ divida, contas, aoSalvar, aoCancelar }: {
   }
 
   return (
-    <Card className="mb-5">
-      <h2 className="mb-3 text-lg font-semibold">Contrato e parcelas: {divida.nome}</h2>
+    <Folha titulo={`Contrato e parcelas: ${divida.nome}`} aoFechar={aoCancelar}>
       <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Credor / instituição" value={credor} onChange={(e) => setCredor(e.target.value)} maxLength={100} placeholder="Ex.: Banco" />
@@ -452,7 +451,7 @@ function FormContrato({ divida, contas, aoSalvar, aoCancelar }: {
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+    </Folha>
   )
 }
 
@@ -479,8 +478,7 @@ function FormTermos({ divida, aoSalvar, aoCancelar }: {
     finally { setEnviando(false) }
   }
   return (
-    <Card className="mb-5">
-      <h2 className="mb-3 text-lg font-semibold">Parâmetros: {divida.nome}</h2>
+    <Folha titulo={`Parâmetros: ${divida.nome}`} aoFechar={aoCancelar}>
       <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Taxa de juros mensal (%)" inputMode="decimal" placeholder="Ex.: 1,50" value={taxaTexto} onChange={(e) => setTaxaTexto(e.target.value)} />
@@ -491,7 +489,7 @@ function FormTermos({ divida, aoSalvar, aoCancelar }: {
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+    </Folha>
   )
 }
 
@@ -563,8 +561,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   }
 
   return (
-    <Card className="mb-5">
-      <h2 className="mb-3 text-lg font-semibold">{parcela ? 'Baixar parcela' : 'Registrar pagamento'}: {divida.nome}</h2>
+    <Folha titulo={`${parcela ? 'Baixar parcela' : 'Registrar pagamento'}: ${divida.nome}`} aoFechar={aoCancelar}>
       {consignado ? (
         <Aviso tipo="info">Consignado: informe quanto da parcela é juros e tarifa. Só o principal abate o saldo devedor. A baixa não cria saída na conta, pois o salário já está líquido.</Aviso>
       ) : contas.length === 0 && <Aviso tipo="erro">Cadastre ou reative uma conta antes de registrar o pagamento.</Aviso>}
@@ -607,7 +604,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+    </Folha>
   )
 }
 
@@ -626,8 +623,7 @@ function FormRenomear({ divida, aoSalvar, aoCancelar }: {
     try { await aoSalvar(divida.id, nome) } finally { setEnviando(false) }
   }
   return (
-    <Card className="mb-5">
-      <h2 className="mb-3 text-lg font-semibold">Renomear {divida.nome}</h2>
+    <Folha titulo={`Renomear ${divida.nome}`} aoFechar={aoCancelar}>
       <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Nome" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={60} />
@@ -636,7 +632,7 @@ function FormRenomear({ divida, aoSalvar, aoCancelar }: {
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+    </Folha>
   )
 }
 
