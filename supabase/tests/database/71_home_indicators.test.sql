@@ -154,11 +154,13 @@ select is(pg_temp.sqlstate_of(format('update public.categories set non_consumpti
 -- ---- Disponível ----
 -- corrente 10000 − 5×500 − 4×10000 + 5000 + 1000 + 20000 − 4000 − 100 − 3000 + 700 − 200 = −13100; reserva 3000;
 -- corretora 200; carteira 50 (a inativa e a em dólar não)
-select is((select accounts_active from hi), -9850.00, 'D1 contas ativas em reais dos 7 tipos (inativa e dólar fora)');
+-- (076) o Disponível conta só os 4 tipos líquidos; esta família só tem contas desses tipos, então o valor não muda
+select is((select accounts_active from hi), -9850.00, 'D1 contas líquidas ativas em reais (inativa e dólar fora)');
 select is((select card_bills_closed from hi), 300.00, 'D2 fatura fechada a pagar');
 select is((select available from hi), -10150.00, 'D3 disponível = contas ativas − fatura fechada');
-select is((select accounts_active from hi), (select sum(total_active) from public.balance_totals_by_type(pg_temp.fx('h'), pg_temp.hoje())),
-          'D4 o mesmo total das contas ativas de balance_totals_by_type');
+select is((select accounts_active from hi), (select sum(total_active) from public.balance_totals_by_type(pg_temp.fx('h'), pg_temp.hoje())
+                                               where account_type in ('checking', 'savings', 'cash', 'brokerage')),
+          'D4 o mesmo total ativo dos 4 tipos líquidos de balance_totals_by_type');
 select public.set_card_cycle(pg_temp.fx('cartao'), 25, 5);
 select public.card_purchase(pg_temp.fx('cartao'), pg_temp.hoje(), 900, 3, pg_temp.fx('desp'), 'Compra parcelada de teste');
 select is((select available from hi), -10150.00, 'D5 a fatura aberta não entra no disponível');
@@ -168,9 +170,12 @@ select is((select planned_commitments from hi), 900.00, 'D7 fica nos compromisso
 -- ---- Patrimônio total ----
 select is((select accounts_total || '|' || family_assets || '|' || investments || '|' || debt_total from hi),
           '-9450.00|50000.00|1000.00|35300.00', 'W1 componentes: contas (com a inativa), bens (50%), investimentos em reais, dívidas');
-select is((select net_worth from hi), 6250.00, 'W2 patrimônio = −9450 + 50000 + 1000 − 35300');
-select is((select net_worth - investments from hi), (select net_worth from public.net_worth_with_assets(pg_temp.fx('h'), pg_temp.hoje())),
-          'W3 sem os investimentos, é o mesmo de net_worth_with_assets');
+-- 075 (#196) deixava a carteira de investimentos à parte (para não contar em dobro com as contas de renda
+-- fixa/variável/cripto da 070). A 099 (20261110080000_investment_liquidity.sql, decisão do dono de 10/11/2026) REVOGA
+-- isso: o patrimônio soma a carteira em reais (os 100 em dólar continuam fora). Antes: 5.250; agora: 6.250.
+select is((select net_worth from hi), 6250.00, 'W2 patrimônio = −9450 + 50000 + 1000 da carteira em reais − 35300 (099)');
+select is((select net_worth from hi), (select net_worth from public.net_worth_with_assets(pg_temp.fx('h'), pg_temp.hoje())),
+          'W3 é o mesmo de net_worth_with_assets (Análises)');
 select is((select debt_total from hi), (select sum(debt) from public.debt_balances(pg_temp.fx('h'), pg_temp.hoje())),
           'V1 dívidas totais = soma de debt_balances (cartão incluído)');
 

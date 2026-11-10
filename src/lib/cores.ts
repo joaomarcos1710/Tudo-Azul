@@ -23,6 +23,14 @@ export const CORES = {
   transferencia: { DEFAULT: '#0B1F46', fundo: '#E8ECF4' },
 } as const
 
+/**
+ * Identidade visual (24/10/2026): marinho e celeste da logo. Fica separada de `CORES.transferencia` de propósito:
+ * os dois hoje têm o mesmo marinho, mas a marca pode mudar sem mexer no significado de transferência (#183), e o
+ * contrário também. Os títulos e cabeçalhos usam `text-marinho` (tailwind.config.js lê daqui); a logo (components/layout/Marca.tsx)
+ * usa estes hex. public/favicon.svg tem os mesmos hex escritos à mão: se a marca mudar, mudar lá também.
+ */
+export const MARCA = { marinho: '#0B1F46', celeste: '#48B5FF' } as const
+
 /** Fundos onde o texto aparece: o branco dos cards e o fundo do app (`bg-fundo`). */
 export const FUNDOS = { branco: '#FFFFFF', app: '#F7F9FC' } as const
 
@@ -31,6 +39,9 @@ export const GRAFICO = {
   grade: '#E2E8F0', eixo: '#94A3B8', destaque: '#EAF2FF', destaqueSobreArea: 'rgba(37,99,235,0.08)', contorno: '#FFFFFF',
   // saldo das contas como área clara ao fundo (Relatórios, #179): contexto, contraste baixo de propósito
   saldoArea: '#DBEAFE', saldoBorda: '#93C5FD',
+  // rosca de maiores gastos (Início): 4 tons em ordem fixa, validados no verificador de paleta (10/11/2026: faixa de
+  // luminosidade, croma, separação para daltonismo ΔE 10,3 e visão normal ΔE 16,2, contraste ≥ 3:1) + cinza para "Outros"
+  rosca: ['#1D4ED8', '#0891B2', '#DB2777', '#9333EA'], roscaOutros: '#94A3B8',
 } as const
 
 /**

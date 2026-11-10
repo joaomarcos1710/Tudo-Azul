@@ -30,7 +30,7 @@ const c = (n: number) => n as Cents
 const cat = (id: string, nome: string, extra: Record<string, unknown> = {}) =>
   ({ id, nome, tipo: 'expense', paiId: null, sistema: false, ativa: true, eventual: false, ...extra })
 const orc = (extra: Record<string, unknown> = {}) => ({
-  categoriaId: 'mercado', nome: 'Mercado', limite: c(100000), gasto: c(30000), previsto: c(20000), ritmo: c(63000),
+  categoriaId: 'mercado', nome: 'Mercado', limite: c(100000), gasto: c(30000), restante: c(70000), previsto: c(20000), ritmo: c(63000),
   projetado: c(113000), sobra: c(-13000), ...extra,
 })
 
@@ -54,12 +54,41 @@ describe('Orçamentos', () => {
   it('mostra limite, gasto e a projeção do banco: vai passar do limite no ritmo atual', async () => {
     render(<Orcamentos />)
     expect(await screen.findByText('Mercado')).toBeTruthy()
-    expect(screen.getByText('Limite R$ 1.000,00')).toBeTruthy()
-    expect(screen.getByText('R$ 300,00')).toBeTruthy()
+    expect(screen.getByTestId('budget-grid').className).toContain('lg:grid-cols-2')
+    expect(screen.getByTestId('budget-grid').className).toContain('grid-cols-1')
+    expect(screen.getByTestId('budget-summary')).toBeTruthy()
+    expect(screen.getByText('Orçado')).toBeTruthy()
+    expect(screen.getByText('Gasto')).toBeTruthy()
+    expect(screen.getByText('Saldo')).toBeTruthy()
+    expect(screen.getByText(/R\$ 300,00 gastos de R\$ 1.000,00/)).toBeTruthy()
+    expect(within(screen.getByTestId('budget-summary')).getByText('R$ 1.000,00')).toBeTruthy()
+    expect(within(screen.getByTestId('budget-summary')).getByText('R$ 300,00')).toBeTruthy()
+    expect(within(screen.getByTestId('budget-summary')).getByText('R$ 700,00')).toBeTruthy()
     expect(screen.getByText(/No ritmo atual vai passar do limite em R\$ 130,00/)).toBeTruthy()
     expect(screen.getByText(/projeção R\$ 1.130,00/)).toBeTruthy()
     expect(screen.getByText(/Gasto R\$ 300,00 \+ previsto R\$ 200,00 \+ ritmo do mês R\$ 630,00/)).toBeTruthy()
     expect(mock.listarOrcamentos).toHaveBeenCalledWith('h1', '2026-10', '2026-10-10')
+  })
+
+  it('cartão lançado em fatura a fechar: trecho tracejado depois do gasto, legenda com o valor do banco e o percentual só do pago', async () => {
+    mock.listarOrcamentos.mockResolvedValue([orc({ cartaoLancado: c(25000) })])
+    render(<Orcamentos />)
+    expect(await screen.findByText('Cartão lançado, fatura a fechar: R$ 250,00')).toBeTruthy()
+    const barra = screen.getByRole('img', { name: /Gasto R\$ 300,00 de R\$ 1.000,00, 30% do limite; mais R\$ 250,00 no cartão, lançado em fatura a fechar/ })
+    const tracejado = barra.querySelector('[data-cartao]') as HTMLElement
+    expect(tracejado.style.width).toBe('25%')
+    expect(tracejado.style.backgroundImage).toContain('repeating-linear-gradient')
+    expect(screen.getByText('30%')).toBeTruthy()
+  })
+
+  it('cartão que passaria do limite fica cortado no fim da barra; sem cartão (ou banco sem a coluna), nada tracejado', async () => {
+    mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(90000), restante: c(10000), cartaoLancado: c(50000) }), orc({ categoriaId: 'lazer', nome: 'Lazer', cartaoLancado: null })])
+    render(<Orcamentos />)
+    await screen.findByText('Lazer')
+    const barras = screen.getAllByRole('img', { name: /^Gasto/ })
+    expect((barras[0].querySelector('[data-cartao]') as HTMLElement).style.width).toBe('10%')
+    expect(barras[1].querySelector('[data-cartao]')).toBeNull()
+    expect(screen.getAllByText(/Cartão lançado, fatura a fechar/)).toHaveLength(1)
   })
 
   it('projeção dentro do limite: mostra quanto sobra', async () => {

@@ -19,6 +19,7 @@ export interface Indicadores {
   /** AAAA-MM-DD: o último mês fechado (taxa de poupança e comprometimento) */
   inicioMesFechado: string
   fimMesFechado: string
+  /** accounts_active: contas LÍQUIDAS ativas em reais (corrente, reserva, carteira, corretora; 076) */
   contasAtivas: Cents
   faturasFechadas: Cents
   disponivel: Cents
@@ -26,6 +27,9 @@ export interface Indicadores {
   creditoAReceber: Cents
   bens: Cents
   investimentos: Cents
+  /** null = banco ainda na regra antiga (patrimônio sem a carteira). Com valor, a carteira em reais já está no patrimônio. */
+  investimentosLiquidos: Cents | null
+  investimentosRestritos: Cents | null
   dividas: Cents
   compromissos: Cents
   patrimonio: Cents
@@ -61,21 +65,20 @@ const FAIXAS: Faixa[] = ['saudavel', 'atencao', 'critico']
 const faixa = (v: unknown): Faixa | null => ((FAIXAS as unknown[]).includes(v) ? (v as Faixa) : null)
 const numero = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v))
 
-type Linha = Record<string, number | string | null>
+export type Linha = Record<string, number | string | null>
 
-export async function carregarIndicadores(familiaId: string, hoje: string): Promise<Indicadores> {
-  if (!supabase) throw new Error('Supabase não configurado')
-  const { data, error } = await supabase.rpc('home_indicators', { p_household: familiaId, p_as_of: hoje })
-  if (error) throw error
-  const r = ((data ?? []) as Linha[])[0]
-  if (!r) throw new Error('indicadores indisponíveis')
+/** Converte a linha de public.home_indicators (da RPC ou do campo `treasury` de get_home_decision_month). */
+export function indicadoresDaLinha(r: Linha): Indicadores {
   const c = (k: string) => centsFromDb((r[k] ?? 0) as number | string)
   return {
     inicioMes: String(r.month_start), fimMes: String(r.month_end),
     inicioMesFechado: String(r.closed_month_start), fimMesFechado: String(r.closed_month_end),
     contasAtivas: c('accounts_active'), faturasFechadas: c('card_bills_closed'), disponivel: c('available'),
     contasTodas: c('accounts_total'), creditoAReceber: c('credit_receivable'), bens: c('family_assets'),
-    investimentos: c('investments'), dividas: c('debt_total'), compromissos: c('planned_commitments'), patrimonio: c('net_worth'),
+    investimentos: c('investments'),
+    investimentosLiquidos: r.investments_liquid === undefined || r.investments_liquid === null ? null : c('investments_liquid'),
+    investimentosRestritos: r.investments_restricted === undefined || r.investments_restricted === null ? null : c('investments_restricted'),
+    dividas: c('debt_total'), compromissos: c('planned_commitments'), patrimonio: c('net_worth'),
     receitas: c('income'), despesas: c('expense'), resultado: c('result'),
     receitasPoupanca: c('savings_income'), despesasPoupanca: c('savings_expense'), resultadoPoupanca: c('savings_result'),
     taxaPoupanca: numero(r.savings_rate), faixaPoupanca: faixa(r.savings_band),
@@ -86,4 +89,13 @@ export async function carregarIndicadores(familiaId: string, hoje: string): Prom
     rendaRegular: c('regular_income'), fonteRenda: r.regular_income_source === 'recurring' ? 'recorrente' : 'recebida',
     comprometimento: numero(r.commitment_pct), faixaComprometimento: faixa(r.commitment_band),
   }
+}
+
+export async function carregarIndicadores(familiaId: string, hoje: string): Promise<Indicadores> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const { data, error } = await supabase.rpc('home_indicators', { p_household: familiaId, p_as_of: hoje })
+  if (error) throw error
+  const r = ((data ?? []) as Linha[])[0]
+  if (!r) throw new Error('indicadores indisponíveis')
+  return indicadoresDaLinha(r)
 }

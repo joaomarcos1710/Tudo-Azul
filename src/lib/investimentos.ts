@@ -15,10 +15,28 @@ export interface AtivoInvestimento {
   ativo: boolean
   /** Subclasse escolhida pela pessoa (Tesouro Direto, CDB, FIIs…); null = sem subclasse (ou banco sem a migration 034). */
   subclasse: string | null
+  /** 'restricted' = não vira dinheiro rápido (previdência, FGTS). Banco sem a migration da liquidez: tudo 'liquid'. */
+  liquidez: Liquidez
   quantidadeOperacoes: number
   quantidadeAvaliacoes: number
   quantidadeProventos: number
 }
+
+export type Liquidez = 'liquid' | 'restricted'
+
+/** Classes do ativo, na ordem dos formulários. */
+export const CLASSES_ATIVO: [ClasseAtivo, string][] = [
+  ['fixed_income', 'Renda fixa'], ['equity', 'Ações'], ['fund', 'Fundos de investimento'],
+  ['reit', 'FIIs / REITs'], ['etf', 'ETFs'], ['crypto', 'Criptoativos'], ['other', 'Outros'],
+]
+
+export const LIQUIDEZES: [Liquidez, string][] = [
+  ['liquid', 'Líquido: dá para resgatar ou vender'],
+  ['restricted', 'Restrito: previdência, FGTS'],
+]
+
+/** Valor de mercado da carteira por moeda e liquidez (investment_liquidity_totals). */
+export interface LinhaLiquidez { moeda: MoedaInvestimento; liquidez: Liquidez; valor: Cents }
 
 /** Macroclasse, derivada da classe do ativo (a mesma regra da função investment_allocation, migration 034). */
 export type MacroClasse = 'fixed_income' | 'variable' | 'other'
@@ -132,7 +150,9 @@ export function normalizarDecimalInvestimento(valor: string, casas: number): str
 export async function listarAtivosInvestimento(familiaId: string): Promise<AtivoInvestimento[]> {
   // Preserva a subclasse da migration 034 e conta os registros históricos para proteger a exclusão.
   const ler = (colunas: string) => db().from('investment_assets').select(colunas).eq('household_id', familiaId).order('name')
-  let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass')
+  let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity')
+  // banco ainda sem a coluna liquidity (ou sem a subclass, 034): lê o que existe
+  if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass'))
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active'))
   if (error) throw error
   const [operacoes, avaliacoes, proventos] = await Promise.all([
@@ -155,6 +175,7 @@ export async function listarAtivosInvestimento(familiaId: string): Promise<Ativo
     id: r.id as string, nome: r.name as string, ticker: r.ticker as string | null, classe: r.asset_class as ClasseAtivo,
     moeda: r.currency_code as MoedaInvestimento, ativo: r.active as boolean,
     subclasse: (r.subclass as string | null | undefined) ?? null,
+    liquidez: r.liquidity === 'restricted' ? 'restricted' : 'liquid',
     quantidadeOperacoes: qtdOperacoes.get(r.id as string) ?? 0,
     quantidadeAvaliacoes: qtdAvaliacoes.get(r.id as string) ?? 0,
     quantidadeProventos: qtdProventos.get(r.id as string) ?? 0,
@@ -172,6 +193,23 @@ export async function listarAlocacaoInvestimentos(familiaId: string, dataRef: st
     subclasse: (r.subclass as string | null) ?? null,
     valor: centsFromDb(r.market_value as string | number),
     percentual: Number(r.share ?? 0),
+  }))
+}
+
+/** Marca o ativo como líquido ou restrito (previdência, FGTS). Só muda em qual balde o valor aparece. */
+export async function definirLiquidezAtivo(ativoId: string, liquidez: Liquidez): Promise<void> {
+  const { error } = await db().rpc('investment_asset_set_liquidity', { p_asset: ativoId, p_liquidity: liquidez })
+  if (error) throw error
+}
+
+/** Carteira por moeda e liquidez; os valores vêm somados do banco. */
+export async function listarLiquidezInvestimentos(familiaId: string, dataRef: string): Promise<LinhaLiquidez[]> {
+  const { data, error } = await db().rpc('investment_liquidity_totals', { p_household: familiaId, p_as_of: dataRef })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    moeda: r.currency_code as MoedaInvestimento,
+    liquidez: r.liquidity === 'restricted' ? 'restricted' : 'liquid',
+    valor: centsFromDb(r.market_value as string | number),
   }))
 }
 
@@ -242,8 +280,13 @@ export async function registrarOperacaoInvestimento(d: {
   precoUnitario: string
   tarifas: Cents
   observacao: string
+  /** Conta de onde saiu (compra) ou para onde volta (venda); o banco cria a transferência com a carteira (migration 100).
+   * Vazio = não passou por conta do app (ex.: previdência): só a operação, como antes. */
+  contaId?: string
 }): Promise<void> {
   const { error } = await db().rpc('investment_operation_record', {
+    // só envia a conta quando há uma: assim a gravação segue funcionando no banco sem a migration 100
+    ...(d.contaId ? { p_account: d.contaId } : {}),
     p_asset: d.ativoId,
     p_date: d.data,
     p_kind: d.tipo,
@@ -253,6 +296,28 @@ export async function registrarOperacaoInvestimento(d: {
     p_notes: d.observacao.trim() || null,
   })
   if (error) throw error
+}
+
+/**
+ * Move o saldo de uma conta para a carteira (migration 100): o banco cria o ativo com o saldo de hoje da conta, transfere
+ * esse saldo para a carteira (a conta zera sem despesa) e arquiva a conta. O valor sai do banco, nunca do front.
+ */
+export async function moverContaParaCarteira(d: {
+  contaId: string
+  nome: string
+  classe: ClasseAtivo
+  liquidez: Liquidez
+  subclasse: string
+}): Promise<string> {
+  const { data, error } = await db().rpc('account_move_to_portfolio', {
+    p_account: d.contaId,
+    p_name: d.nome.trim(),
+    p_class: d.classe,
+    p_liquidity: d.liquidez,
+    p_subclass: d.subclasse.trim() || null,
+  })
+  if (error) throw error
+  return data as string
 }
 
 export async function registrarAvaliacaoInvestimento(d: {

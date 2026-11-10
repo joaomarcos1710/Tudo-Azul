@@ -21,11 +21,14 @@ export interface Lancamento {
   data: string
   status: StatusLancamento
   notas: string
+  personId?: string | null
+  isSharedExpense?: boolean
+  recorrenciaId?: string | null
   /** Gerado por uma regra recorrente (só leitura: o vínculo é gravado pelo banco). */
   recorrente?: boolean
 }
 
-export type DadosLancamento = Omit<Lancamento, 'id' | 'recorrente'>
+export type DadosLancamento = Omit<Lancamento, 'id' | 'recorrente' | 'recorrenciaId' | 'personId' | 'isSharedExpense'> & Partial<Pick<Lancamento, 'personId' | 'isSharedExpense'>>
 
 /** Totais do mês calculados no banco (period_summary): a tela não soma dinheiro. */
 export interface ResumoMes {
@@ -59,22 +62,57 @@ export interface Filtros {
   contaId?: string
   categoriaId?: string
   tipo?: TipoLancamento
+  /** Resolvido = paid; Pendente = planned (só lançamentos). */
+  situacao?: StatusLancamento
+  /** Só as faturas desse cartão (cartão não tem lançamento próprio: a compra vive na fatura). */
+  cartaoId?: string
+  /** Só lançamentos gerados por um recorrente (recurrence_id). */
+  soFixos?: boolean
+  /** Só lançamentos de uma compra parcelada (installment_group). */
+  soParcelados?: boolean
 }
 
-export async function listarLancamentos(familiaId: string, mes: string, f: Filtros = {}): Promise<Lancamento[]> {
-  const [de, ate] = limitesDoMes(mes)
-  let consulta = cliente()
-    .from('transactions')
-    .select('id, type, account_id, destination_account_id, category_id, description, amount, date, status, notes, recurrence_id')
-    .eq('household_id', familiaId)
-    .is('deleted_at', null)
-    .gte('date', de)
-    .lte('date', ate)
-  // conta filtra origem ou destino: a transferência aparece nas duas contas
-  if (f.contaId) consulta = consulta.or(`account_id.eq.${f.contaId},destination_account_id.eq.${f.contaId}`)
-  if (f.categoriaId) consulta = consulta.eq('category_id', f.categoriaId)
-  if (f.tipo) consulta = consulta.eq('type', f.tipo)
-  const { data, error } = await consulta.order('date', { ascending: false }).order('created_at', { ascending: false })
+export function listarLancamentos(familiaId: string, mes: string, f: Filtros = {}): Promise<Lancamento[]> {
+  return listarLancamentosNoPeriodo(familiaId, ...limitesDoMes(mes), f)
+}
+
+/** Lançamentos com data entre `de` e `ate` (inclusive): o período livre da tela de Lançamentos (etapa 3). */
+export async function listarLancamentosNoPeriodo(familiaId: string, de: string, ate: string, f: Filtros = {}): Promise<Lancamento[]> {
+  const consultar = async (colunas: string[]) => {
+    let consulta = cliente().from('transactions').select(colunas.join(', '))
+      .eq('household_id', familiaId).is('deleted_at', null).gte('date', de).lte('date', ate)
+    // conta filtra origem ou destino: a transferência aparece nas duas contas
+    if (f.contaId) consulta = consulta.or(`account_id.eq.${f.contaId},destination_account_id.eq.${f.contaId}`)
+    if (f.categoriaId) consulta = consulta.eq('category_id', f.categoriaId)
+    if (f.tipo) consulta = consulta.eq('type', f.tipo)
+    if (f.situacao) consulta = consulta.eq('status', f.situacao)
+    if (f.soFixos) consulta = consulta.not('recurrence_id', 'is', null)
+    if (f.soParcelados) consulta = consulta.not('installment_group', 'is', null)
+    return consulta.order('date', { ascending: false }).order('created_at', { ascending: false })
+  }
+  type LinhaLancamentoDb = {
+    id: string; type: TipoLancamento; account_id: string; destination_account_id: string | null;
+    category_id: string | null; description: string; amount: number | string; date: string;
+    status: StatusLancamento; notes: string | null; recurrence_id: string | null;
+    person_id?: string | null; is_shared_expense?: boolean;
+  }
+  let data: LinhaLancamentoDb[] | null = null
+  let error: { code?: string; message?: string } | null = null
+  const novo = await consultar([
+    'id', 'type', 'account_id', 'destination_account_id', 'category_id', 'description', 'amount', 'date',
+    'status', 'notes', 'recurrence_id', 'person_id', 'is_shared_expense',
+  ])
+  data = novo.data as unknown as LinhaLancamentoDb[] | null
+  error = novo.error
+  if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) {
+    // Preview sem a migration ainda: mantém o extrato antigo funcional, sem classificação.
+    const antigo = await consultar([
+      'id', 'type', 'account_id', 'destination_account_id', 'category_id', 'description', 'amount', 'date',
+      'status', 'notes', 'recurrence_id',
+    ])
+    data = antigo.data as unknown as LinhaLancamentoDb[] | null
+    error = antigo.error
+  }
   if (error) throw error
   return (data ?? []).map((t) => ({
     id: t.id,
@@ -87,6 +125,9 @@ export async function listarLancamentos(familiaId: string, mes: string, f: Filtr
     data: t.date,
     status: t.status,
     notas: t.notes ?? '',
+    personId: t.person_id ?? null,
+    isSharedExpense: t.is_shared_expense ?? false,
+    recorrenciaId: t.recurrence_id ?? null,
     recorrente: t.recurrence_id != null,
   }))
 }
@@ -120,9 +161,12 @@ const rotuloEventoConta: Record<string, string> = {
  * Receita e transferência não os incluem; com filtro de despesa ou de categoria, só o que é despesa: juros, tarifa e
  * principal de empréstimo/financiamento (este na categoria da dívida); sem filtro, todos.
  */
-export async function listarMovimentosDeDivida(familiaId: string, mes: string, f: Filtros = {}): Promise<MovimentoDivida[]> {
+export function listarMovimentosDeDivida(familiaId: string, mes: string, f: Filtros = {}): Promise<MovimentoDivida[]> {
+  return listarMovimentosDeDividaNoPeriodo(familiaId, ...limitesDoMes(mes), f)
+}
+
+export async function listarMovimentosDeDividaNoPeriodo(familiaId: string, de: string, ate: string, f: Filtros = {}): Promise<MovimentoDivida[]> {
   if (f.tipo === 'income' || f.tipo === 'transfer') return []
-  const [de, ate] = limitesDoMes(mes)
   const soDespesa = Boolean(f.categoriaId) || f.tipo === 'expense'
   const tipos = soDespesa ? ['interest', 'fee', 'payment', 'extra_principal'] : [...eventosDeConta]
   const db = cliente()
@@ -218,9 +262,13 @@ export function situacaoDaFatura(f: Fatura, hoje: string): SituacaoDaFatura {
  * cartões cuja conta de pagamento é aquela (a mesma regra do saldo projetado e da parcela de contrato planejada); cartão
  * sem conta de pagamento não aparece. A categoria não filtra aqui: quem filtra é listarComprasDasFaturas.
  */
-export async function listarFaturasDoMes(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<FaturaDoMes[]> {
+export function listarFaturasDoMes(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<FaturaDoMes[]> {
+  return listarFaturasNoPeriodo(familiaId, ...limitesDoMes(mes), f, hoje)
+}
+
+/** Faturas com vencimento entre `de` e `ate`: o mesmo critério do mês, para qualquer período. */
+export async function listarFaturasNoPeriodo(familiaId: string, de: string, ate: string, f: Filtros, hoje: string): Promise<FaturaDoMes[]> {
   if (f.tipo === 'income' || f.tipo === 'transfer') return []
-  const [de, ate] = limitesDoMes(mes)
   const { data, error } = await cliente().from('debts').select('id, name, pay_account_id').eq('household_id', familiaId).eq('kind', 'card')
   if (error) throw error
   const cartoes = ((data ?? []) as { id: string; name: string; pay_account_id: string | null }[])
@@ -300,9 +348,12 @@ export interface CreditoDeCartao {
 const COLUNA_INEXISTENTE = '42703'
 
 /** Sem conta (o dinheiro não passou por conta): some com filtro de conta, de despesa ou de transferência. */
-export async function listarCreditosDeCartao(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<CreditoDeCartao[]> {
+export function listarCreditosDeCartao(familiaId: string, mes: string, f: Filtros, hoje: string): Promise<CreditoDeCartao[]> {
+  return listarCreditosDeCartaoNoPeriodo(familiaId, ...limitesDoMes(mes), f, hoje)
+}
+
+export async function listarCreditosDeCartaoNoPeriodo(familiaId: string, de: string, ate: string, f: Filtros, hoje: string): Promise<CreditoDeCartao[]> {
   if (f.contaId || f.tipo === 'expense' || f.tipo === 'transfer') return []
-  const [de, ate] = limitesDoMes(mes)
   const db = cliente()
   let q = db.from('debt_events').select('id, debt_id, date, credit_date, amount, category_id, note')
     .eq('household_id', familiaId).eq('kind', 'income_credit').is('voided_at', null).gte('date', de).lte('date', ate)
@@ -416,6 +467,8 @@ function linha(d: DadosLancamento) {
     date: d.data,
     status: d.status,
     notes: d.notas.trim() || null,
+    person_id: d.tipo === 'expense' ? d.personId ?? null : null,
+    is_shared_expense: d.tipo === 'expense' ? d.isSharedExpense ?? false : false,
   }
 }
 
@@ -439,6 +492,8 @@ export function perguntaSeRepete(original: Lancamento, novo: DadosLancamento): b
   if (!original.recorrente || novo.tipo !== original.tipo) return false
   return novo.valor !== original.valor || novo.data !== original.data || novo.descricao.trim() !== original.descricao.trim()
     || (novo.tipo !== 'transfer' && novo.categoriaId !== original.categoriaId)
+    || (novo.tipo === 'expense' && (novo.personId ?? null) !== (original.personId ?? null))
+    || (novo.tipo === 'expense' && (novo.isSharedExpense ?? false) !== (original.isSharedExpense ?? false))
 }
 
 /**
@@ -510,16 +565,30 @@ export interface DadosParcelado {
   destinoId: string | null
   categoriaId: string | null
   primeiraPaga: boolean
+  personId?: string | null
+  isSharedExpense?: boolean
 }
 
 /** Cria as N parcelas de uma vez no banco (todas ou nenhuma); devolve o id do grupo. */
 export async function criarParcelado(d: DadosParcelado): Promise<string> {
-  const { data, error } = await cliente().rpc('transaction_installments_create', {
+  const args = {
     p_kind: d.tipo, p_description: d.descricao.trim(), p_total: centsToDecimal(d.total), p_count: d.parcelas,
     p_unit: d.unidade, p_every: d.cada, p_first: d.primeira, p_account: d.contaId,
     p_destination: d.tipo === 'transfer' ? d.destinoId : null, p_category: d.tipo === 'transfer' ? null : d.categoriaId,
     p_first_paid: d.primeiraPaga,
-  })
+    p_person_id: d.tipo === 'expense' ? d.personId ?? null : null,
+    p_is_shared_expense: d.tipo === 'expense' ? d.isSharedExpense ?? false : false,
+  }
+  let { data, error } = await cliente().rpc('transaction_installments_create_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense) {
+    const antigo = await cliente().rpc('transaction_installments_create', {
+      p_kind: args.p_kind, p_description: args.p_description, p_total: args.p_total, p_count: args.p_count,
+      p_unit: args.p_unit, p_every: args.p_every, p_first: args.p_first, p_account: args.p_account,
+      p_destination: args.p_destination, p_category: args.p_category, p_first_paid: args.p_first_paid,
+    })
+    data = antigo.data
+    error = antigo.error
+  }
   if (error) throw error
   return data as string
 }

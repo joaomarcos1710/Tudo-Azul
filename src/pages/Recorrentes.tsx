@@ -8,10 +8,11 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import { Selecao } from '../components/ui/Selecao'
+import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
 import { listarCartoes } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
-import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
+import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { aceitaLancamento, hojeSP, listarContas, mesmaMoeda } from '../lib/contas'
 import type { Conta } from '../lib/contas'
@@ -27,6 +28,11 @@ import type {
 } from '../lib/recorrencias'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo } from '../lib/cores'
+import { PessoaSelectField } from '../components/PessoaSelectField'
+import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
+import { listarPessoasFamilia } from '../lib/pessoasFamilia'
+import { useAuth } from '../lib/auth'
+import type { PessoaFamilia } from '../lib/pessoasFamilia'
 
 const dias: [string, string][] = Array.from({ length: 31 }, (_, i) => [String(i + 1), `Dia ${i + 1}`])
 const toda = (diaSemana: string) => `${diaSemana === 'sábado' || diaSemana === 'domingo' ? 'todo' : 'toda'} ${diaSemana}`
@@ -96,6 +102,7 @@ export default function Recorrentes() {
   const [contas, setContas] = useState<Conta[]>([])
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
+  const [pessoas, setPessoas] = useState<PessoaFamilia[]>([])
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState<Recorrencia | 'nova' | null>(null)
   const [aba, setAba] = useState<Aba>('todos')
@@ -111,6 +118,7 @@ export default function Recorrentes() {
       setContas(c.contas)
       setCartoes(k)
       setCategorias(cat)
+      void listarPessoasFamilia(familiaId).then(setPessoas).catch(() => setPessoas([]))
       setResumo(s)
       setErro('')
     } catch (err) {
@@ -234,9 +242,10 @@ export default function Recorrentes() {
       {editando !== null && (
         <FormRecorrencia
           recorrencia={editando === 'nova' ? null : editando}
-          contas={contas} cartoes={cartoes} categorias={categorias}
+          contas={contas} cartoes={cartoes} categorias={categorias} pessoas={pessoas}
           aoSalvar={async () => { setEditando(null); await carregar() }}
           aoCancelar={() => setEditando(null)}
+          aoCategoriaCriada={(c) => setCategorias((atual) => [...atual, c])}
         />
       )}
 
@@ -351,6 +360,7 @@ export default function Recorrentes() {
               </Card>
             )}
           </div>
+          {familiaId && <ProjecaoCompromissos familiaId={familiaId} hoje={hojeSP()} />}
         </>
       )}
 
@@ -382,11 +392,15 @@ interface PropsForm {
   contas: Conta[]
   cartoes: Cartao[]
   categorias: Categoria[]
+  pessoas: PessoaFamilia[]
   aoSalvar: () => Promise<void>
   aoCancelar: () => void
+  /** Categoria criada pelo seletor: a página acrescenta à lista dela. */
+  aoCategoriaCriada: (c: Categoria) => void
 }
 
-function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar, aoCancelar }: PropsForm) {
+function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas, aoSalvar, aoCancelar, aoCategoriaCriada }: PropsForm) {
+  const { sessao } = useAuth()
   const editando = r !== null
   // multimoeda F2: receita, despesa e transferência em qualquer moeda; o destino da transferência só na moeda da origem
   const contasAtivas = contas.filter((c) => c.ativa && aceitaLancamento(c, 'lancamento'))
@@ -405,6 +419,14 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
   const [destinoId, setDestinoId] = useState(r?.destinoId ?? '')
   const [cartaoId, setCartaoId] = useState(r?.cartaoId ?? cartoesComCiclo[0]?.id ?? '')
   const [categoriaId, setCategoriaId] = useState(r?.categoriaId ?? '')
+  const [personId, setPersonId] = useState<string | null>(r?.personId ?? null)
+  const [isSharedExpense, setIsSharedExpense] = useState(r?.isSharedExpense ?? false)
+  const pessoaEscolhidaManualmente = useRef(false)
+  useEffect(() => {
+    if (editando || pessoaEscolhidaManualmente.current || !sessao?.user.id) return
+    const propria = pessoas.find((pessoa) => pessoa.userId === sessao.user.id && pessoa.ativo)
+    if (propria) setPersonId((atual) => atual ?? propria.id)
+  }, [editando, pessoas, sessao?.user.id])
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -450,7 +472,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
     setEnviando(true)
     try {
       if (r) {
-        await editarRecorrencia(r.id, { descricao, valor, categoriaId: precisaCategoria ? categoriaId : null })
+        await editarRecorrencia(r.id, { descricao, valor, categoriaId: precisaCategoria ? categoriaId : null, personId: tipo === 'expense' || tipo === 'card' ? personId : null, isSharedExpense: tipo === 'expense' || tipo === 'card' ? isSharedExpense : false })
       } else {
         await criarRecorrencia({
           tipo, descricao, valor, dia: unidade === 'month' ? Number(dia) : null, inicio, fim: fim || null, unidade, cada,
@@ -458,6 +480,8 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
           destinoId: tipo === 'transfer' ? destinoId : null,
           cartaoId: tipo === 'card' ? cartaoId : null,
           categoriaId: precisaCategoria ? categoriaId : null,
+          personId: tipo === 'expense' || tipo === 'card' ? personId : null,
+          isSharedExpense: tipo === 'expense' || tipo === 'card' ? isSharedExpense : false,
         })
       }
       await aoSalvar()
@@ -533,10 +557,14 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, aoSalvar
         )}
         {precisaCategoria && (
           <>
-            <Selecao rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} todos="Escolha…"
-              opcoes={opcoesDeCategoria(categoriasDoTipo, categorias).map((o) => [o.id, o.rotulo])} />
+            <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={categoriasDoTipo} categorias={categorias}
+              tipo={tipoCategoria} aoCriada={aoCategoriaCriada} />
             {erroDe('categoria') && <p role="alert" className="text-sm text-negativo">{erroDe('categoria')}</p>}
           </>
+        )}
+        {(tipo === 'expense' || tipo === 'card') && (
+          <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
+            onChange={(value) => { pessoaEscolhidaManualmente.current = true; setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando

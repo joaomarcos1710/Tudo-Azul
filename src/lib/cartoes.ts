@@ -83,6 +83,30 @@ export interface ItemFatura {
   categoriaId: string
 }
 
+/** Uma ocorrência prevista de assinatura numa fatura (card_subscription_previews): ainda não virou parcela. */
+export interface OcorrenciaPrevista {
+  recorrenciaId: string
+  /** Dia em que a assinatura será cobrada (a compra); é a data editada, se a pessoa mudou só esta. */
+  data: string
+  descricao: string
+  valor: Cents
+  categoriaId: string
+  /** Id do item agendado; null enquanto o app ainda não gerou os itens (então só dá para excluir a assinatura). */
+  itemId: string | null
+  /** A pessoa mudou só esta ocorrência. */
+  editada: boolean
+}
+
+/** Uma fatura futura com assinaturas agendadas (card_scheduled_invoices): total e quantidade somados no banco. */
+export interface FaturaAgendada {
+  /** AAAA-MM do fechamento da fatura. */
+  mes: string
+  fechamento: string
+  vencimento: string
+  total: Cents
+  itens: number
+}
+
 /** Uma linha da prévia de exclusão: o que será desfeito (cobrança, pagamento devolvido, cancelamento). */
 export interface ItemPrevia {
   tipo: 'charge' | 'credit' | 'payment' | 'extra_principal' | 'cancel' | string
@@ -122,6 +146,8 @@ export interface DadosCompra {
   categoriaId: string
   /** Em qual fatura lançar: 0 = a que a data dá; -3 a +3 = tantas faturas antes ou depois (migration 051). */
   deslocamento?: number
+  personId?: string | null
+  isSharedExpense?: boolean
 }
 
 function cliente() {
@@ -260,11 +286,21 @@ export function novaChave(): string {
 }
 
 export async function registrarCompra(cartaoId: string, d: DadosCompra, chave?: string): Promise<void> {
-  const { error } = await cliente().rpc('card_purchase_at', {
+  const args = {
     p_debt: cartaoId, p_date: d.data, p_total: centsToDecimal(d.total), p_count: d.parcelas,
     p_category: d.categoriaId, p_description: d.descricao.trim(), p_invoice_offset: d.deslocamento ?? 0,
     ...(chave ? { p_idem: chave } : {}),
-  })
+    p_person_id: d.personId ?? null, p_is_shared_expense: d.isSharedExpense ?? false,
+  }
+  let { error } = await cliente().rpc('card_purchase_at_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !d.personId && !d.isSharedExpense) {
+    const antigo = await cliente().rpc('card_purchase_at', {
+      p_debt: cartaoId, p_date: d.data, p_total: centsToDecimal(d.total), p_count: d.parcelas,
+      p_category: d.categoriaId, p_description: d.descricao.trim(), p_invoice_offset: d.deslocamento ?? 0,
+      ...(chave ? { p_idem: chave } : {}),
+    })
+    error = antigo.error
+  }
   if (error) throw error
 }
 
@@ -395,6 +431,86 @@ export async function listarItens(cartaoId: string, mes: string): Promise<ItemFa
 }
 
 /**
+ * As assinaturas (recorrências de cartão) previstas numa fatura, uma linha por ocorrência, ainda sem virar parcela.
+ * Vêm do banco (card_subscription_previews); nada é somado aqui. `mes` = AAAA-MM do fechamento da fatura.
+ */
+export async function listarOcorrenciasPrevistas(cartaoId: string, mes: string): Promise<OcorrenciaPrevista[]> {
+  const { data, error } = await cliente().rpc('card_subscription_previews', { p_debt: cartaoId, p_label: mes })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number | boolean | null>[]).map((o) => ({
+    recorrenciaId: o.recurrence_id as string,
+    data: o.occurrence_date as string,
+    descricao: (o.description as string | null) ?? 'Assinatura',
+    valor: centsFromDb((o.amount as string | number | null) ?? 0),
+    categoriaId: o.category_id as string,
+    itemId: (o.item_id as string | null) ?? null,
+    editada: o.edited === true,
+  }))
+}
+
+export interface DadosAgendada { data: string; valor: Cents; descricao: string; categoriaId: string }
+
+/** "Só esta": muda a data, o valor, a descrição e a categoria de uma cobrança ainda agendada (card_scheduled_item_update). */
+export async function editarAgendada(itemId: string, d: DadosAgendada): Promise<void> {
+  const { error } = await cliente().rpc('card_scheduled_item_update', {
+    p_item: itemId, p_charge_date: d.data, p_amount: centsToDecimal(d.valor), p_description: d.descricao.trim(), p_category: d.categoriaId,
+  })
+  if (error) throw error
+}
+
+/** "Só esta": cancela uma cobrança ainda agendada; as outras seguem (card_scheduled_item_cancel). */
+export async function cancelarAgendada(itemId: string): Promise<void> {
+  const { error } = await cliente().rpc('card_scheduled_item_cancel', { p_item: itemId })
+  if (error) throw error
+}
+
+/**
+ * "Esta e as próximas": encerra daqui em diante ('end') ou muda daqui em diante ('update', com os dados novos).
+ * O que já virou compra fica como está. Devolve quantas cobranças agendadas saíram (card_scheduled_from_here).
+ */
+export async function aPartirDaqui(itemId: string, acao: 'end' | 'update', d?: DadosAgendada): Promise<number> {
+  const { data, error } = await cliente().rpc('card_scheduled_from_here', {
+    p_item: itemId, p_action: acao,
+    ...(acao === 'update' && d ? { p_charge_date: d.data, p_amount: centsToDecimal(d.valor), p_description: d.descricao.trim(), p_category: d.categoriaId } : {}),
+  })
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
+/**
+ * Gera (ou atualiza) os itens agendados das assinaturas de cartão para os próximos 12 meses (card_scheduled_sync).
+ * O app chama ao abrir, depois de gerar os recorrentes. Devolve quantas linhas mudaram.
+ */
+export async function sincronizarAgendados(): Promise<number> {
+  const { data, error } = await cliente().rpc('card_scheduled_sync')
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
+/**
+ * Converte em parcela os itens agendados cuja fatura já é a aberta, ou seja, quando a fatura anterior fechou
+ * (card_scheduled_convert). É aí que a assinatura passa a ocupar o limite e a valer na fatura. Devolve quantos converteu.
+ */
+export async function converterAgendados(): Promise<number> {
+  const { data, error } = await cliente().rpc('card_scheduled_convert')
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
+/** Faturas futuras do cartão com assinaturas agendadas; totais do banco, nada é somado aqui. */
+export async function listarFaturasAgendadas(cartaoId: string): Promise<FaturaAgendada[]> {
+  const { data, error } = await cliente().rpc('card_scheduled_invoices', { p_debt: cartaoId })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number | null>[]).map((f) => ({
+    mes: f.label as string,
+    fechamento: f.closing_date as string,
+    vencimento: f.due_date as string,
+    total: centsFromDb(f.total ?? 0),
+    itens: Number(f.items ?? 0),
+  }))
+}
+
+/**
  * Lança um crédito no cartão que NÃO é estorno de compra (estorno de IOF, cashback, reembolso da empresa ou do plano).
  * Decisão do dono (04/11/2026): conta como RECEITA, na categoria de receita escolhida, no mês do fechamento da fatura em
  * que entra; abate o valor a pagar dessa fatura. Fatura, mês e validações ficam no banco (card_credit_income).
@@ -406,6 +522,16 @@ export async function lancarCreditoNoCartao(cartaoId: string, d: DadosCredito, c
   })
   if (error) throw error
   return data as string
+}
+
+/**
+ * Troca a categoria de receita de créditos/reembolsos do cartão (migration 077): só a classificação muda; valor, data,
+ * fatura e totais ficam iguais, por isso a fatura paga (travada) não impede. Tudo ou nada; devolve quantos mudaram.
+ */
+export async function trocarCategoriaDoCredito(creditoIds: string[], categoriaId: string): Promise<number> {
+  const { data, error } = await cliente().rpc('card_credit_set_category', { p_events: creditoIds, p_category: categoriaId })
+  if (error) throw error
+  return data as number
 }
 
 /** Último dia do mês AAAA-MM. */
@@ -603,6 +729,9 @@ export async function listarPagamentosDaFatura(cartaoId: string, faturaId: strin
     .map((e) => ({ id: e.id, data: e.date, valor: centsFromDb(e.amount) }))
 }
 
+/** Quantos pagamentos e devoluções do cartão a tela lê (os mais recentes). */
+export const LIMITE_MOVIMENTOS = 30
+
 export async function listarMovimentosDoCartao(cartaoId: string): Promise<MovimentoCartao[]> {
   const { data, error } = await cliente()
     .from('debt_events')
@@ -612,7 +741,7 @@ export async function listarMovimentosDoCartao(cartaoId: string): Promise<Movime
     .in('kind', ['payment', 'extra_principal', 'refund_cash'])
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(30)
+    .limit(LIMITE_MOVIMENTOS)
   if (error) throw error
   const tipos: Record<string, MovimentoCartao['tipo']> = { payment: 'pagamento', extra_principal: 'amortizacao', refund_cash: 'devolucao' }
   return (data ?? []).map((e) => ({
@@ -788,3 +917,7 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
     }
   }))
 }
+
+/** Endereços das páginas de Cartões (#203): o cartão e uma fatura dele (`mes` = AAAA-MM do fechamento). */
+export const rotaCartao = (cartaoId: string) => `/cartoes/${cartaoId}`
+export const rotaFatura = (cartaoId: string, mes: string) => `/cartoes/${cartaoId}/fatura/${mes}`

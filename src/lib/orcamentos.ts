@@ -14,6 +14,9 @@ export interface OrcamentoMes {
   gasto: Cents
   /** Já previsto até o fim do mês (planejado e parcelas de cartão que ainda vão fechar). null sem projeção. */
   previsto: Cents | null
+  /** Parte do previsto que é compra de cartão já lançada em fatura que ainda não fechou (budget_projection.planned_card,
+   * migration 101). Fatura fechada já está no gasto. null quando o banco ainda não devolve a coluna; nunca se sobrepõe ao gasto. */
+  cartaoLancado: Cents | null
   /** Ritmo do variável × dias que faltam. null sem projeção. */
   ritmo: Cents | null
   /** Gasto + previsto + ritmo. null sem projeção. */
@@ -53,6 +56,7 @@ export async function listarOrcamentos(familiaId: string, mes: string, hoje: str
       limite: centsFromDb(r.amount_limit ?? 0),
       gasto: centsFromDb(r.spent ?? 0),
       previsto: centsFromDb(r.planned ?? 0),
+      cartaoLancado: r.planned_card === undefined || r.planned_card === null ? null : centsFromDb(r.planned_card as string | number),
       ritmo: centsFromDb(r.pace_extra ?? 0),
       projetado: centsFromDb(r.projected ?? 0),
       sobra: centsFromDb(r.remaining ?? 0),
@@ -67,7 +71,7 @@ export async function listarOrcamentos(familiaId: string, mes: string, hoje: str
     nome: r.category_name as string,
     limite: centsFromDb(r.amount_limit ?? 0),
     gasto: centsFromDb(r.spent ?? 0),
-    previsto: null, ritmo: null, projetado: null, sobra: null,
+    previsto: null, cartaoLancado: null, ritmo: null, projetado: null, sobra: null,
     restante: centsFromDb(r.remaining ?? 0),
   }))
 }

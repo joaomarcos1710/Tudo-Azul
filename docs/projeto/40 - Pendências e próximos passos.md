@@ -1,13 +1,15 @@
 ---
 tags: [tudo-azul, pendencias]
-atualizado: 2026-10-28
+atualizado: 2026-11-06
 ---
 # Pendências e próximos passos
 
 ## Decisões suas
+- [x] **Produção: lançamentos bloqueados (42501)** — migration 079 aplicada em 09/11/2026 junto com as pendentes 020000–060000 (histórico reparado pelo modo `reparar` do workflow).
+- [x] **Produção: salvar Preferências e ligar o Aviso diário nunca funcionaram (42501 no upsert).** Migration 080 pronta (PR da revisão geral); aplicar pelo workflow com `APLICAR` depois do merge. — **feito:** migration 080 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026); o privilégio `UPDATE(user_id)` existe. Falta só exercitar de verdade (as tabelas `user_preferences` e `daily_digest_settings` ainda têm 0 linhas): salvar uma preferência no app.
 - [x] Versão **2026.2** (feito).
 - [x] Commit na versão: **só na tela Família** (#56).
-- [ ] **Relatórios: usar o espaço** que a exportação liberou (#180): abas como no Organizze (Categorias, Contas) — decidir com o dono o que entra primeiro.
+- [ ] **Relatórios: abas como no Organizze** — já existem Entradas x Saídas, Contas e Gastos por pessoa; falta **Categorias** (decidir com o dono).
 - [ ] **Saldo previsto por conta** (fim do mês): saiu do Início na #178. Decidir se volta em Contas (ex.: "previsto fim do mês" abaixo do saldo) ou fica só o total no Calendário.
 - [ ] Alerta de vencimento por **push**? (iPhone/Android? você usa iPad, celular e site; hoje o card "Vencidos" cobre)
 
@@ -22,6 +24,24 @@ atualizado: 2026-10-28
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Cartões no celular (#201, 06/11/2026)
+- [x] Página sem rolagem lateral em 360, 390, 820 e 1280px (harness com dados fictícios); valores das compras, do resumo da fatura e dos pagamentos visíveis; créditos e pagamentos recolhidos em 5 + "Ver todos (N)".
+- [ ] **Conferir no seu iPhone** (você), com os seus cartões: fileira de meses deslizando dentro do cartão, valores à direita e "Ver todos".
+- [ ] **"Pagamentos e devoluções" por fatura**: hoje a lista é do cartão (os 30 mais recentes, `listarMovimentosDoCartao`), por isso fica recolhida. Dá para filtrar pela fatura escolhida usando o `invoice_id` que já chega, mas o adiantamento (sem fatura) e a devolução em dinheiro precisam de lugar próprio; decidir e fazer numa PR à parte (sem migration).
+- [ ] **Mais de 30 pagamentos**: atalho — a tela lê só os 30 mais recentes e diz "Mostrando os 30 mais recentes"; os antigos não aparecem nem para anular. Melhorar com paginação ou com o filtro por fatura acima.
+- [x] **Abas de fatura**: na #203 a fileira virou links para a página da fatura, que tem as setas ‹ › de mês; a fileira continua rolando de lado no cartão.
+
+### Cartões em três páginas (#203, 06/11/2026)
+- [x] Lista, página do cartão e página da fatura, com os blocos Pagamentos → Entradas → Saídas; links do Início, de Lançamentos e do aviso apontando para a página certa; prints em 390, 820 e 1280px sem rolagem lateral (harness com dados fictícios).
+- [ ] **Conferir no seu iPhone** (você): abrir um cartão, abrir a fatura, as setas ‹ ›, o voltar do navegador e o "‹ Cartões".
+- [ ] **"Pagamentos e devoluções" por fatura** (pendência da #201): agora que a fatura tem o bloco Pagamentos (os ligados a ela), a lista do cartão poderia mostrar só o que não está em fatura (adiantamentos e devoluções). Decidir e fazer numa PR à parte.
+- [ ] Atalho: a página da fatura lê `card_months` de novo ao abrir (a fileira do cartão já tinha lido); são páginas diferentes, então não há leitura dupla na mesma tela, mas trocar de fatura pelas setas relê itens, créditos e pagamentos daquela fatura (o esperado). Se ficar lento com muitas faturas, guardar a lista no `Cartoes` pai.
+- [ ] Os prints do Início e de Lançamentos não foram refeitos nesta PR (só os links mudaram); conferir "Ver fatura" e "Ver em Cartões" no app.
+### Categoria do crédito de cartão (#202, migration 077, 06/11/2026)
+- [x] RPC `card_credit_set_category` (lote, tudo ou nada) + brecha no guard só para `category_id` de `income_credit` com a marca de sessão; "Trocar categoria" no ⋯ do crédito em Cartões (também em fatura paga).
+- [x] **Aplicar a migration 077 em produção** pelo workflow (simular → ler o log → aplicar), com o "pode" do dono. — **feito:** migration 077 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026).
+- [x] **Mover os 31 créditos "IOF"** de "Outras receitas" para "Estorno de IOF": pela tela, um a um (31 cliques), ou numa chamada só da RPC com os 31 ids (a tela ainda não tem seleção em lote de créditos; fazer se o dono quiser). — **feito:** hoje há 31 créditos na categoria "Estorno de IOF" (conferido no banco).
+- [ ] Depois de mover, conferir no Início que a Taxa de poupança e o Comprometimento (último mês fechado) deixaram de contar esses créditos (categoria "não conta como consumo").
 ### Segurança dos GitHub Actions (#195, 06/11/2026)
 - [x] Segredos de produção só nos passos que usam (workflow de migrations), checkout com `persist-credentials: false`, actions por SHA com a tag no comentário, `setup-cli@v1` (branch) + `latest` trocados por v3.2.0 + CLI 2.122.1 nos testes do banco, Dependabot semanal para as actions.
 - [ ] **Rodar "simular" no workflow de produção depois do merge** (com o "pode" do dono): é a única prova real de que os segredos chegam aos passos certos e de que a setup-cli fixada por SHA funciona ali (o CI do PR não roda esse workflow).
@@ -42,15 +62,27 @@ atualizado: 2026-10-28
 - [x] **Aplicar a migration 073** em produção: aplicada em 06/11/2026 (execução 42198308981, merge `5e3c8ce`). Entrou antes do "este e os próximos" (que passa a ser a 074). Antes, conferir numa transação desfeita: Entradas x Saídas de um período com crédito de empréstimo ou conta nova, o Saldo da última linha contra o Calendário no último dia.
 - [ ] **Desempenho da 073 em produção**: `cash_flow_series` ganhou duas leituras pequenas (créditos de empréstimo do período e contas da família); não foi medida no volume de teste nesta PR. Medir no mês de novembro em produção (limite de 8 s).
 - [ ] **Decisão do dono — crédito de empréstimo**: entra como **entrada** no Relatório › Contas (é extrato) mas **não** em Entradas x Saídas (decisão de 03/11: não é receita). Agora o Saldo das duas telas bate; as colunas Entradas diferem por esse valor. Manter assim ou mostrar uma linha "Movimentos que não são entrada/saída" em Entradas x Saídas?
-- [ ] **Decisão do dono — patrimônio com investimentos em dobro**: o Patrimônio total do Início soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; Análises (`net_worth_with_assets`) não soma os investimentos. Os dois números diferem e o do Início pode contar o mesmo dinheiro duas vezes (ver também a seção da #188).
-- [ ] **Decisão do dono — "Disponível"** inclui as contas Renda fixa, Renda variável e Cripto (os 7 tipos ativos). Dinheiro aplicado não está disponível para gastar no dia; decidir se o Disponível fica só com corrente, poupança/reserva, corretora (saldo a aplicar) e dinheiro.
+- [x] **Decisão do dono — patrimônio com investimentos em dobro**: decidido em 06/11/2026 — o Patrimônio total do Início passa a ser o de Análises (`net_worth_with_assets`), sem somar a carteira (migration 075, #196).
+- [x] **Decisão do dono — "Disponível"**: decidido em 06/11/2026 — o Disponível fica só com corrente, poupança/reserva, corretora (saldo a aplicar) e dinheiro; Renda fixa, Renda variável e Cripto saem dele e continuam no Patrimônio (migration 076, #200).
 - [ ] **Decisão do dono — Relatório › Contas sem as contas arquivadas**: só contas ativas aparecem, então o total do relatório não fecha com o saldo total (que inclui as arquivadas com saldo). Mostrar as arquivadas com saldo ou movimento no período?
 - [ ] **Desempenho de `account_flow_report`**: chama `account_movements` uma vez por conta (`cross join lateral`); com muitas contas e anos de histórico pode passar do limite de 8 s. Medir e, se preciso, ler os movimentos numa passada só.
 - [ ] **Legado**: compra parcelada em dívida que não é cartão (`charge`/`credit` sem conta) entra no resultado de Entradas x Saídas sem mexer no saldo; desde a migration 008 parcelas só existem em cartão, então não deve haver nenhuma. Conferir em produção (`select count(*) from debt_events e join debts d on d.id = e.debt_id where d.kind <> 'card' and e.kind in ('charge','credit')`).
 
+### Disponível só com o dinheiro de uso no mesmo dia (#200, migration 076)
+- [x] `home_indicators.available` = contas ativas em reais dos tipos checking, savings, cash e brokerage − faturas fechadas; renda fixa, renda variável e cripto fora do Disponível e dentro do Patrimônio (#200).
+- [x] **Aplicar a migration 076** em produção (simular → ler o log → aplicar, com o "pode" do dono), junto da publicação do front: antes dela, o (i) novo diz que renda fixa/variável/cripto ficam fora, mas o número do banco ainda as soma. — **feito:** migration 076 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026).
+- [ ] Conferir em produção (transação desfeita) que `available` caiu exatamente pelo saldo ativo das contas de renda fixa, renda variável e cripto em reais (`balance_totals_by_type`), e que `net_worth` não mudou.
+
+### Um patrimônio só (#196, migration 075)
+- [x] Patrimônio total do Início = `net_worth_with_assets` (Análises), sem somar a carteira de Investimentos; `investments` continua no retorno e o (i) diz que a carteira fica à parte (#196).
+- [x] Apagar a tabela `public."Teste1"` criada à mão no painel (migration 075, `drop table if exists`).
+- [x] **Aplicar a migration 075** em produção: aplicada em 06/11/2026 (execução 42213092166, merge `46802ec`).
+- [ ] Conferir em produção (transação desfeita) que `home_indicators(...).net_worth = net_worth_with_assets(...).net_worth` para a família.
+- [ ] **Quem tinha só a carteira** (ativo em Investimentos sem a conta de renda fixa/variável/cripto correspondente) vê o Patrimônio total cair pelo valor da carteira. Se for o caso, cadastrar a conta ou esperar a ligação conta ↔ ativo.
+
 ### Faixa de indicadores do Início (#188, migration 071)
-- [ ] **Aplicar a migration 071** em produção (simular → ler o log → aplicar, com o "pode" do dono), depois da 070. Antes, conferir os números em produção numa transação desfeita (`begin; select * from public.home_indicators(<família>, current_date); rollback;`).
-- [ ] **Investimento contado duas vezes**: o Patrimônio total soma as contas Renda fixa/variável/Cripto **e** os ativos de Investimentos; se o mesmo dinheiro estiver nos dois, conta em dobro. Resolver com a ligação conta ↔ ativo (item da #186) ou escolher uma das fontes.
+- [x] **Aplicar a migration 071** em produção (simular → ler o log → aplicar, com o "pode" do dono), depois da 070. Antes, conferir os números em produção numa transação desfeita (`begin; select * from public.home_indicators(<família>, current_date); rollback;`). — **feito:** migration 071 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026).
+- [x] **Investimento contado duas vezes**: resolvido escolhendo uma fonte — o patrimônio conta as contas; a carteira aparece à parte (migration 075, #196). A ligação conta ↔ ativo (item da #186) continua pendente.
 - [x] **Comprometimento e taxa de poupança no começo do mês** enganavam (73,7% e 71,6% em produção): passaram para o último mês fechado; o comprometimento usa a renda esperada (recorrentes) ou a recebida, a maior.
 - [x] **Reserva 0,0** com a média inflada por empréstimo, quitação e repasses: agora é a mediana, sem as categorias "não conta como consumo".
 - [x] **Marcar as categorias que não são consumo** (06/11/2026, a pedido do dono, depois da 071 aplicada): receita de empréstimo, os repasses de família (receita e despesa, subcategoria por subcategoria) e a subcategoria nova "Quitação de empréstimo" (em Financiamento e Empréstimos), para onde foram as liquidações de empréstimo. Quitações de anos anteriores ficaram onde estavam (fora da janela de 6 meses).
@@ -63,7 +95,7 @@ atualizado: 2026-10-28
 - [x] "Saldo hoje e previsto": o previsto do fim do mês ficou numa linha de Minhas contas.
 ### Recorrente: "Apenas este / Este e os próximos" (#194, migration 074)
 - [x] Pergunta ao salvar a edição de um lançamento de recorrente que mudou valor, data, descrição ou categoria (Lançamentos, no celular e na tabela); "Este e os próximos" pela `recurrence_update_from` (#194).
-- [ ] **Aplicar a migration 074** em produção (simular → ler o log → aplicar, com o "pode" do dono), **antes** de publicar o front: sem ela, "Este e os próximos" dá erro (o "Apenas este" funciona).
+- [x] **Aplicar a migration 074** em produção: aplicada em 06/11/2026 (execução 42203309171, merge `67fa25a`).
 - [ ] Conferir no iPad/celular: editar a conta de luz de um mês (dia e valor), escolher "Este e os próximos" e ver os meses seguintes no Calendário e em Recorrentes; um mês já pago e um corrigido à mão ficam como estavam.
 - [ ] **Marcar pago não pergunta** (decisão em [[30 - Decisões]]): confirmar com o dono.
 - [ ] Assinatura de cartão: "este e os próximos" não existe (ocorrência é parcela da fatura). Se fizer falta, a edição em Recorrentes já muda valor/descrição/categoria; o dia continua sem mudar.
@@ -81,7 +113,7 @@ atualizado: 2026-10-28
 - [x] Etiquetas livres por família: criar, renomear, apagar, marcar até 10 por conta; selos, filtro e seção "Etiquetas" em Contas; coluna na exportação completa (#189).
 - [x] **Contas arquivadas escondidas por padrão** em Contas, atrás do botão "Arquivadas (N)" (pedido do dono, #189). A escolha não é lembrada entre visitas (sempre fechada ao abrir a tela).
 - [ ] Arquivadas escondidas em outras telas (ex.: Dívidas/Cartões ainda mostram a seção "Arquivadas" sempre): avaliar com o dono se segue o mesmo padrão.
-- [ ] **Aplicar a migration 072** em produção (simular → ler o log → aplicar, com o "pode" do dono). Não depende da 070 nem da 071 (só cria tabelas e funções novas), mas segue a ordem dos arquivos.
+- [x] **Aplicar a migration 072** em produção (simular → ler o log → aplicar, com o "pode" do dono). Não depende da 070 nem da 071 (só cria tabelas e funções novas), mas segue a ordem dos arquivos. — **feito:** migration 072 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026).
 - [ ] **Filtrar relatórios por etiqueta** (Relatórios › Contas e Entradas x Saídas, Início): exige função no banco que receba a etiqueta (o front não soma). Nesta PR a etiqueta não entra em nenhum cálculo.
 - [ ] **Cor na etiqueta** (se o dono quiser): hoje selo neutro; categorias já têm o padrão `#RRGGBB` + `CORES`.
 - [ ] **Limites por contagem sem trava** (trigger da 072): duas inserções simultâneas podem passar 1 do limite de 50/10 (comentário `atalho:` na migration). Melhorar com lock só se aparecer abuso.
@@ -112,7 +144,7 @@ atualizado: 2026-10-28
 - [x] **Só o período escolhido** (seletor com setas e atalhos, "Escolher período", anos), divisões Diário · Semanal · Mensal · Acumulado com as que não cabem apagadas.
 - [x] **Fatura do cartão no pagamento** (paga) **ou no vencimento** (a pagar), nunca no fechamento, só em Entradas x Saídas.
 - [x] **Azul para entrada/positivo, vermelho para saída/negativo, cinza para zero**; saldo como área ao fundo do gráfico.
-- [ ] **Aplicar a migration 066** (você dá o "pode"): até lá, a tela de Relatórios mostra o aviso de erro no lugar do relatório (não há caminho antigo de reserva, porque o antigo era por competência).
+- [x] **Aplicar a migration 066** (você dá o "pode"): até lá, a tela de Relatórios mostra o aviso de erro no lugar do relatório (não há caminho antigo de reserva, porque o antigo era por competência). — **feito:** migration 066 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026).
 - [ ] **Conferir com o Organizze** (você): um mês com fatura paga (ex.: 28/11 com a saída da fatura) e um com fatura em aberto, com "Pagos e não pagos".
 - [x] **Decidir as cores no resto do app**: decidido pelo dono e feito na #183 (receitas azul em todo o app; despesa do Balanço vermelha).
 - [ ] **Exportar a tabela de Entradas x Saídas** (CSV com as linhas e o saldo, do banco): hoje só o CSV de lançamentos acompanha o período.
@@ -132,7 +164,7 @@ atualizado: 2026-10-28
 
 ### Previsto alinhado com os Relatórios (#185, migration 069)
 - [x] **Calendário, "Saldo hoje e previsto" do Início e aviso diário** com as assinaturas de cartão previstas e os lançamentos fixos ainda não gerados (`balance_totals_projected` e `account_balances_projected`); o previsto no fim do período = saldo final de Entradas x Saídas (total) e do Relatório › Contas (por conta). Relatórios com os mesmos números.
-- [ ] **Aplicar a migration 069** (você dá o "pode"; depende da 068): simular → ler o log → aplicar. Antes, a conferência em produção numa transação desfeita: novembro com não pagos, o Calendário em 30/11 deve dar o mesmo saldo final dos Relatórios (−R$ 261,74, se nada mudou), e os Relatórios os mesmos números de antes.
+- [x] **Aplicar a migration 069** (você dá o "pode"; depende da 068): simular → ler o log → aplicar. Antes, a conferência em produção numa transação desfeita: novembro com não pagos, o Calendário em 30/11 deve dar o mesmo saldo final dos Relatórios (−R$ 261,74, se nada mudou), e os Relatórios os mesmos números de antes. — **feito:** migration 069 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026).
 - [ ] **Conferir no app** (você): Calendário em 30/11 com "Efetuados + planejados" e o "Previsto em 30/11" do Início, contra Relatórios › Entradas x Saídas de novembro com "Pagos e não pagos".
 - [ ] **Desempenho em produção**: no volume de teste, o saldo previsto com planejados ficou ~0,1 s mais lento (mediana 0,61 → 0,71 s em 30/11; 0,57 → 0,83 s em 31/12/2027); os Relatórios ficaram mais rápidos. Medir na simulação; se apertar, `balance_totals_projected` pode ler as assinaturas uma vez só (hoje lê em `account_balances_projected` e de novo para o total).
 - [ ] **Conta em outra moeda**: o fixo previsto dela não entra no previsto por conta (como nos Relatórios, só reais). Decidir junto da multimoeda F3/F4.
@@ -158,6 +190,8 @@ atualizado: 2026-10-28
 - [ ] **Sem "Pagar fatura" se a leitura das faturas falhar** (#181): antes o botão do cartão abria o pagamento mesmo assim (com dívida, o formulário já bloqueava). Avaliar se vale um caminho de pagar adiantado nesse caso.
 
 ### Cores do app (#183)
+- [ ] **Favicon com hex fixo** (#211): `public/favicon.svg` repete o marinho e o celeste de `MARCA` (`src/lib/cores.ts`). Se a marca mudar, mudar nos dois lugares.
+- [ ] **Paleta proposta por terceiros** (marinho `#0A1F44`, azul `#1E5EFF`, vermelho `#C1121F`, verde `#0B7A55`): não aplicada. Decidir com o dono se mantém a #183 ou troca tons; se trocar, passar pelo `cores.test.ts` e registrar no doc 30.
 - [x] Tokens `lucro`, `prejuizo`, `atencao`, `agendado`, `neutro`, `transferencia` em `src/lib/cores.ts`, aplicados nas telas e nos gráficos; contraste medido em teste; laranja do Balanço → vermelho.
 - [ ] **Conferir no aparelho** (você): o verde de "Planejado" lido como "agendado" e não como "entrou" (o oposto do Organizze). Se confundir, trocar só o tom de `agendado` em `src/lib/cores.ts`.
 - [ ] **Relatórios ainda usam os nomes antigos** (`text-azul`, `text-negativo`, hex do gráfico pelos nomes `COR_RECEITA`/`COR_SAIDA`): mesmos tons, ficaram de fora porque outra PR mexia lá; trocar por `text-lucro`/`text-prejuizo`/`corDoValor` quando ela entrar.
@@ -170,7 +204,7 @@ atualizado: 2026-10-28
 ### Resumo dos cartões (#175, migration 065)
 - [x] **`card_overview`** (migration 065): uma chamada por família com fatura do mês, atual, fechada a pagar, limite, assinaturas previstas e os totais. Teste `65_card_overview` (31).
 - [x] **Resumo de todos os cartões** no topo de Cartões: carrossel de mês, "Faturas de <mês>" (total do banco e a fatura de cada cartão), limite total, disponível total e barra do usado com texto.
-- [ ] **Aplicar a migration 065** em produção (workflow; simular → ler o log → `APLICAR`), com o "pode" do dono.
+- [x] **Aplicar a migration 065** em produção (workflow; simular → ler o log → `APLICAR`), com o "pode" do dono. — **feito:** migration 065 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026).
 - [ ] **Atalho: caminho antigo sem a 065** (`Cartoes.tsx`, `carregar`): com o banco sem `card_overview` (ou se ela falhar), a tela lê `card_months` por cartão e `card_invoices_month`. Remover depois que a 065 estiver aplicada.
 - [ ] **Início ainda é N+1**: `resumoDosCartoes` (bloco Cartões do Início) chama `card_months` por cartão; passar a usar `card_overview` (mesmos números) numa PR própria.
 - [ ] **Dois "meses" de fatura no app**: Cartões agrupa pelo mês do fechamento (como as abas); o Início ("Faturas que vencem em") e Lançamentos pelo do vencimento. Decidir com o dono se unifica.
@@ -201,7 +235,7 @@ atualizado: 2026-10-28
 - [ ] **#172: abrir a fatura com créditos faz 2 consultas** (compras e créditos, só quando o banco diz que há créditos). Junto da função por família da #164, se ficar lento.
 - [ ] **#172: crédito com filtro de categoria × Receita**: com categoria, o crédito aparece no **vencimento** da fatura (como as compras); com Receita, no **fechamento**. Quando fechamento e vencimento caem em meses diferentes, o crédito muda de mês conforme o filtro (mesma questão da #164 com as compras).
 - [ ] **#172: tabela (≥1024px)**: a linha da fatura ainda tem "Ver compras" e "Cartões" lado a lado; em 1024px a descrição quebra em 2 linhas. Trocar pelo mesmo ▸/▾ da lista se incomodar.
-- [ ] **Atalho da #167: desfazer de categoria em várias chamadas** (`TabelaLancamentos` em `src/pages/LancamentosTabela.tsx`): uma chamada de `transactions_bulk_set_category` por categoria antiga; se a 2ª falhar, a 1ª já voltou. Melhorar com uma função de pares (id, categoria) no banco se acontecer.
+- [ ] **Atalho da #167: desfazer de categoria em várias chamadas** (`useSelecaoLote` em `src/pages/SelecaoEmLote.tsx`): uma chamada de `transactions_bulk_set_category` por categoria antiga; se a 2ª falhar, a 1ª já voltou. Melhorar com uma função de pares (id, categoria) no banco se acontecer.
 - [ ] **#167: seleção de vários no celular** (fora do pedido): hoje só no computador.
 - [ ] **#167: ordenação por valor mistura moedas** (só exibição): conta em dólar e em reais são ordenadas pelo número, sem conversão.
 - [ ] **Atalho da #164: `card_months` por cartão** (`listarFaturasDoMes` em `src/lib/lancamentos.ts`): a lista chama a função uma vez por cartão, com o histórico inteiro, e escolhe o mês na tela. Melhorar com uma função do banco por família e período (como `card_invoices_due`, mas com fechamento e situação) se ficar lento.
@@ -335,7 +369,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Medir num celular com rede lenta (Lighthouse) depois do #133; com o Sentry ligado, a velocidade real aparece em Performance.
 
 ## Monitoramento (03/11/2026)
-- [ ] **Dono:** criar o projeto no Sentry (React) e colar o DSN em `VITE_SENTRY_DSN` no Vercel (Production); depois, um novo deploy liga o monitoramento. Sem isso, nada é enviado.
+- [x] **Dono:** criar o projeto no Sentry (React) e colar o DSN em `VITE_SENTRY_DSN` no Vercel (Production); depois, um novo deploy liga o monitoramento. Sem isso, nada é enviado. — **feito:** o `VITE_SENTRY_DSN` está configurado em produção na Vercel.
 - [x] **046 aplicada** em 03/11/2026 (execução 41740081652). **Dono:** escolher a categoria da parcela em cada dívida (Dívidas).
 - **Atenção a lançamento duplicado:** quem já lançou a parcela à mão como despesa (além da baixa em Dívidas) vai ver a parcela contada duas vezes; excluir o lançamento manual.
 
@@ -345,10 +379,10 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Início sem repetição, com previsto e Vencidos no topo (#141).
 - [ ] Barra de limite usado nos cartões (precisa do limite total no resumo dos cartões).
 - [ ] Subir também "Próximos planejados" (hoje está no fim, com contas e últimos lançamentos).
-- [ ] Não bloquear a leitura do painel esperando `atualizarAutomaticos()`; rodar uma vez por sessão.
+- [x] Não bloquear a leitura do painel esperando `atualizarAutomaticos()`; rodar uma vez por sessão. — **feito:** a tela não espera mais as tarefas automáticas (#260). Continua rodando a cada montagem, não "uma vez por sessão".
 - [ ] Botão "tentar de novo" no erro do painel, mantendo o cabeçalho e os atalhos.
 - [ ] Alvos de toque de 44 px nos links "Ver…" e no Personalizar painel; % com palavra ("aumentou/caiu"), não só cor.
-- [ ] "Últimos lançamentos" sem filtro de mês (no dia 1 a lista fica vazia).
+- [x] "Últimos lançamentos" sem filtro de mês (no dia 1 a lista fica vazia). — **feito:** o card foi removido do app (#266).
 - [x] Gráfico de patrimônio e saldo mês a mês em Análises (#144).
 - [ ] Aviso diário (vencimentos e saldo previsto), de preferência como notificação no celular — ideia do personal-financial-dashboard.
 - [ ] Aviso diário: PR 1 banco (#145, migration 047 aplicada) · PR 2 tela na Família (#146) · PR 3 Edge Function + agendamento + "Enviar teste" (o dono cria a conta no serviço de e-mail e cola a chave nos Secrets).
@@ -356,6 +390,21 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Lançamento parcelado fora do cartão e recorrência em **dias** (#148, migration 048).
 - [ ] Novo lançamento com só Despesa / Receita / Transferência; "Conta/Cartão" num seletor só (grupos Contas e Cartões); receita no cartão = estorno/reembolso/pagamento adiantado (pedido do dono, 04/11).
 - [ ] Parcelado: editar ou excluir todas as parcelas de uma vez.
+
+## Revisão geral (09/11/2026) — ver `Auditorias/2026-11-09 Revisão geral.md`
+- [x] **Produção: aplicar a migration 080** (#244) — Preferências e Aviso diário nunca salvaram (42501 no upsert). `simular` → log → `APLICAR`. — **feito:** aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026).
+- [ ] **Patrimônio sem `round(…, 2)`** em `net_worth_with_assets` e `family_assets_brl`: bem com participação quebrada derruba o cartão de patrimônio e a evolução de 12 meses. Migration + pgTAP com 1.000,01 × 50%.
+- [ ] **Orçamentos: total Orçado/Gasto/Saldo somado no front** (`Orcamentos.tsx:136`); trazer do banco e trocar o teste que consagra a soma.
+- [ ] **Bens: "Parte familiar" em ponto flutuante** (`Bens.tsx:29`); banco devolver `household_value` por bem.
+- [ ] **Índices** (falta): `category_id` em `debt_events`/`debt_installments`/`recurrences` (já existem `reserve_allocations.linked_transaction_id` e `debt_events.invoice_id`, este desde a migration 20261110070000); front filtrar `debt_events` também por `household_id` (ver a auditoria).
+- [ ] **Erros engolidos no front**: `auth.tsx:22` (getSession sem catch), `Lancamentos.tsx:181,207-216`, `Calendario.tsx:72-78,309-314`; usar `opcional()` + aviso na tela.
+- [ ] **Modais sem Esc/foco**: `PessoasFamilia.tsx:167`, `Preferencias.tsx:155,171` → `useFocoPreso`.
+- [ ] **Código morto**: `lib/periodos.ts`, `components/ZerarTudo.tsx`, `ui/SeletorMes.tsx`, `pages/PaginaBase.tsx`, `listarPessoasAtivas`. Duplicados: nome curto do mês (5 lugares), `somarDias`/`diasEntre`/`diasNoMes`.
+- [ ] **Service worker**: limpar `/assets/*` antigos no `activate` ou injetar `__APP_VERSAO__` em `VERSAO`; avisar "nova versão disponível".
+- [ ] **CSP**: trocar `Content-Security-Policy-Report-Only` por `Content-Security-Policy` após 1 semana sem violação (#245).
+- [ ] **Decidir**: remover `supabase-local-validation.yml` (duplica `db-tests.yml`); `APP_ORIGIN` da `delete-account` no painel; recusar JWT `service_role` em `supabase.ts`; Dependabot para `npm`; PRs #197–#199 (Dependabot) e #207/#214/#228/#229 paradas.
+- [ ] **Cobertura de testes** no CI (`vitest --coverage`, só leitura).
+- [ ] **Dividir `Cartoes.tsx` (2022 linhas) e `Lancamentos.tsx` (1262)** nos blocos listados na auditoria, sem mudar comportamento.
 
 ## Auditoria por agentes (04/11/2026)
 - [x] Chave do servidor só lê (migration 049) · Orçamentos/Categorias sem conta de dinheiro na tela · faturas de Cartões sem erro preso · Dívidas com todas as parcelas por dívida e aviso de falha · Entradas × Saídas sem números velhos e em cartões no celular · CSV de qualquer período (#149).
@@ -373,7 +422,151 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Decidido pelo dono (04/11): crédito numa fatura aberta é receita **planejada** até fechar; o **limite** volta na data do crédito. Feito na 052, junto com os achados da revisão (fatura até 3 depois, trava pelo fechamento, chave de repetição, arquivar com crédito aberto e a devolução em dinheiro que reaparecia como adiantamento em `card_months`).
 - [ ] Cartões: abas de fatura com navegação por setas (`tabpanel`); Dívidas: menu "Mais" para Renomear/Arquivar/Excluir no celular.
 - [ ] Orçamentos: `window.confirm` ao remover → confirmação do app; barra como `progressbar`.
-- [ ] Testes que faltam: CSV mensal, cartão 50-30-20, Dívidas (`primeiroVencimento`, contrato, amortização extra).
+- [ ] Testes que faltam: CSV mensal, Dívidas (`primeiroVencimento`, contrato, amortização extra).
 - [x] **Excluir ativo com histórico** (migration 050, #151). Falta aplicar a 050 em produção.
 - [ ] **Categoria: excluir e migrar** no lugar de desativar (escolher a categoria destino; lançamentos, recorrentes e orçamentos vão juntos).
 - [ ] **Importar o histórico do Organizze** a partir do arquivo exportado (.xls).
+
+
+## Gestão de pessoas da família (PR #205)
+
+- [x] **Fase 1 na PR #205:** cadastro isolado de pessoas e pets em `household_people`, RLS por família, edição e inativação sem hard delete.
+- [x] **Fase 2:** classificar despesas de conta, compras/parcelas de cartão e recorrências. Distinguir `person`, `shared` ("Toda a família") e `unassigned` (ainda sem classificação). Preservar triggers de imutabilidade e os cálculos financeiros. — **feito:** migration 079 (`person_id` e `is_shared_expense` em lançamentos e parcelas/recorrências), seletor `PessoaSelectField`.
+- [x] **Fase 3:** filtros por pessoa e agregação mensal por pessoa/escopo, sem contar pagamento de fatura como uma segunda despesa. — **feito:** aba "Gastos por pessoa" em Relatórios (#205).
+- [ ] Upload privado de foto com política de Storage por família; nesta primeira tela a foto pode ser informada por URL HTTPS e o avatar usa iniciais por padrão.
+
+
+## Minha Carteira — evolução faseada (PR em desenvolvimento)
+- [x] **Fase 1:** título Minha Carteira, chips horizontais com âncoras locais, rolagem suave acessível e integração com a privacidade global existente. Pontos de entrada para investimentos e dívidas sem valores simulados.
+- [ ] **Fase 2:** consolidar Patrimônio Total, Saldo Disponível e Patrimônio Líquido usando as RPCs atuais; resumo de contas agrupado por instituição e moeda, sem somas no navegador.
+- [ ] **Fase 3:** cartões com limite, utilização, disponibilidade, próxima fatura e vencimento; dívidas com saldo devedor, parcelas e próximo vencimento, reutilizando os serviços existentes.
+- [ ] **Fase 4:** distribuição do patrimônio e resumo da carteira de investimentos com dados agregados no banco, moedas segregadas e histórico disponível.
+- [ ] **Fase 5:** integrar a projeção de compromissos da PR #210, sem duplicar a consulta ou o motor financeiro.
+- [ ] **Fase 6:** revisão independente, testes de privacidade, âncoras, responsividade, estados vazios, moedas e isolamento familiar; conferir CI e preview antes de solicitar merge.
+
+
+### Cartão de crédito: recursos avançados da fatura (pendentes após #204)
+- [ ] **Categorias da fatura**: RPC agregada por categoria e gráfico/lista na página dedicada. O front não deve somar os valores.
+- [ ] **Detalhes do lançamento**: painel lateral com categoria, valor, data e descrição editáveis; tag de despesa fixa mensal; ações de excluir e estornar/reembolsar. Exige trilha de auditoria e preservação da trava de fatura paga.
+- [ ] **Mover parcela entre faturas**: ações no menu de contexto para fatura anterior/próxima; definir a regra para parcela já cobrada, fatura paga e sequência de parcelas, com operação atômica no banco.
+
+
+## Auditoria de pessoas inativas (PR #209)
+- [x] Bloqueio no banco de novas atribuições de pessoas inativas em lançamentos, parcelas de dívidas e recorrências; classificações históricas permanecem preservadas.
+- [x] Índices compostos começam por `(household_id, person_id)`, cobrindo as FKs e as consultas por período.
+- Migration 083: `20261108210000_people_active_and_fk_indexes.sql`. Ainda não aplicada no Supabase hospedado.
+
+## Recorrência no cartão estilo Organizze (10/11/2026)
+- [ ] Todas as perguntas respondidas em 10/11: não ocupa o limite, vai direto para a B; aparece enquanto não cancelar e o diálogo "só esta / esta e as próximas" (`28 - Recorrência no cartão estilo Organizze (plano).md`). Hoje a recorrência no cartão só vira item de fatura no dia; antes disso aparece só o total "Assinaturas previstas".
+- [x] Fatia 1 "Ver": lista das assinaturas previstas na fatura (código e teste prontos; migration 20261110010000 aplicada em produção em 10/11/2026).
+- [x] Etapa 1 do novo desenho: tabela `card_scheduled_items` (código e teste prontos; migration 20261110020000 aplicada em produção em 10/11/2026).
+- [x] Etapa 2: gerar os itens a partir da regra e mostrar nas faturas futuras, com total em SQL (migration 20261110030000 aplicada em produção em 10/11/2026). Falta: abrir a fatura futura que só tem assinaturas (hoje ela não existe em `card_months`) e somar as agendadas ao total da fatura.
+- [x] Etapa 3: converter em parcela quando a fatura anterior fecha; o limite passa a seguir a regra do dono (migration 20261110040000 aplicada em produção em 10/11/2026).
+- [x] Fatia 2 "Mudar" (agora etapa 4): tabela de exceções, `card_recurrence_pending`/`recurrence_materialize` respeitando-as e RPC "só esta" / "esta e as próximas". — **feito:** etapa 4, #259.
+- [x] Fatia 3: diálogo no app. — **feito:** #259 (diálogo "Só esta cobrança / Esta e as próximas").
+- [ ] Decidir (dono, "talvez"): mudar o dia de uma assinatura já convertida em parcela. Hoje não é possível; só o valor (`card_installment_edit`).
+- [x] Etapa 4: "só esta" e "esta e as próximas" (editar e cancelar), com as previstas e a geração no dia respeitando as exceções (código e teste prontos; migration 20261110050000 aplicada em produção em 10/11/2026).
+- [ ] Abrir a fatura futura que só tem assinaturas e somar as agendadas ao total dela (hoje a fatura só existe em `card_months` com parcela).
+- [ ] "Esta e as próximas" mudando cria uma segunda regra em Recorrentes (a antiga termina na véspera): decidir se isso incomoda ou se vale esconder as encerradas.
+
+## Velocidade do Início (medido em 10/11/2026, `pg_stat_statements`)
+- [x] Tarefas automáticas fora do caminho do primeiro desenho (Início e Análises).
+- [ ] O Início ainda espera TODAS as consultas para desenhar; a mais lenta manda. Médias no banco: `get_home_decision_month` 7,7 s (só 4 chamadas na amostra), `dashboard_commitment_matrix` 4,9 s, `home_indicators` 3,8 s, `home_alerts` 3,2 s, `balance_totals_projected` 2,7 s, `card_overview` 2,5 s. Próximo passo: carregar por bloco, com esqueleto do tamanho final.
+- [x] `EXPLAIN (ANALYZE, BUFFERS)` em `get_home_decision_month` (10/11/2026): 3,75 s e ~527 mil páginas, tudo da memória. Matriz 1,63 s; `home_indicators` 0,88 s; `home_alerts` 0,50 s; faturas dos cartões 0,48 s; `budget_projection` 0,20 s.
+- [x] Matriz calcula as faturas uma vez por cartão e data de corte (migration 20261110060000, teste 91) e o Início não pede `home_indicators` duas vezes.
+- [x] Migration 20261110060000 aplicada em produção em 10/11/2026 (execução 42802146398): `get_home_decision_month` 3,75 s → 2,64 s; matriz 1,63 s → 0,95 s; páginas lidas 527 mil → 357 mil.
+- [x] `private.card_months_as_of` soma os eventos uma vez (migration 20261110070000, teste 92, comparação antiga x nova) e ganha índice por fatura. Código e teste prontos; **falta aplicar em produção** (simular, ler o log, aplicar; só com o "pode" do dono) e medir de novo com `EXPLAIN`.
+- [ ] `private.card_months(uuid)` (versão sem data de corte, usada por `card_overview`, `card_limits` e telas do cartão) tem o mesmo padrão de 3 subconsultas por parcela; medir e, se valer, aplicar a mesma troca com o mesmo teste de comparação.
+- [ ] Política de linha (`is_member` por linha) em `debt_events`/`debt_installments` e demais tabelas: só vale a pena se o Início ainda estiver lento depois da migration 20261110070000. Protótipo local em decisão de 10/11/2026 (doc 30); falta testar o ramo `service_read` e as outras tabelas.
+- [ ] `get_home_decision_month` ainda chama `card_months_as_of` mais uma vez por cartão (a matriz já calculou com a mesma data) e `home_alerts` roda duas vezes por abertura (a função só devolve os avisos de atraso; o Início precisa da lista inteira).
+- [ ] `ProjecaoCompromissos` pede a matriz com 6 meses: conferir em que tela aparece e se concorre com a carga do Início.
+- [ ] `account_balances_daily` (6,7 s de média) e `card_overview` ainda não foram medidas por dentro.
+- [ ] `card_limits` e `debt_balances` são chamadas demais por dentro de outras funções (1.275 e 1.476 chamadas na amostra).
+- [ ] Cartões, Lançamentos e Calendário ainda rodam as tarefas automáticas antes de carregar; avaliar o mesmo tratamento.
+- [x] Cache em memória no Início e em Análises (TanStack Query, `src/lib/consultas.ts`): volta instantânea e revalidação por trás.
+- [ ] A carga ainda é uma entrada só (a tela inteira): a primeira visita continua esperando a consulta mais lenta. Próximo passo: uma consulta por bloco, com esqueleto do tamanho final.
+- [ ] Gravações feitas com o Início aberto (fora as tarefas automáticas) ainda não chamam `invalidarDadosHome`; hoje não há gravação na própria tela, mas ao criar uma, chamar o helper.
+- [ ] Revalidar ao focar a janela está desligado enquanto as consultas forem pesadas; religar depois de acelerar o banco.
+
+## Início enxuto (10/11/2026, PR #265)
+- [x] Início só com Minha Carteira, contas, cartões, maiores gastos, a receber e a pagar; avisos, vencidos, orçamentos e últimos lançamentos em Análises.
+- [ ] Conferir no navegador o novo Início (desktop e celular) e Análises com os blocos novos.
+
+- [x] Faixa de avisos do topo e Últimos lançamentos removidos do app (#266). Se o dono sentir falta de um aviso de conta a pagar/fatura perto de vencer, desenhar de novo (o Calendário e os Vencidos de Análises cobrem parte).
+
+## Categorias no celular (10/11/2026)
+- [x] #277: Editar em folha; faixa fixa com o resultado de Desativar/Reativar/Não conta como consumo (e os erros).
+- [x] #278: linha só com ícone e nome; tocar abre a edição com Não conta como consumo, eventual e Desativar dentro (o dono aprovou).
+
+## Seletor de categoria em folha (10/11/2026)
+- [x] #276: busca, lista ou grade, subcategorias embaixo e "Criar categoria" nos formulários de lançamento, cartão e recorrente.
+- [ ] Conferir no celular (você): a folha, a grade de 4 colunas e o "Criar categoria".
+- [ ] "Criar categoria" cria só principal; criar subcategoria dali ficou de fora. Orçamentos segue com o seletor nativo.
+- [ ] Lembrar a escolha lista/grade entre aberturas (hoje volta para a lista).
+## Regra 50-30-20 fora do app (10/11/2026)
+- [x] Tela (#275): seletor de grupo, sugestão e card do mês saíram de Categorias; `regra503020.ts` apagado; o app não lê mais `budget_group`.
+- [ ] Banco: a coluna `categories.budget_group` (22 de 132 despesas classificadas em 10/11/2026) e a função `budget_rule_report` (migration 032) ficaram sem uso. Apagar só com migration nova e o "pode" do dono, se ele decidir que não volta.
+
+## Lançamentos no visual do Organizze (10/11/2026)
+- [x] Etapa 1 (#268): botão Filtrar com folha e selos, "+" flutuante, rodapé (pagos e previsto) em regime de caixa.
+- [x] Etapa 2 (#269): lista por dia também no computador (a tabela saiu) e seleção em massa pelo ⋯ do topo, no celular e no computador (mudar categoria, marcar como pago, excluir).
+- [ ] Depois da etapa 2: no computador não há mais ordenar por valor nem a coluna Conta (a conta só aparece na transferência). Se o dono sentir falta, pôr a conta nos metadados da linha ou um "ordenar" no ⋯ do topo.
+- [ ] Filtros em tela cheia (#271): conferir no celular a tela (chips, cartões que rolam de lado, o pé com Limpar filtros). Os testes não calculam layout.
+- [ ] Filtros em tela cheia: a conta de cartão e a fatura do cartão ficam só no filtro de cartão; a contagem "Tipo (n)" conta tipo e fixos/parcelados juntos.
+- [ ] Conferir no celular (você): o modo de seleção (⋯ do topo → Selecionar lançamentos), as caixas no lugar do ícone e a barra presa no topo.
+- [x] Etapa 3 (#270): período livre pelo seletor do relatório (dia, semana, mês, últimos 3/6/12 meses, ano ou período escolhido); a lista, as faturas, os créditos e o rodapé carregam pelo intervalo.
+- [ ] Lançamentos com período longo: a lista vem toda de uma vez (sem paginação no banco). Um ano inteiro pode passar do limite de linhas do Supabase; medir antes de mexer.
+- [ ] Rodapé com filtro de tipo ou categoria: hoje avisa que não segue o filtro. Seguir de verdade exige uma função do banco com esses filtros.
+- [ ] Conferir no celular (você): o "+" e o rodapé não tampam o último lançamento da lista; o rodapé fica acima da barra de baixo.
+
+
+## Investimentos em três baldes (opção C, 10/11/2026)
+- [x] Nomes: "Contas (todas)" em Análises e "Valor de mercado" na carteira (#279).
+- [ ] Liquidez por item no banco (migration nova): hoje não existe campo; previdência e FGTS não têm tipo próprio.
+- [ ] Contas em dólar e euro estão cadastradas como conta corrente em reais: o saldo aparece como R$ e entra no Disponível. Decidir com o dono se o número digitado é em moeda estrangeira ou já convertido, e recadastrar na moeda certa (a moeda de uma conta com lançamentos não se troca por edição).
+- [ ] Contas antigas de investimento (renda variável, renda fixa, cripto): o dono pensa em zerar e arquivar e recriar na carteira. Arquivar tira o saldo do patrimônio; fazer só depois de o ativo existir na carteira, na mesma data, para o patrimônio não cair e voltar.
+- [ ] Página Investimentos no formato de painel de carteira (total, investido, lucro em aberto, proventos, alocação por classe, posições). Cotação automática não existe: o valor de mercado depende de avaliação manual.
+- [ ] Decisão #196 (Início não soma a carteira) precisa ser revista quando os ativos migrarem das contas para a carteira; senão o patrimônio do Início encolhe.
+
+## Investimentos por liquidez (10/11/2026, #280)
+- [x] Liquidez por ativo no banco e na tela (migration 099).
+- [x] 099 aplicada em produção em 10/11/2026 (simulação 42868503347, aplicação 42868909899; só ela estava pendente; coluna, funções e permissões conferidas no banco).
+- [x] Exportação CSV dos investimentos leva a coluna Liquidez (#281).
+- [ ] Caminho para zerar uma conta antiga de investimento sem virar despesa (conta arquivada continua no patrimônio). Sem isso, migrar para a carteira conta em dobro.
+- [ ] Contas Nomad Dólar e Euro (decisão de 10/11/2026, ver 30 - Decisões): o saldo é o custo em reais. Agora: o dono troca o tipo para Renda variável. Depois: virar ativo da carteira em moeda com cotação PTAX, junto com o "mover saldo de conta para a carteira".
+- [ ] Conferir se as 2 receitas (124,63) e a despesa (46,49) dentro da Nomad Euro foram digitadas em euros (estariam misturadas com reais).
+- [ ] Carteira em dólar e euro não entra no Patrimônio em reais (não há conversão de moeda no app).
+- [ ] Desempenho: Análises chama o patrimônio uma vez por mês da evolução, e cada chamada agora calcula a carteira. Medir com dados reais.
+- [ ] Cotação automática (ações e FIIs por API, câmbio pela PTAX), depois da liquidez e das contas em moeda estrangeira.
+
+## Formulários de Investimentos (10/11/2026, #282)
+- [x] Compra e venda em folha, no desenho de Lançamentos, com "Só o valor" para a primeira posição.
+- [ ] "Só o valor" vale só para a primeira compra. Aporte seguinte num ativo sem cota (previdência com contribuição mensal) não tem caminho exato: precisa de uma função do banco para ativo "por valor". Enquanto isso, o valor se atualiza por avaliação e o custo não acompanha os aportes.
+- [x] Novo ativo, avaliação e provento também em folha (#283). Editar ativo e subclasse continuam dentro da linha do ativo.
+- [ ] Conferir a folha no iPhone (você): teclado numérico, rolagem e botões do pé.
+
+## Carteira como conta interna (10/11/2026, #284, migration 100)
+- [x] Desenho aprovado (ver 27 - Investimentos vinculados a conta).
+- [ ] Aplicar a migration 100 em produção (simular, ler o log, aplicar), com o "pode" do dono em cada passo.
+- [ ] Depois de aplicada: o dono move as contas antigas de investimento (renda variável, renda fixa, cripto) para a carteira e atualiza o valor por avaliação.
+- [ ] Contas Nomad (dólar e euro): ativo em moeda com cotação PTAX, usando o mesmo mover; exige transferência entre moedas ou mover por valor em reais.
+- [ ] Conciliação e exportação mostram a conta interna nas transferências; conferir se o texto ajuda ou confunde.
+
+## Orçamento com cartão lançado (10/11/2026, #285, migration 101)
+- [x] Carteira (migration 100) aplicada em produção em 10/11/2026 (simulação 42878739670, aplicação 42878963628).
+- [ ] Aplicar a migration 101 (simular, ler o log, aplicar), com o "pode" do dono.
+- [ ] O resumo de orçamentos em Análises (barras menores) ainda não mostra o tracejado.
+- [ ] Se o dono quiser o tracejado como "fatura fechada e não paga", é outra regra (ver 30 - Decisões).
+## Investimentos no estilo da XP (10/11/2026, #286)
+- [x] Topo com investido, parado na corretora, Investir e Resgatar; Minha carteira com abas; Investimentos na barra de baixo.
+- [ ] Total "investido + parado na corretora" num número só: precisa vir somado do banco (regra: a tela não soma dinheiro).
+- [ ] Rentabilidade e variação: só depois de cotação automática e histórico de operações.
+- [ ] Conferir no celular (você): topo, rosca e abas, e a barra de baixo nova.
+
+## Dívidas (10/11/2026, #287, migration 102)
+- [x] Migration 101 (cartão lançado no orçamento) aplicada em produção em 10/11/2026 (simulação 42882544482, aplicação 42882719495).
+- [x] Consignado e financiamento cadastrados (o financiamento estava fora do app; o patrimônio estava inflado em cerca de R$ 139 mil).
+- [ ] Aplicar a migration 102 e, depois, o dono lança a amortização com FGTS de 26/10/2026 (R$ 18.009,57) e atualiza a prestação em "Contrato e parcelas".
+- [ ] A prestação do financiamento muda todo mês (SAC + TR + uso do FGTS): o valor fixo da dívida é aproximado; corrigir ao confirmar cada parcela.
+- [ ] Empréstimo liberado entra como receita (categoria Empréstimos, "não conta como consumo"): o ideal é cadastrar a dívida já com o valor liberado, sem receita. Sem pressa.
+- [ ] Conferir no celular (você): a tela nova de Dívidas.

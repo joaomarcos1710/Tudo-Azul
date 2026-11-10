@@ -334,6 +334,7 @@ function linhasInvestimentos(
   for (const a of ativos) {
     const base = (registro: string): Celula[] => [
       registro, texto(a.name), texto(a.ticker), rotuloClasse[texto(a.asset_class)] ?? texto(a.asset_class), texto(a.subclass), texto(a.currency_code),
+      a.liquidity === 'restricted' ? 'Restrito' : 'Líquido',
     ]
     linhas.push([...base('Ativo'), '', '', '', '', '', '', '', a.active ? 'Ativo' : 'Arquivado', ''])
     const doAtivo: [string, Celula[]][] = [
@@ -418,7 +419,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
       .eq('household_id', familiaId).order('due_date').order('id')),
     buscarEventosExportacao(db, familiaId),
     buscarAgendaDividasExportacao(db, familiaId),
-    todas(() => db.from('investment_assets').select('id, name, ticker, asset_class, subclass, currency_code, active')
+    todas(() => db.from('investment_assets').select('id, name, ticker, asset_class, subclass, currency_code, liquidity, active')
       .eq('household_id', familiaId).order('name').order('id')),
     todas(() => db.from('investment_operations')
       .select('id, asset_id, operation_date, kind, quantity::text, unit_price::text, fees, notes, voided_at, void_reason')
@@ -540,7 +541,7 @@ export async function exportacaoCompleta(familiaId: string, hoje: string): Promi
     },
     {
       nome: `tudo-azul-${hoje}-7-investimentos.csv`, linhas: linhasInv.length,
-      conteudo: montarCsv(['Registro', 'Ativo', 'Ticker', 'Classe', 'Subclasse', 'Moeda', 'Data', 'Tipo', 'Quantidade', 'Preço unitário',
+      conteudo: montarCsv(['Registro', 'Ativo', 'Ticker', 'Classe', 'Subclasse', 'Moeda', 'Liquidez', 'Data', 'Tipo', 'Quantidade', 'Preço unitário',
         'Taxas', 'Valor do provento', 'Conta', 'Situação', 'Observação'], linhasInv),
     },
     {

@@ -18,6 +18,7 @@ import { copiarDoMesAnterior, definirOrcamento, listarOrcamentos, removerOrcamen
 import type { OrcamentoMes } from '../lib/orcamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { BARRA_ORCAMENTO, faixaOrcamento } from '../lib/cores'
+import { IconeCategoria, visualDaCategoria } from '../lib/visualCategoria'
 
 /** Orçamento mensal por categoria principal, com a projeção até o fim do mês (calculada no banco). */
 export default function Orcamentos() {
@@ -129,42 +130,68 @@ export default function Orcamentos() {
         />
       )}
 
-      <ul className="flex flex-col gap-3">
-        {itens?.map((o) => (
-          <li key={o.categoriaId}>
-            <Card>
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <p className="text-lg font-semibold">{o.nome}</p>
-                  <p className="text-sm text-slate-500">Limite {formatBRL(o.limite)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-slate-500">Gasto no mês</p>
-                  <p className={`tabular-nums text-lg font-semibold ${o.gasto > o.limite ? 'text-prejuizo' : ''}`}>{formatBRL(o.gasto)}</p>
-                </div>
-              </div>
-              <Barra gasto={o.gasto} limite={o.limite} />
-              <Situacao o={o} emAndamento={emAndamento} />
-              {editando === o.categoriaId ? (
-                <FormOrcamento
-                  titulo={`Limite de ${o.nome}`}
-                  inicial={o.limite}
-                  aoSalvar={async (_c, limite) => {
-                    await definirOrcamento(familiaId, o.categoriaId, mes, limite)
-                    setEditando(null)
-                    await carregar()
-                  }}
-                  aoCancelar={() => setEditando(null)}
-                />
-              ) : (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variante="fantasma" onClick={() => setEditando(o.categoriaId)}>Alterar limite</Button>
-                  <Button variante="perigoTexto" onClick={() => remover(o)}>Remover</Button>
-                </div>
-              )}
+      {itens !== null && itens.length > 0 && (
+        <section aria-label="Resumo dos orçamentos" data-testid="budget-summary" className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {([
+            { titulo: 'Orçado', valor: itens.reduce((s, o) => s + o.limite, 0), cor: 'text-slate-900' },
+            { titulo: 'Gasto', valor: itens.reduce((s, o) => s + o.gasto, 0), cor: 'text-slate-900' },
+            { titulo: 'Saldo', valor: itens.reduce((s, o) => s + o.restante, 0), cor: itens.reduce((s, o) => s + o.restante, 0) < 0 ? 'text-prejuizo' : 'text-lucro' },
+          ] as const).map((m) => (
+            <Card key={m.titulo} semPadding className="min-w-0 border border-slate-100 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{m.titulo}</p>
+              <p className={`mt-1 truncate text-xl font-semibold tabular-nums ${m.cor}`}>{formatBRL(m.valor as Cents)}</p>
             </Card>
-          </li>
-        ))}
+          ))}
+        </section>
+      )}
+
+      <ul data-testid="budget-grid" className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {itens?.map((o) => {
+          const categoria = categorias.find((c) => c.id === o.categoriaId)
+          const visual = categoria ? visualDaCategoria(categoria, new Map(categorias.map((c) => [c.id, c]))) : undefined
+          const saldoPositivo = o.restante >= 0
+          return (
+            <li key={o.categoriaId} className="min-w-0">
+              <Card semPadding className="h-full border border-slate-100 p-4">
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <IconeCategoria visual={visual} tamanho="pequeno" />
+                    <p className="truncate text-sm font-semibold text-slate-900">{o.nome}</p>
+                  </div>
+                  <p className={`shrink-0 text-sm font-semibold tabular-nums ${saldoPositivo ? 'text-lucro' : 'text-prejuizo'}`}>
+                    {saldoPositivo ? '+ ' : '− '}{formatBRL(Math.abs(o.restante) as Cents)}
+                  </p>
+                </div>
+                <Barra gasto={o.gasto} limite={o.limite} cartao={o.cartaoLancado ?? (0 as Cents)} />
+                <p className="mt-2 text-xs text-slate-500 tabular-nums">{formatBRL(o.gasto)} gastos de {formatBRL(o.limite)}</p>
+                {o.cartaoLancado !== null && o.cartaoLancado > 0 && (
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 tabular-nums">
+                    <span aria-hidden="true" className="inline-block h-2 w-4 rounded-sm text-marinho" style={TRACEJADO} />
+                    Cartão lançado, fatura a fechar: {formatBRL(o.cartaoLancado)}
+                  </p>
+                )}
+                <Situacao o={o} emAndamento={emAndamento} />
+                {editando === o.categoriaId ? (
+                  <FormOrcamento
+                    titulo={`Limite de ${o.nome}`}
+                    inicial={o.limite}
+                    aoSalvar={async (_c, limite) => {
+                      await definirOrcamento(familiaId, o.categoriaId, mes, limite)
+                      setEditando(null)
+                      await carregar()
+                    }}
+                    aoCancelar={() => setEditando(null)}
+                  />
+                ) : (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button variante="fantasma" onClick={() => setEditando(o.categoriaId)}>Alterar limite</Button>
+                    <Button variante="perigoTexto" onClick={() => remover(o)}>Remover</Button>
+                  </div>
+                )}
+              </Card>
+            </li>
+          )
+        })}
       </ul>
 
       {itens !== null && itens.length > 0 && (
@@ -174,16 +201,28 @@ export default function Orcamentos() {
   )
 }
 
-/** A proporção só desenha a barra e o percentual; gasto e limite vêm do banco. A cor segue faixaOrcamento (lib/cores). */
-function Barra({ gasto, limite }: { gasto: Cents; limite: Cents }) {
+/** Listras diagonais na cor do texto (marinho): o tracejado do cartão lançado, na barra e na legenda. */
+const TRACEJADO = { backgroundImage: 'repeating-linear-gradient(135deg, currentColor 0 3px, transparent 3px 6px)' }
+
+/**
+ * A proporção só desenha a barra e o percentual; gasto, cartão e limite vêm do banco. A cor segue faixaOrcamento
+ * (lib/cores). Depois do trecho sólido (gasto), o tracejado marinho é o cartão já lançado em fatura que ainda não fechou
+ * (pedido do dono, 10/11/2026; a fatura fechada já está no gasto, porque o orçamento conta o cartão pelo fechamento); o percentual continua só do gasto pago. O que passa do limite fica cortado no fim da barra.
+ */
+function Barra({ gasto, limite, cartao }: { gasto: Cents; limite: Cents; cartao: Cents }) {
   const pct = Math.max(0, Math.min(100, (gasto / limite) * 100))
+  const pctCartao = Math.max(0, Math.min(100 - pct, (cartao / limite) * 100))
   const usado = Math.floor((Math.max(0, gasto) * 100) / limite)
   const faixa = faixaOrcamento(gasto, limite)
   return (
     <div className="mt-3 flex items-center gap-3">
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100" role="img"
-        aria-label={`Gasto ${formatBRL(gasto)} de ${formatBRL(limite)}, ${usado}% do limite`}>
-        <div data-faixa={faixa} className={`h-full rounded-full ${BARRA_ORCAMENTO[faixa]}`} style={{ width: `${pct}%` }} />
+      <div className="flex h-2 flex-1 overflow-hidden rounded-full bg-slate-100" role="img"
+        aria-label={`Gasto ${formatBRL(gasto)} de ${formatBRL(limite)}, ${usado}% do limite${cartao > 0 ? `; mais ${formatBRL(cartao)} no cartão, lançado em fatura a fechar` : ''}`}>
+        <div data-faixa={faixa} className={`h-full shrink-0 rounded-full ${BARRA_ORCAMENTO[faixa]}`} style={{ width: `${pct}%` }} />
+        {pctCartao > 0 && (
+          // 2px de separação do trecho sólido, como entre fatias de gráfico empilhado
+          <div data-cartao className="h-full shrink-0 rounded-r-full text-marinho opacity-60" style={{ ...TRACEJADO, width: `${pctCartao}%`, marginLeft: pct > 0 ? 2 : 0 }} />
+        )}
       </div>
       <span aria-hidden="true" className={`w-12 shrink-0 text-right text-sm font-semibold tabular-nums ${faixa === 'estourou' || faixa === 'perto' ? 'text-prejuizo' : faixa === 'atencao' ? 'text-atencao' : 'text-slate-600'}`}>{usado}%</span>
     </div>

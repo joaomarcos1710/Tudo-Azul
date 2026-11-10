@@ -225,7 +225,8 @@ export async function registrarPagamentoParcela(d: {
 export async function registrarPagamentoDivida(d: {
   dividaId: string
   data: string
-  contaId: string
+  /** null = amortização extra sem conta (ex.: FGTS, migration 102): só a dívida diminui; exige extra e juros/tarifa zerados. */
+  contaId: string | null
   principal: Cents
   juros: Cents
   tarifa: Cents

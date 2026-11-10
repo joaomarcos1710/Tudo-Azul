@@ -1,4 +1,4 @@
-import { CORES, FUNDOS } from './src/lib/cores.ts'
+import { CORES, FUNDOS, MARCA } from './src/lib/cores.ts'
 
 /** @type {import('tailwindcss').Config} */
 export default {
@@ -6,9 +6,9 @@ export default {
   theme: {
     extend: {
       colors: {
-        // identidade visual (24/10/2026): marinho e celeste da logo
-        marinho: CORES.transferencia.DEFAULT,
-        celeste: '#48B5FF',
+        // identidade visual (24/10/2026): marinho e celeste da logo, separados da transferência (MARCA em cores.ts)
+        marinho: MARCA.marinho,
+        celeste: MARCA.celeste,
         azul: { DEFAULT: CORES.lucro.DEFAULT, claro: CORES.lucro.fundo },
         fundo: FUNDOS.app,
         // sistema de cores do dinheiro (#184): a fonte é src/lib/cores.ts; ver "30 - Decisões" e "20 - Regras do dinheiro"

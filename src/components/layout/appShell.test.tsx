@@ -24,28 +24,49 @@ describe('menu em grupos', () => {
   it('toda tela do app está no menu (inclui Recorrentes, que antes não aparecia) e sem caminhos repetidos', () => {
     const caminhos = itensNavegacao.map((i) => i.caminho)
     expect(new Set(caminhos).size).toBe(caminhos.length)
-    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/relatorios', '/familia', '/exportar']) {
+    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/reservas', '/relatorios', '/familia', '/exportar']) {
       expect(caminhos).toContain(c)
     }
   })
 
-  it('o menu lateral mostra os grupos na ordem e cada item dentro do seu grupo', () => {
+  it('a sidebar desktop agrupa por categoria todas as telas de uso frequente (inclui Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens)', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
-    expect(within(lateral).getAllByRole('group').map((g) => g.getAttribute('aria-label')))
-      .toEqual(['Visão geral', 'Movimentações', 'Planejamento', 'Patrimônio', 'Conta'])
-    const mov = within(lateral).getByRole('group', { name: 'Movimentações' })
-    expect(within(mov).getAllByRole('link').map((a) => a.textContent))
-      .toEqual(['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas'])
-    expect(within(lateral).getByRole('link', { name: 'Recorrentes' }).getAttribute('href')).toBe('/recorrentes')
-    expect(within(lateral).getByRole('link', { name: 'Investimentos' }).getAttribute('href')).toBe('/investimentos')
+    const grupos = within(lateral).getAllByRole('group').map((g) => ({
+      titulo: g.getAttribute('aria-labelledby') ? document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent : null,
+      links: within(g).getAllByRole('link').map((a) => a.textContent),
+    }))
+    expect(grupos).toEqual([
+      { titulo: 'Visão geral', links: ['Início', 'Análises', 'Relatórios'] },
+      { titulo: 'Movimentações', links: ['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas'] },
+      { titulo: 'Planejamento', links: ['Orçamentos', 'Reservas', 'Categorias'] },
+      { titulo: 'Patrimônio', links: ['Dívidas e empréstimos', 'Investimentos', 'Bens e patrimônio'] },
+    ])
+    // nenhuma tela some: continuam as 14 de antes
+    expect(within(lateral).getAllByRole('link')).toHaveLength(14)
+    // o que é raro continua só no menu do perfil
+    expect(within(lateral).queryByRole('link', { name: 'Família' })).toBeNull()
+    expect(within(lateral).queryByRole('link', { name: 'Exportar dados' })).toBeNull()
+  })
+
+  it('perfil abre popover só com o que é raro (família, exportar, preferências), logout e versão', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(screen.getByRole('button', { name: 'Perfil de Minha conta' }))
+    const menu = screen.getByRole('menu', { name: 'Configurações da conta' })
+    expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Família', 'Exportar dados', 'Preferências', '↪Sair'])
+    expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toBeTruthy()
+    expect(within(menu).getByText(/Versão/)).toBeTruthy()
+    // ideia 03: autoria logo abaixo de Sair, dentro do menu
+    expect(within(menu).getByText(/Todos os direitos reservados a João Marcos\./)).toBeTruthy()
+    expect(within(menu).getByText(/^© \d{4} Tudo Azul\.$/)).toBeTruthy()
   })
 
   it('celular: 4 atalhos fixos + "Mais"; o resto só aparece dentro do Mais', async () => {
     const u = userEvent.setup()
     montar()
     const barra = screen.getByRole('navigation', { name: 'Principal no celular' })
-    expect(within(barra).getAllByRole('link').map((a) => a.textContent)).toEqual(['Início', 'Lançam.', 'Cartões', 'Orçam.'])
+    expect(within(barra).getAllByRole('link').map((a) => a.textContent)).toEqual(['Início', 'Lançam.', 'Cartões', 'Invest.'])
     expect(itensFixosNoCelular).toHaveLength(4)
     expect(screen.queryByRole('dialog')).toBeNull()
     await u.click(within(barra).getByRole('button', { name: 'Mais' }))
@@ -72,7 +93,7 @@ describe('menu em grupos', () => {
     const folha = screen.getByRole('dialog', { name: 'Menu' })
     const atalhos = within(folha).getByRole('group', { name: 'Atalhos' })
     expect(within(atalhos).getAllByRole('link').map((a) => a.getAttribute('aria-label')))
-      .toEqual(['Calendário', 'Recorrentes', 'Contas', 'Categorias'])
+      .toEqual(['Calendário', 'Recorrentes', 'Contas', 'Orçamentos'])
     // nenhuma tela aparece duas vezes (cartão e linha)
     const hrefs = within(folha).getAllByRole('link').map((a) => a.getAttribute('href'))
     expect(new Set(hrefs).size).toBe(hrefs.length)
@@ -86,14 +107,14 @@ describe('menu em grupos', () => {
       .toEqual(['Atalhos', 'Visão geral', 'Movimentações', 'Planejamento', 'Patrimônio', 'Conta'])
   })
 
-  it('o menu lateral (iPad e computador) não muda: só os nomes, sem frases', () => {
+  it('os links principais mantêm alvos de toque de pelo menos 44px e o perfil fica no rodapé', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
-    expect(within(lateral).queryByText('Fatura, parcelas e limite de cada cartão.')).toBeNull()
-    expect(within(lateral).getAllByRole('link')).toHaveLength(itensNavegacao.length)
-    // auditoria 5h: itens do menu lateral e "Sair" com alvo de toque de 44px
     for (const l of within(lateral).getAllByRole('link')) expect(l.className).toContain('min-h-11')
-    for (const b of screen.getAllByRole('button', { name: 'Sair' })) expect(b.className).toContain('min-h-11')
+    const perfil = screen.getByRole('button', { name: 'Perfil de Minha conta' })
+    expect(perfil.parentElement?.className).toContain('mt-auto')
+    expect(perfil.getAttribute('aria-haspopup')).toBe('menu')
+    expect(screen.queryByRole('button', { name: 'Sair' })).toBeNull()
   })
 
   it('o Mais fecha com Esc, no fundo, no ×, e ao escolher um item (que leva à tela)', async () => {
@@ -141,4 +162,17 @@ describe('menu em grupos', () => {
     expect(itemAtivo('/')?.rotulo).toBe('Início')
     expect(itemAtivo('/desconhecida')).toBeUndefined()
   })
+  it('a fatura tem modo de foco: recolhe e expande o menu lateral e esconde a barra inferior', async () => {
+    const u = userEvent.setup()
+    montar('/cartoes/k1/fatura/2026-11')
+    const lateral = screen.getByRole('navigation', { name: 'Principal' }).closest('aside')!
+    expect(lateral.className).toContain('md:flex')
+    expect(screen.getByRole('navigation', { name: 'Principal no celular' }).className).toContain('hidden')
+    await u.click(screen.getByRole('button', { name: 'Ocultar menu lateral' }))
+    expect(lateral.className).toContain('md:hidden')
+    expect(screen.getByRole('button', { name: 'Mostrar menu lateral' }).getAttribute('aria-expanded')).toBe('false')
+    await u.click(screen.getByRole('button', { name: 'Mostrar menu lateral' }))
+    expect(lateral.className).toContain('md:flex')
+  })
+
 })

@@ -65,6 +65,18 @@ afterEach(() => {
 
 const item = async (nome: string) => (await screen.findByText(nome)).closest('li')!
 
+/** O filtro por etiqueta mora na tela cheia (como em Lançamentos): abre, toca no chip (ou Limpar filtros) e fecha. */
+async function filtrarPor(u: ReturnType<typeof userEvent.setup>, nome: string) {
+  await u.click(screen.getByRole('button', { name: /^Filtrar/ }))
+  const tela = screen.getByRole('dialog', { name: 'Filtrar contas' })
+  if (nome === 'Todas as contas') await u.click(within(tela).getByRole('button', { name: 'Limpar filtros' }))
+  else {
+    const chip = within(tela).getByRole('button', { name: nome })
+    if (chip.getAttribute('aria-pressed') !== 'true') await u.click(chip)
+  }
+  await u.click(within(tela).getByRole('button', { name: 'Filtrar: ver as contas' }))
+}
+
 describe('Contas: etiquetas', () => {
   it('mostra as etiquetas de cada conta como selos ao lado do tipo', async () => {
     render(<MemoryRouter><Contas /></MemoryRouter>)
@@ -78,14 +90,18 @@ describe('Contas: etiquetas', () => {
     render(<MemoryRouter><Contas /></MemoryRouter>)
     await screen.findByText('Conta PJ')
     expect(screen.getByText('R$ 1.200,00')).toBeTruthy() // subtotal das correntes, do banco
-    await userEvent.selectOptions(screen.getByLabelText('Filtrar por etiqueta'), 'Reserva de emergência')
+    await filtrarPor(userEvent.setup(), 'Reserva de emergência')
     expect(screen.queryByText('Itaú')).toBeNull()
     expect(screen.queryByText('Conta PJ')).toBeNull()
     expect(screen.getByText('Reserva Nubank')).toBeTruthy()
     expect(screen.getByRole('status').textContent).toMatch(/Mostrando 1 conta com a etiqueta "Reserva de emergência"/)
     expect(screen.queryByText('R$ 1.200,00')).toBeNull()
     expect(screen.getByText('R$ 1.700,00')).toBeTruthy() // o total da família continua
-    await userEvent.selectOptions(screen.getByLabelText('Filtrar por etiqueta'), 'Todas as contas')
+    // o filtro ligado vira um selo; tocar nele tira o filtro
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar o filtro Reserva de emergência' }))
+    expect(screen.getByText('Conta PJ')).toBeTruthy()
+    await filtrarPor(userEvent.setup(), 'Reserva de emergência')
+    await filtrarPor(userEvent.setup(), 'Todas as contas')
     expect(screen.getByText('Conta PJ')).toBeTruthy()
   })
 
@@ -176,10 +192,10 @@ describe('Contas: etiquetas', () => {
     render(<MemoryRouter><Contas /></MemoryRouter>)
     await u.click(await screen.findByRole('button', { name: 'Arquivadas (2)' }))
     expect(screen.getByText('Antiga solta')).toBeTruthy()
-    await u.selectOptions(screen.getByLabelText('Filtrar por etiqueta'), 'Conjunta')
+    await filtrarPor(u, 'Conjunta')
     expect(screen.getByText('Antiga conjunta')).toBeTruthy()
     expect(screen.queryByText('Antiga solta')).toBeNull()
-    await u.selectOptions(screen.getByLabelText('Filtrar por etiqueta'), 'Reserva de emergência')
+    await filtrarPor(u, 'Reserva de emergência')
     // nenhuma arquivada com a etiqueta: o botão some
     expect(screen.queryByRole('button', { name: /arquivadas/i })).toBeNull()
   })
@@ -189,7 +205,7 @@ describe('Contas: etiquetas', () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Contas /></MemoryRouter>)
     await screen.findByText('Itaú')
-    expect(screen.queryByLabelText('Filtrar por etiqueta')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Filtrar' })).toBeNull()
     expect(screen.queryByText(/Etiquetas \(/)).toBeNull()
     await u.click(screen.getByRole('button', { name: 'Nova conta' }))
     expect(screen.queryByRole('group', { name: 'Etiquetas (opcional)' })).toBeNull()

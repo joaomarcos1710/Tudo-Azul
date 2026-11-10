@@ -98,7 +98,10 @@ select is((select family_assets_brl from public.net_worth_with_assets(
 )),5000::numeric,'patrimônio incorpora o valor da participação familiar em bens BRL');
 select is((select net_worth from public.net_worth_with_assets(
   pg_temp.fx37('household'),pg_temp.hoje()
-)),6000::numeric,'patrimônio = saldo disponível + bens BRL, sem somar investimentos que ainda não movimentam o caixa');
+-- (099, 20261110080000_investment_liquidity.sql, decisão do dono de 10/11/2026) a regra mudou: o patrimônio passa a
+-- somar a carteira em reais. Antes eram 6.000 (saldo + bens, sem a carteira); agora + 120 da carteira BRL (os 100 em
+-- dólar continuam fora).
+)),6120::numeric,'patrimônio = saldo disponível + bens BRL + carteira de investimentos em BRL (099)');
 
 select * from finish();
 rollback;
