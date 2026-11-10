@@ -52,7 +52,7 @@ dinheiro em vários lugares e merece desenho e testes próprios.
   regra a partir dali). Vale para mudar o dia e para cancelar.
 - Isso confirma a opção **B** como destino. A opção A fica só como passo intermediário, se o dono quiser ver algo antes.
 
-- **Limite:** o item futuro **não ocupa o limite** do cartão antes da data (igual ao previsto de hoje).
+- **Limite (corrigido em 10/11/2026, depois do print do Organizze):** o item recorrente futuro já está na fatura e no total dela, mas **só ocupa o limite quando a fatura anterior fecha**. A versão anterior desta linha ("não ocupa antes da data") estava errada. Vale **só para recorrência**; compra parcelada continua ocupando o limite desde a compra, como hoje (`card_limits` soma toda parcela não cobrada em `planned_remaining`).
 - **Caminho:** "ir direto para a B" (resposta de 10/11/2026), com o desenho abaixo.
 
 ## Desenho escolhido (leitura de `recurrence_materialize` e `card_recurrence_pending`, 10/11/2026)
@@ -91,3 +91,27 @@ continuam **derivadas da regra**, como já são hoje para o total "Assinaturas p
 3. **Mudar:** tabela de exceções, `card_recurrence_pending` e `recurrence_materialize` respeitando-as, RPC "só esta"
    (excluir/editar) e "esta e as próximas" (reancorar/encerrar), com testes.
 4. **Diálogo** no app: "Atualizar só esta · Esta e as próximas · Cancelar", em Recorrentes e na linha da fatura.
+
+## Revisão do desenho (10/11/2026, depois do print do Organizze)
+O dono mostrou a fatura de dezembro do Organizze: as recorrências já estão lançadas nas faturas futuras, com o ícone de
+repetição, somando no total da fatura. O desenho "só derivado da regra" acima (fatia "Ver", #252) mostra as previstas,
+mas não as coloca no total da fatura. Um agente de planejamento comparou três caminhos; o escolhido é a **tabela de itens
+agendados** (`card_scheduled_items`), que vira parcela no fechamento da fatura anterior.
+
+**Respostas do dono às perguntas (10/11/2026):**
+1. A regra do limite vale só para recorrência ("duas coisas diferentes, parcelado come o limite").
+2. Horizonte: 12 meses, renovando sozinho ("perfeito").
+3. **Em aberto ("talvez").** Proposta: depois de virar parcela, mudar o dia é recusado e o valor continua editável (`card_installment_edit`). Decidir antes da etapa 3.
+4. Sem botão "Lançar": tudo automático ("ok").
+5. **Provisório ("vamos testar").** Item que cairia numa fatura paga e travada vai para a fatura seguinte; validar com o dono quando a etapa 3 estiver de pé.
+6. Cancelar "esta e as próximas": o que já virou parcela fica; o resto é cancelado ("sim").
+
+**Etapas (cada uma uma PR, migration só vai a produção pelo workflow com o "pode" do dono):**
+1. Tabela `card_scheduled_items`, leitura pela família, sem escrita pelo app (migration 20261110020000, teste 87).
+2. Gerar os itens a partir da regra e mostrar nas faturas futuras, com total em SQL. O limite ainda fica como hoje.
+3. Converter em parcela no fechamento da fatura anterior (é aqui que o limite passa a seguir a regra do dono);
+   `recurrence_materialize` deixa de criar a parcela no dia.
+4. Diálogo "só esta" / "esta e as próximas".
+
+**Ainda não verificado (antes da etapa 2):** o corpo atual de `card_months` (fatura futura sem parcela não tem linha);
+onde a cobrança das faturas roda no app; efeito em projeção, Dinheiro Livre e Orçamentos.

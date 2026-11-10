@@ -165,3 +165,4 @@ continuam abaixo como histórico.
 | 2026.250 | **Início: Maiores gastos em rosca (etapa 3).** As 4 maiores categorias + Outros do mês, com valores e % do banco, cores validadas e legenda com link para as despesas do mês. |
 | 2026.251 | **Plano: recorrência no cartão estilo Organizze.** Só documentação (doc 28 e pendências); nenhuma mudança de código ou banco. |
 | 2026.252 | **Recorrência no cartão, fatia "Ver".** A fatura lista cada assinatura prevista (data e valor do banco), em bloco próprio com selo Agendado. Migration só de leitura (`card_subscription_previews`), ainda não aplicada em produção. |
+| 2026.253 | **Recorrência no cartão, etapa 1: tabela de itens agendados.** `card_scheduled_items` com leitura pela família e sem escrita pelo app; nada a preenche ainda. Decisões do dono no doc 28 e em Decisões. Migration ainda não aplicada em produção. |

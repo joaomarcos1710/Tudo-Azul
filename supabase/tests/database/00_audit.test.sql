@@ -6,7 +6,7 @@ select * from no_plan();
 
 -- Tabelas e policies exatamente as esperadas (nada sobrando sem revisão)
 select tables_are('public',
-  array['account_reconciliations','account_tag_links','account_tags','accounts','budgets','categories','currencies','daily_digest_settings','debt_events','debt_installment_edits','debt_installments','debt_invoices','debt_payment_schedule','debts','family_asset_valuations','family_assets','fx_rates','household_members','household_people','household_resets','households','invitations','investment_assets','investment_distributions','investment_operations','investment_valuations','profiles','recurrences','reserve_allocations','reserves','transactions','user_preferences'],
+  array['account_reconciliations','account_tag_links','account_tags','accounts','budgets','card_scheduled_items','categories','currencies','daily_digest_settings','debt_events','debt_installment_edits','debt_installments','debt_invoices','debt_payment_schedule','debts','family_asset_valuations','family_assets','fx_rates','household_members','household_people','household_resets','households','invitations','investment_assets','investment_distributions','investment_operations','investment_valuations','profiles','recurrences','reserve_allocations','reserves','transactions','user_preferences'],
   'schema public contém só as tabelas esperadas');
 
 select is_empty($$
@@ -31,6 +31,7 @@ select policies_are('public','categories',        array['categories_select','cat
 select policies_are('public','currencies',        array['currencies_select']);
 select policies_are('public','fx_rates',           array['fx_rates_select']);
 select policies_are('public','debts',             array['debts_select']);
+select policies_are('public','card_scheduled_items', array['card_scheduled_items_select']);
 select policies_are('public','debt_invoices',     array['debt_invoices_select']);
 select policies_are('public','debt_installments', array['debt_installments_select']);
 select policies_are('public','debt_events',       array['debt_events_select']);
