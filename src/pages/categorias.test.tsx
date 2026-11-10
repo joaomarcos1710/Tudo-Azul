@@ -65,6 +65,39 @@ describe('agrupar', () => {
 })
 
 describe('Categorias', () => {
+  it('Editar abre numa folha por cima da tela (no celular o formulário no topo ficava fora da vista)', async () => {
+    const u = userEvent.setup()
+    render(<Categorias />)
+    const linha = (await screen.findByText('Moradia')).closest('div')!
+    await u.click(within(linha).getByRole('button', { name: 'Editar' }))
+    const folha = screen.getByRole('dialog', { name: 'Editar Moradia' })
+    expect((within(folha).getByLabelText('Nome') as HTMLInputElement).value).toBe('Moradia')
+    await u.click(within(folha).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('Desativar mostra uma faixa fixa com Desfazer; Desfazer reativa', async () => {
+    const u = userEvent.setup()
+    render(<Categorias />)
+    const linha = (await screen.findByText('Moradia')).closest('div')!
+    await u.click(within(linha).getByRole('button', { name: 'Desativar' }))
+    expect(mock.definirCategoriaAtiva).toHaveBeenCalledWith('m', false)
+    const faixa = await screen.findByRole('status', { name: '' })
+    expect(faixa.textContent).toContain('Moradia desativada.')
+    await u.click(within(faixa).getByRole('button', { name: 'Desfazer' }))
+    expect(mock.definirCategoriaAtiva).toHaveBeenLastCalledWith('m', true)
+  })
+
+  it('erro ao desativar aparece na faixa embaixo (não só no topo da página)', async () => {
+    mock.definirCategoriaAtiva.mockRejectedValueOnce({ code: '23514', message: 'a categoria "Sem categoria" não pode ser alterada' })
+    const u = userEvent.setup()
+    render(<Categorias />)
+    const linha = (await screen.findByText('Moradia')).closest('div')!
+    await u.click(within(linha).getByRole('button', { name: 'Desativar' }))
+    const alertas = await screen.findAllByRole('alert')
+    expect(alertas.some((a) => a.className.includes('fixed'))).toBe(true)
+  })
+
   it('a regra 50-30-20 saiu (pedido do dono, 10/11/2026): sem card do mês, sem seletor de grupo e sem sugestão', async () => {
     render(<Categorias />)
     await screen.findByText('Moradia')

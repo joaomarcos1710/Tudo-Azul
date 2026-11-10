@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { Folha } from '../components/ui/Folha'
 import { Field } from '../components/ui/Field'
 import { useFamilia } from '../lib/FamiliaContext'
 import { agrupar, criarCategoria, definirCategoriaAtiva, definirCategoriaEventual, definirCategoriaNaoConsumo, editarCategoria, listarCategorias } from '../lib/categorias'
@@ -26,6 +27,14 @@ export default function Categorias() {
   const [erro, setErro] = useState('')
   // null = fechado; 'nova' = criando; Categoria = editando
   const [editando, setEditando] = useState<Categoria | 'nova' | null>(null)
+  // faixa fixa embaixo (pedido do dono, 10/11/2026: "Editar e desativar não funcionam"): no celular, o retorno no topo da
+  // página ficava fora da vista e parecia que o botão não fazia nada
+  const [faixa, setFaixa] = useState<{ texto: string; erro?: boolean; desfazer?: () => void } | null>(null)
+  useEffect(() => {
+    if (!faixa) return
+    const t = window.setTimeout(() => setFaixa(null), 8000)
+    return () => window.clearTimeout(t)
+  }, [faixa])
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
@@ -39,12 +48,17 @@ export default function Categorias() {
 
   useEffect(() => { void carregar() }, [carregar])
 
-  async function alternarAtiva(c: Categoria) {
+  async function alternarAtiva(c: Categoria, comDesfazer = true) {
     try {
       await definirCategoriaAtiva(c.id, !c.ativa)
       await carregar()
+      setFaixa({
+        texto: `${c.nome} ${c.ativa ? 'desativada' : 'reativada'}.`,
+        desfazer: comDesfazer ? () => { void alternarAtiva({ ...c, ativa: !c.ativa }, false) } : undefined,
+      })
     } catch (err) {
       setErro(mensagemErroBanco(err))
+      setFaixa({ texto: mensagemErroBanco(err), erro: true })
     }
   }
 
@@ -52,8 +66,10 @@ export default function Categorias() {
     try {
       await definirCategoriaNaoConsumo(c.id, !c.naoConsumo)
       await carregar()
+      setFaixa({ texto: c.naoConsumo ? `${c.nome} volta a contar como consumo.` : `${c.nome} não conta mais como consumo.` })
     } catch (err) {
       setErro(mensagemErroBanco(err))
+      setFaixa({ texto: mensagemErroBanco(err), erro: true })
     }
   }
 
@@ -93,6 +109,8 @@ export default function Categorias() {
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
 
       {editando !== null && categorias && (
+        <Folha titulo={editando === 'nova' ? `Nova categoria de ${tipo === 'expense' ? 'despesa' : 'receita'}` : `Editar ${editando.nome}`}
+          aoFechar={() => setEditando(null)}>
         <FormCategoria
           categoria={editando === 'nova' ? null : editando}
           tipo={tipo}
@@ -102,6 +120,22 @@ export default function Categorias() {
           aoSalvar={async () => { setEditando(null); await carregar() }}
           aoCancelar={() => setEditando(null)}
         />
+        </Folha>
+      )}
+
+      {faixa && (
+        <div role={faixa.erro ? 'alert' : 'status'}
+          className={`fixed inset-x-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-40 flex items-center gap-3 rounded-xl px-4 py-3 text-sm shadow-card md:bottom-6 md:left-auto md:right-6 md:w-96 ${faixa.erro ? 'bg-prejuizo-fundo text-prejuizo' : 'bg-marinho text-white'}`}>
+          <span className="min-w-0 flex-1">{faixa.texto}</span>
+          {faixa.desfazer && (
+            <button type="button" onClick={() => { const d = faixa.desfazer; setFaixa(null); d?.() }}
+              className="min-h-11 shrink-0 rounded-lg px-3 font-semibold underline">Desfazer</button>
+          )}
+          <button type="button" aria-label="Fechar aviso" onClick={() => setFaixa(null)}
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-lg">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
       )}
 
       {tipo === 'income' && (
@@ -220,10 +254,7 @@ function FormCategoria({ categoria, tipo, possiveisPais, porId, familiaId, aoSal
   }
 
   return (
-    <Card className="mb-6">
-      <h2 className="mb-4 text-lg font-semibold">
-        {categoria ? `Editar ${categoria.nome}` : `Nova categoria de ${tipo === 'expense' ? 'despesa' : 'receita'}`}
-      </h2>
+    <>
       <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Nome" maxLength={60} value={nome} onChange={(e) => setNome(e.target.value)} erro={tentou && !nome.trim() ? 'Informe o nome.' : undefined} />
@@ -275,7 +306,7 @@ function FormCategoria({ categoria, tipo, possiveisPais, porId, familiaId, aoSal
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+    </>
   )
 }
 
