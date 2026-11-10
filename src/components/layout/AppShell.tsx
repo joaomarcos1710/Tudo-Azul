@@ -205,8 +205,8 @@ export function AppShell() {
           <Marca claro />
           <BotaoOcultarValores claro />
         </div>
-        <nav aria-label="Principal" className="flex flex-col gap-2">
-          <ul className="flex flex-col gap-2">
+        <nav aria-label="Principal" className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-1">
             {itensAcessoRapido.map(({ caminho, rotulo, Icone }) => (
               <li key={caminho}>
                 <NavLink to={caminho} end={caminho === '/'}
