@@ -25,6 +25,14 @@ const mock = vi.hoisted(() => ({
   trocarCategoriaDoCredito: vi.fn(),
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
+  listarOcorrenciasPrevistas: vi.fn(),
+  listarFaturasAgendadas: vi.fn(),
+  sincronizarAgendados: vi.fn(),
+  converterAgendados: vi.fn(),
+  excluirRecorrencia: vi.fn(),
+  editarAgendada: vi.fn(),
+  cancelarAgendada: vi.fn(),
+  aPartirDaqui: vi.fn(),
   pagarFatura: vi.fn(),
   reabrirFatura: vi.fn(),
   previaExclusao: vi.fn(),
@@ -45,13 +53,13 @@ vi.mock('../lib/cartoes', async (o) => ({
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
-  listarItens: mock.listarItens, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
+  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
   visaoDosCartoes: mock.visaoDosCartoes,
 }))
-vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0) }))
+vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0), excluirRecorrencia: mock.excluirRecorrencia }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -60,6 +68,15 @@ import { fechamentoDaCompra, inicioDaTroca, melhorDiaDeCompra, ontemSP, proximaF
 import { hojeSP } from '../lib/contas'
 import { formatDate } from '../lib/format'
 import type { Fatura, VisaoCartoes } from '../lib/cartoes'
+
+/** Categoria agora é um seletor em folha (como no Organizze): abre pelo botão e toca na categoria. */
+async function escolherCategoria(u: ReturnType<typeof userEvent.setup>, campo: HTMLElement, id: string) {
+  await u.click(campo)
+  const folhas = screen.getAllByRole('dialog', { name: 'Selecionar uma categoria' })
+  const folha = folhas[folhas.length - 1]
+  await u.click(folha.querySelector(`[data-categoria-id="${id}"]`) as HTMLElement)
+}
+
 
 const c = (n: number) => n as Cents
 
@@ -122,6 +139,13 @@ beforeEach(() => {
   ])
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
+  mock.listarOcorrenciasPrevistas.mockResolvedValue([])
+  mock.listarFaturasAgendadas.mockResolvedValue([])
+  mock.sincronizarAgendados.mockResolvedValue(0)
+  mock.converterAgendados.mockResolvedValue(0)
+  mock.editarAgendada.mockResolvedValue(undefined)
+  mock.cancelarAgendada.mockResolvedValue(undefined)
+  mock.aPartirDaqui.mockResolvedValue(0)
   mock.previaExclusao.mockResolvedValue([])
   mock.listarCreditosDaFatura.mockResolvedValue([])
   mock.lancarCreditoNoCartao.mockResolvedValue('ev1')
@@ -205,6 +229,191 @@ describe('Cartões', () => {
     expect(screen.getByRole('link', { name: 'Abrir cartão Nubank' }).getAttribute('href')).toBe('/cartoes/k1')
     // com dívida (fatura fechada a pagar, a de março), "Abrir fatura" leva à fatura que o pagamento quita
     expect((await botaoVerFatura()).getAttribute('href')).toMatch(/^\/cartoes\/k1\/fatura\/\d{4}-\d{2}$/)
+  })
+
+  it('recorrência no cartão, etapa 2: a página do cartão lista as próximas faturas com assinaturas agendadas (totais do banco)', async () => {
+    mock.listarFaturasAgendadas.mockResolvedValue([
+      { mes: '2099-05', fechamento: '2099-05-17', vencimento: '2099-05-25', total: c(26689), itens: 3 },
+      { mes: '2099-06', fechamento: '2099-06-17', vencimento: '2099-06-25', total: c(5000), itens: 1 },
+    ])
+    montar('/cartoes/k1')
+    const secao = await screen.findByTestId('faturas-agendadas')
+    expect(mock.listarFaturasAgendadas).toHaveBeenCalledWith('k1')
+    const linhas = within(secao).getAllByTestId('fatura-agendada')
+    expect(linhas).toHaveLength(2)
+    expect(linhas[0].textContent).toMatch(/Maio de 2099/)
+    expect(linhas[0].textContent).toMatch(/vence em 25\/05\/2099 · 3 assinaturas/)
+    // saída de dinheiro: vermelho, com o valor que veio do banco
+    expect(within(linhas[0]).getByText('−R$ 266,89').className).toMatch(/text-prejuizo/)
+    expect(linhas[1].textContent).toMatch(/1 assinatura(?!s)/)
+    expect(within(secao).getByText('Agendado')).toBeTruthy()
+  })
+
+  it('recorrência no cartão, etapa 2: sem agendadas, ou com a consulta falhando, a seção não aparece e o cartão segue', async () => {
+    montar('/cartoes/k1')
+    expect(await screen.findByTestId('abrir-fatura-k1')).toBeTruthy()
+    expect(screen.queryByTestId('faturas-agendadas')).toBeNull()
+    cleanup()
+    mock.listarFaturasAgendadas.mockRejectedValue(new Error('function does not exist'))
+    montar('/cartoes/k1')
+    expect(await screen.findByTestId('abrir-fatura-k1')).toBeTruthy()
+    expect(screen.queryByTestId('faturas-agendadas')).toBeNull()
+  })
+
+  it('recorrência no cartão: a fatura lista cada assinatura prevista (do banco), com data e valor, sem somar nada no navegador', async () => {
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+    mock.listarItens.mockResolvedValue([
+      { parcelaId: 'p1', compra: 'x', parcela: 1, deParcelas: 1, descricao: 'TV', dataCompra: '2099-03-15', valor: c(18000), falta: c(18000), categoriaId: 'g1' },
+    ])
+    mock.listarOcorrenciasPrevistas.mockResolvedValue([
+      { recorrenciaId: 'r1', data: '2099-04-05', descricao: 'Streaming', valor: c(5000), categoriaId: 'g1' },
+      { recorrenciaId: 'r2', data: '2099-04-12', descricao: 'Academia', valor: c(12000), categoriaId: 'g1' },
+    ])
+    montar('/cartoes/k1/fatura/2099-04')
+    const bloco = await screen.findByTestId('bloco-previstas')
+    expect(mock.listarOcorrenciasPrevistas).toHaveBeenCalledWith('k1', '2099-04')
+    expect(within(bloco).getAllByTestId('assinatura-prevista')).toHaveLength(2)
+    expect(within(bloco).getByText('Streaming')).toBeTruthy()
+    // é saída de dinheiro: valor em vermelho, como toda despesa; o selo Agendado diz que ainda não foi cobrada
+    expect(within(bloco).getByText('−R$ 50,00').className).toMatch(/text-prejuizo/)
+    expect(within(bloco).getByText(/cobrança em 05\/04\/2099/)).toBeTruthy()
+    expect(within(bloco).getByText('Agendado')).toBeTruthy()
+    // não é compra: as previstas ficam fora do bloco de saídas
+    expect(within(screen.getByTestId('bloco-saidas')).queryByText('Streaming')).toBeNull()
+  })
+
+  it('recorrência no cartão: assinatura cancelada pode ser excluída pela própria linha da fatura (pedido do dono)', async () => {
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+    mock.listarOcorrenciasPrevistas.mockResolvedValue([
+      { recorrenciaId: 'r1', data: '2099-04-05', descricao: 'Academia', valor: c(8999), categoriaId: 'g1' },
+    ])
+    mock.excluirRecorrencia.mockResolvedValue(0)
+    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const u = userEvent.setup()
+    montar('/cartoes/k1/fatura/2099-04')
+    await screen.findByTestId('bloco-previstas')
+    // cancelar a confirmação não exclui nada
+    await u.click(screen.getByRole('button', { name: 'Ações de Academia' }))
+    await u.click(await screen.findByRole('menuitem', { name: 'Excluir assinatura' }))
+    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining('Excluir a assinatura "Academia"'))
+    expect(mock.excluirRecorrencia).not.toHaveBeenCalled()
+    // confirmando, exclui a regra daquela linha e recarrega
+    confirmar.mockReturnValue(true)
+    mock.listarOcorrenciasPrevistas.mockResolvedValue([])
+    await u.click(screen.getByRole('button', { name: 'Ações de Academia' }))
+    await u.click(await screen.findByRole('menuitem', { name: 'Excluir assinatura' }))
+    expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r1')
+    await vi.waitFor(() => expect(screen.queryByTestId('bloco-previstas')).toBeNull())
+  })
+
+  describe('recorrência no cartão, etapa 4: só esta / esta e as próximas', () => {
+    const prevista = { recorrenciaId: 'r1', data: '2099-04-05', descricao: 'Academia', valor: c(8999), categoriaId: 'g1', itemId: 'i1', editada: false }
+    const abrir = async (u: ReturnType<typeof userEvent.setup>, acao: string) => {
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+      mock.listarOcorrenciasPrevistas.mockResolvedValue([prevista])
+      montar('/cartoes/k1/fatura/2099-04')
+      await screen.findByTestId('bloco-previstas')
+      await acaoDaLinha(u, 'Ações de Academia', acao)
+    }
+
+    it('Editar: "só esta" chama a edição do item com os dados do formulário e recarrega', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      expect(within(form).getByRole('radio', { name: 'Só esta cobrança' })).toHaveProperty('checked', true)
+      const valor = within(form).getByLabelText('Valor (R$)')
+      await u.clear(valor)
+      await u.type(valor, '95,50')
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      await vi.waitFor(() => expect(mock.editarAgendada).toHaveBeenCalledTimes(1))
+      expect(mock.editarAgendada).toHaveBeenCalledWith('i1', { data: '2099-04-05', valor: c(9550), descricao: 'Academia', categoriaId: 'g1' })
+      expect(mock.aPartirDaqui).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Editar Academia' })).toBeNull())
+    })
+
+    it('Editar: "esta e as próximas" divide a assinatura (ação update)', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      await u.click(within(form).getByRole('radio', { name: 'Esta e as próximas' }))
+      expect(within(form).getByText(/a assinatura antiga termina na véspera/)).toBeTruthy()
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      await vi.waitFor(() => expect(mock.aPartirDaqui).toHaveBeenCalledTimes(1))
+      expect(mock.aPartirDaqui).toHaveBeenCalledWith('i1', 'update', { data: '2099-04-05', valor: c(8999), descricao: 'Academia', categoriaId: 'g1' })
+      expect(mock.editarAgendada).not.toHaveBeenCalled()
+    })
+
+    it('Editar: valor inválido ou data de hoje/passada não envia nada', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      await u.clear(within(form).getByLabelText('Valor (R$)'))
+      await u.type(within(form).getByLabelText('Valor (R$)'), 'abc')
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      expect(await within(form).findByText(/Valor inválido/)).toBeTruthy()
+      expect(mock.editarAgendada).not.toHaveBeenCalled()
+    })
+
+    it('Cancelar cobrança: "só esta" cancela o item; "esta e as próximas" encerra daqui', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Cancelar cobrança…')
+      let form = await screen.findByRole('form', { name: 'Cancelar Academia' })
+      await u.click(within(form).getByRole('button', { name: 'Cancelar cobrança' }))
+      await vi.waitFor(() => expect(mock.cancelarAgendada).toHaveBeenCalledWith('i1'))
+      expect(mock.aPartirDaqui).not.toHaveBeenCalled()
+      cleanup()
+      mock.cancelarAgendada.mockClear()
+      await abrir(u, 'Cancelar cobrança…')
+      form = await screen.findByRole('form', { name: 'Cancelar Academia' })
+      await u.click(within(form).getByRole('radio', { name: 'Esta e as próximas' }))
+      await u.click(within(form).getByRole('button', { name: 'Cancelar cobrança' }))
+      await vi.waitFor(() => expect(mock.aPartirDaqui).toHaveBeenCalledWith('i1', 'end'))
+      expect(mock.cancelarAgendada).not.toHaveBeenCalled()
+    })
+
+    it('erro do banco aparece no próprio painel e o painel continua aberto', async () => {
+      const u = userEvent.setup()
+      mock.cancelarAgendada.mockRejectedValue({ code: '55000', message: 'esta cobrança já não está agendada' })
+      await abrir(u, 'Cancelar cobrança…')
+      const form = await screen.findByRole('form', { name: 'Cancelar Academia' })
+      await u.click(within(form).getByRole('button', { name: 'Cancelar cobrança' }))
+      expect(await within(form).findByRole('alert')).toBeTruthy()
+      expect(screen.getByRole('form', { name: 'Cancelar Academia' })).toBeTruthy()
+    })
+
+    it('linha ainda sem item agendado (app não gerou): só excluir assinatura e abrir Recorrentes', async () => {
+      const u = userEvent.setup()
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+      mock.listarOcorrenciasPrevistas.mockResolvedValue([{ ...prevista, itemId: null }])
+      montar('/cartoes/k1/fatura/2099-04')
+      await screen.findByTestId('bloco-previstas')
+      await u.click(await screen.findByRole('button', { name: 'Ações de Academia' }))
+      const menu = screen.getByRole('menu', { name: 'Ações de Academia' })
+      expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Abrir Recorrentes', 'Excluir assinatura'])
+    })
+
+    it('a linha editada à mão mostra "alterada"', async () => {
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+      mock.listarOcorrenciasPrevistas.mockResolvedValue([{ ...prevista, editada: true }])
+      montar('/cartoes/k1/fatura/2099-04')
+      expect(await screen.findByText(/cobrança em 05\/04\/2099 · alterada/)).toBeTruthy()
+    })
+  })
+
+  it('recorrência no cartão: sem previstas, o bloco não aparece; se a consulta falhar, a fatura segue normal', async () => {
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+    mock.listarItens.mockResolvedValue([
+      { parcelaId: 'p1', compra: 'x', parcela: 1, deParcelas: 1, descricao: 'TV', dataCompra: '2099-03-15', valor: c(18000), falta: c(18000), categoriaId: 'g1' },
+    ])
+    montar('/cartoes/k1/fatura/2099-04')
+    expect(await screen.findByText('TV')).toBeTruthy()
+    expect(screen.queryByTestId('bloco-previstas')).toBeNull()
+    cleanup()
+    mock.listarOcorrenciasPrevistas.mockRejectedValue(new Error('function does not exist'))
+    montar('/cartoes/k1/fatura/2099-04')
+    expect(await screen.findByText('TV')).toBeTruthy()
+    expect(screen.queryByTestId('bloco-previstas')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('#203: link direto para a fatura (recarregar a página) renderiza o extrato, com o título da aba do navegador', async () => {
@@ -325,7 +534,7 @@ describe('Cartões', () => {
     montar()
     await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
     await u.type(screen.getByLabelText('Descrição'), 'TV')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     expect(screen.queryByRole('option', { name: 'Salário' })).toBeNull() // só categorias de despesa
     await u.type(screen.getByLabelText('Valor total (R$)'), '300,00')
     const parcelas = screen.getByLabelText('Parcelas')
@@ -343,7 +552,7 @@ describe('Cartões', () => {
     montar()
     await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
     await u.type(screen.getByLabelText('Descrição'), 'TV')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     await u.type(screen.getByLabelText('Valor total (R$)'), '300,00')
     const data = screen.getByLabelText('Data da compra')
     await u.clear(data)
@@ -361,7 +570,7 @@ describe('Cartões', () => {
     await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
     await u.click(screen.getByLabelText('Parcelamento já em andamento'))
     await u.type(screen.getByLabelText('Descrição'), 'Geladeira (iniciada em agosto)')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     await u.type(screen.getByLabelText('Valor de cada parcela (R$)'), '250,00')
     const parcelas = screen.getByLabelText(/Parcelas que ainda faltam/)
     await u.clear(parcelas)
@@ -547,7 +756,7 @@ describe('Cartões', () => {
     await escolherNoMenu(u, 'Crédito / reembolso')
     await u.type(screen.getByLabelText('Descrição'), 'Estorno de IOF')
     expect(screen.queryByRole('option', { name: 'Compras pessoais' })).toBeNull() // só receita
-    await u.selectOptions(screen.getByLabelText('Categoria de receita'), 'g2')
+    await escolherCategoria(u, screen.getByLabelText('Categoria de receita'), 'g2')
     await u.type(screen.getByLabelText('Valor (R$)'), '50,00')
     const data = screen.getByLabelText('Data do crédito')
     await u.clear(data)
@@ -574,7 +783,7 @@ describe('Cartões', () => {
     await u.click(screen.getByRole('button', { name: 'Lançar crédito' }))
     expect(screen.getByText('Escolha a categoria de receita.')).toBeTruthy()
     expect(mock.lancarCreditoNoCartao).not.toHaveBeenCalled()
-    await u.selectOptions(screen.getByLabelText('Categoria de receita'), 'g2')
+    await escolherCategoria(u, screen.getByLabelText('Categoria de receita'), 'g2')
     await u.click(screen.getByRole('button', { name: 'Lançar crédito' }))
     expect(mock.lancarCreditoNoCartao).toHaveBeenCalledWith('k1', expect.objectContaining({ fechamento: '2026-11-17', valor: 1000 }), expect.any(String))
   })
@@ -1416,11 +1625,13 @@ describe('Fatura paga travada (migration 064)', () => {
     await abrirSetembro(u)
     await acaoDaLinha(u, 'Ações do crédito Cashback', 'Trocar categoria')
     const form = screen.getByRole('form', { name: 'Trocar categoria do crédito' })
-    const seletor = within(form).getByLabelText('Categoria de receita') as HTMLSelectElement
-    expect(seletor.value).toBe('g2')
+    const seletor = within(form).getByLabelText('Categoria de receita')
+    expect(seletor.getAttribute('data-valor')).toBe('g2')
     // só categorias de receita (a de despesa não aparece)
-    expect(Array.from(seletor.options).map((o) => o.value)).toEqual(['g2', 'g3'])
-    await u.selectOptions(seletor, 'g3')
+    await u.click(seletor)
+    const folha = screen.getByRole('dialog', { name: 'Selecionar uma categoria' })
+    expect(Array.from(folha.querySelectorAll('[data-categoria-id]')).map((o) => o.getAttribute('data-categoria-id'))).toEqual(['g2', 'g3'])
+    await u.click(folha.querySelector('[data-categoria-id="g3"]') as HTMLElement)
     await u.click(within(form).getByRole('button', { name: 'Salvar categoria' }))
     expect(mock.trocarCategoriaDoCredito).toHaveBeenCalledWith(['cr9'], 'g3')
     expect(mock.listarCreditosDaFatura.mock.calls.length).toBeGreaterThan(1) // recarrega depois de gravar
@@ -1433,7 +1644,7 @@ describe('Fatura paga travada (migration 064)', () => {
     await abrirSetembro(u)
     await acaoDaLinha(u, 'Ações do crédito Cashback', 'Trocar categoria')
     const form = screen.getByRole('form', { name: 'Trocar categoria do crédito' })
-    await u.selectOptions(within(form).getByLabelText('Categoria de receita'), 'g3')
+    await escolherCategoria(u, within(form).getByLabelText('Categoria de receita'), 'g3')
     await u.click(within(form).getByRole('button', { name: 'Salvar categoria' }))
     expect(await within(form).findByRole('alert')).toBeTruthy()
     expect(screen.getByRole('form', { name: 'Trocar categoria do crédito' })).toBeTruthy()

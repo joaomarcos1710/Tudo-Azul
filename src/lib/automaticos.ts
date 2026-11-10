@@ -1,4 +1,4 @@
-import { cobrarFaturasFechadas } from './cartoes'
+import { cobrarFaturasFechadas, converterAgendados, sincronizarAgendados } from './cartoes'
 import { gerarOcorrencias } from './recorrencias'
 
 export interface ResultadoAutomaticos {
@@ -6,16 +6,29 @@ export interface ResultadoAutomaticos {
   recorrentesOk: boolean
   /** false: a cobrança das faturas falhou (valores de cartão podem estar defasados). */
   faturasOk: boolean
+  /**
+   * true: alguma tarefa gravou algo que muda valores já na tela (recorrente gerado, fatura cobrada, assinatura convertida
+   * em compra). Quem mostra os dados antes de as tarefas terminarem usa isto para recarregar. O sync das assinaturas
+   * futuras não conta: só alimenta a lista de faturas futuras do cartão.
+   */
+  mudou: boolean
 }
 
 /**
  * Tarefas automáticas que o app faz ao abrir uma tela de valores, nesta ordem:
  * 1. gera as ocorrências dos recorrentes (inclusive assinaturas no cartão de hoje);
- * 2. cobra as parcelas de cartão cujo fechamento chegou.
- * Uma falha não impede a outra nem a tela; o resultado diz o que falhou, para a tela avisar.
+ * 2. cobra as parcelas de cartão cujo fechamento chegou;
+ * 3. atualiza as assinaturas de cartão agendadas nas faturas dos próximos 12 meses (card_scheduled_sync);
+ * 4. converte em parcela as agendadas da fatura que já é a aberta, porque a anterior fechou (card_scheduled_convert).
+ * Uma falha não impede a outra nem a tela; o resultado diz o que falhou, para a tela avisar. A etapa 3 é só leitura
+ * futura (não mexe em fatura, limite nem saldo): se falhar, nada é avisado e a lista de faturas futuras fica como estava.
  */
 export async function atualizarAutomaticos(): Promise<ResultadoAutomaticos> {
-  const recorrentesOk = await gerarOcorrencias().then(() => true, () => false)
-  const faturasOk = await cobrarFaturasFechadas().then(() => true, () => false)
-  return { recorrentesOk, faturasOk }
+  let mudou = false
+  const contar = (n: unknown) => { if (typeof n === 'number' && n > 0) mudou = true }
+  const recorrentesOk = await gerarOcorrencias().then((n) => { contar(n); return true }, () => false)
+  const faturasOk = await cobrarFaturasFechadas().then((n) => { contar(n); return true }, () => false)
+  try { await sincronizarAgendados() } catch { /* opcional: banco ainda sem a função, ou falha passageira */ }
+  try { contar(await converterAgendados()) } catch { /* opcional: banco ainda sem a função, ou falha passageira */ }
+  return { recorrentesOk, faturasOk, mudou }
 }

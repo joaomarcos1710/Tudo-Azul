@@ -115,16 +115,22 @@ describe('Investimentos × macroclasse e subclasse', () => {
     const posicoes = () => (screen.getByRole('heading', { name: 'Ativos e posições' }).closest('section') as HTMLElement)
     expect(within(posicoes()).getAllByRole('listitem')).toHaveLength(3)
 
-    await u.selectOptions(screen.getByLabelText('Macroclasse'), 'variable')
+    // os filtros moram na tela cheia (como em Lançamentos); cada toque vale na hora
+    await u.click(screen.getByRole('button', { name: 'Filtrar' }))
+    const tela = () => screen.getByRole('dialog', { name: 'Filtrar posições' })
+    await u.click(within(tela()).getByRole('button', { name: 'Renda variável' }))
     expect(within(posicoes()).getAllByRole('listitem')).toHaveLength(1)
     expect(within(posicoes()).getByText(/Ação Y/)).toBeTruthy()
 
-    await u.selectOptions(screen.getByLabelText('Macroclasse'), '')
-    await u.selectOptions(screen.getByLabelText('Subclasse'), 'Tesouro Direto')
+    await u.click(within(tela()).getByRole('button', { name: 'Renda variável' })) // tocar de novo desliga
+    await u.click(within(tela()).getByRole('button', { name: 'Tesouro Direto' }))
     expect(within(posicoes()).getByText(/Tesouro Selic/)).toBeTruthy()
     expect(within(posicoes()).queryByText(/Ação Y/)).toBeNull()
 
-    await u.selectOptions(screen.getByLabelText('Macroclasse'), 'variable') // variável + Tesouro Direto = nada
+    await u.click(within(tela()).getByRole('button', { name: 'Renda variável' })) // variável + Tesouro Direto = nada
+    await u.click(within(tela()).getByRole('button', { name: 'Filtrar: ver as posições' }))
+    expect(screen.queryByRole('dialog', { name: 'Filtrar posições' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Tirar o filtro Renda variável' })).toBeTruthy()
     expect(within(posicoes()).getByText('Nenhuma posição com esse filtro.')).toBeTruthy()
   })
 

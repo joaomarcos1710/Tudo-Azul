@@ -48,6 +48,23 @@ beforeEach(() => {
 })
 
 describe('carregarHomeDecisao', () => {
+  it('traz os indicadores que a função já calculou por dentro (treasury), em centavos', async () => {
+    fake.e.response = { data: { ...PAYLOAD, treasury: { month_start: '2026-11-01', month_end: '2026-11-30', available: 910.5, net_worth: '1234.56', savings_rate: null, regular_income_source: 'recurring' } }, error: null }
+    const d = await carregarHomeDecisao('h1', '2026-11')
+    expect(d.tesouraria?.disponivel).toBe(91050)
+    expect(d.tesouraria?.patrimonio).toBe(123456)
+    expect(d.tesouraria?.taxaPoupanca).toBeNull()
+    expect(d.tesouraria?.fonteRenda).toBe('recorrente')
+  })
+
+  it('sem treasury, ou com treasury ilegível, tesouraria é null (o Início pede os indicadores à parte) e a decisão segue', async () => {
+    expect((await carregarHomeDecisao('h1', '2026-11')).tesouraria).toBeNull()
+    fake.e.response = { data: { ...PAYLOAD, treasury: { available: 'abc' } }, error: null }
+    const d = await carregarHomeDecisao('h1', '2026-11')
+    expect(d.tesouraria).toBeNull()
+    expect(d.dinheiroLivre).toBe(78500)
+  })
+
   it('consulta a RPC com a família e o mês, convertendo os valores para centavos', async () => {
     const d = await carregarHomeDecisao('household-1', '2026-11')
     expect(fake.e.calls).toEqual([{

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { excluirRecorrencia } from '../lib/recorrencias'
 import type { FormEvent, ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BandeiraCartao, IconeEmissor } from '../components/ui/IconeConta'
@@ -12,18 +13,19 @@ import { FaturasDoMes } from '../components/ui/FaturasDoMes'
 import { Field } from '../components/ui/Field'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import { Selecao } from '../components/ui/Selecao'
+import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, proximaFatura, reativarCartao, renomearCartao,
+  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
   inicioDaTroca, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
   visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura,
 } from '../lib/cartoes'
-import type { Cartao, CreditoFatura, Fatura, ItemFatura, ItemPrevia, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
+import type { Cartao, CreditoFatura, Fatura, FaturaAgendada, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
 import { IconeCadeadoAberto, IconeCadeadoFechado, IconeCadeadoPago, IconeCadeadoVencido } from '../components/layout/icons'
 import { somarMeses } from '../lib/lancamentos'
-import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
+import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
 import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
@@ -393,7 +395,8 @@ export default function Cartoes() {
       case 'contapag': return <FormContaPagamento cartao={p.cartao} contas={contas} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'renomear': return <FormRenomear cartao={p.cartao} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'identidade': return <FormIdentidade cartao={p.cartao} aoSalvar={aoSalvar} aoCancelar={fechar} />
-      case 'compra': return <FormCompra cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar} />
+      case 'compra': return <FormCompra cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar}
+        aoCategoriaCriada={(c) => setCategorias((atual) => [...atual, c])} />
       case 'credito': return <FormCredito cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'pagar': return <FormPagar cartao={p.cartao} contas={contas} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'arquivar':
@@ -658,9 +661,44 @@ function PaginaCartao({ cartao: c, faturasDe, painel, setPainel, carregar, erro,
             desabilitado: painel !== null,
             formulario: meu?.tipo === 'pagar' ? <PainelJunto>{painelDoCartao(meu)}</PainelJunto> : null,
           }} />
+        <FaturasAgendadas cartaoId={c.id} versao={versao} />
         <MovimentosCartao cartaoId={c.id} versao={versao} aoAlterar={carregar} />
       </Card>
     </>
+  )
+}
+
+/**
+ * Próximas faturas com assinaturas já agendadas (recorrência no cartão estilo Organizze, etapa 2). Total e quantidade
+ * vêm do banco (card_scheduled_invoices); nada é somado aqui. Ainda não ocupam o limite nem entram no "A cobrar": viram
+ * compra no dia da cobrança. Consulta opcional: se falhar ou não houver nada, a seção não aparece.
+ */
+function FaturasAgendadas({ cartaoId, versao }: { cartaoId: string; versao: number }) {
+  const [faturas, setFaturas] = useState<FaturaAgendada[]>([])
+  useEffect(() => {
+    let vivo = true
+    listarFaturasAgendadas(cartaoId)
+      .then((f) => { if (vivo) setFaturas(f) })
+      .catch(() => { if (vivo) setFaturas([]) })
+    return () => { vivo = false }
+  }, [cartaoId, versao])
+  if (faturas.length === 0) return null
+  return (
+    <section className="mt-4 border-t border-slate-100 pt-4" aria-label="Assinaturas agendadas nas próximas faturas" data-testid="faturas-agendadas">
+      <h2 className="mb-1 text-sm font-semibold text-slate-600">Assinaturas nas próximas faturas <SeloAgendado /></h2>
+      <p className="mb-1 text-xs text-slate-500">Já estão em cada fatura, pelo dia da cobrança. Ainda não ocupam o limite.</p>
+      <ListaRecolhida itens={faturas} rotulo="Próximas faturas com assinaturas" className="divide-y divide-slate-100">
+        {(f) => (
+          <li key={f.mes} className="flex items-baseline justify-between gap-3 py-1.5 text-sm" data-testid="fatura-agendada">
+            <span className="min-w-0">
+              <span className="font-medium">{primeiraMaiuscula(formatMonth(f.mes))}</span>
+              <span className="block text-xs text-slate-500">vence em {formatDate(f.vencimento)} · {f.itens === 1 ? '1 assinatura' : `${f.itens} assinaturas`}</span>
+            </span>
+            <span className="shrink-0 whitespace-nowrap tabular-nums font-semibold text-prejuizo">−{formatBRL(f.total)}</span>
+          </li>
+        )}
+      </ListaRecolhida>
+    </section>
   )
 }
 
@@ -1130,6 +1168,11 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const idBase = useId()
   const [faturas, setFaturas] = useState<Fatura[] | null>(null)
   const [itens, setItens] = useState<ItemFatura[] | null>(null)
+  // assinaturas ainda não cobradas desta fatura (só leitura; se a consulta falhar, a seção some e o resto segue)
+  const [previstas, setPrevistas] = useState<OcorrenciaPrevista[]>([])
+  const [erroPrevistas, setErroPrevistas] = useState('')
+  // "só esta" / "esta e as próximas": o painel aberto numa linha das assinaturas previstas
+  const [painelPrevista, setPainelPrevista] = useState<{ tipo: 'editar' | 'cancelar'; ocorrencia: OcorrenciaPrevista } | null>(null)
   const [creditos, setCreditos] = useState<CreditoFatura[]>([])
   const [pagamentos, setPagamentos] = useState<PagamentoFatura[]>([])
   const [erroPagamentos, setErroPagamentos] = useState('')
@@ -1161,6 +1204,15 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   }, [cartaoId, mes, versao])
 
   useEffect(() => {
+    let vivo = true
+    setPrevistas([])
+    listarOcorrenciasPrevistas(cartaoId, mes)
+      .then((o) => { if (vivo) setPrevistas(o) })
+      .catch(() => { /* opcional: sem a função no banco, a fatura segue sem a lista de previstas */ })
+    return () => { vivo = false }
+  }, [cartaoId, mes, versao])
+
+  useEffect(() => {
     // créditos avulsos (receita) da fatura: falha aqui não esconde as compras
     let vivo = true
     setCreditos([])
@@ -1185,7 +1237,19 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   }, [cartaoId, faturaId, versao])
 
   // trocar de fatura (setas, link) fecha o que estava aberto numa linha da outra
-  useEffect(() => { setAcaoBruta(null) }, [mes])
+  useEffect(() => { setAcaoBruta(null); setPainelPrevista(null) }, [mes])
+
+  // assinatura cancelada na vida real: exclui a regra inteira (o que já foi cobrado continua no histórico)
+  async function excluirAssinatura(o: OcorrenciaPrevista) {
+    if (!window.confirm(`Excluir a assinatura "${o.descricao}"? Ela deixa de ser cobrada daqui em diante; o que já foi lançado no cartão continua no histórico.`)) return
+    setErroPrevistas('')
+    try {
+      await excluirRecorrencia(o.recorrenciaId)
+      await carregar()
+    } catch (err) {
+      setErroPrevistas(mensagemErroBanco(err))
+    }
+  }
 
   async function anularCredito(c: CreditoFatura) {
     if (!window.confirm(`Anular o crédito "${c.descricao}" de ${formatBRL(c.valor)}? A fatura e a receita do mês são recalculadas. Fica registrado.`)) return
@@ -1415,6 +1479,40 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
             </div>
           )}
         </section>
+
+        {previstas.length > 0 && (
+          <section className="mt-4 border-t border-slate-100 pt-4" aria-label="Assinaturas previstas nesta fatura" data-testid="bloco-previstas">
+            <h2 className="mb-1 text-sm font-semibold text-slate-600">Assinaturas previstas <SeloAgendado /></h2>
+            <p className="mb-1 text-xs text-slate-500">Ainda não cobradas: entram nesta fatura no dia indicado. Cancelou? Use ⋯ na linha para excluir a assinatura; para mudar valor ou descrição, abra Recorrentes.</p>
+            {erroPrevistas && <div className="mb-2"><Aviso tipo="erro">{erroPrevistas}</Aviso></div>}
+            <ul className="divide-y divide-slate-100">
+              {previstas.map((o) => (
+                <LinhaDaFatura key={`${o.recorrenciaId}-${o.data}`} testId="assinatura-prevista"
+                  icone={<IconeCategoria visual={visualPorId(o.categoriaId, categoriaPorId, 'expense')} tamanho="pequeno" />}
+                  titulo={o.descricao}
+                  detalhe={`${nomeCategoria.get(o.categoriaId) ?? 'Sem categoria'} · cobrança em ${formatDate(o.data)}${o.editada ? ' · alterada' : ''}`}
+                  valor={`−${formatBRL(o.valor)}`} corValor="text-prejuizo"
+                  acoes={(
+                    <MenuAcoes rotulo={`Ações de ${o.descricao}`} desabilitado={acao !== null || painelPrevista !== null} acoes={[
+                      ...(o.itemId ? [
+                        { rotulo: 'Editar…', aoEscolher: () => setPainelPrevista({ tipo: 'editar', ocorrencia: o }) },
+                        { rotulo: 'Cancelar cobrança…', aoEscolher: () => setPainelPrevista({ tipo: 'cancelar', ocorrencia: o }) },
+                      ] : []),
+                      { rotulo: 'Abrir Recorrentes', aoEscolher: () => navigate('/recorrentes') },
+                      { rotulo: 'Excluir assinatura', aoEscolher: () => { void excluirAssinatura(o) }, perigo: true },
+                    ]} />
+                  )} />
+              ))}
+            </ul>
+            {painelPrevista && (
+              <PainelJunto>
+                <PainelAgendada tipo={painelPrevista.tipo} ocorrencia={painelPrevista.ocorrencia} categorias={categorias} hoje={hoje}
+                  aoFechar={() => setPainelPrevista(null)}
+                  aoConcluir={async () => { setPainelPrevista(null); await carregar() }} />
+              </PainelJunto>
+            )}
+          </section>
+        )}
       </Card>
     </>
   )
@@ -1645,7 +1743,7 @@ function FormLimite({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Cart
   )
 }
 
-function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; categorias: Categoria[] }) {
+function FormCompra({ cartao, categorias, aoSalvar, aoCancelar, aoCategoriaCriada }: PropsBase & { cartao: Cartao; categorias: Categoria[]; aoCategoriaCriada?: (c: Categoria) => void }) {
   const hoje = hojeSP()
   const [andamento, setAndamento] = useState(false)
   const [descricao, setDescricao] = useState('')
@@ -1693,8 +1791,8 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
         </fieldset>
         <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: TV da sala" value={descricao} onChange={(e) => setDescricao(e.target.value)}
           erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
-        <Selecao rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} todos="Escolha…"
-          opcoes={opcoesDeCategoria(despesas, categorias).map((o) => [o.id, o.rotulo])} />
+        <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={despesas} categorias={categorias}
+          tipo="expense" aoCriada={aoCategoriaCriada} />
         {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria.</p>}
         <Field rotulo={andamento ? 'Valor de cada parcela (R$)' : 'Valor total (R$)'} inputMode="decimal" value={valorTexto}
           onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
@@ -1766,8 +1864,7 @@ function FormCredito({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & {
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: Estorno de IOF, cashback, reembolso do plano" value={descricao}
           onChange={(e) => setDescricao(e.target.value)} erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
-        <Selecao rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} todos="Escolha…"
-          opcoes={opcoesDeCategoria(receitas, categorias).map((o) => [o.id, o.rotulo])} />
+        <SeletorCategoria rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} opcoes={receitas} categorias={categorias} tipo="income" />
         {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria de receita.</p>}
         <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
         <Field rotulo="Data do crédito" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou && !data ? 'Informe a data.' : undefined} />
@@ -1904,6 +2001,81 @@ function PainelEditar({ item, aoFechar, aoConcluir }: { item: ItemFatura; aoFech
   )
 }
 
+/**
+ * Mudar ou cancelar uma assinatura de cartão que ainda não virou compra, como no Organizze: a pergunta é "só esta" ou
+ * "esta e as próximas". "Esta e as próximas" mudando divide a regra: a antiga termina na véspera e uma nova começa na data
+ * nova. O que já virou compra não passa por aqui. Validações finais no banco (card_scheduled_*).
+ */
+function PainelAgendada({ tipo, ocorrencia: o, categorias, hoje, aoFechar, aoConcluir }: {
+  tipo: 'editar' | 'cancelar'; ocorrencia: OcorrenciaPrevista; categorias: Categoria[]; hoje: string
+  aoFechar: () => void; aoConcluir: () => Promise<void>
+}) {
+  const [escopo, setEscopo] = useState<'esta' | 'proximas'>('esta')
+  const [descricao, setDescricao] = useState(o.descricao)
+  const [valorTexto, setValorTexto] = useState(formatBRLCampo(o.valor).replace(/\u00a0/g, ''))
+  const [data, setData] = useState(o.data)
+  const [categoriaId, setCategoriaId] = useState(o.categoriaId)
+  const [tentou, setTentou] = useState(false)
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+  const valor = parseBRL(valorTexto)
+  const despesas = categorias.filter((c) => c.tipo === 'expense' && c.ativa)
+  const editar = tipo === 'editar'
+  const erroValor = tentou && (valor === null || valor <= 0) ? 'Valor inválido. Exemplo: 49,90' : undefined
+  const erroData = tentou && (!data || data <= hoje) ? 'A data precisa ser depois de hoje.' : undefined
+
+  function enviarForm(e: FormEvent) {
+    e.preventDefault()
+    if (!o.itemId) return
+    const itemId = o.itemId
+    if (!editar) {
+      void enviar(async () => { if (escopo === 'esta') await cancelarAgendada(itemId); else await aPartirDaqui(itemId, 'end') })
+      return
+    }
+    setTentou(true)
+    if (valor === null || valor <= 0 || !descricao.trim() || !data || data <= hoje || !categoriaId) return
+    const dados = { data, valor, descricao, categoriaId }
+    void enviar(async () => { if (escopo === 'esta') await editarAgendada(itemId, dados); else await aPartirDaqui(itemId, 'update', dados) })
+  }
+
+  return (
+    <form onSubmit={enviarForm} noValidate className="grid gap-3 rounded-lg border border-slate-200 bg-azul-claro p-4 md:grid-cols-2"
+      aria-label={editar ? `Editar ${o.descricao}` : `Cancelar ${o.descricao}`}>
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <p className="text-sm md:col-span-2">
+        {editar ? 'Mudar' : 'Cancelar'} a cobrança de <strong>{o.descricao}</strong> em {formatDate(o.data)}. O que já virou compra na fatura não muda por aqui.
+      </p>
+      <fieldset className="flex flex-wrap gap-4 md:col-span-2">
+        <legend className="mb-1 text-sm font-medium">Vale para</legend>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="radio" name="escopo-agendada" checked={escopo === 'esta'} onChange={() => setEscopo('esta')} /> Só esta cobrança
+        </label>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="radio" name="escopo-agendada" checked={escopo === 'proximas'} onChange={() => setEscopo('proximas')} /> Esta e as próximas
+        </label>
+      </fieldset>
+      {editar && (
+        <>
+          <Field rotulo="Descrição" maxLength={80} value={descricao} onChange={(e) => setDescricao(e.target.value)}
+            erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
+          <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={despesas} categorias={categorias} tipo="expense" />
+          <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+          <Field rotulo="Data da cobrança" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={erroData} />
+        </>
+      )}
+      <p className="text-sm text-slate-600 md:col-span-2">
+        {editar
+          ? (escopo === 'esta'
+            ? 'Só esta cobrança muda; as outras seguem como estão.'
+            : 'Esta e as próximas passam a seguir os dados novos (a assinatura antiga termina na véspera e uma nova começa na data nova). As anteriores não mudam.')
+          : (escopo === 'esta'
+            ? 'Esta cobrança deixa de existir; as outras seguem.'
+            : 'A assinatura termina aqui: esta e as próximas deixam de ser cobradas. O que já foi cobrado fica.')}
+      </p>
+      <Botoes rotulo={editar ? 'Salvar' : 'Cancelar cobrança'} enviando={enviando} aoCancelar={aoFechar} />
+    </form>
+  )
+}
+
 /** Trocar a categoria de receita de um crédito/reembolso (card_credit_set_category, 077): só a classificação muda. */
 function PainelCategoriaCredito({ credito, categorias, aoFechar, aoConcluir }: {
   credito: CreditoFatura; categorias: Categoria[]; aoFechar: () => void; aoConcluir: () => Promise<void>
@@ -1925,8 +2097,7 @@ function PainelCategoriaCredito({ credito, categorias, aoFechar, aoConcluir }: {
       <p className="text-sm md:col-span-2">
         Só a categoria de <strong>{credito.descricao}</strong> muda: valor, data e fatura ficam como estão (vale também em fatura paga).
       </p>
-      <Selecao rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId}
-        opcoes={opcoesDeCategoria(receitas, categorias).map((o) => [o.id, o.rotulo])} />
+      <SeletorCategoria rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} opcoes={receitas} categorias={categorias} tipo="income" />
       <Botoes rotulo="Salvar categoria" enviando={enviando} aoCancelar={aoFechar} />
     </form>
   )

@@ -31,10 +31,10 @@ vi.mock('../lib/FamiliaContext', () => ({
 }))
 vi.mock('../lib/lancamentos', async (original) => ({
   ...(await original<typeof import('../lib/lancamentos')>()),
-  listarLancamentos: mock.listarLancamentos,
-  listarMovimentosDeDivida: mock.listarMovimentosDeDivida,
-  listarFaturasDoMes: mock.listarFaturasDoMes,
-  listarCreditosDeCartao: mock.listarCreditosDeCartao,
+  listarLancamentosNoPeriodo: mock.listarLancamentos,
+  listarMovimentosDeDividaNoPeriodo: mock.listarMovimentosDeDivida,
+  listarFaturasNoPeriodo: mock.listarFaturasDoMes,
+  listarCreditosDeCartaoNoPeriodo: mock.listarCreditosDeCartao,
   listarComprasDaFatura: mock.listarComprasDaFatura,
   listarCreditosDaFaturaDoMes: mock.listarCreditosDaFaturaDoMes,
   resumoDoMes: mock.resumoDoMes,
@@ -89,16 +89,7 @@ const fatura = {
   itens: 2, creditos: c(0), situacao: 'fechada', contaPagamentoId: 'a1',
 }
 
-/** Simula a largura da tela: matchMedia('(min-width: 1024px)') responde `grande`. */
-function tela(grande: boolean) {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true, writable: true,
-    value: (q: string) => ({ matches: grande && q.includes('1024'), media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
-  })
-}
-
 beforeEach(() => {
-  tela(true)
   mock.listarContas.mockResolvedValue({ contas, total: c(0) })
   mock.listarCategorias.mockResolvedValue(categorias)
   mock.listarLancamentos.mockResolvedValue(lancs)
@@ -123,95 +114,31 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  Reflect.deleteProperty(window, 'matchMedia')
 })
 
-function abrir() {
+/** Abre a tela e liga o modo de seleção pelo ⋯ do topo. */
+async function abrir() {
   render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-  return screen.findByRole('table')
-}
-/** Descrições na ordem em que as linhas aparecem (sem o cabeçalho). */
-function ordemDasLinhas(tabela: HTMLElement) {
-  return within(tabela).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[3].textContent ?? '')
+  const u = userEvent.setup()
+  await u.click(await screen.findByRole('button', { name: 'Mais ações da lista' }))
+  await u.click(screen.getByRole('menuitem', { name: 'Selecionar lançamentos' }))
+  return screen.getByRole('region', { name: 'Ações em lote' })
 }
 const caixa = (nome: string) => screen.getByRole('checkbox', { name: `Selecionar ${nome}` }) as HTMLInputElement
 
-describe('Lançamentos no computador: tabela', () => {
-  it('desktop mostra a tabela semântica com as colunas pedidas; celular mantém a lista', async () => {
-    const tabela = await abrir()
-    const cabecalhos = within(tabela).getAllByRole('columnheader').map((h) => h.textContent?.replace(/[↕↑↓]/g, '').trim())
-    expect(cabecalhos).toEqual([expect.any(String), 'Situação', 'Data', 'Descrição', 'Categoria', 'Conta', 'Valor', 'Ações'])
-    for (const h of within(tabela).getAllByRole('columnheader')) expect(h.getAttribute('scope')).toBe('col')
-    // valor com sinal e cor (não só cor); situação com texto acessível
-    const linhaLuz = screen.getByText('Luz').closest('tr') as HTMLElement
-    expect(within(linhaLuz).getByText('−R$ 143,20').className).toContain('text-neutro')
-    expect(within(linhaLuz).getByText('Vencido')).toBeTruthy() // planejado com data antes de hoje
-    expect(within(screen.getByText('Feira').closest('tr') as HTMLElement).getByText('Planejado')).toBeTruthy()
-    expect(within(screen.getByText('Supermercado').closest('tr') as HTMLElement).getByText('Pago')).toBeTruthy()
-    // #183: o ícone da situação leva a cor da regra (planejado verde, pago azul, vencido vermelho) e o nome em texto
-    const icone = (descricao: string) => within(screen.getByText(descricao).closest('tr') as HTMLElement).getByTitle(/^(Planejado|Pago|Vencido)$/)
-    expect(icone('Feira').className).toContain('bg-agendado-fundo text-agendado')
-    expect(icone('Supermercado').className).toContain('bg-lucro-fundo text-lucro')
-    expect(icone('Luz').className).toContain('bg-prejuizo-fundo text-prejuizo')
-    const linhaSalario = within(tabela).getAllByText('Salário').map((e) => e.closest('tr') as HTMLElement)[0]
-    expect(within(linhaSalario).getByText('+R$ 8.000,00').className).toContain('text-lucro')
-    expect(screen.getByText('Itaú → Nubank')).toBeTruthy()
-    // a fatura é linha especial: sem caixa de seleção, expansível
-    const linhaFatura = screen.getByText('Fatura Nubank').closest('tr') as HTMLElement
-    expect(within(linhaFatura).queryByRole('checkbox')).toBeNull()
-    // auditoria 5h: as ações da fatura ficam no menu ⋯ (dois botões soltos faziam a tabela rolar de lado a 1280px)
-    expect(within(linhaFatura).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Ações da fatura Nubank'])
-    expect(within(linhaFatura).queryByRole('link')).toBeNull()
-    const uf = userEvent.setup()
-    await uf.click(within(linhaFatura).getByRole('button', { name: 'Ações da fatura Nubank' }))
-    expect(within(linhaFatura).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Ver compras', 'Ver em Cartões'])
-    await uf.click(within(linhaFatura).getByRole('menuitem', { name: 'Ver compras' }))
-    expect(await screen.findByRole('list', { name: 'Compras da fatura Nubank' })).toBeTruthy()
-    // sem lista por dia no desktop
-    expect(screen.queryByRole('region', { name: '15/10/2026' })).toBeNull()
-
-    cleanup()
-    tela(false)
-    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    expect(await screen.findByRole('region', { name: '15/10/2026' })).toBeTruthy()
-    expect(screen.queryByRole('table')).toBeNull()
-    expect(screen.queryByRole('checkbox', { name: /Selecionar/ })).toBeNull()
-  })
-
-  it('ordena por data e por valor só na tela (aria-sort), sem chamar o banco de novo', async () => {
-    const u = userEvent.setup()
-    const tabela = await abrir()
-    const chamadas = mock.listarLancamentos.mock.calls.length
-    const thData = within(tabela).getByRole('columnheader', { name: /Data/ })
-    const thValor = within(tabela).getByRole('columnheader', { name: /Valor/ })
-    expect(thData.getAttribute('aria-sort')).toBe('descending')
-    expect(ordemDasLinhas(tabela)[0]).toMatch(/Feira|Fatura/) // dia 25 primeiro
-    await u.click(within(thData).getByRole('button'))
-    expect(thData.getAttribute('aria-sort')).toBe('ascending')
-    expect(ordemDasLinhas(tabela)[0]).toBe('Salário') // dia 05 primeiro (ordem estável no mesmo dia)
-    await u.click(within(thValor).getByRole('button'))
-    expect(thValor.getAttribute('aria-sort')).toBe('descending')
-    expect(thData.getAttribute('aria-sort')).toBe('none')
-    expect(ordemDasLinhas(tabela)[0]).toBe('Salário') // maior entrada primeiro
-    await u.click(within(thValor).getByRole('button'))
-    expect(ordemDasLinhas(tabela)[0]).toMatch(/^Fatura Nubank/) // maior saída primeiro (−450,00)
-    expect(mock.listarLancamentos.mock.calls.length).toBe(chamadas)
-  })
-
-  it('seleciona por caixa, por espaço na linha, por intervalo (Shift) e todos; Esc limpa', async () => {
+describe('Lançamentos: seleção em lote na lista por dia', () => {
+  it('liga pelo ⋯ do topo; seleciona por caixa, por intervalo (Shift) e todos; Esc limpa e, sem nada marcado, sai', async () => {
     const u = userEvent.setup()
     await abrir()
     await u.click(caixa('Luz'))
     expect(screen.getByRole('region', { name: 'Ações em lote' }).textContent).toContain('1 selecionado')
-    // espaço na linha focada
-    const linhaFeira = screen.getByText('Feira').closest('tr') as HTMLElement
-    linhaFeira.focus()
-    fireEvent.keyDown(linhaFeira, { key: ' ' })
+    await u.click(caixa('Feira'))
     expect(caixa('Feira').checked).toBe(true)
     expect(screen.getByText('2 selecionados')).toBeTruthy()
-    // Esc limpa
+    // Esc limpa (o modo continua)
     fireEvent.keyDown(window, { key: 'Escape' })
-    expect(screen.queryByRole('region', { name: 'Ações em lote' })).toBeNull()
+    expect(caixa('Feira').checked).toBe(false)
+    expect(screen.getByText('Marque os lançamentos')).toBeTruthy()
     // Shift+clique: da Feira (25/10) ao Salário (05/10), na ordem da tela
     await u.click(caixa('Feira'))
     await u.keyboard('{Shift>}')
@@ -225,7 +152,12 @@ describe('Lançamentos no computador: tabela', () => {
     await u.click(todos)
     expect(screen.getByText('5 selecionados')).toBeTruthy()
     await u.click(todos)
+    expect(screen.getByText('Marque os lançamentos')).toBeTruthy()
+    // Esc sem nada marcado sai do modo: as caixas somem e o ⋯ de cada linha volta
+    fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByRole('region', { name: 'Ações em lote' })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: /Selecionar/ })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Ações de Luz' })).toBeTruthy()
   })
 
   it('mudar categoria: confirma com a quantidade (sem total), uma chamada só, e Desfazer volta cada uma à categoria anterior', async () => {
@@ -237,7 +169,7 @@ describe('Lançamentos no computador: tabela', () => {
     await u.click(screen.getByRole('button', { name: 'Mudar categoria' }))
     expect(screen.getByRole('heading', { name: 'Mudar a categoria de 3 lançamentos' })).toBeTruthy()
     // a confirmação não soma dinheiro: nenhum valor em reais no painel
-    const painel = screen.getByRole('group', { name: 'Mudar a categoria de 3 lançamentos' })
+    const painel = screen.getByRole('dialog', { name: 'Mudar a categoria de 3 lançamentos' })
     expect(painel.textContent).not.toMatch(/R\$/)
     // só categorias de despesa
     const select = within(painel).getByLabelText('Nova categoria (despesa)') as HTMLSelectElement
@@ -318,48 +250,42 @@ describe('Lançamentos no computador: tabela', () => {
     await abrir()
     await u.click(caixa('Luz'))
     expect(screen.getByText('1 selecionado')).toBeTruthy()
-    await u.click(screen.getByRole('button', { name: 'Próximo mês' }))
-    await waitFor(() => expect(screen.queryByRole('region', { name: 'Ações em lote' })).toBeNull())
+    await u.click(screen.getByRole('button', { name: 'Próximo período' }))
+    await waitFor(() => expect(screen.getByText('Marque os lançamentos')).toBeTruthy())
+    expect(caixa('Luz').checked).toBe(false)
   })
 
-  it('o menu ⋯ da linha mantém Editar, Marcar pago e Excluir de um só', async () => {
+  it('fora do modo: sem caixas; o menu ⋯ da linha mantém Editar, Marcar pago e Excluir de um só', async () => {
     const u = userEvent.setup()
-    await abrir()
-    await u.click(screen.getByRole('button', { name: 'Ações de Luz' }))
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Ações de Luz' }))
+    expect(screen.queryByRole('checkbox', { name: /Selecionar/ })).toBeNull()
     expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Marcar pago', 'Editar', 'Excluir'])
     await u.click(screen.getByRole('menuitem', { name: 'Marcar pago' }))
-    // abre por cima da tela (diálogo), não no topo da página fora da vista de quem rolou a tabela
+    // abre por cima da tela (diálogo), não no topo da página fora da vista de quem rolou a lista
     expect(screen.getByRole('dialog', { name: /Marcar como pago · Luz/ })).toBeTruthy()
   })
 
-  it('coluna Categoria mostra só a folha; o caminho inteiro fica no title e no leitor de tela', async () => {
-    mock.listarCategorias.mockResolvedValue([...categorias, { id: 'cond', nome: 'Condomínio', tipo: 'expense', paiId: 'casa', sistema: false, ativa: true }])
-    mock.listarLancamentos.mockResolvedValue([
-      { id: 't9', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'cond', descricao: 'Taxa do prédio', valor: c(6000), data: '2026-10-12', status: 'planned', notas: '' },
-    ])
-    await abrir()
-    const linha = screen.getByText('Taxa do prédio').closest('tr') as HTMLElement
-    const celula = within(linha).getAllByRole('cell')[4]
-    const folha = within(celula).getByText('Condomínio')
-    expect(folha.getAttribute('aria-hidden')).toBe('true')
-    expect(folha.parentElement!.getAttribute('title')).toBe('Casa › Condomínio')
-    expect(within(celula).getByText('Casa › Condomínio').className).toContain('sr-only')
+  it('a lista por dia vale também no computador (a tabela saiu) e a fatura não tem caixa', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true, writable: true,
+      value: (q: string) => ({ matches: true, media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() }),
+    })
+    try {
+      await abrir()
+      expect(screen.queryByRole('table')).toBeNull()
+      expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
+      const linhaFatura = screen.getByText('Fatura Nubank').closest('li') as HTMLElement
+      expect(within(linhaFatura).queryByRole('checkbox')).toBeNull()
+    } finally {
+      Reflect.deleteProperty(window, 'matchMedia')
+    }
   })
 
-  it('fatura com créditos: ao abrir, "Créditos e reembolsos" (+, azul) dentro dela; o total é o do banco', async () => {
-    mock.listarFaturasDoMes.mockResolvedValue([{ ...fatura, total: c(44000), creditos: c(1000), situacao: 'aberta' }])
-    mock.listarCreditosDaFaturaDoMes.mockResolvedValue([
-      { id: 'k1', data: '2026-10-17', dataCredito: '2026-10-03', descricao: 'Estorno de IOF', cartaoNome: 'Nubank', categoriaId: 'sal', valor: c(1000), planejado: false, vencimento: '2026-10-25' },
-    ])
-    const u = userEvent.setup()
-    await abrir()
-    const linhaFatura = screen.getByText('Fatura Nubank').closest('tr') as HTMLElement
-    expect(within(linhaFatura).getByText('R$ 440,00')).toBeTruthy()
-    expect(within(linhaFatura).getByText('fecha 17/10')).toBeTruthy()
-    expect(screen.queryByText('Estorno de IOF')).toBeNull()
-    await u.click(within(linhaFatura).getByRole('button', { name: 'Ações da fatura Nubank' }))
-    await u.click(within(linhaFatura).getByRole('menuitem', { name: 'Ver compras' }))
-    const lista = await screen.findByRole('list', { name: 'Créditos e reembolsos da fatura Nubank' })
-    expect(within(lista).getByText('+R$ 10,00').className).toContain('text-lucro')
+  it('o ⋯ do topo fica desligado sem lançamentos para selecionar', async () => {
+    mock.listarLancamentos.mockResolvedValue([])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Fatura Nubank')
+    expect((screen.getByRole('button', { name: 'Mais ações da lista' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })

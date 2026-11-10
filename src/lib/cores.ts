@@ -39,6 +39,9 @@ export const GRAFICO = {
   grade: '#E2E8F0', eixo: '#94A3B8', destaque: '#EAF2FF', destaqueSobreArea: 'rgba(37,99,235,0.08)', contorno: '#FFFFFF',
   // saldo das contas como área clara ao fundo (Relatórios, #179): contexto, contraste baixo de propósito
   saldoArea: '#DBEAFE', saldoBorda: '#93C5FD',
+  // rosca de maiores gastos (Início): 4 tons em ordem fixa, validados no verificador de paleta (10/11/2026: faixa de
+  // luminosidade, croma, separação para daltonismo ΔE 10,3 e visão normal ΔE 16,2, contraste ≥ 3:1) + cinza para "Outros"
+  rosca: ['#1D4ED8', '#0891B2', '#DB2777', '#9333EA'], roscaOutros: '#94A3B8',
 } as const
 
 /**

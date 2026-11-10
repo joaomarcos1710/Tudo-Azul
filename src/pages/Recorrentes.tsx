@@ -8,10 +8,11 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import { Selecao } from '../components/ui/Selecao'
+import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
 import { listarCartoes } from '../lib/cartoes'
 import type { Cartao } from '../lib/cartoes'
-import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
+import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { aceitaLancamento, hojeSP, listarContas, mesmaMoeda } from '../lib/contas'
 import type { Conta } from '../lib/contas'
@@ -244,6 +245,7 @@ export default function Recorrentes() {
           contas={contas} cartoes={cartoes} categorias={categorias} pessoas={pessoas}
           aoSalvar={async () => { setEditando(null); await carregar() }}
           aoCancelar={() => setEditando(null)}
+          aoCategoriaCriada={(c) => setCategorias((atual) => [...atual, c])}
         />
       )}
 
@@ -393,9 +395,11 @@ interface PropsForm {
   pessoas: PessoaFamilia[]
   aoSalvar: () => Promise<void>
   aoCancelar: () => void
+  /** Categoria criada pelo seletor: a página acrescenta à lista dela. */
+  aoCategoriaCriada: (c: Categoria) => void
 }
 
-function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas, aoSalvar, aoCancelar }: PropsForm) {
+function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas, aoSalvar, aoCancelar, aoCategoriaCriada }: PropsForm) {
   const { sessao } = useAuth()
   const editando = r !== null
   // multimoeda F2: receita, despesa e transferência em qualquer moeda; o destino da transferência só na moeda da origem
@@ -553,8 +557,8 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
         )}
         {precisaCategoria && (
           <>
-            <Selecao rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} todos="Escolha…"
-              opcoes={opcoesDeCategoria(categoriasDoTipo, categorias).map((o) => [o.id, o.rotulo])} />
+            <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={categoriasDoTipo} categorias={categorias}
+              tipo={tipoCategoria} aoCriada={aoCategoriaCriada} />
             {erroDe('categoria') && <p role="alert" className="text-sm text-negativo">{erroDe('categoria')}</p>}
           </>
         )}

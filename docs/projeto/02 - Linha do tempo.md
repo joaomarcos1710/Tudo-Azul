@@ -191,5 +191,13 @@ tags: [tudo-azul, historico]
 
 - **Marca separada da transferência** (#211, 07/11/2026): pedido do dono (opção A da revisão da paleta proposta). O marinho da marca (logo, títulos, cabeçalhos) ganha o token `MARCA`; a transferência segue com o próprio token. Sem mudança visual. Sem migration.
 
+- **Início em duas colunas** (#247, 10/11/2026): etapa 1 do redesenho estilo Organizze, aprovada pelo dono; só reposicionamento.
+
+- **Receitas a receber e Despesas a pagar** (#248, 10/11/2026): etapa 2; o "Próximos planejados" foi dividido por tipo, filtrado no banco, com "Ver mais".
+
+- **Lançamentos sem o card de saldo diário** (#249, 10/11/2026): pedido do dono; o card "Saldo ao final de cada dia" saiu do computador.
+
+- **Maiores gastos em rosca no Início** (#250, 10/11/2026): etapa 3; as 4 maiores categorias + Outros, do banco, com cores validadas.
+
 ## Ainda abertos
 Só este registro do diário em 28/10/2026.

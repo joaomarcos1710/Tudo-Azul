@@ -1,5 +1,4 @@
 import { supabase } from './supabase'
-import type { GrupoOrcamento } from './regra503020'
 
 export type TipoCategoria = 'income' | 'expense'
 
@@ -17,8 +16,6 @@ export interface Categoria {
   icone?: string | null
   /** Cor escolhida (#RRGGBB); null/ausente = sugestão do app. */
   cor?: string | null
-  /** Grupo da regra 50-30-20 (só despesa); null/ausente = sem grupo. Subcategoria sem grupo próprio herda o da principal. */
-  grupo?: GrupoOrcamento | null
   /**
    * "Não conta como consumo" (migration 071): quitação, empréstimo recebido, repasse entre familiares. Sai só dos
    * indicadores do Início. Vale só para esta categoria: a subcategoria NÃO herda. Ausente = false.
@@ -43,9 +40,9 @@ function cliente() {
 export async function listarCategorias(familiaId: string, opcoes: { comEventual?: boolean } = {}): Promise<Categoria[]> {
   const base = 'id, name, type, parent_id, system_key, active, color, icon'
   const ler = (colunas: string) => cliente().from('categories').select(colunas).eq('household_id', familiaId).order('name')
-  // escada tolerante a migration ausente: com "não é consumo" (071) → com grupo (032) → só com eventual (012) → básico
-  let { data, error } = opcoes.comEventual ? await ler(`${base}, eventual, budget_group, non_consumption`) : await ler(base)
-  if (error && opcoes.comEventual) ({ data, error } = await ler(`${base}, eventual, budget_group`))
+  // escada tolerante a migration ausente: com "não é consumo" (071) → só com eventual (012) → básico.
+  // budget_group (50-30-20) não é mais lido: a regra saiu da tela (pedido do dono, 10/11/2026); a coluna fica no banco.
+  let { data, error } = opcoes.comEventual ? await ler(`${base}, eventual, non_consumption`) : await ler(base)
   if (error && opcoes.comEventual) ({ data, error } = await ler(`${base}, eventual`))
   if (error && opcoes.comEventual) ({ data, error } = await ler(base))
   if (error) throw error
@@ -59,7 +56,6 @@ export async function listarCategorias(familiaId: string, opcoes: { comEventual?
     eventual: c.eventual === true,
     icone: (c.icon as string | null) ?? null,
     cor: (c.color as string | null) ?? null,
-    grupo: (c.budget_group as GrupoOrcamento | null | undefined) ?? null,
     naoConsumo: c.non_consumption === true,
   }))
 }
@@ -76,6 +72,23 @@ export function agrupar(categorias: Categoria[], tipo: TipoCategoria): GrupoCate
 
 /** Ícone e cor: null = usar a sugestão do app. */
 export interface EscolhaVisual { icone: string | null; cor: string | null }
+
+/**
+ * Cria uma categoria principal pelo seletor (botão "Criar categoria", pedido do dono, 10/11/2026) e devolve a categoria
+ * criada, para o seletor já escolhê-la. Ícone e cor ficam na sugestão do app; dá para mudar depois em Categorias.
+ */
+export async function criarCategoriaRapida(familiaId: string, nome: string, tipo: TipoCategoria): Promise<Categoria> {
+  const { data, error } = await cliente().from('categories')
+    .insert({ household_id: familiaId, name: nome.trim(), type: tipo, parent_id: null })
+    .select('id, name, type, parent_id, system_key, active, color, icon').single()
+  if (error) throw error
+  const c = data as Record<string, unknown>
+  return {
+    id: c.id as string, nome: c.name as string, tipo: c.type as TipoCategoria, paiId: (c.parent_id as string | null) ?? null,
+    sistema: c.system_key != null, ativa: c.active !== false, eventual: false,
+    icone: (c.icon as string | null) ?? null, cor: (c.color as string | null) ?? null,
+  }
+}
 
 export async function criarCategoria(
   familiaId: string, d: { nome: string; tipo: TipoCategoria; paiId: string | null } & Partial<EscolhaVisual>,
@@ -108,12 +121,6 @@ export async function definirCategoriaNaoConsumo(id: string, naoConsumo: boolean
 /** Marca ou desmarca a categoria de receita como eventual. Subcategoria herda a marca da categoria mãe. */
 export async function definirCategoriaEventual(id: string, eventual: boolean): Promise<void> {
   const { error } = await cliente().from('categories').update({ eventual }).eq('id', id)
-  if (error) throw error
-}
-
-/** Classifica a categoria de despesa na regra 50-30-20 (null = sem grupo). O banco recusa receita e "Sem categoria". */
-export async function definirCategoriaGrupo(id: string, grupo: GrupoOrcamento | null): Promise<void> {
-  const { error } = await cliente().from('categories').update({ budget_group: grupo }).eq('id', id)
   if (error) throw error
 }
 
