@@ -458,3 +458,6 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Fatia 1 "Ver": lista das assinaturas previstas na fatura (código e teste prontos; **migration 20261110010000 ainda não aplicada em produção**).
 - [ ] Fatia 2 "Mudar": tabela de exceções, `card_recurrence_pending`/`recurrence_materialize` respeitando-as e RPC "só esta" / "esta e as próximas".
 - [ ] Fatia 3: diálogo no app.
+
+## Recorrência no cartão estilo Organizze (10/11/2026)
+- [ ] Todas as perguntas respondidas em 10/11: não ocupa o limite, vai direto para a B; aparece enquanto não cancelar e o diálogo "só esta / esta e as próximas" (`28 - Recorrência no cartão estilo Organizze (plano).md`). Hoje a recorrência no cartão só vira item de fatura no dia; antes disso aparece só o total "Assinaturas previstas".
