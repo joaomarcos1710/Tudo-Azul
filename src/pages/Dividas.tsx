@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
+import { MenuAcoes } from '../components/ui/MenuAcoes'
+import type { AcaoMenu } from '../components/ui/MenuAcoes'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
@@ -150,9 +152,6 @@ export default function Dividas() {
       />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
-      <Aviso tipo="info">
-        Nesta etapa, dívidas e pagamentos são registrados em reais. O saldo oficial continua vindo do motor financeiro existente.
-      </Aviso>
 
       {nova && (
         <FormNovaDivida aoSalvar={salvarNova} aoCancelar={() => setNova(false)} />
@@ -209,73 +208,88 @@ export default function Dividas() {
           <section className="mb-8" aria-labelledby="titulo-dividas-ativas">
             <h2 id="titulo-dividas-ativas" className="mb-3 text-lg font-semibold">Empréstimos e financiamentos</h2>
             <ul className="flex flex-col gap-3">
-              {dividas.map((d) => (
-                <li key={d.id}>
-                  <Card>
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="font-semibold">{d.nome}</p>
-                        <p className="text-sm text-slate-500">{d.tipo === 'loan' ? 'Empréstimo' : 'Financiamento'}</p>
+              {dividas.map((d) => {
+                // a parcela em aberto mais próxima desta dívida (a agenda já vem do banco em ordem de vencimento)
+                const proxima = parcelas.find((p) => p.dividaId === d.id)
+                const forma = d.formaPagamento === 'payroll' ? 'desconto em folha'
+                  : d.formaPagamento === 'account_debit' ? `débito em ${contas.find((c) => c.id === d.contaPagamentoId)?.nome ?? 'conta'}`
+                  : d.formaPagamento === 'boleto' ? 'boleto' : d.formaPagamento === 'manual' ? 'pagamento manual' : null
+                const semParcelas = d.parcelasRestantes == null || d.parcelasRestantes === 0
+                const acoes: AcaoMenu[] = [
+                  semParcelas
+                    ? { rotulo: 'Registrar pagamento', aoEscolher: () => { setAmortizacaoExtra(false); setPagando(d) } }
+                    : { rotulo: 'Amortização extra', aoEscolher: () => { setAmortizacaoExtra(true); setPagando(d) } },
+                  { rotulo: 'Contrato e parcelas', aoEscolher: () => setContrato(d) },
+                  { rotulo: 'Parâmetros da dívida', aoEscolher: () => setTermos(d) },
+                  { rotulo: 'Renomear', aoEscolher: () => setRenomeando(d) },
+                  { rotulo: 'Arquivar', aoEscolher: () => setConfirmando({ tipo: 'arquivar', divida: d }), desabilitado: confirmando !== null },
+                  { rotulo: 'Excluir', aoEscolher: () => setConfirmando({ tipo: 'excluir', divida: d }), desabilitado: confirmando !== null, perigo: true },
+                ]
+                return (
+                  <li key={d.id}>
+                    <Card>
+                      {/* uma dívida por linha, como na lista de contratos do banco (pedido do dono, 10/11/2026): o essencial à
+                          vista, as ações no ⋯ e o resto em "Detalhes" */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold">{d.nome}</p>
+                          <p className="text-sm text-slate-500">{[d.tipo === 'loan' ? 'Empréstimo' : 'Financiamento', d.credor, forma].filter(Boolean).join(' · ')}</p>
+                        </div>
+                        <div className="flex shrink-0 items-start gap-1">
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-slate-500">Saldo devedor</p>
+                            <p className="text-xl font-bold tabular-nums text-marinho">{formatBRL(d.saldo)}</p>
+                          </div>
+                          <MenuAcoes rotulo={`Ações de ${d.nome}`} acoes={acoes} />
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs font-semibold text-slate-500">Saldo devedor</p>
-                        <p className="text-xl font-bold tabular-nums">{formatBRL(d.saldo)}</p>
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-2 border-t border-slate-100 pt-3 sm:grid-cols-3">
-                      <div>
-                        <p className="text-xs text-slate-500">Compromissos futuros</p>
-                        <p className="font-semibold tabular-nums">{formatBRL(d.compromissos)}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Taxa mensal informada</p>
-                        <p className="font-semibold">{(d.taxaMensalBps / 100).toFixed(2).replace('.', ',')}%</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Pagamento mínimo</p>
-                        <p className="font-semibold tabular-nums">{formatBRL(d.pagamentoMinimo)}</p>
-                      </div>
-                      {d.parcelasRestantes !== null && <div><p className="text-xs text-slate-500">Parcelas restantes</p><p className="font-semibold">{d.parcelasRestantes} de {d.parcelasOriginais}</p></div>}
-                      {d.valorParcela !== null && <div><p className="text-xs text-slate-500">Prestação contratual</p><p className="font-semibold tabular-nums">{formatBRL(d.valorParcela)}</p></div>}
-                      {d.diaPagamento !== null && <div><p className="text-xs text-slate-500">Vencimento</p><p className="font-semibold">Dia {d.diaPagamento}{d.primeiraDataVencimento ? ` · próximo em ${d.primeiraDataVencimento.split('-').reverse().join('/')}` : ''}</p></div>}
-                      {d.credor && <div><p className="text-xs text-slate-500">Credor</p><p className="font-semibold">{d.credor}</p></div>}
-                      {d.numeroContrato && <div><p className="text-xs text-slate-500">Contrato</p><p className="font-semibold">{d.numeroContrato}</p></div>}
-                      {d.formaPagamento && <div><p className="text-xs text-slate-500">Forma de pagamento</p><p className="font-semibold">{d.formaPagamento === 'account_debit' ? 'Débito automático' : d.formaPagamento === 'boleto' ? 'Boleto' : d.formaPagamento === 'payroll' ? 'Consignado' : 'Manual'}</p></div>}
-                      {d.formaPagamento === 'account_debit' && <div><p className="text-xs text-slate-500">Conta de pagamento</p><p className="font-semibold">{contas.find((c) => c.id === d.contaPagamentoId)?.nome ?? 'Conta não encontrada'}</p></div>}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {d.parcelasRestantes == null || d.parcelasRestantes === 0
-                        ? <Button compacto onClick={() => { setAmortizacaoExtra(false); setPagando(d) }}>Registrar pagamento</Button>
-                        : <Button compacto variante="secundario" onClick={() => { setAmortizacaoExtra(true); setPagando(d) }}>Amortização extra</Button>}
-                      <Button compacto variante="secundario" onClick={() => setTermos(d)}>Parâmetros da dívida</Button>
-                      <Button compacto variante="secundario" onClick={() => setContrato(d)}>Contrato e parcelas</Button>
-                      <Button compacto variante="fantasma" onClick={() => setRenomeando(d)} aria-label={`Renomear ${d.nome}`}>Renomear</Button>
-                      <Button compacto variante="fantasma" disabled={confirmando !== null} onClick={() => setConfirmando({ tipo: 'arquivar', divida: d })} aria-label={`Arquivar ${d.nome}`}>Arquivar</Button>
-                      <Button compacto variante="fantasma" disabled={confirmando !== null} onClick={() => setConfirmando({ tipo: 'excluir', divida: d })} aria-label={`Excluir ${d.nome}`}>Excluir</Button>
-                    </div>
-                    {confirmando?.divida.id === d.id && (
-                      <ConfirmarArquivarExcluir tipo={confirmando.tipo} divida={d} aoFechar={() => setConfirmando(null)}
-                        aoConcluir={async () => { setConfirmando(null); await carregar() }} />
-                    )}
-                    <CategoriaDaParcela divida={d} categorias={categorias} aoMudar={carregar} />
-                  </Card>
-                </li>
-              ))}
+                      <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-sm">
+                        <div><dt className="text-xs text-slate-500">Parcela</dt><dd className="m-0 font-semibold tabular-nums">{d.valorParcela !== null ? formatBRL(d.valorParcela) : '—'}</dd></div>
+                        <div><dt className="text-xs text-slate-500">Restam</dt><dd className="m-0 font-semibold">{d.parcelasRestantes !== null ? `${d.parcelasRestantes} de ${d.parcelasOriginais}` : '—'}</dd></div>
+                        <div><dt className="text-xs text-slate-500">Próxima</dt><dd className="m-0 font-semibold">{proxima ? proxima.vencimento.split('-').reverse().join('/') : '—'}</dd></div>
+                      </dl>
+                      {proxima && (
+                        <div className="mt-3">
+                          <Button variante="pilula" compacto onClick={() => setParcelaSelecionada(proxima)}
+                            aria-label={`Confirmar a parcela de ${proxima.vencimento.split('-').reverse().join('/')}, ${d.nome}`}>
+                            Confirmar parcela de {proxima.vencimento.split('-').reverse().slice(0, 2).join('/')}
+                          </Button>
+                        </div>
+                      )}
+                      {confirmando?.divida.id === d.id && (
+                        <ConfirmarArquivarExcluir tipo={confirmando.tipo} divida={d} aoFechar={() => setConfirmando(null)}
+                          aoConcluir={async () => { setConfirmando(null); await carregar() }} />
+                      )}
+                      <details className="mt-2 text-sm">
+                        <summary className="inline-flex min-h-11 cursor-pointer items-center font-semibold text-azul">Detalhes</summary>
+                        <dl className="mt-1 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          <div><dt className="text-xs text-slate-500">Taxa mensal</dt><dd className="m-0 font-semibold">{(d.taxaMensalBps / 100).toFixed(2).replace('.', ',')}%</dd></div>
+                          <div><dt className="text-xs text-slate-500">Compromissos futuros</dt><dd className="m-0 font-semibold tabular-nums">{formatBRL(d.compromissos)}</dd></div>
+                          <div><dt className="text-xs text-slate-500">Pagamento mínimo</dt><dd className="m-0 font-semibold tabular-nums">{formatBRL(d.pagamentoMinimo)}</dd></div>
+                          {d.diaPagamento !== null && <div><dt className="text-xs text-slate-500">Vencimento</dt><dd className="m-0 font-semibold">Dia {d.diaPagamento}</dd></div>}
+                          {d.numeroContrato && <div><dt className="text-xs text-slate-500">Contrato</dt><dd className="m-0 font-semibold">{d.numeroContrato}</dd></div>}
+                        </dl>
+                        <CategoriaDaParcela divida={d} categorias={categorias} aoMudar={carregar} />
+                      </details>
+                    </Card>
+                  </li>
+                )
+              })}
             </ul>
           </section>
           {agendaFalhou && (
             <div className="mb-4"><Aviso tipo="erro">Não foi possível carregar as próximas parcelas agora. Recarregue a página em instantes.</Aviso></div>
           )}
           {parcelas.length > 0 && (
-            <section className="mb-8" aria-labelledby="titulo-agenda-dividas">
-              <h2 id="titulo-agenda-dividas" className="mb-3 text-lg font-semibold">Próximas parcelas</h2>
+            <details className="mb-8">
+              <summary className="inline-flex min-h-11 cursor-pointer items-center text-lg font-semibold">Todas as próximas parcelas ({parcelas.length})</summary>
               <div className="flex flex-col gap-3">
                 {agruparPorDivida(parcelas).map((g) => (
                   <AgendaDaDivida key={g.dividaId} nome={g.nome} parcelas={g.parcelas} aoBaixar={setParcelaSelecionada} />
                 ))}
               </div>
               <p className="mt-2 text-xs text-slate-500">Parcelas futuras são compromissos planejados. Elas não reduzem o saldo da conta nem o saldo devedor até a confirmação do pagamento.</p>
-            </section>
+            </details>
           )}
         </>
       )}
