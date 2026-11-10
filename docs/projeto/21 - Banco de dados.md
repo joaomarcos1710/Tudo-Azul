@@ -182,3 +182,15 @@ Arquivo `20261110080000_investment_liquidity.sql`. O número 099 vem da contagem
 - `home_indicators`: `net_worth` soma a carteira em reais; colunas novas no fim, `investments_liquid` e `investments_restricted`. `available` não muda.
 - `net_worth_with_assets`: `net_worth` soma a carteira em reais e devolve `investments_brl` no fim.
 - Testes: `93_investment_liquidity`; os testes 38, 71 e 75 mudaram a expectativa (a regra antiga não somava a carteira).
+
+## Carteira como conta interna (migration 100, PR #284, não aplicada)
+Arquivo `20261110090000_investment_portfolio_account.sql`. Desenho em `27 - Investimentos vinculados a conta`.
+- `accounts.system_role` (`investment_portfolio`), uma por família (índice único parcial); `accounts_name_uq` passa a valer só para contas comuns.
+- `private.investment_portfolio_account(p_household)`: devolve ou cria "Carteira de investimentos" (corretora, BRL, saldo 0, aberta em 2000-01-01 para aceitar operação de qualquer data).
+- `account_balances` ignora a conta interna; com isso ela sai de saldos, totais, previsão, Disponível, Patrimônio e conferência. `home_indicators` (meses da reserva) e `account_flow_report` também a ignoram; `cash_flow_series` desconta aporte e soma resgate no saldo.
+- `investment_operations.transaction_id`; `investment_operation_record(..., p_account default null)` cria a transferência conta → Carteira (compra: quantidade × preço + tarifas) ou Carteira → conta (venda: líquido), arredondada a 2 casas, só ativo e conta em reais.
+- `investment_operation_void` e `investment_asset_purge` mandam a transferência para a lixeira.
+- `account_move_to_portfolio(p_account, p_name, p_class, p_liquidity, p_subclass, p_date)`: cria o ativo com o saldo, transfere, arquiva a conta; recusa conta sem saldo ou com movimento pago depois da data.
+- Trava (gatilhos com a marca de sessão `app.investment_portfolio`): transação, recorrente, dívida, cartão e conferência não usam a conta interna; ela não é editada, arquivada nem excluída pelo cliente (42501). `clear_household_transactions` recriada com a marca.
+- Testes: `94_investment_portfolio_account` (137 asserções; falha sem a migration) e `00_audit`.
+- Riscos: venda com conta muda o patrimônio pelo ganho ou perda realizada (correto); anular operação dentro de período conferido pede desfazer a conferência; o gatilho novo faz uma consulta por linha gravada em `transactions` (não medido em volume).
