@@ -13,6 +13,7 @@ import { FaturasDoMes } from '../components/ui/FaturasDoMes'
 import { Field } from '../components/ui/Field'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import { Selecao } from '../components/ui/Selecao'
+import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
   arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
@@ -24,7 +25,7 @@ import {
 import type { Cartao, CreditoFatura, Fatura, FaturaAgendada, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
 import { IconeCadeadoAberto, IconeCadeadoFechado, IconeCadeadoPago, IconeCadeadoVencido } from '../components/layout/icons'
 import { somarMeses } from '../lib/lancamentos'
-import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
+import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import type { Categoria } from '../lib/categorias'
 import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
@@ -394,7 +395,8 @@ export default function Cartoes() {
       case 'contapag': return <FormContaPagamento cartao={p.cartao} contas={contas} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'renomear': return <FormRenomear cartao={p.cartao} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'identidade': return <FormIdentidade cartao={p.cartao} aoSalvar={aoSalvar} aoCancelar={fechar} />
-      case 'compra': return <FormCompra cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar} />
+      case 'compra': return <FormCompra cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar}
+        aoCategoriaCriada={(c) => setCategorias((atual) => [...atual, c])} />
       case 'credito': return <FormCredito cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'pagar': return <FormPagar cartao={p.cartao} contas={contas} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'arquivar':
@@ -1741,7 +1743,7 @@ function FormLimite({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Cart
   )
 }
 
-function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; categorias: Categoria[] }) {
+function FormCompra({ cartao, categorias, aoSalvar, aoCancelar, aoCategoriaCriada }: PropsBase & { cartao: Cartao; categorias: Categoria[]; aoCategoriaCriada?: (c: Categoria) => void }) {
   const hoje = hojeSP()
   const [andamento, setAndamento] = useState(false)
   const [descricao, setDescricao] = useState('')
@@ -1789,8 +1791,8 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & { 
         </fieldset>
         <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: TV da sala" value={descricao} onChange={(e) => setDescricao(e.target.value)}
           erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
-        <Selecao rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} todos="Escolha…"
-          opcoes={opcoesDeCategoria(despesas, categorias).map((o) => [o.id, o.rotulo])} />
+        <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={despesas} categorias={categorias}
+          tipo="expense" aoCriada={aoCategoriaCriada} />
         {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria.</p>}
         <Field rotulo={andamento ? 'Valor de cada parcela (R$)' : 'Valor total (R$)'} inputMode="decimal" value={valorTexto}
           onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
@@ -1862,8 +1864,7 @@ function FormCredito({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & {
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: Estorno de IOF, cashback, reembolso do plano" value={descricao}
           onChange={(e) => setDescricao(e.target.value)} erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
-        <Selecao rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} todos="Escolha…"
-          opcoes={opcoesDeCategoria(receitas, categorias).map((o) => [o.id, o.rotulo])} />
+        <SeletorCategoria rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} opcoes={receitas} categorias={categorias} tipo="income" />
         {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria de receita.</p>}
         <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
         <Field rotulo="Data do crédito" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou && !data ? 'Informe a data.' : undefined} />
@@ -2056,8 +2057,7 @@ function PainelAgendada({ tipo, ocorrencia: o, categorias, hoje, aoFechar, aoCon
         <>
           <Field rotulo="Descrição" maxLength={80} value={descricao} onChange={(e) => setDescricao(e.target.value)}
             erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
-          <Selecao rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} todos="Escolha…"
-            opcoes={opcoesDeCategoria(despesas, categorias).map((c) => [c.id, c.rotulo])} />
+          <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={despesas} categorias={categorias} tipo="expense" />
           <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
           <Field rotulo="Data da cobrança" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={erroData} />
         </>
@@ -2097,8 +2097,7 @@ function PainelCategoriaCredito({ credito, categorias, aoFechar, aoConcluir }: {
       <p className="text-sm md:col-span-2">
         Só a categoria de <strong>{credito.descricao}</strong> muda: valor, data e fatura ficam como estão (vale também em fatura paga).
       </p>
-      <Selecao rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId}
-        opcoes={opcoesDeCategoria(receitas, categorias).map((o) => [o.id, o.rotulo])} />
+      <SeletorCategoria rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} opcoes={receitas} categorias={categorias} tipo="income" />
       <Botoes rotulo="Salvar categoria" enviando={enviando} aoCancelar={aoFechar} />
     </form>
   )

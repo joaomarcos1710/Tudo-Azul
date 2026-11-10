@@ -86,6 +86,15 @@ import Lancamentos from './Lancamentos'
 import { limitesDoMes, somarMeses } from '../lib/lancamentos'
 import { hojeSP } from '../lib/contas'
 
+/** Categoria agora é um seletor em folha (como no Organizze): abre pelo botão e toca na categoria. */
+async function escolherCategoria(u: ReturnType<typeof userEvent.setup>, campo: HTMLElement, id: string) {
+  await u.click(campo)
+  const folhas = screen.getAllByRole('dialog', { name: 'Selecionar uma categoria' })
+  const folha = folhas[folhas.length - 1]
+  await u.click(folha.querySelector(`[data-categoria-id="${id}"]`) as HTMLElement)
+}
+
+
 const c = (n: number) => n as Cents
 const contas = [
   { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
@@ -320,7 +329,7 @@ describe('Lançamentos', () => {
     await abrirNovo(u)
     await u.type(screen.getByLabelText('Valor (R$)'), '1.234,56')
     await u.type(screen.getByLabelText('Descrição'), 'Feira')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
     await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', {
       tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'mer', descricao: 'Feira',
@@ -444,7 +453,7 @@ describe('Lançamentos', () => {
     await screen.findByText('Supermercado')
     await abrirNovo(u)
     await u.type(screen.getByLabelText('Valor (R$)'), '10')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
     await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Conta de origem desativada.')
   })
@@ -486,7 +495,7 @@ describe('Lançamentos', () => {
     await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
     await u.clear(screen.getByLabelText('Parcelas'))
     await u.type(screen.getByLabelText('Parcelas'), '3')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
     await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
     expect(mock.registrarCompra).toHaveBeenCalledWith('k1',
       expect.objectContaining({ descricao: 'Fone', total: 30000, parcelas: 3, categoriaId: 'mer' }), expect.any(String))
@@ -798,7 +807,7 @@ describe('Lançamentos', () => {
     await u.type(screen.getByLabelText('Valor (R$)'), '100,00')
     await u.type(screen.getByLabelText('Descrição'), 'Fone')
     await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
     mock.registrarCompra.mockRejectedValueOnce(new Error('failed to fetch'))
     await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
@@ -820,7 +829,7 @@ describe('Lançamentos', () => {
     await u.type(screen.getByLabelText('Valor (R$)'), '100,00')
     await u.type(screen.getByLabelText('Descrição'), 'Fone')
     await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
     mock.registrarCompra.mockRejectedValueOnce(new Error('failed to fetch'))
     await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
     await screen.findByRole('alert')
@@ -833,9 +842,9 @@ describe('Lançamentos', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await abrirNovo(u)
     await u.click(screen.getByRole('radio', { name: 'Receita' }))
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'sal')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'sal')
     await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
-    expect((screen.getByLabelText('Categoria') as HTMLSelectElement).value).toBe('')
+    expect(screen.getByLabelText('Categoria').getAttribute('data-valor')).toBe('')
   })
 
   it('atalho do painel ?novo=receita abre o formulário já como receita; ?novo=cartao já como compra no cartão', async () => {
@@ -998,7 +1007,7 @@ describe('Formulário de lançamento (novo visual)', () => {
     expect((screen.getByLabelText('Conta') as HTMLSelectElement).value).toBe('a1')
     await u.selectOptions(screen.getByLabelText('Conta'), 'a2')
     await u.type(screen.getByLabelText('Valor (R$)'), '10')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
     await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({ contaId: 'a2' }))
     cleanup()
@@ -1015,7 +1024,7 @@ describe('Formulário de lançamento (novo visual)', () => {
     await u.selectOptions(screen.getByLabelText('Conta'), 'a2')
     await u.type(screen.getByLabelText('Valor (R$)'), '25,00')
     await u.type(screen.getByLabelText('Descrição'), 'Pão')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
     const chamadasAntes = mock.listarLancamentos.mock.calls.length
     await u.click(screen.getByRole('button', { name: 'Registrar e lançar outro' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({ valor: 2500, descricao: 'Pão', contaId: 'a2' }))
@@ -1023,7 +1032,7 @@ describe('Formulário de lançamento (novo visual)', () => {
     expect(mock.listarLancamentos.mock.calls.length).toBeGreaterThan(chamadasAntes)
     expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('')
     expect((screen.getByLabelText('Descrição') as HTMLInputElement).value).toBe('')
-    expect((screen.getByLabelText('Categoria') as HTMLSelectElement).value).toBe('')
+    expect(screen.getByLabelText('Categoria').getAttribute('data-valor')).toBe('')
     expect((screen.getByLabelText('Conta') as HTMLSelectElement).value).toBe('a2')
     expect(screen.getByRole('button', { name: 'Registrar despesa' })).toBeTruthy() // continua aberto
   })
@@ -1044,8 +1053,11 @@ describe('Subcategoria na ordem e no nome', () => {
     await screen.findByText('Supermercado')
     await abrirNovo(u)
     await u.click(within(screen.getByRole('radiogroup', { name: 'Tipo do lançamento' })).getByRole('radio', { name: 'Receita' }))
-    const opcoes = within(screen.getByLabelText('Categoria')).getAllByRole('option').map((o) => o.textContent)
-    expect(opcoes).toEqual(['Escolher', 'Outras receitas', 'Rendimentos', 'Royalty', '↳ Reembolso'])
+    // a folha do seletor lista na mesma ordem de antes: principal e, logo abaixo, as subcategorias dela
+    await u.click(screen.getByLabelText('Categoria'))
+    const folha = screen.getByRole('dialog', { name: 'Selecionar uma categoria' })
+    const opcoes = Array.from(folha.querySelectorAll('[data-categoria-id]')).map((o) => o.textContent)
+    expect(opcoes).toEqual(['Outras receitas', 'Rendimentos', 'Royalty', 'Reembolso'])
   })
 
   it('na lista, a subcategoria mostra só a folha; o caminho "Principal › Sub" fica no title e no texto do leitor de tela', async () => {
@@ -1136,7 +1148,8 @@ describe('painel de lançamento (como no Organizze)', () => {
     const painel = screen.getByRole('dialog')
     await u.type(within(painel).getByLabelText('Descrição'), 'Internet')
     await u.type(within(painel).getByLabelText('Valor (R$)'), '120,00')
-    await u.selectOptions(within(painel).getByLabelText('Categoria'), within(painel).getAllByRole('option').find((o) => o.textContent === 'Mercado')?.getAttribute('value') ?? '')
+    await u.click(within(painel).getByLabelText('Categoria'))
+    await u.click(within(screen.getByRole('dialog', { name: 'Selecionar uma categoria' })).getByRole('button', { name: 'Mercado' }))
     fireEvent.change(within(painel).getByLabelText('Data'), { target: { value: '2026-11-10' } })
     await u.click(within(painel).getByRole('button', { name: /Repetir/ }))
     await u.selectOptions(within(painel).getByRole('combobox', { name: 'Repetir' }), 'trimestral')
@@ -1174,7 +1187,7 @@ describe('lançamento parcelado fora do cartão', () => {
     const painel = screen.getByRole('dialog')
     await u.type(within(painel).getByLabelText('Descrição'), 'Sofá')
     await u.type(within(painel).getByLabelText('Valor (R$)'), valor)
-    await u.selectOptions(within(painel).getByLabelText('Categoria'), 'mer')
+    await escolherCategoria(u, within(painel).getByLabelText('Categoria'), 'mer')
     fireEvent.change(within(painel).getByLabelText('Data'), { target: { value: '2026-01-31' } })
     await u.click(within(painel).getByRole('button', { name: /Repetir/ }))
     await u.click(within(painel).getByRole('radio', { name: 'Lançamento parcelado' }))
@@ -1246,7 +1259,7 @@ describe('multimoeda F2 (migration 056)', () => {
     await u.selectOptions(screen.getByLabelText('Conta'), 'a3')
     await u.type(screen.getByLabelText('Valor (US$)'), '40,25')
     await u.type(screen.getByLabelText('Descrição'), 'Café')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'mer')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
     await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({ tipo: 'expense', contaId: 'a3', valor: 4025 }))
   })

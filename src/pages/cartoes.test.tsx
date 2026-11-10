@@ -69,6 +69,15 @@ import { hojeSP } from '../lib/contas'
 import { formatDate } from '../lib/format'
 import type { Fatura, VisaoCartoes } from '../lib/cartoes'
 
+/** Categoria agora é um seletor em folha (como no Organizze): abre pelo botão e toca na categoria. */
+async function escolherCategoria(u: ReturnType<typeof userEvent.setup>, campo: HTMLElement, id: string) {
+  await u.click(campo)
+  const folhas = screen.getAllByRole('dialog', { name: 'Selecionar uma categoria' })
+  const folha = folhas[folhas.length - 1]
+  await u.click(folha.querySelector(`[data-categoria-id="${id}"]`) as HTMLElement)
+}
+
+
 const c = (n: number) => n as Cents
 
 /**
@@ -525,7 +534,7 @@ describe('Cartões', () => {
     montar()
     await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
     await u.type(screen.getByLabelText('Descrição'), 'TV')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     expect(screen.queryByRole('option', { name: 'Salário' })).toBeNull() // só categorias de despesa
     await u.type(screen.getByLabelText('Valor total (R$)'), '300,00')
     const parcelas = screen.getByLabelText('Parcelas')
@@ -543,7 +552,7 @@ describe('Cartões', () => {
     montar()
     await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
     await u.type(screen.getByLabelText('Descrição'), 'TV')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     await u.type(screen.getByLabelText('Valor total (R$)'), '300,00')
     const data = screen.getByLabelText('Data da compra')
     await u.clear(data)
@@ -561,7 +570,7 @@ describe('Cartões', () => {
     await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
     await u.click(screen.getByLabelText('Parcelamento já em andamento'))
     await u.type(screen.getByLabelText('Descrição'), 'Geladeira (iniciada em agosto)')
-    await u.selectOptions(screen.getByLabelText('Categoria'), 'g1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     await u.type(screen.getByLabelText('Valor de cada parcela (R$)'), '250,00')
     const parcelas = screen.getByLabelText(/Parcelas que ainda faltam/)
     await u.clear(parcelas)
@@ -747,7 +756,7 @@ describe('Cartões', () => {
     await escolherNoMenu(u, 'Crédito / reembolso')
     await u.type(screen.getByLabelText('Descrição'), 'Estorno de IOF')
     expect(screen.queryByRole('option', { name: 'Compras pessoais' })).toBeNull() // só receita
-    await u.selectOptions(screen.getByLabelText('Categoria de receita'), 'g2')
+    await escolherCategoria(u, screen.getByLabelText('Categoria de receita'), 'g2')
     await u.type(screen.getByLabelText('Valor (R$)'), '50,00')
     const data = screen.getByLabelText('Data do crédito')
     await u.clear(data)
@@ -774,7 +783,7 @@ describe('Cartões', () => {
     await u.click(screen.getByRole('button', { name: 'Lançar crédito' }))
     expect(screen.getByText('Escolha a categoria de receita.')).toBeTruthy()
     expect(mock.lancarCreditoNoCartao).not.toHaveBeenCalled()
-    await u.selectOptions(screen.getByLabelText('Categoria de receita'), 'g2')
+    await escolherCategoria(u, screen.getByLabelText('Categoria de receita'), 'g2')
     await u.click(screen.getByRole('button', { name: 'Lançar crédito' }))
     expect(mock.lancarCreditoNoCartao).toHaveBeenCalledWith('k1', expect.objectContaining({ fechamento: '2026-11-17', valor: 1000 }), expect.any(String))
   })
@@ -1616,11 +1625,13 @@ describe('Fatura paga travada (migration 064)', () => {
     await abrirSetembro(u)
     await acaoDaLinha(u, 'Ações do crédito Cashback', 'Trocar categoria')
     const form = screen.getByRole('form', { name: 'Trocar categoria do crédito' })
-    const seletor = within(form).getByLabelText('Categoria de receita') as HTMLSelectElement
-    expect(seletor.value).toBe('g2')
+    const seletor = within(form).getByLabelText('Categoria de receita')
+    expect(seletor.getAttribute('data-valor')).toBe('g2')
     // só categorias de receita (a de despesa não aparece)
-    expect(Array.from(seletor.options).map((o) => o.value)).toEqual(['g2', 'g3'])
-    await u.selectOptions(seletor, 'g3')
+    await u.click(seletor)
+    const folha = screen.getByRole('dialog', { name: 'Selecionar uma categoria' })
+    expect(Array.from(folha.querySelectorAll('[data-categoria-id]')).map((o) => o.getAttribute('data-categoria-id'))).toEqual(['g2', 'g3'])
+    await u.click(folha.querySelector('[data-categoria-id="g3"]') as HTMLElement)
     await u.click(within(form).getByRole('button', { name: 'Salvar categoria' }))
     expect(mock.trocarCategoriaDoCredito).toHaveBeenCalledWith(['cr9'], 'g3')
     expect(mock.listarCreditosDaFatura.mock.calls.length).toBeGreaterThan(1) // recarrega depois de gravar
@@ -1633,7 +1644,7 @@ describe('Fatura paga travada (migration 064)', () => {
     await abrirSetembro(u)
     await acaoDaLinha(u, 'Ações do crédito Cashback', 'Trocar categoria')
     const form = screen.getByRole('form', { name: 'Trocar categoria do crédito' })
-    await u.selectOptions(within(form).getByLabelText('Categoria de receita'), 'g3')
+    await escolherCategoria(u, within(form).getByLabelText('Categoria de receita'), 'g3')
     await u.click(within(form).getByRole('button', { name: 'Salvar categoria' }))
     expect(await within(form).findByRole('alert')).toBeTruthy()
     expect(screen.getByRole('form', { name: 'Trocar categoria do crédito' })).toBeTruthy()

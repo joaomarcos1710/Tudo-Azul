@@ -73,6 +73,23 @@ export function agrupar(categorias: Categoria[], tipo: TipoCategoria): GrupoCate
 /** Ícone e cor: null = usar a sugestão do app. */
 export interface EscolhaVisual { icone: string | null; cor: string | null }
 
+/**
+ * Cria uma categoria principal pelo seletor (botão "Criar categoria", pedido do dono, 10/11/2026) e devolve a categoria
+ * criada, para o seletor já escolhê-la. Ícone e cor ficam na sugestão do app; dá para mudar depois em Categorias.
+ */
+export async function criarCategoriaRapida(familiaId: string, nome: string, tipo: TipoCategoria): Promise<Categoria> {
+  const { data, error } = await cliente().from('categories')
+    .insert({ household_id: familiaId, name: nome.trim(), type: tipo, parent_id: null })
+    .select('id, name, type, parent_id, system_key, active, color, icon').single()
+  if (error) throw error
+  const c = data as Record<string, unknown>
+  return {
+    id: c.id as string, nome: c.name as string, tipo: c.type as TipoCategoria, paiId: (c.parent_id as string | null) ?? null,
+    sistema: c.system_key != null, ativa: c.active !== false, eventual: false,
+    icone: (c.icon as string | null) ?? null, cor: (c.color as string | null) ?? null,
+  }
+}
+
 export async function criarCategoria(
   familiaId: string, d: { nome: string; tipo: TipoCategoria; paiId: string | null } & Partial<EscolhaVisual>,
 ): Promise<void> {

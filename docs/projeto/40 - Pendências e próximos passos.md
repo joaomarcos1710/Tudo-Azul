@@ -494,6 +494,11 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 - [x] Faixa de avisos do topo e Últimos lançamentos removidos do app (#266). Se o dono sentir falta de um aviso de conta a pagar/fatura perto de vencer, desenhar de novo (o Calendário e os Vencidos de Análises cobrem parte).
 
+## Seletor de categoria em folha (10/11/2026)
+- [x] #276: busca, lista ou grade, subcategorias embaixo e "Criar categoria" nos formulários de lançamento, cartão e recorrente.
+- [ ] Conferir no celular (você): a folha, a grade de 4 colunas e o "Criar categoria".
+- [ ] "Criar categoria" cria só principal; criar subcategoria dali ficou de fora. Orçamentos segue com o seletor nativo.
+- [ ] Lembrar a escolha lista/grade entre aberturas (hoje volta para a lista).
 ## Regra 50-30-20 fora do app (10/11/2026)
 - [x] Tela (#275): seletor de grupo, sugestão e card do mês saíram de Categorias; `regra503020.ts` apagado; o app não lê mais `budget_group`.
 - [ ] Banco: a coluna `categories.budget_group` (22 de 132 despesas classificadas em 10/11/2026) e a função `budget_rule_report` (migration 032) ficaram sem uso. Apagar só com migration nova e o "pode" do dono, se ele decidir que não volta.
