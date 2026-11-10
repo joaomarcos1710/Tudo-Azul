@@ -86,11 +86,15 @@ export interface ItemFatura {
 /** Uma ocorrência prevista de assinatura numa fatura (card_subscription_previews): ainda não virou parcela. */
 export interface OcorrenciaPrevista {
   recorrenciaId: string
-  /** Dia em que a assinatura será cobrada (a compra). */
+  /** Dia em que a assinatura será cobrada (a compra); é a data editada, se a pessoa mudou só esta. */
   data: string
   descricao: string
   valor: Cents
   categoriaId: string
+  /** Id do item agendado; null enquanto o app ainda não gerou os itens (então só dá para excluir a assinatura). */
+  itemId: string | null
+  /** A pessoa mudou só esta ocorrência. */
+  editada: boolean
 }
 
 /** Uma fatura futura com assinaturas agendadas (card_scheduled_invoices): total e quantidade somados no banco. */
@@ -439,7 +443,38 @@ export async function listarOcorrenciasPrevistas(cartaoId: string, mes: string):
     descricao: (o.description as string | null) ?? 'Assinatura',
     valor: centsFromDb(o.amount ?? 0),
     categoriaId: o.category_id as string,
+    itemId: (o.item_id as string | null) ?? null,
+    editada: o.edited === true,
   }))
+}
+
+export interface DadosAgendada { data: string; valor: Cents; descricao: string; categoriaId: string }
+
+/** "Só esta": muda a data, o valor, a descrição e a categoria de uma cobrança ainda agendada (card_scheduled_item_update). */
+export async function editarAgendada(itemId: string, d: DadosAgendada): Promise<void> {
+  const { error } = await cliente().rpc('card_scheduled_item_update', {
+    p_item: itemId, p_charge_date: d.data, p_amount: centsToDecimal(d.valor), p_description: d.descricao.trim(), p_category: d.categoriaId,
+  })
+  if (error) throw error
+}
+
+/** "Só esta": cancela uma cobrança ainda agendada; as outras seguem (card_scheduled_item_cancel). */
+export async function cancelarAgendada(itemId: string): Promise<void> {
+  const { error } = await cliente().rpc('card_scheduled_item_cancel', { p_item: itemId })
+  if (error) throw error
+}
+
+/**
+ * "Esta e as próximas": encerra daqui em diante ('end') ou muda daqui em diante ('update', com os dados novos).
+ * O que já virou compra fica como está. Devolve quantas cobranças agendadas saíram (card_scheduled_from_here).
+ */
+export async function aPartirDaqui(itemId: string, acao: 'end' | 'update', d?: DadosAgendada): Promise<number> {
+  const { data, error } = await cliente().rpc('card_scheduled_from_here', {
+    p_item: itemId, p_action: acao,
+    ...(acao === 'update' && d ? { p_charge_date: d.data, p_amount: centsToDecimal(d.valor), p_description: d.descricao.trim(), p_category: d.categoriaId } : {}),
+  })
+  if (error) throw error
+  return (data as number) ?? 0
 }
 
 /**

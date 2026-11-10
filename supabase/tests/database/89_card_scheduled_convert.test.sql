@@ -83,12 +83,11 @@ select is(pg_temp.comprometido() - (select v::numeric from nota where k = 'limit
           'CV11 o limite comprometido sobe exatamente pelo valor das parcelas convertidas');
 
 -- nada em dobro: as convertidas saem das previstas e do sync
--- sobra só a ocorrência cancelada: as previstas vêm da regra e ainda não respeitam exceções (etapa 4)
-select is((select string_agg(occurrence_date::text, ',') from public.card_subscription_previews(pg_temp.fx('a'), to_char((select v::date from nota where k = 'c0'), 'YYYY-MM'))),
-          (pg_temp.hoje() + 1)::text,
-          'CV12 as convertidas saem das previstas da fatura aberta; sobra só a cancelada (exceções são da etapa 4)');
-select is((select total from public.card_pending_subscriptions(pg_temp.fx('h'), pg_temp.hoje()) where debt_id = pg_temp.fx('a')), 5.00::numeric,
-          'CV13 o previsto da fatura aberta é só o da cancelada (5,00): o que virou parcela não soma de novo');
+-- as convertidas viraram parcela e a cancelada não volta (etapa 4): a fatura aberta não tem mais nenhuma prevista
+select is((select count(*) from public.card_subscription_previews(pg_temp.fx('a'), to_char((select v::date from nota where k = 'c0'), 'YYYY-MM'))), 0::bigint,
+          'CV12 a fatura aberta não lista mais previstas: as convertidas viraram parcela e a cancelada não volta');
+select is((select count(*) from public.card_pending_subscriptions(pg_temp.fx('h'), pg_temp.hoje()) where debt_id = pg_temp.fx('a')), 0::bigint,
+          'CV13 o previsto da fatura aberta zera: o que virou parcela não soma de novo e a cancelada não conta');
 select is(public.card_scheduled_sync(), 0, 'CV14 o sync não recria nem mexe nos convertidos');
 select is(public.card_scheduled_convert(), 0, 'CV15 converter de novo não faz nada (sem parcela duplicada)');
 select is((select count(*) from public.debt_installments where debt_id = pg_temp.fx('a') and recurrence_id is not null),

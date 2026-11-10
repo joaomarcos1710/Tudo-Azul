@@ -461,9 +461,10 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Fatia 1 "Ver": lista das assinaturas previstas na fatura (código e teste prontos; migration 20261110010000 aplicada em produção em 10/11/2026).
 - [x] Etapa 1 do novo desenho: tabela `card_scheduled_items` (código e teste prontos; migration 20261110020000 aplicada em produção em 10/11/2026).
 - [x] Etapa 2: gerar os itens a partir da regra e mostrar nas faturas futuras, com total em SQL (migration 20261110030000 aplicada em produção em 10/11/2026). Falta: abrir a fatura futura que só tem assinaturas (hoje ela não existe em `card_months`) e somar as agendadas ao total da fatura.
-- [x] Etapa 3: converter em parcela quando a fatura anterior fecha; o limite passa a seguir a regra do dono (código e teste prontos; **migration 20261110040000 ainda não aplicada em produção**).
+- [x] Etapa 3: converter em parcela quando a fatura anterior fecha; o limite passa a seguir a regra do dono (migration 20261110040000 aplicada em produção em 10/11/2026).
 - [ ] Fatia 2 "Mudar" (agora etapa 4): tabela de exceções, `card_recurrence_pending`/`recurrence_materialize` respeitando-as e RPC "só esta" / "esta e as próximas".
 - [ ] Fatia 3: diálogo no app.
 - [ ] Decidir (dono, "talvez"): mudar o dia de uma assinatura já convertida em parcela. Hoje não é possível; só o valor (`card_installment_edit`).
-- [ ] Previstas e agendadas ainda ignoram a ocorrência cancelada ("só esta"); a tabela de exceções vem na etapa 4.
+- [x] Etapa 4: "só esta" e "esta e as próximas" (editar e cancelar), com as previstas e a geração no dia respeitando as exceções (código e teste prontos; **migration 20261110050000 ainda não aplicada em produção**).
 - [ ] Abrir a fatura futura que só tem assinaturas e somar as agendadas ao total dela (hoje a fatura só existe em `card_months` com parcela).
+- [ ] "Esta e as próximas" mudando cria uma segunda regra em Recorrentes (a antiga termina na véspera): decidir se isso incomoda ou se vale esconder as encerradas.
