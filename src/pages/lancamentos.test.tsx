@@ -37,6 +37,14 @@ vi.mock('../lib/recorrencias', async (original) => ({
   criarRecorrencia: mock.criarRecorrencia,
 }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1' } }, carregando: false }) }))
+// aporte e resgate pelo "+" (pedido do dono, 10/11/2026) abrem a folha de Investimentos
+const inv = vi.hoisted(() => ({ listarAtivosInvestimento: vi.fn(), registrarOperacaoPorValor: vi.fn(), registrarOperacaoInvestimento: vi.fn() }))
+vi.mock('../lib/investimentos', async (original) => ({
+  ...(await original<typeof import('../lib/investimentos')>()),
+  listarAtivosInvestimento: inv.listarAtivosInvestimento,
+  registrarOperacaoPorValor: inv.registrarOperacaoPorValor,
+  registrarOperacaoInvestimento: inv.registrarOperacaoInvestimento,
+}))
 vi.mock('../lib/supabase', () => ({ supabase: null }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -1117,13 +1125,14 @@ describe('Subcategoria na ordem e no nome', () => {
   })
 
 describe('painel de lançamento (como no Organizze)', () => {
-  it('"+ Lançamento" abre o menu com os quatro tipos; a escolha abre o painel por cima, que fecha no × e no Esc', async () => {
+  it('"+ Lançamento" abre o menu com os quatro tipos, mais aporte e resgate; a escolha abre o painel por cima, que fecha no × e no Esc', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
     const menu = screen.getByRole('menu', { name: 'Novo lançamento' })
     expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual([
       'Nova despesatecla D', 'Nova receitatecla R', 'Nova transferênciatecla T', 'Compra no cartãotecla C',
+      'Aporte em investimentotecla A', 'Resgate de investimentotecla G',
     ])
     await u.click(within(menu).getByRole('menuitem', { name: /Nova receita/ }))
     const painel = screen.getByRole('dialog', { name: 'Novo lançamento' })
@@ -1134,6 +1143,63 @@ describe('painel de lançamento (como no Organizze)', () => {
     await abrirNovo(u)
     await u.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  describe('aporte e resgate de investimento pelo "+" (pedido do dono, 10/11/2026)', () => {
+    const cofrinho = { id: 'k1', nome: 'Cofrinho 140% CDI', ticker: null, classe: 'fixed_income', moeda: 'BRL', ativo: true, subclasse: null,
+      liquidez: 'liquid', quantidadeOperacoes: 2, quantidadeAvaliacoes: 1, quantidadeProventos: 0 }
+    beforeEach(() => {
+      inv.listarAtivosInvestimento.mockResolvedValue([cofrinho, { ...cofrinho, id: 'k9', nome: 'Arquivado', ativo: false }])
+      inv.registrarOperacaoPorValor.mockResolvedValue(undefined)
+    })
+
+    it('"Aporte" abre a folha de operação em Compra, só pelo valor; grava pelo banco e recarrega a lista', async () => {
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+      await u.click(screen.getByRole('menuitem', { name: /Aporte em investimento/ }))
+      const folha = await screen.findByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(inv.listarAtivosInvestimento).toHaveBeenCalledWith('h1')
+      expect(within(folha).getByRole('radio', { name: 'Compra' }).getAttribute('aria-checked')).toBe('true')
+      // só o ativo ativo entra na lista
+      expect(Array.from((within(folha).getByLabelText('Ativo') as HTMLSelectElement).options).map((o) => o.textContent)).toEqual(['Cofrinho 140% CDI · BRL'])
+      const antes = mock.listarLancamentos.mock.calls.length
+      await u.type(within(folha).getByLabelText('Valor do aporte (BRL)'), '500,00')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
+      expect(inv.registrarOperacaoPorValor).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'k1', tipo: 'buy', valor: 50000 }))
+      await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      await vi.waitFor(() => expect(mock.listarLancamentos.mock.calls.length).toBeGreaterThan(antes))
+    })
+
+    it('tecla G abre o resgate (Venda); o erro do banco aparece dentro da folha, que continua aberta', async () => {
+      inv.registrarOperacaoPorValor.mockRejectedValue(new Error('resgate maior que o valor do investimento nesta data (R$ 100,01)'))
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByRole('button', { name: 'Novo lançamento' })
+      await u.keyboard('g')
+      const folha = await screen.findByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(within(folha).getByRole('radio', { name: 'Venda' }).getAttribute('aria-checked')).toBe('true')
+      await u.type(within(folha).getByLabelText('Valor do resgate (BRL)'), '200,00')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar venda' }))
+      expect(await within(folha).findByRole('alert')).toBeTruthy()
+      expect(screen.getByRole('dialog', { name: 'Registrar compra ou venda' })).toBeTruthy()
+    })
+
+    it('sem nenhum investimento cadastrado, explica e leva a Investimentos (não abre um formulário vazio)', async () => {
+      inv.listarAtivosInvestimento.mockResolvedValue([])
+      const u = userEvent.setup()
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByRole('button', { name: 'Novo lançamento' })
+      await u.keyboard('a')
+      const folha = await screen.findByRole('dialog', { name: 'Aporte em investimento' })
+      expect(within(folha).getByText(/ainda não tem nenhum investimento cadastrado/)).toBeTruthy()
+      expect(within(folha).getByRole('link', { name: 'Ir para Investimentos' }).getAttribute('href')).toBe('/investimentos')
+    })
+
+    it('?novo=aporte abre a folha direto (atalho vindo de outra tela)', async () => {
+      render(<MemoryRouter initialEntries={['/lancamentos?novo=aporte']}><Lancamentos /></MemoryRouter>)
+      expect(await screen.findByRole('dialog', { name: 'Registrar compra ou venda' })).toBeTruthy()
+    })
   })
 
   it('atalhos: T abre transferência, C abre compra no cartão; dentro de um campo a tecla não abre nada', async () => {
