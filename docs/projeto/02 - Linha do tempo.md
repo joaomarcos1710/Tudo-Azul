@@ -199,5 +199,87 @@ tags: [tudo-azul, historico]
 
 - **Maiores gastos em rosca no Início** (#250, 10/11/2026): etapa 3; as 4 maiores categorias + Outros, do banco, com cores validadas.
 
+## Fase 7 · 29/10–10/11 — PRs que faltavam no diário
+Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), não da memória: um PR por linha, com o título do próprio PR e a data do merge. Os PRs desse período que já tinham linha acima (com o detalhe) não se repetem aqui. Detalhes das mudanças de 10/11 estão em `10 - Telas do app`, `21 - Banco de dados` e `30 - Decisões`.
+
+- **#82** (29/10/2026): Diário: #77, #78 e #79 na linha do tempo; ideias do Perplexity sobre tipos de conta.
+- **#85** (29/10/2026): Diário: migration 018 aplicada em produção, #84 e versão 2026.5.
+- **#87** (30/10/2026): Diário: migration 019 aplicada em produção e #86.
+- **#117** (02/11/2026): Diário: migration 033 aplicada em produção.
+- **#119** (02/11/2026): Diário: migration 034 aplicada em produção.
+- **#121** (02/11/2026): Diário: migration 035 aplicada em produção.
+- **#123** (02/11/2026): Diário: migration 036 aplicada em produção.
+- **#197** (10/11/2026): Dependências do CI: actions/checkout from 4.4.0 to 7.0.1.
+- **#198** (10/11/2026): Dependências do CI: actions/upload-artifact from 4.6.2 to 7.0.2.
+- **#199** (10/11/2026): Dependências do CI: actions/setup-node from 4.4.0 to 7.1.0.
+- **#204** (08/11/2026): Cartões: modo de foco e ações rápidas da fatura.
+- **#205** (07/11/2026): Gestão de Pessoas: classificação de despesas e relatório familiar.
+- **#206** (07/11/2026): Orçamentos em grelha responsiva.
+- **#209** (08/11/2026): Auditoria: bloquear novas classificações em pessoas inativas.
+- **#210** (08/11/2026): Dashboard: projeção de compromissos futuros.
+- **#213** (08/11/2026): Preferências e exclusão segura de conta.
+- **#215** (07/11/2026): 2026.215 • Sidebar minimalista e menu de perfil.
+- **#216** (08/11/2026): Minha Carteira: estrutura e navegação da Fase 1.
+- **#217** (08/11/2026): Ideias: tela de Contas (lista limpa, arquivadas e reordenação).
+- **#218** (08/11/2026): Ideias: painel inicial com contas a receber e a pagar (ideia 02).
+- **#219** (08/11/2026): Ideias: direitos reservados (03) e cartão de crédito e fatura (04).
+- **#220** (08/11/2026): Ideias: membros da família (ideia 05).
+- **#221** (08/11/2026): Ideias: categorização automática de despesas com IA (ideia 06).
+- **#226** (08/11/2026): feat(home): primeira RPC da Home de Decisão.
+- **#227** (08/11/2026): feat(reserves): fundação de Envelopes Virtuais com ledger imutável.
+- **#228** (10/11/2026): docs(privacy): diagnóstico LGPD e plano de adequação.
+- **#230** (08/11/2026): fix(finance): integridade do ledger e Dinheiro Livre.
+- **#233** (08/11/2026): Reservas: zerar tudo e exclusão da família apagam o ledger; idempotência completa.
+- **#234** (09/11/2026): Docs: decisão sobre funções SECURITY DEFINER e revisão do Security Advisor.
+- **#235** (09/11/2026): Família: remover o bloco Zerar tudo (fica só em Preferências).
+- **#236** (09/11/2026): Lançamentos: liberar person_id e is_shared_expense para criar e editar.
+- **#237** (09/11/2026): Workflow de produção: modo reparar para o histórico de migrations.
+- **#238** (09/11/2026): Docs: glossário de métricas do dinheiro (arquiteto financeiro).
+- **#239** (09/11/2026): Docs: glossário com equação verificada do Dinheiro Livre e lacuna de aporte.
+- **#240** (09/11/2026): Docs: corrige a leitura do patrimônio no glossário.
+- **#241** (10/11/2026): Docs: plano de investimentos vinculados a conta (opção A).
+- **#242** (09/11/2026): Projeção de compromissos: vai para Recorrentes e cabe no celular.
+- **#243** (09/11/2026): Ideia 03: aviso de autoria na tela de entrar e no menu de perfil.
+- **#244** (09/11/2026): Preferências e aviso diário: liberar UPDATE em user_id para o upsert (42501).
+- **#245** (09/11/2026): Segurança: headers no Vercel (CSP em relatório), destino seguro após login e pins no workflow.
+- **#246** (09/11/2026): Docs: revisão geral de 09/11/2026 (auditoria e pendências).
+- **#251** (09/11/2026): Docs: plano da recorrência no cartão estilo Organizze.
+- **#252** (09/11/2026): Cartão: fatura lista as assinaturas previstas (recorrência, fatia "Ver").
+- **#253** (10/11/2026): Cartão: tabela de itens agendados (recorrência estilo Organizze, etapa 1).
+- **#254** (10/11/2026): Fatura: assinaturas previstas com o valor em vermelho.
+- **#255** (10/11/2026): Fatura: excluir assinatura pela linha prevista.
+- **#256** (10/11/2026): Barra lateral: telas de uso frequente voltam para a barra do computador.
+- **#257** (10/11/2026): Cartão: assinaturas agendadas nas próximas faturas (recorrência estilo Organizze, etapa 2).
+- **#258** (10/11/2026): Cartão: a assinatura vira compra quando a fatura anterior fecha (recorrência, etapa 3).
+- **#259** (10/11/2026): Cartão: "só esta" e "esta e as próximas" nas assinaturas (recorrência, etapa 4).
+- **#260** (10/11/2026): Início: tarefas automáticas deixam de segurar o primeiro desenho.
+- **#261** (10/11/2026): Início: cache em memória com TanStack Query (volta instantânea, revalida por trás).
+- **#262** (10/11/2026): Início: menos trabalho repetido no banco (matriz chama as faturas uma vez; indicadores não são pedidos duas vezes).
+- **#263** (10/11/2026): Cartão: a conta da fatura soma os eventos uma vez (card_months_as_of).
+- **#264** (10/11/2026): Barra lateral por categorias (Visão geral, Movimentações, Planejamento, Patrimônio).
+- **#265** (10/11/2026): Início enxuto: só Minha Carteira, contas, cartões, maiores gastos, a receber e a pagar.
+- **#266** (10/11/2026): Sem a faixa de avisos do topo e sem Últimos lançamentos (pedido do dono).
+- **#267** (10/11/2026): Docs: tira da lista de pendências o que já está no projeto (conferido no código e no banco).
+- **#268** (10/11/2026): Lançamentos, etapa 1 do visual do Organizze: botão Filtrar, + flutuante e rodapé com entradas, saídas e saldo.
+- **#269** (10/11/2026): Lançamentos, etapa 2: lista por dia no computador e seleção de vários.
+- **#270** (10/11/2026): Lançamentos, etapa 3: período livre pelo seletor do relatório.
+- **#271** (10/11/2026): Filtros de lançamentos em tela cheia, como no Organizze.
+- **#272** (10/11/2026): Filtros do Entradas x Saídas em tela cheia, com casca compartilhada.
+- **#273** (10/11/2026): Filtros de Investimentos na tela cheia compartilhada.
+- **#274** (10/11/2026): Filtro por etiqueta de Contas na tela cheia compartilhada.
+- **#275** (10/11/2026): Tira a regra 50-30-20 do app.
+- **#276** (10/11/2026): Seletor de categoria em folha, como no Organizze.
+- **#277** (10/11/2026): Categorias no celular: Editar em folha e resultado das ações sempre visível.
+- **#278** (10/11/2026): Categorias: linha só com ícone e nome; ações dentro da edição.
+- **#279** (10/11/2026): Investimentos (opção C, passo 1): nomes que não confundem.
+- **#280** (10/11/2026): Investimentos (opção C, passo 2): liquidez por ativo e patrimônio com a carteira.
+- **#281** (10/11/2026): Exportação CSV dos investimentos com a coluna Liquidez.
+- **#282** (10/11/2026): Investimentos: compra e venda numa folha, no desenho de Lançamentos.
+- **#283** (10/11/2026): Investimentos: novo ativo, avaliação e provento em folha.
+- **#284** (10/11/2026): Carteira de investimentos como conta interna: aporte, resgate e mover conta para a carteira.
+- **#285** (10/11/2026): Orçamentos: trecho tracejado com o cartão lançado em fatura a fechar.
+- **#286** (10/11/2026): Investimentos no estilo da XP e na barra de baixo no lugar de Orçamentos.
+- **#287** (10/11/2026): Dívidas mais simples e amortização extra com FGTS (sem conta).
+
 ## Ainda abertos
-Só este registro do diário em 28/10/2026.
+Em 10/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
