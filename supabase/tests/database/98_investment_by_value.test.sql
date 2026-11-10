@@ -788,5 +788,34 @@ select is((select amount from public.investment_asset_statement(pg_temp.fx('h'),
           1600.00::numeric, 'Y2 aporte de 500 e avaliação de 1.600 depois, no mesmo dia: a linha da avaliação mostra 1.600,00');
 select is(pg_temp.mv('y2'), 1600.00, 'Y2.1 e a posição vale 1.600,00');
 
+-- ---- X: resgate "quase total" não deixa resto invisível (achado da revisão de dinheiro) ----
+-- Fundo sem ticker comprado por cotas: 3 cotas, avaliação a 33,335 por cota (3 × 33,335 = 100,005 → vale 100,01).
+-- Resgatar 100,00 deixaria 0,00015 cota valendo R$ 0,00: nem resgate (0,01 > 0,00) nem arquivo (há posição).
+select pg_temp.login('00000000-0000-0000-0000-0000000098a1');
+select pg_temp.novo('x1', 'Resto invisível de teste');
+select public.investment_operation_record(pg_temp.fx('x1'), date '2025-01-10', 'buy', 3, 33.33, 0, null, pg_temp.fx('cc'));
+select public.investment_valuation_record(pg_temp.fx('x1'), date '2025-02-10', 33.335, 'cota de teste');
+select is(pg_temp.mv('x1'), 100.01, 'X1 3 cotas a 33,335 valem 100,01');
+select pg_temp.guarda('x1_');
+create temp table x1_antes as select pg_temp.gravado() as g;
+grant all on x1_antes to public;
+select is(pg_temp.err_of($$select public.investment_operation_record_by_value(pg_temp.fx('x1'), date '2025-02-10', 'sell', 100.00, null, pg_temp.fx('cc'))$$),
+          '23514: sobraria menos de 1 centavo neste investimento; para zerar, resgate o total de R$ 100,01',
+          'X2 resgatar 100,00 de 100,01 é recusado, com o total a resgatar na mensagem (em reais, formato do Brasil)');
+select is(pg_temp.gravado(), (select g from x1_antes), 'X2.1 nada foi gravado');
+select is(pg_temp.saldo('cc'), pg_temp.n('x1_cc'), 'X2.2 a conta não mudou');
+select is(pg_temp.qtd('x1'), 3::numeric, 'X2.3 as 3 cotas continuam lá');
+select is(pg_temp.err_of($$select public.investment_operation_record_by_value(pg_temp.fx('x1'), date '2025-02-10', 'sell', 1100.02, null, pg_temp.fx('cc'))$$),
+          '23514: resgate maior que o valor do investimento nesta data (R$ 100,01); se o valor mudou, registre a avaliação antes',
+          'X3 resgate maior que o valor: a mensagem traz o valor em reais, formato do Brasil');
+-- um resgate parcial que deixa resto com valor continua valendo
+select lives_ok($$select public.investment_operation_record_by_value(pg_temp.fx('x1'), date '2025-02-10', 'sell', 50.00, null, pg_temp.fx('cc'))$$,
+                'X4 resgate parcial de 50,00 é aceito');
+select is(pg_temp.saldo('cc'), pg_temp.n('x1_cc') + 50.00, 'X4.1 a conta recebe exatamente 50,00');
+-- e o resgate do total zera de verdade
+select lives_ok(format($$select public.investment_operation_record_by_value(pg_temp.fx('x1'), date '2025-02-10', 'sell', %s, null, pg_temp.fx('cc'))$$, pg_temp.mv('x1')),
+                'X5 resgatar o valor total que sobrou é aceito');
+select is(pg_temp.qtd('x1'), 0::numeric, 'X5.1 e a posição zera exata, sem resto');
+
 select * from finish();
 rollback;

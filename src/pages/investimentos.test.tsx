@@ -556,6 +556,24 @@ describe('Investimentos × macroclasse e subclasse', () => {
         expect(within(anulada).queryByRole('button', { name: /^Excluir/ })).toBeNull()
       })
 
+      it('excluir operação com avaliação depois dela avisa que o valor muda em proporção; sem avaliação depois, não avisa', async () => {
+        comZerado()
+        mock.listarExtratoAtivo.mockResolvedValue([
+          ...extratoBase(),
+          linhaExtrato({ id: 'v1', tipo: 'valuation', data: '2026-10-08', quantidade: null, precoUnitario: '12', taxa: null, valor: c(12000), fonte: 'extrato', saldoQuantidade: null }),
+        ])
+        const u = userEvent.setup()
+        render(<Investimentos />)
+        const lista = await abrir(u)
+        // compra de 01/10: a avaliação de 08/10 veio depois
+        await u.click(within(lista).getByRole('button', { name: 'Excluir compra de 01/10/2026' }))
+        expect(screen.getByText(/tem avaliação depois desta operação/)).toBeTruthy()
+        await u.click(screen.getByRole('button', { name: 'Cancelar' }))
+        // venda de 10/10: nenhuma avaliação depois
+        await u.click(within(lista).getByRole('button', { name: 'Excluir venda de 10/10/2026' }))
+        expect(screen.queryByText(/tem avaliação depois desta operação/)).toBeNull()
+      })
+
       it('excluir pede o motivo, chama a anulação e recarrega extrato e carteira', async () => {
         comZerado()
         const u = userEvent.setup()
@@ -624,7 +642,9 @@ describe('Investimentos × macroclasse e subclasse', () => {
       mock.listarAtivosInvestimento.mockResolvedValue([ativo('p1', 'Previdência', 'other', { liquidez: 'restricted' })])
       const u = userEvent.setup()
       const folha = await abrir(u)
-      expect(within(folha).getByRole('radio', { name: 'Só o valor' }).getAttribute('aria-checked')).toBe('true')
+      // ativo sem ticker é só por valor: não há como trocar para quantidade e preço (revisão de dinheiro da #294)
+      expect(within(folha).queryByRole('radiogroup', { name: 'Como informar' })).toBeNull()
+      expect(within(folha).queryByLabelText('Quantidade')).toBeNull()
       await u.type(within(folha).getByLabelText('Valor de hoje (BRL)'), '193.636,78')
       await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
       expect(mock.registrarOperacaoPorValor).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'p1', tipo: 'buy', valor: 19363678 }))
@@ -674,7 +694,9 @@ describe('Investimentos × macroclasse e subclasse', () => {
       mock.listarAtivosInvestimento.mockResolvedValue([ativo('k1', 'Cofrinho 140% CDI', 'fixed_income', { quantidadeOperacoes: 3, quantidadeAvaliacoes: 2 })])
       const u = userEvent.setup()
       let folha = await abrir(u)
-      expect(within(folha).getByRole('radio', { name: 'Só o valor' }).getAttribute('aria-checked')).toBe('true')
+      // com histórico e avaliação, "1 × R$ 500" gravaria 1 unidade ao preço da avaliação: a opção não existe
+      expect(within(folha).queryByRole('radiogroup', { name: 'Como informar' })).toBeNull()
+      expect(within(folha).queryByRole('radio', { name: 'Quantidade e preço' })).toBeNull()
       expect(within(folha).queryByLabelText('Quantidade')).toBeNull()
       expect(within(folha).queryByLabelText('Tarifas (BRL)')).toBeNull()
       await u.selectOptions(within(folha).getByLabelText('Saiu da conta'), 'c1')
@@ -685,7 +707,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
       folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
       await u.click(within(folha).getByRole('radio', { name: 'Venda' }))
-      expect(within(folha).getByRole('radio', { name: 'Só o valor' }).getAttribute('aria-checked')).toBe('true')
+      expect(within(folha).queryByRole('radio', { name: 'Quantidade e preço' })).toBeNull()
       await u.selectOptions(within(folha).getByLabelText('Volta para a conta'), 'c1')
       await u.click(within(folha).getByRole('button', { name: 'Registrar venda' }))
       expect(within(folha).getByText('Informe o valor do resgate.')).toBeTruthy()

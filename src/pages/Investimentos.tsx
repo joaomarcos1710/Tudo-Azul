@@ -643,6 +643,10 @@ function ExtratoAtivo({ familiaId, ativo, aoMudar, aoFechar }: {
                   <form className="mt-2 grid gap-2" onSubmit={(e) => void confirmarAnulacao(e, l.id)}>
                     <Field rotulo="Motivo da exclusão" value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={200} />
                     <p className="text-xs text-slate-600">A operação não é apagada: fica no extrato como anulada, com o motivo, e sai da posição e do custo.</p>
+                    {/* a avaliação vale por unidade: sem as unidades desta operação, o valor do ativo muda numa proporção, não no valor dela */}
+                    {linhas.some((x) => x.tipo === 'valuation' && x.data >= l.data) && (
+                      <Aviso tipo="info">Este investimento tem avaliação depois desta operação. Ao excluir, o valor dele muda numa proporção, não exatamente no valor da operação: registre a avaliação de novo em seguida.</Aviso>
+                    )}
                     <div className="flex flex-wrap gap-2">
                       <Button type="submit" variante="perigo" carregando={enviando}>Confirmar exclusão</Button>
                       <Button variante="secundario" onClick={() => { setAnulando(null); setErro('') }}>Cancelar</Button>
@@ -855,7 +859,7 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
           </LinhaFolha>
         </div>
         <datalist id={`${id}-sugestoes`}>{(classe ? SUGESTOES_SUBCLASSE[classe] : []).map((x) => <option key={x} value={x} />)}</datalist>
-        <p className="text-sm text-slate-600">Sem ticker (previdência, reserva, FGTS), a primeira compra pede só o valor de hoje.</p>
+        <p className="text-sm text-slate-600">Sem ticker (cofrinho, CDB, previdência, reserva), tudo é lançado só pelo valor em reais. Para lançar por quantidade e preço (ação, FII, fundo com cotas), informe o ticker ou um código.</p>
       </form>
     </Folha>
   )
@@ -866,8 +870,12 @@ function FormAtivo({ aoSalvar, aoCancelar }: {
  * Compra ou venda numa folha por cima da tela, no desenho do formulário de Lançamentos (pedido do dono, 10/11/2026):
  * tipo em duas abas, o ativo e o número principal em destaque, o resto em linhas.
  * "Só o valor" (migration 104): aporte e resgate em reais, para ativo que não tem cota (cofrinho, CDB, reserva,
- * previdência). O banco converte o valor em unidades pelo valor atual do ativo; nenhuma conta é feita aqui. É o modo
- * inicial de ativo sem ticker; ativo com ticker começa em "Quantidade e preço". Sem tarifas neste modo.
+ * previdência). O banco converte o valor em unidades pelo valor atual do ativo; nenhuma conta é feita aqui. Sem tarifas
+ * neste modo.
+ * Ativo sem ticker é SÓ por valor: "Quantidade e preço" não aparece. Num ativo sem cota, digitar "1 × R$ 500" depois de uma
+ * avaliação gravaria 1 unidade ao preço da avaliação, e o valor subiria num número que ninguém digitou (achado da revisão
+ * de dinheiro da #294). Quem tem um fundo com cotas informa um ticker ou código no ativo.
+ * Ativo com ticker começa em "Quantidade e preço" e pode trocar para "Só o valor".
  */
 type DadosOperacao =
   | { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string; precoUnitario: string; tarifas: Cents; observacao: string; contaId?: string }
@@ -901,8 +909,9 @@ function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancela
   const ativo = ativos.find((a) => a.id === ativoId)
   const codigo = ativo?.moeda ?? 'BRL'
   const semHistorico = !!ativo && ativo.quantidadeOperacoes === 0 && ativo.quantidadeAvaliacoes === 0
-  // só o valor: ativo sem ticker (cofrinho, previdência, reserva) já começa nesse modo; vale para aporte e resgate
-  const modoAtual = modo ?? (ativo?.ticker ? 'unidades' : 'valor')
+  // ativo sem ticker (cofrinho, previdência, reserva) é só por valor; com ticker, começa em unidades e pode trocar
+  const semCota = !ativo?.ticker
+  const modoAtual = semCota ? 'valor' : modo ?? 'unidades'
   // primeira posição: o valor digitado é quanto já existe no investimento, não um aporte novo
   const primeiraPosicao = semHistorico && tipo === 'buy'
   const rotuloValor = primeiraPosicao ? 'Valor de hoje' : tipo === 'buy' ? 'Valor do aporte' : 'Valor do resgate'
@@ -960,7 +969,7 @@ function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancela
             {ativos.map((a) => <option key={a.id} value={a.id}>{a.nome} · {a.moeda}</option>)}
           </select>
 
-          {ativo && (
+          {ativo && !semCota && (
             <div role="radiogroup" aria-label="Como informar" className="mt-3 flex gap-1 rounded-lg bg-white p-1">
               <button type="button" role="radio" aria-checked={modoAtual === 'valor'} onClick={() => setModo('valor')} className={aba(modoAtual === 'valor', 'bg-azul-claro text-azul')}>Só o valor</button>
               <button type="button" role="radio" aria-checked={modoAtual === 'unidades'} onClick={() => setModo('unidades')} className={aba(modoAtual === 'unidades', 'bg-azul-claro text-azul')}>Quantidade e preço</button>
@@ -976,7 +985,7 @@ function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancela
               </div>
               <p className="mt-1 text-sm text-slate-600">
                 {primeiraPosicao ? 'Quanto você tem hoje neste investimento. Para atualizar depois, use "Registrar avaliação" com o valor novo.'
-                  : tipo === 'buy' ? 'Quanto você está colocando agora. O rendimento não entra aqui: use "Registrar avaliação".'
+                  : tipo === 'buy' ? 'Quanto você está colocando agora. O rendimento não entra aqui: use "Registrar avaliação". Se você já atualizou o valor de hoje e ele incluía este depósito, registre a avaliação de novo depois.'
                   : 'Quanto você está tirando. Se o saldo rendeu, registre a avaliação antes; para resgatar tudo, informe o valor total de hoje.'}
               </p>
             </>
@@ -1096,7 +1105,10 @@ function FormAvaliacao({ ativos, quantidades, aoSalvar, aoCancelar }: {
             <input id={`${id}-fonte`} value={fonte} onChange={(e) => setFonte(e.target.value)} maxLength={80} placeholder="Extrato da corretora" className={CONTROLE_FOLHA} />
           </LinhaFolha>
         </div>
-        <p className="text-sm text-slate-600">Cada avaliação fica guardada no histórico; a mais recente define o valor de mercado.</p>
+        <p className="text-sm text-slate-600">
+          Cada avaliação fica guardada no histórico; a mais recente define o valor de mercado.
+          {umaUnidade ? ' Lance antes os aportes e resgates do dia: o valor de hoje deve ser o saldo já com eles.' : ''}
+        </p>
       </form>
     </Folha>
   )

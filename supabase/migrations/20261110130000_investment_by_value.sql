@@ -25,7 +25,11 @@
 -- Sem data retroativa: as duas recusam data anterior ao último movimento do ativo (operação não anulada ou avaliação).
 -- O preço usado é o da data; um aporte ou uma avaliação "no passado" converteria pelo preço antigo e o valor de hoje
 -- mudaria num número diferente do digitado, e um resgate no passado poderia tirar de novo o que já foi resgatado depois.
--- Quem precisa lançar algo antigo usa "Quantidade e preço", que não faz conversão.
+-- Não há caminho alternativo para ativo sem cota: lançar "1 unidade × valor" num ativo que já tem avaliação multiplicaria
+-- pelo preço da avaliação. O lançamento antigo entra com a data do último movimento (ou posterior).
+--
+-- Sem resto invisível: um resgate que deixaria unidades valendo R$ 0,00 é recusado, com o valor total a resgatar. Só
+-- acontece em ativo comprado por unidades com preço de 3 casas ou mais (quantidade × preço em meio centavo).
 --
 -- Extrato do ativo (investment_asset_statement, corpo da 043): a linha de avaliação passa a trazer em `amount` o valor
 -- total (unidades na data × preço). Antes vinha nulo e a tela mostrava o preço por unidade, que num ativo sem cota não
@@ -95,17 +99,24 @@ begin
   if p_kind = 'sell' then
     v_market := round(v_held * v_price, 2);
     if v_held <= 0 or p_amount > v_market then
-      raise exception 'resgate maior que o valor do ativo nesta data (%); se o valor mudou, registre a avaliação antes', v_market
+      raise exception 'resgate maior que o valor do investimento nesta data (R$ %); se o valor mudou, registre a avaliação antes',
+        replace(replace(replace(to_char(v_market, 'FM999,999,999,990.00'), ',', '#'), '.', ','), '#', '.')
         using errcode = '23514';
     end if;
     -- resgatar o valor todo zera a posição exatamente (sem sobra de fração de unidade)
     v_qty := case when p_amount = v_market then v_held else least(round(p_amount / v_price, 12), v_held) end;
+    -- sem resto invisível: unidades que sobrariam valendo R$ 0,00 ficariam presas (nem resgate nem arquivo)
+    if v_qty < v_held and round((v_held - v_qty) * v_price, 2) = 0 then
+      raise exception 'sobraria menos de 1 centavo neste investimento; para zerar, resgate o total de R$ %',
+        replace(replace(replace(to_char(v_market, 'FM999,999,999,990.00'), ',', '#'), '.', ','), '#', '.')
+        using errcode = '23514';
+    end if;
   else
     v_qty := round(p_amount / v_price, 12);
   end if;
 
   if v_qty is null or v_qty <= 0 or round(v_qty * v_price, 2) <> p_amount then
-    raise exception 'não foi possível converter o valor em unidades sem diferença de centavos; registre por unidades'
+    raise exception 'não foi possível registrar este valor sem diferença de centavos'
       using errcode = '22023';
   end if;
   return public.investment_operation_record(p_asset, p_date, p_kind, v_qty, v_price, 0, p_notes, p_account);
@@ -152,7 +163,7 @@ begin
 
   v_price := round(p_total / v_held, 10);
   if v_price <= 0 or round(v_held * v_price, 2) <> p_total then
-    raise exception 'não foi possível converter o valor em preço por unidade sem diferença de centavos; informe o preço por unidade'
+    raise exception 'não foi possível registrar este valor sem diferença de centavos'
       using errcode = '22023';
   end if;
   return public.investment_valuation_record(p_asset, p_date, v_price, p_source);
