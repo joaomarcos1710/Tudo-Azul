@@ -475,4 +475,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] `EXPLAIN ANALYZE` em `get_home_decision_month` e ver o que ela recalcula que `home_indicators` também calcula; avaliar uma RPC única para o topo.
 - [ ] `card_limits` e `debt_balances` são chamadas demais por dentro de outras funções (1.275 e 1.476 chamadas na amostra).
 - [ ] Cartões, Lançamentos e Calendário ainda rodam as tarefas automáticas antes de carregar; avaliar o mesmo tratamento.
-- [ ] Sem cache no front: cada visita refaz tudo.
+- [x] Cache em memória no Início e em Análises (TanStack Query, `src/lib/consultas.ts`): volta instantânea e revalidação por trás.
+- [ ] A carga ainda é uma entrada só (a tela inteira): a primeira visita continua esperando a consulta mais lenta. Próximo passo: uma consulta por bloco, com esqueleto do tamanho final.
+- [ ] Gravações feitas com o Início aberto (fora as tarefas automáticas) ainda não chamam `invalidarDadosHome`; hoje não há gravação na própria tela, mas ao criar uma, chamar o helper.
+- [ ] Revalidar ao focar a janela está desligado enquanto as consultas forem pesadas; religar depois de acelerar o banco.

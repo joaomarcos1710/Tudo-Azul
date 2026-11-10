@@ -464,3 +464,11 @@ Auditoria dos números do app (todos os achados reproduzidos no banco local ante
 
 ## 10/11/2026 — Barra lateral com as telas frequentes (dono)
 - Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens voltam para a barra lateral do computador; o menu do perfil fica só com o que é raro (Família, Exportar, Preferências, Sair). Motivo: o dono não achava onde lançar assinatura de cartão porque Recorrentes estava escondida no menu do perfil. Substitui a decisão do "acesso rápido" com 8 itens.
+
+## 10/11/2026 — Cache das consultas com TanStack Query, só no Início (dono)
+- **Adotar `@tanstack/react-query`**, contido no Início e em Análises por enquanto. Motivo: mostrar o valor guardado enquanto revalida, evitar pedidos repetidos e cancelar pedido em voo, feito à mão, vira um mini-framework frágil. As outras telas seguem como estão até validarmos.
+- **Cache só em memória.** Nada de saldo, dívida ou fatura gravado no aparelho (navegador compartilhado ou inspecionado exporia o patrimônio da família). F5 ou aba nova mostra "Carregando…"; navegar pelo app e voltar ao Início é instantâneo. Persistir no aparelho fica para depois, se o dono decidir.
+- **`staleTime: 0`**: o guardado aparece na hora, mas toda volta à tela revalida no banco. Número financeiro não fica congelado.
+- **Chave com seção, família, mês e dia**; ao sair da conta o cache é limpo.
+- **Tarefas automáticas**: falha continua virando aviso na tela; se gravaram algo, chamam `invalidarDadosHome`.
+- O cache não resolve a primeira carga: a função `get_home_decision_month` (7,7 s de média) precisa de `EXPLAIN (ANALYZE, BUFFERS)` e correção no banco (ver "40 - Pendências").

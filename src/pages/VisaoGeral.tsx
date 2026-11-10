@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { chaveVisaoGeral, invalidarDadosHome } from '../lib/consultas'
 import { LinhaAcumulada } from '../components/graficos/LinhaAcumulada'
 import { BarrasCategorias } from '../components/graficos/BarrasCategorias'
 import { RoscaCategorias } from '../components/graficos/RoscaCategorias'
@@ -207,8 +209,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const { familia } = useFamilia()
   const { sessao } = useAuth()
   const familiaId = familia?.id
-  const [dados, setDados] = useState<Dados | null>(null)
-  const [erro, setErro] = useState('')
   const [cobrancaFalhou, setCobrancaFalhou] = useState(false)
   const [recorrentesFalhou, setRecorrentesFalhou] = useState(false)
   // Análises: base dos gastos de cartão SÓ no gráfico por categoria (migration 062); guardada neste aparelho.
@@ -225,24 +225,16 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   // até dois nomes ("João Marcos"), como no cabeçalho do Organizze
   const nome = ((sessao?.user?.user_metadata?.name as string | undefined) ?? '').trim().split(/\s+/).slice(0, 2).join(' ')
 
-  useEffect(() => {
-    if (!familiaId) return
+  // A carga da tela, por inteiro (uma entrada no cache por seção, família, mês e dia). Mostra o que já está guardado na
+  // hora e revalida no banco a cada volta à tela (lib/consultas.ts): sem tela branca ao navegar entre as abas do app.
+  const carregarTela = (familiaId: string): Promise<Dados> => {
     const [de, ate] = limitesDoMes(mes)
     // no dia 3, comparar 3 dias com o mês anterior inteiro engana ("▼ 90%"): os dois lados vão até o mesmo dia
     const comparar = () => opcional('resumoDoPeriodo (comparação)', Promise.all([
       resumoDoPeriodo(familiaId, de, hoje),
       resumoDoPeriodo(familiaId, `${somarMeses(mes, -1)}-01`, mesmoDiaMesAnterior(hoje)),
     ]).then(([atual, anterior]) => ({ atual, anterior })))
-    // uma carga antiga (mês, dia ou seção anteriores) que chegue depois da nova é descartada
-    let ativo = true
-    const vezEvolucao = ++evolucaoRef.current
-    setDados(null)
-    setEvolucao(null)
-    setErro('')
-    // A tela mostra primeiro o que já está gravado; as tarefas automáticas (gerar recorrentes, cobrar faturas fechadas,
-    // assinaturas do cartão) rodam ao mesmo tempo, sem segurar o primeiro desenho. Antes elas rodavam em fila ANTES de
-    // qualquer consulta (4 idas ao banco). Se alguma mudou um valor, a tela recarrega sozinha, sem piscar.
-    const carregarTela = (): Promise<Dados> => (noInicio
+    return (noInicio
         ? Promise.all([
             // essenciais do Início: se falharem, a tela inteira avisa o erro
             listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'income'), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'expense'),
@@ -297,23 +289,36 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
             contas: [], todasContas: [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], aReceber: [], aPagar: [], vencidos: null, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos: null, avisos: null, indicadores: null, decisao: null, ultimos: [], nomeCategoria: new Map(), categoriaPorId: new Map(),
           })))
+  }
+  const clienteConsultas = useQueryClient()
+  const chave = chaveVisaoGeral(secao, familiaId ?? '', mes, hoje)
+  const consulta = useQuery({ queryKey: chave, queryFn: () => carregarTela(familiaId as string), enabled: Boolean(familiaId) })
+  const dados = consulta.data ?? null
+  // erro só derruba a tela se não há nada para mostrar; falha numa revalidação deixa o que já estava
+  const erro = consulta.error && !consulta.data ? mensagemErroBanco(consulta.error) : ''
+
+  // Tarefas automáticas (gerar recorrentes, cobrar faturas fechadas, assinaturas do cartão): ao mesmo tempo que a carga,
+  // sem segurar o primeiro desenho (#260). Falha vira aviso na tela; se gravaram algo, os dados revalidam em silêncio.
+  useEffect(() => {
+    if (!familiaId) return
+    let ativo = true
     atualizarAutomaticos().then((r) => {
       if (!ativo) return
       setCobrancaFalhou(!r.faturasOk)
       setRecorrentesFalhou(!r.recorrentesOk)
-      // recarga silenciosa: se falhar, fica o que já estava na tela (a carga principal é quem avisa erro)
-      if (r.mudou) carregarTela().then((d) => { if (ativo) setDados(d) }).catch(() => undefined)
+      if (r.mudou) void invalidarDadosHome(clienteConsultas, familiaId)
     })
-    carregarTela()
-      .then((d) => {
-        if (!ativo) return
-        setDados(d)
-        // só depois das cargas da tela: as 12 chamadas da evolução não disputam o banco com as outras (#193)
-        if (!noInicio) buscarEvolucao(familiaId, hoje, () => ativo && evolucaoRef.current === vezEvolucao, setEvolucao)
-      })
-      .catch((err) => { if (ativo) setErro(mensagemErroBanco(err)) })
     return () => { ativo = false }
-  }, [familiaId, hoje, mes, noInicio])
+  }, [familiaId, hoje, mes, noInicio, clienteConsultas])
+
+  // Análises: só depois das cargas da tela, para as 12 chamadas da evolução não disputarem o banco com as outras (#193)
+  const temDados = dados !== null
+  useEffect(() => {
+    if (!familiaId || noInicio || !temDados) return
+    const vez = ++evolucaoRef.current
+    setEvolucao(null)
+    buscarEvolucao(familiaId, hoje, () => evolucaoRef.current === vez, setEvolucao)
+  }, [familiaId, hoje, mes, noInicio, temDados])
 
   function recarregarEvolucao() {
     if (!familiaId) return
@@ -333,7 +338,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
     opcional('despesasPorCategoria', despesasPorCategoria(familiaId, de, ate, 6, base)).then((categorias) => {
       if (trocaBaseRef.current !== vez) return
       setCategoriasCarregando(false)
-      setDados((d) => (d ? { ...d, categorias } : d))
+      clienteConsultas.setQueryData<Dados>(chave, (d) => (d ? { ...d, categorias } : d))
     })
   }
 
