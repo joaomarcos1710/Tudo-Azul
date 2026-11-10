@@ -585,7 +585,13 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Arrumar as contas** (pedido do dono): ficam conta corrente e carteira; as zeradas são arquivadas e as com saldo viram investimento ("Mover para a carteira"). Uma a uma, com o "pode" do dono, depois da 104 aplicada.
 - [ ] Sem tarifas no modo "Só o valor"; quem precisa de tarifa usa "Quantidade e preço".
 - [ ] "Só o valor" não aceita data anterior ao último movimento do ativo (trava da 104, para o valor nunca mudar num número diferente do digitado). Lançamento antigo: "Quantidade e preço".
-- [ ] **Conferir e corrigir (bug antigo, fora da 104):** `investment_operation_record` por unidades só confere a posição até a data da venda; uma venda retroativa depois de uma venda total pode deixar a posição negativa e devolver dinheiro duas vezes. Achado pelo teste da 104 em 10/11/2026; correção em PR própria, com teste.
+- [ ] **Bug antigo CONFIRMADO, em produção desde a migration 100 (corrigir em PR própria, migration 105):** `investment_operation_record` (venda por unidades) só confere a posição até a data da venda. Uma venda com data anterior a uma venda total já gravada é aceita: a posição fica negativa e, com conta escolhida, o dinheiro volta duas vezes (caso mínimo: compra de 10 × 100 em 10/01, venda de 10 em 10/03, venda de 10 em 10/02 → conta +1.000 e patrimônio +1.000). Achado pelo teste da 104 em 10/11/2026. Correção: recusar (23514) quando o saldo acumulado por data ficar negativo em qualquer data, a mesma conta de mínimo acumulado que `investment_operation_void` já usa. O caminho "por valor" (104) não tem o problema, porque não aceita data retroativa.
+- [ ] Limites conhecidos do investimento por valor (achados pelo teste da 104, nenhum grava valor errado sem aviso, salvo o primeiro):
+  - Anular um aporte que já tem avaliação depois dele tira do ativo a proporção de unidades, não o valor aportado (ex.: 1.000 + 500, "vale 1.600", anular os 500 → ativo 1.066,67 e conta +500). Vale também por unidades. Depois de anular, registrar a avaliação de novo. Decidir se o app deve avisar ou recusar.
+  - Ativo misto (comprado por unidades com preço de 3 casas ou mais e depois movimentado por valor) pode perder ou ganhar 1 centavo no valor de mercado quando quantidade × preço cai em meio centavo exato.
+  - Avaliação pelo total é recusada (com mensagem) quando o ativo passa de cerca de 100 milhões de unidades; só ocorre se a primeira posição foi de centavos e o saldo depois chegou a milhões.
+  - Avaliação não tem como ser anulada: uma avaliação com data errada passa a ser o "último movimento" e impede lançar por valor antes dela. Corrige-se registrando outra avaliação.
+  - "Quantidade e preço" continua aceitando data retroativa, por desenho.
 - [ ] O rendimento de ativo sem cota só aparece quando a avaliação é registrada; não há cálculo automático (CDI).
 
 ## Para depois (pedidos do dono sem data)

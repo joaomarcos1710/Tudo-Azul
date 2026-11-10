@@ -186,13 +186,16 @@ language sql stable security invoker set search_path = '' as $$
            end as balance_quantity
       from public.investment_operations o join ativo a on a.id = o.asset_id and a.household_id = o.household_id
     union all
-    -- (104) valor total da avaliação: unidades em carteira na data × preço da avaliação; sem posição na data, fica nulo
+    -- (104) valor total da avaliação: unidades em carteira no momento dela × preço; sem posição, fica nulo.
+    -- "No momento dela": operações de dias anteriores e as do mesmo dia gravadas até a avaliação. Um aporte feito no
+    -- mesmo dia DEPOIS da avaliação não entra, senão a linha mostraria um total diferente do que foi informado.
     select v.id, 'valuation', v.valuation_date, v.created_at, null, v.unit_price, null,
            round(v.unit_price * nullif((
              select coalesce(sum(case when o.kind = 'buy' then o.quantity else -o.quantity end), 0)
                from public.investment_operations o
-              where o.asset_id = v.asset_id and o.household_id = v.household_id
-                and o.operation_date <= v.valuation_date and o.voided_at is null), 0), 2),
+              where o.asset_id = v.asset_id and o.household_id = v.household_id and o.voided_at is null
+                and (o.operation_date < v.valuation_date
+                     or (o.operation_date = v.valuation_date and o.created_at <= v.created_at))), 0), 2),
            null, null, v.source, null, false, null, null, null
       from public.investment_valuations v join ativo a on a.id = v.asset_id and a.household_id = v.household_id
     union all

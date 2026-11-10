@@ -761,5 +761,32 @@ select is(pg_temp.sqlstate_of($$select public.investment_operation_record_by_val
           '23514', 'Z4.4 e na mesma data do resgate total não há mais o que resgatar: 23514');
 select is(pg_temp.saldo('cc'), pg_temp.n('z3_cc'), 'Z4.5 a conta segue igual');
 
+-- ---- Y: avaliação e aporte no MESMO dia (achado da revisão do extrato) ----
+-- A linha de avaliação mostra o total que foi informado. Um aporte gravado depois, no mesmo dia, não entra nela.
+-- Dentro de uma transação todos os created_at são iguais; no uso real o aporte é gravado depois da avaliação, então o
+-- teste acerta o created_at como superusuário (não há outro jeito de reproduzir a ordem).
+select pg_temp.login('00000000-0000-0000-0000-0000000098a1');
+select pg_temp.novo('y1', 'Mesmo dia um de teste');
+select public.investment_operation_record_by_value(pg_temp.fx('y1'), date '2025-01-10', 'buy', 1000.00);
+insert into fixture select 'y1_v', public.investment_valuation_record_total(pg_temp.fx('y1'), date '2025-02-10', 1037.53, 'extrato de teste');
+insert into fixture select 'y1_o', public.investment_operation_record_by_value(pg_temp.fx('y1'), date '2025-02-10', 'buy', 500.00);
+reset role;
+update public.investment_operations set created_at = created_at + interval '1 minute' where id = pg_temp.fx('y1_o');
+select pg_temp.login('00000000-0000-0000-0000-0000000098a1');
+select is((select amount from public.investment_asset_statement(pg_temp.fx('h'), pg_temp.fx('y1')) where entry_id = pg_temp.fx('y1_v')),
+          1037.53::numeric, 'Y1 avaliação de 1.037,53 e aporte de 500 depois, no mesmo dia: a linha da avaliação mostra 1.037,53');
+select is(pg_temp.mv('y1'), 1537.53, 'Y1.1 e a posição vale 1.537,53 (avaliação + aporte)');
+-- o contrário: o aporte do dia veio ANTES da avaliação, então faz parte do total informado
+select pg_temp.novo('y2', 'Mesmo dia dois de teste');
+select public.investment_operation_record_by_value(pg_temp.fx('y2'), date '2025-01-10', 'buy', 1000.00);
+select public.investment_operation_record_by_value(pg_temp.fx('y2'), date '2025-02-10', 'buy', 500.00);
+insert into fixture select 'y2_v', public.investment_valuation_record_total(pg_temp.fx('y2'), date '2025-02-10', 1600.00, 'extrato de teste');
+reset role;
+update public.investment_valuations set created_at = created_at + interval '1 minute' where id = pg_temp.fx('y2_v');
+select pg_temp.login('00000000-0000-0000-0000-0000000098a1');
+select is((select amount from public.investment_asset_statement(pg_temp.fx('h'), pg_temp.fx('y2')) where entry_id = pg_temp.fx('y2_v')),
+          1600.00::numeric, 'Y2 aporte de 500 e avaliação de 1.600 depois, no mesmo dia: a linha da avaliação mostra 1.600,00');
+select is(pg_temp.mv('y2'), 1600.00, 'Y2.1 e a posição vale 1.600,00');
+
 select * from finish();
 rollback;
