@@ -551,3 +551,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Depois de aplicada: o dono move as contas antigas de investimento (renda variável, renda fixa, cripto) para a carteira e atualiza o valor por avaliação.
 - [ ] Contas Nomad (dólar e euro): ativo em moeda com cotação PTAX, usando o mesmo mover; exige transferência entre moedas ou mover por valor em reais.
 - [ ] Conciliação e exportação mostram a conta interna nas transferências; conferir se o texto ajuda ou confunde.
+
+## Orçamento com cartão lançado (10/11/2026, #285, migration 101)
+- [x] Carteira (migration 100) aplicada em produção em 10/11/2026 (simulação 42878739670, aplicação 42878963628).
+- [ ] Aplicar a migration 101 (simular, ler o log, aplicar), com o "pode" do dono.
+- [ ] O resumo de orçamentos em Análises (barras menores) ainda não mostra o tracejado.
+- [ ] Se o dono quiser o tracejado como "fatura fechada e não paga", é outra regra (ver 30 - Decisões).

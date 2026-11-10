@@ -167,7 +167,7 @@ export default function Orcamentos() {
                 {o.cartaoLancado !== null && o.cartaoLancado > 0 && (
                   <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 tabular-nums">
                     <span aria-hidden="true" className="inline-block h-2 w-4 rounded-sm text-marinho" style={TRACEJADO} />
-                    Cartão lançado, a pagar: {formatBRL(o.cartaoLancado)}
+                    Cartão lançado, fatura a fechar: {formatBRL(o.cartaoLancado)}
                   </p>
                 )}
                 <Situacao o={o} emAndamento={emAndamento} />
@@ -206,8 +206,8 @@ const TRACEJADO = { backgroundImage: 'repeating-linear-gradient(135deg, currentC
 
 /**
  * A proporção só desenha a barra e o percentual; gasto, cartão e limite vêm do banco. A cor segue faixaOrcamento
- * (lib/cores). Depois do trecho sólido (gasto pago), o tracejado marinho é o cartão já lançado e ainda não pago (pedido
- * do dono, 10/11/2026); o percentual continua só do gasto pago. O que passa do limite fica cortado no fim da barra.
+ * (lib/cores). Depois do trecho sólido (gasto), o tracejado marinho é o cartão já lançado em fatura que ainda não fechou
+ * (pedido do dono, 10/11/2026; a fatura fechada já está no gasto, porque o orçamento conta o cartão pelo fechamento); o percentual continua só do gasto pago. O que passa do limite fica cortado no fim da barra.
  */
 function Barra({ gasto, limite, cartao }: { gasto: Cents; limite: Cents; cartao: Cents }) {
   const pct = Math.max(0, Math.min(100, (gasto / limite) * 100))
@@ -217,7 +217,7 @@ function Barra({ gasto, limite, cartao }: { gasto: Cents; limite: Cents; cartao:
   return (
     <div className="mt-3 flex items-center gap-3">
       <div className="flex h-2 flex-1 overflow-hidden rounded-full bg-slate-100" role="img"
-        aria-label={`Gasto ${formatBRL(gasto)} de ${formatBRL(limite)}, ${usado}% do limite${cartao > 0 ? `; mais ${formatBRL(cartao)} no cartão, lançado e a pagar` : ''}`}>
+        aria-label={`Gasto ${formatBRL(gasto)} de ${formatBRL(limite)}, ${usado}% do limite${cartao > 0 ? `; mais ${formatBRL(cartao)} no cartão, lançado em fatura a fechar` : ''}`}>
         <div data-faixa={faixa} className={`h-full shrink-0 rounded-full ${BARRA_ORCAMENTO[faixa]}`} style={{ width: `${pct}%` }} />
         {pctCartao > 0 && (
           // 2px de separação do trecho sólido, como entre fatias de gráfico empilhado
