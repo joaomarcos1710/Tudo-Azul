@@ -422,7 +422,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Decidido pelo dono (04/11): crédito numa fatura aberta é receita **planejada** até fechar; o **limite** volta na data do crédito. Feito na 052, junto com os achados da revisão (fatura até 3 depois, trava pelo fechamento, chave de repetição, arquivar com crédito aberto e a devolução em dinheiro que reaparecia como adiantamento em `card_months`).
 - [ ] Cartões: abas de fatura com navegação por setas (`tabpanel`); Dívidas: menu "Mais" para Renomear/Arquivar/Excluir no celular.
 - [ ] Orçamentos: `window.confirm` ao remover → confirmação do app; barra como `progressbar`.
-- [ ] Testes que faltam: CSV mensal, cartão 50-30-20, Dívidas (`primeiroVencimento`, contrato, amortização extra).
+- [ ] Testes que faltam: CSV mensal, Dívidas (`primeiroVencimento`, contrato, amortização extra).
 - [x] **Excluir ativo com histórico** (migration 050, #151). Falta aplicar a 050 em produção.
 - [ ] **Categoria: excluir e migrar** no lugar de desativar (escolher a categoria destino; lançamentos, recorrentes e orçamentos vão juntos).
 - [ ] **Importar o histórico do Organizze** a partir do arquivo exportado (.xls).
@@ -499,6 +499,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Conferir no celular (você): a folha, a grade de 4 colunas e o "Criar categoria".
 - [ ] "Criar categoria" cria só principal; criar subcategoria dali ficou de fora. Orçamentos segue com o seletor nativo.
 - [ ] Lembrar a escolha lista/grade entre aberturas (hoje volta para a lista).
+## Regra 50-30-20 fora do app (10/11/2026)
+- [x] Tela (#275): seletor de grupo, sugestão e card do mês saíram de Categorias; `regra503020.ts` apagado; o app não lê mais `budget_group`.
+- [ ] Banco: a coluna `categories.budget_group` (22 de 132 despesas classificadas em 10/11/2026) e a função `budget_rule_report` (migration 032) ficaram sem uso. Apagar só com migration nova e o "pode" do dono, se ele decidir que não volta.
 
 ## Lançamentos no visual do Organizze (10/11/2026)
 - [x] Etapa 1 (#268): botão Filtrar com folha e selos, "+" flutuante, rodapé (pagos e previsto) em regime de caixa.
