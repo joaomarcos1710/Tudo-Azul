@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
   criarAtivoInvestimento: vi.fn(),
   definirSubclasseAtivo: vi.fn(),
   definirLiquidezAtivo: vi.fn(),
+  registrarOperacaoInvestimento: vi.fn(),
   listarLiquidezInvestimentos: vi.fn(),
   listarProventosPorAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('../lib/investimentos', async (o) => ({
   criarAtivoInvestimento: mock.criarAtivoInvestimento,
   definirSubclasseAtivo: mock.definirSubclasseAtivo,
   definirLiquidezAtivo: mock.definirLiquidezAtivo,
+  registrarOperacaoInvestimento: mock.registrarOperacaoInvestimento,
   listarLiquidezInvestimentos: mock.listarLiquidezInvestimentos,
   listarProventosPorAtivo: mock.listarProventosPorAtivo,
   registrarProventoInvestimento: mock.registrarProventoInvestimento,
@@ -95,6 +97,7 @@ beforeEach(() => {
   mock.criarAtivoInvestimento.mockResolvedValue('novo-id')
   mock.definirSubclasseAtivo.mockResolvedValue(undefined)
   mock.definirLiquidezAtivo.mockResolvedValue(undefined)
+  mock.registrarOperacaoInvestimento.mockResolvedValue(undefined)
   mock.listarLiquidezInvestimentos.mockResolvedValue([])
   mock.anularOperacaoInvestimento.mockResolvedValue(undefined)
   mock.listarExtratoAtivo.mockResolvedValue(extratoBase())
@@ -563,15 +566,70 @@ describe('Investimentos × macroclasse e subclasse', () => {
       })
     })
   })
-  it('"Registrar compra" lá embaixo leva a tela até o formulário, que abre no topo', async () => {
-    // posições vazias: "Ativos e posições" mostra o atalho "Registrar compra"
-    mock.listarCarteiraInvestimentos.mockResolvedValue({ posicoes: [], totais: [] })
-    const rolar = vi.fn()
-    Element.prototype.scrollIntoView = rolar
-    render(<Investimentos />)
-    await userEvent.click(await screen.findByRole('button', { name: 'Registrar compra' }))
-    expect(screen.getByRole('heading', { name: 'Registrar compra ou venda' })).toBeTruthy()
-    expect(rolar).toHaveBeenCalled()
+  describe('compra e venda numa folha, no desenho de Lançamentos (pedido do dono, 10/11/2026)', () => {
+    const abrir = async (u: ReturnType<typeof userEvent.setup>) => {
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      return screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+    }
+
+    it('"Registrar compra" lá embaixo abre a folha por cima da tela (não um formulário no topo)', async () => {
+      mock.listarCarteiraInvestimentos.mockResolvedValue({ posicoes: [], totais: [] })
+      render(<Investimentos />)
+      await userEvent.click(await screen.findByRole('button', { name: 'Registrar compra' }))
+      expect(screen.getByRole('dialog', { name: 'Registrar compra ou venda' })).toBeTruthy()
+    })
+
+    it('ativo sem cota e sem histórico: "Só o valor" grava 1 unidade pelo valor digitado, sem conta no front', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('p1', 'Previdência', 'other', { liquidez: 'restricted' })])
+      const u = userEvent.setup()
+      const folha = await abrir(u)
+      expect(within(folha).getByRole('radio', { name: 'Só o valor' }).getAttribute('aria-checked')).toBe('true')
+      await u.type(within(folha).getByLabelText('Valor de hoje (BRL)'), '193.636,78')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
+      expect(mock.registrarOperacaoInvestimento).toHaveBeenCalledWith(expect.objectContaining({
+        ativoId: 'p1', tipo: 'buy', quantidade: '1', precoUnitario: '193636.78', tarifas: 0,
+      }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    })
+
+    it('ativo com histórico não oferece "Só o valor"; quantidade e preço vão como digitados; venda troca o botão', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', quantidadeOperacoes: 2 })])
+      const u = userEvent.setup()
+      const folha = await abrir(u)
+      expect(within(folha).queryByRole('radio', { name: 'Só o valor' })).toBeNull()
+      await u.click(within(folha).getByRole('radio', { name: 'Venda' }))
+      await u.type(within(folha).getByLabelText('Quantidade'), '10,5')
+      await u.type(within(folha).getByLabelText('Preço por unidade (BRL)'), '25,75')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar venda' }))
+      expect(mock.registrarOperacaoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'a2', tipo: 'sell', quantidade: '10,5', precoUnitario: '25,75' }))
+    })
+
+    it('ativo novo com ticker começa em "Quantidade e preço", mas pode trocar para "Só o valor"; na venda a opção some', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a9', 'FII Z', 'reit', { ticker: 'FIIZ11' })])
+      const u = userEvent.setup()
+      const folha = await abrir(u)
+      expect(within(folha).getByRole('radio', { name: 'Quantidade e preço' }).getAttribute('aria-checked')).toBe('true')
+      await u.click(within(folha).getByRole('radio', { name: 'Só o valor' }))
+      expect(within(folha).getByLabelText('Valor de hoje (BRL)')).toBeTruthy()
+      await u.click(within(folha).getByRole('radio', { name: 'Venda' }))
+      expect(within(folha).queryByRole('radio', { name: 'Só o valor' })).toBeNull()
+      expect(within(folha).getByLabelText('Quantidade')).toBeTruthy()
+    })
+
+    it('campo vazio ou erro do banco aparecem dentro da folha, que continua aberta', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('p1', 'Previdência', 'other')])
+      mock.registrarOperacaoInvestimento.mockRejectedValue(new Error('a venda supera a quantidade disponível'))
+      const u = userEvent.setup()
+      const folha = await abrir(u)
+      await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
+      expect(within(folha).getByText('Informe o valor de hoje.')).toBeTruthy()
+      expect(mock.registrarOperacaoInvestimento).not.toHaveBeenCalled()
+      await u.type(within(folha).getByLabelText('Valor de hoje (BRL)'), '100,00')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
+      expect(await within(folha).findByRole('alert')).toBeTruthy()
+      expect(screen.getByRole('dialog', { name: 'Registrar compra ou venda' })).toBeTruthy()
+    })
   })
   it('novo ativo sem classe escolhida não é salvo (antes vinha "Renda fixa" e um FII foi gravado como renda fixa)', async () => {
     const u = userEvent.setup()

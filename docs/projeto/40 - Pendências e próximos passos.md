@@ -537,3 +537,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Carteira em dólar e euro não entra no Patrimônio em reais (não há conversão de moeda no app).
 - [ ] Desempenho: Análises chama o patrimônio uma vez por mês da evolução, e cada chamada agora calcula a carteira. Medir com dados reais.
 - [ ] Cotação automática (ações e FIIs por API, câmbio pela PTAX), depois da liquidez e das contas em moeda estrangeira.
+
+## Formulários de Investimentos (10/11/2026, #282)
+- [x] Compra e venda em folha, no desenho de Lançamentos, com "Só o valor" para a primeira posição.
+- [ ] "Só o valor" vale só para a primeira compra. Aporte seguinte num ativo sem cota (previdência com contribuição mensal) não tem caminho exato: precisa de uma função do banco para ativo "por valor". Enquanto isso, o valor se atualiza por avaliação e o custo não acompanha os aportes.
+- [ ] Os outros formulários da tela (novo ativo, avaliação, provento) ainda abrem no topo da página, no desenho antigo.
+- [ ] Conferir a folha no iPhone (você): teclado numérico, rolagem e botões do pé.
