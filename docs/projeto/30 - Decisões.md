@@ -487,6 +487,7 @@ Pedido do dono, com prazo de uso em 20/11/2026: o Início fica só com **Minha C
 
 - **Foram para Análises:** os avisos do topo, "Vencidos e precisam de atenção", "Orçamentos do mês" e "Últimos lançamentos". Análises passa a consultar o que eles precisam (contas para nomear as pontas de transferência, lançamentos, categorias, vencidos, orçamentos e avisos), cada consulta opcional: se uma falhar, só o bloco dela some, e o aviso de vencidos indisponíveis continua.
 - **Saíram sem destino:** "Meus investimentos" e "Empréstimos e dívidas" do Início, que eram só um texto "será integrado nas próximas etapas" e um link para a tela completa (os dois estão na barra lateral). Os atalhos de Investimentos e Dívidas do topo saíram junto (apontavam para esses cartões).
+- **Despesas a pagar também saiu do Início** (pedido do dono logo depois, 10/11/2026: "o card contas a pagar pode sair"); o Início deixa de consultar as saídas planejadas. Ele também disse que Últimos lançamentos, Meus investimentos e Empréstimos e dívidas "podem sair": os dois últimos já saíram; Últimos lançamentos ficou em Análises (leitura mais estreita de "dashboard" = Início), a confirmar.
 - **Risco aceito:** os avisos de vencidos e de faturas deixam de estar na primeira tela que o dono vê. Se ele sentir falta, a alternativa barata é voltar só a faixa de avisos ao Início.
 - **Efeito colateral bom:** o Início deixa de fazer 4 consultas (vencidos, avisos, orçamentos e lançamentos), inclusive `home_alerts`, uma das mais pesadas.
 

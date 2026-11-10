@@ -492,3 +492,4 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Decidir se os avisos de vencidos/fatura voltam ao Início (hoje só em Análises).
 - [ ] Os cartões de Investimentos e Dívidas saíram do Início; se o dono quiser um resumo deles, desenhar com números reais (hoje não há).
 
+- [ ] Confirmar com o dono se Últimos lançamentos também sai de Análises (hoje só saiu do Início) e se "contas a pagar" era mesmo o card Despesas a pagar.

@@ -79,7 +79,6 @@ interface Dados {
   mesPorMoeda: ResumoPorMoeda[]
   /** Planejados de entrada e de saída a partir de hoje (mesma regra dos avisos do topo); transferência fica de fora das duas. */
   aReceber: ProximoPlanejado[]
-  aPagar: ProximoPlanejado[]
   /** null = os gráficos não carregaram (ex.: banco ainda sem as consultas novas); o resto da tela segue normal */
   categorias: DespesaCategoria[] | null
   dias: DespesaDia[] | null
@@ -244,7 +243,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
     return (noInicio
         ? Promise.all([
             // essenciais do Início: se falharem, a tela inteira avisa o erro
-            listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'income'), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'expense'),
+            listarContas(familiaId, hoje), proximosPlanejados(familiaId, hoje, LIMITE_CARREGADO, 'income'),
             listarCategorias(familiaId),
             opcional('resumoDosCartoes', resumoDosCartoes(familiaId, hoje)),
             opcional('totalFaturasDoMes', totalFaturasDoMes(familiaId, mes)),
@@ -258,11 +257,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)),
             // maiores gastos: as 4 maiores categorias + "Outros" (somado no banco), na base de cartão escolhida em Análises
             opcional('despesasPorCategoria', despesasPorCategoria(familiaId, de, ate, 4, baseCartaoRef.current)),
-          ]).then(([c, entradas, saidas, cats, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, mesPorMoeda, maioresGastos]): Dados => ({
+          ]).then(([c, entradas, cats, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, mesPorMoeda, maioresGastos]): Dados => ({
             patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores, decisao,
             categorias: maioresGastos, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], vencidos: null, cartoes, faturasDoMes,
-            aReceber: entradas.filter((x) => x.tipo === 'income'), aPagar: saidas.filter((x) => x.tipo === 'expense'),
+            aReceber: entradas.filter((x) => x.tipo === 'income'),
             saldoPrevisto: projetado?.total ?? null, balanco: null,
             orcamentos: null, avisos: null,
             ultimos: null,
@@ -298,7 +297,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)), opcional('avisosDoInicio', avisosDoInicio(familiaId, hoje)),
           ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, porMoeda, mesPorMoeda, balanco, contasTodas, vencidos, lancs, cats, orcamentos, avisos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: contasTodas?.contas ?? [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], aReceber: [], aPagar: [], vencidos, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos, avisos, indicadores: null, decisao: null,
+            contas: [], todasContas: contasTodas?.contas ?? [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], aReceber: [], vencidos, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos, avisos, indicadores: null, decisao: null,
             ultimos: lancs ? lancs.filter((l) => l.status === 'paid').slice(0, 6) : null,
             nomeCategoria: cats ? nomesCompletos(cats) : new Map(), categoriaPorId: cats ? new Map(cats.map((x) => [x.id, x])) : new Map(),
           })))
@@ -555,8 +554,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           )}
           <ListaPlanejada className="order-4" titulo="Receitas a receber" vazio="Nenhuma receita planejada a partir de hoje."
             itens={dados.aReceber} moedaDe={moedaDe} categoriaPorId={dados.categoriaPorId} />
-          <ListaPlanejada className="order-5" titulo="Despesas a pagar" vazio="Nenhuma despesa planejada a partir de hoje."
-            itens={dados.aPagar} moedaDe={moedaDe} categoriaPorId={dados.categoriaPorId} />
         </div>
       </div>}
 

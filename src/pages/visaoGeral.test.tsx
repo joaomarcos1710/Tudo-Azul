@@ -113,7 +113,7 @@ beforeEach(() => {
     ],
     total: c(1282030),
   })
-  mock.proximosPlanejados.mockResolvedValue([{ id: 't1', tipo: 'expense', descricao: 'Internet', valor: c(12000), data: '2026-10-20' }])
+  mock.proximosPlanejados.mockResolvedValue([{ id: 't1', tipo: 'income', descricao: 'Freelance', valor: c(12000), data: '2026-10-20' }])
   mock.despesasPorCategoria.mockResolvedValue([
     { categoriaId: 'g1', nome: 'Moradia', valor: c(500000), percentual: 57.7 },
     { categoriaId: null, nome: 'Outros', valor: c(366726), percentual: 42.3 },
@@ -191,13 +191,13 @@ describe('Visão geral', () => {
     expect(await screen.findByText('Aluguel')).toBeTruthy()
     expect(screen.queryByText('Planejado')).toBeNull()
   })
-  it('Início: os próximos a pagar mostram o ícone da categoria; Análises: últimos e vencidos também', async () => {
-    mock.proximosPlanejados.mockResolvedValue([{ id: 't1', tipo: 'expense', descricao: 'Internet', valor: c(12000), data: '2026-10-20', categoriaId: 'g1' }])
+  it('Início: os próximos a receber mostram o ícone da categoria; Análises: últimos e vencidos também', async () => {
+    mock.proximosPlanejados.mockResolvedValue([{ id: 't1', tipo: 'income', descricao: 'Freelance', valor: c(12000), data: '2026-10-20', categoriaId: 'g1' }])
     mock.vencidosPlanejados.mockResolvedValue({ itens: [{ id: 'v1', tipo: 'transfer', descricao: 'Reserva', valor: c(100), data: '2026-10-01', categoriaId: null }], total: 1 })
     montar()
     const icone = (texto: string | RegExp) => screen.getByText(texto).closest('li')!.querySelector('[data-icone]')!.getAttribute('data-icone')
-    await screen.findByText(/Internet/)
-    expect(icone(/Internet/)).toBe('casa') // g1 = Moradia
+    await screen.findByText(/Freelance/)
+    expect(icone(/Freelance/)).toBe('casa') // g1 = Moradia
     recarregarPagina()
     montar('analises')
     await screen.findByText('Aluguel')
@@ -221,7 +221,7 @@ describe('Visão geral', () => {
         { id: 't9', tipo: 'transfer', descricao: 'ReservaXYZ', valor: c(30000), data: '2026-10-20', categoriaId: null, contaId: 'a1', destinoId: 'a3' },
       ])
       montar()
-      await screen.findByText('Despesas a pagar')
+      await screen.findByText('Receitas a receber')
       expect(screen.queryByText(/ReservaXYZ/)).toBeNull()
     })
 
@@ -267,10 +267,10 @@ describe('Visão geral', () => {
     it('receita e despesa não ganham De → Para', async () => {
       contasComNubank()
       mock.proximosPlanejados.mockResolvedValue([
-        { id: 't1', tipo: 'expense', descricao: 'Internet', valor: c(12000), data: '2026-10-20', categoriaId: 'g1', contaId: 'a1', destinoId: null },
+        { id: 't1', tipo: 'income', descricao: 'Freelance', valor: c(12000), data: '2026-10-20', categoriaId: 'g1', contaId: 'a1', destinoId: null },
       ])
       montar()
-      const item = (await screen.findByText(/Internet/)).closest('li')!
+      const item = (await screen.findByText(/Freelance/)).closest('li')!
       expect(item.textContent).not.toMatch(/De → Para/)
     })
   })
@@ -338,7 +338,7 @@ describe('Visão geral', () => {
   })
   it('próximos planejados e só contas ativas (Início)', async () => {
     montar()
-    expect(await screen.findByText(/Internet/)).toBeTruthy()
+    expect(await screen.findByText(/Freelance/)).toBeTruthy()
     expect(screen.getByText('Itaú')).toBeTruthy()
     expect(screen.queryByText('Antiga')).toBeNull()
   })
@@ -354,7 +354,7 @@ describe('Visão geral', () => {
     gerar.mockRejectedValue(new Error('x'))
     render(comCache(<VisaoGeral />))
     expect(await screen.findByText(/Não foi possível lançar os recorrentes/)).toBeTruthy()
-    expect(screen.getByText('Despesas a pagar')).toBeTruthy() // o Início segue de pé mesmo com o aviso
+    expect(screen.getByText('Receitas a receber')).toBeTruthy() // o Início segue de pé mesmo com o aviso
     expect(cobrar).toHaveBeenCalled() // uma falha não impede a outra
   })
   it('se a cobrança das faturas falhar, mostra aviso e mantém o painel', async () => {
@@ -814,14 +814,14 @@ describe('Visão geral', () => {
   describe('cache em memória do Início (TanStack Query)', () => {
     it('voltar ao Início mostra na hora o que já estava carregado e revalida no banco por trás', async () => {
       montar()
-      await screen.findByText('Despesas a pagar')
+      await screen.findByText('Receitas a receber')
       expect(mock.listarContas).toHaveBeenCalledTimes(1)
       cleanup() // saiu do Início (foi para outra aba do app); o cache continua
       let soltar: (v: unknown) => void = () => {}
       mock.listarContas.mockReturnValueOnce(new Promise((r) => { soltar = r })) // a revalidação fica pendurada
       montar()
       // sem "Carregando…": a tela já aparece com os dados da visita anterior, mesmo com o banco ainda respondendo
-      expect(screen.getByText('Despesas a pagar')).toBeTruthy()
+      expect(screen.getByText('Receitas a receber')).toBeTruthy()
       expect(screen.queryByText('Carregando…')).toBeNull()
       expect(mock.listarContas).toHaveBeenCalledTimes(2) // e revalidou (staleTime 0)
       soltar({ contas: [], total: c(0) })
@@ -829,25 +829,25 @@ describe('Visão geral', () => {
 
     it('a revalidação troca os números sem voltar ao "Carregando…"', async () => {
       montar()
-      await screen.findByText('Internet')
+      await screen.findByText('Freelance')
       cleanup()
       mock.proximosPlanejados.mockImplementation(async (_f: string, _h: string, _l: number, tipo?: string) =>
-        (tipo === 'expense' ? [{ id: 'n9', tipo: 'expense', descricao: 'Conta nova', valor: c(4200), data: '2026-10-29', categoriaId: null, contaId: null, destinoId: null }] : []))
+        (tipo === 'income' ? [{ id: 'n9', tipo: 'income', descricao: 'Conta nova', valor: c(4200), data: '2026-10-29', categoriaId: null, contaId: null, destinoId: null }] : []))
       montar()
-      expect(screen.getByText('Internet')).toBeTruthy() // o antigo, na hora
+      expect(screen.getByText('Freelance')).toBeTruthy() // o antigo, na hora
       expect(await screen.findByText('Conta nova')).toBeTruthy() // o novo, quando o banco responde
       expect(screen.queryByText('Carregando…')).toBeNull()
     })
 
     it('se a revalidação falhar, fica o que já estava na tela (sem derrubar o Início)', async () => {
       montar()
-      await screen.findByText('Despesas a pagar')
+      await screen.findByText('Receitas a receber')
       cleanup()
       mock.listarContas.mockRejectedValue(new Error('rede caiu'))
       montar()
       await waitFor(() => expect(mock.listarContas).toHaveBeenCalledTimes(2))
       await new Promise((r) => setTimeout(r, 20))
-      expect(screen.getByText('Despesas a pagar')).toBeTruthy()
+      expect(screen.getByText('Receitas a receber')).toBeTruthy()
       expect(screen.queryByRole('alert')).toBeNull()
     })
 
@@ -859,7 +859,7 @@ describe('Visão geral', () => {
 
     it('Início e Análises não dividem a mesma entrada do cache', async () => {
       montar('inicio')
-      await screen.findByText('Despesas a pagar')
+      await screen.findByText('Receitas a receber')
       cleanup()
       montar('analises')
       // primeira vez em Análises: não há dado guardado dessa seção, então carrega do zero
@@ -871,16 +871,16 @@ describe('Visão geral', () => {
     it('a tela aparece mesmo com as tarefas automáticas ainda rodando', async () => {
       gerar.mockReturnValue(new Promise(() => {})) // nunca termina
       montar()
-      expect(await screen.findByText('Despesas a pagar')).toBeTruthy()
+      expect(await screen.findByText('Receitas a receber')).toBeTruthy()
       expect(mock.listarContas).toHaveBeenCalledTimes(1)
     })
 
     it('se as tarefas gravaram algo (ex.: recorrente gerado), a tela recarrega sozinha com os dados novos', async () => {
       gerar.mockResolvedValue(2)
       mock.proximosPlanejados
-        .mockResolvedValueOnce([]).mockResolvedValueOnce([]) // 1ª carga: nada a receber nem a pagar
+        .mockResolvedValueOnce([]) // 1ª carga: nada a receber
         .mockImplementation(async (_f: string, _h: string, _l: number, tipo?: string) =>
-          (tipo === 'expense' ? [{ id: 'n1', tipo: 'expense', descricao: 'Recém-gerada', valor: c(9900), data: '2026-10-28', categoriaId: null, contaId: null, destinoId: null }] : []))
+          (tipo === 'income' ? [{ id: 'n1', tipo: 'income', descricao: 'Recém-gerada', valor: c(9900), data: '2026-10-28', categoriaId: null, contaId: null, destinoId: null }] : []))
       montar()
       expect(await screen.findByText('Recém-gerada')).toBeTruthy()
       expect(mock.listarContas).toHaveBeenCalledTimes(2)
@@ -888,7 +888,7 @@ describe('Visão geral', () => {
 
     it('se nada mudou, não recarrega', async () => {
       montar()
-      await screen.findByText('Despesas a pagar')
+      await screen.findByText('Receitas a receber')
       await waitFor(() => expect(cobrar).toHaveBeenCalled())
       await new Promise((r) => setTimeout(r, 20))
       expect(mock.listarContas).toHaveBeenCalledTimes(1)
@@ -927,12 +927,12 @@ describe('Visão geral', () => {
       recarregarPagina()
       mock.despesasPorCategoria.mockRejectedValue(new Error('boom'))
       montar()
-      await screen.findByText('Despesas a pagar')
+      await screen.findByText('Receitas a receber')
       expect(screen.queryByText('Maiores gastos')).toBeNull()
     })
   })
 
-  it('Início enxuto, em duas colunas: contas e maiores gastos à esquerda; cartões, receitas a receber e despesas a pagar à direita', async () => {
+  it('Início enxuto, em duas colunas: contas e maiores gastos à esquerda; cartões e receitas a receber à direita', async () => {
     montar()
     await screen.findByText('Minhas contas')
     const esquerda = document.querySelector('[data-coluna="esquerda"]') as HTMLElement
@@ -943,27 +943,27 @@ describe('Visão geral', () => {
     expect(within(esquerda).getByText('Maiores gastos')).toBeTruthy()
     expect(within(direita).getByText('Cartões')).toBeTruthy()
     expect(within(direita).getByText('Receitas a receber')).toBeTruthy()
-    expect(within(direita).getByText('Despesas a pagar')).toBeTruthy()
+    expect(within(direita).queryByText('Despesas a pagar')).toBeNull() // saiu do Início (pedido do dono, 10/11/2026)
     // nada trocou de lugar para baixo da faixa de indicadores
     const faixa = screen.getByRole('region', { name: 'Indicadores do mês' })
     expect(faixa.compareDocumentPosition(esquerda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('Início enxuto (pedido do dono, 10/11/2026): só Minha Carteira, contas, cartões, maiores gastos, a receber e a pagar; o resto foi para Análises', async () => {
+  it('Início enxuto (pedido do dono, 10/11/2026): só Minha Carteira, contas, cartões, maiores gastos e a receber; o resto foi para Análises ou saiu', async () => {
     mock.vencidosPlanejados.mockResolvedValue({ total: 1, itens: [{ id: 'v1', tipo: 'expense', descricao: 'Luz', valor: c(18000), data: '2026-10-05', categoriaId: null, contaId: null, destinoId: null }] })
     mock.avisosDoInicio.mockResolvedValue([{ tipo: 'receivable', quantidade: 1, total: c(20000), data: '2026-10-23', cartaoId: null, cartaoNome: null }])
     mock.listarOrcamentos.mockResolvedValue([{ id: 'o1', categoriaId: 'g1', categoria: 'Moradia', limite: c(100000), gasto: c(20000), restante: c(80000), percentual: 20, faixa: 'verde' }])
     montar()
     await screen.findByText('Minhas contas')
-    for (const fora of ['Vencidos e precisam de atenção', 'Últimos lançamentos', 'Meus investimentos', 'Empréstimos e dívidas', 'Orçamentos do mês']) {
+    for (const fora of ['Vencidos e precisam de atenção', 'Últimos lançamentos', 'Meus investimentos', 'Empréstimos e dívidas', 'Orçamentos do mês', 'Despesas a pagar']) {
       expect(screen.queryByText(fora)).toBeNull()
     }
     expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
     // e o Início nem pergunta ao banco o que não mostra
     for (const m of [mock.vencidosPlanejados, mock.avisosDoInicio, mock.listarOrcamentos, mock.listarLancamentos]) expect(m).not.toHaveBeenCalled()
-    // no celular, a ordem é a pedida: contas, cartões, maiores gastos, a receber, a pagar
+    // no celular, a ordem é a pedida: contas, cartões, maiores gastos, a receber
     const ordem = (t: string) => Number(/order-(\d)/.exec(screen.getAllByText(t).map((e) => e.closest('.order-1, .order-2, .order-3, .order-4, .order-5')).find(Boolean)!.className)?.[1])
-    expect(['Minhas contas', 'Cartões', 'Maiores gastos', 'Receitas a receber', 'Despesas a pagar'].map(ordem)).toEqual([1, 2, 3, 4, 5])
+    expect(['Minhas contas', 'Cartões', 'Maiores gastos', 'Receitas a receber'].map(ordem)).toEqual([1, 2, 3, 4])
     // Análises recebe os blocos
     recarregarPagina()
     montar('analises')
@@ -972,60 +972,53 @@ describe('Visão geral', () => {
     expect(screen.getByRole('region', { name: 'Avisos' })).toBeTruthy()
   })
 
-  describe('Receitas a receber e Despesas a pagar (etapa 2 do painel)', () => {
+  describe('Receitas a receber (etapa 2 do painel; "Despesas a pagar" saiu do Início em 10/11/2026)', () => {
     const item = (id: string, tipo: 'income' | 'expense' | 'transfer', descricao: string, valor: number, data = '2026-10-20') =>
       ({ id, tipo, descricao, valor: c(valor), data, categoriaId: null, contaId: null, destinoId: null })
     const card = (titulo: string) => screen.getByText(titulo).closest('div[class*="rounded"]') as HTMLElement
 
-    it('cada lista é pedida ao banco com o seu tipo e o limite de 10; entrada só em "a receber", saída só em "a pagar"', async () => {
+    it('a lista é pedida ao banco só com o tipo entrada e o limite de 10; o Início não pede mais as saídas', async () => {
       mock.proximosPlanejados.mockImplementation(async (_f: string, _h: string, _l: number, tipo?: string) =>
         tipo === 'income' ? [item('r1', 'income', 'Salário', 500000)] : [item('d1', 'expense', 'Internet', 12000)])
       montar()
       await screen.findByText('Salário')
       expect(mock.proximosPlanejados).toHaveBeenCalledWith(expect.anything(), expect.any(String), 10, 'income')
-      expect(mock.proximosPlanejados).toHaveBeenCalledWith(expect.anything(), expect.any(String), 10, 'expense')
-      expect(within(card('Receitas a receber')).getByText('Salário')).toBeTruthy()
-      expect(within(card('Receitas a receber')).queryByText('Internet')).toBeNull()
-      expect(within(card('Despesas a pagar')).getByText('Internet')).toBeTruthy()
-      expect(within(card('Despesas a pagar')).queryByText('Salário')).toBeNull()
-      // valor com sinal e cor do tipo: receita +, despesa −
+      expect(mock.proximosPlanejados).not.toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.anything(), 'expense')
+      expect(screen.queryByText('Despesas a pagar')).toBeNull()
+      expect(screen.queryByText('Internet')).toBeNull()
+      // valor com sinal e cor do tipo: receita +
       expect(within(card('Receitas a receber')).getByText(/^\+/).className).toMatch(/text-lucro/)
-      expect(within(card('Despesas a pagar')).getByText(/^−/).className).toMatch(/text-prejuizo/)
     })
 
-    it('mesmo que o banco devolva misturado, cada lista só mostra o seu tipo (e transferência some)', async () => {
+    it('mesmo que o banco devolva misturado, a lista só mostra entradas (despesa e transferência somem)', async () => {
       mock.proximosPlanejados.mockResolvedValue([
         item('r1', 'income', 'Salário', 500000), item('d1', 'expense', 'Internet', 12000), item('t1', 'transfer', 'ReservaABC', 3000),
       ])
       montar()
       await screen.findByText('Salário')
       expect(within(card('Receitas a receber')).queryByText('Internet')).toBeNull()
-      expect(within(card('Despesas a pagar')).queryByText('Salário')).toBeNull()
       expect(screen.queryByText(/ReservaABC/)).toBeNull()
     })
 
     it('mostra 5 e abre o resto com "Ver mais", que vira "Ver menos"', async () => {
-      const sete = Array.from({ length: 7 }, (_, i) => item(`d${i}`, 'expense', `Conta ${i + 1}`, 1000 * (i + 1), `2026-10-${String(20 + i).padStart(2, '0')}`))
-      mock.proximosPlanejados.mockImplementation(async (_f: string, _h: string, _l: number, tipo?: string) => (tipo === 'expense' ? sete : []))
+      const sete = Array.from({ length: 7 }, (_, i) => item(`r${i}`, 'income', `Entrada ${i + 1}`, 1000 * (i + 1), `2026-10-${String(20 + i).padStart(2, '0')}`))
+      mock.proximosPlanejados.mockImplementation(async (_f: string, _h: string, _l: number, tipo?: string) => (tipo === 'income' ? sete : []))
       montar()
-      await screen.findByText('Conta 1')
-      const pagar = () => within(card('Despesas a pagar'))
-      expect(pagar().getAllByRole('listitem')).toHaveLength(5)
-      expect(pagar().queryByText('Conta 6')).toBeNull()
-      fireEvent.click(pagar().getByRole('button', { name: 'Ver mais (2)' }))
-      expect(pagar().getAllByRole('listitem')).toHaveLength(7)
-      expect(pagar().getByText('Conta 7')).toBeTruthy()
-      fireEvent.click(pagar().getByRole('button', { name: 'Ver menos' }))
-      expect(pagar().getAllByRole('listitem')).toHaveLength(5)
-      // com 5 ou menos itens não há botão
-      expect(within(card('Receitas a receber')).queryByRole('button')).toBeNull()
+      await screen.findByText('Entrada 1')
+      const receber = () => within(card('Receitas a receber'))
+      expect(receber().getAllByRole('listitem')).toHaveLength(5)
+      expect(receber().queryByText('Entrada 6')).toBeNull()
+      fireEvent.click(receber().getByRole('button', { name: 'Ver mais (2)' }))
+      expect(receber().getAllByRole('listitem')).toHaveLength(7)
+      expect(receber().getByText('Entrada 7')).toBeTruthy()
+      fireEvent.click(receber().getByRole('button', { name: 'Ver menos' }))
+      expect(receber().getAllByRole('listitem')).toHaveLength(5)
     })
 
-    it('sem itens, cada lista diz que não há nada planejado', async () => {
+    it('sem itens, a lista diz que não há nada planejado', async () => {
       mock.proximosPlanejados.mockResolvedValue([])
       montar()
       expect(await screen.findByText('Nenhuma receita planejada a partir de hoje.')).toBeTruthy()
-      expect(screen.getByText('Nenhuma despesa planejada a partir de hoje.')).toBeTruthy()
     })
   })
 
@@ -1067,7 +1060,7 @@ describe('Visão geral', () => {
     expect(mock.evolucaoPatrimonio).toHaveBeenCalledTimes(2)
     recarregarPagina(); mock.evolucaoPatrimonio.mockClear()
     montar()
-    await screen.findByText('Despesas a pagar')
+    await screen.findByText('Receitas a receber')
     expect(mock.evolucaoPatrimonio).not.toHaveBeenCalled()
   })
 
@@ -1266,7 +1259,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
     mock.carregarIndicadores.mockRejectedValue(new Error('rede'))
     montar()
     expect(await screen.findByText('Indicadores indisponíveis agora. O resto do Início continua.')).toBeTruthy()
-    expect(screen.getByText('Despesas a pagar')).toBeTruthy()
+    expect(screen.getByText('Receitas a receber')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -1308,7 +1301,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
 describe('Início × Análises: cada seção mostra só os seus blocos', () => {
   it('Início mostra a faixa de indicadores, sem os blocos detalhados de Análises', async () => {
     montar()
-    await screen.findByText('Despesas a pagar')
+    await screen.findByText('Receitas a receber')
     expect(screen.getByRole('region', { name: 'Indicadores do mês' })).toBeTruthy()
     expect(screen.getByText('Patrimônio total')).toBeTruthy()
     expect(screen.queryByText('Entradas do mês')).toBeNull()
@@ -1343,7 +1336,7 @@ describe('Início × Análises: cada seção mostra só os seus blocos', () => {
     mock.carregarIndicadores.mockRejectedValue(new Error('rede'))
     mock.resumoDoMes.mockRejectedValue(new Error('rede'))
     montar()
-    expect(await screen.findByText('Despesas a pagar')).toBeTruthy()
+    expect(await screen.findByText('Receitas a receber')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
     expect(mock.carregarIndicadores).toHaveBeenCalled()
     expect(mock.resumoDoMes).toHaveBeenCalled()
