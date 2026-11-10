@@ -56,8 +56,8 @@ insert into fixture select 'juros', id from public.categories
 insert into fixture select 'imovel', public.create_debt('Imóvel', 'financing', date '2026-09-01', 100000);
 insert into fixture select 'cartao', public.create_debt('Cartão', 'card', date '2026-09-01', 0);
 -- uma despesa comum no mês, para os relatórios não estarem zerados
-insert into public.transactions (household_id, account_id, type, amount, date, status, description)
-values (pg_temp.fx('h'), pg_temp.fx('conta'), 'expense', 150, date '2026-10-05', 'paid', 'Mercado');
+insert into public.transactions (household_id, account_id, category_id, type, amount, date, status, description)
+values (pg_temp.fx('h'), pg_temp.fx('conta'), pg_temp.fx('juros'), 'expense', 150, date '2026-10-05', 'paid', 'Mercado');
 
 select is((select active from public.accounts where id = pg_temp.fx('arquivada')), false, 'F0 conta Antiga arquivada');
 select is(pg_temp.divida('imovel'), 100000::numeric, 'F1 financiamento começa em 100.000');
@@ -85,7 +85,7 @@ select is((select count(*) from public.debt_events where debt_id = pg_temp.fx('i
   'S3.1 nenhum evento de juros ou tarifa junto');
 select is(pg_temp.contas(), (select t from antes where k = 'contas'), 'S4 nenhuma conta muda de saldo');
 select is(pg_temp.saldo('conta'), 9850::numeric, 'S4.1 Corrente: 10.000 − 150 de mercado, e só');
-select is((select count(*) from public.account_movements(pg_temp.fx('conta'), date '2026-10-01', date '2026-10-31')
+select is((select count(*) from public.account_movements(pg_temp.fx('conta'), date '2026-10-31')
             where description like '%Imóvel%'), 0::bigint,
   'S4.2 extrato da conta não mostra a amortização');
 select is(pg_temp.despesa_mes(), (select n from antes where k = 'despesa'), 'S5 period_summary: despesa do mês não muda');
@@ -153,8 +153,12 @@ select is(pg_temp.saldo('arquivada'), 500::numeric, 'C7.1 conta arquivada intact
 -- ---------------------------------------------------------------------------
 -- 5. Anulação do evento sem conta restaura só a dívida
 -- ---------------------------------------------------------------------------
-select is(public.debt_void((select id from public.debt_events where debt_id = pg_temp.fx('imovel') and date = '2026-10-11'), 'teste FGTS'),
-  1, 'A1 anula a segunda amortização sem conta');
+select lives_ok($$select public.debt_void((select id from public.debt_events
+                    where debt_id = pg_temp.fx('imovel') and date = '2026-10-11'), 'teste FGTS')$$,
+  'A1 anula a segunda amortização sem conta');
+select is((select count(*) from public.debt_events
+            where debt_id = pg_temp.fx('imovel') and voided_at is not null and account_id is null), 1::bigint,
+  'A1.1 só esse evento ficou anulado');
 select is(pg_temp.divida('imovel'), 66999.45::numeric, 'A2 dívida volta 9.999,45');
 select is(pg_temp.saldo('conta'), 6800::numeric, 'A3 conta não muda com a anulação');
 

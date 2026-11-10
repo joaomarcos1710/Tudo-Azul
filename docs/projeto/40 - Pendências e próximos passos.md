@@ -562,3 +562,11 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Total "investido + parado na corretora" num número só: precisa vir somado do banco (regra: a tela não soma dinheiro).
 - [ ] Rentabilidade e variação: só depois de cotação automática e histórico de operações.
 - [ ] Conferir no celular (você): topo, rosca e abas, e a barra de baixo nova.
+
+## Dívidas (10/11/2026, #287, migration 102)
+- [x] Migration 101 (cartão lançado no orçamento) aplicada em produção em 10/11/2026 (simulação 42882544482, aplicação 42882719495).
+- [x] Consignado e financiamento cadastrados (o financiamento estava fora do app; o patrimônio estava inflado em cerca de R$ 139 mil).
+- [ ] Aplicar a migration 102 e, depois, o dono lança a amortização com FGTS de 26/10/2026 (R$ 18.009,57) e atualiza a prestação em "Contrato e parcelas".
+- [ ] A prestação do financiamento muda todo mês (SAC + TR + uso do FGTS): o valor fixo da dívida é aproximado; corrigir ao confirmar cada parcela.
+- [ ] Empréstimo liberado entra como receita (categoria Empréstimos, "não conta como consumo"): o ideal é cadastrar a dívida já com o valor liberado, sem receita. Sem pressa.
+- [ ] Conferir no celular (você): a tela nova de Dívidas.

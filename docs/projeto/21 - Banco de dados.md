@@ -195,8 +195,15 @@ Arquivo `20261110090000_investment_portfolio_account.sql`. Desenho em `27 - Inve
 - Testes: `94_investment_portfolio_account` (137 asserções; falha sem a migration) e `00_audit`.
 - Riscos: venda com conta muda o patrimônio pelo ganho ou perda realizada (correto); anular operação dentro de período conferido pede desfazer a conferência; o gatilho novo faz uma consulta por linha gravada em `transactions` (não medido em volume).
 
-## Cartão lançado no orçamento (migration 101, PR #285, não aplicada)
+## Cartão lançado no orçamento (migration 101, PR #285, aplicada em 10/11/2026, execução 42882719495)
 Arquivo `20261110100000_budget_card_pending.sql`. `budget_projection` devolve no fim `planned_card`: a parte de `planned` que são parcelas de cartão (`debt_installments`, só cartão desde a 003) que **fecham no mês e ainda não foram cobradas**. Nenhum número antigo muda (`spent`, `planned`, `pace_extra`, `projected`, `remaining` comparados linha a linha com a versão 056 no teste); `0 <= planned_card <= planned`.
 - **Sem dupla contagem:** a parcela entra em `spent` quando vira `charge` (no fechamento ou na antecipação) e, no mesmo momento, sai de `planned_card`. Estorno antes de cobrar vira `cancel` e abate do previsto.
 - **Limites:** fatura fechada e ainda não paga já está em `spent` (o orçamento conta o cartão pelo fechamento desde a 004); fatura paga adiantado, antes de fechar, continua no tracejado (adiantamento não é despesa, 010).
 - Teste `95_budget_card_pending` (35 asserções; falha sem a migration).
+
+## Amortização extra sem conta (migration 102, PR #287, não aplicada)
+Arquivo `20261110110000_debt_extra_without_account.sql`.
+- Refaz o check `debt_events_shape` (última versão na 048): `extra_principal` pode ficar sem conta, desde que sem parcela (`schedule_id`) e sem fatura (`invoice_id`). O resto é igual.
+- `debt_record_payment` (mesma assinatura e segurança): conta nula só com `p_extra = true`, juros e tarifa zerados, e só em empréstimo ou financiamento (no cartão o `extra_principal` entra na saída de caixa e no pago da fatura). Grava um `extra_principal` sem conta, nota "amortização extra sem conta (ex.: FGTS)".
+- Efeito: só o saldo da dívida cai; nenhuma conta muda; não vira despesa (`private.loan_principal_items` já exige conta) nem saída no fluxo de caixa. Amortização **com** conta continua sendo despesa do mês (regra da 046).
+- Teste `96_debt_extra_without_account` (59 asserções; falha sem a migration). A troca do check revalida `debt_events` ao aplicar (tabela pequena).
