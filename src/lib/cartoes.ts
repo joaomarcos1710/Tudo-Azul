@@ -452,6 +452,16 @@ export async function sincronizarAgendados(): Promise<number> {
   return (data as number) ?? 0
 }
 
+/**
+ * Converte em parcela os itens agendados cuja fatura já é a aberta, ou seja, quando a fatura anterior fechou
+ * (card_scheduled_convert). É aí que a assinatura passa a ocupar o limite e a valer na fatura. Devolve quantos converteu.
+ */
+export async function converterAgendados(): Promise<number> {
+  const { data, error } = await cliente().rpc('card_scheduled_convert')
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
 /** Faturas futuras do cartão com assinaturas agendadas; totais do banco, nada é somado aqui. */
 export async function listarFaturasAgendadas(cartaoId: string): Promise<FaturaAgendada[]> {
   const { data, error } = await cliente().rpc('card_scheduled_invoices', { p_debt: cartaoId })
