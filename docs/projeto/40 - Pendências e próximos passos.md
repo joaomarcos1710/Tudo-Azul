@@ -494,6 +494,10 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 - [x] Faixa de avisos do topo e Últimos lançamentos removidos do app (#266). Se o dono sentir falta de um aviso de conta a pagar/fatura perto de vencer, desenhar de novo (o Calendário e os Vencidos de Análises cobrem parte).
 
+## Categorias no celular (10/11/2026)
+- [x] #277: Editar em folha; faixa fixa com o resultado de Desativar/Reativar/Não conta como consumo (e os erros).
+- [ ] Cada linha tem 3 botões (Não conta como consumo, Editar, Desativar) e ocupa muito espaço no celular. Proposta: tocar na linha abre a folha de edição, e "Não conta como consumo" e "Desativar" vão para dentro dela. Esperando o dono.
+
 ## Seletor de categoria em folha (10/11/2026)
 - [x] #276: busca, lista ou grade, subcategorias embaixo e "Criar categoria" nos formulários de lançamento, cartão e recorrente.
 - [ ] Conferir no celular (você): a folha, a grade de 4 colunas e o "Criar categoria".
