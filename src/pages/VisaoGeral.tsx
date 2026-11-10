@@ -25,8 +25,8 @@ import type { Conta, TotalPorMoeda } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatMoeda, formatDate, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
-import { limitesDoMes, listarLancamentos, mesmoDiaAnoPassado, mesmoDiaMesAnterior, resumoDoMes, resumoDoPeriodo, resumoPorMoeda, somarMeses } from '../lib/lancamentos'
-import type { Lancamento, ResumoMes, ResumoPorMoeda } from '../lib/lancamentos'
+import { limitesDoMes, mesmoDiaAnoPassado, mesmoDiaMesAnterior, resumoDoMes, resumoDoPeriodo, resumoPorMoeda, somarMeses } from '../lib/lancamentos'
+import type { ResumoMes, ResumoPorMoeda } from '../lib/lancamentos'
 import { carregarPatrimonio, carregarResumoInvestimentos, evolucaoPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
 import type { DespesaCategoria, DespesaDia, Patrimonio, PontoPatrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
@@ -35,9 +35,6 @@ import { guardarBaseGastosCartao, lerBaseGastosCartao } from '../lib/baseGastosC
 import type { BaseGastosCartao } from '../lib/baseGastosCartao'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
 import { NavegacaoCarteira } from '../components/ui/NavegacaoCarteira'
-import { AvisosInicio } from '../components/ui/AvisosInicio'
-import { avisosDoInicio } from '../lib/avisosInicio'
-import type { AvisoInicio } from '../lib/avisosInicio'
 import { EmOutrasMoedas, ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { LinhaMensal } from '../components/graficos/LinhaMensal'
 import { saldosProjetados } from '../lib/saldoProjetado'
@@ -100,13 +97,9 @@ interface Dados {
   balanco: MesBalanco[] | null
   /** Orçamentos do mês (do banco); null = não carregou. */
   orcamentos: OrcamentoMes[] | null
-  /** Avisos do topo do Início (home_alerts, do banco); null = não carregou (a faixa some, o resto segue). */
-  avisos: AvisoInicio[] | null
   /** Início: os 7 indicadores do topo (home_indicators, migration 071); null = não carregou ou é Análises. */
   indicadores: Indicadores | null
   decisao: HomeDecisao | null
-  /** Análises: últimos lançamentos pagos do mês; null = não carregou (o bloco some) ou é o Início. */
-  ultimos: Lancamento[] | null
   nomeCategoria: Map<string, string>
   categoriaPorId: Map<string, Categoria>
 }
@@ -263,8 +256,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], vencidos: null, cartoes, faturasDoMes,
             aReceber: entradas.filter((x) => x.tipo === 'income'),
             saldoPrevisto: projetado?.total ?? null, balanco: null,
-            orcamentos: null, avisos: null,
-            ultimos: null,
+            orcamentos: null,
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
           }))
@@ -291,14 +283,13 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             opcional('fluxoDeCaixa', fluxoDeCaixa(familiaId, limitesDoMes(somarMeses(mes, -5))[0], ate, 'month').then((f): MesBalanco[] => f.linhas.map((l) => ({
               mes: l.inicio.slice(0, 7), receitas: l.entradas, despesas: l.saidas, resultado: l.saldo,
             })))),
-            // blocos que saíram do Início (pedido do dono, 10/11/2026) e moraram aqui: avisos, vencidos, orçamentos e últimos lançamentos
+            // blocos que saíram do Início (pedido do dono, 10/11/2026) e moraram aqui: vencidos e orçamentos
             opcional('listarContas', listarContas(familiaId, hoje)), opcional('vencidosPlanejados', vencidosPlanejados(familiaId, hoje, 5)),
-            opcional('listarLancamentos', listarLancamentos(familiaId, mes)), opcional('listarCategorias', listarCategorias(familiaId)),
-            opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)), opcional('avisosDoInicio', avisosDoInicio(familiaId, hoje)),
-          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, porMoeda, mesPorMoeda, balanco, contasTodas, vencidos, lancs, cats, orcamentos, avisos]): Dados => ({
+            opcional('listarCategorias', listarCategorias(familiaId)),
+            opcional('listarOrcamentos', listarOrcamentos(familiaId, mes, hoje)),
+          ]).then(([patrimonio, investimentos, resumo, anterior, categorias, dias, regularidade, anoPassado, projecao, comparacao, porMoeda, mesPorMoeda, balanco, contasTodas, vencidos, cats, orcamentos]): Dados => ({
             patrimonio, investimentos, mes: resumo, anterior, comparacao, categorias, dias, regularidade, anoPassado, projecao,
-            contas: [], todasContas: contasTodas?.contas ?? [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], aReceber: [], vencidos, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos, avisos, indicadores: null, decisao: null,
-            ultimos: lancs ? lancs.filter((l) => l.status === 'paid').slice(0, 6) : null,
+            contas: [], todasContas: contasTodas?.contas ?? [], saldoGeral: null, porMoeda: porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], aReceber: [], vencidos, cartoes: null, faturasDoMes: null, saldoPrevisto: null, balanco, orcamentos, indicadores: null, decisao: null,
             nomeCategoria: cats ? nomesCompletos(cats) : new Map(), categoriaPorId: cats ? new Map(cats.map((x) => [x.id, x])) : new Map(),
           })))
   }
@@ -369,8 +360,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const comparadoAteHoje = `${mesAnteriorCurto} até dia ${Number(mesmoDiaMesAnterior(hoje).slice(8))}`
   return (
     <>
-      {/* avisos do topo (a receber, a pagar, fatura e vencidos): só aparecem quando há algo a dizer. Moraram no Início até 10/11/2026; o dono pediu o Início enxuto e eles foram para Análises */}
-      {!noInicio && dados.avisos && <AvisosInicio avisos={dados.avisos} hoje={hoje} />}
       {noInicio
         ? <CabecalhoInicio nome={nome} receitas={m?.receitas ?? null} despesas={m?.despesas ?? null}
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
@@ -745,36 +734,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         )}
 
         {dados.orcamentos && dados.orcamentos.length > 0 && <OrcamentosDoInicio orcamentos={dados.orcamentos} />}
-        <Card semPadding className="lg:col-span-2">
-          <div className="flex items-center justify-between px-5 pt-5">
-            <CardTitle>Últimos lançamentos</CardTitle>
-            <Link to="/lancamentos" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver todos</Link>
-          </div>
-          {dados.ultimos === null ? (
-            <p className="px-5 pb-5 text-sm text-slate-500" role="status">Últimos lançamentos indisponíveis agora.</p>
-          ) : dados.ultimos.length === 0 ? (
-            <p className="px-5 pb-5 text-sm text-slate-500">Nenhum lançamento pago neste mês ainda.</p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {dados.ultimos.map((l) => (
-                <li key={l.id} className="flex items-center gap-3 px-5 py-3 text-sm">
-                  <span className="w-12 shrink-0 text-xs text-slate-500">{formatDate(l.data).slice(0, 5)}</span>
-                  <IconeDaLinha tipo={l.tipo} categoriaId={l.categoriaId} porId={dados.categoriaPorId} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{l.descricao || (l.tipo === 'income' ? 'Receita' : l.tipo === 'expense' ? 'Despesa' : 'Transferência')}</span>
-                    {l.tipo === 'transfer' && <RotaTransferencia contaId={l.contaId} destinoId={l.destinoId} contas={dados.todasContas} />}
-                  </span>
-                  {l.categoriaId && (
-                    <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 sm:inline">{dados.nomeCategoria.get(l.categoriaId) ?? 'Sem categoria'}</span>
-                  )}
-                  <span className={`w-28 text-right tabular-nums font-semibold ${corDoTipo(l.tipo)}`}>
-                    {l.tipo === 'income' ? '+' : l.tipo === 'expense' ? '−' : '⇄ '}{formatMoeda(l.valor, moedaDe(l.contaId))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
       </div>}
     </>
   )

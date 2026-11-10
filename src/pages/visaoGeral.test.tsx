@@ -28,10 +28,10 @@ const mock = vi.hoisted(() => ({
   saldosProjetados: vi.fn(),
   evolucaoPatrimonio: vi.fn(),
   listarOrcamentos: vi.fn(),
-  avisosDoInicio: vi.fn(),
   fluxoDeCaixa: vi.fn(),
   carregarIndicadores: vi.fn(),
   carregarHomeDecisao: vi.fn(),
+  avisosDoInicio: vi.fn(), // o módulo saiu do app (10/11/2026); o mock só existe para o teste de que a faixa não volta
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -59,9 +59,9 @@ vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: gerar }))
 vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados }))
 vi.mock('../lib/orcamentos', () => ({ listarOrcamentos: mock.listarOrcamentos }))
 vi.mock('../lib/fluxoCaixa', async (o) => ({ ...(await o<typeof import('../lib/fluxoCaixa')>()), fluxoDeCaixa: mock.fluxoDeCaixa }))
-vi.mock('../lib/avisosInicio', async (o) => ({ ...(await o<typeof import('../lib/avisosInicio')>()), avisosDoInicio: mock.avisosDoInicio }))
 vi.mock('../lib/indicadores', async (o) => ({ ...(await o<typeof import('../lib/indicadores')>()), carregarIndicadores: mock.carregarIndicadores }))
 vi.mock('../lib/homeDecisao', () => ({ carregarHomeDecisao: mock.carregarHomeDecisao }))
+vi.mock('../lib/avisosInicio', () => ({ avisosDoInicio: mock.avisosDoInicio }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas, totaisPorMoeda: mock.totaisPorMoeda }))
 
 import { hojeSP } from '../lib/contas'
@@ -130,7 +130,6 @@ beforeEach(() => {
   mock.vencidosPlanejados.mockResolvedValue({ itens: [], total: 0 })
   mock.saldosProjetados.mockResolvedValue({ contas: [], total: null })
   mock.listarOrcamentos.mockResolvedValue([])
-  mock.avisosDoInicio.mockResolvedValue([])
   mock.fluxoDeCaixa.mockResolvedValue({ linhas: [], totalEntradas: c(0), totalSaidas: c(0) })
   mock.evolucaoPatrimonio.mockResolvedValue({ pontos: [], falhas: [] })
   sentry.captureException.mockClear()
@@ -186,12 +185,17 @@ describe('Visão geral', () => {
     expect(screen.getAllByText('Outros').length).toBeGreaterThan(0)
     expect(screen.getByRole('img', { name: /Despesa acumulada no mês: R\$ 8\.667,26/ })).toBeTruthy()
   })
-  it('últimos lançamentos: só pagos, com categoria', async () => {
+  it('Últimos lançamentos não aparecem nem no Início nem em Análises (pedido do dono, 10/11/2026), e nenhuma das duas consulta lançamentos', async () => {
+    montar()
+    await screen.findByText('Minhas contas')
+    expect(screen.queryByText('Últimos lançamentos')).toBeNull()
+    recarregarPagina()
     montar('analises')
-    expect(await screen.findByText('Aluguel')).toBeTruthy()
-    expect(screen.queryByText('Planejado')).toBeNull()
+    await screen.findByRole('heading', { name: 'Análises' })
+    expect(screen.queryByText('Últimos lançamentos')).toBeNull()
+    expect(mock.listarLancamentos).not.toHaveBeenCalled()
   })
-  it('Início: os próximos a receber mostram o ícone da categoria; Análises: últimos e vencidos também', async () => {
+  it('Início: os próximos a receber mostram o ícone da categoria; Análises: os vencidos também', async () => {
     mock.proximosPlanejados.mockResolvedValue([{ id: 't1', tipo: 'income', descricao: 'Freelance', valor: c(12000), data: '2026-10-20', categoriaId: 'g1' }])
     mock.vencidosPlanejados.mockResolvedValue({ itens: [{ id: 'v1', tipo: 'transfer', descricao: 'Reserva', valor: c(100), data: '2026-10-01', categoriaId: null }], total: 1 })
     montar()
@@ -200,8 +204,7 @@ describe('Visão geral', () => {
     expect(icone(/Freelance/)).toBe('casa') // g1 = Moradia
     recarregarPagina()
     montar('analises')
-    await screen.findByText('Aluguel')
-    expect(icone('Aluguel')).toBe('casa')
+    await screen.findByText(/Reserva/)
     expect(icone(/Reserva/)).toBe('transferencia')
   })
 
@@ -246,22 +249,6 @@ describe('Visão geral', () => {
       montar('analises')
       expect((await screen.findByText(/Saque/)).closest('li')!.textContent).toMatch(/De\s*Itaú\s*→\s*Para\s*Antiga/)
       expect(screen.getByText(/Sumida/).closest('li')!.textContent).toMatch(/Para\s*outra conta/)
-    })
-
-    it('últimos lançamentos: transferência paga mostra "De Mercado Pago → Para Caixa"', async () => {
-      mock.listarContas.mockResolvedValue({
-        contas: [
-          { id: 'mp', nome: 'Mercado Pago', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
-          { id: 'cx', nome: 'Caixa Econômica', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0) },
-        ],
-        total: c(0),
-      })
-      mock.listarLancamentos.mockResolvedValue([
-        { id: 'l9', tipo: 'transfer', contaId: 'mp', destinoId: 'cx', categoriaId: null, descricao: 'Transferência', valor: c(20000), data: '2026-10-05', status: 'paid', notas: '' },
-      ])
-      montar('analises')
-      const card = (await screen.findByText('Últimos lançamentos')).closest('div[class*="rounded"]') as HTMLElement
-      expect(within(card).getByText('Transferência').closest('li')!.textContent).toMatch(/De\s*Mercado Pago\s*→\s*Para\s*Caixa Econômica/)
     })
 
     it('receita e despesa não ganham De → Para', async () => {
@@ -480,7 +467,7 @@ describe('Visão geral', () => {
     expect(painel?.className.split(/\s+/)).toContain('grid-cols-1')
     recarregarPagina()
     montar('analises')
-    const painelAnalises = (await screen.findByText('Últimos lançamentos')).closest('div.grid')
+    const painelAnalises = (await screen.findByText('Despesas por categoria')).closest('div.grid')
     expect(painelAnalises?.className.split(/\s+/)).toContain('grid-cols-1')
   })
 
@@ -520,12 +507,12 @@ describe('Visão geral', () => {
 
   it('sem vencidos, a seção não aparece; se a consulta falhar, o resto do painel aparece', async () => {
     montar('analises')
-    await screen.findByText('Últimos lançamentos')
+    await screen.findByText('Despesas por categoria')
     expect(screen.queryByText('Vencidos e precisam de atenção')).toBeNull()
     recarregarPagina()
     mock.vencidosPlanejados.mockRejectedValue(new Error('x'))
     montar('analises')
-    expect(await screen.findByText('Últimos lançamentos')).toBeTruthy() // Análises segue de pé com a consulta de vencidos falhando
+    expect(await screen.findByText('Despesas por categoria')).toBeTruthy() // Análises segue de pé com a consulta de vencidos falhando
     // mas avisa: sem aviso, "Vencidos" ausente pareceria "nada vencido"
     expect(screen.getByRole('alert').textContent).toMatch(/Não foi possível verificar agora os vencidos/)
   })
@@ -647,63 +634,21 @@ describe('Visão geral', () => {
     expect(within(card).getByRole('link', { name: 'Ver todas as contas' })).toBeTruthy()
   })
 
-  it('avisos do topo: sem aviso do banco, a faixa não aparece', async () => {
-    montar('analises')
-    await screen.findByRole('heading', { name: 'Análises' })
-    expect(mock.avisosDoInicio).toHaveBeenCalledWith('h1', hojeSP())
-    expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
-  })
-
-  it('avisos do topo: com avisos do banco, a faixa aparece em Análises (e não no Início); falha da consulta não derruba a tela', async () => {
-    mock.avisosDoInicio.mockResolvedValue([
-      { tipo: 'receivable', quantidade: 1, total: c(20000), data: '2026-10-23', cartaoId: null, cartaoNome: null },
-    ])
-    montar('analises')
-    const faixa = await screen.findByRole('region', { name: 'Avisos' })
-    expect(within(faixa).getByRole('link', { name: /Você tem 1 conta a receber no total de R\$ 200,00/ }).getAttribute('href'))
-      .toBe('/lancamentos?mes=2026-10&tipo=receita')
-    recarregarPagina()
+  it('a faixa de avisos do topo saiu do app (pedido do dono, 10/11/2026): nem no Início nem em Análises, mesmo que o banco tenha aviso', async () => {
+    // se alguém religar a faixa, ela acharia este aviso e o teste falharia
+    mock.avisosDoInicio.mockResolvedValue([{ tipo: 'payable_soon', quantidade: 1, total: c(6000), data: '2026-11-12', cartaoId: null, cartaoNome: null }])
     montar()
     await screen.findByRole('heading', { name: 'Minha Carteira' })
     expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
-    expect(mock.avisosDoInicio).toHaveBeenCalledTimes(1) // só a de Análises: o Início enxuto nem consulta os avisos
+    expect(screen.queryByText(/Você tem \d+ conta/)).toBeNull()
     recarregarPagina()
-    mock.avisosDoInicio.mockRejectedValue(new Error('sem a migration 057'))
     montar('analises')
-    expect(await screen.findByRole('heading', { name: 'Análises' })).toBeTruthy()
+    await screen.findByRole('heading', { name: 'Análises' })
     expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
+    expect(mock.avisosDoInicio).not.toHaveBeenCalled()
   })
 
-  it('avisos do topo: o de vencidos leva ao card de vencidos da própria tela', async () => {
-    mock.avisosDoInicio.mockResolvedValue([
-      { tipo: 'overdue_payable', quantidade: 2, total: c(13000), data: '2026-10-01', cartaoId: null, cartaoNome: null },
-    ])
-    mock.vencidosPlanejados.mockResolvedValue({ itens: [{ id: 't5', tipo: 'expense', descricao: 'Luz', valor: c(13000), data: '2026-10-01', categoriaId: null, contaId: 'a1', destinoId: null }], total: 2 })
-    montar('analises')
-    const link = await screen.findByRole('link', { name: /Você tem 2 contas a pagar já vencidas no total de R\$ 130,00/ })
-    expect(link.getAttribute('href')).toBe('#vencidos')
-    expect(document.getElementById('vencidos')?.textContent).toMatch(/Vencidos e precisam de atenção/)
-  })
-
-  it('multimoeda F1: conta em dólar no Início fica na moeda dela e em "Em outras moedas", fora do saldo em reais', async () => {
-    mock.listarContas.mockResolvedValue({
-      contas: [
-        { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1282030), moeda: 'BRL' },
-        { id: 'u1', nome: 'Conta em dólar', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(25050), moeda: 'USD' },
-      ],
-      total: c(1282030),
-      porMoeda: [{ moeda: 'BRL', total: c(1282030), totalAtivas: c(1282030) }, { moeda: 'USD', total: c(25050), totalAtivas: c(25050) }],
-    })
-    montar()
-    const card = (await screen.findByText('Minhas contas')).closest('div[class*="rounded"]') as HTMLElement
-    expect(within(card).getByText('Saldo geral em reais')).toBeTruthy()
-    expect(within(card).getByText('R$ 12.820,30', { selector: 'span.font-bold' })).toBeTruthy() // o total do banco, sem o dólar
-    expect(within(card).getAllByText(/US\$\s*250,50/).length).toBeGreaterThan(0)
-    const bloco = screen.getByRole('group', { name: 'Em outras moedas' })
-    expect(bloco.textContent).toMatch(/US\$\s*250,50/)
-  })
-
-  it('multimoeda F2: Início mostra receitas e despesas do mês em dólar à parte (period_summary_by_currency) e o lançamento na moeda da conta', async () => {
+  it('multimoeda F2: Início mostra receitas e despesas do mês em dólar à parte (period_summary_by_currency)', async () => {
     mock.listarContas.mockResolvedValue({
       contas: [
         { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(1282030), moeda: 'BRL' },
@@ -711,9 +656,6 @@ describe('Visão geral', () => {
       ],
       total: c(1282030),
     })
-    mock.listarLancamentos.mockResolvedValue([
-      { id: 't9', tipo: 'expense', contaId: 'u1', destinoId: null, categoriaId: null, descricao: 'Café em NY', valor: c(4025), data: hojeSP(), status: 'paid', notas: '' },
-    ])
     mock.resumoPorMoeda.mockResolvedValue([{ moeda: 'USD', receitas: c(100000), despesas: c(4025), resultado: c(95975) }])
     montar()
     await screen.findByRole('heading', { name: 'Minha Carteira' })
@@ -723,12 +665,6 @@ describe('Visão geral', () => {
     expect(within(screen.getByRole('banner')).getByText('R$ 12.150,00')).toBeTruthy()
     const [de, ate] = [`${hojeSP().slice(0, 7)}-01`, expect.stringMatching(new RegExp(`^${hojeSP().slice(0, 7)}-\\d{2}$`))]
     expect(mock.resumoPorMoeda).toHaveBeenCalledWith('h1', de, ate)
-    // o lançamento em dólar (últimos lançamentos) mora em Análises, na moeda da conta
-    recarregarPagina()
-    montar('analises')
-    const linha = (await screen.findByText('Café em NY')).closest('li') as HTMLElement
-    expect(linha.textContent).toMatch(/−US\$\s*40,25/)
-    expect(linha.textContent).not.toMatch(/R\$/)
   })
 
   it('multimoeda F2: Análises também mostra o resultado do mês em outras moedas', async () => {
@@ -949,18 +885,16 @@ describe('Visão geral', () => {
     expect(faixa.compareDocumentPosition(esquerda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('Início enxuto (pedido do dono, 10/11/2026): só Minha Carteira, contas, cartões, maiores gastos e a receber; o resto foi para Análises ou saiu', async () => {
+  it('Início enxuto (pedido do dono, 10/11/2026): só Minha Carteira, contas, cartões, maiores gastos e a receber; o resto foi para Análises (vencidos e orçamentos) ou saiu', async () => {
     mock.vencidosPlanejados.mockResolvedValue({ total: 1, itens: [{ id: 'v1', tipo: 'expense', descricao: 'Luz', valor: c(18000), data: '2026-10-05', categoriaId: null, contaId: null, destinoId: null }] })
-    mock.avisosDoInicio.mockResolvedValue([{ tipo: 'receivable', quantidade: 1, total: c(20000), data: '2026-10-23', cartaoId: null, cartaoNome: null }])
     mock.listarOrcamentos.mockResolvedValue([{ id: 'o1', categoriaId: 'g1', categoria: 'Moradia', limite: c(100000), gasto: c(20000), restante: c(80000), percentual: 20, faixa: 'verde' }])
     montar()
     await screen.findByText('Minhas contas')
     for (const fora of ['Vencidos e precisam de atenção', 'Últimos lançamentos', 'Meus investimentos', 'Empréstimos e dívidas', 'Orçamentos do mês', 'Despesas a pagar']) {
       expect(screen.queryByText(fora)).toBeNull()
     }
-    expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
     // e o Início nem pergunta ao banco o que não mostra
-    for (const m of [mock.vencidosPlanejados, mock.avisosDoInicio, mock.listarOrcamentos, mock.listarLancamentos]) expect(m).not.toHaveBeenCalled()
+    for (const m of [mock.vencidosPlanejados, mock.listarOrcamentos, mock.listarLancamentos]) expect(m).not.toHaveBeenCalled()
     // no celular, a ordem é a pedida: contas, cartões, maiores gastos, a receber
     const ordem = (t: string) => Number(/order-(\d)/.exec(screen.getAllByText(t).map((e) => e.closest('.order-1, .order-2, .order-3, .order-4, .order-5')).find(Boolean)!.className)?.[1])
     expect(['Minhas contas', 'Cartões', 'Maiores gastos', 'Receitas a receber'].map(ordem)).toEqual([1, 2, 3, 4])
@@ -968,8 +902,7 @@ describe('Visão geral', () => {
     recarregarPagina()
     montar('analises')
     expect(await screen.findByText('Vencidos e precisam de atenção')).toBeTruthy()
-    expect(screen.getByText('Últimos lançamentos')).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Avisos' })).toBeTruthy()
+    expect(screen.getByText('Orçamentos do mês')).toBeTruthy()
   })
 
   describe('Receitas a receber (etapa 2 do painel; "Despesas a pagar" saiu do Início em 10/11/2026)', () => {

@@ -498,3 +498,11 @@ Pedido do dono, com prazo de uso em 20/11/2026: o Início fica só com **Minha C
 - **Risco aceito:** os avisos de vencidos e de faturas deixam de estar na primeira tela que o dono vê. Se ele sentir falta, a alternativa barata é voltar só a faixa de avisos ao Início.
 - **Efeito colateral bom:** o Início deixa de fazer 4 consultas (vencidos, avisos, orçamentos e lançamentos), inclusive `home_alerts`, uma das mais pesadas.
 
+## 10/11/2026 — A faixa de avisos e os Últimos lançamentos saem de vez (dono)
+
+O dono viu em produção a faixa "Contas a pagar — Você tem 1 conta a pagar no total de R$ 60,00 nos próximos 7 dias" e pediu que saísse, e repetiu que "Últimos lançamentos também pode sair". Na #265 eu os tinha movido para Análises em vez de apagá-los; ele queria fora do app (Lançamentos continua listando tudo).
+
+- **Removidos** do Início e de Análises: a faixa de avisos (`AvisosInicio`, `avisosDoInicio`) e o card Últimos lançamentos. Análises deixa de consultar lançamentos e `home_alerts`.
+- **Mantidos:** Vencidos e Orçamentos do mês em Análises (ele não pediu para tirar); a RPC `home_alerts` continua no banco porque `get_home_decision_month` a usa por dentro.
+- **Risco aceito:** sem a faixa, nada avisa de conta a pagar nos próximos 7 dias, de fatura perto de vencer nem de receita a receber; só os Vencidos de Análises (itens que já passaram da data). Se ele sentir falta, a faixa pode voltar com outro formato.
+
