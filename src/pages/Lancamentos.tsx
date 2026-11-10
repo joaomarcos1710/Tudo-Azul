@@ -288,7 +288,6 @@ export default function Lancamentos() {
   }
   const rotuloSaldoDoDia = (data: string) => (saldosPorData.get(data) ?? [])
     .map((saldo) => formatMoeda(saldo.saldo, saldo.moeda)).join(' · ')
-  const gruposSaldosDiarios = [...saldosPorData.entries()]
 
   return (
     <>
@@ -402,23 +401,6 @@ export default function Lancamentos() {
           {' '}Nos totais e relatórios, a compra conta como despesa e o crédito como receita no <strong>fechamento</strong> da fatura.
           {' '}<strong>Pagamento da fatura</strong> é o dinheiro saindo da conta: não é outra despesa.
         </Explicacao>
-      )}
-
-      {telaGrande && mostrarSaldoDiario && gruposSaldosDiarios.length > 0 && (
-        <Card>
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-sm font-semibold text-marinho">Saldo ao final de cada dia</h2>
-            <span className="text-xs text-slate-500">Por moeda, sem conversão</span>
-          </div>
-          <div className="grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-            {gruposSaldosDiarios.map(([data, valores]) => (
-              <div key={data} className="flex items-center justify-between gap-3 border-b border-slate-100 py-1 text-sm">
-                <span className="text-slate-500">{formatDate(data)}</span>
-                <strong className="text-right tabular-nums text-marinho">{valores.map((s) => formatMoeda(s.saldo, s.moeda)).join(' · ')}</strong>
-              </div>
-            ))}
-          </div>
-        </Card>
       )}
 
       {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && creditosCartao.length === 0 && faturas.length === 0

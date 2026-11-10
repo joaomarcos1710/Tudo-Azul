@@ -160,3 +160,4 @@ continuam abaixo como histórico.
 | 2026.245 | **Segurança: headers no Vercel e destino seguro após login.** nosniff, X-Frame-Options, Referrer-Policy, HSTS e CSP em modo relatório; open redirect via state.de fechado; workflow de validação local pinado. |
 | 2026.246 | **Revisão geral de 09/11/2026.** Auditoria consolidada (dinheiro, banco, front, segurança) e pendências. Só documentação. |
 | 2026.247 | **Início em duas colunas (etapa 1 do painel estilo Organizze).** Contas, investimentos e dívidas à esquerda; cartões, orçamentos e próximos planejados à direita; só reposicionamento, nenhum número muda. |
+| 2026.249 | **Lançamentos: sai o card "Saldo ao final de cada dia" no computador.** Pedido do dono (ficou pesado). O "Saldo final" por dia no celular continua. |
