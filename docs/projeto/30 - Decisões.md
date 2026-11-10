@@ -481,3 +481,10 @@ O dono autorizou o `EXPLAIN (ANALYZE, BUFFERS)` em produção e a investigação
 - **Adiado de propósito:** reescrever `private.card_months_as_of` (3 subconsultas por parcela, ~120 ms por cartão). É a conta oficial da fatura e acabou de passar pelas 4 etapas da recorrência; só com medição por dentro e comparação linha a linha.
 - **Corrida corrigida junto:** `invalidarDadosHome` durante a primeira carga não refazia a leitura (o TanStack reaproveita a busca em curso quando ainda não há dado). Agora cancela a primeira carga em andamento e lê de novo.
 
+## 10/11/2026 — Conta da fatura: reescrever a soma antes de mexer na política de segurança (dono)
+
+O perfil de `card_months_as_of` (cartão com ~4,7 mil parcelas) mostrou que o custo é quase todo das 3 buscas por parcela (~13,5 mil por chamada), com a política de linha (`is_member` por linha) encarecendo cada uma. Em banco local: reescrever a soma corta ~50%; trocar só a política corta ~50%; juntas, ~90%.
+
+- **Feito:** a reescrita da soma (migration `20261110070000`), por ser verificável por comparação de saída com a função antiga e não mexer em segurança.
+- **Adiado de propósito:** reescrever as políticas de `debt_events`/`debt_installments` (`household_id in (select private.my_households())`). Mexe em segurança entre famílias, o padrão se repete em ~60 políticas e o ganho adicional só vale a pena se, depois de aplicar a reescrita, o Início ainda estiver lento. O protótipo local manteve o isolamento (A, B e quem não é da família veem o esperado; membro removido deixa de ver na hora), mas não testou o ramo `service_read`.
+
