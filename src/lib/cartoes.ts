@@ -93,6 +93,16 @@ export interface OcorrenciaPrevista {
   categoriaId: string
 }
 
+/** Uma fatura futura com assinaturas agendadas (card_scheduled_invoices): total e quantidade somados no banco. */
+export interface FaturaAgendada {
+  /** AAAA-MM do fechamento da fatura. */
+  mes: string
+  fechamento: string
+  vencimento: string
+  total: Cents
+  itens: number
+}
+
 /** Uma linha da prévia de exclusão: o que será desfeito (cobrança, pagamento devolvido, cancelamento). */
 export interface ItemPrevia {
   tipo: 'charge' | 'credit' | 'payment' | 'extra_principal' | 'cancel' | string
@@ -429,6 +439,29 @@ export async function listarOcorrenciasPrevistas(cartaoId: string, mes: string):
     descricao: (o.description as string | null) ?? 'Assinatura',
     valor: centsFromDb(o.amount ?? 0),
     categoriaId: o.category_id as string,
+  }))
+}
+
+/**
+ * Gera (ou atualiza) os itens agendados das assinaturas de cartão para os próximos 12 meses (card_scheduled_sync).
+ * O app chama ao abrir, depois de gerar os recorrentes. Devolve quantas linhas mudaram.
+ */
+export async function sincronizarAgendados(): Promise<number> {
+  const { data, error } = await cliente().rpc('card_scheduled_sync')
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
+/** Faturas futuras do cartão com assinaturas agendadas; totais do banco, nada é somado aqui. */
+export async function listarFaturasAgendadas(cartaoId: string): Promise<FaturaAgendada[]> {
+  const { data, error } = await cliente().rpc('card_scheduled_invoices', { p_debt: cartaoId })
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number | null>[]).map((f) => ({
+    mes: f.label as string,
+    fechamento: f.closing_date as string,
+    vencimento: f.due_date as string,
+    total: centsFromDb(f.total ?? 0),
+    itens: Number(f.items ?? 0),
   }))
 }
 

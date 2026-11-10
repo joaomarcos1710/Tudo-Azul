@@ -15,13 +15,13 @@ import { MenuAcoes } from '../components/ui/MenuAcoes'
 import { Selecao } from '../components/ui/Selecao'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
-  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
+  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
   inicioDaTroca, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
   visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura,
 } from '../lib/cartoes'
-import type { Cartao, CreditoFatura, Fatura, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
+import type { Cartao, CreditoFatura, Fatura, FaturaAgendada, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
 import { IconeCadeadoAberto, IconeCadeadoFechado, IconeCadeadoPago, IconeCadeadoVencido } from '../components/layout/icons'
 import { somarMeses } from '../lib/lancamentos'
 import { listarCategorias, nomesCompletos, opcoesDeCategoria } from '../lib/categorias'
@@ -659,9 +659,44 @@ function PaginaCartao({ cartao: c, faturasDe, painel, setPainel, carregar, erro,
             desabilitado: painel !== null,
             formulario: meu?.tipo === 'pagar' ? <PainelJunto>{painelDoCartao(meu)}</PainelJunto> : null,
           }} />
+        <FaturasAgendadas cartaoId={c.id} versao={versao} />
         <MovimentosCartao cartaoId={c.id} versao={versao} aoAlterar={carregar} />
       </Card>
     </>
+  )
+}
+
+/**
+ * Próximas faturas com assinaturas já agendadas (recorrência no cartão estilo Organizze, etapa 2). Total e quantidade
+ * vêm do banco (card_scheduled_invoices); nada é somado aqui. Ainda não ocupam o limite nem entram no "A cobrar": viram
+ * compra no dia da cobrança. Consulta opcional: se falhar ou não houver nada, a seção não aparece.
+ */
+function FaturasAgendadas({ cartaoId, versao }: { cartaoId: string; versao: number }) {
+  const [faturas, setFaturas] = useState<FaturaAgendada[]>([])
+  useEffect(() => {
+    let vivo = true
+    listarFaturasAgendadas(cartaoId)
+      .then((f) => { if (vivo) setFaturas(f) })
+      .catch(() => { if (vivo) setFaturas([]) })
+    return () => { vivo = false }
+  }, [cartaoId, versao])
+  if (faturas.length === 0) return null
+  return (
+    <section className="mt-4 border-t border-slate-100 pt-4" aria-label="Assinaturas agendadas nas próximas faturas" data-testid="faturas-agendadas">
+      <h2 className="mb-1 text-sm font-semibold text-slate-600">Assinaturas nas próximas faturas <SeloAgendado /></h2>
+      <p className="mb-1 text-xs text-slate-500">Já estão em cada fatura, pelo dia da cobrança. Ainda não ocupam o limite.</p>
+      <ListaRecolhida itens={faturas} rotulo="Próximas faturas com assinaturas" className="divide-y divide-slate-100">
+        {(f) => (
+          <li key={f.mes} className="flex items-baseline justify-between gap-3 py-1.5 text-sm" data-testid="fatura-agendada">
+            <span className="min-w-0">
+              <span className="font-medium">{primeiraMaiuscula(formatMonth(f.mes))}</span>
+              <span className="block text-xs text-slate-500">vence em {formatDate(f.vencimento)} · {f.itens === 1 ? '1 assinatura' : `${f.itens} assinaturas`}</span>
+            </span>
+            <span className="shrink-0 whitespace-nowrap tabular-nums font-semibold text-prejuizo">−{formatBRL(f.total)}</span>
+          </li>
+        )}
+      </ListaRecolhida>
+    </section>
   )
 }
 

@@ -26,6 +26,8 @@ const mock = vi.hoisted(() => ({
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
   listarOcorrenciasPrevistas: vi.fn(),
+  listarFaturasAgendadas: vi.fn(),
+  sincronizarAgendados: vi.fn(),
   excluirRecorrencia: vi.fn(),
   pagarFatura: vi.fn(),
   reabrirFatura: vi.fn(),
@@ -47,7 +49,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
-  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
+  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, sincronizarAgendados: mock.sincronizarAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
@@ -125,6 +127,8 @@ beforeEach(() => {
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
   mock.listarOcorrenciasPrevistas.mockResolvedValue([])
+  mock.listarFaturasAgendadas.mockResolvedValue([])
+  mock.sincronizarAgendados.mockResolvedValue(0)
   mock.previaExclusao.mockResolvedValue([])
   mock.listarCreditosDaFatura.mockResolvedValue([])
   mock.lancarCreditoNoCartao.mockResolvedValue('ev1')
@@ -208,6 +212,35 @@ describe('Cartões', () => {
     expect(screen.getByRole('link', { name: 'Abrir cartão Nubank' }).getAttribute('href')).toBe('/cartoes/k1')
     // com dívida (fatura fechada a pagar, a de março), "Abrir fatura" leva à fatura que o pagamento quita
     expect((await botaoVerFatura()).getAttribute('href')).toMatch(/^\/cartoes\/k1\/fatura\/\d{4}-\d{2}$/)
+  })
+
+  it('recorrência no cartão, etapa 2: a página do cartão lista as próximas faturas com assinaturas agendadas (totais do banco)', async () => {
+    mock.listarFaturasAgendadas.mockResolvedValue([
+      { mes: '2099-05', fechamento: '2099-05-17', vencimento: '2099-05-25', total: c(26689), itens: 3 },
+      { mes: '2099-06', fechamento: '2099-06-17', vencimento: '2099-06-25', total: c(5000), itens: 1 },
+    ])
+    montar('/cartoes/k1')
+    const secao = await screen.findByTestId('faturas-agendadas')
+    expect(mock.listarFaturasAgendadas).toHaveBeenCalledWith('k1')
+    const linhas = within(secao).getAllByTestId('fatura-agendada')
+    expect(linhas).toHaveLength(2)
+    expect(linhas[0].textContent).toMatch(/Maio de 2099/)
+    expect(linhas[0].textContent).toMatch(/vence em 25\/05\/2099 · 3 assinaturas/)
+    // saída de dinheiro: vermelho, com o valor que veio do banco
+    expect(within(linhas[0]).getByText('−R$ 266,89').className).toMatch(/text-prejuizo/)
+    expect(linhas[1].textContent).toMatch(/1 assinatura(?!s)/)
+    expect(within(secao).getByText('Agendado')).toBeTruthy()
+  })
+
+  it('recorrência no cartão, etapa 2: sem agendadas, ou com a consulta falhando, a seção não aparece e o cartão segue', async () => {
+    montar('/cartoes/k1')
+    expect(await screen.findByTestId('abrir-fatura-k1')).toBeTruthy()
+    expect(screen.queryByTestId('faturas-agendadas')).toBeNull()
+    cleanup()
+    mock.listarFaturasAgendadas.mockRejectedValue(new Error('function does not exist'))
+    montar('/cartoes/k1')
+    expect(await screen.findByTestId('abrir-fatura-k1')).toBeTruthy()
+    expect(screen.queryByTestId('faturas-agendadas')).toBeNull()
   })
 
   it('recorrência no cartão: a fatura lista cada assinatura prevista (do banco), com data e valor, sem somar nada no navegador', async () => {
