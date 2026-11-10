@@ -169,3 +169,4 @@ continuam abaixo como histórico.
 | 2026.254 | **Fatura: assinaturas previstas em vermelho.** O valor de cada assinatura prevista passa a vermelho, como toda despesa; o selo Agendado continua verde. |
 | 2026.255 | **Fatura: excluir assinatura pela linha prevista.** Cada assinatura prevista ganha o menu ⋯ com "Excluir assinatura" (com confirmação) e "Abrir Recorrentes". |
 | 2026.256 | **Barra lateral com as telas frequentes.** Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens voltam para a barra do computador; o menu do perfil fica só com Família, Exportar, Preferências e Sair. |
+| 2026.257 | **Recorrência no cartão, etapa 2: assinaturas nas próximas faturas.** O app gera os itens agendados para 12 meses e a página do cartão lista cada fatura futura com total e quantidade do banco. Limite e saldo não mudam. Migration ainda não aplicada em produção. |
