@@ -223,7 +223,8 @@ describe('Cartões', () => {
     expect(mock.listarOcorrenciasPrevistas).toHaveBeenCalledWith('k1', '2099-04')
     expect(within(bloco).getAllByTestId('assinatura-prevista')).toHaveLength(2)
     expect(within(bloco).getByText('Streaming')).toBeTruthy()
-    expect(within(bloco).getByText('−R$ 50,00')).toBeTruthy()
+    // é saída de dinheiro: valor em vermelho, como toda despesa; o selo Agendado diz que ainda não foi cobrada
+    expect(within(bloco).getByText('−R$ 50,00').className).toMatch(/text-prejuizo/)
     expect(within(bloco).getByText(/cobrança em 05\/04\/2099/)).toBeTruthy()
     expect(within(bloco).getByText('Agendado')).toBeTruthy()
     // não é compra: as previstas ficam fora do bloco de saídas
