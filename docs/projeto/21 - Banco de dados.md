@@ -123,8 +123,9 @@ Todas abaixo estão aplicadas em produção (conferido na simulação de 10/11/2
 | 101 | `20261110100000_budget_card_pending.sql` | #285 |
 | 102 | `20261110110000_debt_extra_without_account.sql` | #287 |
 | 103 | `20261110120000_debt_extra_amortize_terms.sql` | #292 |
+| 104 | `20261110130000_investment_by_value.sql` | #294 |
 
-A próxima migration é a **104**. Escreva o número no cabeçalho do arquivo novo.
+A próxima migration é a **105**. Escreva o número no cabeçalho do arquivo novo.
 
 
 ## Detalhes da 019
@@ -243,11 +244,21 @@ Arquivo `20261110110000_debt_extra_without_account.sql`.
 - Efeito: só o saldo da dívida cai; nenhuma conta muda; não vira despesa (`private.loan_principal_items` já exige conta) nem saída no fluxo de caixa. Amortização **com** conta continua sendo despesa do mês (regra da 046).
 - Teste `96_debt_extra_without_account` (59 asserções; falha sem a migration). A troca do check revalida `debt_events` ao aplicar (tabela pequena).
 
-## Amortização que reduz prazo ou parcela (migration 103, PR #292, não aplicada)
+## Amortização que reduz prazo ou parcela (migration 103, PR #292, **aplicada em 10/11/2026**, execução 159; simulação 158 listou só ela)
 Arquivo `20261110120000_debt_extra_amortize_terms.sql`.
 - Função nova `public.debt_extra_amortize(p_debt, p_date, p_account, p_principal, p_mode, p_remaining, p_installment, p_interest, p_fee, p_category)`. Só empréstimo/financiamento com contrato e parcela em aberto.
 - Numa transação só: registra a amortização com `debt_record_payment(..., p_extra => true)` (aceita conta nula, ex.: FGTS) e ajusta o contrato com `debt_contract_set`. `p_mode = 'term'`: o prazo restante passa a `p_remaining` (não pode ser maior que o atual; o total do contrato cai na mesma medida, então a numeração da próxima parcela não muda); `p_mode = 'installment'`: a parcela passa a `p_installment` (maior que zero, não maior que a atual, 2 casas). As parcelas planejadas são refeitas a partir da próxima em aberto; as pagas não mudam.
 - **O banco não calcula** o novo prazo nem a nova parcela: grava o que o dono informou (extrato da Caixa). Decisão em `30 - Decisões`.
 - Se o ajuste for inválido, nada é gravado (nem a amortização). Execução só para `authenticated`.
 - Teste `97_debt_extra_amortize_terms` (falha sem a migration); `00_audit` atualizado.
+
+## Investimento só pelo valor (migration 104, PR #294, não aplicada)
+Arquivo `20261110130000_investment_by_value.sql`. Para ativo sem cota (cofrinho, CDB, reserva, previdência): aporte, resgate e avaliação em reais, sem unidade nem preço na tela.
+- **Ideia:** o valor de um ativo é quantidade × preço da última avaliação (`investment_portfolio`). O banco trata o ativo como um fundo com cota escondida: aporte de V reais = compra de V ÷ preço atual unidades; resgate idem; "hoje vale T" = avaliação com preço T ÷ quantidade. O front não faz conta.
+- `public.investment_operation_record_by_value(p_asset, p_date, p_kind, p_amount, p_notes, p_account)`: preço = última avaliação até a data; sem avaliação, o custo médio; sem posição nem avaliação (primeira posição), grava 1 unidade pelo valor. Resgate maior que o valor do ativo é recusado (23514); resgatar o valor todo vende todas as unidades (zera exato). Aporte com data anterior à primeira operação é recusado. No fim chama `investment_operation_record`, que mantém as travas da 100 (transferência com a carteira interna, só reais, conta ativa).
+- `public.investment_valuation_record_total(p_asset, p_date, p_total, p_source)`: exige posição na data; chama `investment_valuation_record`.
+- As duas conferem que quantidade × preço, a 2 casas, dá exatamente o valor pedido; senão recusam (22023) em vez de gravar um centavo diferente.
+- `investment_asset_statement` (mesma assinatura): a linha de avaliação traz em `amount` o total (unidades na data × preço); antes vinha nulo.
+- Sem tarifas no caminho por valor. Execução só para `authenticated`.
+- Teste `98_investment_by_value` (falha sem a migration); `00_audit` atualizado.
 
