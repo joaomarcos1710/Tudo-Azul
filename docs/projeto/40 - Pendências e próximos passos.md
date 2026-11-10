@@ -493,3 +493,11 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Conferir no navegador o novo Início (desktop e celular) e Análises com os blocos novos.
 
 - [x] Faixa de avisos do topo e Últimos lançamentos removidos do app (#266). Se o dono sentir falta de um aviso de conta a pagar/fatura perto de vencer, desenhar de novo (o Calendário e os Vencidos de Análises cobrem parte).
+
+## Lançamentos no visual do Organizze (10/11/2026)
+- [x] Etapa 1 (#268): botão Filtrar com folha e selos, "+" flutuante, rodapé (pagos e previsto) em regime de caixa.
+- [ ] Etapa 2: computador com lista por dia (a tabela sai) e seleção em massa pelo menu ⋮, no celular e no computador (mudar categoria, marcar como pago, excluir).
+- [ ] Etapa 3: período livre ("Alterar período de visualização": semana, meses, período escolhido), com a lista, as faturas e o rodapé carregando pelo intervalo.
+- [ ] Rodapé com filtro de tipo ou categoria: hoje avisa que não segue o filtro. Seguir de verdade exige uma função do banco com esses filtros.
+- [ ] Conferir no celular (você): o "+" e o rodapé não tampam o último lançamento da lista; o rodapé fica acima da barra de baixo.
+
