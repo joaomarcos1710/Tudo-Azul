@@ -15,6 +15,8 @@ import { Selecao } from '../components/ui/Selecao'
 import { Chip } from '../components/ui/TelaFiltros'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { useFamilia } from '../lib/FamiliaContext'
+import { converterParaReais, textoCotacao } from '../lib/cambio'
+import type { EmReais } from '../lib/cambio'
 import { codigoDoErro, registrarFalhaConsulta } from '../lib/consultaOpcional'
 import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
@@ -72,6 +74,8 @@ export default function Investimentos() {
   const [bancoTemInstituicao, setBancoTemInstituicao] = useState(false)
   // aportes e resgates (migration 107); null = banco sem a função: cartões e tabela mostram o custo do que está investido
   const [aportes, setAportes] = useState<AportesCarteira | null>(null)
+  // valor de cada moeda estrangeira em reais (PTAX, migration 108); vazio = sem cotação ou banco sem a função
+  const [emReais, setEmReais] = useState<Map<string, EmReais>>(new Map())
   // proventos do mês corrente: por ativo (linha da tabela) e o total por moeda, do banco; null = não leu
   const [proventosMes, setProventosMes] = useState<ProventoAtivo[]>([])
   const [totalProventosMes, setTotalProventosMes] = useState<TotalProventos[] | null>(null)
@@ -147,6 +151,16 @@ export default function Investimentos() {
         setContas(lidas.contas)
         setParadoCorretora(lidas.porTipo?.find((t) => t.tipo === 'brokerage')?.totalAtivas ?? null)
       } catch { setContas([]); setParadoCorretora(null) }
+      // "≈ R$" do valor de mercado de cada moeda estrangeira, convertido no banco. Por último e opcional: o resto da tela
+      // não espera por ele, e sem ele o cartão segue igual.
+      const estrangeiras = carteira.totais.filter((t) => t.moeda !== 'BRL')
+      try {
+        const conv = await converterParaReais(estrangeiras.map((t) => ({ moeda: t.moeda, valor: t.valorAtual })), hoje)
+        setEmReais(new Map(conv.filter((x) => x.reais !== null).map((x) => [x.moeda, x])))
+      } catch (e) {
+        if (codigoDoErro(e) !== 'PGRST202') void registrarFalhaConsulta('fx_to_brl', e)
+        setEmReais(new Map())
+      }
     } catch (e) {
       setErro(mensagemErroBanco(e))
     } finally {
@@ -339,6 +353,13 @@ export default function Investimentos() {
                 <Card key={t.moeda}>
                   <p className="text-sm font-medium text-slate-500">Valor de mercado em {t.moeda}</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums">{moeda(ap ? ap.valorAtual : t.valorAtual, t.moeda)}</p>
+                  {emReais.get(t.moeda)?.valor === t.valorAtual && emReais.get(t.moeda)!.reais !== null && (
+                    // só quando a conversão é do mesmo valor que está na tela (lidos juntos); fora do total em reais
+                    <p className="text-sm text-slate-600">
+                      ≈ <span className="tabular-nums font-semibold">{moeda(emReais.get(t.moeda)!.reais!, 'BRL')}</span>
+                      <span className="block text-xs text-slate-500">{textoCotacao(emReais.get(t.moeda)!, simboloMoeda(t.moeda))}</span>
+                    </p>
+                  )}
                   <dl className="mt-3 grid max-w-md grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">
                     <dt className="text-slate-500">Aportado</dt>
                     <dd className="m-0 text-right font-bold tabular-nums">{moeda(ap ? ap.liquido : t.custoTotal, t.moeda)}</dd>

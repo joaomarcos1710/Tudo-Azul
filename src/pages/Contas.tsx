@@ -22,6 +22,9 @@ import type { Cents } from '../lib/format'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { MoverParaCarteira, podeMoverParaCarteira } from '../components/MoverParaCarteira'
 import { corDoValor } from '../lib/cores'
+import { converterParaReais, textoCotacao } from '../lib/cambio'
+import type { EmReais } from '../lib/cambio'
+import { codigoDoErro, registrarFalhaConsulta } from '../lib/consultaOpcional'
 
 /** Saldo na moeda da conta (BRL continua com formatBRL). */
 function textoSaldo(c: Conta): string {
@@ -82,6 +85,8 @@ export default function Contas() {
   const [total, setTotal] = useState<Cents | null>(null)
   const [porTipo, setPorTipo] = useState<TotalPorTipo[]>([])
   const [porMoeda, setPorMoeda] = useState<TotalPorMoeda[]>([])
+  // saldo das contas em outra moeda convertido para reais (PTAX, migration 108); só para mostrar, fora de todo total
+  const [emReais, setEmReais] = useState<Map<string, EmReais>>(new Map())
   const [erro, setErro] = useState('')
   // null = formulário fechado; 'nova' = criando; Conta = editando
   const [editando, setEditando] = useState<Conta | 'nova' | null>(null)
@@ -112,6 +117,15 @@ export default function Contas() {
       setPorTipo(r.porTipo ?? [])
       setPorMoeda(r.porMoeda ?? [])
       setErro(falhaEtiquetas)
+      // "≈ R$" ao lado do saldo em dólar e euro, convertido no banco. Opcional: sem ele a lista segue igual.
+      const estrangeiras = r.contas.filter((c) => c.ativa && !ehReais(c) && c.saldo !== null)
+      try {
+        const conv = await converterParaReais(estrangeiras.map((c) => ({ moeda: c.moeda ?? 'BRL', valor: c.saldo as Cents })), hojeSP())
+        setEmReais(new Map(conv.flatMap((x, i) => (x.reais === null ? [] : [[estrangeiras[i].id, x] as [string, EmReais]]))))
+      } catch (e) {
+        if (codigoDoErro(e) !== 'PGRST202') void registrarFalhaConsulta('fx_to_brl', e)
+        setEmReais(new Map())
+      }
     } catch (err) {
       setErro(mensagemErroBanco(err))
     }
@@ -272,6 +286,13 @@ export default function Contas() {
                         <span className={`tabular-nums text-lg font-semibold ${c.saldo === null ? '' : corDoValor(c.saldo)}`}>
                           {textoSaldo(c)}
                         </span>
+                        {emReais.get(c.id)?.valor === c.saldo && c.saldo !== 0 && (
+                          // fica fora do total em reais: é só para ter ideia do valor (PTAX de compra, com a data)
+                          <span className="text-xs text-slate-500" title={textoCotacao(emReais.get(c.id)!, simboloMoeda(c.moeda ?? 'BRL'))}>
+                            ≈ <span className="tabular-nums font-semibold text-slate-700">{formatBRL(emReais.get(c.id)!.reais!)}</span>
+                            <span className="block">{textoCotacao(emReais.get(c.id)!, simboloMoeda(c.moeda ?? 'BRL'))}</span>
+                          </span>
+                        )}
                         {/* as três ações quebram juntas: o "Excluir" nunca cai sozinho numa linha (auditoria 5h) */}
                         <div className="flex items-center gap-1" data-acoes-conta>
                           <Button variante="fantasma" compacto onClick={() => setEditando(c)}>Editar</Button>

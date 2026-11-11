@@ -18,6 +18,7 @@ const mock = vi.hoisted(() => ({
   listarProventosPorAtivo: vi.fn(),
   listarInstituicoesInvestimentos: vi.fn(),
   listarAportesInvestimentos: vi.fn(),
+  converterParaReais: vi.fn(),
   listarTotalProventos: vi.fn(),
   definirInstituicaoAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock('../lib/investimentos', async (o) => ({
   listarExtratoAtivo: mock.listarExtratoAtivo,
   anularOperacaoInvestimento: mock.anularOperacaoInvestimento,
 }))
+vi.mock('../lib/cambio', async (o) => ({ ...(await o<typeof import('../lib/cambio')>()), converterParaReais: mock.converterParaReais }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 
 import Investimentos from './Investimentos'
@@ -120,6 +122,7 @@ beforeEach(() => {
   // padrão dos testes: banco sem a migration 107 (cartões e tabela no custo do que está investido);
   // o bloco "aportes e resgates" liga a função
   mock.listarAportesInvestimentos.mockRejectedValue(new Error('PGRST202'))
+  mock.converterParaReais.mockResolvedValue([])
   mock.listarTotalProventos.mockResolvedValue([])
   mock.definirInstituicaoAtivo.mockResolvedValue(undefined)
   mock.anularOperacaoInvestimento.mockResolvedValue(undefined)
@@ -684,6 +687,39 @@ describe('Investimentos × macroclasse e subclasse', () => {
           })
         }
         const cartaoUsd = async () => (await screen.findByText('Valor de mercado em USD')).closest('div') as HTMLElement
+
+        it('"≈ R$" pela PTAX (migration 108): o valor de mercado do dólar em reais, convertido pelo banco, com cotação e data', async () => {
+          comDolar()
+          mock.converterParaReais.mockResolvedValue([{ moeda: 'USD', valor: c(300), reais: c(1643), taxa: '5.47720', dataTaxa: '2026-11-10' }])
+          render(<Investimentos />)
+          const c1 = await cartaoUsd()
+          await waitFor(() => expect(c1.textContent).toMatch(/≈ R\$\s16,43/))
+          expect(c1.textContent).toMatch(/PTAX de 10\/11\/2026: US\$ 1 = R\$ 5,4772/)
+          expect(mock.converterParaReais).toHaveBeenCalledWith([{ moeda: 'USD', valor: 300 }], expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
+          // o total em reais (cartões de cima) não soma o dólar convertido
+          expect((await resumo()).textContent).not.toMatch(/16,43/)
+        })
+
+        it('com "ocultar valores": o valor convertido sai mascarado', async () => {
+          comDolar()
+          mock.converterParaReais.mockResolvedValue([{ moeda: 'USD', valor: c(300), reais: c(1643), taxa: '5.47720', dataTaxa: '2026-11-10' }])
+          definirValoresOcultos(true)
+          try {
+            render(<Investimentos />)
+            const c1 = await cartaoUsd()
+            await waitFor(() => expect(c1.textContent).toMatch(/≈/))
+            expect(c1.textContent).not.toMatch(/16,43/)
+          } finally { definirValoresOcultos(false) }
+        })
+
+        it('conversão de outro valor (leitura velha) ou sem cotação: nenhum "≈"', async () => {
+          comDolar()
+          mock.converterParaReais.mockResolvedValue([{ moeda: 'USD', valor: c(999), reais: c(5000), taxa: '5.0', dataTaxa: '2026-11-10' }])
+          render(<Investimentos />)
+          const c1 = await cartaoUsd()
+          await waitFor(() => expect(mock.converterParaReais).toHaveBeenCalled())
+          expect(c1.textContent).not.toMatch(/≈/)
+        })
 
         it('sem a migration 107: custo do que está investido, com o aviso', async () => {
           comDolar()
