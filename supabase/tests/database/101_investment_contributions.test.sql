@@ -398,6 +398,8 @@ select is((select v from foto where k = 'brl'),
           'T1 o retorno inteiro: ativos em ordem de nome e a linha total no fim (4.911,80 − 3.008,89 = 1.902,91; 3.565,15; 1.662,24)');
 select is((select market_value from public.investment_totals(pg_temp.fx('h'), pg_temp.hoje()) where currency_code = 'BRL'), 3565.15,
           'T1.1 o valor da linha total é o de investment_totals (3.565,15)');
+select is((select investments_brl from public.net_worth_with_assets(pg_temp.fx('h'), pg_temp.hoje())), 3565.15,
+          'T1.2 e é o mesmo que entra no patrimônio (net_worth_with_assets.investments_brl)');
 -- os ativos operados com conta: cofrinho, imobiliário, tesouro, anulações e ganhador
 select is(pg_temp.saldo('cc'),
           50000.00 - (select sum(c.contributed) - sum(c.redeemed) from public.investment_contributions(pg_temp.fx('h'), pg_temp.hoje()) c
@@ -470,6 +472,17 @@ select matches(pg_temp.tudo(pg_temp.fx('h'), pg_temp.hoje()),
                '^(asset\|[a-z]+\|BRL\|[^;]+;){10}total\|-\|BRL\|[^;]+;asset\|etf\|USD\|200\.50\|110\.00\|90\.50\|100\.25\|9\.75;'
                || 'asset\|plano\|USD\|50\.05\|0\.00\|50\.05\|50\.05\|0\.00;total\|-\|USD\|250\.55\|110\.00\|140\.55\|150\.30\|9\.75$',
                'I5 ordem: os 10 ativos em reais, o total em reais, os 2 em dólar, o total em dólar');
+-- a mesma conta de pg_temp.confere, escrita por extenso uma vez: soma dos ativos de cada moeda = linha total = investment_totals
+select results_eq(
+  $$select currency_code, sum(contributed), sum(redeemed), sum(net_contributed), sum(market_value), sum(total_result)
+      from public.investment_contributions(pg_temp.fx('h'), pg_temp.hoje()) where level = 'asset' group by 1 order by 1$$,
+  $$select currency_code, contributed, redeemed, net_contributed, market_value, total_result
+      from public.investment_contributions(pg_temp.fx('h'), pg_temp.hoje()) where level = 'total' order by 1$$,
+  'I5.1 em cada moeda, a soma das linhas de ativo = a linha total, nas cinco colunas');
+select results_eq(
+  $$select currency_code, market_value from public.investment_contributions(pg_temp.fx('h'), pg_temp.hoje()) where level = 'total' order by 1$$,
+  $$select currency_code, market_value from public.investment_totals(pg_temp.fx('h'), pg_temp.hoje()) order by 1$$,
+  'I5.2 e o valor da linha total = investment_totals.market_value');
 select is(pg_temp.confere(pg_temp.fx('h'), pg_temp.hoje()), 'ok 12+2', 'I6 identidades conferidas (12 ativos + 2 totais)');
 select is(pg_temp.confere(pg_temp.fx('h'), pg_temp.dia(235)), 'ok 10+2',
           'I6.1 e há 235 dias (fora anulações, ganhador e o arquivado; o zerado ainda aberto; 8 em reais + 2 em dólar)');
@@ -555,7 +568,7 @@ begin
     end if;
 
     if v_tipo = 'aporte por valor' then
-      v_valor := (pg_temp.sorteio(i, 1, 200000) + 1)::numeric / 100;
+      v_valor := round((pg_temp.sorteio(i, 1, 200000) + 1)::numeric / 100, 2);
       v_desc := format('de %s', v_valor);
     elsif v_tipo = 'resgate por valor' then
       v_valor := least(v_mv, greatest(0.01, round(v_mv * (5 + pg_temp.sorteio(i, 1, 60)) / 100, 2)));
@@ -564,15 +577,15 @@ begin
       v_valor := v_mv;
       v_desc := format('de %s', v_valor);
     elsif v_tipo = 'compra por unidades' then
-      v_q := (pg_temp.sorteio(i, 1, 5000000) + 1)::numeric / 1000000;
-      v_p := (pg_temp.sorteio(i, 2, 2000000) + 1)::numeric / 10000;
-      v_f := pg_temp.sorteio(i, 3, 500)::numeric / 100;
+      v_q := round((pg_temp.sorteio(i, 1, 5000000) + 1)::numeric / 1000000, 6);
+      v_p := round((pg_temp.sorteio(i, 2, 2000000) + 1)::numeric / 10000, 4);
+      v_f := round(pg_temp.sorteio(i, 3, 500)::numeric / 100, 2);
       v_valor := round(v_q * v_p + v_f, 2);
       v_desc := format('%s × %s + %s = %s', v_q, v_p, v_f, v_valor);
     elsif v_tipo = 'venda por unidades' then
       v_q := least(v_qtd, greatest(0.000001, round(v_qtd * (5 + pg_temp.sorteio(i, 1, 60)) / 100, 6)));
-      v_p := (pg_temp.sorteio(i, 2, 2000000) + 1)::numeric / 10000;
-      v_f := pg_temp.sorteio(i, 3, 300)::numeric / 100;
+      v_p := round((pg_temp.sorteio(i, 2, 2000000) + 1)::numeric / 10000, 4);
+      v_f := round(pg_temp.sorteio(i, 3, 300)::numeric / 100, 2);
       if round(v_q * v_p, 2) <= 0 then v_p := v_p + 10; end if;
       if round(v_q * v_p - v_f, 2) <= 0 then v_f := 0; end if;
       v_valor := round(v_q * v_p - v_f, 2);
