@@ -128,7 +128,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('Investimentos × macroclasse e subclasse', () => {
-  it('Minha carteira, aba Classe: rosca e lista com valores e % do banco, subclasses embaixo e "Sem subclasse"', async () => {
+  it('Minha carteira, aba Classe: um quadro por macroclasse e a barra por subclasse, com valores e % do banco, e "Sem subclasse"', async () => {
     render(<Investimentos />)
     const secao = (await screen.findByRole('heading', { name: 'Minha carteira' })).closest('section') as HTMLElement
     expect(within(secao).getByRole('tab', { name: 'Classe' }).getAttribute('aria-selected')).toBe('true')
@@ -140,6 +140,63 @@ describe('Investimentos × macroclasse e subclasse', () => {
     expect(secao.textContent).toMatch(/50,00 · 6,7%/)
     expect(within(secao).getByText('Tesouro Direto')).toBeTruthy()
     expect(within(secao).getByText('Sem subclasse')).toBeTruthy()
+    // a largura de cada trecho é o % do banco (nada somado aqui), com um mínimo para o trecho pequeno não sumir
+    const trechos = [...within(secao).getAllByRole('img')[0].querySelectorAll<HTMLElement>('[data-fatia]')]
+    // ordem e cor fixas por macroclasse (Renda fixa, Renda variável, Fundos e outros), mesmo com o banco em outra ordem
+    expect(trechos.map((t) => t.style.width)).toEqual(['80%', '13.3%', '6.7%'])
+    expect(new Set(trechos.map((t) => t.style.background)).size).toBe(3)
+    expect(trechos.every((t) => t.style.minWidth === '6px')).toBe(true)
+    expect(within(secao).getAllByRole('img')[0].getAttribute('aria-label')).toMatch(/Tesouro Direto \(Renda fixa\) 80%/)
+  })
+
+  describe('botões de cada ativo na tabela (pedido do dono, 10/11/2026, a partir de um desenho)', () => {
+    const seletorAtivo = (folha: HTMLElement) => (within(folha).getByLabelText('Ativo') as HTMLSelectElement).value
+
+    it('Aporte e Resgate abrem a folha de compra e venda já no ativo e na aba certa', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Aporte em Ação Y' }))
+      let folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(seletorAtivo(folha)).toBe('a2')
+      expect(within(folha).getByRole('radio', { name: 'Compra' }).getAttribute('aria-checked')).toBe('true')
+      await u.click(within(folha).getByRole('button', { name: 'Cancelar' }))
+
+      await u.click(screen.getByRole('button', { name: 'Resgate de Fundo W' }))
+      folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(seletorAtivo(folha)).toBe('a3')
+      expect(within(folha).getByRole('radio', { name: 'Venda' }).getAttribute('aria-checked')).toBe('true')
+      await u.click(within(folha).getByRole('button', { name: 'Cancelar' }))
+
+      // depois de fechar, o botão do topo abre como antes (sem ativo escolhido: o primeiro da lista)
+      await u.click(screen.getByRole('button', { name: 'Investir' }))
+      expect(seletorAtivo(screen.getByRole('dialog', { name: 'Registrar compra ou venda' }))).toBe('a1')
+    })
+
+    it('Atualizar valor abre a avaliação já no ativo', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Atualizar o valor de Fundo W' }))
+      expect(seletorAtivo(screen.getByRole('dialog', { name: 'Registrar avaliação' }))).toBe('a3')
+    })
+
+    it('+ Provento só em ação, FII, ETF e fundo (renda fixa e previdência não pagam), e abre já no ativo', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Provento de Ação Y' }))
+      expect(screen.getByRole('button', { name: 'Provento de Fundo W' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Provento de Tesouro Selic' })).toBeNull()
+      expect((screen.getByLabelText('Ativo') as HTMLSelectElement).value).toBe('a2')
+    })
+
+    it('todo ativo da tabela tem Aporte, Resgate e Atualizar valor', async () => {
+      render(<Investimentos />)
+      await screen.findByRole('button', { name: 'Aporte em Tesouro Selic' })
+      for (const nome of ['Tesouro Selic', 'Ação Y', 'Fundo W']) {
+        expect(screen.getByRole('button', { name: `Aporte em ${nome}` })).toBeTruthy()
+        expect(screen.getByRole('button', { name: `Resgate de ${nome}` })).toBeTruthy()
+        expect(screen.getByRole('button', { name: `Atualizar o valor de ${nome}` })).toBeTruthy()
+      }
+    })
   })
 
   it('filtra as posições por macroclasse e por subclasse', async () => {
@@ -152,25 +209,31 @@ describe('Investimentos × macroclasse e subclasse', () => {
     expect(linhas()).toHaveLength(3)
     expect(within(posicoes()).getByRole('rowheader', { name: /^Total/ })).toBeTruthy()
 
-    // os filtros moram na tela cheia (como em Lançamentos); cada toque vale na hora
-    await u.click(screen.getByRole('button', { name: 'Filtrar' }))
-    const tela = () => screen.getByRole('dialog', { name: 'Filtrar posições' })
-    await u.click(within(tela()).getByRole('button', { name: 'Renda variável' }))
+    // filtros em chips na própria tela (pedido do dono, 10/11/2026); cada toque vale na hora, com o número de posições
+    const classes = screen.getByRole('group', { name: 'Filtrar posições por classe' })
+    expect(within(classes).getAllByRole('button').map((b) => b.textContent)).toEqual(['Todos (3)', 'Renda fixa (1)', 'Renda variável (1)', 'Fundos e outros (1)'])
+    expect(screen.queryByRole('button', { name: 'Filtrar' })).toBeNull()
+    await u.click(within(classes).getByRole('button', { name: 'Renda variável (1)' }))
     expect(linhas()).toHaveLength(1)
     expect(within(posicoes()).getByText(/Ação Y/)).toBeTruthy()
     // com filtro a linha Total some: o total do banco é da carteira inteira, não das linhas à vista
     expect(within(posicoes()).queryByRole('rowheader', { name: /^Total/ })).toBeNull()
 
-    await u.click(within(tela()).getByRole('button', { name: 'Renda variável' })) // tocar de novo desliga
-    await u.click(within(tela()).getByRole('button', { name: 'Tesouro Direto' }))
+    await u.click(within(classes).getByRole('button', { name: 'Renda variável (1)' })) // tocar de novo desliga
+    expect(linhas()).toHaveLength(3)
+    const subclasses = screen.getByRole('group', { name: 'Filtrar posições por subclasse' })
+    expect(within(subclasses).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ações', 'Tesouro Direto'])
+    await u.click(within(subclasses).getByRole('button', { name: 'Tesouro Direto' }))
     expect(within(posicoes()).getByText(/Tesouro Selic/)).toBeTruthy()
     expect(within(posicoes()).queryByText(/Ação Y/)).toBeNull()
+    expect(within(classes).getByRole('button', { name: 'Todos (3)' }).getAttribute('aria-pressed')).toBe('false')
 
-    await u.click(within(tela()).getByRole('button', { name: 'Renda variável' })) // variável + Tesouro Direto = nada
-    await u.click(within(tela()).getByRole('button', { name: 'Filtrar: ver as posições' }))
-    expect(screen.queryByRole('dialog', { name: 'Filtrar posições' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Tirar o filtro Renda variável' })).toBeTruthy()
-    expect(within(posicoes()).getByText('Nenhuma posição com esse filtro.')).toBeTruthy()
+    // trocar de classe limpa a subclasse (senão "variável + Tesouro Direto" daria uma lista vazia sem explicação)
+    await u.click(within(classes).getByRole('button', { name: 'Renda variável (1)' }))
+    expect(within(posicoes()).getByText(/Ação Y/)).toBeTruthy()
+    expect(screen.queryByRole('group', { name: 'Filtrar posições por subclasse' })).toBeNull() // só uma subclasse na classe: nada a escolher
+    await u.click(within(classes).getByRole('button', { name: 'Todos (3)' }))
+    expect(linhas()).toHaveLength(3)
   })
 
   it('cadastrar ativo com subclasse: cria e depois grava a subclasse', async () => {
@@ -485,7 +548,8 @@ describe('Investimentos × macroclasse e subclasse', () => {
         const lista = await resumo()
         expect(lista.textContent).not.toMatch(/\d|\+/)
         const tabela = await screen.findByRole('table', { name: /Posições em BRL/ })
-        expect(tabela.textContent).not.toMatch(/sobre o aportado|\+|73|7,3/)
+        // "+ Aporte" e "+ Provento" são botões; o que não pode aparecer é sinal ou número de rendimento
+        expect(tabela.textContent).not.toMatch(/sobre o aportado|\+R\$|\+•|73|7,3/)
         // a cor também não entrega se foi ganho ou perda
         expect(lista.innerHTML + tabela.innerHTML).not.toMatch(/text-lucro|text-prejuizo/)
       } finally { definirValoresOcultos(false) }
@@ -605,9 +669,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
         const linhaAcao = () => within(screen.getByRole('table', { name: /Posições em BRL/ })).getByRole('rowheader', { name: /Ação Y/ }).closest('tr') as HTMLElement
         await screen.findByText('Quanto você pôs (menos o que tirou), quanto vale hoje e tudo o que rendeu.')
         const antes = within(linhaAcao()).getAllByRole('cell').map((td) => td.textContent)
-        await u.click(screen.getByRole('button', { name: 'Filtrar' }))
-        await u.click(within(screen.getByRole('dialog', { name: 'Filtrar posições' })).getByRole('button', { name: 'Renda variável' }))
-        await u.click(screen.getByRole('button', { name: 'Filtrar: ver as posições' }))
+        await u.click(within(screen.getByRole('group', { name: 'Filtrar posições por classe' })).getByRole('button', { name: /^Renda variável/ }))
         expect(within(linhaAcao()).getAllByRole('cell').map((td) => td.textContent)).toEqual(antes)
         expect(within(linhaAcao()).getAllByRole('cell')[0].textContent).toMatch(/^R\$\s200,00$/)
         expect(within(screen.getByRole('table', { name: /Posições em BRL/ })).queryByRole('rowheader', { name: /^Total/ })).toBeNull()

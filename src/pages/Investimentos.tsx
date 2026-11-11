@@ -12,7 +12,7 @@ import { ResumoCarteira } from '../components/investimentos/ResumoCarteira'
 import { CONTROLE_FOLHA, FormOperacao, GRANDE_FOLHA, LINHA_FOLHA, TITULO_FOLHA, gravarOperacao } from '../components/investimentos/FormOperacao'
 import type { DadosOperacao } from '../components/investimentos/FormOperacao'
 import { Selecao } from '../components/ui/Selecao'
-import { Chip, Chips, GrupoFiltro, TelaFiltros } from '../components/ui/TelaFiltros'
+import { Chip } from '../components/ui/TelaFiltros'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { useFamilia } from '../lib/FamiliaContext'
 import { codigoDoErro, registrarFalhaConsulta } from '../lib/consultaOpcional'
@@ -77,7 +77,6 @@ export default function Investimentos() {
   const [totalProventosMes, setTotalProventosMes] = useState<TotalProventos[] | null>(null)
   const [filtroMacro, setFiltroMacro] = useState('')
   const [filtroSub, setFiltroSub] = useState('')
-  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   const [editandoSub, setEditandoSub] = useState<string | null>(null)
   const [editandoAtivo, setEditandoAtivo] = useState<AtivoInvestimento | null>(null)
   const [extratoDe, setExtratoDe] = useState<string | null>(null)
@@ -92,6 +91,16 @@ export default function Investimentos() {
   // false = fechado; 'buy'/'sell' = aberto já na aba (Investir, Resgatar); true = aberto em Compra
   const [novaOperacao, setNovaOperacao] = useState<boolean | TipoOperacaoInvestimento>(false)
   const [novaAvaliacao, setNovaAvaliacao] = useState(false)
+  // ativo escolhido por um botão da linha da tabela (Aporte, Resgate, Atualizar valor, + Provento). Volta a vazio quando
+  // nenhuma folha está aberta: os botões do topo (Investir, Resgatar…) abrem sem ativo escolhido, como antes.
+  const [ativoDaLinha, setAtivoDaLinha] = useState<string | undefined>(undefined)
+  useEffect(() => { if (!novaOperacao && !novoProvento && !novaAvaliacao) setAtivoDaLinha(undefined) }, [novaOperacao, novoProvento, novaAvaliacao])
+  const acoesDaLinha = {
+    aportar: (id: string) => { setAtivoDaLinha(id); setNovaOperacao('buy') },
+    resgatar: (id: string) => { setAtivoDaLinha(id); setNovaOperacao('sell') },
+    atualizar: (id: string) => { setAtivoDaLinha(id); setNovaAvaliacao(true) },
+    provento: (id: string) => { setAtivoDaLinha(id); setNovoProvento(true) },
+  }
 
   const carregar = useCallback(async () => {
     if (!familia?.id) return
@@ -253,7 +262,9 @@ export default function Investimentos() {
   const ativosEmReais = ativosAtivos.filter((a) => a.moeda === 'BRL')
   const contasAtivas = contas.filter((c) => c.ativa && aceitaLancamento(c, 'cartao_divida_provento'))
   const porId = new Map(ativos.map((a) => [a.id, a]))
-  const subclassesExistentes = [...new Set(ativos.map((a) => a.subclasse).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  // subclasses das posições à vista (da classe escolhida, ou de todas), para os chips de subclasse
+  const subclassesDaLista = [...new Set(posicoes.filter((p) => !filtroMacro || macroDaClasse(p.classe) === filtroMacro)
+    .map((p) => porId.get(p.assetId)?.subclasse).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const instituicoesExistentes = [...new Set(ativos.map((a) => a.instituicao).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const proventoDoMesPorAtivo = new Map(proventosMes.map((x) => [x.assetId, x.recebido]))
   const proventosBRL = totalProventosMes === null ? null : totalProventosMes.find((t) => t.moeda === 'BRL') ?? null
@@ -285,13 +296,13 @@ export default function Investimentos() {
 
       {novoAtivo && <FormAtivo instituicoes={bancoTemInstituicao ? instituicoesExistentes : null} aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
-        <FormOperacao ativos={ativosAtivos} contas={contasAtivas} tipoInicial={novaOperacao === 'sell' ? 'sell' : 'buy'} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
+        <FormOperacao ativos={ativosAtivos} contas={contasAtivas} tipoInicial={novaOperacao === 'sell' ? 'sell' : 'buy'} ativoInicial={ativoDaLinha} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
       )}
       {novoProvento && (
-        <FormProvento ativos={ativosEmReais} contas={contasAtivas} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} />
+        <FormProvento ativos={ativosEmReais} contas={contasAtivas} ativoInicial={ativoDaLinha} aoSalvar={salvarProvento} aoCancelar={() => setNovoProvento(false)} />
       )}
       {novaAvaliacao && (
-        <FormAvaliacao ativos={ativosAtivos} quantidades={new Map(posicoes.map((p) => [p.assetId, p.quantidade]))} aoSalvar={salvarAvaliacao} aoCancelar={() => setNovaAvaliacao(false)} />
+        <FormAvaliacao ativos={ativosAtivos} quantidades={new Map(posicoes.map((p) => [p.assetId, p.quantidade]))} ativoInicial={ativoDaLinha} aoSalvar={salvarAvaliacao} aoCancelar={() => setNovaAvaliacao(false)} />
       )}
 
       <section className="mt-6" aria-labelledby="titulo-totais-investimentos">
@@ -376,56 +387,34 @@ export default function Investimentos() {
           {aportesNaTela ? 'Quanto você pôs (menos o que tirou), quanto vale hoje e tudo o que rendeu.' : 'Do que está investido hoje: quanto custou, quanto vale e o rendimento.'}
         </p>
         {posicoes.length > 0 && (
-          // filtros na tela cheia compartilhada (pedido do dono, 10/11/2026, como em Lançamentos); aqui só o botão e os selos.
-          // Filtra só a lista na tela: nenhum valor muda e nada é pedido ao banco, então cada toque vale na hora.
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setFiltrosAbertos(true)} aria-haspopup="dialog" aria-expanded={filtrosAbertos}
-              className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro">
-              Filtrar{(filtroMacro || filtroSub) && <span className="ml-1.5 rounded-full bg-azul px-1.5 text-xs text-white">{[filtroMacro, filtroSub].filter(Boolean).length}</span>}
-            </button>
-            {filtroMacro && (
-              <button type="button" onClick={() => setFiltroMacro('')} aria-label={`Tirar o filtro ${MACROS.find((m) => m.chave === filtroMacro)?.rotulo}`}
-                className="inline-flex min-h-9 items-center gap-1 rounded-full bg-azul-claro px-3 text-xs font-semibold text-marinho">
-                {MACROS.find((m) => m.chave === filtroMacro)?.rotulo}<span aria-hidden="true">×</span>
-              </button>
-            )}
-            {filtroSub && (
-              <button type="button" onClick={() => setFiltroSub('')} aria-label={`Tirar o filtro ${filtroSub}`}
-                className="inline-flex min-h-9 items-center gap-1 rounded-full bg-azul-claro px-3 text-xs font-semibold text-marinho">
-                {filtroSub}<span aria-hidden="true">×</span>
-              </button>
+          // filtros em chips na própria tela (pedido do dono, 10/11/2026, a partir de um desenho dele; antes ficavam atrás
+          // do botão Filtrar). Filtram só a lista: nenhum valor muda e nada é pedido ao banco. O número é de posições.
+          <div className="mb-3 flex flex-col gap-2">
+            <div role="group" aria-label="Filtrar posições por classe" className="-mx-4 flex [&>button]:shrink-0 [&>button]:whitespace-nowrap gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+              <Chip pressionado={!filtroMacro && !filtroSub} onClick={() => { setFiltroMacro(''); setFiltroSub('') }}>Todos ({posicoes.length})</Chip>
+              {MACROS.filter((m) => posicoes.some((p) => macroDaClasse(p.classe) === m.chave)).map((m) => (
+                <Chip key={m.chave} pressionado={filtroMacro === m.chave}
+                  onClick={() => { setFiltroMacro(filtroMacro === m.chave ? '' : m.chave); setFiltroSub('') }}>
+                  {m.rotulo} ({posicoes.filter((p) => macroDaClasse(p.classe) === m.chave).length})
+                </Chip>
+              ))}
+            </div>
+            {subclassesDaLista.length > 1 && (
+              <div role="group" aria-label="Filtrar posições por subclasse" className="-mx-4 flex [&>button]:shrink-0 [&>button]:whitespace-nowrap items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+                <span className="shrink-0 text-xs font-semibold uppercase tracking-wide text-slate-500">Subclasse</span>
+                {subclassesDaLista.map((x) => (
+                  <Chip key={x} pressionado={filtroSub === x} onClick={() => setFiltroSub(filtroSub === x ? '' : x)}>{x}</Chip>
+                ))}
+              </div>
             )}
           </div>
-        )}
-        {filtrosAbertos && (
-          <TelaFiltros titulo="Filtrar posições" aoFechar={() => setFiltrosAbertos(false)}
-            acaoPrincipal={{ rotulo: 'Filtrar', nomeAcessivel: 'Filtrar: ver as posições', aoAcionar: () => setFiltrosAbertos(false) }}
-            rodape={<button type="button" onClick={() => { setFiltroMacro(''); setFiltroSub('') }} disabled={!filtroMacro && !filtroSub}
-              className="min-h-11 text-sm font-semibold text-azul hover:underline disabled:text-slate-400 disabled:no-underline">Limpar filtros</button>}>
-            <GrupoFiltro titulo="Macroclasse">
-              <Chips>
-                {MACROS.map((m) => (
-                  <Chip key={m.chave} pressionado={filtroMacro === m.chave} onClick={() => setFiltroMacro(filtroMacro === m.chave ? '' : m.chave)}>{m.rotulo}</Chip>
-                ))}
-              </Chips>
-            </GrupoFiltro>
-            {subclassesExistentes.length > 0 && (
-              <GrupoFiltro titulo="Subclasse">
-                <Chips>
-                  {subclassesExistentes.map((x) => (
-                    <Chip key={x} pressionado={filtroSub === x} onClick={() => setFiltroSub(filtroSub === x ? '' : x)}>{x}</Chip>
-                  ))}
-                </Chips>
-              </GrupoFiltro>
-            )}
-          </TelaFiltros>
         )}
         {posicoes.length > 0 && posicoesFiltradas.length === 0 && (
           <p className="text-sm text-slate-600">Nenhuma posição com esse filtro.</p>
         )}
         {posicoesFiltradas.length > 0 ? (
           <TabelaPosicoes posicoes={posicoesFiltradas} ativos={ativos} totais={totais} aportes={aportesNaTela} proventosDoMes={proventoDoMesPorAtivo}
-            filtrada={!!filtroMacro || !!filtroSub} formatar={moeda} formatarPreco={preco} formatarQuantidade={quantidade} />
+            filtrada={!!filtroMacro || !!filtroSub} acoes={acoesDaLinha} formatar={moeda} formatarPreco={preco} formatarQuantidade={quantidade} />
         ) : !carregando && ativos.length > 0 && posicoes.length === 0 ? (
           <EmptyState titulo="Ativos cadastrados, sem posição" descricao="Registre uma compra para que a posição apareça aqui." acao={<Button onClick={() => setNovaOperacao(true)}>Registrar compra</Button>} />
         ) : null}
@@ -554,13 +543,15 @@ function SecaoProventos({ linhas }: { linhas: ProventoAtivo[] }) {
   )
 }
 
-function FormProvento({ ativos, contas, aoSalvar, aoCancelar }: {
+function FormProvento({ ativos, contas, ativoInicial, aoSalvar, aoCancelar }: {
   ativos: AtivoInvestimento[]
+  /** ativo já escolhido (botão "+ Provento" da linha do ativo) */
+  ativoInicial?: string
   contas: Conta[]
   aoSalvar: (d: { ativoId: string; tipo: TipoProvento; data: string; valor: Cents; contaId: string; status: 'paid' | 'planned'; observacao: string }) => Promise<void>
   aoCancelar: () => void
 }) {
-  const [ativoId, setAtivoId] = useState(ativos[0]?.id ?? '')
+  const [ativoId, setAtivoId] = useState(ativos.some((a) => a.id === ativoInicial) ? ativoInicial! : ativos[0]?.id ?? '')
   const [tipo, setTipo] = useState<TipoProvento>('dividend')
   const [data, setData] = useState(hojeSP())
   const [valorTexto, setValorTexto] = useState('')
@@ -939,14 +930,16 @@ type DadosAvaliacao =
  * valor de hoje, e o banco divide pelo número de unidades (migration 104); os outros, o preço por unidade. O número vai
  * para o banco como digitado, sem conta aqui.
  */
-function FormAvaliacao({ ativos, quantidades, aoSalvar, aoCancelar }: {
+function FormAvaliacao({ ativos, quantidades, ativoInicial, aoSalvar, aoCancelar }: {
   ativos: AtivoInvestimento[]
+  /** ativo já escolhido (botão "Atualizar valor" da linha do ativo) */
+  ativoInicial?: string
   /** quantidade em carteira por ativo (texto do banco) */
   quantidades: Map<string, string>
   aoSalvar: (d: DadosAvaliacao) => Promise<void>
   aoCancelar: () => void
 }) {
-  const [ativoId, setAtivoId] = useState(ativos[0]?.id ?? '')
+  const [ativoId, setAtivoId] = useState(ativos.some((a) => a.id === ativoInicial) ? ativoInicial! : ativos[0]?.id ?? '')
   const [data, setData] = useState(hojeSP())
   const [precoTexto, setPrecoTexto] = useState('')
   const [fonte, setFonte] = useState('Informado manualmente')

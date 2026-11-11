@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { CLASSES_ATIVO } from '../../lib/investimentos'
 import type { AportesCarteira, AtivoInvestimento, MoedaInvestimento, PosicaoInvestimento, TotalInvestimento } from '../../lib/investimentos'
 import type { Cents } from '../../lib/format'
@@ -41,7 +42,18 @@ export function comSinal(texto: string, valor: Cents): string {
  * No celular ficam duas colunas, para caber sem rolagem lateral nem número cortado: "Aportado" vira uma linha embaixo do
  * nome e o rendimento vai embaixo do valor atual.
  */
-export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoMes, filtrada, formatar, formatarPreco, formatarQuantidade }: {
+const CLASSES_COM_PROVENTO: string[] = ['equity', 'reit', 'etf', 'fund']
+
+/** Ações de cada linha (pedido do dono, 10/11/2026, a partir de um desenho): abrem as folhas de sempre, já no ativo. */
+export interface AcoesDaLinha {
+  aportar: (ativoId: string) => void
+  resgatar: (ativoId: string) => void
+  atualizar: (ativoId: string) => void
+  /** provento só existe em reais (a receita cai numa conta em reais) */
+  provento: (ativoId: string) => void
+}
+
+export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoMes, filtrada, acoes, formatar, formatarPreco, formatarQuantidade }: {
   posicoes: PosicaoInvestimento[]
   ativos: AtivoInvestimento[]
   totais: TotalInvestimento[]
@@ -54,6 +66,8 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
   proventosDoMes: Map<string, Cents>
   /** true = há filtro ligado: a linha Total não aparece */
   filtrada: boolean
+  /** sem ações, a tabela é só leitura */
+  acoes?: AcoesDaLinha
   formatar: (c: Cents, moeda: MoedaInvestimento) => string
   formatarPreco: (v: string, moeda: MoedaInvestimento) => string
   formatarQuantidade: (v: string) => string
@@ -91,8 +105,8 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                   <th scope="col" className="hidden px-2 py-2 pr-3 text-right font-semibold sm:table-cell">Rendimento</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {linhas.map((p) => {
+              <tbody>
+                {linhas.map((p, i) => {
                   const a = porId.get(p.assetId)
                   const classe = CLASSES_ATIVO.find(([v]) => v === p.classe)?.[1] ?? p.classe
                   const provento = proventosDoMes.get(p.assetId)
@@ -111,7 +125,8 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                     </>
                   )
                   return (
-                    <tr key={p.assetId}>
+                    <Fragment key={p.assetId}>
+                    <tr className={i > 0 ? 'border-t border-slate-100' : ''}>
                       <th scope="row" className="px-3 py-3 text-left align-top font-normal">
                         <p className="break-words font-semibold text-marinho">{p.nome}{p.ticker ? ` · ${p.ticker}` : ''}</p>
                         <p className="text-xs text-slate-500">{[...new Set([classe, a?.subclasse, a?.instituicao].filter(Boolean))].join(' · ')}</p>
@@ -130,6 +145,25 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                       </td>
                       <td className={`hidden sm:table-cell ${numero} pr-3`}>{rendimento}</td>
                     </tr>
+                    {acoes && (
+                      // linha própria: dentro da coluna do nome, no celular, os botões empilhavam. Ocupa 2 colunas: no celular
+                      // são as 2 visíveis (a tabela inteira); no computador, nome e aportado. Com 4, o celular ganhava duas
+                      // colunas fantasmas e a do nome espremia.
+                      <tr>
+                        <td colSpan={2} className="px-3 pb-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            <BotaoLinha rotulo="+ Aporte" nome={`Aporte em ${p.nome}`} onClick={() => acoes.aportar(p.assetId)} />
+                            <BotaoLinha rotulo="Resgate" nome={`Resgate de ${p.nome}`} onClick={() => acoes.resgatar(p.assetId)} />
+                            <BotaoLinha rotulo="Atualizar valor" nome={`Atualizar o valor de ${p.nome}`} onClick={() => acoes.atualizar(p.assetId)} />
+                            {/* provento: só onde existe (ação, FII, ETF, fundo) e em reais (a receita cai numa conta em reais) */}
+                            {p.moeda === 'BRL' && CLASSES_COM_PROVENTO.includes(p.classe) && (
+                              <BotaoLinha rotulo="+ Provento" nome={`Provento de ${p.nome}`} onClick={() => acoes.provento(p.assetId)} />
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   )
                 })}
               </tbody>
@@ -154,5 +188,14 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
         )
       })}
     </div>
+  )
+}
+
+function BotaoLinha({ rotulo, nome, onClick }: { rotulo: string; nome: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={nome}
+      className="min-h-9 rounded-full border border-slate-200 bg-white px-3 text-xs font-semibold text-azul hover:border-azul hover:bg-azul-claro">
+      {rotulo}
+    </button>
   )
 }
