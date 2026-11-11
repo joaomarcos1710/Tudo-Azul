@@ -289,4 +289,4 @@ Arquivo `20261110160000_investment_contributions.sql`. Só leitura; nenhuma fun�
 - `market_value = net_contributed + total_result` no centavo, em toda linha; a soma do `market_value` de uma moeda é igual a `investment_totals`.
 - Só ativos com posição aberta em `p_as_of`: ativo zerado ou arquivado some junto com o ganho que realizou; se voltar a ter posição, volta com a história inteira.
 - SECURITY INVOKER, confere `private.is_member`, execução só para `authenticated`. `00_audit` lista a função.
-- Teste `101_investment_contributions` (falha sem a migration).
+- Teste `101_investment_contributions` (297 asserções; falha sem a migration; 11 versões estragadas da função foram todas pegas). Inclui um sorteio fixo de 48 operações e a conferência das identidades em 307 datas.
