@@ -286,7 +286,7 @@ export default function Contas() {
                         <span className={`tabular-nums text-lg font-semibold ${c.saldo === null ? '' : corDoValor(c.saldo)}`}>
                           {textoSaldo(c)}
                         </span>
-                        {emReais.get(c.id)?.valor === c.saldo && (
+                        {emReais.get(c.id)?.valor === c.saldo && c.saldo !== 0 && (
                           // fica fora do total em reais: é só para ter ideia do valor (PTAX de compra, com a data)
                           <span className="text-xs text-slate-500" title={textoCotacao(emReais.get(c.id)!, simboloMoeda(c.moeda ?? 'BRL'))}>
                             ≈ <span className="tabular-nums font-semibold text-slate-700">{formatBRL(emReais.get(c.id)!.reais!)}</span>

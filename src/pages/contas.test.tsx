@@ -4,6 +4,7 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../lib/format'
+import { definirValoresOcultos } from '../lib/privacidade'
 
 const mock = vi.hoisted(() => ({
   listarContas: vi.fn(),
@@ -468,6 +469,33 @@ describe('Contas em outras moedas (multimoeda F1, migration 055)', () => {
       // só a conta estrangeira e ativa vai para a conversão, pelo saldo que está na tela
       expect(mock.converterParaReais).toHaveBeenCalledWith([{ moeda: 'USD', valor: 25050 }], hojeSP())
       expect(screen.getAllByText('R$ 1.250,50').length).toBeGreaterThan(0) // total em reais sem o dólar
+    })
+
+    it('conversão de outro saldo (leitura velha), saldo zero ou "ocultar valores": nenhum valor convertido à mostra', async () => {
+      mock.listarContas.mockResolvedValue({ contas: [dolar], total: c(0), porMoeda: [{ moeda: 'USD', total: c(25050), totalAtivas: c(25050) }] })
+      mock.converterParaReais.mockResolvedValue([{ moeda: 'USD', valor: c(99999), reais: c(500000), taxa: '5.0', dataTaxa: '2026-11-10' }])
+      const { unmount } = render(<MemoryRouter><Contas /></MemoryRouter>)
+      await screen.findByText('Conta em dólar')
+      await vi.waitFor(() => expect(mock.converterParaReais).toHaveBeenCalled())
+      expect(screen.queryByText(/≈/)).toBeNull() // a conversão é de outro valor que o da tela
+      unmount()
+
+      mock.listarContas.mockResolvedValue({ contas: [{ ...dolar, saldo: c(0) }], total: c(0), porMoeda: [{ moeda: 'USD', total: c(0), totalAtivas: c(0) }] })
+      mock.converterParaReais.mockResolvedValue([{ moeda: 'USD', valor: c(0), reais: c(0), taxa: '5.0', dataTaxa: '2026-11-10' }])
+      const segunda = render(<MemoryRouter><Contas /></MemoryRouter>)
+      await screen.findByText('Conta em dólar')
+      await vi.waitFor(() => expect(mock.converterParaReais).toHaveBeenCalledTimes(2))
+      expect(screen.queryByText(/≈/)).toBeNull() // saldo zero: nada de "≈ R$ 0,00"
+      segunda.unmount()
+
+      definirValoresOcultos(true)
+      try {
+        mock.listarContas.mockResolvedValue({ contas: [dolar], total: c(0), porMoeda: [{ moeda: 'USD', total: c(25050), totalAtivas: c(25050) }] })
+        mock.converterParaReais.mockResolvedValue([{ moeda: 'USD', valor: c(25050), reais: c(137204), taxa: '5.47720', dataTaxa: '2026-11-10' }])
+        render(<MemoryRouter><Contas /></MemoryRouter>)
+        expect(await screen.findByText(/≈/)).toBeTruthy()
+        expect(document.body.textContent).not.toMatch(/1\.372,04|1372/) // o valor convertido sai mascarado
+      } finally { definirValoresOcultos(false) }
     })
 
     it('sem cotação (ou banco sem a função): nenhum "≈", a lista segue igual', async () => {

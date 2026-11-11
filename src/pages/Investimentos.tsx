@@ -130,15 +130,6 @@ export default function Investimentos() {
       setPosicoes(carteira.posicoes)
       setTotais(carteira.totais)
       setAportes(aportesLidos)
-      // "≈ R$" do valor de mercado de cada moeda estrangeira, convertido no banco. Opcional: sem ele o cartão segue igual.
-      const estrangeiras = carteira.totais.filter((t) => t.moeda !== 'BRL')
-      try {
-        const conv = await converterParaReais(estrangeiras.map((t) => ({ moeda: t.moeda, valor: t.valorAtual })), hoje)
-        setEmReais(new Map(conv.filter((x) => x.reais !== null).map((x) => [x.moeda, x])))
-      } catch (e) {
-        if (codigoDoErro(e) !== 'PGRST202') void registrarFalhaConsulta('fx_to_brl', e)
-        setEmReais(new Map())
-      }
       setHistorico(serie)
       setErro('')
       try { setAlocacao(await listarAlocacaoInvestimentos(familia.id, hojeSP())) } catch { setAlocacao([]) }
@@ -160,6 +151,16 @@ export default function Investimentos() {
         setContas(lidas.contas)
         setParadoCorretora(lidas.porTipo?.find((t) => t.tipo === 'brokerage')?.totalAtivas ?? null)
       } catch { setContas([]); setParadoCorretora(null) }
+      // "≈ R$" do valor de mercado de cada moeda estrangeira, convertido no banco. Por último e opcional: o resto da tela
+      // não espera por ele, e sem ele o cartão segue igual.
+      const estrangeiras = carteira.totais.filter((t) => t.moeda !== 'BRL')
+      try {
+        const conv = await converterParaReais(estrangeiras.map((t) => ({ moeda: t.moeda, valor: t.valorAtual })), hoje)
+        setEmReais(new Map(conv.filter((x) => x.reais !== null).map((x) => [x.moeda, x])))
+      } catch (e) {
+        if (codigoDoErro(e) !== 'PGRST202') void registrarFalhaConsulta('fx_to_brl', e)
+        setEmReais(new Map())
+      }
     } catch (e) {
       setErro(mensagemErroBanco(e))
     } finally {

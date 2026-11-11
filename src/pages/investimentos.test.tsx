@@ -700,6 +700,18 @@ describe('Investimentos × macroclasse e subclasse', () => {
           expect((await resumo()).textContent).not.toMatch(/16,43/)
         })
 
+        it('com "ocultar valores": o valor convertido sai mascarado', async () => {
+          comDolar()
+          mock.converterParaReais.mockResolvedValue([{ moeda: 'USD', valor: c(300), reais: c(1643), taxa: '5.47720', dataTaxa: '2026-11-10' }])
+          definirValoresOcultos(true)
+          try {
+            render(<Investimentos />)
+            const c1 = await cartaoUsd()
+            await waitFor(() => expect(c1.textContent).toMatch(/≈/))
+            expect(c1.textContent).not.toMatch(/16,43/)
+          } finally { definirValoresOcultos(false) }
+        })
+
         it('conversão de outro valor (leitura velha) ou sem cotação: nenhum "≈"', async () => {
           comDolar()
           mock.converterParaReais.mockResolvedValue([{ moeda: 'USD', valor: c(999), reais: c(5000), taxa: '5.0', dataTaxa: '2026-11-10' }])

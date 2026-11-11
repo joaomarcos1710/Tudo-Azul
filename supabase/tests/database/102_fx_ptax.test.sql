@@ -28,13 +28,13 @@ grant execute on all functions in schema pg_temp to public;
 
 -- ---- F: forma e permissões ----
 select has_function('private', 'fx_ptax_record', array['text', 'jsonb'], 'F1 existe private.fx_ptax_record(text, jsonb)');
-select has_function('private', 'fx_ptax_fetch', array['integer'], 'F2 existe private.fx_ptax_fetch(integer)');
+select has_function('private', 'fx_ptax_fetch', array['text', 'integer'], 'F2 existe private.fx_ptax_fetch(text, integer)');
 select has_function('public', 'fx_to_brl', array['text[]', 'numeric[]', 'date'], 'F3 existe public.fx_to_brl(text[], numeric[], date)');
 select is(pg_get_function_result('public.fx_to_brl(text[], numeric[], date)'::regprocedure),
           'TABLE(ord integer, currency text, amount numeric, amount_brl numeric, rate numeric, rate_date date)', 'F4 colunas de fx_to_brl');
 select ok(not (select prosecdef from pg_proc where oid = 'public.fx_to_brl(text[], numeric[], date)'::regprocedure)
           and not (select prosecdef from pg_proc where oid = 'private.fx_ptax_record(text, jsonb)'::regprocedure)
-          and not (select prosecdef from pg_proc where oid = 'private.fx_ptax_fetch(integer)'::regprocedure),
+          and not (select prosecdef from pg_proc where oid = 'private.fx_ptax_fetch(text, integer)'::regprocedure),
           'F5 as três são SECURITY INVOKER');
 select ok((select proconfig from pg_proc where oid = 'public.fx_to_brl(text[], numeric[], date)'::regprocedure) = array['search_path=""'],
           'F6 fx_to_brl com search_path vazio');
@@ -43,22 +43,43 @@ select ok(has_function_privilege('authenticated', 'public.fx_to_brl(text[], nume
           'F7 fx_to_brl: authenticated executa, anon não');
 select ok(not has_function_privilege('authenticated', 'private.fx_ptax_record(text, jsonb)', 'execute')
           and not has_function_privilege('anon', 'private.fx_ptax_record(text, jsonb)', 'execute')
-          and not has_function_privilege('authenticated', 'private.fx_ptax_fetch(integer)', 'execute')
-          and not has_function_privilege('anon', 'private.fx_ptax_fetch(integer)', 'execute'),
+          and not has_function_privilege('authenticated', 'private.fx_ptax_fetch(text, integer)', 'execute')
+          and not has_function_privilege('anon', 'private.fx_ptax_fetch(text, integer)', 'execute'),
           'F8 gravar e buscar a PTAX: ninguém do app executa (só o agendamento, como dono do banco)');
 -- cron.job só existe onde há pg_cron (no CI com o Supabase completo); no Postgres local a conferência é dinâmica
-create function pg_temp.agendado() returns boolean language plpgsql as $f$
+create function pg_temp.agendado(p_job text, p_comando text) returns boolean language plpgsql as $f$
 declare v boolean;
 begin
   if not exists (select 1 from pg_namespace where nspname = 'cron') then return true; end if;
-  execute $q$select exists (select 1 from cron.job where jobname = 'ptax-diaria' and schedule = '15 17,21 * * 1-5'
-                                                  and command = 'select private.fx_ptax_fetch(10)')$q$ into v;
+  execute $q$select exists (select 1 from cron.job where jobname = $1 and schedule = '15 17,21 * * 1-5' and command = $2)$q$
+    into v using p_job, p_comando;
   return v;
 end $f$;
-select ok(pg_temp.agendado(), 'F9 onde há pg_cron, o agendamento ptax-diaria existe (dias úteis, 17:15 e 21:15 UTC)');
-select ok(case when exists (select 1 from pg_available_extensions where name = 'http')
-               then exists (select 1 from pg_extension where extname = 'http') else true end,
-          'F10 onde a extensão http existe, ela está instalada');
+select ok(pg_temp.agendado('ptax-usd', $$select private.fx_ptax_fetch('USD', 10)$$)
+          and pg_temp.agendado('ptax-eur', $$select private.fx_ptax_fetch('EUR', 10)$$),
+          'F9 onde há pg_cron, um job por moeda (ptax-usd e ptax-eur), dias úteis, 17:15 e 21:15 UTC'
+          || case when exists (select 1 from pg_namespace where nspname = 'cron') then '' else ' [sem pg_cron neste banco: não conferido]' end);
+
+-- A extensão http (chamada web a partir do banco) fica num schema que o app não alcança. Onde ela existe (CI com o
+-- Supabase completo), confere de verdade; no Postgres local ela não existe e a descrição diz que não foi conferido.
+create function pg_temp.http_fechada() returns boolean language plpgsql as $f$
+declare v_schema text;
+begin
+  select n.nspname into v_schema from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'http';
+  if v_schema is null then return true; end if;
+  return v_schema = 'fx_http'
+     and not has_schema_privilege('anon', 'fx_http', 'usage')
+     and not has_schema_privilege('authenticated', 'fx_http', 'usage')
+     and not has_schema_privilege('service_role', 'fx_http', 'usage');
+end $f$;
+select ok(pg_temp.http_fechada(),
+          'F10 a extensão http, quando existe, está no schema fx_http e anon, authenticated e service_role não têm USAGE nele (o app não alcança http_get)'
+          || case when exists (select 1 from pg_extension where extname = 'http') then '' else ' [sem a extensão neste banco: não conferido]' end);
+select ok(case when exists (select 1 from pg_extension where extname = 'http')
+               then not has_function_privilege('anon', 'fx_http.http_get(character varying)', 'execute')
+                 or not has_schema_privilege('anon', 'fx_http', 'usage')
+               else true end,
+          'F11 anon não chega a http_get (sem USAGE no schema)');
 
 -- ---- R: gravar a resposta do BCB ----
 select is(private.fx_ptax_record('USD', pg_temp.resp(
@@ -93,6 +114,12 @@ select is(private.fx_ptax_record('USD', pg_temp.resp(
   pg_temp.bol(pg_temp.d(7), '13:20:00.000000', '5.31000', 'Fechamento'))), 1,
   'R6 dois fechamentos no mesmo dia: grava um');
 select is(pg_temp.taxa('USD', pg_temp.d(7)), 5.31000, 'R6.1 o mais recente');
+select is(private.fx_ptax_record('USD', jsonb_build_object('value', jsonb_build_array(
+  jsonb_build_object('cotacaoCompra', 5.1, 'dataHoraCotacao', '2026-02-30 13:05:00.000000', 'tipoBoletim', 'Fechamento'),
+  pg_temp.bol(pg_temp.d(8), '13:05:00.000000', '5.20000', 'Fechamento'),
+  to_jsonb('texto solto'::text), to_jsonb(7), 'null'::jsonb))), 1,
+  'R6.2 data que não existe (30/02) e itens que nem são boletim: ignorados, e o boletim bom do mesmo lote é gravado');
+select is(pg_temp.taxa('USD', pg_temp.d(8)), 5.20000, 'R6.3 o boletim bom foi gravado mesmo com lixo no lote');
 select is(private.fx_ptax_record('USD', null), 0, 'R7 resposta nula: nada');
 select is(private.fx_ptax_record('USD', '{"value": "x"}'::jsonb), 0, 'R7.1 value que não é lista: nada');
 select is(private.fx_ptax_record('USD', '{"erro": 1}'::jsonb), 0, 'R7.2 sem value: nada');
@@ -100,7 +127,18 @@ select is(private.fx_ptax_record('USD', pg_temp.resp(variadic array[]::jsonb[]))
 select is(pg_temp.erro_de($$select private.fx_ptax_record('GBP', '{"value": []}'::jsonb)$$), '22023', 'R8 moeda sem PTAX configurada: 22023');
 select is(pg_temp.erro_de($$select private.fx_ptax_record(null, '{"value": []}'::jsonb)$$), '22023', 'R8.1 moeda nula: 22023');
 select is(pg_temp.erro_de($$update public.fx_rates set rate = 1 where base = 'USD'$$), '42501', 'R9 cotação continua imutável');
-select is((select count(*) from public.fx_rates)::integer, 4, 'R10 ao todo: 3 dias de dólar e 1 de euro');
+select is((select count(*) from public.fx_rates)::integer, 5, 'R10 ao todo: 4 dias de dólar e 1 de euro');
+
+-- ---- B: a busca falha alto (nunca em silêncio) ----
+select is(pg_temp.erro_de($$select private.fx_ptax_fetch('GBP', 10)$$), '22023', 'B1 moeda sem PTAX: 22023');
+select is(pg_temp.erro_de($$select private.fx_ptax_fetch(null, 10)$$), '22023', 'B1.1 moeda nula: 22023');
+-- Sem a extensão (Postgres local) a busca tem de ESTOURAR (o cron mostra "failed"), não devolver 0 como se tudo estivesse bem.
+-- Com a extensão (CI) a função faria uma chamada de rede de verdade, que um teste não faz: a descrição diz que não foi conferido.
+select ok(case when exists (select 1 from pg_extension where extname = 'http') then true
+               else pg_temp.erro_de($$select private.fx_ptax_fetch('USD', 10)$$) is not null end,
+          'B2 sem a extensão http a busca levanta erro (o agendamento falha de forma visível)'
+          || case when exists (select 1 from pg_extension where extname = 'http') then ' [com a extensão neste banco: a chamada de rede não é testada aqui]' else '' end);
+select is((select count(*) from public.fx_rates)::integer, 5, 'B3 a busca que falhou não gravou nada');
 
 -- ---- C: conversão para reais ----
 insert into auth.users (id, email) values ('00000000-0000-0000-0000-000000010801', 'fx@teste.com');
@@ -131,7 +169,7 @@ select is(pg_temp.erro_de($$select * from public.fx_to_brl(array_fill('USD'::tex
           'C8.1 mais de 200 valores: 22023');
 select is((select amount_brl from public.fx_to_brl(array['USD'], array[-12.5]::numeric[], current_date)), -68.47,
           'C9 negativo também converte (saldo devedor): −12,50 × 5,4772 = −68,465 → −68,47');
-select is((select count(*) from public.fx_rates)::integer, 4, 'C10 converter não grava nada');
+select is((select count(*) from public.fx_rates)::integer, 5, 'C10 converter não grava nada');
 
 -- anon não converte
 reset role;
