@@ -17,6 +17,8 @@ export interface AtivoInvestimento {
   subclasse: string | null
   /** 'restricted' = não vira dinheiro rápido (previdência, FGTS). Banco sem a migration da liquidez: tudo 'liquid'. */
   liquidez: Liquidez
+  /** Onde o investimento está (corretora, banco, fundo de pensão); null = não informado (ou banco sem a migration 106). */
+  instituicao: string | null
   quantidadeOperacoes: number
   quantidadeAvaliacoes: number
   quantidadeProventos: number
@@ -150,8 +152,9 @@ export function normalizarDecimalInvestimento(valor: string, casas: number): str
 export async function listarAtivosInvestimento(familiaId: string): Promise<AtivoInvestimento[]> {
   // Preserva a subclasse da migration 034 e conta os registros históricos para proteger a exclusão.
   const ler = (colunas: string) => db().from('investment_assets').select(colunas).eq('household_id', familiaId).order('name')
-  let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity')
-  // banco ainda sem a coluna liquidity (ou sem a subclass, 034): lê o que existe
+  let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity,institution')
+  // banco ainda sem a coluna institution (106), sem a liquidity ou sem a subclass (034): lê o que existe
+  if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity'))
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass'))
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active'))
   if (error) throw error
@@ -176,6 +179,7 @@ export async function listarAtivosInvestimento(familiaId: string): Promise<Ativo
     moeda: r.currency_code as MoedaInvestimento, ativo: r.active as boolean,
     subclasse: (r.subclass as string | null | undefined) ?? null,
     liquidez: r.liquidity === 'restricted' ? 'restricted' : 'liquid',
+    instituicao: (r.institution as string | null | undefined) ?? null,
     quantidadeOperacoes: qtdOperacoes.get(r.id as string) ?? 0,
     quantidadeAvaliacoes: qtdAvaliacoes.get(r.id as string) ?? 0,
     quantidadeProventos: qtdProventos.get(r.id as string) ?? 0,
@@ -210,6 +214,38 @@ export async function listarLiquidezInvestimentos(familiaId: string, dataRef: st
     moeda: r.currency_code as MoedaInvestimento,
     liquidez: r.liquidity === 'restricted' ? 'restricted' : 'liquid',
     valor: centsFromDb(r.market_value as string | number),
+  }))
+}
+
+/** Valor de mercado da carteira por moeda e instituição (investment_institution_totals, migration 106). */
+export interface LinhaInstituicao { moeda: MoedaInvestimento; instituicao: string | null; valor: Cents }
+
+export async function listarInstituicoesInvestimentos(familiaId: string, dataRef: string): Promise<LinhaInstituicao[]> {
+  const { data, error } = await db().rpc('investment_institution_totals', { p_household: familiaId, p_as_of: dataRef })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    moeda: r.currency_code as MoedaInvestimento,
+    instituicao: (r.institution as string | null) ?? null,
+    valor: centsFromDb(r.market_value as string | number),
+  }))
+}
+
+/** Define a instituição do ativo (corretora, banco); texto vazio limpa. O banco aceita até 40 caracteres. */
+export async function definirInstituicaoAtivo(ativoId: string, instituicao: string): Promise<void> {
+  const { error } = await db().rpc('investment_asset_set_institution', { p_asset: ativoId, p_institution: instituicao.trim() || null })
+  if (error) throw error
+}
+
+/** Proventos recebidos e previstos por moeda no período (investment_income_totals, migration 106): o total vem do banco. */
+export interface TotalProventos { moeda: MoedaInvestimento; recebido: Cents; previsto: Cents }
+
+export async function listarTotalProventos(familiaId: string, de: string, ate: string): Promise<TotalProventos[]> {
+  const { data, error } = await db().rpc('investment_income_totals', { p_household: familiaId, p_from: de, p_to: ate })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    moeda: r.currency_code as MoedaInvestimento,
+    recebido: centsFromDb(r.received as string | number),
+    previsto: centsFromDb(r.planned as string | number),
   }))
 }
 

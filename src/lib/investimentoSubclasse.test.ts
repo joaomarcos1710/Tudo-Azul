@@ -56,11 +56,15 @@ describe('listarAtivosInvestimento e a migration 034', () => {
   })
 
   it('banco sem a coluna liquidity (antes da migration da liquidez): lê com a subclasse e o ativo fica líquido', async () => {
-    fake.estado.respostas = [{ data: null, error: { message: 'column investment_assets.liquidity does not exist' } }, { data: [{ ...linha, subclass: 'Tesouro Direto' }], error: null }]
+    // a primeira leitura pede também a instituição (migration 106); sem a liquidez, as duas primeiras falham
+    const semLiquidez = { data: null, error: { message: 'column investment_assets.liquidity does not exist' } }
+    fake.estado.respostas = [semLiquidez, semLiquidez, { data: [{ ...linha, subclass: 'Tesouro Direto' }], error: null }]
     const r = await listarAtivosInvestimento('h1')
-    expect(fake.estado.colunas[0]).toContain('liquidity')
-    expect(fake.estado.colunas[1]).toContain('subclass')
-    expect(fake.estado.colunas[1]).not.toContain('liquidity')
+    expect(fake.estado.colunas[0]).toContain('institution')
+    expect(fake.estado.colunas[1]).toContain('liquidity')
+    expect(fake.estado.colunas[1]).not.toContain('institution')
+    expect(fake.estado.colunas[2]).toContain('subclass')
+    expect(fake.estado.colunas[2]).not.toContain('liquidity')
     expect([r[0].subclasse, r[0].liquidez]).toEqual(['Tesouro Direto', 'liquid'])
   })
 
@@ -71,15 +75,15 @@ describe('listarAtivosInvestimento e a migration 034', () => {
 
   it('banco sem a coluna subclass: lê sem ela e a subclasse fica vazia (nunca inventada)', async () => {
     const semColuna = { data: null, error: { message: 'column investment_assets.subclass does not exist' } }
-    fake.estado.respostas = [semColuna, semColuna, { data: [linha], error: null }]
+    fake.estado.respostas = [semColuna, semColuna, semColuna, { data: [linha], error: null }]
     const r = await listarAtivosInvestimento('h1')
-    expect(fake.estado.colunas).toHaveLength(6)
-    expect(fake.estado.colunas[2]).not.toContain('subclass')
+    expect(fake.estado.colunas).toHaveLength(7)
+    expect(fake.estado.colunas[3]).not.toContain('subclass')
     expect(r[0].subclasse).toBeNull()
   })
 
   it('erro que não é da coluna continua sendo erro', async () => {
-    fake.estado.respostas = [{ data: null, error: { message: 'x' } }, { data: null, error: { message: 'y' } }, { data: null, error: { message: 'rede' } }]
+    fake.estado.respostas = [{ data: null, error: { message: 'w' } }, { data: null, error: { message: 'x' } }, { data: null, error: { message: 'y' } }, { data: null, error: { message: 'rede' } }]
     await expect(listarAtivosInvestimento('h1')).rejects.toMatchObject({ message: 'rede' })
   })
 })

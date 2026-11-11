@@ -16,6 +16,9 @@ const mock = vi.hoisted(() => ({
   registrarAvaliacaoTotal: vi.fn(),
   listarLiquidezInvestimentos: vi.fn(),
   listarProventosPorAtivo: vi.fn(),
+  listarInstituicoesInvestimentos: vi.fn(),
+  listarTotalProventos: vi.fn(),
+  definirInstituicaoAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
   listarContas: vi.fn(),
   editarAtivoInvestimento: vi.fn(),
@@ -43,6 +46,9 @@ vi.mock('../lib/investimentos', async (o) => ({
   registrarAvaliacaoTotal: mock.registrarAvaliacaoTotal,
   listarLiquidezInvestimentos: mock.listarLiquidezInvestimentos,
   listarProventosPorAtivo: mock.listarProventosPorAtivo,
+  listarInstituicoesInvestimentos: mock.listarInstituicoesInvestimentos,
+  listarTotalProventos: mock.listarTotalProventos,
+  definirInstituicaoAtivo: mock.definirInstituicaoAtivo,
   registrarProventoInvestimento: mock.registrarProventoInvestimento,
   editarAtivoInvestimento: mock.editarAtivoInvestimento,
   arquivarAtivoInvestimento: mock.arquivarAtivoInvestimento,
@@ -56,10 +62,11 @@ vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/conta
 
 import Investimentos from './Investimentos'
 import type { Cents } from '../lib/format'
+import { definirValoresOcultos } from '../lib/privacidade'
 
 const c = (n: number) => n as Cents
 const ativo = (id: string, nome: string, classe: string, extra: Record<string, unknown> = {}) =>
-  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null, liquidez: 'liquid',
+  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null, liquidez: 'liquid', instituicao: null,
     // contadores de histórico (#125): 0 = nunca teve movimento, então pode ser excluído
     quantidadeOperacoes: 0, quantidadeAvaliacoes: 0, quantidadeProventos: 0, ...extra })
 const posicao = (assetId: string, nome: string, classe: string, valor: number) => ({
@@ -106,6 +113,9 @@ beforeEach(() => {
   mock.registrarOperacaoInvestimento.mockResolvedValue(undefined)
   for (const f of [mock.registrarOperacaoPorValor, mock.registrarAvaliacaoInvestimento, mock.registrarAvaliacaoTotal]) f.mockResolvedValue(undefined)
   mock.listarLiquidezInvestimentos.mockResolvedValue([])
+  mock.listarInstituicoesInvestimentos.mockResolvedValue([])
+  mock.listarTotalProventos.mockResolvedValue([])
+  mock.definirInstituicaoAtivo.mockResolvedValue(undefined)
   mock.anularOperacaoInvestimento.mockResolvedValue(undefined)
   mock.listarExtratoAtivo.mockResolvedValue(extratoBase())
 })
@@ -130,15 +140,20 @@ describe('Investimentos × macroclasse e subclasse', () => {
     const u = userEvent.setup()
     render(<Investimentos />)
     await screen.findByText('Minha carteira')
-    const posicoes = () => (screen.getByRole('heading', { name: 'Ativos e posições' }).closest('section') as HTMLElement)
-    expect(within(posicoes()).getAllByRole('listitem')).toHaveLength(3)
+    const posicoes = () => (screen.getByRole('heading', { name: 'Posições' }).closest('section') as HTMLElement)
+    // cada investimento é uma linha da tabela, com o nome no cabeçalho da linha
+    const linhas = () => within(posicoes()).queryAllByRole('rowheader').filter((th) => th.textContent !== 'Total' && !th.textContent?.startsWith('Total'))
+    expect(linhas()).toHaveLength(3)
+    expect(within(posicoes()).getByRole('rowheader', { name: /^Total/ })).toBeTruthy()
 
     // os filtros moram na tela cheia (como em Lançamentos); cada toque vale na hora
     await u.click(screen.getByRole('button', { name: 'Filtrar' }))
     const tela = () => screen.getByRole('dialog', { name: 'Filtrar posições' })
     await u.click(within(tela()).getByRole('button', { name: 'Renda variável' }))
-    expect(within(posicoes()).getAllByRole('listitem')).toHaveLength(1)
+    expect(linhas()).toHaveLength(1)
     expect(within(posicoes()).getByText(/Ação Y/)).toBeTruthy()
+    // com filtro a linha Total some: o total do banco é da carteira inteira, não das linhas à vista
+    expect(within(posicoes()).queryByRole('rowheader', { name: /^Total/ })).toBeNull()
 
     await u.click(within(tela()).getByRole('button', { name: 'Renda variável' })) // tocar de novo desliga
     await u.click(within(tela()).getByRole('button', { name: 'Tesouro Direto' }))
@@ -209,7 +224,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       mock.listarLiquidezInvestimentos.mockRejectedValue(new Error('PGRST202'))
       const u = userEvent.setup()
       render(<Investimentos />)
-      await screen.findByText('Custo de aquisição')
+      await screen.findByRole('list', { name: 'Resumo da carteira em reais' })
       await u.click(screen.getByRole('tab', { name: 'Liquidez' }))
       expect(screen.getByText('Nada para mostrar ainda.')).toBeTruthy()
     })
@@ -355,22 +370,167 @@ describe('Investimentos × macroclasse e subclasse', () => {
     })
   })
 
-  it('totais: custo e resultado ficam numa grade só, valores na mesma borda direita', async () => {
-    render(<Investimentos />)
-    const rotuloCusto = await screen.findByText('Custo de aquisição')
-    // "Resultado não realizado" também é rótulo em cada posição: aqui só vale o do cartão de totais
-    const grade = rotuloCusto.parentElement!
-    const rotuloResultado = within(grade).getByText('Resultado não realizado')
-    // o card da carteira não usa a palavra "Patrimônio": ela é do Patrimônio total (decisão de 10/11/2026)
-    expect(screen.getByText('Investido (valor de mercado em BRL)')).toBeTruthy()
-    expect(screen.queryByText(/^Patrimônio em /)).toBeNull()
-    expect(rotuloCusto.tagName).toBe('DT')
-    expect(rotuloResultado.tagName).toBe('DT')
-    expect(rotuloCusto.parentElement).toBe(rotuloResultado.parentElement) // mesma grade
-    for (const dt of [rotuloCusto, rotuloResultado]) {
-      expect(dt.nextElementSibling?.tagName).toBe('DD')
-      expect(dt.nextElementSibling?.className).toMatch(/text-right/)
-    }
+  describe('resumo em cartões e tabela de posições (pedido do dono, 11/11/2026)', () => {
+    const resumo = async () => await screen.findByRole('list', { name: 'Resumo da carteira em reais' })
+    const cartao = (lista: HTMLElement, rotulo: string) => within(lista).getByText(rotulo).closest('li') as HTMLElement
+
+    it('cartões Carteira, Aportado e Rendimento com os números do banco; sem provento no mês, o cartão de proventos não aparece', async () => {
+      mock.listarCarteiraInvestimentos.mockResolvedValue({
+        posicoes: [posicao('a1', 'Tesouro Selic', 'fixed_income', 60000)],
+        totais: [{ moeda: 'BRL', custoTotal: c(100000), valorAtual: c(107300), resultado: c(7300) }],
+      })
+      // o banco devolve a moeda com zero quando só há provento anulado ou de outro status: continua escondido
+      mock.listarTotalProventos.mockResolvedValue([{ moeda: 'BRL', recebido: c(0), previsto: c(0) }])
+      render(<Investimentos />)
+      const lista = await resumo()
+      expect(within(lista).getAllByRole('listitem')).toHaveLength(3)
+      expect(cartao(lista, 'Carteira').textContent).toMatch(/R\$\s1\.073,00/)
+      expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s1\.000,00/)
+      expect(cartao(lista, 'Aportado').textContent).toMatch(/Quanto saiu do bolso/)
+      expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s73,00/)
+      expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+7,3% sobre o aportado/)
+      expect(within(lista).queryByText('Proventos no mês')).toBeNull()
+      // o card da carteira não usa a palavra "Patrimônio": ela é do Patrimônio total (decisão de 10/11/2026)
+      expect(screen.queryByText(/^Patrimônio em /)).toBeNull()
+    })
+
+    it('com provento no mês: o cartão aparece com o total do banco e o previsto ao lado', async () => {
+      mock.listarTotalProventos.mockResolvedValue([{ moeda: 'BRL', recebido: c(1284), previsto: c(500) }, { moeda: 'USD', recebido: c(99999), previsto: c(0) }])
+      render(<Investimentos />)
+      const lista = await resumo()
+      expect(within(lista).getAllByRole('listitem')).toHaveLength(4)
+      expect(cartao(lista, 'Proventos no mês').textContent).toMatch(/R\$\s12,84/)
+      expect(cartao(lista, 'Proventos no mês').textContent).toMatch(/R\$\s5,00 previstos/)
+      // pede o mês corrente, do primeiro ao último dia
+      const [, de, ate] = mock.listarTotalProventos.mock.calls[0] as [string, string, string]
+      expect(de).toMatch(/^\d{4}-\d{2}-01$/)
+      expect(ate.slice(0, 7)).toBe(de.slice(0, 7))
+    })
+
+    it('banco sem a migration 106 (total de proventos e instituições falham): a tela segue, sem o cartão e sem a aba Instituição', async () => {
+      mock.listarTotalProventos.mockRejectedValue(new Error('PGRST202'))
+      mock.listarInstituicoesInvestimentos.mockRejectedValue(new Error('PGRST202'))
+      render(<Investimentos />)
+      const lista = await resumo()
+      expect(within(lista).getAllByRole('listitem')).toHaveLength(3)
+      expect(screen.queryByRole('tab', { name: 'Instituição' })).toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('tabela: aportado, valor atual e rendimento por investimento, com classe · subclasse · instituição embaixo do nome; Total vem do banco', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([
+        ativo('a1', 'Cofrinho 140% CDI', 'fixed_income', { subclasse: 'Cofrinho', instituicao: 'Banco Teste' }),
+        ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3' }),
+      ])
+      mock.listarCarteiraInvestimentos.mockResolvedValue({
+        posicoes: [
+          { ...posicao('a1', 'Cofrinho 140% CDI', 'fixed_income', 103661), quantidade: '1.002538105337', custoTotal: c(100000), resultado: c(3661), dataAvaliacao: '2026-11-10', fonteAvaliacao: 'manual' },
+          { ...posicao('a2', 'Ação Y', 'equity', 9000), ticker: 'ACAO3', quantidade: '20', precoAtual: '4.5', custoTotal: c(10000), resultado: c(-1000) },
+        ],
+        // de propósito diferente da soma das linhas: o Total é o do banco, o front não soma
+        totais: [{ moeda: 'BRL', custoTotal: c(110001), valorAtual: c(112662), resultado: c(2661) }],
+      })
+      // só o mês corrente traz provento por ativo; a seção de 12 meses fica vazia
+      mock.listarProventosPorAtivo.mockImplementation(async (_f: string, de: string, ate: string) => de.slice(0, 7) === ate.slice(0, 7)
+        ? [{ assetId: 'a2', nome: 'Ação Y', moeda: 'BRL', recebido: c(1284), previsto: c(0), ultimoRecebimento: null },
+           { assetId: 'a1', nome: 'Cofrinho 140% CDI', moeda: 'BRL', recebido: c(0), previsto: c(700), ultimoRecebimento: null }]
+        : [])
+      render(<Investimentos />)
+      const tabela = await screen.findByRole('table', { name: /Posições em BRL/ })
+      expect(within(tabela).getAllByRole('columnheader').map((th) => th.textContent)).toEqual(['Investimento', 'Aportado', 'Valor atual e rendimento', 'Rendimento'])
+
+      const cofrinho = within(tabela).getByRole('rowheader', { name: /Cofrinho 140% CDI/ })
+      expect(cofrinho.textContent).toMatch(/Renda fixa · Cofrinho · Banco Teste/)
+      expect(cofrinho.textContent).toMatch(/Valor de 10\/11\/2026 · manual/)
+      // ativo sem cota: nada de unidades nem preço (migration 104)
+      expect(cofrinho.textContent).not.toMatch(/ un |preço|1,0025/)
+      const linhaCofrinho = cofrinho.closest('tr') as HTMLElement
+      const celulas = within(linhaCofrinho).getAllByRole('cell')
+      expect(celulas[0].textContent).toMatch(/^R\$\s1\.000,00$/)
+      expect(celulas[1].textContent).toMatch(/^R\$\s1\.036,61/)
+      expect(celulas[2].textContent).toMatch(/\+R\$\s36,61\+3,7% sobre o aportado$/) // sem provento recebido: a linha de proventos não aparece
+      expect(linhaCofrinho.textContent).not.toMatch(/proventos/)
+
+      const acao = within(tabela).getByRole('rowheader', { name: /Ação Y · ACAO3/ })
+      expect(acao.textContent).toMatch(/20 un · preço/)
+      expect(acao.textContent).toMatch(/Sem avaliação: vale o aportado/)
+      const celulasAcao = within(acao.closest('tr') as HTMLElement).getAllByRole('cell')
+      expect(celulasAcao[2].textContent).toMatch(/-R\$\s10,00-10,0% sobre o aportadoproventos R\$\s12,84 no mês$/)
+      expect(celulasAcao[2].querySelector('p')?.className).toMatch(/text-prejuizo/)
+
+      const total = within(tabela).getByRole('rowheader', { name: /^Total/ }).closest('tr') as HTMLElement
+      const celulasTotal = within(total).getAllByRole('cell')
+      expect(celulasTotal[0].textContent).toMatch(/^R\$\s1\.100,01$/)
+      expect(celulasTotal[1].textContent).toMatch(/^R\$\s1\.126,62/)
+      expect(celulasTotal[2].textContent).toMatch(/^\+R\$\s26,61$/)
+    })
+
+    it('com "ocultar valores": nem o sinal nem o percentual de rendimento aparecem', async () => {
+      definirValoresOcultos(true)
+      try {
+        mock.listarCarteiraInvestimentos.mockResolvedValue({
+          posicoes: [{ ...posicao('a1', 'Tesouro Selic', 'fixed_income', 107300), custoTotal: c(100000), resultado: c(7300) }],
+          totais: [{ moeda: 'BRL', custoTotal: c(100000), valorAtual: c(107300), resultado: c(7300) }],
+        })
+        render(<Investimentos />)
+        const lista = await resumo()
+        expect(lista.textContent).not.toMatch(/\d|\+/)
+        const tabela = await screen.findByRole('table', { name: /Posições em BRL/ })
+        expect(tabela.textContent).not.toMatch(/sobre o aportado|\+|73|7,3/)
+      } finally { definirValoresOcultos(false) }
+    })
+
+    it('Minha carteira, aba Instituição: valores somados no banco, "Sem instituição" para o que não tem', async () => {
+      mock.listarInstituicoesInvestimentos.mockResolvedValue([
+        { moeda: 'BRL', instituicao: 'Corretora Teste', valor: c(60000) },
+        { moeda: 'BRL', instituicao: null, valor: c(15000) },
+        { moeda: 'USD', instituicao: 'Fora', valor: c(999) },
+      ])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      const secao = (await screen.findByRole('heading', { name: 'Minha carteira' })).closest('section') as HTMLElement
+      await u.click(await within(secao).findByRole('tab', { name: 'Instituição' }))
+      const linhas = within(secao).getByRole('list', { name: 'Lista da carteira por instituição' })
+      expect(within(linhas).getAllByRole('listitem').map((li) => li.textContent?.replace(/\s/g, ' '))).toEqual([
+        'Corretora TesteR$ 600,0080%', 'Sem instituiçãoR$ 150,0020%',
+      ])
+    })
+
+    it('novo ativo com instituição: cria e depois grava a instituição; sem instituição, não chama', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      await u.type(screen.getByLabelText('Nome do ativo'), 'CDB Banco X')
+      await u.selectOptions(screen.getByLabelText('Classe'), 'fixed_income')
+      await u.type(screen.getByLabelText('Instituição (opcional)'), '  Banco X ')
+      await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.definirInstituicaoAtivo).toHaveBeenCalledWith('novo-id', '  Banco X '))
+
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      await u.type(screen.getByLabelText('Nome do ativo'), 'Outro')
+      await u.selectOptions(screen.getByLabelText('Classe'), 'fund')
+      await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(2))
+      expect(mock.definirInstituicaoAtivo).toHaveBeenCalledTimes(1)
+    })
+
+    it('editar ativo: a instituição só vai para o banco quando mudou; vazio limpa', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a1', 'Tesouro Selic', 'fixed_income', { instituicao: 'Corretora Teste' })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Tesouro Selic' }))
+      const campo = screen.getByLabelText('Instituição (opcional; vazio limpa)') as HTMLInputElement
+      expect(campo.value).toBe('Corretora Teste')
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.editarAtivoInvestimento).toHaveBeenCalledTimes(1))
+      expect(mock.editarAtivoInvestimento).toHaveBeenCalledWith({ ativoId: 'a1', nome: 'Tesouro Selic', ticker: '', classe: 'fixed_income' })
+      expect(mock.definirInstituicaoAtivo).not.toHaveBeenCalled()
+
+      await u.click(await screen.findByRole('button', { name: 'Editar Tesouro Selic' }))
+      await u.clear(screen.getByLabelText('Instituição (opcional; vazio limpa)'))
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.definirInstituicaoAtivo).toHaveBeenCalledWith('a1', ''))
+    })
   })
 
   describe('gerir ativos cadastrados', () => {
@@ -612,16 +772,14 @@ describe('Investimentos × macroclasse e subclasse', () => {
       return screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
     }
 
-    it('topo: investido em destaque, parado na corretora (do banco), e Investir/Resgatar abrem a folha já em Compra ou Venda', async () => {
+    it('topo: carteira em destaque, parado na corretora (do banco), e Investir/Resgatar abrem a folha já em Compra ou Venda', async () => {
       mock.listarContas.mockResolvedValue({ contas: [{ id: 'c1', nome: 'Corretora', ativa: true }], total: c(0),
         porTipo: [{ tipo: 'brokerage', total: c(9999), totalAtivas: c(1304) }, { tipo: 'checking', total: c(5), totalAtivas: c(5) }] })
       const u = userEvent.setup()
       render(<Investimentos />)
-      const titulo = await screen.findByText('Investido (valor de mercado em BRL)')
-      const card = titulo.parentElement as HTMLElement
-      expect(titulo.nextElementSibling?.textContent).toBe('R$ 750,00') // o número em destaque; o custo também é 750
-      const parado = within(card).getByText('Parado na corretora')
-      expect(parado.nextElementSibling?.textContent).toBe('R$ 13,04')
+      const card = (await screen.findByRole('list', { name: 'Resumo da carteira em reais' })).parentElement as HTMLElement
+      expect(within(card).getByText('Carteira').closest('li')?.textContent).toMatch(/R\$\s750,00/)
+      expect(within(card).getByText(/Parado na corretora/).textContent).toMatch(/R\$\s13,04/)
       await u.click(within(card).getByRole('button', { name: 'Resgatar' }))
       let folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
       expect(within(folha).getByRole('radio', { name: 'Venda' }).getAttribute('aria-checked')).toBe('true')
@@ -773,23 +931,6 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.click(within(folha).getByRole('button', { name: 'Salvar avaliação' }))
       expect(mock.registrarAvaliacaoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'a2', precoUnitario: '25,7512' }))
       expect(mock.registrarAvaliacaoTotal).toHaveBeenCalledTimes(1)
-    })
-
-    it('posição de ativo sem cota mostra Aplicado e Rendimento em reais, sem Quantidade nem preço por unidade; com ticker continua como era', async () => {
-      mock.listarCarteiraInvestimentos.mockResolvedValue({
-        posicoes: [
-          { ...posicao('a1', 'Cofrinho 140% CDI', 'fixed_income', 103661), quantidade: '1.002538105337', custoTotal: c(100000), resultado: c(3661) },
-          { ...posicao('a2', 'Ação Y', 'equity', 10000), ticker: 'ACAO3', quantidade: '20' },
-        ],
-        totais: [],
-      })
-      render(<Investimentos />)
-      const cofrinho = (await screen.findAllByText('Valor de mercado estimado'))[0].closest('li') as HTMLElement
-      expect(cofrinho.textContent).toMatch(/Cofrinho 140% CDI/)
-      expect(cofrinho.textContent).toMatch(/Aplicado \(custo\)R\$\s1\.000,00/)
-      expect(cofrinho.textContent).toMatch(/Rendimento não realizado/)
-      expect(cofrinho.textContent).not.toMatch(/Quantidade|Preço de referência|1,0025/)
-      expect(screen.getAllByText('Quantidade')).toHaveLength(1)
     })
 
     it('campo vazio ou erro do banco aparecem dentro da folha, que continua aberta', async () => {
