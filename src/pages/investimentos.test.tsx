@@ -17,6 +17,7 @@ const mock = vi.hoisted(() => ({
   listarLiquidezInvestimentos: vi.fn(),
   listarProventosPorAtivo: vi.fn(),
   listarInstituicoesInvestimentos: vi.fn(),
+  listarAportesInvestimentos: vi.fn(),
   listarTotalProventos: vi.fn(),
   definirInstituicaoAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock('../lib/investimentos', async (o) => ({
   listarLiquidezInvestimentos: mock.listarLiquidezInvestimentos,
   listarProventosPorAtivo: mock.listarProventosPorAtivo,
   listarInstituicoesInvestimentos: mock.listarInstituicoesInvestimentos,
+  listarAportesInvestimentos: mock.listarAportesInvestimentos,
   listarTotalProventos: mock.listarTotalProventos,
   definirInstituicaoAtivo: mock.definirInstituicaoAtivo,
   registrarProventoInvestimento: mock.registrarProventoInvestimento,
@@ -115,6 +117,9 @@ beforeEach(() => {
   for (const f of [mock.registrarOperacaoPorValor, mock.registrarAvaliacaoInvestimento, mock.registrarAvaliacaoTotal]) f.mockResolvedValue(undefined)
   mock.listarLiquidezInvestimentos.mockResolvedValue([])
   mock.listarInstituicoesInvestimentos.mockResolvedValue([])
+  // padrão dos testes: banco sem a migration 107 (cartões e tabela no custo do que está investido);
+  // o bloco "aportes e resgates" liga a função
+  mock.listarAportesInvestimentos.mockRejectedValue(new Error('PGRST202'))
   mock.listarTotalProventos.mockResolvedValue([])
   mock.definirInstituicaoAtivo.mockResolvedValue(undefined)
   mock.anularOperacaoInvestimento.mockResolvedValue(undefined)
@@ -457,7 +462,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
 
       const acao = within(tabela).getByRole('rowheader', { name: /Ação Y · ACAO3/ })
       expect(acao.textContent).toMatch(/20 un · preço/)
-      expect(acao.textContent).toMatch(/Sem avaliação: vale o aportado/)
+      expect(acao.textContent).toMatch(/Sem avaliação: vale o que custou/)
       const celulasAcao = within(acao.closest('tr') as HTMLElement).getAllByRole('cell')
       expect(celulasAcao[2].textContent).toMatch(/-R\$\s10,00-10,0% sobre o aportadoproventos R\$\s12,84 no mês$/)
       expect(celulasAcao[2].querySelector('p')?.className).toMatch(/text-prejuizo/)
@@ -484,6 +489,99 @@ describe('Investimentos × macroclasse e subclasse', () => {
         // a cor também não entrega se foi ganho ou perda
         expect(lista.innerHTML + tabela.innerHTML).not.toMatch(/text-lucro|text-prejuizo/)
       } finally { definirValoresOcultos(false) }
+    })
+
+    describe('aportes e resgates (migration 107, pedido do dono: "quanto saiu do bolso" e "quanto rendeu")', () => {
+      const ap = (aportado: number, resgatado: number, valorAtual: number, moeda = 'BRL') => ({
+        moeda, aportado: c(aportado), resgatado: c(resgatado), liquido: c(aportado - resgatado), valorAtual: c(valorAtual), ganho: c(valorAtual - (aportado - resgatado)),
+      })
+      // o caso que a revisão de dinheiro achou: pôs 1.000, passou a valer 1.100, tirou 550.
+      // O custo do banco (investment_totals) diz 500 e 50; o dono quer ver 450 e 100.
+      const cofrinhoComResgate = () => {
+        mock.listarAtivosInvestimento.mockResolvedValue([ativo('a1', 'Cofrinho 140% CDI', 'fixed_income'), ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3' })])
+        mock.listarCarteiraInvestimentos.mockResolvedValue({
+          posicoes: [
+            { ...posicao('a1', 'Cofrinho 140% CDI', 'fixed_income', 55000), custoTotal: c(50000), resultado: c(5000) },
+            { ...posicao('a2', 'Ação Y', 'equity', 23000), ticker: 'ACAO3', quantidade: '20', custoTotal: c(20000), resultado: c(3000) },
+          ],
+          totais: [{ moeda: 'BRL', custoTotal: c(70000), valorAtual: c(78000), resultado: c(8000) }],
+        })
+        mock.listarAportesInvestimentos.mockResolvedValue({
+          porAtivo: new Map([['a1', ap(100000, 55000, 55000)], ['a2', ap(20000, 0, 23000)]]),
+          totais: [ap(120000, 55000, 78000)],
+        })
+      }
+
+      it('cartões: Aportado é o que pôs menos o que tirou, Rendimento conta o que já resgatou, e Carteira = Aportado + Rendimento', async () => {
+        cofrinhoComResgate()
+        render(<Investimentos />)
+        const lista = await resumo()
+        await waitFor(() => expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s650,00/)) // 1.200 − 550, não o custo de 700
+        expect(cartao(lista, 'Aportado').textContent).toMatch(/Pôs R\$\s1\.200,00 · tirou R\$\s550,00/)
+        expect(cartao(lista, 'Carteira').textContent).toMatch(/R\$\s780,00/)
+        expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s130,00/) // 780 − 650, não os 80 do custo
+        expect(cartao(lista, 'Rendimento').textContent).toMatch(/Contando o que já foi resgatado/)
+        // com resgate o percentual some: rendimento ÷ aportado líquido não quer dizer nada
+        expect(cartao(lista, 'Rendimento').textContent).not.toMatch(/%/)
+        expect(screen.queryByText(/são do que ainda está investido/)).toBeNull()
+      })
+
+      it('tabela: cada linha e o Total usam os aportes; "Pôs · tirou" só onde houve resgate; percentual só onde não houve', async () => {
+        cofrinhoComResgate()
+        render(<Investimentos />)
+        const tabela = await screen.findByRole('table', { name: /Posições em BRL/ })
+        const cofrinho = within(tabela).getByRole('rowheader', { name: /Cofrinho 140% CDI/ })
+        await waitFor(() => expect(cofrinho.textContent).toMatch(/Pôs R\$\s1\.000,00 · tirou R\$\s550,00/))
+        const celulas = within(cofrinho.closest('tr') as HTMLElement).getAllByRole('cell')
+        expect(celulas[0].textContent).toMatch(/^R\$\s450,00$/)
+        expect(celulas[1].textContent).toMatch(/^R\$\s550,00/)
+        expect(celulas[2].textContent).toMatch(/^\+R\$\s100,00$/)
+
+        const acao = within(tabela).getByRole('rowheader', { name: /Ação Y/ })
+        expect(acao.textContent).not.toMatch(/tirou/)
+        const celulasAcao = within(acao.closest('tr') as HTMLElement).getAllByRole('cell')
+        expect(celulasAcao[0].textContent).toMatch(/^R\$\s200,00$/)
+        expect(celulasAcao[2].textContent).toMatch(/^\+R\$\s30,00\+15,0% sobre o aportado$/)
+
+        const total = within(within(tabela).getByRole('rowheader', { name: /^Total/ }).closest('tr') as HTMLElement).getAllByRole('cell')
+        expect(total.map((td) => td.textContent?.replace(/\s/g, ' '))).toEqual(['R$ 650,00', expect.stringMatching(/^R\$ 780,00/), '+R$ 130,00'])
+        expect(screen.getByText('Quanto você pôs (menos o que tirou), quanto vale hoje e tudo o que rendeu.')).toBeTruthy()
+      })
+
+      it('sem resgate nenhum: "Aportado" é exatamente quanto saiu do bolso, com o percentual', async () => {
+        mock.listarAportesInvestimentos.mockResolvedValue({ porAtivo: new Map([['a1', ap(60000, 0, 60000)], ['a2', ap(10000, 0, 10000)], ['a3', ap(5000, 0, 8000)]]), totais: [ap(75000, 0, 78000)] })
+        render(<Investimentos />)
+        const lista = await resumo()
+        await waitFor(() => expect(cartao(lista, 'Aportado').textContent).toMatch(/Quanto saiu do bolso/))
+        expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s750,00/)
+        expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s30,00\+4,0% sobre o aportado/)
+      })
+
+      it('resgatou mais do que pôs: aportado negativo aparece como é, com o "pôs · tirou" explicando', async () => {
+        mock.listarAportesInvestimentos.mockResolvedValue({ porAtivo: new Map([['a1', ap(100000, 200000, 60000)], ['a2', ap(10000, 0, 10000)], ['a3', ap(5000, 0, 5000)]]), totais: [ap(115000, 200000, 75000)] })
+        render(<Investimentos />)
+        const lista = await resumo()
+        await waitFor(() => expect(cartao(lista, 'Aportado').textContent).toMatch(/-R\$\s850,00/))
+        expect(cartao(lista, 'Aportado').textContent).toMatch(/Pôs R\$\s1\.150,00 · tirou R\$\s2\.000,00/)
+        expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s1\.600,00/)
+      })
+
+      it('se faltar o aporte de uma posição, a tabela inteira fica no custo (nunca metade de cada jeito)', async () => {
+        mock.listarAportesInvestimentos.mockResolvedValue({ porAtivo: new Map([['a1', ap(999900, 0, 60000)]]), totais: [ap(999900, 0, 75000)] })
+        render(<Investimentos />)
+        const tabela = await screen.findByRole('table', { name: /Posições em BRL/ })
+        await screen.findByText('Quanto você pôs (menos o que tirou), quanto vale hoje e tudo o que rendeu.')
+        expect(tabela.textContent).not.toMatch(/9\.999,00/)
+        const total = within(within(tabela).getByRole('rowheader', { name: /^Total/ }).closest('tr') as HTMLElement).getAllByRole('cell')
+        expect(total[0].textContent).toMatch(/^R\$\s750,00$/) // investment_totals
+      })
+
+      it('pede os aportes na data de hoje, uma vez por carga', async () => {
+        render(<Investimentos />)
+        await resumo()
+        await waitFor(() => expect(mock.listarAportesInvestimentos).toHaveBeenCalledTimes(1))
+        expect(mock.listarAportesInvestimentos).toHaveBeenCalledWith('h1', expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
+      })
     })
 
     it('Minha carteira, aba Instituição: valores somados no banco, "Sem instituição" para o que não tem', async () => {

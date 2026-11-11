@@ -35,7 +35,7 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { definirInstituicaoAtivo, listarAtivosInvestimento, listarInstituicoesInvestimentos, listarTotalProventos } from './investimentos'
+import { definirInstituicaoAtivo, listarAportesInvestimentos, listarAtivosInvestimento, listarInstituicoesInvestimentos, listarTotalProventos } from './investimentos'
 
 const linha = (extra: Record<string, unknown> = {}) => ({
   id: 'a1', name: 'Tesouro de teste', ticker: null, asset_class: 'fixed_income', currency_code: 'BRL', active: true, ...extra,
@@ -98,5 +98,30 @@ describe('instituição do ativo (migration 106)', () => {
   it('erro do banco sobe para quem chamou', async () => {
     fake.e.respostaRpc.investment_income_totals = { data: null, error: { code: 'PGRST202', message: 'função não existe' } }
     await expect(listarTotalProventos('h1', '2026-11-01', '2026-11-30')).rejects.toMatchObject({ code: 'PGRST202' })
+  })
+})
+
+describe('aportes e resgates (migration 107)', () => {
+  it('separa as linhas por ativo das linhas de total e converte para centavos, sem conta nenhuma', async () => {
+    fake.e.respostaRpc.investment_contributions = { error: null, data: [
+      { level: 'asset', asset_id: 'a1', currency_code: 'BRL', contributed: '1000.00', redeemed: '550.00', net_contributed: '450.00', market_value: '550.00', total_result: '100.00' },
+      { level: 'asset', asset_id: 'a2', currency_code: 'BRL', contributed: 1000, redeemed: 2000, net_contributed: -1000, market_value: 500, total_result: 1500 },
+      { level: 'total', asset_id: null, currency_code: 'BRL', contributed: '2000.00', redeemed: '2550.00', net_contributed: '-550.00', market_value: '1050.00', total_result: '1600.00' },
+      { level: 'total', asset_id: null, currency_code: 'USD', contributed: '10.10', redeemed: '0', net_contributed: '10.10', market_value: '9.99', total_result: '-0.11' },
+    ] }
+    const r = await listarAportesInvestimentos('h1', '2026-11-10')
+    expect(fake.e.rpcs[0]).toEqual(['investment_contributions', { p_household: 'h1', p_as_of: '2026-11-10' }])
+    expect([...r.porAtivo.keys()]).toEqual(['a1', 'a2'])
+    expect(r.porAtivo.get('a1')).toEqual({ moeda: 'BRL', aportado: 100000, resgatado: 55000, liquido: 45000, valorAtual: 55000, ganho: 10000 })
+    expect(r.porAtivo.get('a2')).toMatchObject({ liquido: -100000, ganho: 150000 }) // líquido negativo vem do banco como é
+    expect(r.totais).toEqual([
+      { moeda: 'BRL', aportado: 200000, resgatado: 255000, liquido: -55000, valorAtual: 105000, ganho: 160000 },
+      { moeda: 'USD', aportado: 1010, resgatado: 0, liquido: 1010, valorAtual: 999, ganho: -11 },
+    ])
+  })
+
+  it('banco sem a função: o erro sobe (a tela cai no custo do que está investido)', async () => {
+    fake.e.respostaRpc.investment_contributions = { data: null, error: { code: 'PGRST202', message: 'função não existe' } }
+    await expect(listarAportesInvestimentos('h1', '2026-11-10')).rejects.toMatchObject({ code: 'PGRST202' })
   })
 })

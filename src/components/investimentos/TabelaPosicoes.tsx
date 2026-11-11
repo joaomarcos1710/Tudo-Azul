@@ -1,5 +1,5 @@
 import { CLASSES_ATIVO } from '../../lib/investimentos'
-import type { AtivoInvestimento, MoedaInvestimento, PosicaoInvestimento, TotalInvestimento } from '../../lib/investimentos'
+import type { AportesCarteira, AtivoInvestimento, MoedaInvestimento, PosicaoInvestimento, TotalInvestimento } from '../../lib/investimentos'
 import type { Cents } from '../../lib/format'
 import { formatDate } from '../../lib/format'
 import { valoresOcultos } from '../../lib/privacidade'
@@ -31,18 +31,25 @@ export function comSinal(texto: string, valor: Cents): string {
 }
 
 /**
- * Posições em tabela (pedido do dono, 10/11/2026, a partir de um desenho dele): por investimento, o aportado (custo do
- * que ainda está investido, não tudo o que já entrou), quanto vale hoje e o rendimento do que ainda está lá, com a classe e a instituição embaixo do nome. Uma tabela por moeda, sem
- * conversão. Tudo vem do banco: aportado = custo de aquisição, valor atual e rendimento = investment_portfolio; a linha
- * Total = investment_totals (por isso some quando há filtro: o total do banco é da carteira inteira, não das linhas à vista).
+ * Posições em tabela (pedido do dono, 10/11/2026, a partir de um desenho dele): por investimento, Aportado, Valor atual
+ * e Rendimento, com a classe e a instituição embaixo do nome. Uma tabela por moeda, sem conversão. Tudo vem do banco.
+ * Com `aportes` (migration 107): aportado = o que entrou menos o que saiu, rendimento = tudo o que rendeu contando o que
+ * já foi resgatado, e a linha Total também vem de investment_contributions. Sem `aportes`: aportado = custo do que ainda
+ * está investido (investment_portfolio) e Total = investment_totals. Nos dois casos o Total some quando há filtro: o
+ * total do banco é da carteira inteira, não das linhas à vista.
  * Proventos do mês só aparecem quando existem (renda fixa não paga provento mensal: o juro fica no valor do título).
  * No celular ficam duas colunas, para caber sem rolagem lateral nem número cortado: "Aportado" vira uma linha embaixo do
  * nome e o rendimento vai embaixo do valor atual.
  */
-export function TabelaPosicoes({ posicoes, ativos, totais, proventosDoMes, filtrada, formatar, formatarPreco, formatarQuantidade }: {
+export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoMes, filtrada, formatar, formatarPreco, formatarQuantidade }: {
   posicoes: PosicaoInvestimento[]
   ativos: AtivoInvestimento[]
   totais: TotalInvestimento[]
+  /**
+   * aportes e resgates por ativo e por moeda (migration 107). Com eles, "Aportado" é o que entrou menos o que saiu e
+   * "Rendimento" conta o ganho já resgatado; null = banco sem a função: vale o custo do que ainda está investido.
+   */
+  aportes: AportesCarteira | null
   /** recebido no mês corrente, por ativo (investment_income_by_asset) */
   proventosDoMes: Map<string, Cents>
   /** true = há filtro ligado: a linha Total não aparece */
@@ -54,11 +61,18 @@ export function TabelaPosicoes({ posicoes, ativos, totais, proventosDoMes, filtr
   const porId = new Map(ativos.map((a) => [a.id, a]))
   const moedas = [...new Set(posicoes.map((p) => p.moeda))]
   const numero = 'px-2 py-3 text-right align-top tabular-nums whitespace-nowrap'
+  // um jeito só de contar na tabela inteira: se faltar o aporte de alguma posição (duas leituras em instantes
+  // diferentes), todas as linhas ficam no custo, nunca metade de cada
+  const porAporte = aportes !== null && posicoes.every((p) => aportes.porAtivo.has(p.assetId)) ? aportes : null
   return (
     <div className="flex flex-col gap-4">
       {moedas.map((moeda) => {
         const linhas = posicoes.filter((p) => p.moeda === moeda)
-        const total = totais.find((t) => t.moeda === moeda)
+        const totalCusto = totais.find((t) => t.moeda === moeda)
+        const totalAporte = porAporte?.totais.find((t) => t.moeda === moeda)
+        const total = porAporte
+          ? totalAporte && { aportado: totalAporte.liquido, valorAtual: totalAporte.valorAtual, rendimento: totalAporte.ganho }
+          : totalCusto && { aportado: totalCusto.custoTotal, valorAtual: totalCusto.valorAtual, rendimento: totalCusto.resultado }
         return (
           <div key={moeda} className="overflow-hidden rounded-2xl bg-white shadow-card">
             <table className="w-full table-fixed text-sm">
@@ -82,10 +96,16 @@ export function TabelaPosicoes({ posicoes, ativos, totais, proventosDoMes, filtr
                   const a = porId.get(p.assetId)
                   const classe = CLASSES_ATIVO.find(([v]) => v === p.classe)?.[1] ?? p.classe
                   const provento = proventosDoMes.get(p.assetId)
-                  const relativo = sobreOAportado(p.resultado, p.custoTotal)
+                  const ap = porAporte?.porAtivo.get(p.assetId)
+                  const aportado = ap ? ap.liquido : p.custoTotal
+                  const valorAtual = ap ? ap.valorAtual : p.valorAtual
+                  const resultado = ap ? ap.ganho : p.resultado
+                  const comResgate = ap !== undefined && ap.resgatado > 0
+                  // com resgate, rendimento ÷ aportado líquido não quer dizer nada (o líquido pode ser quase zero): some
+                  const relativo = comResgate ? null : sobreOAportado(resultado, aportado)
                   const rendimento = (
                     <>
-                      <p className={`font-semibold ${corDoResultado(p.resultado)}`}>{comSinal(formatar(p.resultado, p.moeda), p.resultado)}</p>
+                      <p className={`font-semibold ${corDoResultado(resultado)}`}>{comSinal(formatar(resultado, p.moeda), resultado)}</p>
                       {relativo && <p className="whitespace-normal text-xs text-slate-500">{relativo}</p>}
                       {provento !== undefined && provento > 0 && <p className="whitespace-normal text-xs text-slate-500">proventos {formatar(provento, p.moeda)} no mês</p>}
                     </>
@@ -97,14 +117,15 @@ export function TabelaPosicoes({ posicoes, ativos, totais, proventosDoMes, filtr
                         <p className="text-xs text-slate-500">{[...new Set([classe, a?.subclasse, a?.instituicao].filter(Boolean))].join(' · ')}</p>
                         {/* unidade e preço só fazem sentido em ativo com cota (migration 104) */}
                         {p.ticker && <p className="text-xs text-slate-500">{formatarQuantidade(p.quantidade)} un · preço {formatarPreco(p.precoAtual, p.moeda)}</p>}
-                        <p className="text-xs text-slate-500 sm:hidden">Aportado {formatar(p.custoTotal, p.moeda)}</p>
+                        <p className="text-xs text-slate-500 sm:hidden">Aportado {formatar(aportado, p.moeda)}</p>
+                        {comResgate && <p className="text-xs text-slate-500">Pôs {formatar(ap.aportado, p.moeda)} · tirou {formatar(ap.resgatado, p.moeda)}</p>}
                         <p className="text-xs text-slate-500">
-                          {p.dataAvaliacao ? `Valor de ${formatDate(p.dataAvaliacao)}${p.fonteAvaliacao ? ` · ${p.fonteAvaliacao}` : ''}` : 'Sem avaliação: vale o aportado'}
+                          {p.dataAvaliacao ? `Valor de ${formatDate(p.dataAvaliacao)}${p.fonteAvaliacao ? ` · ${p.fonteAvaliacao}` : ''}` : 'Sem avaliação: vale o que custou'}
                         </p>
                       </th>
-                      <td className={`hidden sm:table-cell ${numero}`}>{formatar(p.custoTotal, p.moeda)}</td>
+                      <td className={`hidden sm:table-cell ${numero}`}>{formatar(aportado, p.moeda)}</td>
                       <td className={`${numero} pr-3 sm:pr-2`}>
-                        <p className="font-semibold text-marinho">{formatar(p.valorAtual, p.moeda)}</p>
+                        <p className="font-semibold text-marinho">{formatar(valorAtual, p.moeda)}</p>
                         <div className="sm:hidden">{rendimento}</div>
                       </td>
                       <td className={`hidden sm:table-cell ${numero} pr-3`}>{rendimento}</td>
@@ -117,14 +138,14 @@ export function TabelaPosicoes({ posicoes, ativos, totais, proventosDoMes, filtr
                   <tr className="border-t-2 border-slate-200 font-semibold">
                     <th scope="row" className="px-3 py-3 text-left">
                       Total
-                      <span className="block text-xs font-normal text-slate-500 sm:hidden">Aportado {formatar(total.custoTotal, moeda)}</span>
+                      <span className="block text-xs font-normal text-slate-500 sm:hidden">Aportado {formatar(total.aportado, moeda)}</span>
                     </th>
-                    <td className={`hidden sm:table-cell ${numero}`}>{formatar(total.custoTotal, moeda)}</td>
+                    <td className={`hidden sm:table-cell ${numero}`}>{formatar(total.aportado, moeda)}</td>
                     <td className={`${numero} pr-3 sm:pr-2`}>
                       <span className="text-azul">{formatar(total.valorAtual, moeda)}</span>
-                      <span className={`block sm:hidden ${corDoResultado(total.resultado)}`}>{comSinal(formatar(total.resultado, moeda), total.resultado)}</span>
+                      <span className={`block sm:hidden ${corDoResultado(total.rendimento)}`}>{comSinal(formatar(total.rendimento, moeda), total.rendimento)}</span>
                     </td>
-                    <td className={`hidden sm:table-cell ${numero} pr-3 ${corDoResultado(total.resultado)}`}>{comSinal(formatar(total.resultado, moeda), total.resultado)}</td>
+                    <td className={`hidden sm:table-cell ${numero} pr-3 ${corDoResultado(total.rendimento)}`}>{comSinal(formatar(total.rendimento, moeda), total.rendimento)}</td>
                   </tr>
                 </tfoot>
               )}

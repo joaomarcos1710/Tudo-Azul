@@ -7,7 +7,7 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
 import { MinhaCarteira } from '../components/investimentos/MinhaCarteira'
-import { TabelaPosicoes } from '../components/investimentos/TabelaPosicoes'
+import { TabelaPosicoes, corDoResultado } from '../components/investimentos/TabelaPosicoes'
 import { ResumoCarteira } from '../components/investimentos/ResumoCarteira'
 import { CONTROLE_FOLHA, FormOperacao, GRANDE_FOLHA, LINHA_FOLHA, TITULO_FOLHA, gravarOperacao } from '../components/investimentos/FormOperacao'
 import type { DadosOperacao } from '../components/investimentos/FormOperacao'
@@ -23,15 +23,14 @@ import { formatBRL, formatDate, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
-import { corDoValor } from '../lib/cores'
 import { COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../components/graficos/cores'
 import {
-  CATEGORIAS_NOVO_ATIVO, CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirInstituicaoAtivo, definirLiquidezAtivo, definirSubclasseAtivo, listarInstituicoesInvestimentos, listarLiquidezInvestimentos, listarTotalProventos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
+  CATEGORIAS_NOVO_ATIVO, CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirInstituicaoAtivo, definirLiquidezAtivo, definirSubclasseAtivo, listarAportesInvestimentos, listarInstituicoesInvestimentos, listarLiquidezInvestimentos, listarTotalProventos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
   reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarAvaliacaoTotal, registrarProventoInvestimento,
 } from '../lib/investimentos'
 import type {
-  AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, LinhaExtratoAtivo, LinhaInstituicao, LinhaLiquidez, Liquidez, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
+  AportesCarteira, AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, LinhaExtratoAtivo, LinhaInstituicao, LinhaLiquidez, Liquidez, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
   TipoOperacaoInvestimento, TipoProvento, TotalInvestimento, TotalProventos,
 } from '../lib/investimentos'
 
@@ -70,6 +69,8 @@ export default function Investimentos() {
   const [instituicoes, setInstituicoes] = useState<LinhaInstituicao[]>([])
   // false = o banco ainda não tem a migration 106: o campo Instituição não aparece (gravar daria erro depois de salvar o resto)
   const [bancoTemInstituicao, setBancoTemInstituicao] = useState(false)
+  // aportes e resgates (migration 107); null = banco sem a função: cartões e tabela mostram o custo do que está investido
+  const [aportes, setAportes] = useState<AportesCarteira | null>(null)
   // proventos do mês corrente: por ativo (linha da tabela) e o total por moeda, do banco; null = não leu
   const [proventosMes, setProventosMes] = useState<ProventoAtivo[]>([])
   const [totalProventosMes, setTotalProventosMes] = useState<TotalProventos[] | null>(null)
@@ -108,6 +109,7 @@ export default function Investimentos() {
       setErro('')
       try { setAlocacao(await listarAlocacaoInvestimentos(familia.id, hojeSP())) } catch { setAlocacao([]) }
       try { setLiquidez(await listarLiquidezInvestimentos(familia.id, hoje)) } catch { setLiquidez([]) }
+      try { setAportes(await listarAportesInvestimentos(familia.id, hoje)) } catch { setAportes(null) }
       try { setInstituicoes(await listarInstituicoesInvestimentos(familia.id, hoje)); setBancoTemInstituicao(true) }
       catch { setInstituicoes([]); setBancoTemInstituicao(false) }
       // proventos do mês corrente: por ativo (tabela de posições) e o total por moeda (cartão). Um não depende do outro:
@@ -289,7 +291,7 @@ export default function Investimentos() {
         )}
         {totais.filter((t) => t.moeda === 'BRL').map((t) => (
           <div key="BRL">
-            <ResumoCarteira total={t} proventos={proventosBRL} formatar={(c) => moeda(c, 'BRL')} />
+            <ResumoCarteira total={t} aportes={aportes?.totais.find((x) => x.moeda === 'BRL') ?? null} proventos={proventosBRL} formatar={(c) => moeda(c, 'BRL')} />
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
               <Button onClick={() => setNovaOperacao('buy')} disabled={ativosAtivos.length === 0}>Investir</Button>
               <Button variante="secundario" onClick={() => setNovaOperacao('sell')} disabled={ativosAtivos.length === 0}>Resgatar</Button>
@@ -301,18 +303,23 @@ export default function Investimentos() {
         ))}
         {totais.some((t) => t.moeda !== 'BRL') && (
           <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {totais.filter((t) => t.moeda !== 'BRL').map((t) => (
-              <Card key={t.moeda}>
-                <p className="text-sm font-medium text-slate-500">Valor de mercado em {t.moeda}</p>
-                <p className="mt-1 text-2xl font-bold tabular-nums">{moeda(t.valorAtual, t.moeda)}</p>
-                <dl className="mt-3 grid max-w-md grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">
-                  <dt className="text-slate-500">Aportado</dt>
-                  <dd className="m-0 text-right font-bold tabular-nums">{moeda(t.custoTotal, t.moeda)}</dd>
-                  <dt className="text-slate-500">Rendimento</dt>
-                  <dd className={`m-0 text-right font-bold tabular-nums ${corDoValor(t.resultado)}`}>{moeda(t.resultado, t.moeda)}</dd>
-                </dl>
-              </Card>
-            ))}
+            {totais.filter((t) => t.moeda !== 'BRL').map((t) => {
+              // mesmo critério dos cartões em reais: com a migration 107, aportado líquido e rendimento total
+              const ap = aportes?.totais.find((x) => x.moeda === t.moeda)
+              const rendimento = ap ? ap.ganho : t.resultado
+              return (
+                <Card key={t.moeda}>
+                  <p className="text-sm font-medium text-slate-500">Valor de mercado em {t.moeda}</p>
+                  <p className="mt-1 text-2xl font-bold tabular-nums">{moeda(ap ? ap.valorAtual : t.valorAtual, t.moeda)}</p>
+                  <dl className="mt-3 grid max-w-md grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">
+                    <dt className="text-slate-500">Aportado</dt>
+                    <dd className="m-0 text-right font-bold tabular-nums">{moeda(ap ? ap.liquido : t.custoTotal, t.moeda)}</dd>
+                    <dt className="text-slate-500">Rendimento</dt>
+                    <dd className={`m-0 text-right font-bold tabular-nums ${corDoResultado(rendimento)}`}>{moeda(rendimento, t.moeda)}</dd>
+                  </dl>
+                </Card>
+              )
+            })}
           </div>
         )}
       </section>
@@ -344,7 +351,9 @@ export default function Investimentos() {
 
       <section className="mt-8" aria-labelledby="titulo-posicoes">
         <h2 id="titulo-posicoes" className="text-lg font-semibold">Posições</h2>
-        <p className="mb-3 text-sm text-slate-500">Do que está investido hoje: quanto custou, quanto vale e o rendimento.</p>
+        <p className="mb-3 text-sm text-slate-500">
+          {aportes ? 'Quanto você pôs (menos o que tirou), quanto vale hoje e tudo o que rendeu.' : 'Do que está investido hoje: quanto custou, quanto vale e o rendimento.'}
+        </p>
         {posicoes.length > 0 && (
           // filtros na tela cheia compartilhada (pedido do dono, 10/11/2026, como em Lançamentos); aqui só o botão e os selos.
           // Filtra só a lista na tela: nenhum valor muda e nada é pedido ao banco, então cada toque vale na hora.
@@ -394,7 +403,7 @@ export default function Investimentos() {
           <p className="text-sm text-slate-600">Nenhuma posição com esse filtro.</p>
         )}
         {posicoesFiltradas.length > 0 ? (
-          <TabelaPosicoes posicoes={posicoesFiltradas} ativos={ativos} totais={totais} proventosDoMes={proventoDoMesPorAtivo}
+          <TabelaPosicoes posicoes={posicoesFiltradas} ativos={ativos} totais={totais} aportes={aportes} proventosDoMes={proventoDoMesPorAtivo}
             filtrada={!!filtroMacro || !!filtroSub} formatar={moeda} formatarPreco={preco} formatarQuantidade={quantidade} />
         ) : !carregando && ativos.length > 0 && posicoes.length === 0 ? (
           <EmptyState titulo="Ativos cadastrados, sem posição" descricao="Registre uma compra para que a posição apareça aqui." acao={<Button onClick={() => setNovaOperacao(true)}>Registrar compra</Button>} />
