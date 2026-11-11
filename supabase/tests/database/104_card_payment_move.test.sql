@@ -197,6 +197,56 @@ select is(pg_temp.sit(pg_temp.fx('b'), '2026-08') || ' / ' || pg_temp.sit(pg_tem
 select is(pg_temp.move('adb', '2026-09'), '55000', 'O3 levar esse adiantamento para setembro é recusado (agosto deixaria de estar paga)');
 select is(pg_temp.sit(pg_temp.fx('b'), '2026-08'), '100.00|100.00', 'O3.1 agosto continua paga');
 select is(pg_temp.pag('adb'), '2026-08-20|100.00|true|false|sem fatura', 'O3.2 o adiantamento continua sem fatura');
+
+-- ---- R: a fatura de destino deixa de existir (achado da revisão; correção na causa, opção B do dono) ----
+-- pagamento movido para uma fatura futura; depois a fatura perde a compra. O mês some de card_months, e o pagamento
+-- tem de passar a contar como adiantamento (antes não contava em lugar nenhum: as faturas mostravam o valor dele a mais)
+create function pg_temp.futura(p_card uuid, p_n integer) returns text language sql as $f$
+  select m.label from public.card_months(p_card) m where m.closing_date > pg_temp.hoje() order by m.label offset p_n limit 1 $f$;
+create function pg_temp.sit_as_of(p_card uuid, p_label text) returns text language sql as $f$
+  select total::numeric(14,2) || '|' || paid::numeric(14,2) from private.card_months_as_of(p_card, pg_temp.hoje()) where label = p_label $f$;
+grant execute on function pg_temp.futura(uuid, integer), pg_temp.sit_as_of(uuid, text) to public;
+
+-- R1: compra excluída
+insert into fixture select 'c', public.create_debt('Cartão C', 'card', '2026-01-01', 0);
+select public.set_card_cycle(pg_temp.fx('c'), 17, 25);
+select public.card_purchase(pg_temp.fx('c'), '2026-09-20', 100.00, 1, pg_temp.fx('cat'), 'Outubro C');
+select public.card_purchase(pg_temp.fx('c'), pg_temp.hoje(), 200.00, 2, pg_temp.fx('cat'), 'Futura C');
+select public.card_bill_due('2026-10-31');
+insert into fixture select 'pc', public.debt_pay(pg_temp.fx('c'), '2026-10-25', pg_temp.fx('bank'), 60.00, pg_temp.fat(pg_temp.fx('c'), '2026-10'));
+create temp table fut_c as select pg_temp.futura(pg_temp.fx('c'), 1) as label;
+grant all on fut_c to public;
+select is(pg_temp.move('pc', (select label from fut_c)), null, 'R1 pagamento de outubro vai para a segunda fatura futura');
+select is(pg_temp.sit(pg_temp.fx('c'), '2026-10'), '100.00|0.00', 'R1.1 outubro fica a pagar inteira');
+select lives_ok(format($$select public.card_purchase_delete(%L, %L, 'compra excluída (teste)')$$, pg_temp.fx('c'),
+          (select plan from public.debt_installments where debt_id = pg_temp.fx('c') and description = 'Futura C' limit 1)),
+          'R1.2 a compra das faturas futuras é excluída');
+select is((select count(*) from public.card_months(pg_temp.fx('c')) m where m.label = (select label from fut_c)), 0::bigint,
+          'R1.3 a fatura futura sumiu de card_months');
+select is(pg_temp.sit(pg_temp.fx('c'), '2026-10'), '100.00|60.00',
+          'R1.4 o pagamento órfão conta como adiantamento e é usado em outubro (antes: 100|0, os 60 sumiam)');
+select is(pg_temp.sit_as_of(pg_temp.fx('c'), '2026-10'), '100.00|60.00', 'R1.5 card_months_as_of dá o mesmo número');
+select is(pg_temp.pag('pc'), '2026-10-25|60.00|true|false|' || (select label from fut_c), 'R1.6 o pagamento não foi alterado (continua ligado à fatura que sumiu)');
+select is(pg_temp.move('pc', '2026-10'), null, 'R1.7 e ainda pode voltar para outubro pela RPC');
+select is(pg_temp.sit(pg_temp.fx('c'), '2026-10'), '100.00|60.00', 'R1.8 outubro continua com 60 pagos, agora ligados a ela');
+
+-- R2: parcela futura estornada inteira (vira cancelamento e o mês some)
+insert into fixture select 'd', public.create_debt('Cartão D', 'card', '2026-01-01', 0);
+select public.set_card_cycle(pg_temp.fx('d'), 17, 25);
+select public.card_purchase(pg_temp.fx('d'), '2026-09-20', 80.00, 1, pg_temp.fx('cat'), 'Outubro D');
+select public.card_purchase(pg_temp.fx('d'), pg_temp.hoje(), 50.00, 1, pg_temp.fx('cat'), 'Futura D');
+select public.card_bill_due('2026-10-31');
+insert into fixture select 'pd', public.debt_pay(pg_temp.fx('d'), '2026-10-25', pg_temp.fx('bank'), 30.00, pg_temp.fat(pg_temp.fx('d'), '2026-10'));
+create temp table fut_d as select pg_temp.futura(pg_temp.fx('d'), 0) as label;
+grant all on fut_d to public;
+select is(pg_temp.move('pd', (select label from fut_d)), null, 'R2 pagamento de outubro vai para a fatura aberta');
+select lives_ok(format($$select public.debt_refund(%L, %L::date, 50.00)$$,
+          (select id from public.debt_installments where debt_id = pg_temp.fx('d') and description = 'Futura D'), pg_temp.hoje()),
+          'R2.1 a parcela da fatura aberta é estornada inteira');
+select is((select count(*) from public.card_months(pg_temp.fx('d')) m where m.label = (select label from fut_d)), 0::bigint,
+          'R2.2 a fatura aberta sumiu de card_months');
+select is(pg_temp.sit(pg_temp.fx('d'), '2026-10'), '80.00|30.00', 'R2.3 os 30 contam como adiantamento em outubro (antes: 80|0)');
+select is(pg_temp.sit_as_of(pg_temp.fx('d'), '2026-10'), '80.00|30.00', 'R2.4 card_months_as_of dá o mesmo número');
 reset role;
 
 select * from finish();

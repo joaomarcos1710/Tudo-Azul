@@ -630,6 +630,50 @@ describe('Cartões', () => {
     expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 12000, faturaId: null }), expect.any(String))
   })
 
+  it('#306: pagamento movido para a fatura seguinte deixa a dívida menor que o aberto; sugere o aberto da fatura e explica', async () => {
+    const u = userEvent.setup()
+    // dívida do cartão (debt_balances) 40,00; a fatura fechada tem 100,00 sem pagamento (os 60 foram para a seguinte)
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(4000), compromissos: c(20000) }])
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), total: c(10000), pago: c(0), faturaId: 'f3' }),
+      fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(20000), total: c(20000), pago: c(6000), faturaId: 'f9' }),
+    ])
+    montar()
+    await abrirPagar(u)
+    await waitFor(() => expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('100,00'))
+    expect((await screen.findByText(/em aberto; a dívida do cartão/)).textContent).toMatch(/R\$ 100,00 em aberto; a dívida do cartão \(R\$ 40,00\) é menor/)
+    expect(screen.queryByText(/O que passar da fatura fechada/)).toBeNull() // 100,00 não passa do aberto
+    // "mais que tudo" usa a dívida real: 40,00 + 200,00 de parcelas futuras = 240,00 (não 100 + 200)
+    const campo = screen.getByLabelText('Valor (R$)')
+    await u.clear(campo)
+    await u.type(campo, '250,00')
+    expect(await screen.findByText(/mais do que tudo o que este cartão tem a pagar/)).toBeTruthy()
+    await u.clear(campo)
+    await u.type(campo, '100,00')
+    await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ valor: 10000, faturaId: 'f3' }), expect.any(String))
+  })
+
+  it('#306: o aberto da fatura que chega depois não apaga o valor que a pessoa já digitou', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(4000), compromissos: c(20000) }])
+    const fs = [fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), total: c(10000), pago: c(0), faturaId: 'f3' })]
+    mock.listarFaturas.mockResolvedValue(fs)
+    montar()
+    await u.click(await botaoVerFatura())
+    // a leitura do painel de pagar fica pendente até a pessoa digitar
+    let soltar: (x: Fatura[]) => void = () => {}
+    mock.listarFaturas.mockReturnValueOnce(new Promise<Fatura[]>((r) => { soltar = r }))
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    const campo = screen.getByLabelText('Valor (R$)')
+    await u.clear(campo)
+    await u.type(campo, '55,00')
+    soltar(fs)
+    expect(await screen.findByText(/em aberto; a dívida do cartão/)).toBeTruthy()
+    expect((campo as HTMLInputElement).value).toBe('55,00')
+  })
+
   it('pagar mais que a fatura fechada: o excedente vira crédito e a tela avisa; mais que tudo, pede para conferir', async () => {
     const u = userEvent.setup()
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(13334), total: c(13334), faturaId: 'f3' })])
