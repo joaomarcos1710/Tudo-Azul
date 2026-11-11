@@ -126,8 +126,9 @@ Todas abaixo estão aplicadas em produção (conferido na simulação de 10/11/2
 | 104 | `20261110130000_investment_by_value.sql` | #294 |
 | 105 | `20261110140000_investment_sell_never_negative.sql` | #295 |
 | 106 | `20261110150000_investment_institution.sql` | #297 |
+| 107 | `20261110160000_investment_contributions.sql` | #298 |
 
-A próxima migration é a **107**. Escreva o número no cabeçalho do arquivo novo.
+A próxima migration é a **108**. Escreva o número no cabeçalho do arquivo novo.
 
 
 ## Detalhes da 019
@@ -279,3 +280,13 @@ Arquivo `20261110150000_investment_institution.sql`. Nenhuma função existente 
 - `investment_income_totals(p_household, p_from, p_to)`: proventos recebidos (`paid`) e previstos (`planned`) por moeda do ativo, com a mesma regra de `investment_income_by_asset` (a soma dos ativos de uma moeda = a linha da moeda). Para o cartão "Proventos no mês": o front não soma dinheiro.
 - As duas leituras são SECURITY INVOKER e conferem `private.is_member`; a de escrita é SECURITY DEFINER. Execução só para `authenticated`.
 - Teste `100_investment_institution` (163 asserções; falha sem a migration); `00_audit` lista as três funções.
+
+## Aportes, resgates e rendimento total (migration 107, PR #298, não aplicada)
+Arquivo `20261110160000_investment_contributions.sql`. Só leitura; nenhuma função existente muda e nenhum dado é alterado.
+- **Por quê:** `cost_basis` e `unrealized_result` de `investment_portfolio` são só do que ainda está investido (custo médio). Depois de um resgate, a parte resgatada sai do custo e o ganho dela sai do resultado: pôs 1.000, passou a valer 1.100, tirou 550 → custo 500, resultado 50.
+- `investment_contributions(p_household, p_as_of)`: uma linha por ativo com posição aberta (`level = 'asset'`) e uma por moeda (`level = 'total'`, `asset_id` nulo), com `contributed` (soma das compras, quantidade × preço + tarifas), `redeemed` (soma das vendas, quantidade × preço − tarifas), `net_contributed` (a diferença; negativo quando já se resgatou mais do que se aportou), `market_value` (o de `investment_portfolio`) e `total_result = market_value − net_contributed`. No exemplo: 1.000, 550, 450, 550 e 100.
+- Cada operação conta pelo mesmo valor em centavos que entra ou sai da conta (migration 100); anuladas não contam; proventos não entram.
+- `market_value = net_contributed + total_result` no centavo, em toda linha; a soma do `market_value` de uma moeda é igual a `investment_totals`.
+- Só ativos com posição aberta em `p_as_of`: ativo zerado ou arquivado some junto com o ganho que realizou; se voltar a ter posição, volta com a história inteira.
+- SECURITY INVOKER, confere `private.is_member`, execução só para `authenticated`. `00_audit` lista a função.
+- Teste `101_investment_contributions` (falha sem a migration).

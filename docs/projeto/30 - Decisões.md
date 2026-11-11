@@ -600,3 +600,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Investimento continua fora de Contas** (decisão de 10/11 mantida): o "saldo consolidado" do desenho não soma a carteira.
 - **Total convertido em reais (dólar e euro):** o dono quer o app preparado para isso. Depende da cotação PTAX (multimoeda F4); até lá, cada moeda aparece com o seu total.
 - **Ainda sem resposta do dono:** filtros de Lançamentos (tela cheia, como ele pediu na #271, ou na própria tela, como no desenho) e se Contas e Cartões viram uma tela só.
+
+## 10/11/2026 — "Aportado" é o que pôs menos o que tirou; "Rendimento" conta o que já resgatou (dono, #298)
+- **Decidido pelo dono** ("pode fazer em PR separada"), depois de ver que o custo médio fazia o rendimento mostrado cair a cada resgate do cofrinho.
+- **Como:** função nova no banco (migration 107) com tudo o que entrou, tudo o que saiu e o ganho total. Carteira = Aportado + Rendimento, no centavo.
+- **Por que líquido e não "tudo o que já aportei":** num cofrinho de onde o dinheiro entra e sai toda semana, a soma bruta dos aportes cresce sem parar e não diz nada. O bruto aparece na nota ("Pôs X · tirou Y") quando houve resgate.
+- **Preço da escolha, avisado ao dono:** quem resgata mais do que aportou fica com aportado negativo (é verdade: já tirou mais do que pôs). E o percentual some quando há resgate, porque rendimento ÷ aportado líquido deixa de querer dizer alguma coisa; rentabilidade de verdade pede cálculo no tempo e fica para depois.
+- **O que não muda:** `investment_portfolio` e `investment_totals` (custo médio) continuam como estão e seguem sendo usados no patrimônio, no gráfico e na alocação.
