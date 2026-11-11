@@ -674,6 +674,25 @@ describe('Cartões', () => {
     expect((campo as HTMLInputElement).value).toBe('55,00')
   })
 
+  it('#306: cartão sem dívida, mas com fatura fechada em aberto (pagamento movido): sugere o aberto e não diz "Não há fatura fechada"', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), credito: c(2000), compromissos: c(20000) }])
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), total: c(10000), pago: c(0), faturaId: 'f3' }),
+      fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(20000), total: c(20000), pago: c(12000), faturaId: 'f9' }),
+    ])
+    montar()
+    await u.click(await botaoVerFatura())
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    await waitFor(() => expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('100,00'))
+    expect((await screen.findByText(/mesmo com o cartão sem dívida/)).textContent).toMatch(/R\$ 100,00 em aberto, mesmo com o cartão sem dívida/)
+    expect(screen.queryByText(/Não há fatura fechada/)).toBeNull()
+    await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    // sem dívida o pagamento não se liga a fatura (comportamento de antes): como adiantamento, abate primeiro a fatura em aberto mais antiga
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ valor: 10000, faturaId: null }), expect.any(String))
+  })
+
   it('pagar mais que a fatura fechada: o excedente vira crédito e a tela avisa; mais que tudo, pede para conferir', async () => {
     const u = userEvent.setup()
     mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(13334), total: c(13334), faturaId: 'f3' })])

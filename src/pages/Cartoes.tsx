@@ -1924,10 +1924,10 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
         const f = fs.find((x) => situacaoFatura(x, hoje) === 'fechada') ?? null
         setFatura(f)
         setFaturaEstado('ok')
-        // #306: com pagamento movido para fatura seguinte, a dívida (debt_balances) fica menor que o aberto desta fatura;
-        // sugerir só a dívida deixaria a fatura fechada em aberto
+        // #306: com pagamento movido para fatura seguinte, a dívida (debt_balances) fica menor que o aberto desta fatura,
+        // até zero ou crédito; sugerir só a dívida deixaria a fatura fechada em aberto
         const a = f ? abertoDa(f) : 0
-        if (cartao.divida > 0 && a > cartao.divida && !editouValor.current) setValorTexto(formatBRLCampo(a as Cents))
+        if (a > Math.max(cartao.divida, 0) && !editouValor.current) setValorTexto(formatBRLCampo(a as Cents))
       })
       .catch(() => { if (vivo) { setFatura(null); setFaturaEstado('falhou') } })
     return () => { vivo = false }
@@ -1936,7 +1936,9 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
   // o que falta pagar da fatura que este pagamento quita: diferença de dois valores da mesma linha (card_months)
   const aberto = fatura ? abertoDa(fatura) : 0
   // a referência das mensagens: a dívida do cartão, ou o aberto da fatura quando ele é maior (pagamento movido para a seguinte)
-  const referencia = cartao.divida > 0 && aberto > cartao.divida ? (aberto as Cents) : cartao.divida
+  const referencia = aberto > Math.max(cartao.divida, 0) ? (aberto as Cents) : cartao.divida
+  // fatura fechada ainda em aberto, mesmo com o cartão sem dívida (o pagamento movido deixou a dívida em zero ou crédito)
+  const fechadaSemDivida = cartao.divida <= 0 && fatura !== null && aberto > 0
   const valor = parseBRL(valorTexto)
   const erroValor = tentou && (valor === null || valor <= 0) ? 'Valor inválido.' : undefined
 
@@ -1965,11 +1967,14 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
         <Field rotulo="Data do pagamento" type="date" value={data} max={hojeSP()} onChange={(e) => setData(e.target.value)} />
         <p className="text-sm text-slate-600 md:col-span-2">
           {cartao.divida > 0 && fatura ? <>Quita a fatura de <strong>{formatMonth(fatura.mes)}</strong>. </> : null}
-          {referencia > cartao.divida && fatura && (
+          {cartao.divida > 0 && referencia > cartao.divida && fatura && (
             <>Ela tem <strong>{formatBRL(referencia)}</strong> em aberto; a dívida do cartão ({formatBRL(cartao.divida)}) é menor porque há pagamento ligado a uma fatura seguinte. </>
           )}
-          {adiantado && cartao.divida > 0 && <>O que passar da fatura fechada ({formatBRL(referencia)}) <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
-          {cartao.divida <= 0 && <>Não há fatura fechada: pagar antes do fechamento <strong>vira crédito no cartão</strong> e abate as próximas faturas. </>}
+          {fechadaSemDivida && fatura && (
+            <>A fatura de <strong>{formatMonth(fatura.mes)}</strong> tem <strong>{formatBRL(referencia)}</strong> em aberto, mesmo com o cartão sem dívida, porque há pagamento ligado a uma fatura seguinte. Este pagamento abate primeiro ela. </>
+          )}
+          {adiantado && (cartao.divida > 0 || fechadaSemDivida) && <>O que passar da fatura fechada ({formatBRL(referencia)}) <strong>fica como crédito no cartão</strong> e abate as próximas faturas. </>}
+          {cartao.divida <= 0 && !fechadaSemDivida && <>Não há fatura fechada: pagar antes do fechamento <strong>vira crédito no cartão</strong> e abate as próximas faturas. </>}
           O pagamento sai da conta na data escolhida e reduz a dívida do cartão. Não é despesa: as compras contam no mês de cada fatura.
         </p>
         {maisQueTudo && (
