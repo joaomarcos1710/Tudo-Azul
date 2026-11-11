@@ -50,7 +50,9 @@ select ok(not has_function_privilege('authenticated', 'private.fx_ptax_record(te
 create function pg_temp.agendado(p_job text, p_comando text) returns boolean language plpgsql as $f$
 declare v boolean;
 begin
-  if not exists (select 1 from pg_namespace where nspname = 'cron') then return true; end if;
+  -- onde o pg_cron EXISTE (Supabase) mas o schema cron não está lá, a migration não o instalou: falha, não "pula"
+  if not exists (select 1 from pg_available_extensions where name = 'pg_cron') then return true; end if;
+  if not exists (select 1 from pg_namespace where nspname = 'cron') then return false; end if;
   execute $q$select exists (select 1 from cron.job where jobname = $1 and schedule = '15 17,21 * * 1-5' and command = $2)$q$
     into v using p_job, p_comando;
   return v;
@@ -58,15 +60,16 @@ end $f$;
 select ok(pg_temp.agendado('ptax-usd', $$select private.fx_ptax_fetch('USD', 10)$$)
           and pg_temp.agendado('ptax-eur', $$select private.fx_ptax_fetch('EUR', 10)$$),
           'F9 onde há pg_cron, um job por moeda (ptax-usd e ptax-eur), dias úteis, 17:15 e 21:15 UTC'
-          || case when exists (select 1 from pg_namespace where nspname = 'cron') then '' else ' [sem pg_cron neste banco: não conferido]' end);
+          || case when exists (select 1 from pg_available_extensions where name = 'pg_cron') then '' else ' [sem pg_cron neste banco: não conferido]' end);
 
 -- A extensão http (chamada web a partir do banco) fica num schema que o app não alcança. Onde ela existe (CI com o
 -- Supabase completo), confere de verdade; no Postgres local ela não existe e a descrição diz que não foi conferido.
 create function pg_temp.http_fechada() returns boolean language plpgsql as $f$
 declare v_schema text;
 begin
+  -- onde a http EXISTE (Supabase) a migration tem de tê-la instalado em fx_http; onde não existe (Postgres local), não há o que conferir
+  if not exists (select 1 from pg_available_extensions where name = 'http') then return true; end if;
   select n.nspname into v_schema from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'http';
-  if v_schema is null then return true; end if;
   return v_schema = 'fx_http'
      and not has_schema_privilege('anon', 'fx_http', 'usage')
      and not has_schema_privilege('authenticated', 'fx_http', 'usage')
@@ -74,12 +77,11 @@ begin
 end $f$;
 select ok(pg_temp.http_fechada(),
           'F10 a extensão http, quando existe, está no schema fx_http e anon, authenticated e service_role não têm USAGE nele (o app não alcança http_get)'
-          || case when exists (select 1 from pg_extension where extname = 'http') then '' else ' [sem a extensão neste banco: não conferido]' end);
+          || case when exists (select 1 from pg_available_extensions where name = 'http') then '' else ' [sem a extensão neste banco: não conferido]' end);
 select ok(case when exists (select 1 from pg_extension where extname = 'http')
-               then not has_function_privilege('anon', 'fx_http.http_get(character varying)', 'execute')
-                 or not has_schema_privilege('anon', 'fx_http', 'usage')
-               else true end,
-          'F11 anon não chega a http_get (sem USAGE no schema)');
+               then not has_schema_privilege('anon', 'fx_http', 'usage') and not has_schema_privilege('authenticated', 'fx_http', 'usage')
+               else not exists (select 1 from pg_available_extensions where name = 'http') end,
+          'F11 anon e authenticated não chegam a http_get (sem USAGE no schema fx_http)');
 
 -- ---- R: gravar a resposta do BCB ----
 select is(private.fx_ptax_record('USD', pg_temp.resp(
