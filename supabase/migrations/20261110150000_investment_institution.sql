@@ -8,8 +8,8 @@
 --   1. investment_assets.institution: texto livre, até 40 caracteres (como a subclasse), sempre sem espaço nas pontas.
 --      Nulo = sem instituição.
 --   2. public.investment_asset_set_institution(p_asset, p_institution): define ou limpa (texto vazio limpa). Qualquer
---      espaço em branco (tabulação, quebra de linha, espaço que não quebra, vários seguidos) vira um espaço só e as pontas
---      são aparadas: o mesmo nome colado de outro lugar não vira outra instituição na tela. Maiúscula e minúscula NÃO são
+--      espaço em branco (tabulação, quebra de linha, espaço que não quebra, espaço fino, vários seguidos) vira um espaço só,
+--      caractere de largura zero some e as pontas são aparadas: o mesmo nome colado de outro lugar não vira outra instituição na tela. Maiúscula e minúscula NÃO são
 --      unificadas ("XP" e "xp" são duas linhas): a tela oferece as já usadas para repetir a grafia.
 --   3. public.investment_institution_totals(p_household, p_as_of): valor de mercado por moeda e instituição, das mesmas
 --      posições de investment_portfolio (a soma de uma moeda = investment_totals.market_value). Para a aba "Instituição".
@@ -29,8 +29,11 @@ returns void
 language plpgsql security definer set search_path = '' as $$
 declare
   v_asset public.investment_assets%rowtype;
-  -- [\s\u00A0]: todo espaço em branco, incluído o que não quebra (que o btrim sozinho não tira)
-  v_inst text := nullif(btrim(regexp_replace(p_institution, '[\s\u00A0]+', ' ', 'g')), '');
+  -- Primeiro saem os caracteres de largura zero (invisíveis no meio do nome); depois todo espaço em branco vira um
+  -- espaço só. Os espaços Unicode vão escritos um a um porque o que \s alcança depende do idioma do banco.
+  v_inst text := nullif(btrim(regexp_replace(
+    regexp_replace(p_institution, '[\u200B-\u200D\uFEFF]', '', 'g'),
+    '[\s\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]+', ' ', 'g')), '');
 begin
   if auth.uid() is null then raise exception 'não autenticado' using errcode = '42501'; end if;
   select * into v_asset from public.investment_assets where id = p_asset for update;

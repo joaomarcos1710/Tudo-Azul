@@ -14,7 +14,15 @@ const pct = (v: number) => `${v.toLocaleString('pt-BR', { minimumFractionDigits:
 export function sobreOAportado(resultado: Cents, aportado: Cents): string | null {
   // com "ocultar valores" o percentual também some: junto com a cor ele entregaria quanto rendeu
   if (valoresOcultos() || aportado <= 0) return null
-  return `${resultado > 0 ? '+' : ''}${pct((resultado * 100) / aportado)} sobre o aportado`
+  // arredonda antes de decidir o sinal: 4 centavos sobre R$ 100 é "0,0%", não "+0,0%" nem "-0,0%"
+  // `|| 0` tira o zero negativo, que sairia como "-0,0%"
+  const decimos = Math.round((resultado * 1000) / aportado) || 0
+  return `${decimos > 0 ? '+' : ''}${pct(decimos / 10)} sobre o aportado`
+}
+
+/** Cor do rendimento (azul ganho, vermelho perda); com "ocultar valores" fica neutra, para a cor não entregar o sinal. */
+export function corDoResultado(valor: Cents): string {
+  return valoresOcultos() ? 'text-neutro' : corDoValor(valor)
 }
 
 /** "+" na frente do ganho, como o "-" que o prejuízo já traz ("+R$ 32,21"); com "ocultar valores" fica só a máscara. */
@@ -23,8 +31,8 @@ export function comSinal(texto: string, valor: Cents): string {
 }
 
 /**
- * Posições em tabela (pedido do dono, 10/11/2026, a partir de um desenho dele): por investimento, quanto entrou
- * (aportado), quanto vale hoje e o que rendeu, com a classe e a instituição embaixo do nome. Uma tabela por moeda, sem
+ * Posições em tabela (pedido do dono, 10/11/2026, a partir de um desenho dele): por investimento, o aportado (custo do
+ * que ainda está investido, não tudo o que já entrou), quanto vale hoje e o rendimento do que ainda está lá, com a classe e a instituição embaixo do nome. Uma tabela por moeda, sem
  * conversão. Tudo vem do banco: aportado = custo de aquisição, valor atual e rendimento = investment_portfolio; a linha
  * Total = investment_totals (por isso some quando há filtro: o total do banco é da carteira inteira, não das linhas à vista).
  * Proventos do mês só aparecem quando existem (renda fixa não paga provento mensal: o juro fica no valor do título).
@@ -77,7 +85,7 @@ export function TabelaPosicoes({ posicoes, ativos, totais, proventosDoMes, filtr
                   const relativo = sobreOAportado(p.resultado, p.custoTotal)
                   const rendimento = (
                     <>
-                      <p className={`font-semibold ${corDoValor(p.resultado)}`}>{comSinal(formatar(p.resultado, p.moeda), p.resultado)}</p>
+                      <p className={`font-semibold ${corDoResultado(p.resultado)}`}>{comSinal(formatar(p.resultado, p.moeda), p.resultado)}</p>
                       {relativo && <p className="whitespace-normal text-xs text-slate-500">{relativo}</p>}
                       {provento !== undefined && provento > 0 && <p className="whitespace-normal text-xs text-slate-500">proventos {formatar(provento, p.moeda)} no mês</p>}
                     </>
@@ -114,9 +122,9 @@ export function TabelaPosicoes({ posicoes, ativos, totais, proventosDoMes, filtr
                     <td className={`hidden sm:table-cell ${numero}`}>{formatar(total.custoTotal, moeda)}</td>
                     <td className={`${numero} pr-3 sm:pr-2`}>
                       <span className="text-azul">{formatar(total.valorAtual, moeda)}</span>
-                      <span className={`block sm:hidden ${corDoValor(total.resultado)}`}>{comSinal(formatar(total.resultado, moeda), total.resultado)}</span>
+                      <span className={`block sm:hidden ${corDoResultado(total.resultado)}`}>{comSinal(formatar(total.resultado, moeda), total.resultado)}</span>
                     </td>
-                    <td className={`hidden sm:table-cell ${numero} pr-3 ${corDoValor(total.resultado)}`}>{comSinal(formatar(total.resultado, moeda), total.resultado)}</td>
+                    <td className={`hidden sm:table-cell ${numero} pr-3 ${corDoResultado(total.resultado)}`}>{comSinal(formatar(total.resultado, moeda), total.resultado)}</td>
                   </tr>
                 </tfoot>
               )}

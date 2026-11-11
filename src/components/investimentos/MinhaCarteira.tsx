@@ -44,7 +44,7 @@ export function MinhaCarteira({ total, alocacao, liquidez, instituicoes, posicoe
       chave: l.liquidez, nome: l.liquidez === 'restricted' ? 'Restrito (previdência, FGTS)' : 'Líquido', valor: l.valor, percentual: proporcao(l.valor),
     })),
     instituicao: instituicoes.filter((l) => l.valor > 0).map((l) => ({
-      chave: l.instituicao ?? '(sem)', nome: l.instituicao ?? 'Sem instituição', valor: l.valor, percentual: proporcao(l.valor),
+      chave: l.instituicao === null ? 'sem' : `i:${l.instituicao}`, nome: l.instituicao ?? 'Sem instituição', valor: l.valor, percentual: proporcao(l.valor),
     })),
     ativos: [...posicoes].sort((a, b) => b.valorAtual - a.valorAtual).map((p) => ({
       chave: p.assetId, nome: p.nome, valor: p.valorAtual, percentual: proporcao(p.valorAtual),

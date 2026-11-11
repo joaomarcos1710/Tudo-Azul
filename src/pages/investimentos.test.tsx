@@ -63,6 +63,7 @@ vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/conta
 import Investimentos from './Investimentos'
 import type { Cents } from '../lib/format'
 import { definirValoresOcultos } from '../lib/privacidade'
+import { sobreOAportado } from '../components/investimentos/TabelaPosicoes'
 
 const c = (n: number) => n as Cents
 const ativo = (id: string, nome: string, classe: string, extra: Record<string, unknown> = {}) =>
@@ -386,7 +387,10 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(within(lista).getAllByRole('listitem')).toHaveLength(3)
       expect(cartao(lista, 'Carteira').textContent).toMatch(/R\$\s1\.073,00/)
       expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s1\.000,00/)
-      expect(cartao(lista, 'Aportado').textContent).toMatch(/Quanto saiu do bolso/)
+      // "aportado" é o custo do que ainda está investido (depois de um resgate não é "quanto saiu do bolso")
+      expect(cartao(lista, 'Aportado').textContent).toMatch(/Custo do que está investido/)
+      expect(screen.queryByText(/saiu do bolso/)).toBeNull()
+      expect(screen.getByText('Aportado e rendimento são do que ainda está investido: o que já foi resgatado não entra.')).toBeTruthy()
       expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s73,00/)
       expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+7,3% sobre o aportado/)
       expect(within(lista).queryByText('Proventos no mês')).toBeNull()
@@ -477,6 +481,8 @@ describe('Investimentos × macroclasse e subclasse', () => {
         expect(lista.textContent).not.toMatch(/\d|\+/)
         const tabela = await screen.findByRole('table', { name: /Posições em BRL/ })
         expect(tabela.textContent).not.toMatch(/sobre o aportado|\+|73|7,3/)
+        // a cor também não entrega se foi ganho ou perda
+        expect(lista.innerHTML + tabela.innerHTML).not.toMatch(/text-lucro|text-prejuizo/)
       } finally { definirValoresOcultos(false) }
     })
 
@@ -512,6 +518,60 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
       await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(2))
       expect(mock.definirInstituicaoAtivo).toHaveBeenCalledTimes(1)
+    })
+
+    it('"% sobre o aportado": arredonda antes de pôr o sinal e não divide por zero', () => {
+      expect(sobreOAportado(c(7300), c(100000))).toBe('+7,3% sobre o aportado')
+      expect(sobreOAportado(c(-1000), c(10000))).toBe('-10,0% sobre o aportado')
+      expect(sobreOAportado(c(4), c(10000))).toBe('0,0% sobre o aportado')
+      expect(sobreOAportado(c(-4), c(10000))).toBe('0,0% sobre o aportado')
+      expect(sobreOAportado(c(100), c(0))).toBeNull()
+    })
+
+    it('banco sem a migration 106: o campo Instituição não aparece no cadastro nem na edição, e o resto salva normalmente', async () => {
+      mock.listarInstituicoesInvestimentos.mockRejectedValue(new Error('PGRST202'))
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      expect(screen.getByLabelText('Subclasse (opcional)')).toBeTruthy()
+      expect(screen.queryByLabelText('Instituição (opcional)')).toBeNull()
+      await u.click(screen.getByRole('button', { name: 'Cancelar' }))
+      await u.click(await screen.findByRole('button', { name: 'Editar Tesouro Selic' }))
+      expect(screen.queryByLabelText('Instituição (opcional; vazio limpa)')).toBeNull()
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.editarAtivoInvestimento).toHaveBeenCalledTimes(1))
+      expect(mock.definirInstituicaoAtivo).not.toHaveBeenCalled()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
+
+    it('novo ativo: se subclasse e instituição falharem depois do ativo criado, os dois avisos aparecem', async () => {
+      mock.definirSubclasseAtivo.mockRejectedValue(new Error('subclasse inválida'))
+      mock.definirInstituicaoAtivo.mockRejectedValue(new Error('instituição inválida (até 40 caracteres)'))
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      await u.type(screen.getByLabelText('Nome do ativo'), 'CDB Banco X')
+      await u.selectOptions(screen.getByLabelText('Categoria'), 'bancario')
+      await u.type(screen.getByLabelText('Instituição (opcional)'), 'Banco X')
+      await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
+      const aviso = (await screen.findByRole('alert')).textContent
+      expect(aviso).toMatch(/Ativo cadastrado, mas a subclasse não foi salva/)
+      expect(aviso).toMatch(/Ativo cadastrado, mas a instituição não foi salva/)
+      expect(screen.queryByRole('dialog', { name: 'Novo ativo' })).toBeNull()
+    })
+
+    it('editar ativo: se a instituição falhar, o resto já foi gravado; o formulário fecha, a lista recarrega e o aviso diz o que faltou', async () => {
+      mock.definirInstituicaoAtivo.mockRejectedValue(new Error('instituição inválida (até 40 caracteres)'))
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Tesouro Selic' }))
+      const cargas = mock.listarAtivosInvestimento.mock.calls.length
+      await u.type(screen.getByLabelText('Instituição (opcional; vazio limpa)'), 'Corretora Teste')
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      expect((await screen.findByRole('alert')).textContent).toMatch(/Ativo atualizado, mas a instituição não foi salva/)
+      expect(mock.editarAtivoInvestimento).toHaveBeenCalledTimes(1)
+      expect(screen.queryByLabelText('Instituição (opcional; vazio limpa)')).toBeNull() // fechou
+      expect(mock.listarAtivosInvestimento.mock.calls.length).toBeGreaterThan(cargas) // recarregou
     })
 
     it('editar ativo: a instituição só vai para o banco quando mudou; vazio limpa', async () => {

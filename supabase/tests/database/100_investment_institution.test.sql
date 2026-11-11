@@ -230,6 +230,10 @@ select public.investment_asset_set_institution(pg_temp.fx('semop'), U&'\00A0Corr
 select is(pg_temp.gravada('semop'), '[Corretora Teste]', 'B13.2 o espaço que não quebra (U+00A0) também');
 select public.investment_asset_set_institution(pg_temp.fx('semop'), E' \t\n' || U&'\00A0');
 select is(pg_temp.gravada('semop'), '(nulo)', 'B13.3 só espaço em branco de qualquer tipo vira nulo, não uma instituição invisível');
+select public.investment_asset_set_institution(pg_temp.fx('semop'), U&'Corretora\202FTeste\2007\3000');
+select is(pg_temp.gravada('semop'), '[Corretora Teste]', 'B13.6 espaço fino (U+202F), de algarismo (U+2007) e ideográfico (U+3000) também, em qualquer idioma do banco');
+select public.investment_asset_set_institution(pg_temp.fx('semop'), U&'Corre\200Btora\FEFF Teste\200D');
+select is(pg_temp.gravada('semop'), '[Corretora Teste]', 'B13.7 caractere de largura zero no meio do nome some (não vira outra instituição igual na tela)');
 select lives_ok($$select public.investment_asset_set_institution(pg_temp.fx('semop'), repeat('ab  ', 13) || 'c')$$,
                 'B13.4 o limite de 40 vale depois de juntar os espaços (53 digitados, 40 gravados)');
 select is(char_length((select institution from public.investment_assets where id = pg_temp.fx('semop'))), 40, 'B13.5 gravou 40');

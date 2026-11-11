@@ -68,6 +68,8 @@ export default function Investimentos() {
   const [liquidez, setLiquidez] = useState<LinhaLiquidez[]>([])
   // (106) por instituição; vazio quando o banco ainda não tem a migration: a aba some, o resto da tela segue
   const [instituicoes, setInstituicoes] = useState<LinhaInstituicao[]>([])
+  // false = o banco ainda não tem a migration 106: o campo Instituição não aparece (gravar daria erro depois de salvar o resto)
+  const [bancoTemInstituicao, setBancoTemInstituicao] = useState(false)
   // proventos do mês corrente: por ativo (linha da tabela) e o total por moeda, do banco; null = não leu
   const [proventosMes, setProventosMes] = useState<ProventoAtivo[]>([])
   const [totalProventosMes, setTotalProventosMes] = useState<TotalProventos[] | null>(null)
@@ -106,7 +108,8 @@ export default function Investimentos() {
       setErro('')
       try { setAlocacao(await listarAlocacaoInvestimentos(familia.id, hojeSP())) } catch { setAlocacao([]) }
       try { setLiquidez(await listarLiquidezInvestimentos(familia.id, hoje)) } catch { setLiquidez([]) }
-      try { setInstituicoes(await listarInstituicoesInvestimentos(familia.id, hoje)) } catch { setInstituicoes([]) }
+      try { setInstituicoes(await listarInstituicoesInvestimentos(familia.id, hoje)); setBancoTemInstituicao(true) }
+      catch { setInstituicoes([]); setBancoTemInstituicao(false) }
       // proventos do mês corrente: por ativo (tabela de posições) e o total por moeda (cartão). Um não depende do outro:
       // sem a migration 106 o total não existe, mas a linha por ativo continua.
       const [de, ate] = limitesDoMes(currentMonth())
@@ -139,25 +142,26 @@ export default function Investimentos() {
     const id = await criarAtivoInvestimento({ familiaId, ...ativo })
     setNovoAtivo(false)
     try {
-      let avisoSub = ''
+      // cada complemento é uma chamada própria: o que falhar vira um aviso, e todos aparecem (não só o último)
+      const avisos: string[] = []
       if (subclasse.trim()) {
         try { await definirSubclasseAtivo(id, subclasse) } catch (e) {
-          avisoSub = `Ativo cadastrado, mas a subclasse não foi salva: ${mensagemErroBanco(e)}`
+          avisos.push(`Ativo cadastrado, mas a subclasse não foi salva: ${mensagemErroBanco(e)}`)
         }
       }
       if (instituicao.trim()) {
         try { await definirInstituicaoAtivo(id, instituicao) } catch (e) {
-          avisoSub = `Ativo cadastrado, mas a instituição não foi salva: ${mensagemErroBanco(e)}`
+          avisos.push(`Ativo cadastrado, mas a instituição não foi salva: ${mensagemErroBanco(e)}`)
         }
       }
       // o ativo nasce líquido no banco; só o restrito precisa da segunda chamada
       if (liq === 'restricted') {
         try { await definirLiquidezAtivo(id, liq) } catch (e) {
-          avisoSub = `Ativo cadastrado como líquido: não foi possível marcar como restrito. ${mensagemErroBanco(e)}`
+          avisos.push(`Ativo cadastrado como líquido: não foi possível marcar como restrito. ${mensagemErroBanco(e)}`)
         }
       }
-      await carregar() // recarregar limpa o erro; por isso o aviso da subclasse entra depois
-      if (avisoSub) setErro(avisoSub)
+      await carregar() // recarregar limpa o erro; por isso os avisos entram depois
+      if (avisos.length) setErro(avisos.join(' '))
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
   async function salvarProvento(d: {
@@ -178,10 +182,17 @@ export default function Investimentos() {
   async function salvarEdicaoAtivo(d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo; instituicao: string }) {
     const { instituicao, ...dados } = d
     await editarAtivoInvestimento(dados)
-    // só chama quando mudou: no banco sem a migration 106 a edição comum continua funcionando
-    if (instituicao.trim() !== (editandoAtivo?.instituicao ?? '')) await definirInstituicaoAtivo(d.ativoId, instituicao)
+    // a instituição é uma segunda chamada, só quando mudou. Se ela falhar, nome, código e classe já foram gravados:
+    // o formulário fecha, a lista recarrega e o aviso diz o que ficou de fora (não "falhou", que seria mentira)
+    let aviso = ''
+    if (instituicao.trim() !== (editandoAtivo?.instituicao ?? '')) {
+      try { await definirInstituicaoAtivo(d.ativoId, instituicao) } catch (e) {
+        aviso = `Ativo atualizado, mas a instituição não foi salva: ${mensagemErroBanco(e)}`
+      }
+    }
     setEditandoAtivo(null)
     await carregar()
+    if (aviso) setErro(aviso)
   }
   async function salvarSubclasse(ativoId: string, subclasse: string) {
     try {
@@ -253,7 +264,7 @@ export default function Investimentos() {
         Compras, vendas e avaliações em BRL, USD ou EUR, separadas por moeda e sem conversão. Ao escolher a conta numa compra ou venda em reais, o dinheiro sai ou volta como transferência para a carteira, sem virar despesa nem receita. Não há cotação automática: o valor de mercado vem das avaliações.
       </Aviso>
 
-      {novoAtivo && <FormAtivo instituicoes={instituicoesExistentes} aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
+      {novoAtivo && <FormAtivo instituicoes={bancoTemInstituicao ? instituicoesExistentes : null} aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
         <FormOperacao ativos={ativosAtivos} contas={contasAtivas} tipoInicial={novaOperacao === 'sell' ? 'sell' : 'buy'} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
       )}
@@ -333,7 +344,7 @@ export default function Investimentos() {
 
       <section className="mt-8" aria-labelledby="titulo-posicoes">
         <h2 id="titulo-posicoes" className="text-lg font-semibold">Posições</h2>
-        <p className="mb-3 text-sm text-slate-500">Quanto entrou, quanto vale hoje e o que rendeu.</p>
+        <p className="mb-3 text-sm text-slate-500">Do que está investido hoje: quanto custou, quanto vale e o rendimento.</p>
         {posicoes.length > 0 && (
           // filtros na tela cheia compartilhada (pedido do dono, 10/11/2026, como em Lançamentos); aqui só o botão e os selos.
           // Filtra só a lista na tela: nenhum valor muda e nada é pedido ao banco, então cada toque vale na hora.
@@ -424,7 +435,7 @@ export default function Investimentos() {
                   </span>
                   {editandoAtivo?.id === a.id && (
                     <div className="w-full">
-                      <FormEditarAtivo ativo={a} instituicoes={instituicoesExistentes} aoSalvar={salvarEdicaoAtivo} aoCancelar={() => setEditandoAtivo(null)} />
+                      <FormEditarAtivo ativo={a} instituicoes={bancoTemInstituicao ? instituicoesExistentes : null} aoSalvar={salvarEdicaoAtivo} aoCancelar={() => setEditandoAtivo(null)} />
                     </div>
                   )}
                   {extratoDe === a.id && familia?.id && (
@@ -689,8 +700,8 @@ function ExtratoAtivo({ familiaId, ativo, aoMudar, aoFechar }: {
 
 function FormEditarAtivo({ ativo, instituicoes, aoSalvar, aoCancelar }: {
   ativo: AtivoInvestimento
-  /** instituições já usadas em outros ativos, para sugerir a mesma grafia */
-  instituicoes: string[]
+  /** instituições já usadas em outros ativos, para sugerir a mesma grafia; null = banco sem a migration 106: o campo não aparece */
+  instituicoes: string[] | null
   aoSalvar: (d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo; instituicao: string }) => Promise<void>
   aoCancelar: () => void
 }) {
@@ -717,8 +728,10 @@ function FormEditarAtivo({ ativo, instituicoes, aoSalvar, aoCancelar }: {
         <Field rotulo="Nome do ativo" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={100} />
         <Field rotulo="Ticker ou código (opcional)" value={ticker} onChange={(e) => setTicker(e.target.value)} maxLength={20} />
         <Selecao rotulo="Classe" valor={classe} aoMudar={(v) => setClasse(v as ClasseAtivo)} opcoes={classes} />
-        <Field rotulo="Instituição (opcional; vazio limpa)" value={instituicao} onChange={(e) => setInstituicao(e.target.value)} maxLength={40} list={lista} />
-        <datalist id={lista}>{instituicoes.map((x) => <option key={x} value={x} />)}</datalist>
+        {instituicoes && <>
+          <Field rotulo="Instituição (opcional; vazio limpa)" value={instituicao} onChange={(e) => setInstituicao(e.target.value)} maxLength={40} list={lista} />
+          <datalist id={lista}>{instituicoes.map((x) => <option key={x} value={x} />)}</datalist>
+        </>}
         <p className="self-end text-sm text-slate-600">Moeda: <strong>{ativo.moeda}</strong> (não muda: as operações já estão nela).</p>
         <p className="text-sm text-slate-600 md:col-span-2">Mudar a classe só muda em qual grupo o ativo aparece na alocação; nenhum valor é alterado.</p>
         <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Salvar</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
@@ -794,8 +807,8 @@ function PeFolha({ idForm, rotulo, enviando, aoCancelar }: { idForm: string; rot
 }
 
 function FormAtivo({ instituicoes, aoSalvar, aoCancelar }: {
-  /** instituições já usadas em outros ativos, para sugerir a mesma grafia */
-  instituicoes: string[]
+  /** instituições já usadas em outros ativos, para sugerir a mesma grafia; null = banco sem a migration 106: o campo não aparece */
+  instituicoes: string[] | null
   aoSalvar: (d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string; liquidez: Liquidez; instituicao: string }) => Promise<void>
   aoCancelar: () => void
 }) {
@@ -872,11 +885,13 @@ function FormAtivo({ instituicoes, aoSalvar, aoCancelar }: {
           <LinhaFolha id={`${id}-sub`} rotulo="Subclasse (opcional)">
             <input id={`${id}-sub`} value={subclasse} onChange={(e) => setSubclasse(e.target.value)} maxLength={40} list={`${id}-sugestoes`} placeholder="CDB, FIIs" className={CONTROLE_FOLHA} />
           </LinhaFolha>
-          <LinhaFolha id={`${id}-inst`} rotulo="Instituição (opcional)">
-            <input id={`${id}-inst`} value={instituicao} onChange={(e) => setInstituicao(e.target.value)} maxLength={40} list={`${id}-instituicoes`} placeholder="Banco ou corretora" className={CONTROLE_FOLHA} />
-          </LinhaFolha>
+          {instituicoes && (
+            <LinhaFolha id={`${id}-inst`} rotulo="Instituição (opcional)">
+              <input id={`${id}-inst`} value={instituicao} onChange={(e) => setInstituicao(e.target.value)} maxLength={40} list={`${id}-instituicoes`} placeholder="Banco ou corretora" className={CONTROLE_FOLHA} />
+            </LinhaFolha>
+          )}
         </div>
-        <datalist id={`${id}-instituicoes`}>{instituicoes.map((x) => <option key={x} value={x} />)}</datalist>
+        <datalist id={`${id}-instituicoes`}>{(instituicoes ?? []).map((x) => <option key={x} value={x} />)}</datalist>
         <datalist id={`${id}-sugestoes`}>{(classe ? SUGESTOES_SUBCLASSE[classe] : []).map((x) => <option key={x} value={x} />)}</datalist>
         <p className="text-sm text-slate-600">Sem ticker (cofrinho, CDB, previdência, reserva), tudo é lançado só pelo valor em reais. Para lançar por quantidade e preço (ação, FII, fundo com cotas), informe o ticker ou um código.</p>
       </form>
