@@ -93,7 +93,7 @@ Supabase (Postgres), projeto `vbhzilsqzzevaodqsenr`. **Regra:** migration aplica
 ## Numeração das migrations (corrigida em 10/11/2026)
 **Regra:** o identificador oficial é o **nome do arquivo** (o carimbo `AAAAMMDDHHMMSS` é o que o Supabase registra e o workflow compara). O número (`NNN`) é só um apelido para conversa e documento. PRs conferidos no histórico do `main` (o PR que adicionou o arquivo). A série segue o cabeçalho dos arquivos até a 083; as migrations de 07 a 10/11 sem número no cabeçalho receberam o número na ordem dos arquivos, que é a mesma usada desde a 099. Migration aplicada não se edita, então o número não foi gravado nos arquivos antigos: ele vale por esta tabela. Até 10/11/2026 este documento chamava de 078, 079 e 080 três migrations que são, pela ordem, 089, 090 e 091 (o cabeçalho de `household_people`, a 078 de verdade, foi a referência).
 
-Todas abaixo estão aplicadas em produção (a 106 em 10/11/2026, execução 42941569240; a 107 no mesmo dia, execução 42945065139, depois de a simulação listar só ela).
+Todas abaixo estão aplicadas em produção (a 106 em 10/11/2026, execução 42941569240; a 107 no mesmo dia, execução 42945065139; a 108 em 11/11/2026, execução 43036512602; cada uma depois de a simulação listar só ela).
 
 | Nº | Arquivo | PR / observação |
 |---|---|---|
@@ -127,7 +127,7 @@ Todas abaixo estão aplicadas em produção (a 106 em 10/11/2026, execução 429
 | 105 | `20261110140000_investment_sell_never_negative.sql` | #295 |
 | 106 | `20261110150000_investment_institution.sql` | #297 |
 | 107 | `20261110160000_investment_contributions.sql` | #298 |
-| 108 | `20261110170000_fx_ptax.sql` | #302 (não aplicada) |
+| 108 | `20261110170000_fx_ptax.sql` | #302 |
 
 A próxima migration é a **109**. Escreva o número no cabeçalho do arquivo novo.
 
@@ -292,7 +292,7 @@ Arquivo `20261110160000_investment_contributions.sql`. Só leitura; nenhuma fun�
 - SECURITY INVOKER, confere `private.is_member`, execução só para `authenticated`. `00_audit` lista a função.
 - Teste `101_investment_contributions` (297 asserções; falha sem a migration; 11 versões estragadas da função foram todas pegas). Inclui um sorteio fixo de 48 operações e a conferência das identidades em 307 datas.
 
-## Cotação PTAX do Banco Central (migration 108, PR #302, não aplicada)
+## Cotação PTAX do Banco Central (migration 108, PR #302, aplicada em 11/11/2026)
 Arquivo `20261110170000_fx_ptax.sql`. Alimenta a tabela `fx_rates` da migration 027 (que existia vazia) e converte valores para reais. Nenhum saldo, total, patrimônio ou relatório muda.
 - **Extensão `http` num schema próprio, `fx_http`, fechado ao app.** A extensão dá EXECUTE a PUBLIC em `http_get` e afins, e o schema `extensions` do Supabase dá USAGE a `anon` e `authenticated` (conferido em produção em 10/11/2026): instalada ali, qualquer usuário logado poderia mandar o banco chamar qualquer endereço. Em `fx_http` ninguém além do dono tem USAGE, sem depender de revogar permissão de função que não é nossa (um REVOKE de quem não é dono vira só aviso). Se a `http` já estiver instalada em outro schema, a migration **para com erro**. `pg_cron` entra pelo `create extension` normal. Ambas só onde existem: no Postgres local de testes (`scripts/local-db`) não existem, e lá só as funções são criadas. Em produção, em 10/11/2026, nenhuma das duas estava instalada.
 - `private.fx_ptax_record(p_currency, p_payload)`: lê a resposta da API PTAX (OData do BCB, `CotacaoMoedaPeriodo`) e grava a **compra** do boletim de **Fechamento** de cada dia: `base` = USD ou EUR, `quote` = BRL, `rate` = reais por 1 unidade, `source` = "PTAX BCB (compra, fechamento)". Dia que já tem cotação não muda (`on conflict do nothing`; a tabela é imutável); dois fechamentos no mesmo dia: vale o mais recente. Ignora abertura e intermediários, data futura, cotação que não é número ou é zero. **Um boletim com data inválida (ex.: 30/02) ou item que nem é boletim é ignorado com aviso, sem derrubar os outros.** 22023 para moeda que não é USD nem EUR.
@@ -301,4 +301,5 @@ Arquivo `20261110170000_fx_ptax.sql`. Alimenta a tabela `fx_rates` da migration 
 - `public.fx_to_brl(p_currencies text[], p_amounts numeric[], p_date)`: converte cada valor para reais pela `fx_rate_at` (cotação de até 7 dias antes), arredondando a 2 casas; sem cotação, `amount_brl` nulo. Real volta igual (taxa 1). 22023 para listas de tamanhos diferentes ou com mais de 200 itens. SECURITY INVOKER, só `authenticated`.
 - As duas funções privadas não são executáveis por `anon` nem `authenticated`: só o agendamento, como dono do banco.
 - Teste `102_fx_ptax` (52 asserções; falha sem a migration); `00_audit` lista as três funções. Onde a extensão existe (CI com o Supabase completo), o teste confere que ela está em `fx_http` e que `anon`, `authenticated` e `service_role` não têm USAGE; no Postgres local isso aparece na descrição como "não conferido". A chamada de rede de verdade não é testada.
-- **Como conferir depois de aplicar:** `select base, max(rate_date), count(*) from public.fx_rates group by base;` (a data mais recente tem de ser o último dia útil) e `select jobname, status, return_message, start_time from cron.job_run_details d join cron.job j using (jobid) order by start_time desc limit 6;`. O `job_run_details` mostra "failed" quando a busca falha, mas só a data em `fx_rates` prova que a cotação está avançando.
+- **Conferido em produção em 11/11/2026, depois de aplicar:** `http` 1.6 em `fx_http` e `pg_cron` 1.6.4; os dois jobs ativos; `anon` e `authenticated` sem USAGE em `fx_http` e, ao tentar `fx_http.http_get`, ambos recebem `permission denied for schema fx_http` (as funções da extensão continuam executáveis por PUBLIC, e quem protege é o schema; o dono das funções é `supabase_admin`). A primeira busca manual (`fx_ptax_fetch('EUR', 10)` e `('USD', 10)`) gravou 6 dias de cada, de 03/11 a 10/11 (euro 6,2305 e dólar 5,5834 em 10/11); a chamada de rede de dentro do Supabase e o limite de tempo funcionaram na versão 1.6 da extensão. `fx_to_brl` converteu € 33,14 em R$ 206,48 e US$ 100 em R$ 558,34.
+- **Como conferir daqui para a frente:** `select base, max(rate_date), count(*) from public.fx_rates group by base;` (a data mais recente tem de ser o último dia útil) e `select jobname, status, return_message, start_time from cron.job_run_details d join cron.job j using (jobid) order by start_time desc limit 6;`. O `job_run_details` mostra "failed" quando a busca falha, mas só a data em `fx_rates` prova que a cotação está avançando.
