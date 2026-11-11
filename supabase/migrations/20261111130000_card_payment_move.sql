@@ -26,7 +26,8 @@
 --        anulação.
 --
 -- Códigos de erro: 42501 não autenticado ou pagamento de outra família/inexistente; 22023 não é pagamento de cartão
--- ativo, fatura de destino inválida, inexistente ou igual à atual; 55000 fatura paga (trava); 23514 integridade.
+-- ativo, faz parte de uma operação com outros lançamentos (antecipação), fatura de destino inválida, inexistente ou
+-- igual à atual; 55000 fatura paga (trava); 23514 integridade.
 -- Teste: 104_card_payment_move (falha sem esta migration).
 
 -- ---------------------------------------------------------------------------
@@ -108,6 +109,14 @@ begin
   end if;
   if v_e.voided_at is not null then
     raise exception 'pagamento anulado não muda de fatura' using errcode = '22023';
+  end if;
+  -- pagamento de uma operação com outros lançamentos (ex.: antecipação, que grava as cobranças e o pagamento juntos, com
+  -- o mesmo op_id e a mesma fatura): mudar só o pagamento separaria a operação
+  if v_e.op_id is not null and exists (select 1 from public.debt_events x
+       where x.household_id = v_e.household_id and x.debt_id = v_e.debt_id and x.op_id = v_e.op_id
+         and x.id <> v_e.id and x.voided_at is null) then
+    raise exception 'este pagamento faz parte de uma operação com outros lançamentos (ex.: antecipação): ele não muda de fatura sozinho'
+      using errcode = '22023';
   end if;
   if v_label is null or v_label !~ '^[0-9]{4}-(0[1-9]|1[0-2])$' then
     raise exception 'fatura de destino inválida' using errcode = '22023';

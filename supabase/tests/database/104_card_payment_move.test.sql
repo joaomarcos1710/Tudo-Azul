@@ -175,5 +175,29 @@ select set_config('app.card_payment_move', 'off', true);
 select ok(not has_table_privilege('authenticated', 'public.debt_events', 'UPDATE'),
           'I6 o app continua sem UPDATE em debt_events (a troca só passa pela RPC)');
 
+-- ---- O: operação e adiantamento que quitou fatura paga ----
+select pg_temp.login('00000000-0000-0000-0000-0000000104a1');
+-- antecipação: grava a cobrança da parcela e o pagamento com o mesmo op_id; o pagamento não sai sozinho
+insert into fixture select 'p_hoje', id from public.debt_installments where debt_id = pg_temp.fx('a') and description = 'Compra de hoje';
+select public.debt_anticipate(pg_temp.fx('a'), pg_temp.hoje(), pg_temp.fx('bank'), array[pg_temp.fx('p_hoje')], array[40.00], array[0.00]);
+insert into fixture select 'p_ant', id from public.debt_events
+ where debt_id = pg_temp.fx('a') and kind = 'payment' and note = 'antecipação' and voided_at is null;
+select is(pg_temp.move('p_ant', '2026-05'), '22023', 'O1 pagamento de uma antecipação não muda de fatura sozinho');
+
+-- adiantamento (sem fatura) que quitou uma fatura já fechada: levar para outra fatura deixaria a fechada sem pagamento.
+-- Aqui a origem não tem rótulo (sem fatura), então quem recusa é a trava por números (card_paid_lock_check)
+insert into fixture select 'b', public.create_debt('Cartão B', 'card', '2026-01-01', 0);
+select public.set_card_cycle(pg_temp.fx('b'), 17, 25);
+select public.card_purchase(pg_temp.fx('b'), '2026-08-01', 100.00, 1, pg_temp.fx('cat'), 'Agosto');
+select public.card_purchase(pg_temp.fx('b'), '2026-08-20', 50.00, 1, pg_temp.fx('cat'), 'Setembro');
+select public.card_bill_due('2026-10-31');
+insert into fixture select 'adb', public.debt_pay(pg_temp.fx('b'), '2026-08-20', pg_temp.fx('bank'), 100.00, null);
+select is(pg_temp.sit(pg_temp.fx('b'), '2026-08') || ' / ' || pg_temp.sit(pg_temp.fx('b'), '2026-09'), '100.00|100.00 / 50.00|0.00',
+          'O2 o adiantamento de 100 quitou agosto (fechada e paga); setembro ainda a pagar');
+select is(pg_temp.move('adb', '2026-09'), '55000', 'O3 levar esse adiantamento para setembro é recusado (agosto deixaria de estar paga)');
+select is(pg_temp.sit(pg_temp.fx('b'), '2026-08'), '100.00|100.00', 'O3.1 agosto continua paga');
+select is(pg_temp.pag('adb'), '2026-08-20|100.00|true|false|sem fatura', 'O3.2 o adiantamento continua sem fatura');
+reset role;
+
 select * from finish();
 rollback;
