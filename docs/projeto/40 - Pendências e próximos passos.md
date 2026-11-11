@@ -1,6 +1,6 @@
 ---
 tags: [tudo-azul, pendencias]
-atualizado: 2026-11-06
+atualizado: 2026-11-11
 ---
 # Pendências e próximos passos
 
@@ -250,7 +250,7 @@ atualizado: 2026-11-06
 - [ ] **Troca de dias, limites da 061**: (1) cartão com compra parcelada em andamento não troca os dias até a última parcela do ciclo atual estar na fatura aberta (decisão: recusar); (2) o cartão guarda só a última troca: compra **retroativa** de antes da penúltima troca usa os dias anteriores à última e pode cair num fechamento diferente do que o mês já tem (raro); (3) mês só com crédito avulso, sem parcela, mostra em `card_months` o vencimento pelos dias atuais do cartão, não pelos do mês; (4) cartão sem nenhum lançamento também espera o ciclo seguinte (corrigir um dia digitado errado num cartão novo não vale na hora); (5) o cabeçalho "Fecha dia X · vence dia Y" mostra os dias novos já durante a transição (a fatura atual e o melhor dia de compra usam os do mês). Melhorar se o dono pedir.
 - [ ] **Atalho dos avisos do Início**: conta em outra moeda fica fora dos avisos (só reais); fatura **vencida** não vira aviso (continua no bloco Cartões, "venceu em"); o link de a receber/a pagar abre o mês do item mais próximo, filtrado pelo tipo, mas sem filtrar "só planejados" — se a janela de 7 dias cruzar o mês, os do mês seguinte ficam na outra página. Melhorar com bloco por moeda (F3+) e um filtro de situação em Lançamentos, se o dono pedir.
 - [ ] **Multimoeda F3**: transferência entre moedas (`destination_amount`); libera transferência e pagamento de cartão/dívida a partir de conta estrangeira, se fizer sentido.
-- [ ] **Multimoeda F4**: cotações PTAX (compra) e total convertido para BRL (nunca somar sem conversão).
+- [ ] **Multimoeda F4**: cotação PTAX (compra) feita (#302, migration 108); falta o total convertido para BRL (nunca somar sem conversão).
 - [ ] **Multimoeda F5**: relançar a Nomad a partir de 01/01/2026 pelo extrato (o passado fica em reais; "Nomad Real" continua BRL); contas da corretora numa segunda rodada.
 - [ ] **Opcional (multimoeda)**: pares de câmbio de 2024–2025 (cotações históricas), se o dono quiser converter o passado.
 - [ ] **Atalho da F2** (`aceitaLancamento` e `mesmaMoeda` em `src/lib/contas.ts`): transferência só entre contas da mesma moeda (F3 libera entre moedas, com a cotação); cartão, dívida e provento seguem só em reais, sem fase prevista. Calendário: o saldo total previsto é só em reais; a conta estrangeira aparece na lista com o saldo na moeda dela.
@@ -537,7 +537,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Conferir se as 2 receitas (124,63) e a despesa (46,49) dentro da Nomad Euro foram digitadas em euros (estariam misturadas com reais).
 - [ ] Carteira em dólar e euro não entra no Patrimônio em reais (não há conversão de moeda no app).
 - [ ] Desempenho: Análises chama o patrimônio uma vez por mês da evolução, e cada chamada agora calcula a carteira. Medir com dados reais.
-- [ ] Cotação automática (ações e FIIs por API, câmbio pela PTAX), depois da liquidez e das contas em moeda estrangeira.
+- [ ] Cotação automática de ações e FIIs (por API), depois da liquidez e das contas em moeda estrangeira. O câmbio pela PTAX já existe (#302).
 
 ## Formulários de Investimentos (10/11/2026, #282)
 - [x] Compra e venda em folha, no desenho de Lançamentos, com "Só o valor" para a primeira posição.
@@ -547,14 +547,14 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Carteira como conta interna (10/11/2026, #284, migration 100)
 - [x] Desenho aprovado (ver 27 - Investimentos vinculados a conta).
-- [ ] Aplicar a migration 100 em produção (simular, ler o log, aplicar), com o "pode" do dono em cada passo.
+- [x] Aplicar a migration 100 em produção (feita em 10/11/2026; conferida na lista de migrations do Supabase em 11/11/2026).
 - [ ] Depois de aplicada: o dono move as contas antigas de investimento (renda variável, renda fixa, cripto) para a carteira e atualiza o valor por avaliação.
 - [ ] Contas Nomad (dólar e euro): ativo em moeda com cotação PTAX, usando o mesmo mover; exige transferência entre moedas ou mover por valor em reais.
 - [ ] Conciliação e exportação mostram a conta interna nas transferências; conferir se o texto ajuda ou confunde.
 
 ## Orçamento com cartão lançado (10/11/2026, #285, migration 101)
 - [x] Carteira (migration 100) aplicada em produção em 10/11/2026 (simulação 42878739670, aplicação 42878963628).
-- [ ] Aplicar a migration 101 (simular, ler o log, aplicar), com o "pode" do dono.
+- [x] Aplicar a migration 101 (aplicada; conferida na lista de migrations do Supabase em 11/11/2026).
 - [ ] O resumo de orçamentos em Análises (barras menores) ainda não mostra o tracejado.
 - [ ] Se o dono quiser o tracejado como "fatura fechada e não paga", é outra regra (ver 30 - Decisões).
 ## Investimentos no estilo da XP (10/11/2026, #286)
@@ -592,7 +592,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Limites da #302: a cotação inversa (`fx_rate_at` usaria 1/(BRL→USD) se alguém gravasse cotação com base BRL; hoje ninguém grava); o timeout de 20 s da chamada ao BCB é uma aposta (não há como testar a rede daqui).
 - [ ] Se o agendamento falhar (rede do Supabase, BCB fora do ar), a cotação para de avançar sem aviso na tela: a data ao lado do "≈ R$" fica velha e, depois de 7 dias, o "≈ R$" some. Avisar na tela quando a cotação tiver mais de 3 dias úteis.
 - [ ] Cotação de ações e FIIs (brapi): depois; precisa de conta e chave de um serviço de terceiros, guardada no Supabase, nunca no chat.
-- [ ] **Total convertido em reais (multimoeda F4, pedido do dono em 10/11/2026):** cotação PTAX de compra do Banco Central guardada por dia, o "≈ R$" ao lado do saldo em dólar e euro e um total convertido, sempre dizendo a data da cotação. Precisa de migration, de uma fonte de cotação (busca automática ou digitada) e de teste; decidir antes onde o total convertido aparece, para não virar mais um número duplicado.
+- [ ] **Total convertido em reais (multimoeda F4, pedido do dono em 10/11/2026):** a cotação PTAX e o "≈ R$" ao lado do saldo em dólar e euro já estão prontos (#302). Falta o total convertido, sempre dizendo a data da cotação. Precisa de migration e de teste; decidir antes onde o total convertido aparece, para não virar mais um número duplicado.
 - [x] **Migration 106:** aplicada em 10/11/2026 pelo workflow de produção, com o "pode" do dono em cada passo (a simulação listou só ela; coluna e as três funções conferidas no banco depois).
 - [x] Instituição nos ativos que já existiam: o dono preencheu a corretora nas ações e no fundo imobiliário pela tela; o cofrinho e a previdência foram preenchidos com o "pode" dele, pela função do app. Falta só o ativo em euro (o dono diz qual é a instituição).
 - [ ] Limites conhecidos da instituição e da tela nova (#297):

@@ -282,17 +282,19 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#287** (10/11/2026): Dívidas mais simples e amortização extra com FGTS (sem conta).
 - **#290** (10/11/2026): Autoria logo abaixo do Sair, centralizada e em cinza.
 - **#291** (10/11/2026): Dívidas: ações do ⋯ abrem num painel por cima da lista.
-- **#292** (10/11/2026): Amortização extra reduz o prazo ou a parcela, como o banco informou (migration 103, ainda não aplicada).
+- **#292** (10/11/2026): Amortização extra reduz o prazo ou a parcela, como o banco informou (migration 103, aplicada).
 - **#293** (10/11/2026): Contas: nova conta, editar e excluir abrem num painel por cima da lista.
-- **#294** (10/11/2026): Investimentos: aporte, resgate e avaliação só pelo valor (migration 104, ainda não aplicada).
-- **#295** (10/11/2026): Venda de investimento não deixa a posição negativa em nenhuma data (migration 105, ainda não aplicada).
+- **#294** (10/11/2026): Investimentos: aporte, resgate e avaliação só pelo valor (migration 104, aplicada).
+- **#295** (10/11/2026): Venda de investimento não deixa a posição negativa em nenhuma data (migration 105, aplicada).
 - **#296** (10/11/2026): Novo lançamento: Aporte e Resgate de investimento; Mover para a carteira também em Poupança.
-- **#297** (10/11/2026): Investimentos: resumo em cartões, posições em tabela e instituição do ativo (migration 106, ainda não aplicada).
+- **#297** (10/11/2026): Investimentos: resumo em cartões, posições em tabela e instituição do ativo (migration 106, aplicada).
 - **#299** (10/11/2026): Novo ativo: categorias Moedas e Ativos Personalizados.
 - **#300** (10/11/2026): Filtros: no computador, painel no centro em vez da tela inteira.
 - **#298** (10/11/2026): Investimentos: aportado líquido e rendimento total, contando o que já foi resgatado (migration 107, aplicada no mesmo dia).
 - **#301** (10/11/2026): Investimentos: botões em cada ativo, alocação em barra e filtros em chips.
-- **#302** (aberta em 10/11/2026; data do merge a preencher pelo histórico do `main`): Cotação PTAX do Banco Central e "≈ R$" ao lado do dólar e do euro (migration 108, ainda não aplicada).
+- **#302** (11/11/2026): Cotação PTAX do Banco Central e "≈ R$" ao lado do dólar e do euro (migration 108, aplicada no mesmo dia).
+- **#303** (11/11/2026): Diário: migration 108 aplicada e primeira busca PTAX conferida (só documentação).
+- **#304** (aberta em 11/11/2026; data do merge a preencher pelo histórico do `main`): Diário: pendências em dia, migrations 100 a 108 conferidas como aplicadas e o que segue aberto (só documentação).
 
 ## Ainda abertos
-Em 10/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
+Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
