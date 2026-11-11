@@ -272,7 +272,7 @@ Arquivo `20261110140000_investment_sell_never_negative.sql`. Conserto de bug em 
 - Nenhum dado é alterado. Em produção não havia posição negativa (só um ativo, com 1 unidade).
 - Teste `99_investment_sell_never_negative` (19 asserções; falha sem a migration).
 
-## Instituição do ativo e totais da tela de posições (migration 106, PR #297, não aplicada)
+## Instituição do ativo e totais da tela de posições (migration 106, PR #297, aplicada em 10/11/2026)
 Arquivo `20261110150000_investment_institution.sql`. Nenhuma função existente muda e nenhum dado é alterado (a coluna nasce nula).
 - `investment_assets.institution`: texto livre de 1 a 40 caracteres, sem espaço nas pontas (check); nulo = sem instituição. O cliente não escreve direto na coluna.
 - `investment_asset_set_institution(p_asset, p_institution)`: define ou limpa (vazio ou nulo limpa). Junta qualquer espaço em branco (tabulação, quebra de linha, espaço que não quebra, espaços finos do Unicode, vários seguidos) num espaço só, tira caractere de largura zero e apara as pontas; os espaços Unicode vão escritos um a um, para não depender do idioma do banco. Não unifica maiúsculas: "XP" e "xp" são duas instituições. Aceita ativo arquivado, sem reativar (como a subclasse e a liquidez). 42501 sem login ou ativo de outra família; 22023 acima de 40 caracteres.
