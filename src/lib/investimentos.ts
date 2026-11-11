@@ -76,8 +76,9 @@ export interface TipoNovoAtivo { rotulo: string; classe: ClasseAtivo; subclasse:
 /**
  * Categorias do cadastro de ativo (pedido do dono, 10/11/2026, a partir da lista de uma planilha de carteira dele):
  * a pessoa escolhe pelo nome do produto e o app grava a classe e a subclasse. A classe do banco não muda (macroclasse,
- * alocação e filtros continuam como eram); "Outros" não estava na lista do dono e fica para previdência e FGTS, que já
- * existem na carteira. `moeda` é só a sugestão inicial do campo Moeda.
+ * alocação e filtros continuam como eram). "Moedas" e "Ativos Personalizados" fecham a lista do dono; previdência e
+ * FGTS, que já existem na carteira, são tipos de "Ativos Personalizados" (o padrão é "Personalizado", sem subclasse).
+ * Moedas e personalizados gravam a classe "Outros" do banco. `moeda` é só a sugestão inicial do campo Moeda.
  */
 export const CATEGORIAS_NOVO_ATIVO: { chave: string; rotulo: string; moeda?: MoedaInvestimento; tipos: TipoNovoAtivo[] }[] = [
   { chave: 'brasil', rotulo: 'Ativos Brasil (Ação, ETF, BDR, FII, FI Agro, FIDC, ...)', tipos: [
@@ -94,9 +95,10 @@ export const CATEGORIAS_NOVO_ATIVO: { chave: string; rotulo: string; moeda?: Moe
   ] },
   { chave: 'cripto', rotulo: 'Criptomoedas', tipos: [{ rotulo: 'Criptomoeda', classe: 'crypto', subclasse: 'Cripto' }] },
   { chave: 'debenture', rotulo: 'Debêntures', tipos: [{ rotulo: 'Debênture', classe: 'fixed_income', subclasse: 'Debêntures' }] },
-  { chave: 'outros', rotulo: 'Outros (previdência, FGTS, ...)', tipos: [
+  { chave: 'moedas', rotulo: 'Moedas', tipos: [{ rotulo: 'Moeda', classe: 'other', subclasse: 'Moedas' }] },
+  { chave: 'personalizado', rotulo: 'Ativos Personalizados', tipos: [
+    { rotulo: 'Personalizado', classe: 'other', subclasse: '' },
     { rotulo: 'Previdência', classe: 'other', subclasse: 'Previdência' }, { rotulo: 'FGTS', classe: 'other', subclasse: 'FGTS' },
-    { rotulo: 'Outro', classe: 'other', subclasse: '' },
   ] },
 ]
 

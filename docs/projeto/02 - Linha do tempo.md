@@ -288,6 +288,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#295** (10/11/2026): Venda de investimento não deixa a posição negativa em nenhuma data (migration 105, ainda não aplicada).
 - **#296** (10/11/2026): Novo lançamento: Aporte e Resgate de investimento; Mover para a carteira também em Poupança.
 - **#297** (10/11/2026): Investimentos: resumo em cartões, posições em tabela e instituição do ativo (migration 106, ainda não aplicada).
+- **#299** (10/11/2026): Novo ativo: categorias Moedas e Ativos Personalizados.
+- **#300** (10/11/2026): Filtros: no computador, painel no centro em vez da tela inteira.
 - **#298** (aberta em 10/11/2026; data do merge a preencher pelo histórico do `main`): Investimentos: aportado líquido e rendimento total, contando o que já foi resgatado (migration 107, ainda não aplicada).
 
 ## Ainda abertos

@@ -192,7 +192,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       render(<Investimentos />)
       await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
       await u.type(screen.getByLabelText('Nome do ativo'), 'Previdência')
-      await u.selectOptions(screen.getByLabelText('Categoria'), 'outros')
+      await u.selectOptions(screen.getByLabelText('Categoria'), 'personalizado')
       await u.click(screen.getByRole('radio', { name: 'Restrito' }))
       await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
       expect(mock.criarAtivoInvestimento.mock.calls[0][0]).not.toHaveProperty('liquidez')
@@ -1129,11 +1129,11 @@ describe('Investimentos × macroclasse e subclasse', () => {
     }
     const opcoes = (el: HTMLElement) => [...(el as HTMLSelectElement).options].map((o) => o.textContent)
 
-    it('a lista é a que o dono pediu, na ordem dele, mais "Outros" no fim', async () => {
+    it('a lista é a que o dono pediu, na ordem dele, com Moedas e Ativos Personalizados no fim', async () => {
       const folha = await abrir(userEvent.setup())
       expect(opcoes(within(folha).getByLabelText('Categoria'))).toEqual([
         'Escolha a categoria', 'Ativos Brasil (Ação, ETF, BDR, FII, FI Agro, FIDC, ...)', 'CDB/LCI/LCA/LC/RDB', 'Tesouro Direto',
-        'Fundo de Investimento', 'Internacionais', 'Criptomoedas', 'Debêntures', 'Outros (previdência, FGTS, ...)',
+        'Fundo de Investimento', 'Internacionais', 'Criptomoedas', 'Debêntures', 'Moedas', 'Ativos Personalizados',
       ])
       expect(within(folha).queryByLabelText('Tipo')).toBeNull() // só aparece quando a categoria tem mais de um tipo
     })
@@ -1143,7 +1143,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       ['brasil', 'FI Agro', 'reit', 'Fiagro'], ['brasil', 'FIDC', 'fund', 'FIDC'],
       ['bancario', 'LCA', 'fixed_income', 'LCA'], ['bancario', 'RDB', 'fixed_income', 'RDB'],
       ['tesouro', null, 'fixed_income', 'Tesouro Direto'], ['cripto', null, 'crypto', 'Cripto'], ['debenture', null, 'fixed_income', 'Debêntures'],
-      ['outros', 'FGTS', 'other', 'FGTS'],
+      ['moedas', null, 'other', 'Moedas'], ['personalizado', 'FGTS', 'other', 'FGTS'], ['personalizado', 'Previdência', 'other', 'Previdência'],
     ])('%s / %s grava a classe %s e a subclasse %s', async (categoria, tipo, classe, subclasse) => {
       const u = userEvent.setup()
       const folha = await abrir(u)
@@ -1168,7 +1168,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await waitFor(() => expect(mock.definirSubclasseAtivo).toHaveBeenCalledWith('novo-id', 'REITs'))
     })
 
-    it('trocar a categoria troca a sugestão de subclasse e volta a moeda para real; fundo e "Outro" não sugerem subclasse', async () => {
+    it('trocar a categoria troca a sugestão de subclasse e volta a moeda para real; fundo e personalizado não sugerem subclasse', async () => {
       const u = userEvent.setup()
       const folha = await abrir(u)
       const sub = () => (within(folha).getByLabelText('Subclasse (opcional)') as HTMLInputElement).value
@@ -1177,10 +1177,13 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.selectOptions(within(folha).getByLabelText('Categoria'), 'fundo')
       expect(sub()).toBe('')
       expect((within(folha).getByLabelText('Moeda do ativo') as HTMLSelectElement).value).toBe('BRL')
-      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'outros')
-      expect(sub()).toBe('Previdência')
-      await u.selectOptions(within(folha).getByLabelText('Tipo'), 'Outro')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'moedas')
+      expect(sub()).toBe('Moedas')
+      // personalizado começa sem subclasse (a pessoa escreve a dela); previdência e FGTS são tipos dele
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'personalizado')
       expect(sub()).toBe('')
+      await u.selectOptions(within(folha).getByLabelText('Tipo'), 'Previdência')
+      expect(sub()).toBe('Previdência')
     })
   })
 })
