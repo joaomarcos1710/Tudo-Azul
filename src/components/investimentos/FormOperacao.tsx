@@ -34,15 +34,17 @@ export type DadosOperacao =
   | { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string; precoUnitario: string; tarifas: Cents; observacao: string; contaId?: string }
   | { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; valor: Cents; observacao: string; contaId?: string }
 
-export function FormOperacao({ ativos, contas, tipoInicial = 'buy', aoSalvar, aoCancelar }: {
+export function FormOperacao({ ativos, contas, tipoInicial = 'buy', ativoInicial, aoSalvar, aoCancelar }: {
   ativos: AtivoInvestimento[]
   tipoInicial?: TipoOperacaoInvestimento
+  /** ativo já escolhido (botões Aporte/Resgate da linha do ativo); sem ele, o primeiro da lista */
+  ativoInicial?: string
   /** contas em reais, ativas: de onde sai a compra ou para onde volta a venda (opcional) */
   contas: Conta[]
   aoSalvar: (d: DadosOperacao) => Promise<void>
   aoCancelar: () => void
 }) {
-  const [ativoId, setAtivoId] = useState(ativos[0]?.id ?? '')
+  const [ativoId, setAtivoId] = useState(ativos.some((a) => a.id === ativoInicial) ? ativoInicial! : ativos[0]?.id ?? '')
   const [data, setData] = useState(hojeSP())
   const [tipo, setTipo] = useState<TipoOperacaoInvestimento>(tipoInicial)
   const [modo, setModo] = useState<'valor' | 'unidades' | null>(null)

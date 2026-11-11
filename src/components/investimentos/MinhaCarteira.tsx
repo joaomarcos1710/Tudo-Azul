@@ -71,6 +71,11 @@ export function MinhaCarteira({ total, alocacao, liquidez, instituicoes, posicoe
           </button>
         ))}
       </div>
+      {aba === 'classe' && fatias.length > 0 ? (
+        <div role="tabpanel" aria-label={`Carteira por ${nomeAba}`} className="rounded-2xl bg-white p-4 shadow-card">
+          <BarraAlocacao fatias={fatias} formatar={formatar} />
+        </div>
+      ) : (
       <div role="tabpanel" aria-label={`Carteira por ${nomeAba}`}
         className="flex flex-col items-center gap-4 rounded-2xl bg-white p-4 shadow-card sm:flex-row sm:items-start">
         {comRosca && (
@@ -117,6 +122,60 @@ export function MinhaCarteira({ total, alocacao, liquidez, instituicoes, posicoe
             </ul>
           )}
       </div>
+      )}
     </section>
+  )
+}
+
+/**
+ * Alocação por classe em barra (pedido do dono, 10/11/2026, a partir de um desenho): em cima, um quadro por macroclasse
+ * com valor e %; embaixo, uma barra com um trecho por subclasse e a legenda. Valores e % vêm do banco
+ * (investment_allocation): a largura de cada trecho é o % do banco, nada é somado aqui. A cor é a da macroclasse (as 4
+ * validadas da rosca, em ordem fixa) e os trechos da mesma macroclasse se separam por 2px: assim cabem quantas
+ * subclasses houver sem inventar cor, e a legenda diz o nome de cada uma (a cor nunca é a única informação).
+ */
+function BarraAlocacao({ fatias: doBanco, formatar }: { fatias: Fatia[]; formatar: (c: Cents) => string }) {
+  // a cor segue a macroclasse, nunca a posição na lista: Renda fixa é sempre a 1ª cor, mesmo que o banco mande outra ordem
+  const ordem = (chave: string) => { const i = MACROS.findIndex((m) => m.chave === chave); return i < 0 ? MACROS.length : i }
+  const corDe = (chave: string) => GRAFICO.rosca[ordem(chave)] ?? GRAFICO.roscaOutros
+  const fatias = [...doBanco].sort((a, b) => ordem(a.chave) - ordem(b.chave))
+  const trechos = fatias.flatMap((f) => (f.detalhes && f.detalhes.length > 0 ? f.detalhes : [{ nome: f.nome, valor: f.valor, percentual: f.percentual }])
+    .filter((d) => d.percentual > 0).map((d) => ({ ...d, chave: `${f.chave}:${d.nome}`, macro: f.nome, cor: corDe(f.chave) })))
+  return (
+    <div className="flex flex-col gap-4">
+      <ul className="grid gap-2 sm:grid-cols-3" aria-label="Lista da carteira por classe">
+        {fatias.map((f) => (
+          <li key={f.chave} className="rounded-xl border border-slate-100 bg-fundo p-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-marinho">
+              <span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-sm" style={{ background: corDe(f.chave) }} />
+              <span className="truncate">{f.nome}</span>
+            </div>
+            <p className="mt-1 flex items-baseline justify-between gap-2">
+              <span className="tabular-nums font-bold text-marinho">{formatar(f.valor)}</span>
+              <span className="tabular-nums text-sm text-slate-500">{pct(f.percentual)}</span>
+            </p>
+          </li>
+        ))}
+      </ul>
+      <div>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Composição por subclasse</p>
+        <div role="img" className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-slate-100"
+          aria-label={`Carteira em reais por subclasse: ${trechos.map((t) => `${t.nome} (${t.macro}) ${pct(t.percentual)}`).join(', ')}`}>
+          {/* largura mínima de 6px: num trecho de 0,2% a cor sumiria; o % certo está na legenda */}
+          {trechos.map((t) => <span key={t.chave} data-fatia className="h-full shrink-0" style={{ width: `${t.percentual}%`, minWidth: '6px', background: t.cor }} />)}
+        </div>
+        <ul className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3" aria-label="Subclasses">
+          {trechos.map((t) => (
+            <li key={t.chave} className="flex items-center justify-between gap-2">
+              <span className="flex min-w-0 items-center gap-2">
+                <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t.cor }} />
+                <span className="truncate text-slate-700">{t.nome}</span>
+              </span>
+              <span className="shrink-0 whitespace-nowrap tabular-nums text-slate-600">{formatar(t.valor)} · {pct(t.percentual)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   )
 }

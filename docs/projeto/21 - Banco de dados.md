@@ -93,7 +93,7 @@ Supabase (Postgres), projeto `vbhzilsqzzevaodqsenr`. **Regra:** migration aplica
 ## Numeração das migrations (corrigida em 10/11/2026)
 **Regra:** o identificador oficial é o **nome do arquivo** (o carimbo `AAAAMMDDHHMMSS` é o que o Supabase registra e o workflow compara). O número (`NNN`) é só um apelido para conversa e documento. PRs conferidos no histórico do `main` (o PR que adicionou o arquivo). A série segue o cabeçalho dos arquivos até a 083; as migrations de 07 a 10/11 sem número no cabeçalho receberam o número na ordem dos arquivos, que é a mesma usada desde a 099. Migration aplicada não se edita, então o número não foi gravado nos arquivos antigos: ele vale por esta tabela. Até 10/11/2026 este documento chamava de 078, 079 e 080 três migrations que são, pela ordem, 089, 090 e 091 (o cabeçalho de `household_people`, a 078 de verdade, foi a referência).
 
-Até a 106, todas abaixo estão aplicadas em produção (a 106 em 10/11/2026, execução 42941569240). A 107 ainda não foi aplicada: a seção própria dela diz quando for.
+Todas abaixo estão aplicadas em produção (a 106 em 10/11/2026, execução 42941569240; a 107 no mesmo dia, execução 42945065139, depois de a simulação listar só ela).
 
 | Nº | Arquivo | PR / observação |
 |---|---|---|
@@ -281,7 +281,7 @@ Arquivo `20261110150000_investment_institution.sql`. Nenhuma função existente 
 - As duas leituras são SECURITY INVOKER e conferem `private.is_member`; a de escrita é SECURITY DEFINER. Execução só para `authenticated`.
 - Teste `100_investment_institution` (163 asserções; falha sem a migration); `00_audit` lista as três funções.
 
-## Aportes, resgates e rendimento total (migration 107, PR #298, não aplicada)
+## Aportes, resgates e rendimento total (migration 107, PR #298, aplicada em 10/11/2026)
 Arquivo `20261110160000_investment_contributions.sql`. Só leitura; nenhuma função existente muda e nenhum dado é alterado.
 - **Por quê:** `cost_basis` e `unrealized_result` de `investment_portfolio` são só do que ainda está investido (custo médio). Depois de um resgate, a parte resgatada sai do custo e o ganho dela sai do resultado: pôs 1.000, passou a valer 1.100, tirou 550 → custo 500, resultado 50.
 - `investment_contributions(p_household, p_as_of)`: uma linha por ativo com posição aberta (`level = 'asset'`) e uma por moeda (`level = 'total'`, `asset_id` nulo), com `contributed` (soma das compras, quantidade × preço + tarifas), `redeemed` (soma das vendas, quantidade × preço − tarifas), `net_contributed` (a diferença; negativo quando já se resgatou mais do que se aportou), `market_value` (o de `investment_portfolio`) e `total_result = market_value − net_contributed`. No exemplo: 1.000, 550, 450, 550 e 100.
