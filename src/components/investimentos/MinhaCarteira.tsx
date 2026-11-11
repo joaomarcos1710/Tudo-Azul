@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { GRAFICO } from '../../lib/cores'
 import type { Cents } from '../../lib/format'
 import { MACROS } from '../../lib/investimentos'
-import type { LinhaAlocacao, LinhaLiquidez, PosicaoInvestimento } from '../../lib/investimentos'
+import type { LinhaAlocacao, LinhaInstituicao, LinhaLiquidez, PosicaoInvestimento } from '../../lib/investimentos'
 
-type Aba = 'classe' | 'liquidez' | 'ativos'
+type Aba = 'classe' | 'liquidez' | 'instituicao' | 'ativos'
 interface Fatia { chave: string; nome: string; valor: Cents; percentual: number; detalhes?: { nome: string; valor: Cents; percentual: number }[] }
 
 const R = 40
@@ -14,17 +14,20 @@ const FOLGA = 2
 const pct = (v: number) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 
 /**
- * "Minha carteira" (pedido do dono, 10/11/2026, a partir da tela da XP): rosca e lista com abas Classe, Liquidez e Ativos,
- * só em reais (as outras moedas ficam à parte, sem conversão). Valores vêm do banco; em Classe o % também vem do banco
- * (investment_allocation). Em Liquidez e Ativos o % é só valor ÷ valor de mercado total (do banco): apresentação, nenhum
- * dinheiro é somado aqui. Cores em ordem fixa (as 4 validadas da rosca do Início); a cor nunca é a única informação: a
+ * "Minha carteira" (pedido do dono, 10/11/2026, a partir da tela da XP): rosca e lista com abas Classe, Liquidez,
+ * Instituição e Ativos, só em reais (as outras moedas ficam à parte, sem conversão). Valores vêm do banco; em Classe o %
+ * também vem do banco (investment_allocation). Em Liquidez, Instituição e Ativos o % é só valor ÷ valor de mercado total
+ * (do banco): apresentação, nenhum dinheiro é somado aqui. A aba Instituição (migration 106) soma no banco
+ * (investment_institution_totals) e só aparece quando o banco respondeu. Cores em ordem fixa (as 4 validadas da rosca do Início); a cor nunca é a única informação: a
  * lista ao lado leva nome, valor e %. Mais de 4 fatias (Ativos) mostra só a lista, sem rosca: inventar cor ou somar
  * "Outros" no front não vale.
  */
-export function MinhaCarteira({ total, alocacao, liquidez, posicoes, formatar }: {
+export function MinhaCarteira({ total, alocacao, liquidez, instituicoes, posicoes, formatar }: {
   total: Cents
   alocacao: LinhaAlocacao[]
   liquidez: LinhaLiquidez[]
+  /** vazio = banco ainda sem a migration 106: a aba não aparece */
+  instituicoes: LinhaInstituicao[]
   posicoes: PosicaoInvestimento[]
   formatar: (c: Cents) => string
 }) {
@@ -40,6 +43,9 @@ export function MinhaCarteira({ total, alocacao, liquidez, posicoes, formatar }:
     liquidez: liquidez.filter((l) => l.valor > 0).map((l) => ({
       chave: l.liquidez, nome: l.liquidez === 'restricted' ? 'Restrito (previdência, FGTS)' : 'Líquido', valor: l.valor, percentual: proporcao(l.valor),
     })),
+    instituicao: instituicoes.filter((l) => l.valor > 0).map((l) => ({
+      chave: l.instituicao === null ? 'sem' : `i:${l.instituicao}`, nome: l.instituicao ?? 'Sem instituição', valor: l.valor, percentual: proporcao(l.valor),
+    })),
     ativos: [...posicoes].sort((a, b) => b.valorAtual - a.valorAtual).map((p) => ({
       chave: p.assetId, nome: p.nome, valor: p.valorAtual, percentual: proporcao(p.valorAtual),
     })),
@@ -49,7 +55,10 @@ export function MinhaCarteira({ total, alocacao, liquidez, posicoes, formatar }:
   const positivas = fatias.filter((f) => f.percentual > 0)
   const somaPct = positivas.reduce((a, f) => a + f.percentual, 0)
   let acumulado = 0
-  const abas: [Aba, string][] = [['classe', 'Classe'], ['liquidez', 'Liquidez'], ['ativos', 'Ativos']]
+  const abas: [Aba, string][] = [['classe', 'Classe'], ['liquidez', 'Liquidez'],
+    ...(instituicoes.length > 0 ? [['instituicao', 'Instituição'] as [Aba, string]] : []), ['ativos', 'Ativos']]
+  // nome para leitor de tela, com acento ("instituição", não a chave interna)
+  const nomeAba = abas.find(([c]) => c === aba)?.[1].toLowerCase() ?? aba
 
   return (
     <section className="mt-6" aria-labelledby="titulo-minha-carteira">
@@ -62,11 +71,11 @@ export function MinhaCarteira({ total, alocacao, liquidez, posicoes, formatar }:
           </button>
         ))}
       </div>
-      <div role="tabpanel" aria-label={`Carteira por ${abas.find(([c]) => c === aba)?.[1].toLowerCase()}`}
+      <div role="tabpanel" aria-label={`Carteira por ${nomeAba}`}
         className="flex flex-col items-center gap-4 rounded-2xl bg-white p-4 shadow-card sm:flex-row sm:items-start">
         {comRosca && (
           <svg viewBox="0 0 100 100" className="h-36 w-36 shrink-0 -rotate-90" role="img"
-            aria-label={`Carteira em reais por ${aba}: ${fatias.map((f) => `${f.nome} ${pct(f.percentual)}`).join(', ')}`}>
+            aria-label={`Carteira em reais por ${nomeAba}: ${fatias.map((f) => `${f.nome} ${pct(f.percentual)}`).join(', ')}`}>
             {somaPct > 0 && positivas.map((f) => {
               const parte = (f.percentual / somaPct) * VOLTA
               const tamanho = positivas.length > 1 ? Math.max(parte - FOLGA, 0.5) : parte
@@ -80,7 +89,7 @@ export function MinhaCarteira({ total, alocacao, liquidez, posicoes, formatar }:
         {fatias.length === 0
           ? <p className="text-sm text-slate-500">Nada para mostrar ainda.</p>
           : (
-            <ul className="w-full min-w-0 flex-1 divide-y divide-slate-100" aria-label={`Lista da carteira por ${aba}`}>
+            <ul className="w-full min-w-0 flex-1 divide-y divide-slate-100" aria-label={`Lista da carteira por ${nomeAba}`}>
               {fatias.map((f, i) => (
                 <li key={f.chave} className="py-2">
                   <div className="flex items-center justify-between gap-3 text-sm">

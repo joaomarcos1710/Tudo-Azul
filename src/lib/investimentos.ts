@@ -17,6 +17,8 @@ export interface AtivoInvestimento {
   subclasse: string | null
   /** 'restricted' = não vira dinheiro rápido (previdência, FGTS). Banco sem a migration da liquidez: tudo 'liquid'. */
   liquidez: Liquidez
+  /** Onde o investimento está (corretora, banco, fundo de pensão); null = não informado (ou banco sem a migration 106). */
+  instituicao: string | null
   quantidadeOperacoes: number
   quantidadeAvaliacoes: number
   quantidadeProventos: number
@@ -67,6 +69,36 @@ export const SUGESTOES_SUBCLASSE: Record<ClasseAtivo, string[]> = {
   crypto: ['Cripto'],
   other: [],
 }
+
+/** Um tipo dentro da categoria do cadastro: grava a classe (que o banco conhece) e sugere a subclasse. */
+export interface TipoNovoAtivo { rotulo: string; classe: ClasseAtivo; subclasse: string }
+
+/**
+ * Categorias do cadastro de ativo (pedido do dono, 10/11/2026, a partir da lista de uma planilha de carteira dele):
+ * a pessoa escolhe pelo nome do produto e o app grava a classe e a subclasse. A classe do banco não muda (macroclasse,
+ * alocação e filtros continuam como eram); "Outros" não estava na lista do dono e fica para previdência e FGTS, que já
+ * existem na carteira. `moeda` é só a sugestão inicial do campo Moeda.
+ */
+export const CATEGORIAS_NOVO_ATIVO: { chave: string; rotulo: string; moeda?: MoedaInvestimento; tipos: TipoNovoAtivo[] }[] = [
+  { chave: 'brasil', rotulo: 'Ativos Brasil (Ação, ETF, BDR, FII, FI Agro, FIDC, ...)', tipos: [
+    { rotulo: 'Ação', classe: 'equity', subclasse: 'Ações' }, { rotulo: 'ETF', classe: 'etf', subclasse: 'ETFs' },
+    { rotulo: 'BDR', classe: 'equity', subclasse: 'BDRs' }, { rotulo: 'FII', classe: 'reit', subclasse: 'FIIs' },
+    { rotulo: 'FI Agro', classe: 'reit', subclasse: 'Fiagro' }, { rotulo: 'FIDC', classe: 'fund', subclasse: 'FIDC' },
+  ] },
+  { chave: 'bancario', rotulo: 'CDB/LCI/LCA/LC/RDB', tipos: ['CDB', 'LCI', 'LCA', 'LC', 'RDB'].map((x) => ({ rotulo: x, classe: 'fixed_income' as const, subclasse: x })) },
+  { chave: 'tesouro', rotulo: 'Tesouro Direto', tipos: [{ rotulo: 'Tesouro Direto', classe: 'fixed_income', subclasse: 'Tesouro Direto' }] },
+  { chave: 'fundo', rotulo: 'Fundo de Investimento', tipos: [{ rotulo: 'Fundo de investimento', classe: 'fund', subclasse: '' }] },
+  { chave: 'internacional', rotulo: 'Internacionais', moeda: 'USD', tipos: [
+    { rotulo: 'Stock (ação)', classe: 'equity', subclasse: 'Stocks' }, { rotulo: 'REIT', classe: 'reit', subclasse: 'REITs' },
+    { rotulo: 'ETF', classe: 'etf', subclasse: 'ETFs internacionais' },
+  ] },
+  { chave: 'cripto', rotulo: 'Criptomoedas', tipos: [{ rotulo: 'Criptomoeda', classe: 'crypto', subclasse: 'Cripto' }] },
+  { chave: 'debenture', rotulo: 'Debêntures', tipos: [{ rotulo: 'Debênture', classe: 'fixed_income', subclasse: 'Debêntures' }] },
+  { chave: 'outros', rotulo: 'Outros (previdência, FGTS, ...)', tipos: [
+    { rotulo: 'Previdência', classe: 'other', subclasse: 'Previdência' }, { rotulo: 'FGTS', classe: 'other', subclasse: 'FGTS' },
+    { rotulo: 'Outro', classe: 'other', subclasse: '' },
+  ] },
+]
 
 /** Uma linha da alocação (investment_allocation). Valor e percentual vêm do banco; moedas nunca se somam. */
 export interface LinhaAlocacao {
@@ -150,8 +182,9 @@ export function normalizarDecimalInvestimento(valor: string, casas: number): str
 export async function listarAtivosInvestimento(familiaId: string): Promise<AtivoInvestimento[]> {
   // Preserva a subclasse da migration 034 e conta os registros históricos para proteger a exclusão.
   const ler = (colunas: string) => db().from('investment_assets').select(colunas).eq('household_id', familiaId).order('name')
-  let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity')
-  // banco ainda sem a coluna liquidity (ou sem a subclass, 034): lê o que existe
+  let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity,institution')
+  // banco ainda sem a coluna institution (106), sem a liquidity ou sem a subclass (034): lê o que existe
+  if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity'))
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass'))
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active'))
   if (error) throw error
@@ -176,6 +209,7 @@ export async function listarAtivosInvestimento(familiaId: string): Promise<Ativo
     moeda: r.currency_code as MoedaInvestimento, ativo: r.active as boolean,
     subclasse: (r.subclass as string | null | undefined) ?? null,
     liquidez: r.liquidity === 'restricted' ? 'restricted' : 'liquid',
+    instituicao: (r.institution as string | null | undefined) ?? null,
     quantidadeOperacoes: qtdOperacoes.get(r.id as string) ?? 0,
     quantidadeAvaliacoes: qtdAvaliacoes.get(r.id as string) ?? 0,
     quantidadeProventos: qtdProventos.get(r.id as string) ?? 0,
@@ -210,6 +244,38 @@ export async function listarLiquidezInvestimentos(familiaId: string, dataRef: st
     moeda: r.currency_code as MoedaInvestimento,
     liquidez: r.liquidity === 'restricted' ? 'restricted' : 'liquid',
     valor: centsFromDb(r.market_value as string | number),
+  }))
+}
+
+/** Valor de mercado da carteira por moeda e instituição (investment_institution_totals, migration 106). */
+export interface LinhaInstituicao { moeda: MoedaInvestimento; instituicao: string | null; valor: Cents }
+
+export async function listarInstituicoesInvestimentos(familiaId: string, dataRef: string): Promise<LinhaInstituicao[]> {
+  const { data, error } = await db().rpc('investment_institution_totals', { p_household: familiaId, p_as_of: dataRef })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    moeda: r.currency_code as MoedaInvestimento,
+    instituicao: (r.institution as string | null) ?? null,
+    valor: centsFromDb(r.market_value as string | number),
+  }))
+}
+
+/** Define a instituição do ativo (corretora, banco); texto vazio limpa. O banco aceita até 40 caracteres. */
+export async function definirInstituicaoAtivo(ativoId: string, instituicao: string): Promise<void> {
+  const { error } = await db().rpc('investment_asset_set_institution', { p_asset: ativoId, p_institution: instituicao.trim() || null })
+  if (error) throw error
+}
+
+/** Proventos recebidos e previstos por moeda no período (investment_income_totals, migration 106): o total vem do banco. */
+export interface TotalProventos { moeda: MoedaInvestimento; recebido: Cents; previsto: Cents }
+
+export async function listarTotalProventos(familiaId: string, de: string, ate: string): Promise<TotalProventos[]> {
+  const { data, error } = await db().rpc('investment_income_totals', { p_household: familiaId, p_from: de, p_to: ate })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    moeda: r.currency_code as MoedaInvestimento,
+    recebido: centsFromDb(r.received as string | number),
+    previsto: centsFromDb(r.planned as string | number),
   }))
 }
 

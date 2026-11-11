@@ -125,8 +125,9 @@ Todas abaixo estão aplicadas em produção (conferido na simulação de 10/11/2
 | 103 | `20261110120000_debt_extra_amortize_terms.sql` | #292 |
 | 104 | `20261110130000_investment_by_value.sql` | #294 |
 | 105 | `20261110140000_investment_sell_never_negative.sql` | #295 |
+| 106 | `20261110150000_investment_institution.sql` | #297 |
 
-A próxima migration é a **106**. Escreva o número no cabeçalho do arquivo novo.
+A próxima migration é a **107**. Escreva o número no cabeçalho do arquivo novo.
 
 
 ## Detalhes da 019
@@ -263,10 +264,18 @@ Arquivo `20261110130000_investment_by_value.sql`. Para ativo sem cota (cofrinho,
 - Sem tarifas no caminho por valor. Execução só para `authenticated`.
 - Teste `98_investment_by_value` (falha sem a migration); `00_audit` atualizado.
 
-## Venda não deixa a posição negativa (migration 105, PR #295, não aplicada)
+## Venda não deixa a posição negativa (migration 105, PR #295, aplicada em 10/11/2026)
 Arquivo `20261110140000_investment_sell_never_negative.sql`. Conserto de bug em produção desde a migration 100.
 - **O bug:** `investment_operation_record` conferia a venda só contra a posição até a data dela. Venda com data anterior a outra venda já gravada era aceita (compra de 10 em 10/01, venda de 10 em 10/03, venda de 10 em 10/02): posição −10 e, com conta, o resgate voltava duas vezes.
 - **A correção:** `create or replace` com o corpo da 100 e um acréscimo: na venda, a quantidade acumulada ao fim de cada data, já com a venda nova, não pode ficar negativa em nenhuma data (23514). Mesma conta de mínimo acumulado de `investment_operation_void`. Mesma assinatura e grants. Cobre também o caminho por valor (104).
 - Nenhum dado é alterado. Em produção não havia posição negativa (só um ativo, com 1 unidade).
 - Teste `99_investment_sell_never_negative` (19 asserções; falha sem a migration).
 
+## Instituição do ativo e totais da tela de posições (migration 106, PR #297, não aplicada)
+Arquivo `20261110150000_investment_institution.sql`. Nenhuma função existente muda e nenhum dado é alterado (a coluna nasce nula).
+- `investment_assets.institution`: texto livre de 1 a 40 caracteres, sem espaço nas pontas (check); nulo = sem instituição. O cliente não escreve direto na coluna.
+- `investment_asset_set_institution(p_asset, p_institution)`: define ou limpa (vazio ou nulo limpa). Junta qualquer espaço em branco (tabulação, quebra de linha, espaço que não quebra, espaços finos do Unicode, vários seguidos) num espaço só, tira caractere de largura zero e apara as pontas; os espaços Unicode vão escritos um a um, para não depender do idioma do banco. Não unifica maiúsculas: "XP" e "xp" são duas instituições. Aceita ativo arquivado, sem reativar (como a subclasse e a liquidez). 42501 sem login ou ativo de outra família; 22023 acima de 40 caracteres.
+- `investment_institution_totals(p_household, p_as_of)`: valor de mercado por moeda e instituição, das mesmas posições de `investment_portfolio`. A soma de uma moeda é igual a `investment_totals.market_value`. A linha sem instituição vem com `institution` nulo. Ativo arquivado ou zerado não aparece, nem em data passada (segue `investment_portfolio`).
+- `investment_income_totals(p_household, p_from, p_to)`: proventos recebidos (`paid`) e previstos (`planned`) por moeda do ativo, com a mesma regra de `investment_income_by_asset` (a soma dos ativos de uma moeda = a linha da moeda). Para o cartão "Proventos no mês": o front não soma dinheiro.
+- As duas leituras são SECURITY INVOKER e conferem `private.is_member`; a de escrita é SECURITY DEFINER. Execução só para `authenticated`.
+- Teste `100_investment_institution` (163 asserções; falha sem a migration); `00_audit` lista as três funções.
