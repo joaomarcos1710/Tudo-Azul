@@ -61,8 +61,8 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
   const porId = new Map(ativos.map((a) => [a.id, a]))
   const moedas = [...new Set(posicoes.map((p) => p.moeda))]
   const numero = 'px-2 py-3 text-right align-top tabular-nums whitespace-nowrap'
-  // um jeito só de contar na tabela inteira: se faltar o aporte de alguma posição (duas leituras em instantes
-  // diferentes), todas as linhas ficam no custo, nunca metade de cada
+  // um jeito só de contar na tabela inteira: se faltar o aporte de alguma posição, todas as linhas ficam no custo, nunca
+  // metade de cada. A página já confere isso com a carteira inteira (aportesNaTela); aqui é a segunda trava.
   const porAporte = aportes !== null && posicoes.every((p) => aportes.porAtivo.has(p.assetId)) ? aportes : null
   return (
     <div className="flex flex-col gap-4">
@@ -120,7 +120,7 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                         <p className="text-xs text-slate-500 sm:hidden">Aportado {formatar(aportado, p.moeda)}</p>
                         {comResgate && <p className="text-xs text-slate-500">Pôs {formatar(ap.aportado, p.moeda)} · tirou {formatar(ap.resgatado, p.moeda)}</p>}
                         <p className="text-xs text-slate-500">
-                          {p.dataAvaliacao ? `Valor de ${formatDate(p.dataAvaliacao)}${p.fonteAvaliacao ? ` · ${p.fonteAvaliacao}` : ''}` : 'Sem avaliação: vale o que custou'}
+                          {p.dataAvaliacao ? `Valor de ${formatDate(p.dataAvaliacao)}${p.fonteAvaliacao ? ` · ${p.fonteAvaliacao}` : ''}` : ap ? 'Sem avaliação: pelo preço de compra' : 'Sem avaliação: vale o aportado'}
                         </p>
                       </th>
                       <td className={`hidden sm:table-cell ${numero}`}>{formatar(aportado, p.moeda)}</td>

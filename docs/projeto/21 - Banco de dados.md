@@ -93,7 +93,7 @@ Supabase (Postgres), projeto `vbhzilsqzzevaodqsenr`. **Regra:** migration aplica
 ## Numeração das migrations (corrigida em 10/11/2026)
 **Regra:** o identificador oficial é o **nome do arquivo** (o carimbo `AAAAMMDDHHMMSS` é o que o Supabase registra e o workflow compara). O número (`NNN`) é só um apelido para conversa e documento. PRs conferidos no histórico do `main` (o PR que adicionou o arquivo). A série segue o cabeçalho dos arquivos até a 083; as migrations de 07 a 10/11 sem número no cabeçalho receberam o número na ordem dos arquivos, que é a mesma usada desde a 099. Migration aplicada não se edita, então o número não foi gravado nos arquivos antigos: ele vale por esta tabela. Até 10/11/2026 este documento chamava de 078, 079 e 080 três migrations que são, pela ordem, 089, 090 e 091 (o cabeçalho de `household_people`, a 078 de verdade, foi a referência).
 
-Todas abaixo estão aplicadas em produção (conferido na simulação de 10/11/2026, execução 42887493184: histórico local e remoto iguais).
+Até a 106, todas abaixo estão aplicadas em produção (a 106 em 10/11/2026, execução 42941569240). A 107 ainda não foi aplicada: a seção própria dela diz quando for.
 
 | Nº | Arquivo | PR / observação |
 |---|---|---|

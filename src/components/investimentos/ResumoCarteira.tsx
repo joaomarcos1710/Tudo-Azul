@@ -13,8 +13,9 @@ import { comSinal, corDoResultado, sobreOAportado } from './TabelaPosicoes'
  *
  * Dois jeitos de contar, conforme o banco:
  *  - com `aportes` (migration 107, o que o dono pediu): Aportado = o que ele pôs menos o que tirou, e Rendimento = tudo o
- *    que rendeu, contando o ganho que já saiu nos resgates. Carteira = Aportado + Rendimento, no centavo. Sem resgate
- *    nenhum, "Aportado" é exatamente "quanto saiu do bolso"; com resgate, a nota mostra quanto pôs e quanto tirou, e o
+ *    que rendeu, contando o ganho que já saiu nos resgates. Carteira = Aportado + Rendimento, no centavo. Sem resgate,
+ *    a nota é "Quanto você pôs" (não "quanto saiu do bolso": compra sem conta, ativo em moeda estrangeira e conta movida
+ *    para a carteira com rendimento já lançado também contam como aporte); com resgate, mostra quanto pôs e tirou, e o
  *    percentual some (rendimento ÷ aportado líquido deixa de querer dizer alguma coisa);
  *  - sem `aportes` (banco ainda sem a 107): Aportado = custo do que AINDA está investido e Rendimento só dessa parte
  *    (pôs 1.000, valia 1.100, tirou 550: aportado 500, rendimento 50), com a frase embaixo dizendo isso.
@@ -32,7 +33,7 @@ export function ResumoCarteira({ total, aportes, proventos, formatar }: {
   const rendimento = aportes ? aportes.ganho : total.resultado
   const comResgate = aportes !== null && aportes.resgatado > 0
   const notaAportado = !aportes ? 'Custo do que está investido'
-    : comResgate ? `Pôs ${formatar(aportes.aportado)} · tirou ${formatar(aportes.resgatado)}` : 'Quanto saiu do bolso'
+    : comResgate ? `Pôs ${formatar(aportes.aportado)} · tirou ${formatar(aportes.resgatado)}` : 'Quanto você pôs'
   const notaRendimento = comResgate ? 'Contando o que já foi resgatado' : sobreOAportado(rendimento, aportado) ?? 'Valor de hoje menos o aportado'
   return (
     <>

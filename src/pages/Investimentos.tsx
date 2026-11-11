@@ -15,6 +15,7 @@ import { Selecao } from '../components/ui/Selecao'
 import { Chip, Chips, GrupoFiltro, TelaFiltros } from '../components/ui/TelaFiltros'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { useFamilia } from '../lib/FamiliaContext'
+import { codigoDoErro, registrarFalhaConsulta } from '../lib/consultaOpcional'
 import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { currentMonth } from '../lib/format'
@@ -97,19 +98,29 @@ export default function Investimentos() {
     setCarregando(true)
     try {
       const hoje = hojeSP()
-      const [lista, carteira, serie] = await Promise.all([
+      // os aportes (migration 107) vêm junto com a carteira e entram na tela no mesmo instante: lidos depois, a tela
+      // abria no custo e trocava para o líquido na frente do dono (revisão de dinheiro da #298).
+      // atalho: carteira e aportes ainda são duas leituras; uma escrita de outra pessoa entre elas pode deixá-las
+      // fora de compasso. `aportesNaTela` confere e, se não baterem, a tela inteira fica no custo até recarregar.
+      // Melhorar quando a carteira vier numa função só do banco (ver 40 - Pendências).
+      const [lista, carteira, serie, aportesLidos] = await Promise.all([
         listarAtivosInvestimento(familia.id),
         listarCarteiraInvestimentos(familia.id, hoje),
         listarHistoricoInvestimentos(familia.id, inicioHistorico(hoje), hoje).catch(() => []),
+        listarAportesInvestimentos(familia.id, hoje).catch((e: unknown) => {
+          // PGRST202 = banco ainda sem a migration 107 (esperado até ela ser aplicada); o resto vai ao Sentry
+          if (codigoDoErro(e) !== 'PGRST202') void registrarFalhaConsulta('investment_contributions', e)
+          return null
+        }),
       ])
       setAtivos(lista)
       setPosicoes(carteira.posicoes)
       setTotais(carteira.totais)
+      setAportes(aportesLidos)
       setHistorico(serie)
       setErro('')
       try { setAlocacao(await listarAlocacaoInvestimentos(familia.id, hojeSP())) } catch { setAlocacao([]) }
       try { setLiquidez(await listarLiquidezInvestimentos(familia.id, hoje)) } catch { setLiquidez([]) }
-      try { setAportes(await listarAportesInvestimentos(familia.id, hoje)) } catch { setAportes(null) }
       try { setInstituicoes(await listarInstituicoesInvestimentos(familia.id, hoje)); setBancoTemInstituicao(true) }
       catch { setInstituicoes([]); setBancoTemInstituicao(false) }
       // proventos do mês corrente: por ativo (tabela de posições) e o total por moeda (cartão). Um não depende do outro:
@@ -246,6 +257,12 @@ export default function Investimentos() {
   const instituicoesExistentes = [...new Set(ativos.map((a) => a.instituicao).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const proventoDoMesPorAtivo = new Map(proventosMes.map((x) => [x.assetId, x.recebido]))
   const proventosBRL = totalProventosMes === null ? null : totalProventosMes.find((t) => t.moeda === 'BRL') ?? null
+  // Um critério só na tela inteira (cartões, frase e tabela): os aportes valem se cobrem todas as posições e se o valor
+  // de cada moeda é o mesmo da carteira lida junto. Igualdade, não soma: nenhum dinheiro é calculado aqui.
+  const aportesNaTela = aportes !== null
+    && posicoes.every((p) => aportes.porAtivo.has(p.assetId))
+    && totais.every((t) => aportes.totais.find((x) => x.moeda === t.moeda)?.valorAtual === t.valorAtual)
+    ? aportes : null
   const posicoesFiltradas = posicoes.filter((p) =>
     (!filtroMacro || macroDaClasse(p.classe) === filtroMacro) && (!filtroSub || porId.get(p.assetId)?.subclasse === filtroSub))
   return (
@@ -291,7 +308,7 @@ export default function Investimentos() {
         )}
         {totais.filter((t) => t.moeda === 'BRL').map((t) => (
           <div key="BRL">
-            <ResumoCarteira total={t} aportes={aportes?.totais.find((x) => x.moeda === 'BRL') ?? null} proventos={proventosBRL} formatar={(c) => moeda(c, 'BRL')} />
+            <ResumoCarteira total={t} aportes={aportesNaTela?.totais.find((x) => x.moeda === 'BRL') ?? null} proventos={proventosBRL} formatar={(c) => moeda(c, 'BRL')} />
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
               <Button onClick={() => setNovaOperacao('buy')} disabled={ativosAtivos.length === 0}>Investir</Button>
               <Button variante="secundario" onClick={() => setNovaOperacao('sell')} disabled={ativosAtivos.length === 0}>Resgatar</Button>
@@ -305,7 +322,7 @@ export default function Investimentos() {
           <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {totais.filter((t) => t.moeda !== 'BRL').map((t) => {
               // mesmo critério dos cartões em reais: com a migration 107, aportado líquido e rendimento total
-              const ap = aportes?.totais.find((x) => x.moeda === t.moeda)
+              const ap = aportesNaTela?.totais.find((x) => x.moeda === t.moeda)
               const rendimento = ap ? ap.ganho : t.resultado
               return (
                 <Card key={t.moeda}>
@@ -317,6 +334,10 @@ export default function Investimentos() {
                     <dt className="text-slate-500">Rendimento</dt>
                     <dd className={`m-0 text-right font-bold tabular-nums ${corDoResultado(rendimento)}`}>{moeda(rendimento, t.moeda)}</dd>
                   </dl>
+                  {ap && ap.resgatado > 0 && (
+                    <p className="mt-2 text-xs text-slate-500">Pôs {moeda(ap.aportado, t.moeda)} · tirou {moeda(ap.resgatado, t.moeda)}; o rendimento conta o que já foi resgatado</p>
+                  )}
+                  {!ap && <p className="mt-2 text-xs text-slate-500">Do que ainda está investido: o que já foi resgatado não entra.</p>}
                 </Card>
               )
             })}
@@ -352,7 +373,7 @@ export default function Investimentos() {
       <section className="mt-8" aria-labelledby="titulo-posicoes">
         <h2 id="titulo-posicoes" className="text-lg font-semibold">Posições</h2>
         <p className="mb-3 text-sm text-slate-500">
-          {aportes ? 'Quanto você pôs (menos o que tirou), quanto vale hoje e tudo o que rendeu.' : 'Do que está investido hoje: quanto custou, quanto vale e o rendimento.'}
+          {aportesNaTela ? 'Quanto você pôs (menos o que tirou), quanto vale hoje e tudo o que rendeu.' : 'Do que está investido hoje: quanto custou, quanto vale e o rendimento.'}
         </p>
         {posicoes.length > 0 && (
           // filtros na tela cheia compartilhada (pedido do dono, 10/11/2026, como em Lançamentos); aqui só o botão e os selos.
@@ -403,7 +424,7 @@ export default function Investimentos() {
           <p className="text-sm text-slate-600">Nenhuma posição com esse filtro.</p>
         )}
         {posicoesFiltradas.length > 0 ? (
-          <TabelaPosicoes posicoes={posicoesFiltradas} ativos={ativos} totais={totais} aportes={aportes} proventosDoMes={proventoDoMesPorAtivo}
+          <TabelaPosicoes posicoes={posicoesFiltradas} ativos={ativos} totais={totais} aportes={aportesNaTela} proventosDoMes={proventoDoMesPorAtivo}
             filtrada={!!filtroMacro || !!filtroSub} formatar={moeda} formatarPreco={preco} formatarQuantidade={quantidade} />
         ) : !carregando && ativos.length > 0 && posicoes.length === 0 ? (
           <EmptyState titulo="Ativos cadastrados, sem posição" descricao="Registre uma compra para que a posição apareça aqui." acao={<Button onClick={() => setNovaOperacao(true)}>Registrar compra</Button>} />

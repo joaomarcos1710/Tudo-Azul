@@ -462,7 +462,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
 
       const acao = within(tabela).getByRole('rowheader', { name: /Ação Y · ACAO3/ })
       expect(acao.textContent).toMatch(/20 un · preço/)
-      expect(acao.textContent).toMatch(/Sem avaliação: vale o que custou/)
+      expect(acao.textContent).toMatch(/Sem avaliação: vale o aportado/) // modo custo: o texto de produção não muda
       const celulasAcao = within(acao.closest('tr') as HTMLElement).getAllByRole('cell')
       expect(celulasAcao[2].textContent).toMatch(/-R\$\s10,00-10,0% sobre o aportadoproventos R\$\s12,84 no mês$/)
       expect(celulasAcao[2].querySelector('p')?.className).toMatch(/text-prejuizo/)
@@ -549,12 +549,15 @@ describe('Investimentos × macroclasse e subclasse', () => {
       })
 
       it('sem resgate nenhum: "Aportado" é exatamente quanto saiu do bolso, com o percentual', async () => {
-        mock.listarAportesInvestimentos.mockResolvedValue({ porAtivo: new Map([['a1', ap(60000, 0, 60000)], ['a2', ap(10000, 0, 10000)], ['a3', ap(5000, 0, 8000)]]), totais: [ap(75000, 0, 78000)] })
+        // o valor de cada moeda tem de ser o mesmo da carteira (750,00 no beforeEach): só o aportado muda
+        mock.listarAportesInvestimentos.mockResolvedValue({ porAtivo: new Map([['a1', ap(60000, 0, 60000)], ['a2', ap(10000, 0, 10000)], ['a3', ap(2000, 0, 5000)]]), totais: [ap(72000, 0, 75000)] })
         render(<Investimentos />)
         const lista = await resumo()
-        await waitFor(() => expect(cartao(lista, 'Aportado').textContent).toMatch(/Quanto saiu do bolso/))
-        expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s750,00/)
-        expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s30,00\+4,0% sobre o aportado/)
+        // "Quanto você pôs", não "quanto saiu do bolso": compra sem conta e conta movida para a carteira também contam
+        await waitFor(() => expect(cartao(lista, 'Aportado').textContent).toMatch(/Quanto você pôs/))
+        expect(screen.queryByText(/saiu do bolso/)).toBeNull()
+        expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s720,00/)
+        expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s30,00\+4,2% sobre o aportado/)
       })
 
       it('resgatou mais do que pôs: aportado negativo aparece como é, com o "pôs · tirou" explicando', async () => {
@@ -566,14 +569,83 @@ describe('Investimentos × macroclasse e subclasse', () => {
         expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s1\.600,00/)
       })
 
-      it('se faltar o aporte de uma posição, a tabela inteira fica no custo (nunca metade de cada jeito)', async () => {
-        mock.listarAportesInvestimentos.mockResolvedValue({ porAtivo: new Map([['a1', ap(999900, 0, 60000)]]), totais: [ap(999900, 0, 75000)] })
-        render(<Investimentos />)
+      // a tela inteira (cartões, frase e tabela) no custo: nunca cartão num critério e tabela no outro
+      const tudoNoCusto = async () => {
+        const lista = await resumo()
         const tabela = await screen.findByRole('table', { name: /Posições em BRL/ })
-        await screen.findByText('Quanto você pôs (menos o que tirou), quanto vale hoje e tudo o que rendeu.')
-        expect(tabela.textContent).not.toMatch(/9\.999,00/)
+        await waitFor(() => expect(mock.listarAportesInvestimentos).toHaveBeenCalled())
+        expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s750,00Custo do que está investido|Custo do que está investido.*R\$\s750,00/)
+        expect(screen.getByText('Aportado e rendimento são do que ainda está investido: o que já foi resgatado não entra.')).toBeTruthy()
+        expect(screen.getByText('Do que está investido hoje: quanto custou, quanto vale e o rendimento.')).toBeTruthy()
+        expect(screen.queryByText(/Quanto você pôs/)).toBeNull()
+        expect(tabela.textContent).not.toMatch(/9\.999,00|tirou/)
         const total = within(within(tabela).getByRole('rowheader', { name: /^Total/ }).closest('tr') as HTMLElement).getAllByRole('cell')
         expect(total[0].textContent).toMatch(/^R\$\s750,00$/) // investment_totals
+      }
+
+      it('se faltar o aporte de uma posição, a tela inteira fica no custo (cartões, frase e tabela; nunca metade de cada jeito)', async () => {
+        mock.listarAportesInvestimentos.mockResolvedValue({ porAtivo: new Map([['a1', ap(999900, 0, 60000)]]), totais: [ap(999900, 0, 75000)] })
+        render(<Investimentos />)
+        await tudoNoCusto()
+      })
+
+      it('se o valor da moeda nos aportes não for o da carteira (alguém lançou algo entre as duas leituras), a tela inteira fica no custo', async () => {
+        mock.listarAportesInvestimentos.mockResolvedValue({
+          porAtivo: new Map([['a1', ap(60000, 0, 60000)], ['a2', ap(10000, 0, 10000)], ['a3', ap(5000, 0, 5000)]]),
+          totais: [ap(75000, 0, 75100)],
+        })
+        render(<Investimentos />)
+        await tudoNoCusto()
+      })
+
+      it('com filtro, a linha do ativo continua no mesmo critério de sem filtro, e o Total some', async () => {
+        cofrinhoComResgate()
+        const u = userEvent.setup()
+        render(<Investimentos />)
+        const linhaAcao = () => within(screen.getByRole('table', { name: /Posições em BRL/ })).getByRole('rowheader', { name: /Ação Y/ }).closest('tr') as HTMLElement
+        await screen.findByText('Quanto você pôs (menos o que tirou), quanto vale hoje e tudo o que rendeu.')
+        const antes = within(linhaAcao()).getAllByRole('cell').map((td) => td.textContent)
+        await u.click(screen.getByRole('button', { name: 'Filtrar' }))
+        await u.click(within(screen.getByRole('dialog', { name: 'Filtrar posições' })).getByRole('button', { name: 'Renda variável' }))
+        await u.click(screen.getByRole('button', { name: 'Filtrar: ver as posições' }))
+        expect(within(linhaAcao()).getAllByRole('cell').map((td) => td.textContent)).toEqual(antes)
+        expect(within(linhaAcao()).getAllByRole('cell')[0].textContent).toMatch(/^R\$\s200,00$/)
+        expect(within(screen.getByRole('table', { name: /Posições em BRL/ })).queryByRole('rowheader', { name: /^Total/ })).toBeNull()
+      })
+
+      describe('cartão de outra moeda (há um ativo em euro em produção)', () => {
+        const comDolar = () => {
+          mock.listarAtivosInvestimento.mockResolvedValue([ativo('a1', 'Tesouro Selic', 'fixed_income'), ativo('u1', 'REIT de teste', 'reit', { moeda: 'USD' })])
+          mock.listarCarteiraInvestimentos.mockResolvedValue({
+            posicoes: [posicao('a1', 'Tesouro Selic', 'fixed_income', 60000), { ...posicao('u1', 'REIT de teste', 'reit', 300), moeda: 'USD', custoTotal: c(250), resultado: c(50) }],
+            totais: [{ moeda: 'BRL', custoTotal: c(60000), valorAtual: c(60000), resultado: c(0) }, { moeda: 'USD', custoTotal: c(250), valorAtual: c(300), resultado: c(50) }],
+          })
+        }
+        const cartaoUsd = async () => (await screen.findByText('Valor de mercado em USD')).closest('div') as HTMLElement
+
+        it('sem a migration 107: custo do que está investido, com o aviso', async () => {
+          comDolar()
+          render(<Investimentos />)
+          const c1 = await cartaoUsd()
+          await waitFor(() => expect(mock.listarAportesInvestimentos).toHaveBeenCalled())
+          expect(c1.textContent).toMatch(/AportadoUS\$\s2,50/)
+          expect(c1.textContent).toMatch(/RendimentoUS\$\s0,50/)
+          expect(c1.textContent).toMatch(/Do que ainda está investido: o que já foi resgatado não entra\./)
+        })
+
+        it('com a 107 e resgate: aportado líquido, rendimento total e "Pôs · tirou"', async () => {
+          comDolar()
+          mock.listarAportesInvestimentos.mockResolvedValue({
+            porAtivo: new Map([['a1', ap(60000, 0, 60000)], ['u1', ap(500, 800, 300, 'USD')]]),
+            totais: [ap(60000, 0, 60000), ap(500, 800, 300, 'USD')],
+          })
+          render(<Investimentos />)
+          const c1 = await cartaoUsd()
+          await waitFor(() => expect(c1.textContent).toMatch(/Pôs US\$\s5,00 · tirou US\$\s8,00/))
+          expect(c1.textContent).toMatch(/Aportado-US\$\s3,00/)
+          expect(c1.textContent).toMatch(/RendimentoUS\$\s6,00/)
+          expect(c1.textContent).not.toMatch(/ainda está investido/)
+        })
       })
 
       it('pede os aportes na data de hoje, uma vez por carga', async () => {
