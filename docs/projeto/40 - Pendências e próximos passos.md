@@ -637,7 +637,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Depois de mover um pagamento para fatura futura, o painel "Pagar" sugeria a dívida do cartão (`debt_balances`), menor que o aberto da fatura fechada: agora sugere o aberto e explica a diferença (dois testes de tela).
 - [ ] A fatura aberta que recebeu um pagamento movido mostra "Reabrir fatura" (que anula o pagamento, com confirmação). É o comportamento antigo de fatura aberta com pagamento; mudar só com o dono.
 - [ ] Depois de mover um pagamento para fatura seguinte, o destaque do cartão ("Fatura fechada a pagar") mostra a dívida do cartão (`debt_balances`), menor que o aberto da fatura fechada na página dela. Os dois números estão certos no que medem, mas a diferença confunde; decidir com o dono se o destaque passa a mostrar o aberto da fatura.
-- [ ] Conferir em produção, só leitura, se já existe pagamento ligado a fatura que sumiu de `card_months` (a correção da 110 passa a contá-lo como adiantamento, e os números da fatura mudam ao aplicar).
+- [x] Conferido em produção (11/11/2026, só leitura, com o critério de meses de `card_months` reproduzido nas tabelas): nenhum pagamento ligado a fatura que sumiu (68 meses de cartão). Aplicar a 110 não muda número existente.
 - [ ] O vencimento gravado na linha nova de `debt_invoices` vem do cálculo de `card_months`; em mês só com crédito avulso, depois de troca de ciclo, pode usar os dias novos do cartão. Não reproduzido.
 
 ## Para depois (pedidos do dono sem data)
