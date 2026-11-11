@@ -291,7 +291,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#299** (10/11/2026): Novo ativo: categorias Moedas e Ativos Personalizados.
 - **#300** (10/11/2026): Filtros: no computador, painel no centro em vez da tela inteira.
 - **#298** (10/11/2026): Investimentos: aportado líquido e rendimento total, contando o que já foi resgatado (migration 107, aplicada no mesmo dia).
-- **#301** (aberta em 10/11/2026; data do merge a preencher pelo histórico do `main`): Investimentos: botões em cada ativo, alocação em barra e filtros em chips.
+- **#301** (10/11/2026): Investimentos: botões em cada ativo, alocação em barra e filtros em chips.
+- **#302** (aberta em 10/11/2026; data do merge a preencher pelo histórico do `main`): Cotação PTAX do Banco Central e "≈ R$" ao lado do dólar e do euro (migration 108, ainda não aplicada).
 
 ## Ainda abertos
 Em 10/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
