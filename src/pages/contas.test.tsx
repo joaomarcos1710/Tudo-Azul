@@ -12,6 +12,11 @@ const mock = vi.hoisted(() => ({
   definirAtiva: vi.fn(),
   excluirConta: vi.fn(),
   moverContaParaCarteira: vi.fn(),
+  converterParaReais: vi.fn(),
+}))
+vi.mock('../lib/cambio', async (original) => ({
+  ...(await original<typeof import('../lib/cambio')>()),
+  converterParaReais: mock.converterParaReais,
 }))
 vi.mock('../lib/investimentos', async (original) => ({
   ...(await original<typeof import('../lib/investimentos')>()),
@@ -41,6 +46,7 @@ const c = (n: number) => n as Cents
 const corrente = { id: 'a1', nome: 'Itaú', tipo: 'checking' as const, banco: null, saldoInicial: c(100000), abertura: '2026-12-01', ativa: true, saldo: c(125050) }
 
 beforeEach(() => {
+  mock.converterParaReais.mockResolvedValue([])
   mock.listarContas.mockResolvedValue({ contas: [], total: c(0) })
   mock.criarConta.mockResolvedValue(undefined)
   mock.editarConta.mockResolvedValue(undefined)
@@ -444,6 +450,35 @@ describe('Contas em outras moedas (multimoeda F1, migration 055)', () => {
     await u.type(saldo, '250,50')
     await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
     expect(mock.criarConta).toHaveBeenCalledWith('h1', expect.objectContaining({ nome: 'Conta em dólar', saldoInicial: 25050, moeda: 'USD' }))
+  })
+
+  describe('"≈ R$" pela PTAX (migration 108)', () => {
+    it('conta em dólar mostra o saldo convertido pelo banco, com a cotação e a data; o total em reais continua sem o dólar', async () => {
+      mock.listarContas.mockResolvedValue({
+        contas: [corrente, dolar], total: c(125050),
+        porTipo: [{ tipo: 'checking', total: c(125050), totalAtivas: c(125050) }],
+        porMoeda: [{ moeda: 'BRL', total: c(125050), totalAtivas: c(125050) }, { moeda: 'USD', total: c(25050), totalAtivas: c(25050) }],
+      })
+      mock.converterParaReais.mockResolvedValue([{ moeda: 'USD', valor: c(25050), reais: c(137204), taxa: '5.47720', dataTaxa: '2026-11-10' }])
+      render(<MemoryRouter><Contas /></MemoryRouter>)
+      const outras = (await screen.findByRole('heading', { name: 'Contas em outras moedas' })).closest('section') as HTMLElement
+      expect(await within(outras).findByText(/≈/)).toBeTruthy()
+      expect(outras.textContent).toMatch(/≈ R\$\s1\.372,04/)
+      expect(outras.textContent).toMatch(/PTAX de 10\/11\/2026: US\$ 1 = R\$ 5,4772/)
+      // só a conta estrangeira e ativa vai para a conversão, pelo saldo que está na tela
+      expect(mock.converterParaReais).toHaveBeenCalledWith([{ moeda: 'USD', valor: 25050 }], hojeSP())
+      expect(screen.getAllByText('R$ 1.250,50').length).toBeGreaterThan(0) // total em reais sem o dólar
+    })
+
+    it('sem cotação (ou banco sem a função): nenhum "≈", a lista segue igual', async () => {
+      mock.listarContas.mockResolvedValue({ contas: [dolar], total: c(0), porMoeda: [{ moeda: 'USD', total: c(25050), totalAtivas: c(25050) }] })
+      mock.converterParaReais.mockRejectedValue({ code: 'PGRST202' })
+      render(<MemoryRouter><Contas /></MemoryRouter>)
+      await screen.findByText('Conta em dólar')
+      await vi.waitFor(() => expect(mock.converterParaReais).toHaveBeenCalled())
+      expect(screen.queryByText(/≈/)).toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
+    })
   })
 
   it('na edição a moeda fica travada e não é enviada', async () => {
