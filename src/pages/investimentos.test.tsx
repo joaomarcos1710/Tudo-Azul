@@ -21,6 +21,7 @@ const mock = vi.hoisted(() => ({
   converterParaReais: vi.fn(),
   listarTotalProventos: vi.fn(),
   definirInstituicaoAtivo: vi.fn(),
+  definirCotacaoBolsaAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
   listarContas: vi.fn(),
   editarAtivoInvestimento: vi.fn(),
@@ -52,6 +53,7 @@ vi.mock('../lib/investimentos', async (o) => ({
   listarAportesInvestimentos: mock.listarAportesInvestimentos,
   listarTotalProventos: mock.listarTotalProventos,
   definirInstituicaoAtivo: mock.definirInstituicaoAtivo,
+  definirCotacaoBolsaAtivo: mock.definirCotacaoBolsaAtivo,
   registrarProventoInvestimento: mock.registrarProventoInvestimento,
   editarAtivoInvestimento: mock.editarAtivoInvestimento,
   arquivarAtivoInvestimento: mock.arquivarAtivoInvestimento,
@@ -71,7 +73,7 @@ import { sobreOAportado } from '../components/investimentos/TabelaPosicoes'
 
 const c = (n: number) => n as Cents
 const ativo = (id: string, nome: string, classe: string, extra: Record<string, unknown> = {}) =>
-  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null, liquidez: 'liquid', instituicao: null,
+  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null, liquidez: 'liquid', instituicao: null, cotacaoBolsa: false,
     // contadores de histórico (#125): 0 = nunca teve movimento, então pode ser excluído
     quantidadeOperacoes: 0, quantidadeAvaliacoes: 0, quantidadeProventos: 0, ...extra })
 const posicao = (assetId: string, nome: string, classe: string, valor: number) => ({
@@ -125,6 +127,7 @@ beforeEach(() => {
   mock.converterParaReais.mockResolvedValue([])
   mock.listarTotalProventos.mockResolvedValue([])
   mock.definirInstituicaoAtivo.mockResolvedValue(undefined)
+  mock.definirCotacaoBolsaAtivo.mockResolvedValue(undefined)
   mock.anularOperacaoInvestimento.mockResolvedValue(undefined)
   mock.listarExtratoAtivo.mockResolvedValue(extratoBase())
 })
@@ -1354,6 +1357,196 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(sub()).toBe('')
       await u.selectOptions(within(folha).getByLabelText('Tipo'), 'Previdência')
       expect(sub()).toBe('Previdência')
+    })
+  })
+
+  describe('cotação da bolsa (migration 109, pedido do dono de 11/11/2026)', () => {
+    const OPCAO = 'Acompanhar a cotação da bolsa'
+    const hojeISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+    const diasAtras = (n: number) => new Date(Date.parse(`${hojeISO()}T00:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10)
+    const novoAtivo = async (u: ReturnType<typeof userEvent.setup>) => {
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      return screen.getByRole('dialog', { name: 'Novo ativo' })
+    }
+
+    it('novo ativo: a opção só aparece com ação, FII, ETF ou fundo, em reais, com código da B3; nasce marcada e liga depois de criar', async () => {
+      const u = userEvent.setup()
+      const folha = await novoAtivo(u)
+      const opcao = () => within(folha).queryByRole('checkbox', { name: new RegExp(OPCAO) }) as HTMLInputElement | null
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'Ação de teste')
+      expect(opcao()).toBeNull() // sem categoria
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'brasil')
+      expect(opcao()).toBeNull() // sem código
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'taz')
+      expect(opcao()).toBeNull() // código incompleto
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'l3')
+      expect(opcao()?.checked).toBe(true)
+      await u.selectOptions(within(folha).getByLabelText('Moeda do ativo'), 'USD')
+      expect(opcao()).toBeNull() // em dólar não acompanha a B3
+      await u.selectOptions(within(folha).getByLabelText('Moeda do ativo'), 'BRL')
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.definirCotacaoBolsaAtivo).toHaveBeenCalledWith('novo-id', true))
+      expect(mock.criarAtivoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ ticker: 'tazl3', classe: 'equity', moeda: 'BRL' }))
+    })
+
+    it('novo ativo: desmarcada, ou em ativo que não pode (renda fixa com código), não liga nada', async () => {
+      const u = userEvent.setup()
+      let folha = await novoAtivo(u)
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'FII de teste')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'brasil')
+      await u.selectOptions(within(folha).getByLabelText('Tipo'), 'FII')
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'TAZL11')
+      await u.click(within(folha).getByRole('checkbox', { name: new RegExp(OPCAO) }))
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(1))
+
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      folha = screen.getByRole('dialog', { name: 'Novo ativo' })
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'CDB com código')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'bancario')
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'TAZL3')
+      expect(within(folha).queryByRole('checkbox', { name: new RegExp(OPCAO) })).toBeNull()
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(2))
+      expect(mock.definirCotacaoBolsaAtivo).not.toHaveBeenCalled()
+    })
+
+    it('novo ativo: se o banco recusar a cotação depois de criar, o aviso diz que o ativo existe e ficou sem ela', async () => {
+      mock.definirCotacaoBolsaAtivo.mockRejectedValue(new Error('função não encontrada'))
+      const u = userEvent.setup()
+      const folha = await novoAtivo(u)
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'Ação de teste')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'brasil')
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'TAZL3')
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      expect((await screen.findByRole('alert')).textContent).toMatch(/Ativo cadastrado, mas sem acompanhar a cotação da bolsa/)
+    })
+
+    it('banco sem a migration 109 (a escolha vem nula): a opção não aparece no cadastro nem na edição, e nada é chamado', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: null })])
+      const u = userEvent.setup()
+      const folha = await novoAtivo(u)
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'Ação de teste')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'brasil')
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'TAZL3')
+      expect(within(folha).queryByRole('checkbox', { name: new RegExp(OPCAO) })).toBeNull()
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(1))
+
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      expect(screen.queryByRole('checkbox', { name: new RegExp(OPCAO) })).toBeNull()
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.editarAtivoInvestimento).toHaveBeenCalledTimes(1))
+      expect(mock.definirCotacaoBolsaAtivo).not.toHaveBeenCalled()
+    })
+
+    it('editar ativo: a escolha só vai para o banco quando mudou; liga e desliga', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: false })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      const opcao = screen.getByRole('checkbox', { name: new RegExp(OPCAO) }) as HTMLInputElement
+      expect(opcao.checked).toBe(false)
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.editarAtivoInvestimento).toHaveBeenCalledTimes(1))
+      expect(mock.definirCotacaoBolsaAtivo).not.toHaveBeenCalled()
+
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      await u.click(screen.getByRole('checkbox', { name: new RegExp(OPCAO) }))
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.definirCotacaoBolsaAtivo).toHaveBeenCalledWith('a2', true))
+
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: true })])
+      cleanup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      expect((screen.getByRole('checkbox', { name: new RegExp(OPCAO) }) as HTMLInputElement).checked).toBe(true)
+      await u.click(screen.getByRole('checkbox', { name: new RegExp(OPCAO) }))
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.definirCotacaoBolsaAtivo).toHaveBeenLastCalledWith('a2', false))
+    })
+
+    it('editar ativo: a recusa do banco (ex.: lançado só pelo valor) vira aviso; nome e código já foram gravados', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: false })])
+      mock.definirCotacaoBolsaAtivo.mockRejectedValue(new Error('este ativo tem lançamento só pelo valor'))
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      await u.click(screen.getByRole('checkbox', { name: new RegExp(OPCAO) }))
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      expect((await screen.findByRole('alert')).textContent).toMatch(/Ativo atualizado, mas a escolha da cotação da bolsa não foi salva/)
+      expect(mock.editarAtivoInvestimento).toHaveBeenCalledTimes(1)
+    })
+
+    it('compra e venda: ativo que acompanha a bolsa é só por quantidade e preço ("Só o valor" some)', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: true, quantidadeOperacoes: 2 })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      const folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(within(folha).queryByRole('radio', { name: 'Só o valor' })).toBeNull()
+      expect(within(folha).getByText(/acompanha a cotação da bolsa/)).toBeTruthy()
+      await u.type(within(folha).getByLabelText('Quantidade'), '10')
+      await u.type(within(folha).getByLabelText('Preço por unidade (BRL)'), '25,75')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
+      expect(mock.registrarOperacaoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'a2', quantidade: '10', precoUnitario: '25,75' }))
+      expect(mock.registrarOperacaoPorValor).not.toHaveBeenCalled()
+    })
+
+    it('compra e venda: com a opção desligada, o ativo com código continua podendo trocar para "Só o valor"', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: false, quantidadeOperacoes: 2 })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      const folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(within(folha).getByRole('radio', { name: 'Só o valor' })).toBeTruthy()
+      expect(within(folha).queryByText(/acompanha a cotação da bolsa/)).toBeNull()
+    })
+
+    describe('tabela: data do preço e aviso de cotação parada', () => {
+      const comPosicao = (dataAvaliacao: string | null, fonte: string | null, extra: Record<string, unknown> = {}) => {
+        mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: true, ...extra })])
+        mock.listarCarteiraInvestimentos.mockResolvedValue({
+          posicoes: [{ ...posicao('a2', 'Ação Y', 'equity', 27000), ticker: 'ACAO3', quantidade: '10', precoAtual: '27', dataAvaliacao, fonteAvaliacao: fonte }],
+          totais: [{ moeda: 'BRL', custoTotal: c(20000), valorAtual: c(27000), resultado: c(7000) }],
+        })
+      }
+      const linha = async () => (await screen.findByRole('rowheader', { name: /Ação Y/ }))
+
+      it('cotação de hoje: mostra a data e a fonte, sem aviso', async () => {
+        comPosicao(hojeISO(), 'brapi')
+        render(<Investimentos />)
+        const l = await linha()
+        expect(l.textContent).toMatch(/Valor de \d{2}\/\d{2}\/\d{4} · brapi/)
+        expect(l.textContent).not.toMatch(/parada|Ainda sem cotação/)
+      })
+
+      it('cotação de 4 dias atrás (fim de semana com feriado): ainda sem aviso; de 5 dias: avisa com o número de dias', async () => {
+        comPosicao(diasAtras(4), 'brapi')
+        render(<Investimentos />)
+        expect((await linha()).textContent).not.toMatch(/parada/)
+        cleanup()
+        comPosicao(diasAtras(5), 'brapi')
+        render(<Investimentos />)
+        expect((await linha()).textContent).toMatch(/Cotação da bolsa parada há 5 dias: confira o código do ativo\./)
+      })
+
+      it('ligada e ainda sem nenhum preço: diz que a primeira cotação ainda não veio', async () => {
+        comPosicao(null, null)
+        render(<Investimentos />)
+        expect((await linha()).textContent).toMatch(/Ainda sem cotação da bolsa/)
+      })
+
+      it('ativo que NÃO acompanha a bolsa nunca ganha o aviso, por mais velha que seja a avaliação', async () => {
+        comPosicao(diasAtras(90), 'Digitado', { cotacaoBolsa: false })
+        render(<Investimentos />)
+        expect((await linha()).textContent).not.toMatch(/parada|Ainda sem cotação/)
+        cleanup()
+        comPosicao(null, null, { cotacaoBolsa: false })
+        render(<Investimentos />)
+        expect((await linha()).textContent).not.toMatch(/parada|Ainda sem cotação/)
+      })
     })
   })
 })

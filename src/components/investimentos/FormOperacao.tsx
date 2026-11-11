@@ -9,7 +9,7 @@ import type { Conta } from '../../lib/contas'
 import { parseBRL, simboloMoeda } from '../../lib/format'
 import type { Cents } from '../../lib/format'
 import { mensagemErroBanco } from '../../lib/erros'
-import { listarAtivosInvestimento, registrarOperacaoInvestimento, registrarOperacaoPorValor } from '../../lib/investimentos'
+import { listarAtivosInvestimento, registrarOperacaoInvestimento, registrarOperacaoPorValor, segueABolsa } from '../../lib/investimentos'
 import type { AtivoInvestimento, TipoOperacaoInvestimento } from '../../lib/investimentos'
 
 /* Peças das folhas de Investimentos, no desenho do formulário de Lançamentos: o principal num bloco claro em destaque,
@@ -29,6 +29,8 @@ export const TITULO_FOLHA = 'min-h-11 w-full min-w-0 rounded-md bg-transparent p
  * avaliação gravaria 1 unidade ao preço da avaliação, e o valor subiria num número que ninguém digitou (achado da revisão
  * de dinheiro da #294). Quem tem um fundo com cotas informa um ticker ou código no ativo.
  * Ativo com ticker começa em "Quantidade e preço" e pode trocar para "Só o valor".
+ * Ativo que acompanha a cotação da bolsa (migration 109) é SÓ por quantidade e preço: o valor dele é cotas × cotação,
+ * então a quantidade tem de ser a de cotas de verdade (o banco também recusa "só o valor" nele).
  */
 export type DadosOperacao =
   | { ativoId: string; data: string; tipo: TipoOperacaoInvestimento; quantidade: string; precoUnitario: string; tarifas: Cents; observacao: string; contaId?: string }
@@ -63,7 +65,8 @@ export function FormOperacao({ ativos, contas, tipoInicial = 'buy', ativoInicial
   const semHistorico = !!ativo && ativo.quantidadeOperacoes === 0 && ativo.quantidadeAvaliacoes === 0
   // ativo sem ticker (cofrinho, previdência, reserva) é só por valor; com ticker, começa em unidades e pode trocar
   const semCota = !ativo?.ticker
-  const modoAtual = semCota ? 'valor' : modo ?? 'unidades'
+  const pelaBolsa = !!ativo && segueABolsa(ativo)
+  const modoAtual = semCota ? 'valor' : pelaBolsa ? 'unidades' : modo ?? 'unidades'
   // primeira posição: o valor digitado é quanto já existe no investimento, não um aporte novo
   const primeiraPosicao = semHistorico && tipo === 'buy'
   const rotuloValor = primeiraPosicao ? 'Valor de hoje' : tipo === 'buy' ? 'Valor do aporte' : 'Valor do resgate'
@@ -121,7 +124,8 @@ export function FormOperacao({ ativos, contas, tipoInicial = 'buy', ativoInicial
             {ativos.map((a) => <option key={a.id} value={a.id}>{a.nome} · {a.moeda}</option>)}
           </select>
 
-          {ativo && !semCota && (
+          {pelaBolsa && <p className="mt-3 text-sm text-slate-600">Este ativo acompanha a cotação da bolsa: informe a quantidade de cotas e o preço.</p>}
+          {ativo && !semCota && !pelaBolsa && (
             <div role="radiogroup" aria-label="Como informar" className="mt-3 flex gap-1 rounded-lg bg-white p-1">
               <button type="button" role="radio" aria-checked={modoAtual === 'valor'} onClick={() => setModo('valor')} className={aba(modoAtual === 'valor', 'bg-azul-claro text-azul')}>Só o valor</button>
               <button type="button" role="radio" aria-checked={modoAtual === 'unidades'} onClick={() => setModo('unidades')} className={aba(modoAtual === 'unidades', 'bg-azul-claro text-azul')}>Quantidade e preço</button>

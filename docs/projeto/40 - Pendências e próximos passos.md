@@ -537,7 +537,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Conferir se as 2 receitas (124,63) e a despesa (46,49) dentro da Nomad Euro foram digitadas em euros (estariam misturadas com reais).
 - [ ] Carteira em dólar e euro não entra no Patrimônio em reais (não há conversão de moeda no app).
 - [ ] Desempenho: Análises chama o patrimônio uma vez por mês da evolução, e cada chamada agora calcula a carteira. Medir com dados reais.
-- [ ] Cotação automática de ações e FIIs (por API), depois da liquidez e das contas em moeda estrangeira. O câmbio pela PTAX já existe (#302).
+- [x] Cotação automática de ações e FIIs: feita na #305 (migration 109, brapi). O câmbio pela PTAX já existe (#302).
 
 ## Formulários de Investimentos (10/11/2026, #282)
 - [x] Compra e venda em folha, no desenho de Lançamentos, com "Só o valor" para a primeira posição.
@@ -591,7 +591,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] **Cotação PTAX (#302, migration 108, aplicada em 11/11/2026):** busca diária no BCB e "≈ R$" ao lado do dólar e do euro em Investimentos e nas contas em outra moeda. Aplicada com o "pode" do dono em cada passo (simulação listou só ela) e primeira busca manual com o "pode" dele: 6 dias de dólar e 6 de euro gravados. Falta conferir a primeira execução dos jobs agendados (14:15 de Brasília): conferir as cotações gravadas (`select base, max(rate_date) from fx_rates group by base`) e a primeira execução dos jobs `ptax-usd` e `ptax-eur` (`cron.job_run_details`). A simulação do workflow não executa SQL, então ela não prova que as extensões entram nem que o schema `fx_http` fecha: quem prova é o CI com o Supabase completo e, depois de aplicar, a conferência acima.
 - [ ] Limites da #302: a cotação inversa (`fx_rate_at` usaria 1/(BRL→USD) se alguém gravasse cotação com base BRL; hoje ninguém grava); o timeout de 20 s da chamada ao BCB é uma aposta (não há como testar a rede daqui).
 - [ ] Se o agendamento falhar (rede do Supabase, BCB fora do ar), a cotação para de avançar sem aviso na tela: a data ao lado do "≈ R$" fica velha e, depois de 7 dias, o "≈ R$" some. Avisar na tela quando a cotação tiver mais de 3 dias úteis.
-- [ ] Cotação de ações e FIIs (brapi): depois; precisa de conta e chave de um serviço de terceiros, guardada no Supabase, nunca no chat.
+- [x] Cotação de ações e FIIs (brapi): feita na #305 (migration 109); o que falta está na seção "Cotação da bolsa" abaixo.
 - [ ] **Total convertido em reais (multimoeda F4, pedido do dono em 10/11/2026):** a cotação PTAX e o "≈ R$" ao lado do saldo em dólar e euro já estão prontos (#302). Falta o total convertido, sempre dizendo a data da cotação. Precisa de migration e de teste; decidir antes onde o total convertido aparece, para não virar mais um número duplicado.
 - [x] **Migration 106:** aplicada em 10/11/2026 pelo workflow de produção, com o "pode" do dono em cada passo (a simulação listou só ela; coluna e as três funções conferidas no banco depois).
 - [x] Instituição nos ativos que já existiam: o dono preencheu a corretora nas ações e no fundo imobiliário pela tela; o cofrinho e a previdência foram preenchidos com o "pode" dele, pela função do app. Falta só o ativo em euro (o dono diz qual é a instituição).
@@ -626,6 +626,21 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
   - "Quantidade e preço" (só em ativo com ticker) continua aceitando data retroativa, por desenho.
   - Avaliar e depois aportar no mesmo dia soma o aporte ao valor avaliado. Se o valor digitado já incluía o depósito, ele conta duas vezes até a próxima avaliação; a tela orienta a lançar o aporte antes.
 - [ ] O rendimento de ativo sem cota só aparece quando a avaliação é registrada; não há cálculo automático (CDI).
+
+## Cotação da bolsa pela brapi (11/11/2026, #305, migration 109)
+- [x] Banco, tela e testes: tabela de cotações, escolha por ativo, regra "vale o mais recente; no mesmo dia, o digitado", busca agendada com a chave no cofre e aviso de cotação parada.
+- [ ] **Aplicar a migration 109** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono em cada passo.
+- [ ] **Chave da brapi (dono):** criar a conta em brapi.dev e guardar a chave no cofre do Supabase (Vault) com o nome `brapi_token`. Nunca colar no chat. Sem ela, o job `cotacoes-bolsa` só roda sem erro enquanto nenhum ativo estiver ligado; com ativo ligado e sem chave, mostra "failed".
+- [ ] **Primeira busca de verdade**, com o "pode" do dono: `select private.market_quotes_fetch();` e conferir `market_quotes`. É a única prova de que o plano gratuito responde aos códigos da carteira (a página de planos diz "cotações básicas" e não deixa claro) e de que o cabeçalho com a chave funciona na extensão `http` 1.6. Nada disso roda no CI.
+- [ ] **Ligar a cotação nos ativos** (dono, em Editar ativo): os que já existem nascem desligados.
+- [ ] Limite conhecido: o banco só recusa ligar ativo com **fração** de cota. Um ativo com **1 unidade** valendo o saldo todo (movido de uma conta pela "Mover para a carteira", ou primeira posição "só pelo valor") e que ganhou código da B3 depois ainda pode ser ligado; o valor passaria a ser 1 × cotação. O texto da opção avisa para lançar a quantidade de cotas. Se acontecer, desligar a opção desfaz na hora (nenhum dado é alterado).
+- [ ] Limite conhecido: uma falha no meio da busca (rede, 500, cota) desfaz a rodada inteira, inclusive os códigos que já tinham respondido; a rodada seguinte tenta de novo. Código que a brapi não conhece (404) não derruba os outros.
+- [ ] Código errado ou que a brapi não conhece não tem aviso próprio: aparece só como "Ainda sem cotação da bolsa" ou "parada há N dias".
+- [ ] O histórico (gráfico de evolução) só tem cotação a partir do dia em que a busca começa; antes disso vale o custo ou o valor digitado. A brapi gratuita tem 3 meses de histórico, se o dono quiser preencher.
+- [ ] Proventos continuam digitados (na brapi, dividendos são do plano pago).
+- [ ] Ações e REITs do exterior: outro provedor, a validar cobertura e termos.
+- [ ] Horário das buscas (14:30 e 19:30 de Brasília): o horário de fechamento da B3 não foi conferido; a segunda busca foi posta com folga. Ajustar se a cotação da noite não for a de fechamento.
+- [ ] Desempenho: `investment_portfolio` passou a chamar `private.investment_price_at` por posição; medir em produção (Início e Análises, limite de 8 s).
 
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
