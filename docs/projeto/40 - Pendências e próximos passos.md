@@ -627,6 +627,13 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
   - Avaliar e depois aportar no mesmo dia soma o aporte ao valor avaliado. Se o valor digitado já incluía o depósito, ele conta duas vezes até a próxima avaliação; a tela orienta a lançar o aporte antes.
 - [ ] O rendimento de ativo sem cota só aparece quando a avaliação é registrada; não há cálculo automático (CDI).
 
+## Cartão: mudar a fatura (11/11/2026, #306, migration 110)
+- [x] Pagamento: mudar a fatura de um pagamento na página da fatura, com teste no banco e na tela.
+- [ ] **Aplicar a migration 110** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono. Cuidado com a ordem: a 109 (#305) tem timestamp anterior; aplicar a 109 antes, ou renumerar a que entrar por último.
+- [ ] **Parcelas (etapa 2, decisão do dono):** escolher parcela por parcela e mandar para qualquer fatura aberta ou futura. Só parcela ainda não cobrada; fatura paga continua travada. A fatura de uma parcela é o mês da data dela (que é o fechamento do ciclo), então mudar de fatura é mudar essa data, com a mesma trava.
+- [ ] Adiantamento (pagamento sem fatura): o banco já aceita mandar para uma fatura, mas a tela só oferece o botão nos pagamentos que estão dentro de uma fatura. A lista "Pagamentos e devoluções" do cartão ainda não tem o botão.
+- [ ] Pagamento que está numa fatura já paga não muda pelo app (decisão do dono: não reabrir). Se acontecer, a correção é manual.
+
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
 

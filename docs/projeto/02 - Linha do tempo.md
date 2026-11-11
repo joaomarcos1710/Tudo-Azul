@@ -294,7 +294,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#301** (10/11/2026): Investimentos: botões em cada ativo, alocação em barra e filtros em chips.
 - **#302** (11/11/2026): Cotação PTAX do Banco Central e "≈ R$" ao lado do dólar e do euro (migration 108, aplicada no mesmo dia).
 - **#303** (11/11/2026): Diário: migration 108 aplicada e primeira busca PTAX conferida (só documentação).
-- **#304** (aberta em 11/11/2026; data do merge a preencher pelo histórico do `main`): Diário: pendências em dia, migrations 100 a 108 conferidas como aplicadas e o que segue aberto (só documentação).
+- **#304** (11/11/2026): Diário: pendências em dia, migrations 100 a 108 conferidas como aplicadas e o que segue aberto (só documentação).
+- **#306** (aberta em 11/11/2026; data do merge a preencher pelo histórico do `main`): Cartão: mudar a fatura de um pagamento, sem anular e lançar de novo (migration 110, ainda não aplicada).
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

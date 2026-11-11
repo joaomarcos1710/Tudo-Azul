@@ -17,7 +17,7 @@ import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
   arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
-  inicioDaTroca, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
+  inicioDaTroca, moverPagamentoDeFatura, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
   visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura,
@@ -936,6 +936,7 @@ function ListaRecolhida<T>({ itens, rotulo, className, children }: {
 
 type Acao =
   | { tipo: 'reabrir'; fatura: Fatura }
+  | { tipo: 'moverPagamento'; pagamento: PagamentoFatura }
   | { tipo: 'estornar'; item: ItemFatura; faturaId: string | null }
   | { tipo: 'editar'; item: ItemFatura }
   | { tipo: 'excluir'; item: ItemFatura }
@@ -1289,6 +1290,8 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const fechou = f.fechamento <= hoje
   const venceu = f.vencimento !== null && f.vencimento < hoje
   const ultimoPagamento = pagamentos.length > 0 ? pagamentos[pagamentos.length - 1] : null
+  // para onde um pagamento desta fatura pode ir: qualquer outra fatura do cartão que não esteja fechada e paga (migration 110)
+  const destinosPagamento = faturas.filter((x) => x.mes !== f.mes && !faturaTravada(x, hoje))
   const fechadaAPagar = fechadaAPagarDe(cartao, faturas, hoje)
   const pagaAqui = pagaNaFatura(cartao, f, fechadaAPagar, hoje)
   const formularioPagar = painel?.tipo === 'pagar' && painel.cartao.id === cartaoId ? <PainelJunto>{painelDoCartao(painel)}</PainelJunto> : null
@@ -1378,6 +1381,10 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         {acao?.tipo === 'reabrir' && acao.fatura.mes === f.mes && (
           <PainelReabrir cartaoId={cartaoId} fatura={f} aoFechar={() => setAcao(null)} aoConcluir={async () => { setAcao(null); await carregar() }} />
         )}
+        {acao?.tipo === 'moverPagamento' && (
+          <PainelMoverPagamento pagamento={acao.pagamento} mesAtual={f.mes} destinos={destinosPagamento} hoje={hoje}
+            aoFechar={() => setAcao(null)} aoConcluir={async () => { setAcao(null); await carregar() }} />
+        )}
         {acao?.tipo === 'editar' && (
           <PainelEditar item={acao.item} aoFechar={() => setAcao(null)} aoConcluir={async () => { setAcao(null); await carregar() }} />
         )}
@@ -1395,9 +1402,16 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
           {pagamentos.length > 0 && (
             <ListaRecolhida key={mes} itens={pagamentos} rotulo="Pagamentos da fatura" className="flex flex-col gap-1 text-sm">
               {(p) => (
-                <li key={p.id} className="flex min-w-0 items-center justify-between gap-2 rounded border border-slate-100 px-3 py-1.5" data-testid="pagamento-fatura">
+                <li key={p.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded border border-slate-100 px-3 py-1.5" data-testid="pagamento-fatura">
                   <span className="min-w-0 truncate">Pagamento recebido em {formatDate(p.data)}</span>
-                  <span data-valor className="shrink-0 whitespace-nowrap tabular-nums font-semibold text-lucro">{formatBRL(p.valor)}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span data-valor className="whitespace-nowrap tabular-nums font-semibold text-lucro">{formatBRL(p.valor)}</span>
+                    {/* fatura paga não muda (migration 064); nem aparece o botão */}
+                    {!travada && !acao && destinosPagamento.length > 0 && (
+                      <Button variante="fantasma" compacto onClick={() => setAcao({ tipo: 'moverPagamento', pagamento: p })}
+                        aria-label={`Mudar a fatura do pagamento de ${formatDate(p.data)}`}>Mudar fatura</Button>
+                    )}
+                  </span>
                 </li>
               )}
             </ListaRecolhida>
@@ -1970,6 +1984,37 @@ function PainelReabrir({ cartaoId, fatura, aoFechar, aoConcluir }: {
         <Button variante="secundario" onClick={aoFechar}>Cancelar</Button>
       </div>
     </div>
+  )
+}
+
+/**
+ * Mudar a fatura de um pagamento (migration 110, pedido do dono): o mesmo pagamento passa a quitar outra fatura, sem anular
+ * e lançar de novo. Data, valor e conta não mudam. Só aparecem destinos que não estão fechados e pagos; o banco confere
+ * de novo (origem e destino) e recusa o que mudar fatura paga.
+ */
+function PainelMoverPagamento({ pagamento, mesAtual, destinos, hoje, aoFechar, aoConcluir }: {
+  pagamento: PagamentoFatura; mesAtual: string; destinos: Fatura[]; hoje: string; aoFechar: () => void; aoConcluir: () => Promise<void>
+}) {
+  // o pedido do dono era "deveria ser na seguinte": começa na primeira fatura depois desta, se houver
+  const [mes, setMes] = useState(destinos.find((x) => x.mes > mesAtual)?.mes ?? destinos[0]?.mes ?? '')
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    if (!mes) return
+    void enviar(() => moverPagamentoDeFatura(pagamento.id, mes))
+  }
+  return (
+    <form onSubmit={salvar} noValidate className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-azul-claro p-4 md:grid-cols-2"
+      aria-label="Mudar a fatura do pagamento">
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <p className="text-sm md:col-span-2">
+        O pagamento de <strong>{formatBRL(pagamento.valor)}</strong>, recebido em {formatDate(pagamento.data)}, passa a quitar a fatura escolhida.
+        A data, o valor e a conta não mudam. Fatura fechada e paga não aparece aqui.
+      </p>
+      <Selecao rotulo="Fatura de destino" valor={mes} aoMudar={setMes}
+        opcoes={destinos.map((x) => [x.mes, `${primeiraMaiuscula(formatMonth(x.mes))} · ${seloDaFatura(x, hoje).texto} · ${formatBRL(x.total)}`])} />
+      <Botoes rotulo="Mudar fatura" enviando={enviando} aoCancelar={aoFechar} />
+    </form>
   )
 }
 
