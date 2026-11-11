@@ -1494,6 +1494,16 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(mock.registrarOperacaoPorValor).not.toHaveBeenCalled()
     })
 
+    it('compra e venda: ativo ligado cujo código saiu da bolsa NÃO oferece "Só o valor" (B2) e avisa para corrigir o código', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'XX', cotacaoBolsa: true, quantidadeOperacoes: 2 })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      const folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(within(folha).queryByRole('radio', { name: 'Só o valor' })).toBeNull()
+      expect(within(folha).getByText(/não é da bolsa agora/)).toBeTruthy()
+    })
+
     it('compra e venda: com a opção desligada, o ativo com código continua podendo trocar para "Só o valor"', async () => {
       mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: false, quantidadeOperacoes: 2 })])
       const u = userEvent.setup()

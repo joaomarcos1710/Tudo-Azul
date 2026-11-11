@@ -65,7 +65,9 @@ export function FormOperacao({ ativos, contas, tipoInicial = 'buy', ativoInicial
   const semHistorico = !!ativo && ativo.quantidadeOperacoes === 0 && ativo.quantidadeAvaliacoes === 0
   // ativo sem ticker (cofrinho, previdência, reserva) é só por valor; com ticker, começa em unidades e pode trocar
   const semCota = !ativo?.ticker
-  const pelaBolsa = !!ativo && segueABolsa(ativo)
+  // B2: a escolha ligada manda, mesmo com o código fora da bolsa agora (o banco recusa "só o valor" nesse caso)
+  const pelaBolsa = ativo?.cotacaoBolsa === true
+  const codigoForaDaBolsa = pelaBolsa && !segueABolsa(ativo!)
   const modoAtual = semCota ? 'valor' : pelaBolsa ? 'unidades' : modo ?? 'unidades'
   // primeira posição: o valor digitado é quanto já existe no investimento, não um aporte novo
   const primeiraPosicao = semHistorico && tipo === 'buy'
@@ -125,6 +127,7 @@ export function FormOperacao({ ativos, contas, tipoInicial = 'buy', ativoInicial
           </select>
 
           {pelaBolsa && <p className="mt-3 text-sm text-slate-600">Este ativo acompanha a cotação da bolsa: informe a quantidade de cotas e o preço.</p>}
+          {codigoForaDaBolsa && <p className="mt-2 text-sm font-medium text-atencao">O código deste ativo não é da bolsa agora: corrija o código em Editar ativo para voltar a acompanhar a cotação.</p>}
           {ativo && !semCota && !pelaBolsa && (
             <div role="radiogroup" aria-label="Como informar" className="mt-3 flex gap-1 rounded-lg bg-white p-1">
               <button type="button" role="radio" aria-checked={modoAtual === 'valor'} onClick={() => setModo('valor')} className={aba(modoAtual === 'valor', 'bg-azul-claro text-azul')}>Só o valor</button>

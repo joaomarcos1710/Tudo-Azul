@@ -633,3 +633,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Onde fica a chave:** no cofre do Supabase (Vault), segredo `brapi_token`, posta pelo dono no painel. Nunca no chat, no código, em variável do front, em URL ou em log.
 - **Falha não é silenciosa:** sem chave, chave recusada ou cota esgotada, a busca levanta erro (o cron mostra "failed") e a tela avisa quando o preço de um ativo ligado fica mais de 4 dias corridos parado.
 - **Fica de fora:** proventos automáticos (na brapi são do plano pago), ações e REITs do exterior (outro provedor, a validar) e cotação retroativa (o histórico usa a cotação a partir do dia em que a busca começa).
+
+## 11/11/2026 — Erro numa busca de cotação não derruba a rodada inteira (revisão da #305)
+- **Antes:** um código com resposta estranha, timeout ou 5xx levantava erro e desfazia a rodada toda, inclusive as cotações boas; e um papel digitado por outra família bloqueava todos. **Agora:** erro de um código só conta como erro dele; a rodada segue e o retorno diz quantos deram certo, quantos não tiveram cotação e quantos com erro.
+- **Continua parando a rodada inteira:** 401, 403 e 429 (chave recusada ou cota esgotada, em que seguir não adianta), e a rodada em que **nenhum** código deu certo (aí o cron mostra "failed").
+- **Teto:** até 200 códigos por rodada, com o que sobrar informado no retorno. O alfabeto deixou de decidir silenciosamente quem fica sem cotação.

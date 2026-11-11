@@ -629,18 +629,24 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Cotação da bolsa pela brapi (11/11/2026, #305, migration 109)
 - [x] Banco, tela e testes: tabela de cotações, escolha por ativo, regra "vale o mais recente; no mesmo dia, o digitado", busca agendada com a chave no cofre e aviso de cotação parada.
+- [x] Revisão independente (11/11/2026): B2 corrigido (com a escolha ligada, "só o valor" é recusado sempre); I1 (teto de 200 com aviso), I2 (erro de um código não derruba os outros), I4 (leitura só dos códigos da própria família), I5 (histórico com a busca embutida), I6 (rodada da manhã) corrigidos e testados.
+- [ ] **B1 (bloqueia o merge, decisão do dono):** ativo lançado "só pelo valor" com quantidade inteira pode ser ligado à bolsa e o valor cai para 1 × cotação (ex.: R$ 5.000 viram R$ 38,00). A trava atual só barra fração de cota. Opções: (A) ao ligar, pedir a quantidade de cotas que a pessoa tem e conferir com a posição, mostrando o valor novo antes (recomendada); (B) só ligar ativo que nunca teve lançamento "só pelo valor", o que exige marcar essas operações no banco.
 - [ ] **Aplicar a migration 109** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono em cada passo.
-- [ ] **Chave da brapi (dono):** criar a conta em brapi.dev e guardar a chave no cofre do Supabase (Vault) com o nome `brapi_token`. Nunca colar no chat. Sem ela, o job `cotacoes-bolsa` só roda sem erro enquanto nenhum ativo estiver ligado; com ativo ligado e sem chave, mostra "failed".
-- [ ] **Primeira busca de verdade**, com o "pode" do dono: `select private.market_quotes_fetch();` e conferir `market_quotes`. É a única prova de que o plano gratuito responde aos códigos da carteira (a página de planos diz "cotações básicas" e não deixa claro) e de que o cabeçalho com a chave funciona na extensão `http` 1.6. Nada disso roda no CI.
+- [ ] **Chave da brapi (dono):** criar a conta em brapi.dev e guardar a chave no cofre do Supabase (Vault) com o nome `brapi_token`. Nunca colar no chat. Sem ela, com ativo ligado, a rodada levanta erro e o cron mostra "failed".
+- [ ] **Primeira busca de verdade**, com o "pode" do dono: `select private.market_quotes_fetch();` e conferir `market_quotes`. É a única prova de que o plano gratuito responde aos códigos da carteira e de que o cabeçalho com a chave funciona na extensão `http` 1.6. Nada disso roda no CI.
+- [ ] **Desdobramento e grupamento (I7):** num desdobramento 1:10, a cotação cai 90% e o valor do ativo cai junto, sem nenhuma ação do usuário, até que a quantidade seja ajustada. Antes da 109, o preço era digitado e isso não acontecia. Avisar na tela quando a cotação variar mais de 40% de um dia para o outro, ou pedir confirmação.
 - [ ] **Ligar a cotação nos ativos** (dono, em Editar ativo): os que já existem nascem desligados.
-- [ ] Limite conhecido: o banco só recusa ligar ativo com **fração** de cota. Um ativo com **1 unidade** valendo o saldo todo (movido de uma conta pela "Mover para a carteira", ou primeira posição "só pelo valor") e que ganhou código da B3 depois ainda pode ser ligado; o valor passaria a ser 1 × cotação. O texto da opção avisa para lançar a quantidade de cotas. Se acontecer, desligar a opção desfaz na hora (nenhum dado é alterado).
-- [ ] Limite conhecido: uma falha no meio da busca (rede, 500, cota) desfaz a rodada inteira, inclusive os códigos que já tinham respondido; a rodada seguinte tenta de novo. Código que a brapi não conhece (404) não derruba os outros.
+- [ ] Um ativo com 1 unidade que ganhou código da B3 depois ainda pode ser ligado enquanto o B1 não estiver resolvido.
 - [ ] Código errado ou que a brapi não conhece não tem aviso próprio: aparece só como "Ainda sem cotação da bolsa" ou "parada há N dias".
-- [ ] O histórico (gráfico de evolução) só tem cotação a partir do dia em que a busca começa; antes disso vale o custo ou o valor digitado. A brapi gratuita tem 3 meses de histórico, se o dono quiser preencher.
-- [ ] Proventos continuam digitados (na brapi, dividendos são do plano pago).
-- [ ] Ações e REITs do exterior: outro provedor, a validar cobertura e termos.
-- [ ] Horário das buscas (14:30 e 19:30 de Brasília): o horário de fechamento da B3 não foi conferido; a segunda busca foi posta com folga. Ajustar se a cotação da noite não for a de fechamento.
-- [ ] Desempenho: `investment_portfolio` passou a chamar `private.investment_price_at` por posição; medir em produção (Início e Análises, limite de 8 s).
+- [ ] O histórico (gráfico de evolução) só tem cotação a partir do dia em que a busca começa; antes disso vale o custo ou o valor digitado.
+- [ ] Ligar, desligar ou trocar o código muda o valor de datas passadas (posição retroativa, histórico), porque a escolha não tem data. Só afeta quando já há cotação antiga do código.
+- [ ] O CSV de exportação ainda não traz a escolha da bolsa nem as cotações; o valor mostrado não fica explicado no arquivo.
+- [ ] `investment_operation_record` ainda aceita fração em ativo ligado (digitação do usuário); a trava de ligar só recusa depois.
+- [ ] Carnaval: com 4 dias corridos, a regra de "parado" avisa na quarta de manhã depois de feriado de sexta a quarta à tarde. Ajustar se o dono notar.
+- [ ] Proventos continuam digitados (na brapi, dividendos são do plano pago). Ações e REITs do exterior: outro provedor, a validar cobertura e termos.
+- [ ] Horário das buscas: o fechamento da B3 não foi conferido; a rodada da manhã corrige a linha do dia se a da noite falhar.
+- [ ] `service_role` não tem execução em `private.investment_price_at`. Hoje não quebra nada.
+- [ ] Desempenho: `investment_portfolio` chama `private.investment_price_at` por posição (~40 ms por chamada no volume de teste, era ~26 ms); medir em produção (Início e Análises, limite de 8 s).
 
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).

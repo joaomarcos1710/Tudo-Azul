@@ -268,6 +268,15 @@ select public.investment_asset_update(pg_temp.fx('fii'), 'Fundo imobiliario de t
 select is(pg_temp.pos('h', 'fii', pg_temp.hoje()), '100|950.00|950.00|0.00|sem data|sem fonte', 'P16 código trocado por um que não é da B3: volta ao custo');
 select public.investment_asset_update(pg_temp.fx('fii'), 'Fundo imobiliario de teste', 'TAZL11', 'reit');
 select is(pg_temp.valor('h', 'fii', pg_temp.hoje()), 1010.00, 'P16.1 código de volta: a cotação volta a valer');
+-- B2: ligado, o código sai da bolsa e volta: "só o valor" continua recusado (a fração seria multiplicada pela cotação)
+select lives_ok($$select public.investment_asset_update(pg_temp.fx('fii'), 'Fundo imobiliario de teste', 'XX', 'reit')$$, 'B2a código trocado para um que não é da bolsa, com a escolha ligada');
+select is(pg_temp.erro_de($$select public.investment_operation_record_by_value(pg_temp.fx('fii'), pg_temp.hoje(), 'buy', 1000.00)$$), '22023',
+          'B2b com a escolha ligada, "só o valor" é recusado mesmo com o código fora da bolsa');
+select public.investment_asset_update(pg_temp.fx('fii'), 'Fundo imobiliario de teste', 'TAZL11', 'reit');
+select is(pg_temp.erro_de($$select public.investment_operation_record_by_value(pg_temp.fx('fii'), pg_temp.hoje(), 'buy', 1000.00)$$), '22023',
+          'B2c depois que o código volta, continua recusado');
+select is((select count(*) from public.investment_operations where asset_id = pg_temp.fx('fii') and voided_at is null and quantity <> trunc(quantity)),
+          0::bigint, 'B2d nenhuma fração foi gravada no FII (o valor não pode mudar de número)');
 select lives_ok($$select pg_temp.liga('fii', false)$$, 'P17 desliga o FII');
 select is(pg_temp.pos('h', 'fii', pg_temp.hoje()), '100|950.00|950.00|0.00|sem data|sem fonte', 'P17.1 desligado: volta ao custo');
 -- cotação em outra moeda para o mesmo código não entra (a tabela aceita; a gravação da brapi é que só grava reais)
@@ -350,6 +359,143 @@ select public.investment_operation_record(pg_temp.fx('acao2'), pg_temp.hoje(), '
 select public.investment_asset_archive(pg_temp.fx('acao2'));
 select is((select count(*) from public.investment_portfolio(pg_temp.fx('h2'), pg_temp.hoje())), 0::bigint, 'I12 ativo zerado e arquivado sai da posição');
 reset role;
+
+
+-- ---- S: a busca na brapi, com rede e cofre simulados ----
+-- Só onde não há o Vault nem a extensão http de verdade (o Postgres local). No CI, com o Supabase completo, a simulação não
+-- é montada: os testes destes blocos passam sem conferir nada e ficam marcados "[não simulado]".
+do $do$ begin
+  if to_regclass('vault.decrypted_secrets') is null then
+    execute 'create schema vault';
+    execute 'create table vault.decrypted_secrets (id uuid default gen_random_uuid(), name text, decrypted_secret text)';
+    execute $q$insert into vault.decrypted_secrets (name, decrypted_secret) values ('brapi_token', 'TOKEN-TESTE-SECRETO')$q$;
+  end if;
+end $do$;
+do $do$ begin
+  if to_regtype('fx_http.http_request') is null then
+    execute 'create schema fx_http';
+    execute 'create type fx_http.http_header as (field text, value text)';
+    execute 'create type fx_http.http_request as (method text, uri text, headers fx_http.http_header[], content_type text, content text)';
+    execute 'create type fx_http.http_response as (status integer, content_type text, headers fx_http.http_header[], content text)';
+    execute 'create table fx_http.fake_marcador (x integer)';
+    execute 'create table fx_http.fake_respostas (uri text primary key, status integer, content text)';
+    execute 'create table fx_http.fake_chamadas (uri text, cabecalho text)';
+    execute $q$create function fx_http.http_header(name text, value text) returns fx_http.http_header language sql as $f$ select row(name, value)::fx_http.http_header $f$$q$;
+    execute $q$create function fx_http.http_set_curlopt(name text, value text) returns boolean language sql as $f$ select true $f$$q$;
+    execute $q$create function fx_http.http(request fx_http.http_request) returns fx_http.http_response language plpgsql as $f$
+      declare r fx_http.http_response; v record;
+      begin
+        insert into fx_http.fake_chamadas values (request.uri, (select h.value from unnest(request.headers) h where h.field = 'Authorization'));
+        select f.status, f.content into v from fx_http.fake_respostas f where f.uri = request.uri;
+        if not found then raise exception 'sem resposta simulada para %', request.uri; end if;
+        if v.status = -1 then raise exception 'tempo esgotado (simulado)'; end if;
+        r.status := v.status; r.content := v.content; return r;
+      end $f$$q$;
+  end if;
+end $do$;
+create function pg_temp.sim() returns boolean language plpgsql as $f$
+begin return to_regclass('fx_http.fake_marcador') is not null; end $f$;
+create function pg_temp.responde(p_codigo text, p_status integer, p_conteudo text) returns void language plpgsql as $f$
+begin
+  if not pg_temp.sim() then return; end if;
+  execute format('insert into fx_http.fake_respostas values (%L, %s, %L) on conflict (uri) do update set status = excluded.status, content = excluded.content',
+    'https://brapi.dev/api/v2/stocks/quote?symbols=' || p_codigo, p_status, p_conteudo);
+end $f$;
+create function pg_temp.busca(p_limit integer default 200) returns text language plpgsql as $f$
+begin
+  if not pg_temp.sim() then return 'não simulado'; end if;
+  begin return private.market_quotes_fetch(p_limit);
+  exception when others then return 'ERRO ' || sqlstate || ' ' || sqlerrm; end;
+end $f$;
+-- o erro da busca como "sqlstate|mensagem" (ou null se não deu erro)
+create function pg_temp.busca_erro() returns text language plpgsql as $f$
+begin
+  if not pg_temp.sim() then return '58000|não simulado'; end if;
+  begin perform private.market_quotes_fetch(); return null;
+  exception when others then return sqlstate || '|' || sqlerrm; end;
+end $f$;
+create function pg_temp.chave_foi_no_cabecalho() returns boolean language plpgsql as $f$
+begin
+  if not pg_temp.sim() then return true; end if;
+  return exists (select 1 from fx_http.fake_chamadas where cabecalho = 'Bearer TOKEN-TESTE-SECRETO');
+end $f$;
+create function pg_temp.chave_vazou() returns boolean language plpgsql as $f$
+declare v text;
+begin
+  if not pg_temp.sim() then return false; end if;
+  v := pg_temp.busca_erro();
+  return v like '%TOKEN-TESTE%';
+end $f$;
+grant execute on all functions in schema pg_temp to public;
+
+-- só os dois códigos que interessam seguem a bolsa agora: TAZL3 (ação) e TAZL5 (ETF)
+update public.investment_assets set market_quote = (ticker in ('TAZL3', 'TAZL5')) where ticker is not null;
+select pg_temp.responde('TAZL3', 200, pg_temp.resp('TAZL3', 40.00, pg_temp.hoje(), '15:00')::text);
+select pg_temp.responde('TAZL5', 500, '{}');
+
+select ok(not pg_temp.sim() or pg_temp.busca() = '1 com cotação; 0 sem cotação; 1 com erro; 0 ficaram de fora desta rodada (teto de 200)',
+          'S1 uma resposta boa e um erro 500: o bom é gravado, o erro conta como erro (I2)' || case when pg_temp.sim() then '' else ' [não simulado]' end);
+select ok(not pg_temp.sim() or pg_temp.cot('TAZL3', pg_temp.hoje()) = '40.0000000000|BRL|brapi', 'S1.1 a cotação boa ficou gravada');
+select ok(pg_temp.chave_foi_no_cabecalho(), 'S1.2 a chave vai no cabeçalho Authorization da chamada (I3)' || case when pg_temp.sim() then '' else ' [não simulado]' end);
+
+-- S2: resposta de formato errado de UM código não derruba os outros (I2)
+select pg_temp.responde('TAZL5', 200, '{"results": "x"}');
+select pg_temp.responde('TAZL3', 200, pg_temp.resp('TAZL3', 41.00, pg_temp.hoje(), '16:00')::text);
+select ok(not pg_temp.sim() or pg_temp.busca() = '1 com cotação; 0 sem cotação; 1 com erro; 0 ficaram de fora desta rodada (teto de 200)',
+          'S2 formato errado de um código: o outro é gravado e o erro conta' || case when pg_temp.sim() then '' else ' [não simulado]' end);
+select ok(not pg_temp.sim() or pg_temp.cot('TAZL3', pg_temp.hoje()) = '41.0000000000|BRL|brapi', 'S2.1 o código bom foi gravado mesmo com o outro com formato errado');
+
+-- S3: tempo esgotado ou rede caindo num código também não derruba os outros (I2)
+select pg_temp.responde('TAZL5', -1, '');
+select pg_temp.responde('TAZL3', 200, pg_temp.resp('TAZL3', 42.00, pg_temp.hoje(), '17:00')::text);
+select ok(not pg_temp.sim() or pg_temp.busca() = '1 com cotação; 0 sem cotação; 1 com erro; 0 ficaram de fora desta rodada (teto de 200)',
+          'S3 rede caiu num código: o outro segue e o erro conta' || case when pg_temp.sim() then '' else ' [não simulado]' end);
+select ok(not pg_temp.sim() or pg_temp.cot('TAZL3', pg_temp.hoje()) = '42.0000000000|BRL|brapi', 'S3.1 o código que respondeu foi gravado');
+
+-- S4: 401 (chave recusada) para a rodada inteira, e nada da rodada fica gravado (I2)
+select pg_temp.responde('TAZL5', 401, '{"error": true, "message": "chave recusada"}');
+select pg_temp.responde('TAZL3', 200, pg_temp.resp('TAZL3', 43.00, pg_temp.hoje(), '18:00')::text);
+select ok(not pg_temp.sim() or pg_temp.busca_erro() like '58000|%brapi respondeu 401%', 'S4 401 para a rodada e o erro diz o status e só ele' || case when pg_temp.sim() then '' else ' [não simulado]' end);
+select ok(not pg_temp.chave_vazou(), 'S4.1 a mensagem de erro não mostra a chave');
+select ok(not pg_temp.sim() or pg_temp.cot('TAZL3', pg_temp.hoje()) = '42.0000000000|BRL|brapi', 'S4.2 a rodada que parou não gravou o código que tinha respondido');
+
+-- S5: 429 (cota esgotada) tem o mesmo tratamento
+select pg_temp.responde('TAZL5', 429, '{}');
+select ok(not pg_temp.sim() or pg_temp.busca_erro() like '58000|%brapi respondeu 429%', 'S5 429 para a rodada' || case when pg_temp.sim() then '' else ' [não simulado]' end);
+
+-- S6: nenhum código deu certo: é falha de verdade (o cron mostra "failed")
+select pg_temp.responde('TAZL3', 500, '{}');
+select pg_temp.responde('TAZL5', 500, '{}');
+select ok(not pg_temp.sim() or pg_temp.busca_erro() like '58000|%nenhum dos 2 códigos%', 'S6 nada deu certo: a rodada levanta erro' || case when pg_temp.sim() then '' else ' [não simulado]' end);
+
+-- S7: teto de códigos por rodada: o que sobra aparece no retorno, não some (I1)
+select pg_temp.responde('TAZL3', 200, pg_temp.resp('TAZL3', 44.00, pg_temp.hoje(), '19:00')::text);
+select pg_temp.responde('TAZL5', 200, pg_temp.resp('TAZL5', 12.00, pg_temp.hoje(), '19:00')::text);
+select ok(not pg_temp.sim() or pg_temp.busca(1) = '1 com cotação; 0 sem cotação; 0 com erro; 1 ficaram de fora desta rodada (teto de 1)',
+          'S7 com teto de 1, o outro código aparece como "ficaram de fora"' || case when pg_temp.sim() then '' else ' [não simulado]' end);
+select ok(not pg_temp.sim() or pg_temp.busca() = '2 com cotação; 0 sem cotação; 0 com erro; 0 ficaram de fora desta rodada (teto de 200)',
+          'S7.1 sem o teto, os dois são buscados (nada fica de fora)' || case when pg_temp.sim() then '' else ' [não simulado]' end);
+
+-- S8: a leitura de cotação é só dos códigos que a própria família segue (I4)
+select pg_temp.login('00000000-0000-0000-0000-0000000103a2');
+select is((select count(*) from public.market_quotes where symbol = 'TAZL5'), 0::bigint, 'S8 outra família não lê a cotação de um código que não segue');
+select ok((select count(*) from public.market_quotes where symbol = 'TAZL3') >= 1, 'S8.1 mas lê a do código que a própria família segue');
+reset role;
+select pg_temp.login('00000000-0000-0000-0000-0000000103a1');
+select ok((select count(*) from public.market_quotes where symbol = 'TAZL5') >= 1, 'S8.2 a família dona do código lê a cotação dele');
+reset role;
+
+-- S9: o job da manhã (I6): o fechamento do dia anterior corrige a linha do dia que a rodada da noite não atualizou
+create function pg_temp.agendado_manha() returns boolean language plpgsql as $f$
+declare v boolean;
+begin
+  if not exists (select 1 from pg_available_extensions where name = 'pg_cron') then return true; end if;
+  if not exists (select 1 from pg_namespace where nspname = 'cron') then return false; end if;
+  execute $q$select exists (select 1 from cron.job where jobname = 'cotacoes-bolsa-manha' and schedule = '0 12 * * 2-6')$q$ into v;
+  return v;
+end $f$;
+select ok(pg_temp.agendado_manha(), 'S9 onde há pg_cron, a rodada da manhã roda terça a sábado às 09:00 de Brasília (0 12 UTC)'
+          || case when exists (select 1 from pg_available_extensions where name = 'pg_cron') then '' else ' [sem pg_cron neste banco: não conferido]' end);
 
 select * from finish();
 rollback;

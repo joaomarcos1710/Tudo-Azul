@@ -23,6 +23,7 @@ select policies_are('public','investment_assets', array['investment_assets_selec
 select policies_are('public','investment_distributions', array['investment_distributions_select']);
 select policies_are('public','investment_operations', array['investment_operations_select']);
 select policies_are('public','investment_valuations', array['investment_valuations_select']);
+select policies_are('public','market_quotes', array['market_quotes_select']);
 select policies_are('public','daily_digest_settings', array['daily_digest_settings_insert','daily_digest_settings_select','daily_digest_settings_update']);
 select policies_are('public','account_tags',      array['account_tags_select','account_tags_insert','account_tags_update','account_tags_delete']);
 select policies_are('public','account_tag_links', array['account_tag_links_select','account_tag_links_insert','account_tag_links_delete']);

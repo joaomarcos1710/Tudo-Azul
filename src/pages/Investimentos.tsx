@@ -320,7 +320,7 @@ export default function Investimentos() {
       />
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       <Aviso tipo="info">
-        Compras, vendas e avaliações em BRL, USD ou EUR, separadas por moeda e sem conversão. Ao escolher a conta numa compra ou venda em reais, o dinheiro sai ou volta como transferência para a carteira, sem virar despesa nem receita. Não há cotação automática: o valor de mercado vem das avaliações.
+        Compras, vendas e avaliações em BRL, USD ou EUR, separadas por moeda e sem conversão. Ao escolher a conta numa compra ou venda em reais, o dinheiro sai ou volta como transferência para a carteira, sem virar despesa nem receita. O valor de mercado vem das avaliações; nos ativos que acompanham a bolsa, vem da cotação diária da B3.
       </Aviso>
 
       {novoAtivo && <FormAtivo instituicoes={bancoTemInstituicao ? instituicoesExistentes : null} bancoTemCotacao={bancoTemCotacao} aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}

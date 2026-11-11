@@ -31,7 +31,7 @@
 --   7. private.market_quote_record(código, resposta): lê a resposta da brapi e grava a cotação. Ignora (devolve falso) o
 --      que não serve de preço: código que a brapi trocou por outro (pode vir com proporção de conversão) e cotação que
 --      não é em reais. Resposta fora do formato LEVANTA erro.
---   8. private.market_quotes_fetch(p_limit): busca, um por vez, os códigos dos ativos ativos que seguem a bolsa (de todas
+--   8. private.market_quotes_fetch(p_limit): busca, um por vez (até 200 por rodada), os códigos dos ativos ativos que seguem a bolsa (de todas
 --      as famílias, sem repetir) e grava. A chave fica no cofre do Supabase (Vault), no segredo "brapi_token": nunca em
 --      código, variável, URL ou log. Sem ativo para buscar, não precisa da chave e devolve um texto. Sem a chave, com a
 --      chave recusada (401/403), cota esgotada (429) ou qualquer outra falha, LEVANTA erro: o cron mostra "failed" e a
@@ -59,16 +59,15 @@ create table public.market_quotes (
   primary key (symbol, quote_date)
 );
 
-alter table public.market_quotes enable row level security;
-create policy market_quotes_select on public.market_quotes
-  for select to authenticated using (true);
-revoke all on public.market_quotes from public, anon, authenticated;
-grant select on public.market_quotes to authenticated;
+-- a política de leitura está logo depois da coluna market_quote (bloco 2 e 3)
 
 -- ---------------------------------------------------------------------------
 -- 2 e 3. O ativo segue a bolsa?
 -- ---------------------------------------------------------------------------
 alter table public.investment_assets add column market_quote boolean not null default false;
+
+alter table public.market_quotes enable row level security;
+
 
 create function private.investment_quote_symbol(p_on boolean, p_ticker text, p_class text, p_currency text)
 returns text
@@ -77,6 +76,15 @@ language sql immutable security invoker set search_path = '' as $$
                    and upper(btrim(p_ticker)) ~ '^[A-Z]{4}[0-9]{1,2}$'
               then upper(btrim(p_ticker)) end
 $$;
+
+-- I4: cada família só enxerga as cotações dos códigos que ela própria segue (a RLS de investment_assets já limita a ela)
+create policy market_quotes_select on public.market_quotes
+  for select to authenticated using (exists (
+    select 1 from public.investment_assets a
+     where a.market_quote
+       and private.investment_quote_symbol(a.market_quote, a.ticker, a.asset_class, a.currency_code) = market_quotes.symbol));
+revoke all on public.market_quotes from public, anon, authenticated;
+grant select on public.market_quotes to authenticated;
 
 create function public.investment_asset_set_market_quote(p_asset uuid, p_on boolean)
 returns void
@@ -222,7 +230,22 @@ language sql stable security invoker set search_path = '' as $$
          where l.asset_id = a.id and l.operation_date <= f.fim
          order by l.rn desc limit 1
       ) pos
-      left join lateral private.investment_price_at(p_household, a.id, f.fim) v on true
+      -- mesma regra de private.investment_price_at, embutida: a função separada custa ~6× no histórico (1.480 chamadas)
+      left join lateral (
+        select u.unit_price from (
+          (select x.unit_price, x.valuation_date as d, 0 as ordem
+             from public.investment_valuations x
+            where x.asset_id = a.id and x.household_id = p_household and x.valuation_date <= f.fim
+            order by x.valuation_date desc, x.created_at desc limit 1)
+          union all
+          (select q.price, q.quote_date, 1
+             from public.market_quotes q
+            where q.symbol = private.investment_quote_symbol(a.market_quote, a.ticker, a.asset_class, a.currency_code)
+              and q.currency_code = a.currency_code and q.quote_date <= f.fim
+            order by q.quote_date desc limit 1)
+        ) u
+        order by u.d desc, u.ordem limit 1
+      ) v on true
      where a.household_id = p_household and pos.quantity > 0
   )
   select m.mes, c.currency_code,
@@ -258,9 +281,10 @@ begin
   if not found or not private.is_member(v_asset.household_id) then
     raise exception 'ativo não encontrado' using errcode = '42501';
   end if;
-  -- ativo que segue a cotação da bolsa: a quantidade tem de ser a de cotas de verdade (a cotação multiplica por ela)
-  if private.investment_quote_symbol(v_asset.market_quote, v_asset.ticker, v_asset.asset_class, v_asset.currency_code) is not null then
-    raise exception 'este ativo usa a cotação da bolsa: lance a quantidade de cotas e o preço' using errcode = '22023';
+  -- ativo com a escolha ligada: a quantidade tem de ser a de cotas de verdade. Vale mesmo com o código fora da bolsa
+  -- agora (B2: se o código voltar, a fração seria multiplicada pela cotação)
+  if v_asset.market_quote then
+    raise exception 'este ativo acompanha a cotação da bolsa: lance a quantidade de cotas e o preço' using errcode = '22023';
   end if;
   if p_date is null or p_kind is null or p_kind not in ('buy','sell')
      or p_amount is null or p_amount <= 0 or p_amount <> round(p_amount, 2) or p_amount >= 1e12 then
@@ -397,24 +421,34 @@ end $$;
 -- ---------------------------------------------------------------------------
 -- 8. Buscar na brapi
 -- ---------------------------------------------------------------------------
-create function private.market_quotes_fetch(p_limit integer default 50)
+create function private.market_quotes_fetch(p_limit integer default 200)
 returns text
 language plpgsql volatile security invoker set search_path = '' as $$
 declare
   v_symbols text[];
+  v_total integer;
   v_symbol text;
   v_token text;
   v_resposta record;
+  v_falhou boolean;
   v_ok integer := 0;
   v_sem integer := 0;
+  v_erro integer := 0;
+  v_teto integer := least(greatest(coalesce(p_limit, 200), 1), 200);
 begin
+  select count(distinct private.investment_quote_symbol(a.market_quote, a.ticker, a.asset_class, a.currency_code))
+    into v_total
+    from public.investment_assets a
+   where a.active and a.market_quote
+     and private.investment_quote_symbol(a.market_quote, a.ticker, a.asset_class, a.currency_code) is not null;
+  -- I1: sem teto alfabético silencioso. Até 200 códigos por rodada; o que sobra aparece no retorno, não some
   select coalesce(array_agg(x.s order by x.s), '{}') into v_symbols
     from (select distinct private.investment_quote_symbol(a.market_quote, a.ticker, a.asset_class, a.currency_code) as s
             from public.investment_assets a
            where a.active and a.market_quote
              and private.investment_quote_symbol(a.market_quote, a.ticker, a.asset_class, a.currency_code) is not null
            order by 1
-           limit least(greatest(coalesce(p_limit, 50), 1), 200)) x;
+           limit v_teto) x;
   if cardinality(v_symbols) = 0 then
     return 'nenhum ativo segue a cotação da bolsa';
   end if;
@@ -436,24 +470,45 @@ begin
   end;
 
   foreach v_symbol in array v_symbols loop
+    v_falhou := false;
     -- o código passou pelo formato da B3 (só letras e números): não há o que escapar na URL. A chave vai no cabeçalho.
-    execute 'select r.status, r.content from fx_http.http((''GET'', $1, '
-         || 'array[fx_http.http_header(''Authorization'', $2)], null, null)::fx_http.http_request) r'
-      into v_resposta using 'https://brapi.dev/api/v2/stocks/quote?symbols=' || v_symbol, 'Bearer ' || v_token;
-    if v_resposta.status = 200 then
-      if private.market_quote_record(v_symbol, v_resposta.content::jsonb) then
-        v_ok := v_ok + 1;
-      else
-        v_sem := v_sem + 1;
-      end if;
+    begin
+      execute 'select r.status, r.content from fx_http.http((''GET'', $1, '
+           || 'array[fx_http.http_header(''Authorization'', $2)], null, null)::fx_http.http_request) r'
+        into v_resposta using 'https://brapi.dev/api/v2/stocks/quote?symbols=' || v_symbol, 'Bearer ' || v_token;
+    exception when others then
+      v_falhou := true; -- rede, tempo limite ou resposta que não é HTTP: erro deste código
+    end;
+    if v_falhou then
+      v_erro := v_erro + 1;
+    elsif v_resposta.status = 200 then
+      -- I2: resposta fora do formato de UM código não derruba os outros
+      begin
+        if private.market_quote_record(v_symbol, v_resposta.content::jsonb) then
+          v_ok := v_ok + 1;
+        else
+          v_sem := v_sem + 1;
+        end if;
+      exception when others then
+        v_erro := v_erro + 1;
+      end;
     elsif v_resposta.status = 404 then
       v_sem := v_sem + 1;
+    elsif v_resposta.status in (401, 403, 429) then
+      -- chave recusada ou cota esgotada: não adianta seguir; a rodada para e o cron mostra "failed"
+      -- só o status e o código: nada da resposta nem da chave vai para a mensagem
+      raise exception 'cotações da bolsa: a brapi respondeu % (chave ou cota), parando a rodada', v_resposta.status using errcode = '58000';
     else
-      -- só o status e o código: nada da resposta nem da chave vai para a mensagem (ela fica em cron.job_run_details)
-      raise exception 'cotações da bolsa: a brapi respondeu % para %', v_resposta.status, v_symbol using errcode = '58000';
+      v_erro := v_erro + 1;
     end if;
   end loop;
-  return format('%s com cotação; %s sem cotação', v_ok, v_sem);
+
+  -- nada deu certo nesta rodada: é falha de verdade (o cron mostra "failed"). Com algum acerto, os erros ficam no retorno
+  if v_ok = 0 and v_erro > 0 then
+    raise exception 'cotações da bolsa: nenhum dos % códigos teve cotação (% com erro)', cardinality(v_symbols), v_erro using errcode = '58000';
+  end if;
+  return format('%s com cotação; %s sem cotação; %s com erro; %s ficaram de fora desta rodada (teto de %s)',
+    v_ok, v_sem, v_erro, v_total - cardinality(v_symbols), v_teto);
 end $$;
 
 revoke execute on function private.market_quote_record(text, jsonb), private.market_quotes_fetch(integer)
@@ -466,5 +521,8 @@ do $$
 begin
   if exists (select 1 from pg_namespace where nspname = 'cron') then
     perform cron.schedule('cotacoes-bolsa', '30 17,22 * * 1-5', $c$select private.market_quotes_fetch()$c$);
+    -- I6: 09:00 de Brasília, de terça a sábado: traz o fechamento do pregão anterior e corrige a linha do dia (um preço
+    -- do meio do pregão que nenhuma rodada depois corrigiu não fica para sempre)
+    perform cron.schedule('cotacoes-bolsa-manha', '0 12 * * 2-6', $c$select private.market_quotes_fetch()$c$);
   end if;
 end $$;
