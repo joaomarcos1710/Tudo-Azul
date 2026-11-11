@@ -70,6 +70,36 @@ export const SUGESTOES_SUBCLASSE: Record<ClasseAtivo, string[]> = {
   other: [],
 }
 
+/** Um tipo dentro da categoria do cadastro: grava a classe (que o banco conhece) e sugere a subclasse. */
+export interface TipoNovoAtivo { rotulo: string; classe: ClasseAtivo; subclasse: string }
+
+/**
+ * Categorias do cadastro de ativo (pedido do dono, 10/11/2026, a partir da lista de uma planilha de carteira dele):
+ * a pessoa escolhe pelo nome do produto e o app grava a classe e a subclasse. A classe do banco não muda (macroclasse,
+ * alocação e filtros continuam como eram); "Outros" não estava na lista do dono e fica para previdência e FGTS, que já
+ * existem na carteira. `moeda` é só a sugestão inicial do campo Moeda.
+ */
+export const CATEGORIAS_NOVO_ATIVO: { chave: string; rotulo: string; moeda?: MoedaInvestimento; tipos: TipoNovoAtivo[] }[] = [
+  { chave: 'brasil', rotulo: 'Ativos Brasil (Ação, ETF, BDR, FII, FI Agro, FIDC, ...)', tipos: [
+    { rotulo: 'Ação', classe: 'equity', subclasse: 'Ações' }, { rotulo: 'ETF', classe: 'etf', subclasse: 'ETFs' },
+    { rotulo: 'BDR', classe: 'equity', subclasse: 'BDRs' }, { rotulo: 'FII', classe: 'reit', subclasse: 'FIIs' },
+    { rotulo: 'FI Agro', classe: 'reit', subclasse: 'Fiagro' }, { rotulo: 'FIDC', classe: 'fund', subclasse: 'FIDC' },
+  ] },
+  { chave: 'bancario', rotulo: 'CDB/LCI/LCA/LC/RDB', tipos: ['CDB', 'LCI', 'LCA', 'LC', 'RDB'].map((x) => ({ rotulo: x, classe: 'fixed_income' as const, subclasse: x })) },
+  { chave: 'tesouro', rotulo: 'Tesouro Direto', tipos: [{ rotulo: 'Tesouro Direto', classe: 'fixed_income', subclasse: 'Tesouro Direto' }] },
+  { chave: 'fundo', rotulo: 'Fundo de Investimento', tipos: [{ rotulo: 'Fundo de investimento', classe: 'fund', subclasse: '' }] },
+  { chave: 'internacional', rotulo: 'Internacionais', moeda: 'USD', tipos: [
+    { rotulo: 'Stock (ação)', classe: 'equity', subclasse: 'Stocks' }, { rotulo: 'REIT', classe: 'reit', subclasse: 'REITs' },
+    { rotulo: 'ETF', classe: 'etf', subclasse: 'ETFs internacionais' },
+  ] },
+  { chave: 'cripto', rotulo: 'Criptomoedas', tipos: [{ rotulo: 'Criptomoeda', classe: 'crypto', subclasse: 'Cripto' }] },
+  { chave: 'debenture', rotulo: 'Debêntures', tipos: [{ rotulo: 'Debênture', classe: 'fixed_income', subclasse: 'Debêntures' }] },
+  { chave: 'outros', rotulo: 'Outros (previdência, FGTS, ...)', tipos: [
+    { rotulo: 'Previdência', classe: 'other', subclasse: 'Previdência' }, { rotulo: 'FGTS', classe: 'other', subclasse: 'FGTS' },
+    { rotulo: 'Outro', classe: 'other', subclasse: '' },
+  ] },
+]
+
 /** Uma linha da alocação (investment_allocation). Valor e percentual vêm do banco; moedas nunca se somam. */
 export interface LinhaAlocacao {
   moeda: MoedaInvestimento

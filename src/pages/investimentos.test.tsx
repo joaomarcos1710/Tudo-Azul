@@ -172,8 +172,8 @@ describe('Investimentos × macroclasse e subclasse', () => {
     render(<Investimentos />)
     await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
     await u.type(screen.getByLabelText('Nome do ativo'), 'CDB Banco X')
-    await u.selectOptions(screen.getByLabelText('Classe'), 'fixed_income')
-    await u.type(screen.getByLabelText('Subclasse (opcional)'), 'CDB')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'bancario')
+    expect((screen.getByLabelText('Subclasse (opcional)') as HTMLInputElement).value).toBe('CDB') // a categoria sugere; o campo segue editável
     await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
     expect(mock.criarAtivoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ familiaId: 'h1', nome: 'CDB Banco X', classe: 'fixed_income' }))
     expect(mock.criarAtivoInvestimento.mock.calls[0][0]).not.toHaveProperty('subclasse')
@@ -186,7 +186,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       render(<Investimentos />)
       await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
       await u.type(screen.getByLabelText('Nome do ativo'), 'Previdência')
-      await u.selectOptions(screen.getByLabelText('Classe'), 'other')
+      await u.selectOptions(screen.getByLabelText('Categoria'), 'outros')
       await u.click(screen.getByRole('radio', { name: 'Restrito' }))
       await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
       expect(mock.criarAtivoInvestimento.mock.calls[0][0]).not.toHaveProperty('liquidez')
@@ -195,7 +195,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       mock.definirLiquidezAtivo.mockClear()
       await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
       await u.type(screen.getByLabelText('Nome do ativo'), 'CDB')
-      await u.selectOptions(screen.getByLabelText('Classe'), 'fixed_income')
+      await u.selectOptions(screen.getByLabelText('Categoria'), 'bancario')
       await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
       await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(2))
       expect(mock.definirLiquidezAtivo).not.toHaveBeenCalled()
@@ -239,12 +239,13 @@ describe('Investimentos × macroclasse e subclasse', () => {
     })
   })
 
-  it('sem subclasse digitada, não chama a RPC de subclasse', async () => {
+  it('sem subclasse (categoria que não sugere, ou campo apagado), não chama a RPC de subclasse', async () => {
     const u = userEvent.setup()
     render(<Investimentos />)
     await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
     await u.type(screen.getByLabelText('Nome do ativo'), 'Algo')
-    await u.selectOptions(screen.getByLabelText('Classe'), 'fixed_income')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'tesouro')
+    await u.clear(screen.getByLabelText('Subclasse (opcional)'))
     await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
     expect(mock.criarAtivoInvestimento).toHaveBeenCalled()
     expect(mock.definirSubclasseAtivo).not.toHaveBeenCalled()
@@ -256,8 +257,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
     render(<Investimentos />)
     await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
     await u.type(screen.getByLabelText('Nome do ativo'), 'CDB Banco X')
-    await u.selectOptions(screen.getByLabelText('Classe'), 'fixed_income')
-    await u.type(screen.getByLabelText('Subclasse (opcional)'), 'CDB')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'bancario')
     await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
     expect((await screen.findByRole('alert')).textContent).toMatch(/Ativo cadastrado, mas a subclasse não foi salva/)
   })
@@ -501,14 +501,14 @@ describe('Investimentos × macroclasse e subclasse', () => {
       render(<Investimentos />)
       await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
       await u.type(screen.getByLabelText('Nome do ativo'), 'CDB Banco X')
-      await u.selectOptions(screen.getByLabelText('Classe'), 'fixed_income')
+      await u.selectOptions(screen.getByLabelText('Categoria'), 'bancario')
       await u.type(screen.getByLabelText('Instituição (opcional)'), '  Banco X ')
       await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
       await waitFor(() => expect(mock.definirInstituicaoAtivo).toHaveBeenCalledWith('novo-id', '  Banco X '))
 
       await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
       await u.type(screen.getByLabelText('Nome do ativo'), 'Outro')
-      await u.selectOptions(screen.getByLabelText('Classe'), 'fund')
+      await u.selectOptions(screen.getByLabelText('Categoria'), 'fundo')
       await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
       await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(2))
       expect(mock.definirInstituicaoAtivo).toHaveBeenCalledTimes(1)
@@ -896,7 +896,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
       let folha = screen.getByRole('dialog', { name: 'Novo ativo' })
       await u.type(within(folha).getByLabelText('Nome do ativo'), 'Tesouro Selic')
-      await u.selectOptions(within(folha).getByLabelText('Classe'), 'fixed_income')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'tesouro')
       await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
       expect(await within(folha).findByRole('alert')).toBeTruthy()
       await u.click(within(folha).getByRole('button', { name: 'Cancelar' }))
@@ -947,17 +947,82 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(screen.getByRole('dialog', { name: 'Registrar compra ou venda' })).toBeTruthy()
     })
   })
-  it('novo ativo sem classe escolhida não é salvo (antes vinha "Renda fixa" e um FII foi gravado como renda fixa)', async () => {
+  it('novo ativo sem categoria escolhida não é salvo (antes vinha "Renda fixa" e um FII foi gravado como renda fixa)', async () => {
     const u = userEvent.setup()
     render(<Investimentos />)
     await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
-    expect((screen.getByLabelText('Classe') as HTMLSelectElement).value).toBe('')
+    expect((screen.getByLabelText('Categoria') as HTMLSelectElement).value).toBe('')
     await u.type(screen.getByLabelText('Nome do ativo'), 'GGR Covepi Renda FII')
     await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
-    expect(screen.getByText(/Escolha a classe do ativo/)).toBeTruthy()
+    expect(screen.getByText(/Escolha a categoria do ativo/)).toBeTruthy()
     expect(mock.criarAtivoInvestimento).not.toHaveBeenCalled()
-    await u.selectOptions(screen.getByLabelText('Classe'), 'reit')
+    await u.selectOptions(screen.getByLabelText('Categoria'), 'brasil')
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'FII')
     await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
     expect(mock.criarAtivoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ nome: 'GGR Covepi Renda FII', classe: 'reit' }))
+    await waitFor(() => expect(mock.definirSubclasseAtivo).toHaveBeenCalledWith('novo-id', 'FIIs'))
+  })
+
+  describe('categorias do novo ativo (pedido do dono, 10/11/2026)', () => {
+    const abrir = async (u: ReturnType<typeof userEvent.setup>) => {
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      return screen.getByRole('dialog', { name: 'Novo ativo' })
+    }
+    const opcoes = (el: HTMLElement) => [...(el as HTMLSelectElement).options].map((o) => o.textContent)
+
+    it('a lista é a que o dono pediu, na ordem dele, mais "Outros" no fim', async () => {
+      const folha = await abrir(userEvent.setup())
+      expect(opcoes(within(folha).getByLabelText('Categoria'))).toEqual([
+        'Escolha a categoria', 'Ativos Brasil (Ação, ETF, BDR, FII, FI Agro, FIDC, ...)', 'CDB/LCI/LCA/LC/RDB', 'Tesouro Direto',
+        'Fundo de Investimento', 'Internacionais', 'Criptomoedas', 'Debêntures', 'Outros (previdência, FGTS, ...)',
+      ])
+      expect(within(folha).queryByLabelText('Tipo')).toBeNull() // só aparece quando a categoria tem mais de um tipo
+    })
+
+    it.each([
+      ['brasil', 'Ação', 'equity', 'Ações'], ['brasil', 'ETF', 'etf', 'ETFs'], ['brasil', 'BDR', 'equity', 'BDRs'],
+      ['brasil', 'FI Agro', 'reit', 'Fiagro'], ['brasil', 'FIDC', 'fund', 'FIDC'],
+      ['bancario', 'LCA', 'fixed_income', 'LCA'], ['bancario', 'RDB', 'fixed_income', 'RDB'],
+      ['tesouro', null, 'fixed_income', 'Tesouro Direto'], ['cripto', null, 'crypto', 'Cripto'], ['debenture', null, 'fixed_income', 'Debêntures'],
+      ['outros', 'FGTS', 'other', 'FGTS'],
+    ])('%s / %s grava a classe %s e a subclasse %s', async (categoria, tipo, classe, subclasse) => {
+      const u = userEvent.setup()
+      const folha = await abrir(u)
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'Ativo de teste')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), categoria)
+      if (tipo) await u.selectOptions(within(folha).getByLabelText('Tipo'), tipo)
+      else expect(within(folha).queryByLabelText('Tipo')).toBeNull()
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      expect(mock.criarAtivoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ classe, moeda: 'BRL' }))
+      await waitFor(() => expect(mock.definirSubclasseAtivo).toHaveBeenCalledWith('novo-id', subclasse))
+    })
+
+    it('Internacionais sugere dólar (dá para trocar) e grava Stock, REIT ou ETF', async () => {
+      const u = userEvent.setup()
+      const folha = await abrir(u)
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'REIT de teste')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'internacional')
+      expect((within(folha).getByLabelText('Moeda do ativo') as HTMLSelectElement).value).toBe('USD')
+      await u.selectOptions(within(folha).getByLabelText('Tipo'), 'REIT')
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      expect(mock.criarAtivoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ classe: 'reit', moeda: 'USD' }))
+      await waitFor(() => expect(mock.definirSubclasseAtivo).toHaveBeenCalledWith('novo-id', 'REITs'))
+    })
+
+    it('trocar a categoria troca a sugestão de subclasse e volta a moeda para real; fundo e "Outro" não sugerem subclasse', async () => {
+      const u = userEvent.setup()
+      const folha = await abrir(u)
+      const sub = () => (within(folha).getByLabelText('Subclasse (opcional)') as HTMLInputElement).value
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'internacional')
+      expect(sub()).toBe('Stocks')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'fundo')
+      expect(sub()).toBe('')
+      expect((within(folha).getByLabelText('Moeda do ativo') as HTMLSelectElement).value).toBe('BRL')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'outros')
+      expect(sub()).toBe('Previdência')
+      await u.selectOptions(within(folha).getByLabelText('Tipo'), 'Outro')
+      expect(sub()).toBe('')
+    })
   })
 })

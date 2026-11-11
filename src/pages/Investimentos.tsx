@@ -26,7 +26,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { corDoValor } from '../lib/cores'
 import { COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../components/graficos/cores'
 import {
-  CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirInstituicaoAtivo, definirLiquidezAtivo, definirSubclasseAtivo, listarInstituicoesInvestimentos, listarLiquidezInvestimentos, listarTotalProventos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
+  CATEGORIAS_NOVO_ATIVO, CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirInstituicaoAtivo, definirLiquidezAtivo, definirSubclasseAtivo, listarInstituicoesInvestimentos, listarLiquidezInvestimentos, listarTotalProventos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
   reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarAvaliacaoTotal, registrarProventoInvestimento,
 } from '../lib/investimentos'
@@ -804,8 +804,19 @@ function FormAtivo({ instituicoes, aoSalvar, aoCancelar }: {
   const [liquidez, setLiquidez] = useState<Liquidez>('liquid')
   const [nome, setNome] = useState('')
   const [ticker, setTicker] = useState('')
-  // sem classe pré-escolhida: começar em "Renda fixa" fez um FII ser gravado como renda fixa (o dono não trocou o campo)
-  const [classe, setClasse] = useState<ClasseAtivo | ''>('')
+  // sem categoria pré-escolhida: começar em "Renda fixa" fez um FII ser gravado como renda fixa (o dono não trocou o campo)
+  const [categoria, setCategoria] = useState('')
+  const [tipo, setTipo] = useState(0)
+  const tipos = CATEGORIAS_NOVO_ATIVO.find((x) => x.chave === categoria)?.tipos ?? []
+  const classe: ClasseAtivo | '' = tipos[tipo]?.classe ?? ''
+  // trocar a categoria ou o tipo sugere a subclasse (e a moeda, em Internacionais); os dois campos continuam editáveis
+  function escolherCategoria(chave: string) {
+    const nova = CATEGORIAS_NOVO_ATIVO.find((x) => x.chave === chave)
+    setCategoria(chave); setTipo(0)
+    setSubclasse(nova?.tipos[0]?.subclasse ?? '')
+    setMoedaAtivo(nova?.moeda ?? 'BRL')
+  }
+  function escolherTipo(i: number) { setTipo(i); setSubclasse(tipos[i]?.subclasse ?? '') }
   const [moedaAtivo, setMoedaAtivo] = useState<MoedaInvestimento>('BRL')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
@@ -813,7 +824,7 @@ function FormAtivo({ instituicoes, aoSalvar, aoCancelar }: {
   async function enviar(e: FormEvent) {
     e.preventDefault()
     if (!nome.trim()) { setErro('Informe o nome do ativo.'); return }
-    if (!classe) { setErro('Escolha a classe do ativo (ex.: FIIs / REITs para fundo imobiliário, Renda fixa para CDB e Tesouro).'); return }
+    if (!classe) { setErro('Escolha a categoria do ativo (ex.: Ativos Brasil para ação e FII, CDB/LCI/LCA/LC/RDB para renda fixa de banco).'); return }
     setEnviando(true); setErro('')
     // o erro do banco aparece aqui dentro: a folha cobre o aviso do topo da página
     try { await aoSalvar({ nome, ticker, classe, moeda: moedaAtivo, subclasse, liquidez, instituicao }) }
@@ -837,12 +848,19 @@ function FormAtivo({ instituicoes, aoSalvar, aoCancelar }: {
           </p>
         </div>
         <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
-          <LinhaFolha id={`${id}-classe`} rotulo="Classe">
-            <select id={`${id}-classe`} value={classe} onChange={(e) => setClasse(e.target.value as ClasseAtivo | '')} className={CONTROLE_FOLHA}>
-              <option value="">Escolha a classe</option>
-              {classes.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+          <LinhaFolha id={`${id}-categoria`} rotulo="Categoria">
+            <select id={`${id}-categoria`} value={categoria} onChange={(e) => escolherCategoria(e.target.value)} className={CONTROLE_FOLHA}>
+              <option value="">Escolha a categoria</option>
+              {CATEGORIAS_NOVO_ATIVO.map((x) => <option key={x.chave} value={x.chave}>{x.rotulo}</option>)}
             </select>
           </LinhaFolha>
+          {tipos.length > 1 && (
+            <LinhaFolha id={`${id}-tipo`} rotulo="Tipo">
+              <select id={`${id}-tipo`} value={tipo} onChange={(e) => escolherTipo(Number(e.target.value))} className={CONTROLE_FOLHA}>
+                {tipos.map((x, i) => <option key={x.rotulo} value={i}>{x.rotulo}</option>)}
+              </select>
+            </LinhaFolha>
+          )}
           <LinhaFolha id={`${id}-moeda`} rotulo="Moeda do ativo">
             <select id={`${id}-moeda`} value={moedaAtivo} onChange={(e) => setMoedaAtivo(e.target.value as MoedaInvestimento)} className={CONTROLE_FOLHA}>
               {moedas.map(([v, r]) => <option key={v} value={v}>{r}</option>)}

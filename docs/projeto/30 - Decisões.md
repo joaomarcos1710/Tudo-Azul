@@ -591,3 +591,12 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Instituição é texto livre no ativo**, não um cadastro à parte nem a conta da corretora: o cofrinho e a previdência não têm conta no app, e um cadastro de instituições seria uma tela a mais para manter. Preço da escolha: grafias diferentes ("XP" e "xp") viram duas linhas; a tela sugere as já usadas.
 - **"Aportado" é o custo de aquisição** que o banco já calculava; "Rendimento" é valor de hoje menos o aportado. O percentual ao lado é rendimento ÷ aportado e leva sempre o rótulo "sobre o aportado": não é rentabilidade (não considera datas dos aportes) e não se compara com CDI.
 - **Todos os totais vêm do banco** (migration 106 para proventos por moeda e valor por instituição); a linha Total da tabela some com filtro, porque o total do banco é da carteira inteira.
+- **Categoria no cadastro do ativo (pedido do dono, mesma data):** a lista é a que o dono mandou (Ativos Brasil, CDB/LCI/LCA/LC/RDB, Tesouro Direto, Fundo de Investimento, Internacionais, Criptomoedas, Debêntures). Ela é só o jeito de escolher: grava a classe que o banco já tem e sugere a subclasse, sem migration e sem mudar alocação, macroclasse nem filtros. "Outros (previdência, FGTS)" foi acrescentado porque a previdência já está na carteira e não cabia em nenhuma das sete; o dono pode mandar tirar.
+- **Mapa que o app usa:** Ação e BDR → Ações (classe); ETF → ETFs; FII e FI Agro → FIIs / REITs; FIDC e fundo → Fundos; CDB, LCI, LCA, LC, RDB, Tesouro e debênture → Renda fixa; cripto → Criptoativos. FI Agro como FII e FIDC como fundo são escolhas minhas (do assistente), não do dono.
+
+## 10/11/2026 — Outros desenhos do dono (Contas e Lançamentos): o que vale (dono)
+- **Cor:** segue a regra do app (#183): ganho em azul, verde só para planejado. Os desenhos usavam verde no rendimento.
+- **Proventos mensais em Tesouro e CDB** nos desenhos eram simulação; a tela só mostra provento que existe.
+- **Investimento continua fora de Contas** (decisão de 10/11 mantida): o "saldo consolidado" do desenho não soma a carteira.
+- **Total convertido em reais (dólar e euro):** o dono quer o app preparado para isso. Depende da cotação PTAX (multimoeda F4); até lá, cada moeda aparece com o seu total.
+- **Ainda sem resposta do dono:** filtros de Lançamentos (tela cheia, como ele pediu na #271, ou na própria tela, como no desenho) e se Contas e Cartões viram uma tela só.
