@@ -290,6 +290,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#297** (10/11/2026): Investimentos: resumo em cartões, posições em tabela e instituição do ativo (migration 106, ainda não aplicada).
 - **#299** (10/11/2026): Novo ativo: categorias Moedas e Ativos Personalizados.
 - **#300** (10/11/2026): Filtros: no computador, painel no centro em vez da tela inteira.
+- **#298** (aberta em 10/11/2026; data do merge a preencher pelo histórico do `main`): Investimentos: aportado líquido e rendimento total, contando o que já foi resgatado (migration 107, ainda não aplicada).
 
 ## Ainda abertos
 Em 10/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

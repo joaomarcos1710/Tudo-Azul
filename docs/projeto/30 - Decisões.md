@@ -605,3 +605,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O dono reclamou** que em Relatórios o filtro "fica enorme": no computador a tela de filtros ocupava o monitor inteiro para dois grupos de opções.
 - **Decidido:** no computador os filtros abrem num painel no centro, do tamanho do conteúdo, como a Folha. No celular e no iPad em retrato continua a tela cheia que o dono pediu na #271 ("como no Organizze").
 - **Vale para os quatro filtros** (Relatórios, Lançamentos, Contas, Investimentos): é o mesmo componente, e tratar só Relatórios deixaria os outros três com o mesmo problema.
+
+## 10/11/2026 — "Aportado" é o que pôs menos o que tirou; "Rendimento" conta o que já resgatou (dono, #298)
+- **Decidido pelo dono** ("pode fazer em PR separada"), depois de ver que o custo médio fazia o rendimento mostrado cair a cada resgate do cofrinho.
+- **Como:** função nova no banco (migration 107) com tudo o que entrou, tudo o que saiu e o ganho total. Carteira = Aportado + Rendimento, no centavo.
+- **Por que líquido e não "tudo o que já aportei":** num cofrinho de onde o dinheiro entra e sai toda semana, a soma bruta dos aportes cresce sem parar e não diz nada. O bruto aparece na nota ("Pôs X · tirou Y") quando houve resgate.
+- **Preço da escolha, avisado ao dono:** quem resgata mais do que aportou fica com aportado negativo (é verdade: já tirou mais do que pôs). E o percentual some quando há resgate, porque rendimento ÷ aportado líquido deixa de querer dizer alguma coisa; rentabilidade de verdade pede cálculo no tempo e fica para depois.
+- **O que não muda:** `investment_portfolio` e `investment_totals` (custo médio) continuam como estão e seguem sendo usados no patrimônio, no gráfico e na alocação.

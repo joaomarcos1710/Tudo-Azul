@@ -93,7 +93,7 @@ Supabase (Postgres), projeto `vbhzilsqzzevaodqsenr`. **Regra:** migration aplica
 ## Numeração das migrations (corrigida em 10/11/2026)
 **Regra:** o identificador oficial é o **nome do arquivo** (o carimbo `AAAAMMDDHHMMSS` é o que o Supabase registra e o workflow compara). O número (`NNN`) é só um apelido para conversa e documento. PRs conferidos no histórico do `main` (o PR que adicionou o arquivo). A série segue o cabeçalho dos arquivos até a 083; as migrations de 07 a 10/11 sem número no cabeçalho receberam o número na ordem dos arquivos, que é a mesma usada desde a 099. Migration aplicada não se edita, então o número não foi gravado nos arquivos antigos: ele vale por esta tabela. Até 10/11/2026 este documento chamava de 078, 079 e 080 três migrations que são, pela ordem, 089, 090 e 091 (o cabeçalho de `household_people`, a 078 de verdade, foi a referência).
 
-Todas abaixo estão aplicadas em produção (conferido na simulação de 10/11/2026, execução 42887493184: histórico local e remoto iguais).
+Até a 106, todas abaixo estão aplicadas em produção (a 106 em 10/11/2026, execução 42941569240). A 107 ainda não foi aplicada: a seção própria dela diz quando for.
 
 | Nº | Arquivo | PR / observação |
 |---|---|---|
@@ -126,8 +126,9 @@ Todas abaixo estão aplicadas em produção (conferido na simulação de 10/11/2
 | 104 | `20261110130000_investment_by_value.sql` | #294 |
 | 105 | `20261110140000_investment_sell_never_negative.sql` | #295 |
 | 106 | `20261110150000_investment_institution.sql` | #297 |
+| 107 | `20261110160000_investment_contributions.sql` | #298 |
 
-A próxima migration é a **107**. Escreva o número no cabeçalho do arquivo novo.
+A próxima migration é a **108**. Escreva o número no cabeçalho do arquivo novo.
 
 
 ## Detalhes da 019
@@ -271,7 +272,7 @@ Arquivo `20261110140000_investment_sell_never_negative.sql`. Conserto de bug em 
 - Nenhum dado é alterado. Em produção não havia posição negativa (só um ativo, com 1 unidade).
 - Teste `99_investment_sell_never_negative` (19 asserções; falha sem a migration).
 
-## Instituição do ativo e totais da tela de posições (migration 106, PR #297, não aplicada)
+## Instituição do ativo e totais da tela de posições (migration 106, PR #297, aplicada em 10/11/2026)
 Arquivo `20261110150000_investment_institution.sql`. Nenhuma função existente muda e nenhum dado é alterado (a coluna nasce nula).
 - `investment_assets.institution`: texto livre de 1 a 40 caracteres, sem espaço nas pontas (check); nulo = sem instituição. O cliente não escreve direto na coluna.
 - `investment_asset_set_institution(p_asset, p_institution)`: define ou limpa (vazio ou nulo limpa). Junta qualquer espaço em branco (tabulação, quebra de linha, espaço que não quebra, espaços finos do Unicode, vários seguidos) num espaço só, tira caractere de largura zero e apara as pontas; os espaços Unicode vão escritos um a um, para não depender do idioma do banco. Não unifica maiúsculas: "XP" e "xp" são duas instituições. Aceita ativo arquivado, sem reativar (como a subclasse e a liquidez). 42501 sem login ou ativo de outra família; 22023 acima de 40 caracteres.
@@ -279,3 +280,13 @@ Arquivo `20261110150000_investment_institution.sql`. Nenhuma função existente 
 - `investment_income_totals(p_household, p_from, p_to)`: proventos recebidos (`paid`) e previstos (`planned`) por moeda do ativo, com a mesma regra de `investment_income_by_asset` (a soma dos ativos de uma moeda = a linha da moeda). Para o cartão "Proventos no mês": o front não soma dinheiro.
 - As duas leituras são SECURITY INVOKER e conferem `private.is_member`; a de escrita é SECURITY DEFINER. Execução só para `authenticated`.
 - Teste `100_investment_institution` (163 asserções; falha sem a migration); `00_audit` lista as três funções.
+
+## Aportes, resgates e rendimento total (migration 107, PR #298, não aplicada)
+Arquivo `20261110160000_investment_contributions.sql`. Só leitura; nenhuma função existente muda e nenhum dado é alterado.
+- **Por quê:** `cost_basis` e `unrealized_result` de `investment_portfolio` são só do que ainda está investido (custo médio). Depois de um resgate, a parte resgatada sai do custo e o ganho dela sai do resultado: pôs 1.000, passou a valer 1.100, tirou 550 → custo 500, resultado 50.
+- `investment_contributions(p_household, p_as_of)`: uma linha por ativo com posição aberta (`level = 'asset'`) e uma por moeda (`level = 'total'`, `asset_id` nulo), com `contributed` (soma das compras, quantidade × preço + tarifas), `redeemed` (soma das vendas, quantidade × preço − tarifas), `net_contributed` (a diferença; negativo quando já se resgatou mais do que se aportou), `market_value` (o de `investment_portfolio`) e `total_result = market_value − net_contributed`. No exemplo: 1.000, 550, 450, 550 e 100.
+- Cada operação conta pelo mesmo valor em centavos que entra ou sai da conta (migration 100); anuladas não contam; proventos não entram.
+- `market_value = net_contributed + total_result` no centavo, em toda linha; a soma do `market_value` de uma moeda é igual a `investment_totals`.
+- Só ativos com posição aberta em `p_as_of`: ativo zerado ou arquivado some junto com o ganho que realizou; se voltar a ter posição, volta com a história inteira.
+- SECURITY INVOKER, confere `private.is_member`, execução só para `authenticated`. `00_audit` lista a função.
+- Teste `101_investment_contributions` (297 asserções; falha sem a migration; 11 versões estragadas da função foram todas pegas). Inclui um sorteio fixo de 48 operações e a conferência das identidades em 307 datas.

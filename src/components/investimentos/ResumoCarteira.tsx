@@ -1,41 +1,52 @@
 import type { ReactNode } from 'react'
 import { Card } from '../ui/Card'
 import type { Cents } from '../../lib/format'
-import type { TotalInvestimento, TotalProventos } from '../../lib/investimentos'
+import type { Aportes, TotalInvestimento, TotalProventos } from '../../lib/investimentos'
 import { comSinal, corDoResultado, sobreOAportado } from './TabelaPosicoes'
 
 /**
  * Resumo da carteira em reais (pedido do dono, 10/11/2026, a partir de um desenho dele): Carteira (quanto vale hoje),
- * Aportado e Rendimento, lado a lado. "Aportado" é o custo do que AINDA está investido (custo médio do banco), não tudo
- * o que já saiu do bolso: depois de um resgate, a parte resgatada sai do aportado e o ganho dela sai do rendimento
- * (pôs 1.000, valia 1.100, tirou 550: aportado 500, rendimento 50). Por isso a nota e a frase embaixo dizem "do que
- * ainda está investido"; o desenho dizia "quanto saiu do bolso", que ficaria errado no primeiro resgate.
- * Ainda lado a lado: "Proventos no mês" só aparece quando há provento recebido ou
- * previsto no mês (decisão do dono: "esconde quando não há provento"). Todos os valores vêm do banco
- * (investment_totals e investment_income_totals); aqui só há o rendimento ÷ aportado, para exibir.
- * No celular cada cartão vira uma linha (rótulo à esquerda, valor à direita): quatro cartões em duas colunas cortariam
- * valores de seis dígitos.
+ * Aportado e Rendimento, lado a lado; "Proventos no mês" só aparece quando há provento recebido ou previsto no mês
+ * (decisão do dono: "esconde quando não há provento"). Todos os valores vêm do banco; aqui só há o rendimento ÷
+ * aportado, para exibir. No celular cada cartão vira uma linha: quatro cartões em duas colunas cortariam valores de
+ * seis dígitos.
+ *
+ * Dois jeitos de contar, conforme o banco:
+ *  - com `aportes` (migration 107, o que o dono pediu): Aportado = o que ele pôs menos o que tirou, e Rendimento = tudo o
+ *    que rendeu, contando o ganho que já saiu nos resgates. Carteira = Aportado + Rendimento, no centavo. Sem resgate,
+ *    a nota é "Quanto você pôs" (não "quanto saiu do bolso": compra sem conta, ativo em moeda estrangeira e conta movida
+ *    para a carteira com rendimento já lançado também contam como aporte); com resgate, mostra quanto pôs e tirou, e o
+ *    percentual some (rendimento ÷ aportado líquido deixa de querer dizer alguma coisa);
+ *  - sem `aportes` (banco ainda sem a 107): Aportado = custo do que AINDA está investido e Rendimento só dessa parte
+ *    (pôs 1.000, valia 1.100, tirou 550: aportado 500, rendimento 50), com a frase embaixo dizendo isso.
  */
-export function ResumoCarteira({ total, proventos, formatar }: {
+export function ResumoCarteira({ total, aportes, proventos, formatar }: {
   total: TotalInvestimento
+  /** aportes e resgates da moeda (migration 107); null = banco sem a função: vale o custo do que está investido */
+  aportes: Aportes | null
   /** proventos do mês corrente em reais; null = sem provento no mês ou o banco ainda não respondeu */
   proventos: TotalProventos | null
   formatar: (c: Cents) => string
 }) {
   const comProventos = proventos !== null && (proventos.recebido > 0 || proventos.previsto > 0)
+  const aportado = aportes ? aportes.liquido : total.custoTotal
+  const rendimento = aportes ? aportes.ganho : total.resultado
+  const comResgate = aportes !== null && aportes.resgatado > 0
+  const notaAportado = !aportes ? 'Custo do que está investido'
+    : comResgate ? `Pôs ${formatar(aportes.aportado)} · tirou ${formatar(aportes.resgatado)}` : 'Quanto você pôs'
+  const notaRendimento = comResgate ? 'Contando o que já foi resgatado' : sobreOAportado(rendimento, aportado) ?? 'Valor de hoje menos o aportado'
   return (
     <>
     <ul className={`grid gap-3 sm:grid-cols-3 ${comProventos ? 'xl:grid-cols-4' : ''}`} aria-label="Resumo da carteira em reais">
-      <Numero rotulo="Carteira" valor={formatar(total.valorAtual)} nota="Quanto vale hoje" />
-      <Numero rotulo="Aportado" valor={formatar(total.custoTotal)} nota="Custo do que está investido" />
-      <Numero rotulo="Rendimento" valor={comSinal(formatar(total.resultado), total.resultado)} cor={corDoResultado(total.resultado)}
-        nota={sobreOAportado(total.resultado, total.custoTotal) ?? 'Valor de hoje menos o aportado'} />
+      <Numero rotulo="Carteira" valor={formatar(aportes ? aportes.valorAtual : total.valorAtual)} nota="Quanto vale hoje" />
+      <Numero rotulo="Aportado" valor={formatar(aportado)} nota={notaAportado} />
+      <Numero rotulo="Rendimento" valor={comSinal(formatar(rendimento), rendimento)} cor={corDoResultado(rendimento)} nota={notaRendimento} />
       {comProventos && (
         <Numero rotulo="Proventos no mês" valor={formatar(proventos.recebido)}
           nota={proventos.previsto > 0 ? `Recebidos · ${formatar(proventos.previsto)} previstos` : 'Dividendos e juros recebidos'} />
       )}
     </ul>
-    <p className="mt-2 text-xs text-slate-500">Aportado e rendimento são do que ainda está investido: o que já foi resgatado não entra.</p>
+    {!aportes && <p className="mt-2 text-xs text-slate-500">Aportado e rendimento são do que ainda está investido: o que já foi resgatado não entra.</p>}
     </>
   )
 }

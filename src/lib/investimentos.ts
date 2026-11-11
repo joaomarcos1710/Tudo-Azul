@@ -262,6 +262,35 @@ export async function listarInstituicoesInvestimentos(familiaId: string, dataRef
   }))
 }
 
+/**
+ * Aportes e resgates de um ativo ou de uma moeda (investment_contributions, migration 107): `aportado` é tudo o que
+ * entrou, `resgatado` tudo o que saiu, `liquido` a diferença (o que saiu do bolso e ainda não voltou; negativo quando já
+ * se tirou mais do que se pôs) e `ganho` tudo o que rendeu, contando o que já saiu nos resgates. No banco,
+ * valorAtual = liquido + ganho, no centavo.
+ */
+export interface Aportes { moeda: MoedaInvestimento; aportado: Cents; resgatado: Cents; liquido: Cents; valorAtual: Cents; ganho: Cents }
+export interface AportesCarteira { porAtivo: Map<string, Aportes>; totais: Aportes[] }
+
+export async function listarAportesInvestimentos(familiaId: string, dataRef: string): Promise<AportesCarteira> {
+  const { data, error } = await db().rpc('investment_contributions', { p_household: familiaId, p_as_of: dataRef })
+  if (error) throw error
+  const porAtivo = new Map<string, Aportes>()
+  const totais: Aportes[] = []
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const linha: Aportes = {
+      moeda: r.currency_code as MoedaInvestimento,
+      aportado: centsFromDb(r.contributed as string | number),
+      resgatado: centsFromDb(r.redeemed as string | number),
+      liquido: centsFromDb(r.net_contributed as string | number),
+      valorAtual: centsFromDb(r.market_value as string | number),
+      ganho: centsFromDb(r.total_result as string | number),
+    }
+    if (r.level === 'total') totais.push(linha)
+    else porAtivo.set(r.asset_id as string, linha)
+  }
+  return { porAtivo, totais }
+}
+
 /** Define a instituição do ativo (corretora, banco); texto vazio limpa. O banco aceita até 40 caracteres. */
 export async function definirInstituicaoAtivo(ativoId: string, instituicao: string): Promise<void> {
   const { error } = await db().rpc('investment_asset_set_institution', { p_asset: ativoId, p_institution: instituicao.trim() || null })
