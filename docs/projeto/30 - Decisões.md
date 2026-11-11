@@ -585,3 +585,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Preço da escolha, avisado ao dono:** o Disponível passa a mostrar só as contas correntes; o dinheiro "à mão" é Disponível + investimentos líquidos (já aparecem separados). O rendimento só aparece quando a avaliação é registrada.
 - **Ordem combinada:** (1) esta função; (2) "Aporte" e "Resgate" no Novo lançamento; (3) instituição por ativo (XP, Mercado Pago), para ver a corretora separada por ativos; (4) arrumar as contas: arquivar as zeradas e mover para a carteira as que têm saldo, uma a uma com o "pode" do dono.
 
+## 10/11/2026 — Investimentos em cartões e tabela; instituição é um campo do ativo (dono, #297)
+- **Pedido do dono**, com um desenho: cartões Carteira, Aportado, Rendimento e Proventos no mês, e uma tabela "Posições" com aportado, valor atual e rendimento, e "classe · instituição" embaixo do nome.
+- **Decidido pelo dono:** o cartão e a linha de proventos **somem quando não há provento** no mês (renda fixa não paga provento mensal: o juro fica no valor do título).
+- **Instituição é texto livre no ativo**, não um cadastro à parte nem a conta da corretora: o cofrinho e a previdência não têm conta no app, e um cadastro de instituições seria uma tela a mais para manter. Preço da escolha: grafias diferentes ("XP" e "xp") viram duas linhas; a tela sugere as já usadas.
+- **"Aportado" é o custo de aquisição** que o banco já calculava; "Rendimento" é valor de hoje menos o aportado. O percentual ao lado é rendimento ÷ aportado e leva sempre o rótulo "sobre o aportado": não é rentabilidade (não considera datas dos aportes) e não se compara com CDI.
+- **Todos os totais vêm do banco** (migration 106 para proventos por moeda e valor por instituição); a linha Total da tabela some com filtro, porque o total do banco é da carteira inteira.

@@ -370,7 +370,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
     })
   })
 
-  describe('resumo em cartões e tabela de posições (pedido do dono, 11/11/2026)', () => {
+  describe('resumo em cartões e tabela de posições (pedido do dono, 10/11/2026)', () => {
     const resumo = async () => await screen.findByRole('list', { name: 'Resumo da carteira em reais' })
     const cartao = (lista: HTMLElement, rotulo: string) => within(lista).getByText(rotulo).closest('li') as HTMLElement
 

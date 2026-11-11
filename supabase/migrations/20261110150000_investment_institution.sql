@@ -1,6 +1,6 @@
 -- Tudo Azul — migration 106: instituição do ativo e totais para a tela de posições
 --
--- Pedido do dono (10 e 11/11/2026): ver os investimentos separados por instituição (a corretora tem ações e fundos; o
+-- Pedido do dono (10/11/2026): ver os investimentos separados por instituição (a corretora tem ações e fundos; o
 -- banco digital tem cofrinhos com taxas diferentes) e uma tabela de posições com aportado, valor atual, rendimento e
 -- proventos do mês, com o nome da instituição embaixo de cada investimento.
 --

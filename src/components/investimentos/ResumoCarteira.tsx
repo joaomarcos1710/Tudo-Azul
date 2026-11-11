@@ -6,7 +6,7 @@ import type { TotalInvestimento, TotalProventos } from '../../lib/investimentos'
 import { comSinal, sobreOAportado } from './TabelaPosicoes'
 
 /**
- * Resumo da carteira em reais (pedido do dono, 11/11/2026, a partir de um desenho dele): Carteira (quanto vale hoje),
+ * Resumo da carteira em reais (pedido do dono, 10/11/2026, a partir de um desenho dele): Carteira (quanto vale hoje),
  * Aportado (quanto saiu do bolso) e Rendimento, lado a lado; "Proventos no mês" só aparece quando há provento recebido ou
  * previsto no mês (decisão do dono: "esconde quando não há provento"). Todos os valores vêm do banco
  * (investment_totals e investment_income_totals); aqui só há o rendimento ÷ aportado, para exibir.

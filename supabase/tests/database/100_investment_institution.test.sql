@@ -1,4 +1,4 @@
--- 100_investment_institution: migration 106 (20261111080000_investment_institution.sql). Pedido do dono de 10 e 11/11/2026:
+-- 100_investment_institution: migration 106 (20261110150000_investment_institution.sql). Pedido do dono de 10/11/2026:
 -- ver a carteira por instituição e o total de proventos do mês sem o front somar dinheiro.
 --   investment_assets.institution; investment_asset_set_institution; investment_institution_totals; investment_income_totals.
 -- O que este arquivo prova: os totais batem no centavo com investment_totals e investment_income_by_asset, definir a

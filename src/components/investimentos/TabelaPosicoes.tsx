@@ -23,7 +23,7 @@ export function comSinal(texto: string, valor: Cents): string {
 }
 
 /**
- * Posições em tabela (pedido do dono, 11/11/2026, a partir de um desenho dele): por investimento, quanto entrou
+ * Posições em tabela (pedido do dono, 10/11/2026, a partir de um desenho dele): por investimento, quanto entrou
  * (aportado), quanto vale hoje e o que rendeu, com a classe e a instituição embaixo do nome. Uma tabela por moeda, sem
  * conversão. Tudo vem do banco: aportado = custo de aquisição, valor atual e rendimento = investment_portfolio; a linha
  * Total = investment_totals (por isso some quando há filtro: o total do banco é da carteira inteira, não das linhas à vista).
