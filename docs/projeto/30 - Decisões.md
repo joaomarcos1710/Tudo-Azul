@@ -600,3 +600,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Investimento continua fora de Contas** (decisão de 10/11 mantida): o "saldo consolidado" do desenho não soma a carteira.
 - **Total convertido em reais (dólar e euro):** o dono quer o app preparado para isso. Depende da cotação PTAX (multimoeda F4); até lá, cada moeda aparece com o seu total.
 - **Ainda sem resposta do dono:** filtros de Lançamentos (tela cheia, como ele pediu na #271, ou na própria tela, como no desenho) e se Contas e Cartões viram uma tela só.
+
+## 10/11/2026 — Filtros: tela cheia só no celular (dono, #300)
+- **O dono reclamou** que em Relatórios o filtro "fica enorme": no computador a tela de filtros ocupava o monitor inteiro para dois grupos de opções.
+- **Decidido:** no computador os filtros abrem num painel no centro, do tamanho do conteúdo, como a Folha. No celular e no iPad em retrato continua a tela cheia que o dono pediu na #271 ("como no Organizze").
+- **Vale para os quatro filtros** (Relatórios, Lançamentos, Contas, Investimentos): é o mesmo componente, e tratar só Relatórios deixaria os outros três com o mesmo problema.
