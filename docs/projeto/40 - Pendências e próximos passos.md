@@ -14,6 +14,7 @@ atualizado: 2026-11-11
 - [ ] Alerta de vencimento por **push**? (iPhone/Android? você usa iPad, celular e site; hoje o card "Vencidos" cobre)
 
 ## Conferências suas (no app)
+- [ ] **Cartões: "+ Lançamento" em folha (#307)**: ver no iPhone e no computador a página do cartão e a da fatura (menu, folha, Esc, foco). Pendência registrada: com a tecla D/R o foco volta a quem estava focado antes, não ao botão (igual a Lançamentos); Pagar fatura ainda abre inline (a PR #306 mexe nele).
 - [ ] Cartão criado com saldo atual: a fatura nova **não** aparece como paga sem você pagar.
 - [ ] Menu "Mais", olho de ocultar valores, editar valor com a máscara ligada.
 - [ ] Início e Análises no celular e no iPad (#57).
