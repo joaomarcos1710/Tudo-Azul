@@ -8,6 +8,7 @@ import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
 import { MinhaCarteira } from '../components/investimentos/MinhaCarteira'
 import { TabelaPosicoes, corDoResultado } from '../components/investimentos/TabelaPosicoes'
+import { NotaCarteira } from '../components/investimentos/NotaCarteira'
 import { ResumoCarteira } from '../components/investimentos/ResumoCarteira'
 import { CONTROLE_FOLHA, FormOperacao, GRANDE_FOLHA, LINHA_FOLHA, TITULO_FOLHA, gravarOperacao } from '../components/investimentos/FormOperacao'
 import type { DadosOperacao } from '../components/investimentos/FormOperacao'
@@ -296,17 +297,16 @@ export default function Investimentos() {
         titulo="Investimentos"
         descricao="Acompanhe ativos, operações, custo médio e avaliações da carteira familiar."
         acoes={
-          <div className="flex flex-wrap gap-2">
-            <Button variante="secundario" onClick={() => setNovoAtivo(true)}>Novo ativo</Button>
-            <Button variante="secundario" onClick={() => setNovoProvento(true)} disabled={ativosEmReais.length === 0}>Registrar provento</Button>
-            <Button onClick={() => setNovaOperacao(true)} disabled={ativosAtivos.length === 0}>Registrar operação</Button>
+          // uma ação principal (Registrar operação: primeira no celular, à direita no computador) e as outras em peso menor
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+            <Button className="w-full sm:order-last sm:w-auto" onClick={() => setNovaOperacao(true)} disabled={ativosAtivos.length === 0}>Registrar operação</Button>
+            <Button variante="fantasma" onClick={() => setNovoAtivo(true)}>Novo ativo</Button>
+            <Button variante="fantasma" onClick={() => setNovoProvento(true)} disabled={ativosEmReais.length === 0}>Registrar provento</Button>
           </div>
         }
       />
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
-      <Aviso tipo="info">
-        Compras, vendas e avaliações em BRL, USD ou EUR, separadas por moeda e sem conversão. Ao escolher a conta numa compra ou venda em reais, o dinheiro sai ou volta como transferência para a carteira, sem virar despesa nem receita. Não há cotação automática: o valor de mercado vem das avaliações.
-      </Aviso>
+      <NotaCarteira />
 
       {novoAtivo && <FormAtivo instituicoes={bancoTemInstituicao ? instituicoesExistentes : null} aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
