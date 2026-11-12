@@ -663,6 +663,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Sem confirmação na tela:** não cria lançamento e dá para mandar de volta. A tela avisa para onde a parcela foi.
 - **A parcela leva os dias de fechamento e vencimento do mês de destino**, para o vencimento da fatura sair certo depois de uma troca de dias do cartão.
 
+## 12/11/2026 — Composição da carteira: seletor só com as moedas que têm posição (dono, #312, etapa 2)
+- **Decisão:** o seletor de moeda lista só BRL, EUR e USD com posição (em vez de todas com estado vazio) e some quando há uma moeda só. Motivo: aba vazia convida ao clique sem nada para mostrar, e o resumo logo acima já mostra só as moedas que existem.
+- **Previdência grande na barra:** a visão Liquidez (que já existia) fica a um clique da Classe, com um atalho; nenhum cálculo novo. Mostrar a classe do que é líquido exigiria um número novo do banco: fica em Pendências.
 ## 12/11/2026 — Parcelas ativas em Recorrentes (dono, #316)
 - **Uma função de leitura nova** (`active_installment_plans`) em vez de montar no front: nenhuma RPC entregava n de N, % pago, saldo restante nem status do mês por parcelamento, e o front não soma dinheiro. O que já existia (`card_months_as_of`) é reaproveitado para a fatura.
 - **Paga no cartão é por fatura** (fechada e paga), não por parcela: o banco não registra pagamento por parcela. **Parcela do mês pelo vencimento da fatura**, como no Entradas x Saídas (decisão de 05/11).
