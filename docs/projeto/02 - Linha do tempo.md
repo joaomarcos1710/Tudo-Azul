@@ -295,17 +295,17 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#302** (11/11/2026): Cotação PTAX do Banco Central e "≈ R$" ao lado do dólar e do euro (migration 108, aplicada no mesmo dia).
 - **#303** (11/11/2026): Diário: migration 108 aplicada e primeira busca PTAX conferida (só documentação).
 - **#304** (11/11/2026): Diário: pendências em dia, migrations 100 a 108 conferidas como aplicadas e o que segue aberto (só documentação).
-- **#305** (11/11/2026): Cotação da bolsa pela brapi para ação, FII, ETF e fundo, por escolha em cada ativo (migration 109, ainda não aplicada).
-- **#306** (11/11/2026): Cartão: mudar a fatura de um pagamento, sem anular e lançar de novo (migration 110, ainda não aplicada).
+- **#305** (11/11/2026): Cotação da bolsa pela brapi para ação, FII, ETF e fundo, por escolha em cada ativo (migration 109, aplicada em 12/11/2026, execução 43146123633).
+- **#306** (11/11/2026): Cartão: mudar a fatura de um pagamento, sem anular e lançar de novo (migration 110, aplicada em 12/11/2026, execução 43146123633).
 - **#307** (11/11/2026): Cartões: "+ Lançamento" (despesa D, receita R) com o formulário de compra e de crédito numa folha por cima da tela, na página do cartão e na da fatura; `MenuNovo` virou componente comum com Lançamentos (só front).
 - **#308** (11/11/2026): Investimentos, etapa 1 de 5 do redesenho visual (pedido do dono, 12/11/2026): valor atual da carteira em destaque, Aportado/Rendimento/Proventos como indicadores menores, cabeçalho com uma ação principal e aviso compacto e expansível. Só front.
-- **#309** (11/11/2026): Cartão: mudar de quem foi a despesa de uma compra já lançada, inclusive em fatura paga (migration 111, ainda não aplicada).
-- **#310** (11/11/2026): Cartão: enviar uma parcela para a fatura anterior ou para a próxima (migration 111, ainda não aplicada).
+- **#309** (11/11/2026): Cartão: mudar de quem foi a despesa de uma compra já lançada, inclusive em fatura paga (migration 111, aplicada em 12/11/2026, execução 43146123633).
+- **#310** (11/11/2026): Cartão: enviar uma parcela para a fatura anterior ou para a próxima (migration 111, aplicada em 12/11/2026, execução 43146123633).
 - **#312** (12/11/2026, em aberto): Investimentos, etapa 2 de 5 do redesenho visual: "Composição da carteira" unificada, com seletor de moeda (BRL, EUR, USD) e as visões Classe, Liquidez, Instituição e Ativos em cada moeda. Só front.
 - **#313** (12/11/2026, rascunho: a data do merge entra quando for mergeada): Cartões: "Gasto do mês" vira "Fatura atual" no resumo da fatura; a linha da compra fica clicável e abre a folha "Editar compra"; "Enviar para a fatura anterior" aparece sempre, desabilitado com o motivo quando não pode. Só front.
-- **#314** (12/11/2026, em aberto): Recorrentes: campo de natureza (custo fixo, assinatura ou app, gasto variável, ressarcimento a receber), alicerce para agrupar a tela por natureza (pedido do dono, 12/11/2026). Só classificação: coluna `recurrences.nature`, `recurrence_set_nature`, criar/atualizar com natureza, seletor no formulário e selo na lista. Migration 112 (`20261112120000`), ainda não aplicada. As abas e os totais por natureza são outra PR.
-- **#315** (12/11/2026): Cartão: botão "Categorias" na fatura, com as despesas da fatura por categoria (migration 112, ainda não aplicada).
-- **#316** (12/11/2026, rascunho): Recorrentes: bloco Parcelas ativas, cartão e conta (migration 112, só leitura, ainda não aplicada).
+- **#314** (12/11/2026): Recorrentes: campo de natureza (custo fixo, assinatura ou app, gasto variável, ressarcimento a receber), alicerce para agrupar a tela por natureza (pedido do dono, 12/11/2026). Só classificação: coluna `recurrences.nature`, `recurrence_set_nature`, criar/atualizar com natureza, seletor no formulário e selo na lista. Migration 112 (`20261112120000`), aplicada em 12/11/2026, execução 43200042951. As abas e os totais por natureza são outra PR.
+- **#315** (12/11/2026): Cartão: botão "Categorias" na fatura, com as despesas da fatura por categoria (migration 112, aplicada em 12/11/2026, execução 43200042951).
+- **#316** (12/11/2026): Recorrentes: bloco Parcelas ativas, cartão e conta (migration 112, só leitura, aplicada em 12/11/2026, execução 43200042951).
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

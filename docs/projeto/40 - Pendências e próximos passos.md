@@ -26,7 +26,7 @@ atualizado: 2026-11-11
 
 ## Próximos PRs sugeridos
 ### Categorias da fatura (#315, migration 112, 12/11/2026)
-- Aplicar a migration 112 em produção pelo workflow (simular, ler o log, aplicar), em ordem com 109 a 111; só com o "pode" do dono.
+- Aplicar a migration 112 em produção pelo workflow (simular, ler o log, aplicar), em ordem com 109 a 111; só com o "pode" do dono. **Feito em 12/11/2026 (execução 43200042951).**
 - Conferir no app com dados reais: botão "Categorias" na fatura (390 px e computador), folha, estado vazio e fatura paga.
 - **atalho:** a rosca repete as 4 cores da paleta quando a fatura tem mais de 4 categorias (o nome, o valor e o % da legenda identificam); sem agrupar em "Outros" no banco. Melhorar se virar problema.
 - Ideia: "Ver em Relatórios" a partir da folha. Não feito: Relatórios/Análises não têm rota nem filtro por cartão.
@@ -461,7 +461,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Auditoria de pessoas inativas (PR #209)
 - [x] Bloqueio no banco de novas atribuições de pessoas inativas em lançamentos, parcelas de dívidas e recorrências; classificações históricas permanecem preservadas.
 - [x] Índices compostos começam por `(household_id, person_id)`, cobrindo as FKs e as consultas por período.
-- Migration 083: `20261108210000_people_active_and_fk_indexes.sql`. Ainda não aplicada no Supabase hospedado.
+- Migration 083: `20261108210000_people_active_and_fk_indexes.sql`. Aplicada (a lista de migrations de produção e a do repositório batem até a `20261110170000`, conferido em 12/11/2026).
 
 ## Recorrência no cartão estilo Organizze (10/11/2026)
 - [ ] Todas as perguntas respondidas em 10/11: não ocupa o limite, vai direto para a B; aparece enquanto não cancelar e o diálogo "só esta / esta e as próximas" (`28 - Recorrência no cartão estilo Organizze (plano).md`). Hoje a recorrência no cartão só vira item de fatura no dia; antes disso aparece só o total "Assinaturas previstas".
@@ -638,7 +638,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Banco, tela e testes: tabela de cotações, escolha por ativo, regra "vale o mais recente; no mesmo dia, o digitado", busca agendada com a chave no cofre e aviso de cotação parada.
 - [x] Revisão independente (11/11/2026): B2 corrigido (com a escolha ligada, "só o valor" é recusado sempre); I1 (teto de 200 com aviso), I2 (erro de um código não derruba os outros), I4 (leitura só dos códigos da própria família), I5 (histórico com a busca embutida), I6 (rodada da manhã) corrigidos e testados.
 - [x] **B1 resolvido (opção B do dono, 12/11/2026):** a cotação só liga em ativo que nunca teve lançamento "só pelo valor". O banco marca cada operação feita por `investment_operation_record_by_value` (`investment_operations.by_value`) e `investment_asset_set_market_quote` recusa (22023) o ativo que tenha alguma operação marcada ainda valendo (anulada não conta). Operações antigas foram marcadas pelo que o lançamento deixa (fração de cota ou compra de exatamente 1 unidade); em produção (leitura de 11/11) nenhum ativo que poderia seguir a bolsa tem uma dessas operações. Limites (atalho): compra genuína de 1 cota fica marcada à toa (anular e lançar de novo com a quantidade real); a tela só mostra a recusa do banco depois de salvar, sem avisar antes.
-- [ ] **Aplicar a migration 109** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono em cada passo.
+- [x] **Aplicar a migration 109** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono em cada passo. — **feito em 12/11/2026 (execução 43146123633), simulado antes e conferido em leitura direta no banco.**
 - [ ] **Chave da brapi (dono):** criar a conta em brapi.dev e guardar a chave no cofre do Supabase (Vault) com o nome `brapi_token`. Nunca colar no chat. Sem ela, com ativo ligado, a rodada levanta erro e o cron mostra "failed".
 - [ ] **Primeira busca de verdade**, com o "pode" do dono: `select private.market_quotes_fetch();` e conferir `market_quotes`. É a única prova de que o plano gratuito responde aos códigos da carteira e de que o cabeçalho com a chave funciona na extensão `http` 1.6. Nada disso roda no CI.
 - [ ] **Desdobramento e grupamento (I7):** num desdobramento 1:10, a cotação cai 90% e o valor do ativo cai junto, sem nenhuma ação do usuário, até que a quantidade seja ajustada. Antes da 109, o preço era digitado e isso não acontecia. Avisar na tela quando a cotação variar mais de 40% de um dia para o outro, ou pedir confirmação.
@@ -656,7 +656,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Desempenho: `investment_portfolio` chama `private.investment_price_at` por posição (~40 ms por chamada no volume de teste, era ~26 ms); medir em produção (Início e Análises, limite de 8 s).
 ## Cartão: mudar a fatura (11/11/2026, #306, migration 110)
 - [x] Pagamento: mudar a fatura de um pagamento na página da fatura, com teste no banco e na tela.
-- [ ] **Aplicar a migration 110** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono. Cuidado com a ordem: a 109 (#305) tem timestamp anterior; aplicar a 109 antes, ou renumerar a que entrar por último.
+- [x] **Aplicar a migration 110** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono. Cuidado com a ordem: a 109 (#305) tem timestamp anterior; aplicar a 109 antes, ou renumerar a que entrar por último. — **feito em 12/11/2026 (execução 43146123633), simulado antes e conferido em leitura direta no banco.**
 - [ ] **Parcelas (etapa 2, decisão do dono):** escolher parcela por parcela e mandar para qualquer fatura aberta ou futura. Só parcela ainda não cobrada; fatura paga continua travada. A fatura de uma parcela é o mês da data dela (que é o fechamento do ciclo), então mudar de fatura é mudar essa data, com a mesma trava.
 - [ ] Adiantamento (pagamento sem fatura): o banco já aceita mandar para uma fatura, mas a tela só oferece o botão nos pagamentos que estão dentro de uma fatura. A lista "Pagamentos e devoluções" do cartão ainda não tem o botão.
 - [ ] Pagamento que está numa fatura já paga não muda pelo app (decisão do dono: não reabrir). Se acontecer, a correção é manual.
@@ -673,17 +673,23 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Cartão: de quem foi a despesa (12/11/2026, #309, migration 111)
 - [x] Trocar a pessoa de uma compra de cartão já lançada, inclusive em fatura paga, com teste no banco e na tela.
 - [x] Conferido: lançamento de conta passado (pago, em período conciliado) já troca de pessoa pela edição normal; teste de banco e de tela como guarda.
-- [ ] **Aplicar a migration 111** (`20261112100000`) em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono, na ordem: 109 (#305), 110 (#306), 111.
+- [x] **Aplicar a migration 111** (`20261112100000`) em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono, na ordem: 109 (#305), 110 (#306), 111. — **feito em 12/11/2026 (execução 43146123633), simulado antes e conferido em leitura direta no banco.**
 - [ ] A tela só oferece a troca nas compras da fatura (não nos itens da lista "Ver compras" de Lançamentos nem nas assinaturas previstas). Para assinatura de cartão, a pessoa vem da regra recorrente (`recurrence_set_person`: só futuras).
 - [ ] Atalho: se a lista de pessoas não carregar, o painel só oferece "Não classificada" e "Toda a família". Melhorar se aparecer.
 - [ ] Compra com parcelas de pessoas diferentes (só possível por dado antigo de recorrência): o painel mostra a pessoa da parcela do mês; salvar uniformiza a compra toda.
 
 ## Recorrentes: Parcelas ativas (12/11/2026, #316, migration 112)
 - [x] Bloco Parcelas ativas em Recorrentes com leitura própria no banco, testes de banco e de tela.
-- [ ] **Aplicar a migration 112** (`20261112130000`) em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono, depois da 111.
+- [x] **Aplicar a migration 112** (`20261112130000`) em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono, depois da 111. — **feito em 12/11/2026 (execução 43200042951), simulado antes e conferido em leitura direta no banco.**
 - [ ] Atalho: sem atalho direto para "parcelado em conta" em Lançamentos (o link abre Nova despesa; Repetir > parcelado é manual). Criar `?novo=parcelado` se o dono quiser.
 - [ ] Atalho: pagamento no cartão é por fatura; fatura aberta paga adiantada só conta como paga depois de fechar.
 - [ ] Posição do bloco (fim da tela) a combinar com as PRs de abas e agrupamento de Recorrentes.
+
+## Produção em 12/11/2026: o que foi aplicado e o que continua aberto
+- [x] Aplicadas em produção, pelo workflow, nesta ordem e simuladas antes: 109 (cotação da bolsa), 110 (mudar a fatura de um pagamento), `20261112100000` (quem gastou), `20261112110000` (parcela para outra fatura) na execução 43146123633; e `20261112120000` (natureza), `20261112130000` (Parcelas ativas) e `20261112140000` (Categorias da fatura) na execução 43200042951. Conferido em leitura direta no banco: funções, tabela `market_quotes`, coluna `by_value`, gatilho `debt_events_payment_release`, coluna `recurrences.nature`, jobs `cotacoes-bolsa` e `cotacoes-bolsa-manha`; 20 recorrências de cartão como assinatura e 25 sem classificação.
+- [ ] **Chave da brapi no cofre do Supabase** (segredo `brapi_token`, posta pelo dono no painel, nunca no chat). Sem ela a cotação da bolsa não busca nada; depois, primeira busca manual e conferência de `market_quotes`, e o dono liga a opção nos ativos que quiser.
+- [ ] **Conferir as telas novas no app real**, logado e no iPhone: Cartões (folha "Editar compra", "+ Lançamento", Categorias, Enviar para outra fatura, Mudar de quem foi a despesa), Recorrentes (Natureza e Parcelas ativas) e Investimentos (resumo e composição por moeda). Nenhuma foi vista fora de harness com dados falsos.
+- [ ] **Backup e restauração:** conferir no painel do Supabase se o plano tem backup recente ou restauração pontual, antes da próxima aplicação (não há desfazer automático).
 
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
@@ -691,7 +697,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Recorrentes: natureza (12/11/2026, #314, migration 112)
 - [x] Campo `nature` em `recurrences` com check de consistência, RPC `recurrence_set_nature`, criar/atualizar com natureza, leitura com fallback, seletor no formulário e selo na lista; teste no banco (107) e no front.
-- [ ] **Aplicar a migration 112** (`20261112120000`) em produção pelo workflow (simular, ler o log, aplicar), depois das anteriores (109 a 111), só com o "pode" do dono. O preenchimento marca as 20 assinaturas de cartão como 'subscription'.
+- [x] **Aplicar a migration 112** (`20261112120000`) em produção pelo workflow (simular, ler o log, aplicar), depois das anteriores (109 a 111), só com o "pode" do dono. O preenchimento marca as 20 assinaturas de cartão como 'subscription'. — **feito em 12/11/2026 (execução 43200042951), simulado antes e conferido em leitura direta no banco.**
 - [ ] **Abas e totais por natureza** na tela Recorrentes (Custos Fixos, Assinaturas e Apps, Gastos Variáveis, Ressarcimentos a Receber): outra PR; o total virá do banco (o front não soma).
 - [ ] O dono classificar as 12 despesas em conta e as 13 receitas existentes (ficaram sem classificação); a tela ainda não tem edição em lote nem aviso de "sem classificação".
 - [ ] `recurrence_set_nature` ainda não é chamada pela tela (o formulário usa as variantes de criar e atualizar); fica para a edição rápida da PR das abas.
@@ -709,7 +715,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] **Cartões, ajustes de tela (#313):** rótulo "Fatura atual", linha da compra clicável com a folha "Editar compra" e "anterior" sempre à vista (desabilitado com motivo). Só front.
 - [ ] **Folha "Editar compra": categoria, data da compra, cartão e despesa→receita ainda não são editáveis** (aparecem só para leitura). Virão em PR própria, com banco (RPC + migration + teste de banco).
 - [ ] atalho: na folha "Editar compra" o Esc fecha a folha inteira, mesmo com um painel (Editar valor, Estornar…) aberto dentro dela; melhorar para o Esc voltar primeiro à lista de ações, se o dono sentir falta.
-- [ ] **Aplicar a migration 111** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono. Ordem: 109, 110, 111; depende da 110. A #310 está empilhada sobre a #306: mudar a base para `main` quando a #306 entrar.
+- [x] **Aplicar a migration 111** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono. Ordem: 109, 110, 111; depende da 110. A #310 está empilhada sobre a #306: mudar a base para `main` quando a #306 entrar. — **feito em 12/11/2026 (execução 43146123633), simulado antes e conferido em leitura direta no banco.**
 - [ ] atalho: mover parcela não deixa histórico (quem, quando, de qual fatura). Criar uma tabela de movimentos como a de edição de valor se o dono quiser auditar.
 - [ ] Parcela com estorno ou cancelamento parcial não muda de fatura (recusada); liberar se o dono pedir.
 - [ ] Destino só a fatura vizinha (anterior ou próxima), repetindo para ir mais longe. Escolher qualquer fatura aberta ou futura de uma vez, se o dono quiser.
