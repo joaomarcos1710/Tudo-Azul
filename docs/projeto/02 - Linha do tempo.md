@@ -301,6 +301,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#308** (11/11/2026): Investimentos, etapa 1 de 5 do redesenho visual (pedido do dono, 12/11/2026): valor atual da carteira em destaque, Aportado/Rendimento/Proventos como indicadores menores, cabeçalho com uma ação principal e aviso compacto e expansível. Só front.
 - **#309** (11/11/2026): Cartão: mudar de quem foi a despesa de uma compra já lançada, inclusive em fatura paga (migration 111, ainda não aplicada).
 - **#310** (11/11/2026): Cartão: enviar uma parcela para a fatura anterior ou para a próxima (migration 111, ainda não aplicada).
+- **#312** (12/11/2026, em aberto): Investimentos, etapa 2 de 5 do redesenho visual: "Composição da carteira" unificada, com seletor de moeda (BRL, EUR, USD) e as visões Classe, Liquidez, Instituição e Ativos em cada moeda. Só front.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
