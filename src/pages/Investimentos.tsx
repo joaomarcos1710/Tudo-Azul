@@ -6,7 +6,7 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
-import { MinhaCarteira } from '../components/investimentos/MinhaCarteira'
+import { ComposicaoCarteira } from '../components/investimentos/ComposicaoCarteira'
 import { TabelaPosicoes, corDoResultado } from '../components/investimentos/TabelaPosicoes'
 import { NotaCarteira } from '../components/investimentos/NotaCarteira'
 import { ResumoCarteira } from '../components/investimentos/ResumoCarteira'
@@ -392,12 +392,7 @@ export default function Investimentos() {
         )}
       </section>
 
-      {totais.some((t) => t.moeda === 'BRL') && (
-        <MinhaCarteira total={totais.find((t) => t.moeda === 'BRL')!.valorAtual}
-          alocacao={alocacao.filter((l) => l.moeda === 'BRL')} liquidez={liquidez.filter((l) => l.moeda === 'BRL')}
-          instituicoes={instituicoes.filter((l) => l.moeda === 'BRL')}
-          posicoes={posicoes.filter((p) => p.moeda === 'BRL')} formatar={(c) => moeda(c, 'BRL')} />
-      )}
+      <ComposicaoCarteira totais={totais} alocacao={alocacao} liquidez={liquidez} instituicoes={instituicoes} posicoes={posicoes} formatar={moeda} />
 
       <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
         <h2 id="titulo-evolucao-investimentos" className="mb-1 text-lg font-semibold">Evolução dos investimentos</h2>
@@ -413,8 +408,6 @@ export default function Investimentos() {
         </p>}
       </section>
 
-      {/* em reais, a alocação está em Minha carteira; aqui só as outras moedas */}
-      {alocacao.some((l) => l.moeda !== 'BRL') && <SecaoAlocacao linhas={alocacao.filter((l) => l.moeda !== 'BRL')} />}
       {proventos.length > 0 && <SecaoProventos linhas={proventos} />}
 
       <section className="mt-8" aria-labelledby="titulo-posicoes">
@@ -506,48 +499,6 @@ export default function Investimentos() {
         )}
       </section>
     </>
-  )
-}
-
-/** Alocação por moeda: macroclasse e subclasse. Valores e percentuais vêm do banco (investment_allocation). */
-function SecaoAlocacao({ linhas }: { linhas: LinhaAlocacao[] }) {
-  const moedasPresentes = [...new Set(linhas.map((l) => l.moeda))]
-  return (
-    <section className="mt-8" aria-labelledby="titulo-alocacao">
-      <h2 id="titulo-alocacao" className="mb-1 text-lg font-semibold">Alocação da carteira</h2>
-      <p className="mb-3 text-sm text-slate-500">
-        Percentuais sobre o total de cada moeda, calculados no banco. Fundos e “outros” ficam à parte porque podem ser de renda fixa ou variável.
-      </p>
-      <div className="grid gap-3 lg:grid-cols-2">
-        {moedasPresentes.map((m) => {
-          const deste = linhas.filter((l) => l.moeda === m)
-          const macros = deste.filter((l) => l.nivel === 'macro')
-          return (
-            <Card key={m}>
-              <h3 className="mb-2 font-semibold">Em {m}</h3>
-              <ul className="flex flex-col gap-2">
-                {macros.map((mac) => (
-                  <li key={mac.macro}>
-                    <div className="flex flex-wrap justify-between gap-2 text-sm">
-                      <strong>{MACROS.find((x) => x.chave === mac.macro)?.rotulo ?? mac.macro}</strong>
-                      <span className="tabular-nums">{moeda(mac.valor, m)} · {mac.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>
-                    </div>
-                    <ul className="mt-1 border-l-2 border-slate-100 pl-3">
-                      {deste.filter((l) => l.nivel === 'subclass' && l.macro === mac.macro).map((sub) => (
-                        <li key={sub.subclasse ?? '∅'} className="flex flex-wrap justify-between gap-2 text-sm text-slate-600">
-                          <span>{sub.subclasse ?? 'Sem subclasse'}</span>
-                          <span className="tabular-nums">{moeda(sub.valor, m)} · {sub.percentual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )
-        })}
-      </div>
-    </section>
   )
 }
 

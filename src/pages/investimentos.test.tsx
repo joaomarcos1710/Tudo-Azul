@@ -134,9 +134,9 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('Investimentos × macroclasse e subclasse', () => {
-  it('Minha carteira, aba Classe: um quadro por macroclasse e a barra por subclasse, com valores e % do banco, e "Sem subclasse"', async () => {
+  it('Composição da carteira, aba Classe: um quadro por macroclasse e a barra por subclasse, com valores e % do banco, e "Sem subclasse"', async () => {
     render(<Investimentos />)
-    const secao = (await screen.findByRole('heading', { name: 'Minha carteira' })).closest('section') as HTMLElement
+    const secao = (await screen.findByRole('heading', { name: 'Composição da carteira' })).closest('section') as HTMLElement
     expect(within(secao).getByRole('tab', { name: 'Classe' }).getAttribute('aria-selected')).toBe('true')
     expect(within(secao).getAllByRole('img')[0].querySelectorAll('[data-fatia]')).toHaveLength(3)
     expect(within(secao).getByText('Renda fixa')).toBeTruthy()
@@ -208,7 +208,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
   it('filtra as posições por macroclasse e por subclasse', async () => {
     const u = userEvent.setup()
     render(<Investimentos />)
-    await screen.findByText('Minha carteira')
+    await screen.findByText('Composição da carteira')
     const posicoes = () => (screen.getByRole('heading', { name: 'Posições' }).closest('section') as HTMLElement)
     // cada investimento é uma linha da tabela, com o nome no cabeçalho da linha
     const linhas = () => within(posicoes()).queryAllByRole('rowheader').filter((th) => th.textContent !== 'Total' && !th.textContent?.startsWith('Total'))
@@ -276,7 +276,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(mock.definirLiquidezAtivo).not.toHaveBeenCalled()
     })
 
-    it('Minha carteira, aba Liquidez: Líquido e Restrito com os valores do banco; aba Ativos: lista do maior para o menor', async () => {
+    it('Composição da carteira, aba Liquidez: Líquido e Restrito com os valores do banco; aba Ativos: lista do maior para o menor', async () => {
       mock.listarLiquidezInvestimentos.mockResolvedValue([
         { moeda: 'BRL', liquidez: 'liquid', valor: c(15000) },
         { moeda: 'BRL', liquidez: 'restricted', valor: c(60000) },
@@ -284,7 +284,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       ])
       const u = userEvent.setup()
       render(<Investimentos />)
-      const secao = (await screen.findByRole('heading', { name: 'Minha carteira' })).closest('section') as HTMLElement
+      const secao = (await screen.findByRole('heading', { name: 'Composição da carteira' })).closest('section') as HTMLElement
       await u.click(within(secao).getByRole('tab', { name: 'Liquidez' }))
       const linhas = within(secao).getByRole('list', { name: 'Lista da carteira por liquidez' })
       expect(within(linhas).getAllByRole('listitem').map((li) => li.textContent?.replace(/\s/g, ' '))).toEqual([
@@ -757,7 +757,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       })
     })
 
-    it('Minha carteira, aba Instituição: valores somados no banco, "Sem instituição" para o que não tem', async () => {
+    it('Composição da carteira, aba Instituição: valores somados no banco, "Sem instituição" para o que não tem', async () => {
       mock.listarInstituicoesInvestimentos.mockResolvedValue([
         { moeda: 'BRL', instituicao: 'Corretora Teste', valor: c(60000) },
         { moeda: 'BRL', instituicao: null, valor: c(15000) },
@@ -765,7 +765,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       ])
       const u = userEvent.setup()
       render(<Investimentos />)
-      const secao = (await screen.findByRole('heading', { name: 'Minha carteira' })).closest('section') as HTMLElement
+      const secao = (await screen.findByRole('heading', { name: 'Composição da carteira' })).closest('section') as HTMLElement
       await u.click(await within(secao).findByRole('tab', { name: 'Instituição' }))
       const linhas = within(secao).getByRole('list', { name: 'Lista da carteira por instituição' })
       expect(within(linhas).getAllByRole('listitem').map((li) => li.textContent?.replace(/\s/g, ' '))).toEqual([
@@ -1658,5 +1658,187 @@ describe('Investimentos × macroclasse e subclasse', () => {
         expect((await linha()).textContent).not.toMatch(/parada|Ainda sem cotação/)
       })
     })
+  })
+})
+
+describe('Composição da carteira: uma área, um seletor de moeda (etapa 2 do redesenho, 12/11/2026)', () => {
+  const posEstr = (assetId: string, nome: string, moedaCodigo: string, valor: number) => ({ ...posicao(assetId, nome, 'equity', valor), moeda: moedaCodigo })
+  const comTresMoedas = () => {
+    mock.listarCarteiraInvestimentos.mockResolvedValue({
+      posicoes: [posicao('a1', 'Tesouro Selic', 'fixed_income', 60000), posEstr('u1', 'REIT de teste', 'USD', 30000), posEstr('e1', 'ETF europeu', 'EUR', 20000)],
+      totais: [
+        { moeda: 'BRL', custoTotal: c(60000), valorAtual: c(60000), resultado: c(0) },
+        { moeda: 'USD', custoTotal: c(25000), valorAtual: c(30000), resultado: c(5000) },
+        { moeda: 'EUR', custoTotal: c(20000), valorAtual: c(20000), resultado: c(0) },
+      ],
+    })
+    mock.listarAlocacaoInvestimentos.mockResolvedValue([
+      { moeda: 'BRL', nivel: 'macro', macro: 'fixed_income', subclasse: null, valor: c(60000), percentual: 100 },
+      { moeda: 'BRL', nivel: 'subclass', macro: 'fixed_income', subclasse: 'Tesouro Direto', valor: c(60000), percentual: 100 },
+      { moeda: 'USD', nivel: 'macro', macro: 'variable', subclasse: null, valor: c(30000), percentual: 100 },
+      { moeda: 'USD', nivel: 'subclass', macro: 'variable', subclasse: 'REITs', valor: c(30000), percentual: 100 },
+      { moeda: 'EUR', nivel: 'macro', macro: 'variable', subclasse: null, valor: c(20000), percentual: 100 },
+      { moeda: 'EUR', nivel: 'subclass', macro: 'variable', subclasse: 'ETFs', valor: c(20000), percentual: 100 },
+    ])
+    mock.listarLiquidezInvestimentos.mockResolvedValue([
+      { moeda: 'BRL', liquidez: 'liquid', valor: c(60000) },
+      { moeda: 'USD', liquidez: 'liquid', valor: c(10000) },
+      { moeda: 'USD', liquidez: 'restricted', valor: c(20000) },
+      { moeda: 'EUR', liquidez: 'liquid', valor: c(20000) },
+    ])
+  }
+  const secao = async () => (await screen.findByRole('heading', { name: 'Composição da carteira' })).closest('section') as HTMLElement
+  const moedaTab = (s: HTMLElement, nome: string) => within(within(s).getByRole('tablist', { name: 'Moeda da composição' })).getByRole('tab', { name: nome })
+
+  it('seletor BRL, EUR e USD (só as moedas com posição); começa em BRL e cada moeda mostra os seus valores, sem somar', async () => {
+    comTresMoedas()
+    const u = userEvent.setup()
+    render(<Investimentos />)
+    const s = await secao()
+    const abas = within(within(s).getByRole('tablist', { name: 'Moeda da composição' })).getAllByRole('tab')
+    expect(abas.map((a) => a.textContent)).toEqual(['BRL', 'EUR', 'USD'])
+    expect(abas.map((a) => a.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false'])
+    expect(s.textContent).toMatch(/Tesouro Direto/)
+    expect(s.textContent).toMatch(/R\$\s600,00/)
+    expect(s.textContent).not.toMatch(/US\$|€|REITs|ETFs/)
+
+    await u.click(moedaTab(s, 'USD'))
+    expect(moedaTab(s, 'USD').getAttribute('aria-selected')).toBe('true')
+    expect(s.textContent).toMatch(/REITs/)
+    expect(s.textContent).toMatch(/US\$\s300,00/)
+    expect(s.textContent).toMatch(/100%/)
+    // nada de reais nem de euros no painel do dólar, e nenhum total misturado (300 + 200 + 600 = 1.100)
+    expect(s.textContent).not.toMatch(/Tesouro Direto|R\$|€|1\.100|500,00|900,00/)
+
+    await u.click(moedaTab(s, 'EUR'))
+    expect(s.textContent).toMatch(/ETFs/)
+    expect(s.textContent).toMatch(/€\s200,00/)
+    expect(s.textContent).not.toMatch(/REITs|US\$|R\$/)
+    // a seção "Alocação da carteira" das outras moedas não existe mais: está tudo aqui
+    expect(screen.queryByRole('heading', { name: 'Alocação da carteira' })).toBeNull()
+  })
+
+  it('moeda sem posição não ganha seletor: com só reais não há seletor; com reais e dólar há dois, sem EUR', async () => {
+    const u = userEvent.setup()
+    render(<Investimentos />)
+    const s = await secao()
+    expect(within(s).queryByRole('tablist', { name: 'Moeda da composição' })).toBeNull()
+    expect(within(s).getByRole('tab', { name: 'Classe' })).toBeTruthy()
+    cleanup()
+
+    comTresMoedas()
+    mock.listarCarteiraInvestimentos.mockResolvedValue({
+      posicoes: [posicao('a1', 'Tesouro Selic', 'fixed_income', 60000), posEstr('u1', 'REIT de teste', 'USD', 30000)],
+      totais: [{ moeda: 'BRL', custoTotal: c(60000), valorAtual: c(60000), resultado: c(0) }, { moeda: 'USD', custoTotal: c(25000), valorAtual: c(30000), resultado: c(5000) }],
+    })
+    render(<Investimentos />)
+    const s2 = await secao()
+    await waitFor(() => expect(within(within(s2).getByRole('tablist', { name: 'Moeda da composição' })).getAllByRole('tab').map((a) => a.textContent)).toEqual(['BRL', 'USD']))
+    await u.click(moedaTab(s2, 'USD'))
+    expect(s2.textContent).toMatch(/REITs/)
+  })
+
+  it('só moeda estrangeira (sem reais): o seletor não existe e a composição já abre na moeda que tem', async () => {
+    comTresMoedas()
+    mock.listarCarteiraInvestimentos.mockResolvedValue({
+      posicoes: [posEstr('u1', 'REIT de teste', 'USD', 30000)],
+      totais: [{ moeda: 'USD', custoTotal: c(25000), valorAtual: c(30000), resultado: c(5000) }],
+    })
+    render(<Investimentos />)
+    const s = await secao()
+    expect(within(s).queryByRole('tablist', { name: 'Moeda da composição' })).toBeNull()
+    expect(s.textContent).toMatch(/REITs/)
+    expect(s.textContent).toMatch(/US\$\s300,00/)
+  })
+
+  it('as quatro visões valem em cada moeda: Liquidez e Ativos do dólar usam só os valores do dólar, e a visão escolhida fica ao trocar de moeda', async () => {
+    comTresMoedas()
+    mock.listarInstituicoesInvestimentos.mockResolvedValue([
+      { moeda: 'BRL', instituicao: 'Corretora A', valor: c(60000) },
+      { moeda: 'USD', instituicao: null, valor: c(30000) },
+    ])
+    const u = userEvent.setup()
+    render(<Investimentos />)
+    const s = await secao()
+    await u.click(within(s).getByRole('tab', { name: 'Liquidez' }))
+    await u.click(moedaTab(s, 'USD'))
+    expect(within(s).getByRole('tab', { name: 'Liquidez' }).getAttribute('aria-selected')).toBe('true')
+    const linhas = within(s).getByRole('list', { name: 'Lista da carteira por liquidez' })
+    expect(within(linhas).getAllByRole('listitem').map((li) => li.textContent?.replace(/\s/g, ' '))).toEqual([
+      'LíquidoUS$ 100,0033,3%', 'Restrito (previdência, FGTS)US$ 200,0066,7%',
+    ])
+    await u.click(within(s).getByRole('tab', { name: 'Ativos' }))
+    expect(within(within(s).getByRole('list', { name: 'Lista da carteira por ativos' })).getAllByRole('listitem').map((li) => li.textContent?.split('US$')[0])).toEqual(['REIT de teste'])
+    // Instituição existe em BRL e USD, e não em EUR (sem linha): ao chegar no EUR a visão volta para Classe
+    await u.click(within(s).getByRole('tab', { name: 'Instituição' }))
+    expect(within(within(s).getByRole('list', { name: 'Lista da carteira por instituição' })).getAllByRole('listitem').map((li) => li.textContent?.replace(/\s/g, ' '))).toEqual(['Sem instituiçãoUS$ 300,00100%'])
+    await u.click(moedaTab(s, 'EUR'))
+    expect(within(s).queryByRole('tab', { name: 'Instituição' })).toBeNull()
+    expect(within(s).getByRole('tab', { name: 'Classe' }).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('previdência grande: a visão Liquidez fica a um clique da Classe, sem mudar valor nem percentual; sem restrito, o atalho não aparece', async () => {
+    comTresMoedas()
+    const u = userEvent.setup()
+    render(<Investimentos />)
+    const s = await secao()
+    // em reais não há restrito: sem atalho
+    expect(within(s).queryByRole('button', { name: 'Ver por liquidez' })).toBeNull()
+    await u.click(moedaTab(s, 'USD'))
+    const classeAntes = s.textContent
+    await u.click(within(s).getByRole('button', { name: 'Ver por liquidez' }))
+    expect(within(s).getByRole('tab', { name: 'Liquidez' }).getAttribute('aria-selected')).toBe('true')
+    expect(s.textContent).toMatch(/US\$\s200,00/)
+    expect(s.textContent).toMatch(/66,7%/)
+    await u.click(within(s).getByRole('tab', { name: 'Classe' }))
+    expect(s.textContent).toBe(classeAntes)
+  })
+
+  it('com "ocultar valores": trocar de moeda não mostra nenhum valor, só a máscara', async () => {
+    comTresMoedas()
+    definirValoresOcultos(true)
+    try {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      const s = await secao()
+      await u.click(moedaTab(s, 'USD'))
+      expect(s.textContent).toMatch(/••••/)
+      expect(s.textContent).not.toMatch(/US\$|R\$|€|300,00|100,00|200,00/)
+      await u.click(within(s).getByRole('tab', { name: 'Liquidez' }))
+      expect(s.textContent).toMatch(/••••/)
+      expect(s.textContent).not.toMatch(/US\$|R\$|€|\d,\d\d\b(?!%)/)
+    } finally { definirValoresOcultos(false) }
+  })
+
+  it('teclado: só a aba ativa entra no Tab; setas, Home e End trocam a moeda e levam o foco; cada aba aponta para o painel', async () => {
+    comTresMoedas()
+    const u = userEvent.setup()
+    render(<Investimentos />)
+    const s = await secao()
+    const abas = within(within(s).getByRole('tablist', { name: 'Moeda da composição' })).getAllByRole('tab')
+    expect(abas.map((a) => a.tabIndex)).toEqual([0, -1, -1])
+    expect(abas.every((a) => !!document.getElementById(a.getAttribute('aria-controls') ?? ''))).toBe(true)
+    expect(document.getElementById(abas[0].getAttribute('aria-controls')!)?.getAttribute('role')).toBe('tabpanel')
+    abas[0].focus()
+    await u.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(abas[1])
+    expect(abas[1].getAttribute('aria-selected')).toBe('true')
+    expect(s.textContent).toMatch(/ETFs/)
+    await u.keyboard('{End}')
+    expect(document.activeElement).toBe(abas[2])
+    expect(s.textContent).toMatch(/REITs/)
+    await u.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(abas[0])
+    await u.keyboard('{ArrowLeft}')
+    expect(document.activeElement).toBe(abas[2])
+    await u.keyboard('{Home}')
+    expect(document.activeElement).toBe(abas[0])
+    expect(abas.map((a) => a.tabIndex)).toEqual([0, -1, -1])
+    // o mesmo vale para as visões (Classe, Liquidez, ...)
+    const visoes = within(within(s).getByRole('tablist', { name: 'Ver a carteira por' })).getAllByRole('tab')
+    visoes[0].focus()
+    await u.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(visoes[1])
+    expect(visoes[1].getAttribute('aria-selected')).toBe('true')
   })
 })
