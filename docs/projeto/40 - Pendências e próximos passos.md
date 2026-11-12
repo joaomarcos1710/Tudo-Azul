@@ -25,6 +25,12 @@ atualizado: 2026-11-11
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
 ## Próximos PRs sugeridos
+### Categorias da fatura (#315, migration 112, 12/11/2026)
+- Aplicar a migration 112 em produção pelo workflow (simular, ler o log, aplicar), em ordem com 109 a 111; só com o "pode" do dono.
+- Conferir no app com dados reais: botão "Categorias" na fatura (390 px e computador), folha, estado vazio e fatura paga.
+- **atalho:** a rosca repete as 4 cores da paleta quando a fatura tem mais de 4 categorias (o nome, o valor e o % da legenda identificam); sem agrupar em "Outros" no banco. Melhorar se virar problema.
+- Ideia: "Ver em Relatórios" a partir da folha. Não feito: Relatórios/Análises não têm rota nem filtro por cartão.
+- Ideia: tocar numa categoria para ver as compras dela na fatura.
 ### Cartões no celular (#201, 06/11/2026)
 - [x] Página sem rolagem lateral em 360, 390, 820 e 1280px (harness com dados fictícios); valores das compras, do resumo da fatura e dos pagamentos visíveis; créditos e pagamentos recolhidos em 5 + "Ver todos (N)".
 - [ ] **Conferir no seu iPhone** (você), com os seus cartões: fileira de meses deslizando dentro do cartão, valores à direita e "Ver todos".

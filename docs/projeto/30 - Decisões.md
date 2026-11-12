@@ -678,3 +678,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Fora do bloco**: empréstimo, financiamento e consignado (têm a tela Dívidas), receita e transferência parceladas, assinatura de cartão. Parcela cancelada ou estornada inteira não conta no "n de N".
 - **Sem "carnê" como tipo**: o banco não distingue; parcelamento em conta cobre.
 - **"+ Novo parcelamento"** reaproveita os fluxos existentes (`?novo=cartao`), sem fluxo novo; a despesa parcelada em conta tem link próprio para Nova despesa.
+
+## 12/11/2026 — Cartão: despesas por categoria de uma fatura (dono, #315)
+- **O que o banco já tinha:** total por categoria só por PERÍODO (`expenses_by_category*`); por fatura, só a lista de itens (`card_items`) e o total (`card_months`). Como o front não soma dinheiro de relatório, nasceu `card_invoice_categories`, que parte de `card_items` para ter a MESMA definição de parcela da fatura (líquida de cancelamento e estorno).
+- **Estorno de compra entra** (abate a categoria da compra), como na fatura. **Crédito/reembolso avulso (`income_credit`) não entra:** é receita (decisão de 04/11/2026), não tem categoria de despesa para abater. Consequência aceita: a soma das categorias pode passar do total que `card_months` mostra, que já desconta esses créditos; a folha avisa no texto. A alternativa (abater o crédito de alguma categoria) inventaria uma regra que o dono não pediu.
+- **Assinatura prevista não entra:** ainda não é parcela e `card_months` também não a conta; entra quando a compra é lançada.
+- **Categoria raiz**, como Início e Análises (subcategoria soma na mãe). Sem "Outros": a lista mostra todas as categorias da fatura.
