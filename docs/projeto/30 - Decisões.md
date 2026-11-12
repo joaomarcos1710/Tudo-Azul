@@ -690,3 +690,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Com filtro, somem os totais por card e por frequência:** eles vêm do `recurrence_summary`, que não conhece a natureza; mostrar o total do card inteiro sobre uma lista filtrada enganaria. O total do recorte é a linha da natureza.
 - **Transferência fora do filtro e dos totais por natureza:** não tem natureza e não é gasto. **Sem natureza** é um recorte próprio (`none`), para o dono achar o que falta classificar.
 - **Chip só das naturezas que existem**, e o filtro só aparece quando há ao menos uma regra classificada.
+
+## 12/11/2026 — Investimentos: gráfico de evolução com valor atual e aportado (#320)
+- **Duas linhas, sem rendimento calculado:** o gráfico mostra valor atual e aportado (`valorAtual` e `custoTotal` de `investment_history`). O rendimento é o espaço entre as linhas; a tela não subtrai, porque o front não soma nem calcula dinheiro de relatório.
+- **Aportado tracejado e com legenda:** a cor não é a única pista (daltonismo e impressão). Tabela dos mesmos pontos sob "Ver como tabela".
+- **Sem seletor de período por enquanto:** segue em 12 meses, como era.
