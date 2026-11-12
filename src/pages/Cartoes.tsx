@@ -20,12 +20,12 @@ import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
 import {
   arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
-  inicioDaTroca, moverPagamentoDeFatura, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
+  fechamentoNoCiclo, inicioDaTroca, moverPagamentoDeFatura, moverParcelaDeFatura, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
   visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura,
 } from '../lib/cartoes'
-import type { Cartao, CreditoFatura, Fatura, FaturaAgendada, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
+import type { Cartao, CreditoFatura, DirecaoDaParcela, Fatura, FaturaAgendada, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
 import { IconeCadeadoAberto, IconeCadeadoFechado, IconeCadeadoPago, IconeCadeadoVencido } from '../components/layout/icons'
 import { somarMeses } from '../lib/lancamentos'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
@@ -1219,6 +1219,10 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const [erroItens, setErroItens] = useState('')
   const [erroCreditos, setErroCreditos] = useState('')
   const [anulando, setAnulando] = useState<string | null>(null)
+  // "Enviar para a fatura anterior / próxima" (migration 111): a parcela que está sendo enviada, a recusa do banco e o aviso
+  const [movendo, setMovendo] = useState<string | null>(null)
+  const [erroMover, setErroMover] = useState('')
+  const [avisoMover, setAvisoMover] = useState('')
   const hoje = hojeSP()
   useTitulo(`${cartao.nome} · ${primeiraMaiuscula(formatMonth(mes))}`)
 
@@ -1276,7 +1280,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   }, [cartaoId, faturaId, versao])
 
   // trocar de fatura (setas, link) fecha o que estava aberto numa linha da outra
-  useEffect(() => { setAcaoBruta(null); setPainelPrevista(null) }, [mes])
+  useEffect(() => { setAcaoBruta(null); setPainelPrevista(null); setErroMover('') }, [mes])
 
   // assinatura cancelada na vida real: exclui a regra inteira (o que já foi cobrado continua no histórico)
   async function excluirAssinatura(o: OcorrenciaPrevista) {
@@ -1287,6 +1291,24 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
       await carregar()
     } catch (err) {
       setErroPrevistas(mensagemErroBanco(err))
+    }
+  }
+
+  // Manda uma parcela para a fatura vizinha. Sem confirmação: não cria evento nenhum e dá para mandar de volta. O banco decide
+  // (parcela já cobrada, fatura fechada ou paga) e a recusa aparece na lista. O aviso diz para onde foi, porque a linha some daqui.
+  async function moverParcela(i: ItemFatura, direcao: DirecaoDaParcela) {
+    setErroMover('')
+    setAvisoMover('')
+    setMovendo(i.parcelaId)
+    try {
+      const fechamento = await moverParcelaDeFatura(i.parcelaId, direcao)
+      const parte = i.deParcelas > 1 ? ` (parcela ${i.parcela}/${i.deParcelas})` : ''
+      setAvisoMover(`"${i.descricao}"${parte} foi para a fatura de ${formatMonth(fechamento.slice(0, 7))}.`)
+      await carregar()
+    } catch (err) {
+      setErroMover(mensagemErroBanco(err))
+    } finally {
+      setMovendo(null)
     }
   }
 
@@ -1330,6 +1352,11 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const ultimoPagamento = pagamentos.length > 0 ? pagamentos[pagamentos.length - 1] : null
   // para onde um pagamento desta fatura pode ir: qualquer outra fatura do cartão que não esteja fechada e paga (migration 110)
   const destinosPagamento = faturas.filter((x) => x.mes !== f.mes && !faturaTravada(x, hoje))
+  // mandar a parcela para outra fatura (migration 111): só parcela ainda não cobrada, de fatura que não fechou. "Anterior" só
+  // existe se a anterior ainda está aberta, ou seja, se esta não é a fatura aberta de hoje (a de um mês antes já fechou)
+  const mesAberto = fechamentoNoCiclo(hoje, cartao)?.slice(0, 7) ?? null
+  const podeMover = !fechou && mesAberto !== null
+  const podeAnterior = podeMover && f.mes > mesAberto
   const fechadaAPagar = fechadaAPagarDe(cartao, faturas, hoje)
   const pagaAqui = pagaNaFatura(cartao, f, fechadaAPagar, hoje)
   const formularioPagar = painel?.tipo === 'pagar' && painel.cartao.id === cartaoId ? <PainelJunto>{painelDoCartao(painel)}</PainelJunto> : null
@@ -1493,6 +1520,8 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
 
         <section className="mt-4 border-t border-slate-100 pt-4" aria-labelledby={idSaidas} data-testid="bloco-saidas">
           <h2 id={idSaidas} className="mb-1 text-sm font-semibold text-slate-600">Saídas</h2>
+          {erroMover && <div className="mt-2"><Aviso tipo="erro">{erroMover}</Aviso></div>}
+          {avisoMover && <div className="mt-2"><Aviso tipo="sucesso">{avisoMover}</Aviso></div>}
           {erroItens ? <div className="mt-2"><Aviso tipo="erro">{erroItens}</Aviso></div> : itens === null ? <p className="mt-2 text-sm text-slate-600" role="status">Carregando…</p> : itens.length === 0 ? (
             <p className="text-sm text-slate-500">Nenhuma compra nesta fatura.</p>
           ) : (
@@ -1510,9 +1539,13 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                         valor={`−${formatBRL(i.valor)}`} corValor="text-prejuizo"
                         // fatura paga (travada, migration 064): sem ⋯; o banco também recusa
                         acoes={travada ? null : (
-                          <MenuAcoes rotulo={`Ações de ${i.descricao}`} desabilitado={acao !== null} acoes={[
+                          <MenuAcoes rotulo={`Ações de ${i.descricao}`} desabilitado={acao !== null || movendo !== null} acoes={[
                             { rotulo: 'Estornar', aoEscolher: () => setAcao({ tipo: 'estornar', item: i, faturaId: f.faturaId }) },
                             { rotulo: 'Editar valor', aoEscolher: () => setAcao({ tipo: 'editar', item: i }) },
+                            ...(podeMover && i.falta > 0 ? [
+                              ...(podeAnterior ? [{ rotulo: 'Enviar para a fatura anterior', aoEscolher: () => { void moverParcela(i, 'previous') } }] : []),
+                              { rotulo: 'Enviar para a próxima fatura', aoEscolher: () => { void moverParcela(i, 'next') } },
+                            ] : []),
                             { rotulo: 'Excluir compra', aoEscolher: () => setAcao({ tipo: 'excluir', item: i }), perigo: true },
                           ]} />
                         )}

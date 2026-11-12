@@ -44,6 +44,7 @@ const mock = vi.hoisted(() => ({
   estornarParcela: vi.fn(),
   listarPagamentosDaFatura: vi.fn(),
   moverPagamentoDeFatura: vi.fn(),
+  moverParcelaDeFatura: vi.fn(),
   visaoDosCartoes: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
@@ -57,7 +58,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
-  trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura, moverPagamentoDeFatura: mock.moverPagamentoDeFatura,
+  trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura, moverPagamentoDeFatura: mock.moverPagamentoDeFatura, moverParcelaDeFatura: mock.moverParcelaDeFatura,
   visaoDosCartoes: mock.visaoDosCartoes,
 }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0), excluirRecorrencia: mock.excluirRecorrencia }))
@@ -162,6 +163,7 @@ beforeEach(() => {
   mock.estornarParcela.mockResolvedValue(undefined)
   mock.listarPagamentosDaFatura.mockResolvedValue([])
   mock.moverPagamentoDeFatura.mockResolvedValue(undefined)
+  mock.moverParcelaDeFatura.mockResolvedValue('2099-05-17')
   // padrão: banco sem a migration 065 (a tela lê card_months por cartão); os testes da 065 definem o resumo
   mock.visaoDosCartoes.mockResolvedValue(null)
   for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.definirContaPagamento, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
@@ -797,6 +799,112 @@ describe('Cartões', () => {
     await u.type(campo, '100,01')
     await u.click(screen.getByRole('button', { name: 'Salvar valor' }))
     expect(mock.editarParcela).toHaveBeenCalledWith('p1', 10001)
+  })
+
+  // "Enviar para a fatura anterior / próxima" (migration 111): uma parcela por vez, só a ainda não cobrada, de fatura que não fechou
+  describe('enviar a parcela para outra fatura', () => {
+    const abrirMenu = async (u: ReturnType<typeof userEvent.setup>) => {
+      await u.click(await screen.findByRole('button', { name: 'Ações de TV' }))
+      return screen.getByRole('menu', { name: 'Ações de TV' })
+    }
+    const montarFatura = async (u: ReturnType<typeof userEvent.setup>, f: Partial<Fatura>, itemDaFatura = item,
+      cartao: Omit<typeof nubank, 'fechamento' | 'vencimento'> & { fechamento: number | null; vencimento: number | null } = nubank) => {
+      mock.listarCartoes.mockResolvedValue([cartao])
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(10000), total: c(10000), itens: 1, ...f })])
+      mock.listarItens.mockResolvedValue([itemDaFatura])
+      montar()
+      await u.click(await botaoVerFatura())
+      await screen.findByText('2/3')
+    }
+
+    it('numa fatura futura, a parcela ainda não cobrada pode ir para a anterior e para a próxima', async () => {
+      const u = userEvent.setup()
+      await montarFatura(u, {})
+      const menu = await abrirMenu(u)
+      expect(within(menu).getByRole('menuitem', { name: 'Enviar para a fatura anterior' })).toBeTruthy()
+      expect(within(menu).getByRole('menuitem', { name: 'Enviar para a próxima fatura' })).toBeTruthy()
+      // não é destrutiva: fica antes de "Excluir compra", que é a última
+      const nomes = within(menu).getAllByRole('menuitem').map((m) => m.textContent)
+      expect(nomes[nomes.length - 1]).toBe('Excluir compra')
+    })
+
+    it('"Enviar para a próxima fatura" chama o banco só com a parcela e a direção, recarrega e diz para onde foi', async () => {
+      const u = userEvent.setup()
+      await montarFatura(u, {})
+      const antes = mock.listarFaturas.mock.calls.length
+      await u.click(within(await abrirMenu(u)).getByRole('menuitem', { name: 'Enviar para a próxima fatura' }))
+      expect(mock.moverParcelaDeFatura).toHaveBeenCalledTimes(1)
+      expect(mock.moverParcelaDeFatura).toHaveBeenCalledWith('p1', 'next')
+      const aviso = await screen.findByText(/"TV" \(parcela 2\/3\) foi para a fatura de maio de 2099\./)
+      expect(aviso.closest('[role="status"]')).toBeTruthy()
+      await waitFor(() => expect(mock.listarFaturas.mock.calls.length).toBeGreaterThan(antes)) // a fatura é lida de novo
+    })
+
+    it('"Enviar para a fatura anterior" manda previous', async () => {
+      const u = userEvent.setup()
+      mock.moverParcelaDeFatura.mockResolvedValue('2099-03-17')
+      await montarFatura(u, {})
+      await u.click(within(await abrirMenu(u)).getByRole('menuitem', { name: 'Enviar para a fatura anterior' }))
+      expect(mock.moverParcelaDeFatura).toHaveBeenCalledWith('p1', 'previous')
+      expect(await screen.findByText(/foi para a fatura de março de 2099\./)).toBeTruthy()
+    })
+
+    it('na fatura aberta de hoje não há "anterior" (a anterior já fechou), só a próxima', async () => {
+      fixarHoje('2099-04-10') // o cartão fecha dia 17: a fatura aberta é a de abril de 2099
+      const u = userEvent.setup()
+      await montarFatura(u, {})
+      const menu = await abrirMenu(u)
+      expect(within(menu).queryByRole('menuitem', { name: 'Enviar para a fatura anterior' })).toBeNull()
+      expect(within(menu).getByRole('menuitem', { name: 'Enviar para a próxima fatura' })).toBeTruthy()
+    })
+
+    it('a segunda fatura aberta já pode mandar para a anterior (a aberta de hoje)', async () => {
+      fixarHoje('2099-03-10') // aberta = março; a de abril é a seguinte e a anterior dela ainda não fechou
+      const u = userEvent.setup()
+      await montarFatura(u, {})
+      expect(within(await abrirMenu(u)).getByRole('menuitem', { name: 'Enviar para a fatura anterior' })).toBeTruthy()
+    })
+
+    it('parcela já cobrada (nada a cobrar) não oferece o envio', async () => {
+      const u = userEvent.setup()
+      await montarFatura(u, {}, { ...item, falta: c(0) })
+      const menu = await abrirMenu(u)
+      expect(within(menu).queryByRole('menuitem', { name: /^Enviar para/ })).toBeNull()
+      expect(within(menu).getByRole('menuitem', { name: 'Estornar' })).toBeTruthy() // o resto do menu segue
+    })
+
+    it('fatura fechada (a pagar) não oferece o envio, mesmo com valor a cobrar', async () => {
+      const u = userEvent.setup()
+      await montarFatura(u, { mes: '2026-03', fechamento: '2026-03-17', cobrado: c(0), aCobrar: c(10000), total: c(10000), pago: c(0) })
+      const menu = await abrirMenu(u)
+      expect(within(menu).queryByRole('menuitem', { name: /^Enviar para/ })).toBeNull()
+    })
+
+    it('fatura paga (travada) continua sem o menu da linha', async () => {
+      const u = userEvent.setup()
+      await montarFatura(u, { mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), aCobrar: c(0), total: c(10000), pago: c(10000) })
+      expect(screen.queryByRole('button', { name: 'Ações de TV' })).toBeNull()
+      expect(screen.queryByRole('menuitem', { name: /^Enviar para/ })).toBeNull()
+    })
+
+    it('cartão sem dias de fechamento não oferece o envio', async () => {
+      const u = userEvent.setup()
+      await montarFatura(u, {}, item, { ...nubank, fechamento: null, vencimento: null })
+      expect(within(await abrirMenu(u)).queryByRole('menuitem', { name: /^Enviar para/ })).toBeNull()
+    })
+
+    it('a recusa do banco aparece na fatura, sem mensagem de sucesso, e a lista continua lá', async () => {
+      const u = userEvent.setup()
+      mock.moverParcelaDeFatura.mockRejectedValue({ code: '55000', message: 'a fatura anterior (10/2026) já fechou: a parcela só pode ir para uma fatura aberta' })
+      await montarFatura(u, {})
+      const antes = mock.listarFaturas.mock.calls.length
+      await u.click(within(await abrirMenu(u)).getByRole('menuitem', { name: 'Enviar para a fatura anterior' }))
+      expect((await screen.findByRole('alert')).textContent).toBe('A fatura anterior (10/2026) já fechou: a parcela só pode ir para uma fatura aberta.')
+      expect(screen.queryByText(/foi para a fatura/)).toBeNull()
+      expect(mock.listarFaturas.mock.calls.length).toBe(antes) // não recarrega: nada mudou
+      expect(screen.getByText('2/3')).toBeTruthy() // a parcela continua na lista
+      expect(screen.getByRole('button', { name: 'Ações de TV' }).hasAttribute('disabled')).toBe(false) // o menu volta a funcionar
+    })
   })
 
   it('excluir compra mostra a prévia (dinheiro volta para a conta) e só exclui ao confirmar', async () => {
