@@ -662,3 +662,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Parcela com estorno ou cancelamento, mesmo parcial, não muda** (como a edição de valor). Mais simples e seguro; se o dono quiser, abre-se depois.
 - **Sem confirmação na tela:** não cria lançamento e dá para mandar de volta. A tela avisa para onde a parcela foi.
 - **A parcela leva os dias de fechamento e vencimento do mês de destino**, para o vencimento da fatura sair certo depois de uma troca de dias do cartão.
+
+## 12/11/2026 — Cartão: despesas por categoria de uma fatura (dono, #315)
+- **O que o banco já tinha:** total por categoria só por PERÍODO (`expenses_by_category*`); por fatura, só a lista de itens (`card_items`) e o total (`card_months`). Como o front não soma dinheiro de relatório, nasceu `card_invoice_categories`, que parte de `card_items` para ter a MESMA definição de parcela da fatura (líquida de cancelamento e estorno).
+- **Estorno de compra entra** (abate a categoria da compra), como na fatura. **Crédito/reembolso avulso (`income_credit`) não entra:** é receita (decisão de 04/11/2026), não tem categoria de despesa para abater. Consequência aceita: a soma das categorias pode passar do total que `card_months` mostra, que já desconta esses créditos; a folha avisa no texto. A alternativa (abater o crédito de alguma categoria) inventaria uma regra que o dono não pediu.
+- **Assinatura prevista não entra:** ainda não é parcela e `card_months` também não a conta; entra quando a compra é lançada.
+- **Categoria raiz**, como Início e Análises (subcategoria soma na mãe). Sem "Outros": a lista mostra todas as categorias da fatura.
