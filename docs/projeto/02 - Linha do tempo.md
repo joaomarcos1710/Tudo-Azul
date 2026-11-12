@@ -296,6 +296,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#303** (11/11/2026): Diário: migration 108 aplicada e primeira busca PTAX conferida (só documentação).
 - **#304** (11/11/2026): Diário: pendências em dia, migrations 100 a 108 conferidas como aplicadas e o que segue aberto (só documentação).
 - **#306** (aberta em 11/11/2026; data do merge a preencher pelo histórico do `main`): Cartão: mudar a fatura de um pagamento, sem anular e lançar de novo (migration 110, ainda não aplicada).
+- **#307** (aberta em 12/11/2026; data do merge a preencher pelo histórico do `main`): Cartões: "+ Lançamento" (despesa D, receita R) com o formulário de compra e de crédito numa folha por cima da tela, na página do cartão e na da fatura; `MenuNovo` virou componente comum com Lançamentos (só front).
 - **#308** (aberta em 12/11/2026, rascunho; data do merge a preencher pelo histórico do `main`): Investimentos, etapa 1 de 5 do redesenho visual (pedido do dono, 12/11/2026): valor atual da carteira em destaque, Aportado/Rendimento/Proventos como indicadores menores, cabeçalho com uma ação principal e aviso compacto e expansível. Só front.
 
 ## Ainda abertos
