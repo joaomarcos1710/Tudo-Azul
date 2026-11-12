@@ -666,6 +666,7 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 ## 12/11/2026 — Composição da carteira: seletor só com as moedas que têm posição (dono, #312, etapa 2)
 - **Decisão:** o seletor de moeda lista só BRL, EUR e USD com posição (em vez de todas com estado vazio) e some quando há uma moeda só. Motivo: aba vazia convida ao clique sem nada para mostrar, e o resumo logo acima já mostra só as moedas que existem.
 - **Previdência grande na barra:** a visão Liquidez (que já existia) fica a um clique da Classe, com um atalho; nenhum cálculo novo. Mostrar a classe do que é líquido exigiria um número novo do banco: fica em Pendências.
+
 ## 12/11/2026 — Cartão: despesas por categoria de uma fatura (dono, #315)
 - **O que o banco já tinha:** total por categoria só por PERÍODO (`expenses_by_category*`); por fatura, só a lista de itens (`card_items`) e o total (`card_months`). Como o front não soma dinheiro de relatório, nasceu `card_invoice_categories`, que parte de `card_items` para ter a MESMA definição de parcela da fatura (líquida de cancelamento e estorno).
 - **Estorno de compra entra** (abate a categoria da compra), como na fatura. **Crédito/reembolso avulso (`income_credit`) não entra:** é receita (decisão de 04/11/2026), não tem categoria de despesa para abater. Consequência aceita: a soma das categorias pode passar do total que `card_months` mostra, que já desconta esses créditos; a folha avisa no texto. A alternativa (abater o crédito de alguma categoria) inventaria uma regra que o dono não pediu.
