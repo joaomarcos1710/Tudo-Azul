@@ -51,7 +51,7 @@ describe('GraficoEvolucao', () => {
 
   it('passar o cursor mostra o mês com valor atual e aportado daquele ponto; sair esconde', () => {
     montar()
-    const area = screen.getByTestId('area-evolucao')
+    const area = screen.getByTestId('area-evolucao') as unknown as SVGRectElement
     const svg = area.ownerSVGElement as SVGSVGElement
     svg.getBoundingClientRect = () => ({ left: 0, width: 640, top: 0, height: 220, right: 640, bottom: 220, x: 0, y: 0, toJSON: () => ({}) })
     expect(screen.queryByRole('status')).toBeNull()
