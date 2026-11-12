@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { formatBRL, formatMonth } from '../../lib/format'
 import { GRAFICO } from '../../lib/cores'
@@ -20,16 +21,48 @@ export function corDaFatia(f: BarraCategoria, i: number): string {
  * A cor nunca é a única informação: a legenda ao lado leva nome, valor e %, cada linha é um link para os
  * lançamentos de despesa do mês e há tabela com os mesmos números.
  */
-export function RoscaCategorias({ fatias, mes }: { fatias: BarraCategoria[]; mes: string }) {
+export function RoscaCategorias({ fatias, mes, destino: destinoPedido, icone, titulo }: {
+  fatias: BarraCategoria[]; mes: string
+  /** Para onde cada linha leva; `null` = linhas sem link (ex.: fatura de cartão, que não tem lista de lançamentos do mês). */
+  destino?: string | null
+  /** Ícone da categoria, antes do nome (decorativo: o nome sempre vem em texto). */
+  icone?: (f: BarraCategoria) => ReactNode
+  /** Substitui "Despesas por categoria em <mês>" nos rótulos de acessibilidade. */
+  titulo?: string
+}) {
   const positivas = fatias.filter((f) => f.percentual > 0)
   const total = positivas.reduce((a, f) => a + f.percentual, 0)
-  const destino = `/lancamentos?mes=${mes}&tipo=despesa`
+  const destino = destinoPedido === undefined ? `/lancamentos?mes=${mes}&tipo=despesa` : destinoPedido
+  const assunto = titulo ?? `Despesas por categoria em ${formatMonth(mes)}`
   let acumulado = 0
+  const linha = (f: BarraCategoria, i: number) => {
+    const conteudo = (
+      <>
+        <span className="flex min-w-0 items-center gap-2">
+          <span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-sm" style={{ background: corDaFatia(f, i) }} />
+          {icone?.(f)}
+          <span className={`truncate ${f.categoriaId === null ? 'text-slate-500' : 'text-slate-700'}`}>{f.nome}</span>
+        </span>
+        <span className="shrink-0 whitespace-nowrap">
+          <span className="tabular-nums font-semibold text-marinho">{formatBRL(f.valor)}</span>
+          <span className="ml-2 inline-block w-12 text-right tabular-nums text-slate-500">{pct(f.percentual)}</span>
+        </span>
+      </>
+    )
+    const base = 'flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm'
+    if (destino === null) return <div className={base}>{conteudo}</div>
+    return (
+      <Link to={destino} aria-label={`${f.nome}: ${formatBRL(f.valor)}, ${pct(f.percentual)} das despesas. Ver lançamentos de despesa do mês`}
+        className={`${base} hover:bg-azul-claro focus-visible:bg-azul-claro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul`}>
+        {conteudo}
+      </Link>
+    )
+  }
   return (
     <div>
       <div className="flex flex-col items-center gap-4 sm:flex-row">
         <svg viewBox="0 0 100 100" className="h-36 w-36 shrink-0 -rotate-90" role="img"
-          aria-label={`Despesas por categoria em ${formatMonth(mes)}: ${fatias.map((f) => `${f.nome} ${pct(f.percentual)}`).join(', ')}`}>
+          aria-label={`${assunto}: ${fatias.map((f) => `${f.nome} ${pct(f.percentual)}`).join(', ')}`}>
           {total > 0 && positivas.map((f) => {
             const parte = (f.percentual / total) * VOLTA
             const tamanho = positivas.length > 1 ? Math.max(parte - FOLGA, 0.5) : parte
@@ -41,20 +74,10 @@ export function RoscaCategorias({ fatias, mes }: { fatias: BarraCategoria[]; mes
             )
           })}
         </svg>
-        <ul className="w-full min-w-0 flex-1 space-y-1" aria-label={`Legenda: despesas por categoria em ${formatMonth(mes)}`}>
+        <ul className="w-full min-w-0 flex-1 space-y-1" aria-label={`Legenda: ${assunto}`}>
           {fatias.map((f, i) => (
             <li key={f.categoriaId ?? 'outros'}>
-              <Link to={destino} aria-label={`${f.nome}: ${formatBRL(f.valor)}, ${pct(f.percentual)} das despesas. Ver lançamentos de despesa do mês`}
-                className="flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-azul-claro focus-visible:bg-azul-claro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul">
-                <span className="flex min-w-0 items-center gap-2">
-                  <span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-sm" style={{ background: corDaFatia(f, i) }} />
-                  <span className={`truncate ${f.categoriaId === null ? 'text-slate-500' : 'text-slate-700'}`}>{f.nome}</span>
-                </span>
-                <span className="shrink-0 whitespace-nowrap">
-                  <span className="tabular-nums font-semibold text-marinho">{formatBRL(f.valor)}</span>
-                  <span className="ml-2 inline-block w-12 text-right tabular-nums text-slate-500">{pct(f.percentual)}</span>
-                </span>
-              </Link>
+              {linha(f, i)}
             </li>
           ))}
         </ul>
@@ -62,7 +85,7 @@ export function RoscaCategorias({ fatias, mes }: { fatias: BarraCategoria[]; mes
       <details className="mt-2 text-sm">
         <summary className="inline-flex min-h-11 cursor-pointer items-center font-semibold text-azul">Ver como tabela</summary>
         <table className="mt-1 w-full text-left">
-          <caption className="sr-only">Maiores gastos em {formatMonth(mes)}</caption>
+          <caption className="sr-only">{titulo ?? `Maiores gastos em ${formatMonth(mes)}`}</caption>
           <thead><tr className="text-xs text-slate-500">
             <th scope="col" className="py-1 font-medium">Categoria</th>
             <th scope="col" className="py-1 text-right font-medium">Valor</th>

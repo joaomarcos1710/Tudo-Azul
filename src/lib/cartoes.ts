@@ -449,6 +449,30 @@ export async function listarItens(cartaoId: string, mes: string, opcoes: { comPe
   }))
 }
 
+/** Uma categoria (raiz) das despesas de uma fatura. Valor, percentual e total vêm prontos do banco (card_invoice_categories). */
+export interface CategoriaDaFatura {
+  categoriaId: string
+  nome: string
+  valor: Cents
+  /** % do total das categorias, 1 casa, já arredondado no banco. */
+  percentual: number
+  /** Soma das categorias, calculada no banco (igual em todas as linhas). */
+  total: Cents
+}
+
+/**
+ * Despesas por categoria da fatura `mes` (AAAA-MM), maior primeiro. Só leitura; o front não soma nada. Fatura sem compras
+ * devolve lista vazia. Não inclui crédito avulso (é receita) nem assinatura ainda não lançada.
+ */
+export async function listarCategoriasDaFatura(cartaoId: string, mes: string): Promise<CategoriaDaFatura[]> {
+  const { data, error } = await cliente().rpc('card_invoice_categories', { p_debt: cartaoId, p_label: mes })
+  if (error) throw error
+  return ((data ?? []) as { category_id: string; name: string; amount: number | string; share: number | string; total: number | string }[])
+    .map((l) => ({
+      categoriaId: l.category_id, nome: l.name, valor: centsFromDb(l.amount), percentual: Number(l.share), total: centsFromDb(l.total),
+    }))
+}
+
 /**
  * Muda "de quem foi a despesa" de uma compra inteira (todas as parcelas, também as já cobradas e as de fatura paga e
  * travada; migration 20261112100000). Só a classificação muda: valor, fatura e totais ficam iguais. Devolve quantas

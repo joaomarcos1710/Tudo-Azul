@@ -19,6 +19,7 @@ import { Selecao } from '../components/ui/Selecao'
 import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
 import { PessoaSelectField } from '../components/PessoaSelectField'
+import { FolhaCategoriasFatura } from '../components/FolhaCategoriasFatura'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 import {
@@ -1227,6 +1228,8 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const [movendo, setMovendo] = useState<string | null>(null)
   const [erroMover, setErroMover] = useState('')
   const [avisoMover, setAvisoMover] = useState('')
+  // folha "Categorias" da fatura (só leitura; o foco volta ao botão ao fechar)
+  const [verCategorias, setVerCategorias] = useState(false)
   const hoje = hojeSP()
   useTitulo(`${cartao.nome} · ${primeiraMaiuscula(formatMonth(mes))}`)
   // pessoas da família para "Mudar de quem foi a despesa"; sem a lista o painel só oferece "não classificada" e "toda a família"
@@ -1434,6 +1437,9 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                 <Button variante="fantasma" compacto onClick={() => setAcao({ tipo: 'reabrir', fatura: f })}>Reabrir fatura</Button>
               </div>
             )}
+            <div className="mt-2 print:hidden">
+              <Button variante="secundario" compacto onClick={() => setVerCategorias(true)} aria-haspopup="dialog">Categorias</Button>
+            </div>
           </div>
           {/* #183: o valor nunca quebra (nowrap). Três colunas só com largura de sobra; no resto, empilha: nome à esquerda, valor à direita */}
           <dl className="grid grid-cols-1 content-start gap-x-4 gap-y-1 rounded-lg bg-fundo p-3 text-sm sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3" aria-label="Resumo da fatura">
@@ -1453,6 +1459,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
             </div>
           </dl>
         </div>
+        {verCategorias && <FolhaCategoriasFatura cartaoId={cartaoId} mes={f.mes} categorias={categorias} aoFechar={() => setVerCategorias(false)} />}
         {formularioPagar}
         {formularioRapido}
         {acao?.tipo === 'reabrir' && acao.fatura.mes === f.mes && (
