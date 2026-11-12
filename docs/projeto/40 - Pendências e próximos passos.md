@@ -678,7 +678,11 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Redesenho visual de Investimentos (12/11/2026, 5 etapas)
 - [x] Etapa 1 (#308): resumo patrimonial e cabeçalho.
-- [ ] Etapas 2 a 5 (a combinar com o dono, uma PR cada).
+- [x] Etapa 2 (#312): composição da carteira unificada por moeda (seletor BRL/EUR/USD e visões Classe, Liquidez, Instituição e Ativos).
+- [ ] Etapas 3 a 5 (a combinar com o dono, uma PR cada): 3 gráficos de evolução, 4 tabela de posições, 5 lista de ativos cadastrados.
+- [ ] Previdência grande: a visão Liquidez separa líquido e restrito, mas não mostra a classe do que é líquido. Isso pede um número novo do banco (classe x liquidez), nunca soma no front; decidir com o dono se vale.
+- [ ] Em Liquidez, Instituição e Ativos o percentual continua sendo valor ÷ valor de mercado da moeda, feito no front (apresentação, como em #301); agora vale também para dólar e euro. Levar para o banco se o dono quiser tudo vindo pronto.
+
 - [ ] "Investir" (no resumo) e "Registrar operação" (no cabeçalho) abrem a mesma folha e são dois botões azuis cheios; decidir na etapa seguinte qual fica.
 - [ ] Conferir em 390 px e 1280 px com dados reais depois do deploy (a conferência da #308 foi com dados falsos e sem o menu lateral).
 - [x] **Parcelas (etapa 2, #310, migration 111):** enviar a parcela para a fatura anterior ou próxima, uma por vez, só ainda não cobrada, fatura paga travada. Com teste no banco e na tela.
