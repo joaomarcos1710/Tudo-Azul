@@ -35,8 +35,8 @@ export function ResumoCarteira({ total, aportes, proventos, formatar }: {
   const notaAportado = !aportes ? 'Custo do que está investido'
     : comResgate ? `Pôs ${formatar(aportes.aportado)} · tirou ${formatar(aportes.resgatado)}` : 'Quanto você pôs'
   const notaRendimento = comResgate ? 'Contando o que já foi resgatado' : sobreOAportado(rendimento, aportado) ?? 'Valor de hoje menos o aportado'
-  const colunas = comProventos ? 'sm:grid-cols-3 xl:grid-cols-4' : 'sm:grid-cols-3'
-  const larguraDestaque = comProventos ? 'sm:col-span-3 xl:col-span-4' : 'sm:col-span-3'
+  const colunas = comProventos ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+  const larguraDestaque = comProventos ? 'sm:col-span-3' : 'sm:col-span-2'
   return (
     <>
     <ul className={`grid gap-3 ${colunas}`} aria-label="Resumo da carteira em reais">
