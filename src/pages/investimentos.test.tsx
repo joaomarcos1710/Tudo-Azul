@@ -459,7 +459,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       render(<Investimentos />)
       const lista = await resumo()
       expect(within(lista).getAllByRole('listitem')).toHaveLength(3)
-      expect(cartao(lista, 'Carteira').textContent).toMatch(/R\$\s1\.073,00/)
+      expect(cartao(lista, 'Valor atual da carteira').textContent).toMatch(/R\$\s1\.073,00/)
       expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s1\.000,00/)
       // "aportado" é o custo do que ainda está investido (depois de um resgate não é "quanto saiu do bolso")
       expect(cartao(lista, 'Aportado').textContent).toMatch(/Custo do que está investido/)
@@ -588,7 +588,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
         const lista = await resumo()
         await waitFor(() => expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s650,00/)) // 1.200 − 550, não o custo de 700
         expect(cartao(lista, 'Aportado').textContent).toMatch(/Pôs R\$\s1\.200,00 · tirou R\$\s550,00/)
-        expect(cartao(lista, 'Carteira').textContent).toMatch(/R\$\s780,00/)
+        expect(cartao(lista, 'Valor atual da carteira').textContent).toMatch(/R\$\s780,00/)
         expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s130,00/) // 780 − 650, não os 80 do custo
         expect(cartao(lista, 'Rendimento').textContent).toMatch(/Contando o que já foi resgatado/)
         // com resgate o percentual some: rendimento ÷ aportado líquido não quer dizer nada
@@ -1096,6 +1096,106 @@ describe('Investimentos × macroclasse e subclasse', () => {
       })
     })
   })
+
+  describe('resumo patrimonial e cabeçalho (etapa 1 do redesenho, pedido do dono, 12/11/2026)', () => {
+    const resumo = async () => await screen.findByRole('list', { name: 'Resumo da carteira em reais' })
+    const cabecalho = async () => (await screen.findByRole('heading', { level: 1, name: 'Investimentos' })).closest('header') as HTMLElement
+
+    it('cabeçalho: uma ação principal (Registrar operação, em azul cheio); Novo ativo e Registrar provento em peso menor', async () => {
+      render(<Investimentos />)
+      const topo = await cabecalho()
+      const principal = within(topo).getByRole('button', { name: 'Registrar operação' })
+      expect(principal.className).toMatch(/bg-azul text-white/)
+      for (const nome of ['Novo ativo', 'Registrar provento']) {
+        const secundaria = within(topo).getByRole('button', { name: nome })
+        expect(secundaria.className).not.toMatch(/bg-azul text-white|border/)
+        expect(secundaria.className).toMatch(/text-azul/)
+      }
+      // só um botão em azul cheio no cabeçalho
+      expect(within(topo).getAllByRole('button').filter((b) => /bg-azul text-white/.test(b.className))).toHaveLength(1)
+    })
+
+    it('cabeçalho: as ações continuam abrindo a folha certa', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      const topo = await cabecalho()
+      await u.click(within(topo).getByRole('button', { name: 'Registrar operação' }))
+      expect(screen.getByRole('dialog', { name: 'Registrar compra ou venda' })).toBeTruthy()
+      await u.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+      await u.click(within(topo).getByRole('button', { name: 'Novo ativo' }))
+      expect(screen.getByRole('dialog', { name: 'Novo ativo' })).toBeTruthy()
+    })
+
+    it('aviso: uma linha compacta; o detalhe só aparece ao expandir, e o botão diz o estado (aria-expanded)', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await resumo()
+      expect(screen.getByText('Cada moeda é contada à parte, sem conversão entre elas.')).toBeTruthy()
+      expect(screen.queryByText(/cotação diária da B3/)).toBeNull()
+      const botao = screen.getByRole('button', { name: 'Como funciona' })
+      expect(botao.getAttribute('aria-expanded')).toBe('false')
+      await u.click(botao)
+      expect(botao.getAttribute('aria-expanded')).toBe('true')
+      const detalhe = screen.getByText(/cotação diária da B3/)
+      expect(detalhe.textContent).toMatch(/sem virar despesa nem receita/)
+      expect(botao.getAttribute('aria-controls')).toBe(detalhe.id)
+      expect(botao.textContent).toBe('Mostrar menos')
+      await u.click(botao)
+      expect(screen.queryByText(/cotação diária da B3/)).toBeNull()
+    })
+
+    it('resumo: o valor atual da carteira vem primeiro e maior; Aportado e Rendimento são indicadores menores', async () => {
+      mock.listarCarteiraInvestimentos.mockResolvedValue({
+        posicoes: [posicao('a1', 'Tesouro Selic', 'fixed_income', 60000)],
+        totais: [{ moeda: 'BRL', custoTotal: c(100000), valorAtual: c(107300), resultado: c(7300) }],
+      })
+      render(<Investimentos />)
+      const itens = within(await resumo()).getAllByRole('listitem')
+      expect(within(itens[0]).getByText('Valor atual da carteira')).toBeTruthy()
+      expect(itens[0].textContent).toMatch(/R\$\s1\.073,00/)
+      expect(itens[1].textContent).toMatch(/^Aportado/)
+      expect(itens[2].textContent).toMatch(/^Rendimento/)
+      const tamanho = (li: HTMLElement) => li.innerHTML.match(/text-(3xl|4xl|2xl|xl|lg)\b/)?.[1]
+      expect(tamanho(itens[0])).toBe('3xl')
+      expect(tamanho(itens[1])).toBe('lg')
+      expect(tamanho(itens[2])).toBe('lg')
+    })
+
+    it('resumo com proventos no mês: o quarto indicador entra depois dos outros, e o destaque continua primeiro', async () => {
+      mock.listarTotalProventos.mockResolvedValue([{ moeda: 'BRL', recebido: c(12000), previsto: c(0) }])
+      render(<Investimentos />)
+      await waitFor(async () => expect(within(await resumo()).getAllByRole('listitem')).toHaveLength(4))
+      const itens = within(await resumo()).getAllByRole('listitem')
+      expect(itens.map((li) => li.textContent?.slice(0, 8))).toEqual(['Valor at', 'Aportado', 'Rendimen', 'Proventos'.slice(0, 8)])
+    })
+
+    it('com "ocultar valores": o destaque e os indicadores mostram só a máscara, sem número', async () => {
+      definirValoresOcultos(true)
+      try {
+        render(<Investimentos />)
+        const lista = await resumo()
+        expect(lista.textContent).toMatch(/Valor atual da carteira/)
+        expect(lista.textContent).toMatch(/••••/)
+        expect(lista.textContent).not.toMatch(/\d/)
+      } finally { definirValoresOcultos(false) }
+    })
+
+    it('outras moedas continuam em cartões à parte, fora do destaque em reais e sem ser somadas a ele', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a1', 'Tesouro Selic', 'fixed_income'), ativo('u1', 'REIT de teste', 'reit', { moeda: 'USD' })])
+      mock.listarCarteiraInvestimentos.mockResolvedValue({
+        posicoes: [posicao('a1', 'Tesouro Selic', 'fixed_income', 60000), { ...posicao('u1', 'REIT de teste', 'reit', 300), moeda: 'USD', custoTotal: c(250), resultado: c(50) }],
+        totais: [{ moeda: 'BRL', custoTotal: c(60000), valorAtual: c(60000), resultado: c(0) }, { moeda: 'USD', custoTotal: c(250), valorAtual: c(300), resultado: c(50) }],
+      })
+      render(<Investimentos />)
+      const lista = await resumo()
+      expect(within(lista).getAllByRole('listitem')[0].textContent).toMatch(/R\$\s600,00/)
+      expect(lista.textContent).not.toMatch(/US\$|603|3,00/)
+      const dolar = (await screen.findByText('Valor de mercado em USD')).closest('div') as HTMLElement
+      expect(dolar.textContent).toMatch(/US\$\s3,00/)
+      expect(lista.contains(dolar)).toBe(false)
+    })
+  })
+
   describe('compra e venda numa folha, no desenho de Lançamentos (pedido do dono, 10/11/2026)', () => {
     const abrir = async (u: ReturnType<typeof userEvent.setup>) => {
       render(<Investimentos />)
@@ -1109,7 +1209,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       const u = userEvent.setup()
       render(<Investimentos />)
       const card = (await screen.findByRole('list', { name: 'Resumo da carteira em reais' })).parentElement as HTMLElement
-      expect(within(card).getByText('Carteira').closest('li')?.textContent).toMatch(/R\$\s750,00/)
+      expect(within(card).getByText('Valor atual da carteira').closest('li')?.textContent).toMatch(/R\$\s750,00/)
       expect(within(card).getByText(/Parado na corretora/).textContent).toMatch(/R\$\s13,04/)
       await u.click(within(card).getByRole('button', { name: 'Resgatar' }))
       let folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
