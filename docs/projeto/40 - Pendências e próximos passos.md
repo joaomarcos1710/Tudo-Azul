@@ -627,6 +627,22 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
   - Avaliar e depois aportar no mesmo dia soma o aporte ao valor avaliado. Se o valor digitado já incluía o depósito, ele conta duas vezes até a próxima avaliação; a tela orienta a lançar o aporte antes.
 - [ ] O rendimento de ativo sem cota só aparece quando a avaliação é registrada; não há cálculo automático (CDI).
 
+## Cartão: mudar a fatura (11/11/2026, #306, migration 110)
+- [x] Pagamento: mudar a fatura de um pagamento na página da fatura, com teste no banco e na tela.
+- [ ] **Aplicar a migration 110** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono. Cuidado com a ordem: a 109 (#305) tem timestamp anterior; aplicar a 109 antes, ou renumerar a que entrar por último.
+- [ ] **Parcelas (etapa 2, decisão do dono):** escolher parcela por parcela e mandar para qualquer fatura aberta ou futura. Só parcela ainda não cobrada; fatura paga continua travada. A fatura de uma parcela é o mês da data dela (que é o fechamento do ciclo), então mudar de fatura é mudar essa data, com a mesma trava.
+- [ ] Adiantamento (pagamento sem fatura): o banco já aceita mandar para uma fatura, mas a tela só oferece o botão nos pagamentos que estão dentro de uma fatura. A lista "Pagamentos e devoluções" do cartão ainda não tem o botão.
+- [ ] Pagamento que está numa fatura já paga não muda pelo app (decisão do dono: não reabrir). Se acontecer, a correção é manual.
+- [x] **Resolvido (opção B do dono, testes R1 e R2 do 104):** pagamento movido para fatura aberta ou futura fica órfão se a fatura depois perder as parcelas (compra excluída, parcela estornada inteira, assinatura cancelada): `card_months` só conta o pagamento de um mês que ainda existe, e o pagamento não vira adiantamento. As faturas passam a mostrar o valor dele a mais. Decisão do dono: (A) destino só fatura fechada a pagar; ou (B) corrigir na causa, recriando `card_months` e `card_months_as_of` para contar como adiantamento o pagamento de um mês que sumiu.
+- [x] Depois de mover um pagamento para fatura futura, o painel "Pagar" sugeria a dívida do cartão (`debt_balances`), menor que o aberto da fatura fechada: agora sugere o aberto e explica a diferença (dois testes de tela).
+- [x] **Resolvido (opção 1 do dono, 12/11/2026; testes R1, R2 e R3 do 104):** a fatura paga que voltava a "a pagar" (o mês some e volta). O pagamento é solto da fatura quando ela some, por gatilho no fim da transação. Limites (atalho): o critério "o mês existe" tem três cópias (`card_months`, `card_months_as_of`, `card_month_labels`; teste confere); não cobre apagar parcelas (só o "apagar tudo"); em `card_months_as_of` de data passada o pagamento solto vira adiantamento naquela data.
+- [x] Cartão sem dívida, mas com fatura fechada em aberto (pagamento movido deixou a dívida em zero ou crédito): "Pagar fatura" dizia "Não há fatura fechada" e não sugeria valor. Agora sugere o aberto e explica; o pagamento continua como adiantamento e abate primeiro essa fatura.
+- [ ] O pagamento solto (sem fatura, por ter perdido a fatura) fica na lista "Pagamentos e devoluções" do cartão, que ainda não tem o botão "Mudar fatura"; pela tela não dá para ligá-lo a uma fatura de novo (o banco aceita).
+- [ ] A fatura aberta que recebeu um pagamento movido mostra "Reabrir fatura" (que anula o pagamento, com confirmação). É o comportamento antigo de fatura aberta com pagamento; mudar só com o dono.
+- [ ] Depois de mover um pagamento para fatura seguinte, o destaque do cartão ("Fatura fechada a pagar") mostra a dívida do cartão (`debt_balances`), menor que o aberto da fatura fechada na página dela. Os dois números estão certos no que medem, mas a diferença confunde; decidir com o dono se o destaque passa a mostrar o aberto da fatura.
+- [x] Conferido em produção (11/11/2026, só leitura, com o critério de meses de `card_months` reproduzido nas tabelas): nenhum pagamento ligado a fatura que sumiu (68 meses de cartão). Aplicar a 110 não muda número existente.
+- [ ] O vencimento gravado na linha nova de `debt_invoices` vem do cálculo de `card_months`; em mês só com crédito avulso, depois de troca de ciclo, pode usar os dias novos do cartão. Não reproduzido.
+
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Cents } from '../lib/format'
@@ -43,6 +43,7 @@ const mock = vi.hoisted(() => ({
   totalFaturasDoMes: vi.fn(),
   estornarParcela: vi.fn(),
   listarPagamentosDaFatura: vi.fn(),
+  moverPagamentoDeFatura: vi.fn(),
   visaoDosCartoes: vi.fn(),
   trocarPessoaDaCompra: vi.fn(),
   listarPessoasFamilia: vi.fn(),
@@ -58,7 +59,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
-  trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
+  trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura, moverPagamentoDeFatura: mock.moverPagamentoDeFatura,
   visaoDosCartoes: mock.visaoDosCartoes, trocarPessoaDaCompra: mock.trocarPessoaDaCompra,
 }))
 vi.mock('../lib/pessoasFamilia', async (o) => ({ ...(await o<typeof import('../lib/pessoasFamilia')>()), listarPessoasFamilia: mock.listarPessoasFamilia }))
@@ -160,6 +161,7 @@ beforeEach(() => {
   mock.totalFaturasDoMes.mockResolvedValue(null)
   mock.estornarParcela.mockResolvedValue(undefined)
   mock.listarPagamentosDaFatura.mockResolvedValue([])
+  mock.moverPagamentoDeFatura.mockResolvedValue(undefined)
   // padrão: banco sem a migration 065 (a tela lê card_months por cartão); os testes da 065 definem o resumo
   mock.visaoDosCartoes.mockResolvedValue(null)
   for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.definirContaPagamento, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
@@ -634,6 +636,69 @@ describe('Cartões', () => {
     await u.type(screen.getByLabelText('Valor (R$)'), '120,00')
     await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
     expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 12000, faturaId: null }), expect.any(String))
+  })
+
+  it('#306: pagamento movido para a fatura seguinte deixa a dívida menor que o aberto; sugere o aberto da fatura e explica', async () => {
+    const u = userEvent.setup()
+    // dívida do cartão (debt_balances) 40,00; a fatura fechada tem 100,00 sem pagamento (os 60 foram para a seguinte)
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(4000), compromissos: c(20000) }])
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), total: c(10000), pago: c(0), faturaId: 'f3' }),
+      fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(20000), total: c(20000), pago: c(6000), faturaId: 'f9' }),
+    ])
+    montar()
+    await abrirPagar(u)
+    await waitFor(() => expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('100,00'))
+    expect((await screen.findByText(/em aberto; a dívida do cartão/)).textContent).toMatch(/R\$ 100,00 em aberto; a dívida do cartão \(R\$ 40,00\) é menor/)
+    expect(screen.queryByText(/O que passar da fatura fechada/)).toBeNull() // 100,00 não passa do aberto
+    // "mais que tudo" usa a dívida real: 40,00 + 200,00 de parcelas futuras = 240,00 (não 100 + 200)
+    const campo = screen.getByLabelText('Valor (R$)')
+    await u.clear(campo)
+    await u.type(campo, '250,00')
+    expect(await screen.findByText(/mais do que tudo o que este cartão tem a pagar/)).toBeTruthy()
+    await u.clear(campo)
+    await u.type(campo, '100,00')
+    await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ valor: 10000, faturaId: 'f3' }), expect.any(String))
+  })
+
+  it('#306: o aberto da fatura que chega depois não apaga o valor que a pessoa já digitou', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(4000), compromissos: c(20000) }])
+    const fs = [fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), total: c(10000), pago: c(0), faturaId: 'f3' })]
+    mock.listarFaturas.mockResolvedValue(fs)
+    montar()
+    await u.click(await botaoVerFatura())
+    // a leitura do painel de pagar fica pendente até a pessoa digitar
+    let soltar: (x: Fatura[]) => void = () => {}
+    mock.listarFaturas.mockReturnValueOnce(new Promise<Fatura[]>((r) => { soltar = r }))
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    const campo = screen.getByLabelText('Valor (R$)')
+    await u.clear(campo)
+    await u.type(campo, '55,00')
+    soltar(fs)
+    expect(await screen.findByText(/em aberto; a dívida do cartão/)).toBeTruthy()
+    expect((campo as HTMLInputElement).value).toBe('55,00')
+  })
+
+  it('#306: cartão sem dívida, mas com fatura fechada em aberto (pagamento movido): sugere o aberto e não diz "Não há fatura fechada"', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), credito: c(2000), compromissos: c(20000) }])
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), total: c(10000), pago: c(0), faturaId: 'f3' }),
+      fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(20000), total: c(20000), pago: c(12000), faturaId: 'f9' }),
+    ])
+    montar()
+    await u.click(await botaoVerFatura())
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    await waitFor(() => expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('100,00'))
+    expect((await screen.findByText(/mesmo com o cartão sem dívida/)).textContent).toMatch(/R\$ 100,00 em aberto, mesmo com o cartão sem dívida/)
+    expect(screen.queryByText(/Não há fatura fechada/)).toBeNull()
+    await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    // sem dívida o pagamento não se liga a fatura (comportamento de antes): como adiantamento, abate primeiro a fatura em aberto mais antiga
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ valor: 10000, faturaId: null }), expect.any(String))
   })
 
   it('pagar mais que a fatura fechada: o excedente vira crédito e a tela avisa; mais que tudo, pede para conferir', async () => {
@@ -2109,5 +2174,72 @@ describe('Tela de Cartões no celular (#201, queixa do dono no iPhone)', () => {
     for (const cr of screen.getAllByTestId('credito-fatura')) {
       expect(cr.querySelector('[data-linha-principal] [data-valor]')!.textContent).toMatch(/^\+R\$/)
     }
+  })
+})
+
+describe('Mudar a fatura de um pagamento (migration 110, pedido do dono de 11/11/2026)', () => {
+  // setembro paga (travada); outubro fechada e paga em parte; novembro aberta; dezembro futura
+  const setembro = fatura({ mes: '2026-09', fechamento: '2026-09-17', vencimento: '2026-09-25', cobrado: c(30000), total: c(30000), pago: c(30000), faturaId: 'f9' })
+  const outubro = fatura({ mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', cobrado: c(4000), total: c(4000), pago: c(1000), faturaId: 'f10' })
+  const novembro = fatura({ mes: '2026-11', fechamento: '2026-11-17', vencimento: '2026-11-25', aCobrar: c(20000), total: c(20000), faturaId: null })
+  const dezembro = fatura({ mes: '2026-12', fechamento: '2026-12-17', vencimento: '2026-12-25', aCobrar: c(5000), total: c(5000), faturaId: null })
+
+  async function abrirOutubro(u: ReturnType<typeof userEvent.setup>, faturas: Fatura[] = [setembro, outubro, novembro, dezembro]) {
+    fixarHoje('2026-11-05')
+    mock.listarFaturas.mockResolvedValue(faturas)
+    mock.listarPagamentosDaFatura.mockResolvedValue([{ id: 'pg1', data: '2026-10-18', valor: c(1000) }])
+    montar('/cartoes/k1/fatura/2026-10')
+    await screen.findByRole('heading', { level: 1, name: /Outubro de 2026/ })
+    return u
+  }
+
+  it('o pagamento ganha "Mudar fatura"; o painel começa na seguinte e só lista faturas que não estão pagas', async () => {
+    const u = await abrirOutubro(userEvent.setup())
+    await u.click(await screen.findByRole('button', { name: 'Mudar a fatura do pagamento de 18/10/2026' }))
+    const painel = screen.getByRole('form', { name: 'Mudar a fatura do pagamento' })
+    expect(painel.textContent?.replace(/\u00a0/g, ' ')).toMatch(/O pagamento de R\$ 10,00, recebido em 18\/10\/2026, passa a quitar a fatura escolhida\. A data, o valor e a conta não mudam\./)
+    const destino = within(painel).getByLabelText('Fatura de destino') as HTMLSelectElement
+    // começa na seguinte (o pedido do dono); setembro (paga) e outubro (a própria) não aparecem
+    expect(destino.value).toBe('2026-11')
+    expect([...destino.options].map((o) => o.value)).toEqual(['2026-11', '2026-12'])
+    await u.selectOptions(destino, '2026-12')
+    await u.click(within(painel).getByRole('button', { name: 'Mudar fatura' }))
+    await waitFor(() => expect(mock.moverPagamentoDeFatura).toHaveBeenCalledWith('pg1', '2026-12'))
+    expect(mock.moverPagamentoDeFatura).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('form', { name: 'Mudar a fatura do pagamento' })).toBeNull())
+  })
+
+  it('recusa do banco (ex.: a fatura de destino ficou paga) aparece dentro do painel, que continua aberto', async () => {
+    mock.moverPagamentoDeFatura.mockRejectedValue({ code: '55000', message: 'fatura paga não muda: a fatura de origem ou a de destino já está fechada e paga' })
+    const u = await abrirOutubro(userEvent.setup())
+    await u.click(await screen.findByRole('button', { name: 'Mudar a fatura do pagamento de 18/10/2026' }))
+    const painel = screen.getByRole('form', { name: 'Mudar a fatura do pagamento' })
+    await u.click(within(painel).getByRole('button', { name: 'Mudar fatura' }))
+    expect((await within(painel).findByRole('alert')).textContent).toMatch(/fatura paga não muda/i)
+    expect(screen.getByRole('form', { name: 'Mudar a fatura do pagamento' })).toBeTruthy()
+  })
+
+  it('Cancelar fecha o painel sem chamar o banco', async () => {
+    const u = await abrirOutubro(userEvent.setup())
+    await u.click(await screen.findByRole('button', { name: 'Mudar a fatura do pagamento de 18/10/2026' }))
+    await u.click(within(screen.getByRole('form', { name: 'Mudar a fatura do pagamento' })).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('form', { name: 'Mudar a fatura do pagamento' })).toBeNull()
+    expect(mock.moverPagamentoDeFatura).not.toHaveBeenCalled()
+  })
+
+  it('sem outra fatura que possa receber (as outras estão pagas), o botão não aparece', async () => {
+    await abrirOutubro(userEvent.setup(), [setembro, outubro])
+    await screen.findByTestId('pagamento-fatura')
+    expect(screen.queryByRole('button', { name: /^Mudar a fatura do pagamento/ })).toBeNull()
+  })
+
+  it('fatura paga (travada): o pagamento não tem "Mudar fatura"', async () => {
+    fixarHoje('2026-11-05')
+    mock.listarFaturas.mockResolvedValue([setembro, outubro, novembro])
+    mock.listarPagamentosDaFatura.mockResolvedValue([{ id: 'pg9', data: '2026-09-24', valor: c(30000) }])
+    montar('/cartoes/k1/fatura/2026-09')
+    await screen.findByTestId('fatura-travada')
+    await screen.findByTestId('pagamento-fatura')
+    expect(screen.queryByRole('button', { name: /^Mudar a fatura do pagamento/ })).toBeNull()
   })
 })
