@@ -30,11 +30,11 @@ import { mensagemErroBanco } from '../lib/erros'
 import { GraficoEvolucao } from '../components/investimentos/GraficoEvolucao'
 import {
   CATEGORIAS_NOVO_ATIVO, CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, codigoDaBolsa, criarAtivoInvestimento, definirCotacaoBolsaAtivo, definirInstituicaoAtivo, definirLiquidezAtivo, definirSubclasseAtivo, listarAportesInvestimentos, listarInstituicoesInvestimentos, listarLiquidezInvestimentos, listarTotalProventos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
-  listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
+  juntarHistoricoEAportes, listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoAportes, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
   reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarAvaliacaoTotal, registrarProventoInvestimento,
 } from '../lib/investimentos'
 import type {
-  AportesCarteira, AtivoInvestimento, ClasseAtivo, HistoricoInvestimento, LinhaAlocacao, LinhaExtratoAtivo, LinhaInstituicao, LinhaLiquidez, Liquidez, MoedaInvestimento, PosicaoInvestimento, ProventoAtivo,
+  AportesCarteira, AtivoInvestimento, ClasseAtivo, LinhaAlocacao, LinhaExtratoAtivo, LinhaInstituicao, LinhaLiquidez, Liquidez, MoedaInvestimento, PontoEvolucao, PosicaoInvestimento, ProventoAtivo,
   TipoOperacaoInvestimento, TipoProvento, TotalInvestimento, TotalProventos,
 } from '../lib/investimentos'
 
@@ -63,11 +63,11 @@ export default function Investimentos() {
   const [ativos, setAtivos] = useState<AtivoInvestimento[]>([])
   const [posicoes, setPosicoes] = useState<PosicaoInvestimento[]>([])
   const [totais, setTotais] = useState<TotalInvestimento[]>([])
-  const [historico, setHistorico] = useState<HistoricoInvestimento[]>([])
+  const [historico, setHistorico] = useState<PontoEvolucao[]>([])
   // período do gráfico de evolução (proposta de 12/11/2026): 6 e 12 meses saem da mesma leitura de 12; 24 meses só é lido
   // quando o dono escolhe (a leitura do histórico é a mais cara da tela: não dobrar o custo de quem nunca pede 24)
   const [periodoMeses, setPeriodoMeses] = useState<6 | 12 | 24>(12)
-  const [historico24, setHistorico24] = useState<HistoricoInvestimento[] | null>(null)
+  const [historico24, setHistorico24] = useState<PontoEvolucao[] | null>(null)
   const [carregando24, setCarregando24] = useState(false)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
   // vazio também quando o banco ainda não tem a migration 034: a seção de alocação só some, o resto da tela segue
@@ -118,7 +118,7 @@ export default function Investimentos() {
     setCarregando24(true)
     try {
       const hoje = hojeSP()
-      setHistorico24(await listarHistoricoInvestimentos(familia.id, inicioHistorico(hoje, 24), hoje))
+      setHistorico24(await lerSerieEvolucao(familia.id, inicioHistorico(hoje, 24), hoje))
     } catch {
       // falha só aqui: o gráfico segue nos 12 meses já lidos, sem erro na tela
       setPeriodoMeses(12)
@@ -142,7 +142,7 @@ export default function Investimentos() {
       const [lista, carteira, serie, aportesLidos] = await Promise.all([
         listarAtivosInvestimento(familia.id),
         listarCarteiraInvestimentos(familia.id, hoje),
-        listarHistoricoInvestimentos(familia.id, inicioHistorico(hoje), hoje).catch(() => []),
+        lerSerieEvolucao(familia.id, inicioHistorico(hoje), hoje).catch(() => []),
         listarAportesInvestimentos(familia.id, hoje).catch((e: unknown) => {
           // PGRST202 = banco ainda sem a migration 107 (esperado até ela ser aplicada); o resto vai ao Sentry
           if (codigoDoErro(e) !== 'PGRST202') void registrarFalhaConsulta('investment_contributions', e)
@@ -422,7 +422,7 @@ export default function Investimentos() {
 
       <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
         <h2 id="titulo-evolucao-investimentos" className="mb-1 text-lg font-semibold">Evolução dos investimentos</h2>
-        <p className="mb-3 text-sm text-slate-500">Valor estimado no fechamento de cada mês, por moeda, nos últimos {mesesMostrados} meses. Registre avaliações periódicas para acompanhar a valorização real.</p>
+        <p className="mb-3 text-sm text-slate-500">Valor estimado no fechamento de cada mês, por moeda, nos últimos {mesesMostrados} meses, e o aportado (o que você pôs menos o que tirou, como no resumo). Registre avaliações periódicas para acompanhar a valorização real.</p>
         {historico.some((p) => p.valorAtual > 0) && (
           <div role="group" aria-label="Período do gráfico" className="mb-3 flex gap-2">
             {([6, 12, 24] as const).map((m) => (
@@ -802,6 +802,15 @@ function EditorSubclasse({ ativo, aoSalvar, aoCancelar }: { ativo: AtivoInvestim
       <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
     </form>
   )
+}
+
+/** Valor atual e aportado mês a mês. O aporte líquido (migration 114) vem junto; se a leitura dele falhar (banco sem a migration), o aportado cai para o custo do histórico, e o gráfico avisa. */
+async function lerSerieEvolucao(familiaId: string, de: string, ate: string): Promise<PontoEvolucao[]> {
+  const [historico, aportes] = await Promise.all([
+    listarHistoricoInvestimentos(familiaId, de, ate),
+    listarHistoricoAportes(familiaId, de, ate).catch(() => null),
+  ])
+  return juntarHistoricoEAportes(historico, aportes)
 }
 
 function inicioHistorico(hoje: string, meses = 12): string {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { PointerEvent } from 'react'
 import type { Cents } from '../../lib/format'
-import type { HistoricoInvestimento, MoedaInvestimento } from '../../lib/investimentos'
+import type { MoedaInvestimento, PontoEvolucao } from '../../lib/investimentos'
 import { Card } from '../ui/Card'
 import { COR_CONTORNO, COR_EIXO, COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../graficos/cores'
 import { topoRedondo } from '../graficos/LinhaAcumulada'
@@ -11,23 +11,25 @@ const mesLongo = (mes: string) => new Intl.DateTimeFormat('pt-BR', { month: 'lon
 
 /**
  * Evolução da carteira numa moeda (etapa 3 do redesenho de Investimentos): duas linhas, o valor atual (azul, cheia) e o
- * aportado (cinza, tracejada), mês a mês. A diferença entre as duas é o rendimento, que o leitor vê no espaço entre as linhas;
+ * aportado (cinza, tracejada), mês a mês. O aportado é o aporte líquido (o que o dono pôs menos o que tirou, igual ao resumo; migration 114);
+ * em banco sem ela, é o custo do que ainda está investido, e uma nota avisa. A diferença entre as duas é o rendimento, que o leitor vê no espaço entre as linhas;
  * a tela NÃO subtrai nem soma nada (os dois números vêm de investment_history, no banco). Legenda sempre visível (a cor não é a
  * única pista: o aportado é tracejado), cursor com tooltip no toque e no mouse, e a tabela dos mesmos pontos logo abaixo.
  */
 export function GraficoEvolucao({ moedaCodigo, pontos, formatar }: {
   moedaCodigo: MoedaInvestimento
-  pontos: HistoricoInvestimento[]
+  pontos: PontoEvolucao[]
   formatar: (c: Cents, moeda: MoedaInvestimento) => string
 }) {
   const [ativo, setAtivo] = useState<number | null>(null)
   const L = 640, A = 220, esq = 64, dir = 14, topo = 14, base = 30
   const fmt = (v: number) => formatar(v as Cents, moedaCodigo)
-  const max = topoRedondo(Math.max(0, ...pontos.map((p) => Math.max(p.valorAtual, p.custoTotal))))
+  const max = topoRedondo(Math.max(0, ...pontos.map((p) => Math.max(p.valorAtual, p.aportado))))
   const x = (i: number) => esq + (pontos.length <= 1 ? 0 : (i / (pontos.length - 1)) * (L - esq - dir))
   const y = (v: number) => topo + (1 - Math.max(0, v) / max) * (A - topo - base)
-  const trilha = (f: (p: HistoricoInvestimento) => number) => pontos.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(f(p)).toFixed(1)}`).join(' ')
+  const trilha = (f: (p: PontoEvolucao) => number) => pontos.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(f(p)).toFixed(1)}`).join(' ')
   const ultimo = pontos[pontos.length - 1]
+  const aportadoLiquido = pontos.every((q) => q.aportadoLiquido)
 
   function mover(e: PointerEvent<SVGRectElement>) {
     const caixa = e.currentTarget.ownerSVGElement!.getBoundingClientRect()
@@ -50,16 +52,19 @@ export function GraficoEvolucao({ moedaCodigo, pontos, formatar }: {
           Aportado
         </li>
       </ul>
+      {!aportadoLiquido && (
+        <p className="mb-2 text-xs text-slate-500">Aportado, aqui, é o custo do que ainda está investido: ele cai a cada resgate.</p>
+      )}
       <div className="relative">
         <svg viewBox={`0 0 ${L} ${A}`} className="h-auto w-full" role="img"
-          aria-label={`Evolução da carteira em ${moedaCodigo}: valor atual ${ultimo ? fmt(ultimo.valorAtual) : '—'}, aportado ${ultimo ? fmt(ultimo.custoTotal) : '—'}`}>
+          aria-label={`Evolução da carteira em ${moedaCodigo}: valor atual ${ultimo ? fmt(ultimo.valorAtual) : '—'}, aportado ${ultimo ? fmt(ultimo.aportado) : '—'}`}>
           {[0, 0.5, 1].map((f) => (
             <g key={f}>
               <line x1={esq} x2={L - dir} y1={y(max * f)} y2={y(max * f)} stroke={COR_GRADE} strokeWidth="1" />
               <text x={esq - 7} y={y(max * f) + 4} textAnchor="end" fontSize="10" fill={COR_TEXTO_EIXO}>{fmt(max * f)}</text>
             </g>
           ))}
-          <path d={trilha((q) => q.custoTotal)} fill="none" stroke={COR_TEXTO_EIXO} strokeWidth="2" strokeDasharray="5 4" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={trilha((q) => q.aportado)} fill="none" stroke={COR_TEXTO_EIXO} strokeWidth="2" strokeDasharray="5 4" strokeLinecap="round" strokeLinejoin="round" />
           <path d={trilha((q) => q.valorAtual)} fill="none" stroke={COR_LINHA} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
           {pontos.map((q, i) => (i === 0 || i === pontos.length - 1 || i % 3 === 0) && (
             // o último rótulo termina na borda do gráfico: centrado no último ponto ele passava do SVG e era cortado (conferido a 400 px)
@@ -69,7 +74,7 @@ export function GraficoEvolucao({ moedaCodigo, pontos, formatar }: {
           {p && ativo !== null && (
             <g>
               <line x1={x(ativo)} x2={x(ativo)} y1={topo} y2={y(0)} stroke={COR_EIXO} strokeWidth="1" strokeDasharray="3 3" />
-              <circle cx={x(ativo)} cy={y(p.custoTotal)} r="4" fill={COR_TEXTO_EIXO} stroke={COR_CONTORNO} strokeWidth="2" />
+              <circle cx={x(ativo)} cy={y(p.aportado)} r="4" fill={COR_TEXTO_EIXO} stroke={COR_CONTORNO} strokeWidth="2" />
               <circle cx={x(ativo)} cy={y(p.valorAtual)} r="5" fill={COR_LINHA} stroke={COR_CONTORNO} strokeWidth="2" />
             </g>
           )}
@@ -81,13 +86,13 @@ export function GraficoEvolucao({ moedaCodigo, pontos, formatar }: {
             style={{ left: `${Math.min(62, Math.max(2, (x(ativo) / L) * 100 - 10))}%` }}>
             <p className="font-semibold capitalize text-marinho">{mesLongo(p.mes)}</p>
             <p className="tabular-nums text-slate-600">Valor atual: <strong className="text-marinho">{fmt(p.valorAtual)}</strong></p>
-            <p className="tabular-nums text-slate-600">Aportado: <strong className="text-marinho">{fmt(p.custoTotal)}</strong></p>
+            <p className="tabular-nums text-slate-600">Aportado: <strong className="text-marinho">{fmt(p.aportado)}</strong></p>
           </div>
         )}
       </div>
       {ultimo && (
         <p className="mt-1 text-xs text-slate-500">
-          Último mês: valor atual <strong>{fmt(ultimo.valorAtual)}</strong> · aportado <strong>{fmt(ultimo.custoTotal)}</strong>
+          Último mês: valor atual <strong>{fmt(ultimo.valorAtual)}</strong> · aportado <strong>{fmt(ultimo.aportado)}</strong>
         </p>
       )}
       <details className="mt-2 text-sm">
@@ -106,7 +111,7 @@ export function GraficoEvolucao({ moedaCodigo, pontos, formatar }: {
               <tr key={q.mes} className="border-b border-slate-100">
                 <th scope="row" className="py-1 font-normal capitalize">{mesCurto(q.mes)}</th>
                 <td className="py-1 text-right tabular-nums">{fmt(q.valorAtual)}</td>
-                <td className="py-1 text-right tabular-nums">{fmt(q.custoTotal)}</td>
+                <td className="py-1 text-right tabular-nums">{fmt(q.aportado)}</td>
               </tr>
             ))}
           </tbody>
