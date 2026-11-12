@@ -5,8 +5,8 @@ import type { Aportes, TotalInvestimento, TotalProventos } from '../../lib/inves
 import { comSinal, corDoResultado, sobreOAportado } from './TabelaPosicoes'
 
 /**
- * Resumo da carteira em reais (pedido do dono, 10/11/2026, a partir de um desenho dele): Carteira (quanto vale hoje),
- * Aportado e Rendimento, lado a lado; "Proventos no mês" só aparece quando há provento recebido ou previsto no mês
+ * Resumo da carteira em reais (pedido do dono, 10/11/2026; hierarquia nova em 12/11/2026, etapa 1 do redesenho): o valor
+ * atual da carteira em destaque, grande, e embaixo Aportado e Rendimento como indicadores menores, lado a lado; "Proventos no mês" só aparece quando há provento recebido ou previsto no mês
  * (decisão do dono: "esconde quando não há provento"). Todos os valores vêm do banco; aqui só há o rendimento ÷
  * aportado, para exibir. No celular cada cartão vira uma linha: quatro cartões em duas colunas cortariam valores de
  * seis dígitos.
@@ -35,10 +35,12 @@ export function ResumoCarteira({ total, aportes, proventos, formatar }: {
   const notaAportado = !aportes ? 'Custo do que está investido'
     : comResgate ? `Pôs ${formatar(aportes.aportado)} · tirou ${formatar(aportes.resgatado)}` : 'Quanto você pôs'
   const notaRendimento = comResgate ? 'Contando o que já foi resgatado' : sobreOAportado(rendimento, aportado) ?? 'Valor de hoje menos o aportado'
+  const colunas = comProventos ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+  const larguraDestaque = comProventos ? 'sm:col-span-3' : 'sm:col-span-2'
   return (
     <>
-    <ul className={`grid gap-3 sm:grid-cols-3 ${comProventos ? 'xl:grid-cols-4' : ''}`} aria-label="Resumo da carteira em reais">
-      <Numero rotulo="Carteira" valor={formatar(aportes ? aportes.valorAtual : total.valorAtual)} nota="Quanto vale hoje" />
+    <ul className={`grid gap-3 ${colunas}`} aria-label="Resumo da carteira em reais">
+      <Destaque rotulo="Valor atual da carteira" valor={formatar(aportes ? aportes.valorAtual : total.valorAtual)} nota="Quanto vale hoje" className={larguraDestaque} />
       <Numero rotulo="Aportado" valor={formatar(aportado)} nota={notaAportado} />
       <Numero rotulo="Rendimento" valor={comSinal(formatar(rendimento), rendimento)} cor={corDoResultado(rendimento)} nota={notaRendimento} />
       {comProventos && (
@@ -51,15 +53,29 @@ export function ResumoCarteira({ total, aportes, proventos, formatar }: {
   )
 }
 
+/** O número que importa: o valor atual da carteira em reais, grande, ocupando a largura toda da linha. */
+function Destaque({ rotulo, valor, nota, className }: { rotulo: string; valor: string; nota: string; className: string }) {
+  return (
+    <li className={className}>
+      <Card>
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{rotulo}</p>
+        <p className="mt-1 break-words text-3xl font-bold tabular-nums text-marinho sm:text-4xl">{valor}</p>
+        <p className="mt-1 text-xs text-slate-500">{nota}</p>
+      </Card>
+    </li>
+  )
+}
+
+/** Indicador auxiliar (Aportado, Rendimento, Proventos): menor que o destaque; no celular, rótulo e nota à esquerda e o valor à direita. */
 function Numero({ rotulo, valor, nota, cor = 'text-marinho' }: { rotulo: string; valor: string; nota: ReactNode; cor?: string }) {
   return (
     <li>
-      <Card className="flex h-full items-center justify-between gap-3 sm:block">
+      <Card semPadding className="flex h-full items-center justify-between gap-3 p-4 sm:block">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{rotulo}</p>
           <p className="text-xs text-slate-500 sm:hidden">{nota}</p>
         </div>
-        <p className={`shrink-0 whitespace-nowrap text-xl font-bold tabular-nums sm:mt-1 sm:text-2xl ${cor}`}>{valor}</p>
+        <p className={`shrink-0 whitespace-nowrap text-lg font-bold tabular-nums sm:mt-1 sm:text-xl ${cor}`}>{valor}</p>
         <p className="hidden text-xs text-slate-500 sm:block">{nota}</p>
       </Card>
     </li>
