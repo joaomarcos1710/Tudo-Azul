@@ -625,6 +625,20 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Só para mostrar:** o convertido aparece ao lado do valor na moeda original, com a cotação e a data. Nenhum total (Disponível, Patrimônio, relatórios) passa a somar moedas. O total convertido fica para quando o dono decidir onde ele aparece, para não virar mais um número repetido.
 - **Ações e FIIs (brapi):** ficam para depois; exigem conta e chave de um serviço de terceiros.
 
+## 11/11/2026 — Cotação de ações e fundos imobiliários pela brapi; câmbio só pela PTAX (dono, #305)
+- **Câmbio:** "só pela PTAX" (dono). A proposta de usar outra API para dólar e euro foi descartada: o app já tem a PTAX oficial no banco, e duas fontes dariam dois números na mesma tela.
+- **Renda variável brasileira:** brapi.dev ("pode seguir com a brapi"). O Google Finance segue descartado (sem API; os termos proíbem copiar e redistribuir). Plano gratuito da brapi: 15.000 chamadas por mês, 1 código por chamada, atraso de cerca de 30 minutos; o uso previsto é de poucas centenas por mês.
+- **Qual preço vale** ("continuar com seu plano"): entre o valor digitado ("Atualizar valor") e a cotação da bolsa, vale o mais recente; no mesmo dia, o digitado. Assim a correção manual continua existindo.
+- **A cotação é uma escolha por ativo, não uma dedução pelo código.** Motivo: ativo lançado "só pelo valor" guarda 1 unidade (ou frações) no lugar das cotas; multiplicar isso pelo preço da bolsa faria o valor desabar. Por isso nenhum ativo existente muda sozinho, o banco só deixa ligar em ativo sem fração de cota, e ativo ligado deixa de aceitar "só o valor". No cadastro de ativo novo com código da B3 a opção já vem marcada.
+- **Onde fica a chave:** no cofre do Supabase (Vault), segredo `brapi_token`, posta pelo dono no painel. Nunca no chat, no código, em variável do front, em URL ou em log.
+- **Falha não é silenciosa:** sem chave, chave recusada ou cota esgotada, a busca levanta erro (o cron mostra "failed") e a tela avisa quando o preço de um ativo ligado fica mais de 4 dias corridos parado.
+- **Fica de fora:** proventos automáticos (na brapi são do plano pago), ações e REITs do exterior (outro provedor, a validar) e cotação retroativa (o histórico usa a cotação a partir do dia em que a busca começa).
+- **Ativo lançado "só pelo valor" não liga a cotação (opção B, dono, 12/11/2026).** Entre pedir a quantidade de cotas ao ligar (A, recomendada) e só ligar o ativo que nunca teve lançamento só pelo valor (B), o dono escolheu a B. Motivo registrado: o ativo pelo valor guarda cotas escondidas (1 unidade pelo valor, ou frações) e multiplicar pela cotação faria o valor despencar; a B recusa de vez em vez de pedir um número que a pessoa pode errar. Custo aceito: quem quiser a cotação num ativo assim lança de novo com a quantidade real.
+
+## 11/11/2026 — Erro numa busca de cotação não derruba a rodada inteira (revisão da #305)
+- **Antes:** um código com resposta estranha, timeout ou 5xx levantava erro e desfazia a rodada toda, inclusive as cotações boas; e um papel digitado por outra família bloqueava todos. **Agora:** erro de um código só conta como erro dele; a rodada segue e o retorno diz quantos deram certo, quantos não tiveram cotação e quantos com erro.
+- **Continua parando a rodada inteira:** 401, 403 e 429 (chave recusada ou cota esgotada, em que seguir não adianta), e a rodada em que **nenhum** código deu certo (aí o cron mostra "failed").
+- **Teto:** até 200 códigos por rodada, com o que sobrar informado no retorno. O alfabeto deixou de decidir silenciosamente quem fica sem cotação.
 ## 11/11/2026 — Cartão: mudar a fatura de um pagamento e de parcelas (dono, #306)
 - **Pedido:** um pagamento que caiu numa fatura, mas deveria ser na seguinte, e parcelas futuras que o dono quer lançar em outra fatura, sem excluir e lançar de novo.
 - **Pagamento: mover, não reabrir.** O mesmo pagamento passa a quitar outra fatura; data, valor e conta não mudam (o extrato continua batendo). A alternativa (reabrir e lançar de novo) foi descartada pelo dono.

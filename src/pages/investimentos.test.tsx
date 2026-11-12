@@ -21,6 +21,7 @@ const mock = vi.hoisted(() => ({
   converterParaReais: vi.fn(),
   listarTotalProventos: vi.fn(),
   definirInstituicaoAtivo: vi.fn(),
+  definirCotacaoBolsaAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
   listarContas: vi.fn(),
   editarAtivoInvestimento: vi.fn(),
@@ -52,6 +53,7 @@ vi.mock('../lib/investimentos', async (o) => ({
   listarAportesInvestimentos: mock.listarAportesInvestimentos,
   listarTotalProventos: mock.listarTotalProventos,
   definirInstituicaoAtivo: mock.definirInstituicaoAtivo,
+  definirCotacaoBolsaAtivo: mock.definirCotacaoBolsaAtivo,
   registrarProventoInvestimento: mock.registrarProventoInvestimento,
   editarAtivoInvestimento: mock.editarAtivoInvestimento,
   arquivarAtivoInvestimento: mock.arquivarAtivoInvestimento,
@@ -71,7 +73,7 @@ import { sobreOAportado } from '../components/investimentos/TabelaPosicoes'
 
 const c = (n: number) => n as Cents
 const ativo = (id: string, nome: string, classe: string, extra: Record<string, unknown> = {}) =>
-  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null, liquidez: 'liquid', instituicao: null,
+  ({ id, nome, ticker: null, classe, moeda: 'BRL', ativo: true, subclasse: null, liquidez: 'liquid', instituicao: null, cotacaoBolsa: false,
     // contadores de histórico (#125): 0 = nunca teve movimento, então pode ser excluído
     quantidadeOperacoes: 0, quantidadeAvaliacoes: 0, quantidadeProventos: 0, ...extra })
 const posicao = (assetId: string, nome: string, classe: string, valor: number) => ({
@@ -125,6 +127,7 @@ beforeEach(() => {
   mock.converterParaReais.mockResolvedValue([])
   mock.listarTotalProventos.mockResolvedValue([])
   mock.definirInstituicaoAtivo.mockResolvedValue(undefined)
+  mock.definirCotacaoBolsaAtivo.mockResolvedValue(undefined)
   mock.anularOperacaoInvestimento.mockResolvedValue(undefined)
   mock.listarExtratoAtivo.mockResolvedValue(extratoBase())
 })
@@ -456,7 +459,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       render(<Investimentos />)
       const lista = await resumo()
       expect(within(lista).getAllByRole('listitem')).toHaveLength(3)
-      expect(cartao(lista, 'Carteira').textContent).toMatch(/R\$\s1\.073,00/)
+      expect(cartao(lista, 'Valor atual da carteira').textContent).toMatch(/R\$\s1\.073,00/)
       expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s1\.000,00/)
       // "aportado" é o custo do que ainda está investido (depois de um resgate não é "quanto saiu do bolso")
       expect(cartao(lista, 'Aportado').textContent).toMatch(/Custo do que está investido/)
@@ -585,7 +588,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
         const lista = await resumo()
         await waitFor(() => expect(cartao(lista, 'Aportado').textContent).toMatch(/R\$\s650,00/)) // 1.200 − 550, não o custo de 700
         expect(cartao(lista, 'Aportado').textContent).toMatch(/Pôs R\$\s1\.200,00 · tirou R\$\s550,00/)
-        expect(cartao(lista, 'Carteira').textContent).toMatch(/R\$\s780,00/)
+        expect(cartao(lista, 'Valor atual da carteira').textContent).toMatch(/R\$\s780,00/)
         expect(cartao(lista, 'Rendimento').textContent).toMatch(/\+R\$\s130,00/) // 780 − 650, não os 80 do custo
         expect(cartao(lista, 'Rendimento').textContent).toMatch(/Contando o que já foi resgatado/)
         // com resgate o percentual some: rendimento ÷ aportado líquido não quer dizer nada
@@ -1093,6 +1096,106 @@ describe('Investimentos × macroclasse e subclasse', () => {
       })
     })
   })
+
+  describe('resumo patrimonial e cabeçalho (etapa 1 do redesenho, pedido do dono, 12/11/2026)', () => {
+    const resumo = async () => await screen.findByRole('list', { name: 'Resumo da carteira em reais' })
+    const cabecalho = async () => (await screen.findByRole('heading', { level: 1, name: 'Investimentos' })).closest('header') as HTMLElement
+
+    it('cabeçalho: uma ação principal (Registrar operação, em azul cheio); Novo ativo e Registrar provento em peso menor', async () => {
+      render(<Investimentos />)
+      const topo = await cabecalho()
+      const principal = within(topo).getByRole('button', { name: 'Registrar operação' })
+      expect(principal.className).toMatch(/bg-azul text-white/)
+      for (const nome of ['Novo ativo', 'Registrar provento']) {
+        const secundaria = within(topo).getByRole('button', { name: nome })
+        expect(secundaria.className).not.toMatch(/bg-azul text-white|border/)
+        expect(secundaria.className).toMatch(/text-azul/)
+      }
+      // só um botão em azul cheio no cabeçalho
+      expect(within(topo).getAllByRole('button').filter((b) => /bg-azul text-white/.test(b.className))).toHaveLength(1)
+    })
+
+    it('cabeçalho: as ações continuam abrindo a folha certa', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      const topo = await cabecalho()
+      await u.click(within(topo).getByRole('button', { name: 'Registrar operação' }))
+      expect(screen.getByRole('dialog', { name: 'Registrar compra ou venda' })).toBeTruthy()
+      await u.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+      await u.click(within(topo).getByRole('button', { name: 'Novo ativo' }))
+      expect(screen.getByRole('dialog', { name: 'Novo ativo' })).toBeTruthy()
+    })
+
+    it('aviso: uma linha compacta; o detalhe só aparece ao expandir, e o botão diz o estado (aria-expanded)', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await resumo()
+      expect(screen.getByText('Cada moeda é contada à parte, sem conversão entre elas.')).toBeTruthy()
+      expect(screen.queryByText(/cotação diária da B3/)).toBeNull()
+      const botao = screen.getByRole('button', { name: 'Como funciona' })
+      expect(botao.getAttribute('aria-expanded')).toBe('false')
+      await u.click(botao)
+      expect(botao.getAttribute('aria-expanded')).toBe('true')
+      const detalhe = screen.getByText(/cotação diária da B3/)
+      expect(detalhe.textContent).toMatch(/sem virar despesa nem receita/)
+      expect(botao.getAttribute('aria-controls')).toBe(detalhe.id)
+      expect(botao.textContent).toBe('Mostrar menos')
+      await u.click(botao)
+      expect(screen.queryByText(/cotação diária da B3/)).toBeNull()
+    })
+
+    it('resumo: o valor atual da carteira vem primeiro e maior; Aportado e Rendimento são indicadores menores', async () => {
+      mock.listarCarteiraInvestimentos.mockResolvedValue({
+        posicoes: [posicao('a1', 'Tesouro Selic', 'fixed_income', 60000)],
+        totais: [{ moeda: 'BRL', custoTotal: c(100000), valorAtual: c(107300), resultado: c(7300) }],
+      })
+      render(<Investimentos />)
+      const itens = within(await resumo()).getAllByRole('listitem')
+      expect(within(itens[0]).getByText('Valor atual da carteira')).toBeTruthy()
+      expect(itens[0].textContent).toMatch(/R\$\s1\.073,00/)
+      expect(itens[1].textContent).toMatch(/^Aportado/)
+      expect(itens[2].textContent).toMatch(/^Rendimento/)
+      const tamanho = (li: HTMLElement) => li.innerHTML.match(/text-(3xl|4xl|2xl|xl|lg)\b/)?.[1]
+      expect(tamanho(itens[0])).toBe('3xl')
+      expect(tamanho(itens[1])).toBe('lg')
+      expect(tamanho(itens[2])).toBe('lg')
+    })
+
+    it('resumo com proventos no mês: o quarto indicador entra depois dos outros, e o destaque continua primeiro', async () => {
+      mock.listarTotalProventos.mockResolvedValue([{ moeda: 'BRL', recebido: c(12000), previsto: c(0) }])
+      render(<Investimentos />)
+      await waitFor(async () => expect(within(await resumo()).getAllByRole('listitem')).toHaveLength(4))
+      const itens = within(await resumo()).getAllByRole('listitem')
+      expect(itens.map((li) => li.textContent?.slice(0, 8))).toEqual(['Valor at', 'Aportado', 'Rendimen', 'Proventos'.slice(0, 8)])
+    })
+
+    it('com "ocultar valores": o destaque e os indicadores mostram só a máscara, sem número', async () => {
+      definirValoresOcultos(true)
+      try {
+        render(<Investimentos />)
+        const lista = await resumo()
+        expect(lista.textContent).toMatch(/Valor atual da carteira/)
+        expect(lista.textContent).toMatch(/••••/)
+        expect(lista.textContent).not.toMatch(/\d/)
+      } finally { definirValoresOcultos(false) }
+    })
+
+    it('outras moedas continuam em cartões à parte, fora do destaque em reais e sem ser somadas a ele', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a1', 'Tesouro Selic', 'fixed_income'), ativo('u1', 'REIT de teste', 'reit', { moeda: 'USD' })])
+      mock.listarCarteiraInvestimentos.mockResolvedValue({
+        posicoes: [posicao('a1', 'Tesouro Selic', 'fixed_income', 60000), { ...posicao('u1', 'REIT de teste', 'reit', 300), moeda: 'USD', custoTotal: c(250), resultado: c(50) }],
+        totais: [{ moeda: 'BRL', custoTotal: c(60000), valorAtual: c(60000), resultado: c(0) }, { moeda: 'USD', custoTotal: c(250), valorAtual: c(300), resultado: c(50) }],
+      })
+      render(<Investimentos />)
+      const lista = await resumo()
+      expect(within(lista).getAllByRole('listitem')[0].textContent).toMatch(/R\$\s600,00/)
+      expect(lista.textContent).not.toMatch(/US\$|603|3,00/)
+      const dolar = (await screen.findByText('Valor de mercado em USD')).closest('div') as HTMLElement
+      expect(dolar.textContent).toMatch(/US\$\s3,00/)
+      expect(lista.contains(dolar)).toBe(false)
+    })
+  })
+
   describe('compra e venda numa folha, no desenho de Lançamentos (pedido do dono, 10/11/2026)', () => {
     const abrir = async (u: ReturnType<typeof userEvent.setup>) => {
       render(<Investimentos />)
@@ -1106,7 +1209,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
       const u = userEvent.setup()
       render(<Investimentos />)
       const card = (await screen.findByRole('list', { name: 'Resumo da carteira em reais' })).parentElement as HTMLElement
-      expect(within(card).getByText('Carteira').closest('li')?.textContent).toMatch(/R\$\s750,00/)
+      expect(within(card).getByText('Valor atual da carteira').closest('li')?.textContent).toMatch(/R\$\s750,00/)
       expect(within(card).getByText(/Parado na corretora/).textContent).toMatch(/R\$\s13,04/)
       await u.click(within(card).getByRole('button', { name: 'Resgatar' }))
       let folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
@@ -1354,6 +1457,206 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(sub()).toBe('')
       await u.selectOptions(within(folha).getByLabelText('Tipo'), 'Previdência')
       expect(sub()).toBe('Previdência')
+    })
+  })
+
+  describe('cotação da bolsa (migration 109, pedido do dono de 11/11/2026)', () => {
+    const OPCAO = 'Acompanhar a cotação da bolsa'
+    const hojeISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+    const diasAtras = (n: number) => new Date(Date.parse(`${hojeISO()}T00:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10)
+    const novoAtivo = async (u: ReturnType<typeof userEvent.setup>) => {
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      return screen.getByRole('dialog', { name: 'Novo ativo' })
+    }
+
+    it('novo ativo: a opção só aparece com ação, FII, ETF ou fundo, em reais, com código da B3; nasce marcada e liga depois de criar', async () => {
+      const u = userEvent.setup()
+      const folha = await novoAtivo(u)
+      const opcao = () => within(folha).queryByRole('checkbox', { name: new RegExp(OPCAO) }) as HTMLInputElement | null
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'Ação de teste')
+      expect(opcao()).toBeNull() // sem categoria
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'brasil')
+      expect(opcao()).toBeNull() // sem código
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'taz')
+      expect(opcao()).toBeNull() // código incompleto
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'l3')
+      expect(opcao()?.checked).toBe(true)
+      await u.selectOptions(within(folha).getByLabelText('Moeda do ativo'), 'USD')
+      expect(opcao()).toBeNull() // em dólar não acompanha a B3
+      await u.selectOptions(within(folha).getByLabelText('Moeda do ativo'), 'BRL')
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.definirCotacaoBolsaAtivo).toHaveBeenCalledWith('novo-id', true))
+      expect(mock.criarAtivoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ ticker: 'tazl3', classe: 'equity', moeda: 'BRL' }))
+    })
+
+    it('novo ativo: desmarcada, ou em ativo que não pode (renda fixa com código), não liga nada', async () => {
+      const u = userEvent.setup()
+      let folha = await novoAtivo(u)
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'FII de teste')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'brasil')
+      await u.selectOptions(within(folha).getByLabelText('Tipo'), 'FII')
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'TAZL11')
+      await u.click(within(folha).getByRole('checkbox', { name: new RegExp(OPCAO) }))
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(1))
+
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      folha = screen.getByRole('dialog', { name: 'Novo ativo' })
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'CDB com código')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'bancario')
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'TAZL3')
+      expect(within(folha).queryByRole('checkbox', { name: new RegExp(OPCAO) })).toBeNull()
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(2))
+      expect(mock.definirCotacaoBolsaAtivo).not.toHaveBeenCalled()
+    })
+
+    it('novo ativo: se o banco recusar a cotação depois de criar, o aviso diz que o ativo existe e ficou sem ela', async () => {
+      mock.definirCotacaoBolsaAtivo.mockRejectedValue(new Error('função não encontrada'))
+      const u = userEvent.setup()
+      const folha = await novoAtivo(u)
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'Ação de teste')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'brasil')
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'TAZL3')
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      expect((await screen.findByRole('alert')).textContent).toMatch(/Ativo cadastrado, mas sem acompanhar a cotação da bolsa/)
+    })
+
+    it('banco sem a migration 109 (a escolha vem nula): a opção não aparece no cadastro nem na edição, e nada é chamado', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: null })])
+      const u = userEvent.setup()
+      const folha = await novoAtivo(u)
+      await u.type(within(folha).getByLabelText('Nome do ativo'), 'Ação de teste')
+      await u.selectOptions(within(folha).getByLabelText('Categoria'), 'brasil')
+      await u.type(within(folha).getByLabelText('Ticker ou código (opcional)'), 'TAZL3')
+      expect(within(folha).queryByRole('checkbox', { name: new RegExp(OPCAO) })).toBeNull()
+      await u.click(within(folha).getByRole('button', { name: 'Salvar ativo' }))
+      await waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(1))
+
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      expect(screen.queryByRole('checkbox', { name: new RegExp(OPCAO) })).toBeNull()
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.editarAtivoInvestimento).toHaveBeenCalledTimes(1))
+      expect(mock.definirCotacaoBolsaAtivo).not.toHaveBeenCalled()
+    })
+
+    it('editar ativo: a escolha só vai para o banco quando mudou; liga e desliga', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: false })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      const opcao = screen.getByRole('checkbox', { name: new RegExp(OPCAO) }) as HTMLInputElement
+      expect(opcao.checked).toBe(false)
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.editarAtivoInvestimento).toHaveBeenCalledTimes(1))
+      expect(mock.definirCotacaoBolsaAtivo).not.toHaveBeenCalled()
+
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      await u.click(screen.getByRole('checkbox', { name: new RegExp(OPCAO) }))
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.definirCotacaoBolsaAtivo).toHaveBeenCalledWith('a2', true))
+
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: true })])
+      cleanup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      expect((screen.getByRole('checkbox', { name: new RegExp(OPCAO) }) as HTMLInputElement).checked).toBe(true)
+      await u.click(screen.getByRole('checkbox', { name: new RegExp(OPCAO) }))
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      await waitFor(() => expect(mock.definirCotacaoBolsaAtivo).toHaveBeenLastCalledWith('a2', false))
+    })
+
+    it('editar ativo: a recusa do banco (ex.: lançado só pelo valor) vira aviso; nome e código já foram gravados', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: false })])
+      mock.definirCotacaoBolsaAtivo.mockRejectedValue(new Error('este ativo tem lançamento só pelo valor'))
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Editar Ação Y' }))
+      await u.click(screen.getByRole('checkbox', { name: new RegExp(OPCAO) }))
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      expect((await screen.findByRole('alert')).textContent).toMatch(/Ativo atualizado, mas a escolha da cotação da bolsa não foi salva/)
+      expect(mock.editarAtivoInvestimento).toHaveBeenCalledTimes(1)
+    })
+
+    it('compra e venda: ativo que acompanha a bolsa é só por quantidade e preço ("Só o valor" some)', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: true, quantidadeOperacoes: 2 })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      const folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(within(folha).queryByRole('radio', { name: 'Só o valor' })).toBeNull()
+      expect(within(folha).getByText(/acompanha a cotação da bolsa/)).toBeTruthy()
+      await u.type(within(folha).getByLabelText('Quantidade'), '10')
+      await u.type(within(folha).getByLabelText('Preço por unidade (BRL)'), '25,75')
+      await u.click(within(folha).getByRole('button', { name: 'Registrar compra' }))
+      expect(mock.registrarOperacaoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'a2', quantidade: '10', precoUnitario: '25,75' }))
+      expect(mock.registrarOperacaoPorValor).not.toHaveBeenCalled()
+    })
+
+    it('compra e venda: ativo ligado cujo código saiu da bolsa NÃO oferece "Só o valor" (B2) e avisa para corrigir o código', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'XX', cotacaoBolsa: true, quantidadeOperacoes: 2 })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      const folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(within(folha).queryByRole('radio', { name: 'Só o valor' })).toBeNull()
+      expect(within(folha).getByText(/não é da bolsa agora/)).toBeTruthy()
+    })
+
+    it('compra e venda: com a opção desligada, o ativo com código continua podendo trocar para "Só o valor"', async () => {
+      mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: false, quantidadeOperacoes: 2 })])
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar operação' }))
+      const folha = screen.getByRole('dialog', { name: 'Registrar compra ou venda' })
+      expect(within(folha).getByRole('radio', { name: 'Só o valor' })).toBeTruthy()
+      expect(within(folha).queryByText(/acompanha a cotação da bolsa/)).toBeNull()
+    })
+
+    describe('tabela: data do preço e aviso de cotação parada', () => {
+      const comPosicao = (dataAvaliacao: string | null, fonte: string | null, extra: Record<string, unknown> = {}) => {
+        mock.listarAtivosInvestimento.mockResolvedValue([ativo('a2', 'Ação Y', 'equity', { ticker: 'ACAO3', cotacaoBolsa: true, ...extra })])
+        mock.listarCarteiraInvestimentos.mockResolvedValue({
+          posicoes: [{ ...posicao('a2', 'Ação Y', 'equity', 27000), ticker: 'ACAO3', quantidade: '10', precoAtual: '27', dataAvaliacao, fonteAvaliacao: fonte }],
+          totais: [{ moeda: 'BRL', custoTotal: c(20000), valorAtual: c(27000), resultado: c(7000) }],
+        })
+      }
+      const linha = async () => (await screen.findByRole('rowheader', { name: /Ação Y/ }))
+
+      it('cotação de hoje: mostra a data e a fonte, sem aviso', async () => {
+        comPosicao(hojeISO(), 'brapi')
+        render(<Investimentos />)
+        const l = await linha()
+        expect(l.textContent).toMatch(/Valor de \d{2}\/\d{2}\/\d{4} · brapi/)
+        expect(l.textContent).not.toMatch(/parada|Ainda sem cotação/)
+      })
+
+      it('cotação de 4 dias atrás (fim de semana com feriado): ainda sem aviso; de 5 dias: avisa com o número de dias', async () => {
+        comPosicao(diasAtras(4), 'brapi')
+        render(<Investimentos />)
+        expect((await linha()).textContent).not.toMatch(/parada/)
+        cleanup()
+        comPosicao(diasAtras(5), 'brapi')
+        render(<Investimentos />)
+        expect((await linha()).textContent).toMatch(/Cotação da bolsa parada há 5 dias: confira o código do ativo\./)
+      })
+
+      it('ligada e ainda sem nenhum preço: diz que a primeira cotação ainda não veio', async () => {
+        comPosicao(null, null)
+        render(<Investimentos />)
+        expect((await linha()).textContent).toMatch(/Ainda sem cotação da bolsa/)
+      })
+
+      it('ativo que NÃO acompanha a bolsa nunca ganha o aviso, por mais velha que seja a avaliação', async () => {
+        comPosicao(diasAtras(90), 'Digitado', { cotacaoBolsa: false })
+        render(<Investimentos />)
+        expect((await linha()).textContent).not.toMatch(/parada|Ainda sem cotação/)
+        cleanup()
+        comPosicao(null, null, { cotacaoBolsa: false })
+        render(<Investimentos />)
+        expect((await linha()).textContent).not.toMatch(/parada|Ainda sem cotação/)
+      })
     })
   })
 })
