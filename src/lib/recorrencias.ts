@@ -18,6 +18,24 @@ export const rotuloTipoRecorrencia: Record<TipoRecorrencia, string> = {
   card: 'Assinatura no cartão',
 }
 
+/**
+ * Natureza da recorrência (migration 20261112120000): classificação analítica escolhida pelo dono, sem efeito em valor,
+ * data ou relatório. null = sem classificação. Receita só aceita 'reimbursement'; despesa e cartão, as outras três;
+ * transferência nenhuma (o banco recusa o resto).
+ */
+export type NaturezaRecorrencia = 'fixed' | 'subscription' | 'variable' | 'reimbursement'
+export const rotuloNatureza: Record<NaturezaRecorrencia, string> = {
+  fixed: 'Custo fixo',
+  subscription: 'Assinatura ou app',
+  variable: 'Gasto variável',
+  reimbursement: 'Ressarcimento a receber',
+}
+export function naturezasDoTipo(tipo: TipoRecorrencia): NaturezaRecorrencia[] {
+  if (tipo === 'income') return ['reimbursement']
+  if (tipo === 'transfer') return []
+  return ['fixed', 'subscription', 'variable']
+}
+
 /** Limites aceitos pelo banco (constraint recurrences_frequency). */
 export const MAX_CADA: Record<UnidadeFrequencia, number> = { month: 12, week: 4, day: 365 }
 
@@ -51,6 +69,7 @@ export interface Recorrencia {
   ativa: boolean
   personId?: string | null
   isSharedExpense?: boolean
+  nature?: NaturezaRecorrencia | null
 }
 
 export type DadosRecorrencia = Omit<Recorrencia, 'id' | 'ativa'>
@@ -148,20 +167,17 @@ export async function listarRecorrencias(familiaId: string): Promise<Recorrencia
     freq_unit: UnidadeFrequencia; freq_every: number; start_date: string; end_date: string | null;
     account_id: string | null; destination_account_id: string | null; debt_id: string | null;
     category_id: string | null; active: boolean; person_id?: string | null; is_shared_expense?: boolean;
+    nature?: NaturezaRecorrencia | null
   }
   let data: LinhaRecorrenciaDb[] | null = null
   let error: { code?: string; message?: string } | null = null
-  const novo = await consultar(
-    'id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active, person_id, is_shared_expense',
-  )
-  data = novo.data as unknown as LinhaRecorrenciaDb[] | null
-  error = novo.error
-  if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) {
-    const antigo = await consultar(
-      'id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active',
-    )
-    data = antigo.data as unknown as LinhaRecorrenciaDb[] | null
-    error = antigo.error
+  // do mais novo para o mais antigo: com natureza (migration 20261112120000), só com pessoa, sem nenhum dos dois
+  const base = 'id, kind, description, amount, day, freq_unit, freq_every, start_date, end_date, account_id, destination_account_id, debt_id, category_id, active'
+  for (const colunas of [`${base}, person_id, is_shared_expense, nature`, `${base}, person_id, is_shared_expense`, base]) {
+    const r = await consultar(colunas)
+    data = r.data as unknown as LinhaRecorrenciaDb[] | null
+    error = r.error
+    if (!error || !['42703', 'PGRST204'].includes(error.code ?? '')) break
   }
   if (error) throw error
   return (data ?? []).map((r) => ({
@@ -181,6 +197,7 @@ export async function listarRecorrencias(familiaId: string): Promise<Recorrencia
     ativa: r.active,
     personId: r.person_id ?? null,
     isSharedExpense: r.is_shared_expense ?? false,
+    nature: r.nature ?? null,
   }))
 }
 
@@ -197,8 +214,11 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
     p_person_id: d.tipo === 'expense' || d.tipo === 'card' ? d.personId ?? null : null,
     p_is_shared_expense: d.tipo === 'expense' || d.tipo === 'card' ? d.isSharedExpense ?? false : false,
   }
-  let { error } = await db.rpc('recurrence_create_classified', args)
-  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense) {
+  // com natureza: função própria (atômica); sem natureza o caminho é o de sempre, que funciona também em banco sem a migration
+  let { error } = d.nature
+    ? await db.rpc('recurrence_create_with_nature', { ...args, p_nature: d.nature })
+    : await db.rpc('recurrence_create_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense && !d.nature) {
     const antigo = await db.rpc('recurrence_create', {
       p_kind: args.p_kind, p_description: args.p_description, p_amount: args.p_amount,
       p_day: args.p_day, p_start: args.p_start, p_account: args.p_account, p_destination: args.p_destination,
@@ -217,13 +237,16 @@ export async function criarRecorrencia(d: DadosRecorrencia): Promise<void> {
  * todas as ocorrências (pagas, passadas e parcelas de cartão também). Campo a campo, sem desfazer o que foi corrigido à mão
  * (migrations 015 e 036).
  */
-export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null; personId?: string | null; isSharedExpense?: boolean }): Promise<void> {
+export async function editarRecorrencia(id: string, d: { descricao: string; valor: Cents; categoriaId: string | null; personId?: string | null; isSharedExpense?: boolean; nature?: NaturezaRecorrencia | null }): Promise<void> {
   const args = {
     p_id: id, p_description: d.descricao.trim(), p_amount: centsToDecimal(d.valor), p_category: d.categoriaId,
     p_person_id: d.personId ?? null, p_is_shared_expense: d.isSharedExpense ?? false,
   }
-  let { error } = await cliente().rpc('recurrence_update_classified', args)
-  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense) {
+  // nature: undefined = não mexe (caminho de sempre); null = limpa; valor = grava (função própria, atômica com a edição)
+  let { error } = d.nature !== undefined
+    ? await cliente().rpc('recurrence_update_with_nature', { ...args, p_nature: d.nature })
+    : await cliente().rpc('recurrence_update_classified', args)
+  if (error && ['PGRST202', '42883'].includes(error.code ?? '') && !args.p_person_id && !args.p_is_shared_expense && !d.nature) {
     const antigo = await cliente().rpc('recurrence_update', {
       p_id: id, p_description: args.p_description, p_amount: args.p_amount, p_category: args.p_category,
     })

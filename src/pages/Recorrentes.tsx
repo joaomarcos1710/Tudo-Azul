@@ -21,13 +21,13 @@ import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMo
 import type { Cents } from '../lib/format'
 import {
   criarRecorrencia, diaDaSemana, editarRecorrencia, excluirRecorrencia, frequenciaResumo, frequencias, listarRecorrencias, MAX_CADA,
-  ordemFrequencias, proximasOcorrencias, resumoRecorrencias, rotuloFrequencia, rotuloGrupoFrequencia, rotuloTipoRecorrencia,
+  naturezasDoTipo, ordemFrequencias, proximasOcorrencias, resumoRecorrencias, rotuloFrequencia, rotuloGrupoFrequencia, rotuloNatureza, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
 import type {
-  FrequenciaResumo, LinhaResumoRecorrencia, Recorrencia, TipoRecorrencia, UnidadeFrequencia,
+  FrequenciaResumo, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia, TipoRecorrencia, UnidadeFrequencia,
 } from '../lib/recorrencias'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
-import { corDoTipo } from '../lib/cores'
+import { corDoTipo, SELO } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
 import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
@@ -190,6 +190,11 @@ export default function Recorrentes() {
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-3">
             <p className="min-w-0 flex-1 truncate font-medium" title={r.descricao}>{r.descricao}</p>
+            {r.nature && (
+              <span data-testid="selo-natureza" className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${SELO.neutro}`}>
+                {rotuloNatureza[r.nature]}
+              </span>
+            )}
             <span className={`shrink-0 whitespace-nowrap text-right font-semibold tabular-nums ${corDoTipo(r.tipo === 'card' ? 'expense' : r.tipo)}`}>
               {r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}{formatMoeda(r.valor, moeda)}
             </span>
@@ -421,6 +426,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
   const [categoriaId, setCategoriaId] = useState(r?.categoriaId ?? '')
   const [personId, setPersonId] = useState<string | null>(r?.personId ?? null)
   const [isSharedExpense, setIsSharedExpense] = useState(r?.isSharedExpense ?? false)
+  const [natureza, setNatureza] = useState<NaturezaRecorrencia | ''>(r?.nature ?? '')
   const pessoaEscolhidaManualmente = useRef(false)
   useEffect(() => {
     if (editando || pessoaEscolhidaManualmente.current || !sessao?.user.id) return
@@ -472,7 +478,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
     setEnviando(true)
     try {
       if (r) {
-        await editarRecorrencia(r.id, { descricao, valor, categoriaId: precisaCategoria ? categoriaId : null, personId: tipo === 'expense' || tipo === 'card' ? personId : null, isSharedExpense: tipo === 'expense' || tipo === 'card' ? isSharedExpense : false })
+        await editarRecorrencia(r.id, { descricao, valor, categoriaId: precisaCategoria ? categoriaId : null, personId: tipo === 'expense' || tipo === 'card' ? personId : null, isSharedExpense: tipo === 'expense' || tipo === 'card' ? isSharedExpense : false, ...(natureza !== (r.nature ?? '') ? { nature: natureza || null } : {}) })
       } else {
         await criarRecorrencia({
           tipo, descricao, valor, dia: unidade === 'month' ? Number(dia) : null, inicio, fim: fim || null, unidade, cada,
@@ -482,6 +488,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
           categoriaId: precisaCategoria ? categoriaId : null,
           personId: tipo === 'expense' || tipo === 'card' ? personId : null,
           isSharedExpense: tipo === 'expense' || tipo === 'card' ? isSharedExpense : false,
+          nature: natureza || null,
         })
       }
       await aoSalvar()
@@ -500,7 +507,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
       <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         {!editando && (
-          <Selecao rotulo="Tipo" valor={tipo} aoMudar={(v) => { setTipo(v as TipoRecorrencia); setCategoriaId('') }}
+          <Selecao rotulo="Tipo" valor={tipo} aoMudar={(v) => { setTipo(v as TipoRecorrencia); setCategoriaId(''); setNatureza('') }}
             opcoes={Object.entries(rotuloTipoRecorrencia) as [string, string][]} />
         )}
         <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: Conta de luz" value={descricao}
@@ -565,6 +572,10 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
         {(tipo === 'expense' || tipo === 'card') && (
           <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
             onChange={(value) => { pessoaEscolhidaManualmente.current = true; setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
+        )}
+        {naturezasDoTipo(tipo).length > 0 && (
+          <Selecao rotulo="Natureza" valor={natureza} aoMudar={(v) => setNatureza(v as NaturezaRecorrencia | '')} todos="Sem classificação"
+            opcoes={naturezasDoTipo(tipo).map((n) => [n, rotuloNatureza[n]])} />
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando
