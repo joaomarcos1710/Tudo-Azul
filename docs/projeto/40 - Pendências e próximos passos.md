@@ -646,4 +646,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
-
+- [x] **Parcelas (etapa 2, #310, migration 111):** enviar a parcela para a fatura anterior ou próxima, uma por vez, só ainda não cobrada, fatura paga travada. Com teste no banco e na tela.
+- [ ] **Aplicar a migration 111** em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono. Ordem: 109, 110, 111; depende da 110. A #310 está empilhada sobre a #306: mudar a base para `main` quando a #306 entrar.
+- [ ] atalho: mover parcela não deixa histórico (quem, quando, de qual fatura). Criar uma tabela de movimentos como a de edição de valor se o dono quiser auditar.
+- [ ] Parcela com estorno ou cancelamento parcial não muda de fatura (recusada); liberar se o dono pedir.
+- [ ] Destino só a fatura vizinha (anterior ou próxima), repetindo para ir mais longe. Escolher qualquer fatura aberta ou futura de uma vez, se o dono quiser.
+- [ ] Não conferido: a cobrança no fechamento da fatura nova (`card_bill_due` só cobra até hoje; o teste não viaja no tempo) e a suíte completa de banco no CI.

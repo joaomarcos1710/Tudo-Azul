@@ -300,3 +300,4 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
+- **#310** (aberta em 12/11/2026, PR empilhada sobre a #306; data do merge a preencher pelo histórico do `main`): Cartão: enviar uma parcela para a fatura anterior ou para a próxima (migration 111, ainda não aplicada).
