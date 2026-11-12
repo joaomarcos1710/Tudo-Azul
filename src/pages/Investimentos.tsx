@@ -29,7 +29,7 @@ import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
 import { COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../components/graficos/cores'
 import {
-  CATEGORIAS_NOVO_ATIVO, CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, criarAtivoInvestimento, definirInstituicaoAtivo, definirLiquidezAtivo, definirSubclasseAtivo, listarAportesInvestimentos, listarInstituicoesInvestimentos, listarLiquidezInvestimentos, listarTotalProventos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
+  CATEGORIAS_NOVO_ATIVO, CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, codigoDaBolsa, criarAtivoInvestimento, definirCotacaoBolsaAtivo, definirInstituicaoAtivo, definirLiquidezAtivo, definirSubclasseAtivo, listarAportesInvestimentos, listarInstituicoesInvestimentos, listarLiquidezInvestimentos, listarTotalProventos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
   reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarAvaliacaoTotal, registrarProventoInvestimento,
 } from '../lib/investimentos'
@@ -173,8 +173,8 @@ export default function Investimentos() {
   const familiaId = familia?.id ?? ''
   if (!familiaId) return null
 
-  async function salvarAtivo(d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string; liquidez: Liquidez; instituicao: string }) {
-    const { subclasse, liquidez: liq, instituicao, ...ativo } = d
+  async function salvarAtivo(d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string; liquidez: Liquidez; instituicao: string; cotacaoBolsa: boolean }) {
+    const { subclasse, liquidez: liq, instituicao, cotacaoBolsa, ...ativo } = d
     // se criar falhar, o erro sobe para a folha, que fica aberta; depois de criado, os avisos vão para a página
     const id = await criarAtivoInvestimento({ familiaId, ...ativo })
     setNovoAtivo(false)
@@ -189,6 +189,12 @@ export default function Investimentos() {
       if (instituicao.trim()) {
         try { await definirInstituicaoAtivo(id, instituicao) } catch (e) {
           avisos.push(`Ativo cadastrado, mas a instituição não foi salva: ${mensagemErroBanco(e)}`)
+        }
+      }
+      // o ativo nasce sem a cotação da bolsa; ligar é uma chamada própria (o banco confere se o ativo pode)
+      if (cotacaoBolsa) {
+        try { await definirCotacaoBolsaAtivo(id, true) } catch (e) {
+          avisos.push(`Ativo cadastrado, mas sem acompanhar a cotação da bolsa: ${mensagemErroBanco(e)}`)
         }
       }
       // o ativo nasce líquido no banco; só o restrito precisa da segunda chamada
@@ -216,8 +222,8 @@ export default function Investimentos() {
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
   // o erro sobe para o formulário (que fica aberto e o mostra perto dos campos, não no topo da página)
-  async function salvarEdicaoAtivo(d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo; instituicao: string }) {
-    const { instituicao, ...dados } = d
+  async function salvarEdicaoAtivo(d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo; instituicao: string; cotacaoBolsa: boolean | null }) {
+    const { instituicao, cotacaoBolsa, ...dados } = d
     await editarAtivoInvestimento(dados)
     // a instituição é uma segunda chamada, só quando mudou. Se ela falhar, nome, código e classe já foram gravados:
     // o formulário fecha, a lista recarrega e o aviso diz o que ficou de fora (não "falhou", que seria mentira)
@@ -225,6 +231,12 @@ export default function Investimentos() {
     if (instituicao.trim() !== (editandoAtivo?.instituicao ?? '')) {
       try { await definirInstituicaoAtivo(d.ativoId, instituicao) } catch (e) {
         aviso = `Ativo atualizado, mas a instituição não foi salva: ${mensagemErroBanco(e)}`
+      }
+    }
+    // a cotação da bolsa também é uma chamada própria, só quando a escolha mudou (null = a opção não estava na tela)
+    if (cotacaoBolsa !== null && cotacaoBolsa !== (editandoAtivo?.cotacaoBolsa ?? false)) {
+      try { await definirCotacaoBolsaAtivo(d.ativoId, cotacaoBolsa) } catch (e) {
+        aviso = `${aviso ? `${aviso} ` : ''}Ativo atualizado, mas a escolha da cotação da bolsa não foi salva: ${mensagemErroBanco(e)}`
       }
     }
     setEditandoAtivo(null)
@@ -280,6 +292,9 @@ export default function Investimentos() {
   // subclasses das posições à vista (da classe escolhida, ou de todas), para os chips de subclasse
   const subclassesDaLista = [...new Set(posicoes.filter((p) => !filtroMacro || macroDaClasse(p.classe) === filtroMacro)
     .map((p) => porId.get(p.assetId)?.subclasse).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  // banco ainda sem a migration 109: a coluna não veio em nenhum ativo. Sem nenhum ativo não dá para saber: a opção
+  // aparece e, se o banco não a conhecer, o cadastro avisa que ficou sem ela
+  const bancoTemCotacao = !ativos.some((a) => a.cotacaoBolsa === null)
   const instituicoesExistentes = [...new Set(ativos.map((a) => a.instituicao).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const proventoDoMesPorAtivo = new Map(proventosMes.map((x) => [x.assetId, x.recebido]))
   const proventosBRL = totalProventosMes === null ? null : totalProventosMes.find((t) => t.moeda === 'BRL') ?? null
@@ -308,7 +323,7 @@ export default function Investimentos() {
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       <NotaCarteira />
 
-      {novoAtivo && <FormAtivo instituicoes={bancoTemInstituicao ? instituicoesExistentes : null} aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
+      {novoAtivo && <FormAtivo instituicoes={bancoTemInstituicao ? instituicoesExistentes : null} bancoTemCotacao={bancoTemCotacao} aoSalvar={salvarAtivo} aoCancelar={() => setNovoAtivo(false)} />}
       {novaOperacao && (
         <FormOperacao ativos={ativosAtivos} contas={contasAtivas} tipoInicial={novaOperacao === 'sell' ? 'sell' : 'buy'} ativoInicial={ativoDaLinha} aoSalvar={salvarOperacao} aoCancelar={() => setNovaOperacao(false)} />
       )}
@@ -744,21 +759,25 @@ function FormEditarAtivo({ ativo, instituicoes, aoSalvar, aoCancelar }: {
   ativo: AtivoInvestimento
   /** instituições já usadas em outros ativos, para sugerir a mesma grafia; null = banco sem a migration 106: o campo não aparece */
   instituicoes: string[] | null
-  aoSalvar: (d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo; instituicao: string }) => Promise<void>
+  aoSalvar: (d: { ativoId: string; nome: string; ticker: string; classe: ClasseAtivo; instituicao: string; cotacaoBolsa: boolean | null }) => Promise<void>
   aoCancelar: () => void
 }) {
   const [instituicao, setInstituicao] = useState(ativo.instituicao ?? '')
+  const [cotacaoBolsa, setCotacaoBolsa] = useState(ativo.cotacaoBolsa === true)
   const lista = `sugestoes-instituicao-${ativo.id}`
   const [nome, setNome] = useState(ativo.nome)
   const [ticker, setTicker] = useState(ativo.ticker ?? '')
   const [classe, setClasse] = useState<ClasseAtivo>(ativo.classe)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
+  // null no ativo = banco sem a migration 109: a opção não aparece
+  const podeBolsa = ativo.cotacaoBolsa !== null && codigoDaBolsa(ticker, classe, ativo.moeda) !== null
   async function enviar(e: FormEvent) {
     e.preventDefault()
     if (!nome.trim()) { setErro('Informe o nome do ativo.'); return }
     setErro(''); setEnviando(true)
-    try { await aoSalvar({ ativoId: ativo.id, nome, ticker, classe, instituicao }) }
+    // só manda a escolha quando a opção estava na tela; código que deixou de ser da bolsa não desliga nada sozinho
+    try { await aoSalvar({ ativoId: ativo.id, nome, ticker, classe, instituicao, cotacaoBolsa: podeBolsa ? cotacaoBolsa : null }) }
     catch (err) { setErro(mensagemErroBanco(err)) }
     finally { setEnviando(false) }
   }
@@ -774,6 +793,7 @@ function FormEditarAtivo({ ativo, instituicoes, aoSalvar, aoCancelar }: {
           <Field rotulo="Instituição (opcional; vazio limpa)" value={instituicao} onChange={(e) => setInstituicao(e.target.value)} maxLength={40} list={lista} />
           <datalist id={lista}>{instituicoes.map((x) => <option key={x} value={x} />)}</datalist>
         </>}
+        {podeBolsa && <OpcaoCotacaoBolsa marcada={cotacaoBolsa} aoMudar={setCotacaoBolsa} className="md:col-span-2" />}
         <p className="self-end text-sm text-slate-600">Moeda: <strong>{ativo.moeda}</strong> (não muda: as operações já estão nela).</p>
         <p className="text-sm text-slate-600 md:col-span-2">Mudar a classe só muda em qual grupo o ativo aparece na alocação; nenhum valor é alterado.</p>
         <div className="flex gap-2 md:col-span-2"><Button type="submit" carregando={enviando}>Salvar</Button><Button variante="secundario" onClick={aoCancelar}>Cancelar</Button></div>
@@ -831,6 +851,19 @@ function GraficoHistorico({ moedaCodigo, pontos }: { moedaCodigo: MoedaInvestime
   </Card>
 }
 
+/** A escolha de acompanhar a cotação da bolsa (migration 109). Só aparece em ativo que pode: quem chama confere. */
+function OpcaoCotacaoBolsa({ marcada, aoMudar, className = '' }: { marcada: boolean; aoMudar: (v: boolean) => void; className?: string }) {
+  return (
+    <label className={`flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4 text-sm text-slate-700 ${className}`}>
+      <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={marcada} onChange={(e) => aoMudar(e.target.checked)} />
+      <span>
+        <span className="font-semibold text-marinho">Acompanhar a cotação da bolsa</span>
+        <span className="block text-slate-600">O valor passa a seguir o preço da B3, buscado todo dia útil (fonte: brapi). Lance sempre a quantidade de cotas e o preço; "só o valor" deixa de valer neste ativo.</span>
+      </span>
+    </label>
+  )
+}
+
 function LinhaFolha({ id, rotulo, children }: { id: string; rotulo: string; children: ReactNode }) {
   return (
     <div className={LINHA_FOLHA}>
@@ -848,12 +881,16 @@ function PeFolha({ idForm, rotulo, enviando, aoCancelar }: { idForm: string; rot
   </>
 }
 
-function FormAtivo({ instituicoes, aoSalvar, aoCancelar }: {
+function FormAtivo({ instituicoes, bancoTemCotacao, aoSalvar, aoCancelar }: {
   /** instituições já usadas em outros ativos, para sugerir a mesma grafia; null = banco sem a migration 106: o campo não aparece */
   instituicoes: string[] | null
-  aoSalvar: (d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string; liquidez: Liquidez; instituicao: string }) => Promise<void>
+  /** false = banco sem a migration 109: a opção de acompanhar a bolsa não aparece */
+  bancoTemCotacao: boolean
+  aoSalvar: (d: { nome: string; ticker: string; classe: ClasseAtivo; moeda: MoedaInvestimento; subclasse: string; liquidez: Liquidez; instituicao: string; cotacaoBolsa: boolean }) => Promise<void>
   aoCancelar: () => void
 }) {
+  // ligada por padrão: ativo novo não tem lançamento, então a quantidade ainda vai ser digitada em cotas
+  const [cotacaoBolsa, setCotacaoBolsa] = useState(true)
   const [subclasse, setSubclasse] = useState('')
   const [instituicao, setInstituicao] = useState('')
   const [liquidez, setLiquidez] = useState<Liquidez>('liquid')
@@ -876,13 +913,14 @@ function FormAtivo({ instituicoes, aoSalvar, aoCancelar }: {
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
   const id = useId()
+  const podeBolsa = bancoTemCotacao && codigoDaBolsa(ticker, classe, moedaAtivo) !== null
   async function enviar(e: FormEvent) {
     e.preventDefault()
     if (!nome.trim()) { setErro('Informe o nome do ativo.'); return }
     if (!classe) { setErro('Escolha a categoria do ativo (ex.: Ativos Brasil para ação e FII, CDB/LCI/LCA/LC/RDB para renda fixa de banco).'); return }
     setEnviando(true); setErro('')
     // o erro do banco aparece aqui dentro: a folha cobre o aviso do topo da página
-    try { await aoSalvar({ nome, ticker, classe, moeda: moedaAtivo, subclasse, liquidez, instituicao }) }
+    try { await aoSalvar({ nome, ticker, classe, moeda: moedaAtivo, subclasse, liquidez, instituicao, cotacaoBolsa: podeBolsa && cotacaoBolsa }) }
     catch (e2) { setErro(mensagemErroBanco(e2)) }
     finally { setEnviando(false) }
   }
@@ -933,6 +971,7 @@ function FormAtivo({ instituicoes, aoSalvar, aoCancelar }: {
             </LinhaFolha>
           )}
         </div>
+        {podeBolsa && <OpcaoCotacaoBolsa marcada={cotacaoBolsa} aoMudar={setCotacaoBolsa} />}
         <datalist id={`${id}-instituicoes`}>{(instituicoes ?? []).map((x) => <option key={x} value={x} />)}</datalist>
         <datalist id={`${id}-sugestoes`}>{(classe ? SUGESTOES_SUBCLASSE[classe] : []).map((x) => <option key={x} value={x} />)}</datalist>
         <p className="text-sm text-slate-600">Sem ticker (cofrinho, CDB, previdência, reserva), tudo é lançado só pelo valor em reais. Para lançar por quantidade e preço (ação, FII, fundo com cotas), informe o ticker ou um código.</p>
