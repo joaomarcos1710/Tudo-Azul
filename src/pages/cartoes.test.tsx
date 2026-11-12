@@ -748,7 +748,7 @@ describe('Cartões', () => {
     const aba = await screen.findByRole('link', { name: /^Fatura de abril de 2099/ })
     expect(aba.textContent).toBe('Abril de 2099R$ 180,00Aberta')
     await u.click(await botaoVerFatura())
-    // na página da fatura: "Gasto do mês" do resumo e o selo do cabeçalho
+    // na página da fatura: "Fatura atual" do resumo e o selo do cabeçalho
     expect((await screen.findAllByText('R$ 180,00')).length).toBe(1)
     expect(await screen.findByText('2/3')).toBeTruthy()
     expect(screen.getAllByText('Aberta').length).toBe(1)
@@ -857,13 +857,21 @@ describe('Cartões', () => {
       expect(await screen.findByText(/foi para a fatura de março de 2099\./)).toBeTruthy()
     })
 
-    it('na fatura aberta de hoje não há "anterior" (a anterior já fechou), só a próxima', async () => {
+    it('na fatura aberta de hoje o "anterior" continua no menu, desabilitado e com o motivo (a anterior já fechou); a próxima segue valendo', async () => {
       fixarHoje('2099-04-10') // o cartão fecha dia 17: a fatura aberta é a de abril de 2099
       const u = userEvent.setup()
       await montarFatura(u, {})
       const menu = await abrirMenu(u)
-      expect(within(menu).queryByRole('menuitem', { name: 'Enviar para a fatura anterior' })).toBeNull()
-      expect(within(menu).getByRole('menuitem', { name: 'Enviar para a próxima fatura' })).toBeTruthy()
+      const anterior = within(menu).getByRole('menuitem', { name: 'Enviar para a fatura anterior' }) as HTMLButtonElement
+      expect(anterior.disabled).toBe(true)
+      expect(anterior.textContent).toContain('a fatura anterior já fechou') // motivo visível, não só um botão apagado
+      expect(anterior.getAttribute('aria-describedby')).toBeTruthy()
+      expect(document.getElementById(anterior.getAttribute('aria-describedby')!)!.textContent).toBe('a fatura anterior já fechou')
+      await u.click(anterior)
+      expect(mock.moverParcelaDeFatura).not.toHaveBeenCalled() // desabilitado não chama o banco
+      const proxima = within(menu).getByRole('menuitem', { name: 'Enviar para a próxima fatura' }) as HTMLButtonElement
+      expect(proxima.disabled).toBe(false)
+      expect(proxima.textContent).toBe('Enviar para a próxima fatura') // sem motivo quando pode
     })
 
     it('a segunda fatura aberta já pode mandar para a anterior (a aberta de hoje)', async () => {
@@ -881,11 +889,15 @@ describe('Cartões', () => {
       expect(within(menu).getByRole('menuitem', { name: 'Estornar' })).toBeTruthy() // o resto do menu segue
     })
 
-    it('fatura fechada (a pagar) não oferece o envio, mesmo com valor a cobrar', async () => {
+    it('fatura fechada (a pagar) mostra os dois envios desabilitados, cada um com o seu motivo, mesmo com valor a cobrar', async () => {
       const u = userEvent.setup()
       await montarFatura(u, { mes: '2026-03', fechamento: '2026-03-17', cobrado: c(0), aCobrar: c(10000), total: c(10000), pago: c(0) })
       const menu = await abrirMenu(u)
-      expect(within(menu).queryByRole('menuitem', { name: /^Enviar para/ })).toBeNull()
+      const anterior = within(menu).getByRole('menuitem', { name: 'Enviar para a fatura anterior' }) as HTMLButtonElement
+      const proxima = within(menu).getByRole('menuitem', { name: 'Enviar para a próxima fatura' }) as HTMLButtonElement
+      expect([anterior.disabled, proxima.disabled]).toEqual([true, true])
+      expect(anterior.textContent).toContain('a fatura anterior já fechou')
+      expect(proxima.textContent).toContain('esta fatura já fechou')
     })
 
     it('fatura paga (travada): o menu da linha só traz "Mudar de quem foi a despesa" (nada de dinheiro: sem enviar, estornar, editar nem excluir)', async () => {
@@ -898,10 +910,15 @@ describe('Cartões', () => {
       expect(screen.queryByRole('menuitem', { name: /^Enviar para/ })).toBeNull()
     })
 
-    it('cartão sem dias de fechamento não oferece o envio', async () => {
+    it('cartão sem dias de fechamento: os dois envios aparecem desabilitados, com o motivo', async () => {
       const u = userEvent.setup()
       await montarFatura(u, {}, item, { ...nubank, fechamento: null, vencimento: null })
-      expect(within(await abrirMenu(u)).queryByRole('menuitem', { name: /^Enviar para/ })).toBeNull()
+      const menu = await abrirMenu(u)
+      for (const nome of ['Enviar para a fatura anterior', 'Enviar para a próxima fatura']) {
+        const m = within(menu).getByRole('menuitem', { name: nome }) as HTMLButtonElement
+        expect(m.disabled).toBe(true)
+        expect(m.textContent).toContain('o cartão não tem dias de fechamento')
+      }
     })
 
     it('a recusa do banco aparece na fatura, sem mensagem de sucesso, e a lista continua lá', async () => {
@@ -915,6 +932,181 @@ describe('Cartões', () => {
       expect(mock.listarFaturas.mock.calls.length).toBe(antes) // não recarrega: nada mudou
       expect(screen.getByText('2/3')).toBeTruthy() // a parcela continua na lista
       expect(screen.getByRole('button', { name: 'Ações de TV' }).hasAttribute('disabled')).toBe(false) // o menu volta a funcionar
+    })
+  })
+
+  // ---- Fatura: "Fatura atual" no resumo e a linha da compra clicável (folha "Editar compra", pedido do dono de 12/11/2026) ----
+  describe('resumo "Fatura atual" e folha "Editar compra"', () => {
+    const linhaDaTV = () => screen.getByTestId('compra-fatura')
+    const alvoDaLinha = (nome = 'Editar a compra TV') => screen.getByRole('button', { name: nome })
+
+    it('o resumo da fatura chama o total dela de "Fatura atual" (não mais "Gasto do mês"), com o mesmo valor, e o rótulo não se repete na tela', async () => {
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      const resumo = screen.getByLabelText('Resumo da fatura')
+      const dd = within(resumo).getByText('Fatura atual').nextElementSibling as HTMLElement
+      expect(dd.textContent?.replace(/ /g, ' ')).toBe('R$ 100,00') // card_months.total, o mesmo da fatura
+      expect(within(resumo).queryByText('Gasto do mês')).toBeNull()
+      expect(screen.queryByText('Gasto do mês')).toBeNull()
+      expect(screen.getAllByText('Fatura atual')).toHaveLength(1) // não duplica o rótulo na página da fatura
+    })
+
+    it('a linha da compra é um alvo único (role=button, no teclado), com destaque azul-claro no hover e quando o foco está nela', async () => {
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      const alvo = alvoDaLinha()
+      expect(alvo.getAttribute('tabindex')).toBe('0')
+      expect(alvo.querySelector('button, a, [role="button"]')).toBeNull() // nada interativo dentro do alvo
+      const linha = linhaDaTV().querySelector('[data-linha-clicavel]') as HTMLElement
+      expect(linha.className.split(' ')).toEqual(expect.arrayContaining(['hover:bg-azul-claro', 'focus-within:bg-azul-claro']))
+      expect(alvo.parentElement).toBe(linha) // o ⋯ é irmão do alvo, não filho
+      expect(within(linha).getByRole('button', { name: 'Ações de TV' }).closest('[role="button"][tabindex="0"]')).toBeNull()
+    })
+
+    it('clicar na linha abre a folha "Editar compra" com os dados da compra (somente leitura) e as ações', async () => {
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()
+      await u.click(alvoDaLinha())
+      const folha = screen.getByRole('dialog', { name: 'Editar compra' })
+      const dados = within(within(folha).getByLabelText('Dados da compra'))
+      const dado = (rotulo: string) => dados.getByText(rotulo).nextElementSibling?.textContent?.replace(/ /g, ' ')
+      expect(dado('Descrição')).toBe('TV')
+      expect(dado('Categoria')).toBe('Compras pessoais')
+      expect(dado('Valor')).toBe('R$ 100,00 (parcela 2/3)')
+      expect(dado('Data da compra')).toBe('15/03/2099')
+      expect(dado('Cartão')).toBe('Nubank')
+      expect(dado('Fatura')).toBe('Abril de 2099')
+      const acoes = within(within(folha).getByRole('list', { name: 'Ações da compra' })).getAllByRole('button').map((b) => b.textContent)
+      expect(acoes).toEqual(['Estornar', 'Editar valor', 'Enviar para a fatura anterior', 'Enviar para a próxima fatura', 'Mudar de quem foi a despesa', 'Excluir compra'])
+    })
+
+    it('Enter e Espaço na linha abrem a folha; o Esc e o × fecham e o foco volta à linha', async () => {
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      alvoDaLinha().focus()
+      await u.keyboard('{Enter}')
+      expect(screen.getByRole('dialog', { name: 'Editar compra' })).toBeTruthy()
+      await u.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()
+      expect(document.activeElement).toBe(alvoDaLinha())
+      await u.keyboard(' ')
+      expect(screen.getByRole('dialog', { name: 'Editar compra' })).toBeTruthy()
+      await u.click(screen.getByRole('button', { name: 'Fechar' }))
+      expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()
+      expect(document.activeElement).toBe(alvoDaLinha())
+    })
+
+    it('o ⋯ da linha (botão e itens) não abre a folha, e o menu continua com as mesmas ações', async () => {
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      await u.click(screen.getByRole('button', { name: 'Ações de TV' }))
+      expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()
+      expect(within(screen.getByRole('menu', { name: 'Ações de TV' })).getAllByRole('menuitem').map((m) => m.textContent)).toEqual([
+        'Estornar', 'Editar valor', 'Enviar para a fatura anterior', 'Enviar para a próxima fatura', 'Mudar de quem foi a despesa', 'Excluir compra',
+      ])
+      await u.click(screen.getByRole('menuitem', { name: 'Editar valor' }))
+      expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()
+      expect(screen.getByRole('form', { name: 'Editar parcela' })).toBeTruthy() // o painel de antes, no lugar de antes
+    })
+
+    it('com outro painel aberto (ex.: Editar valor pelo ⋯) a linha fica quieta, como o ⋯', async () => {
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      await acaoDaLinha(u, 'Ações de TV', 'Editar valor')
+      expect(screen.queryByRole('button', { name: 'Editar a compra TV' })).toBeNull()
+      expect(linhaDaTV().querySelector('[data-linha-clicavel]')).toBeNull()
+    })
+
+    it('na folha, "Editar valor" usa o mesmo painel e chama editarParcela com a parcela e o valor', async () => {
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      await u.click(alvoDaLinha())
+      await u.click(within(screen.getByRole('dialog', { name: 'Editar compra' })).getByRole('button', { name: 'Editar valor' }))
+      const campo = screen.getByLabelText('Valor da parcela (R$)')
+      await u.clear(campo)
+      await u.type(campo, '100,01')
+      await u.click(screen.getByRole('button', { name: 'Salvar valor' }))
+      expect(mock.editarParcela).toHaveBeenCalledWith('p1', 10001)
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()) // concluiu: fecha e recarrega
+    })
+
+    it('na folha, "Enviar para a próxima fatura" chama moverParcelaDeFatura(parcela, next), fecha a folha e avisa para onde foi', async () => {
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      await u.click(alvoDaLinha())
+      await u.click(within(screen.getByRole('dialog', { name: 'Editar compra' })).getByRole('button', { name: 'Enviar para a próxima fatura' }))
+      expect(mock.moverParcelaDeFatura).toHaveBeenCalledWith('p1', 'next')
+      expect(await screen.findByText(/"TV" \(parcela 2\/3\) foi para a fatura de maio de 2099\./)).toBeTruthy()
+      expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()
+    })
+
+    it('na folha, "Mudar de quem foi a despesa", "Estornar" e "Excluir compra" abrem os mesmos painéis e chamam as mesmas funções', async () => {
+      const u = userEvent.setup()
+      mock.previaExclusao.mockResolvedValue([{ tipo: 'cancel', data: '2099-05-17', valor: c(20000), contaId: null, fatura: null }])
+      await abrirFatura(u)
+      // pessoa
+      await u.click(alvoDaLinha())
+      await u.click(within(screen.getByRole('dialog', { name: 'Editar compra' })).getByRole('button', { name: 'Mudar de quem foi a despesa' }))
+      await u.selectOptions(screen.getByLabelText('Despesa de quem?'), 'pe2')
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      expect(mock.trocarPessoaDaCompra).toHaveBeenCalledWith('k1', 'x', { personId: 'pe2', isSharedExpense: false })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull())
+      // estorno
+      await u.click(alvoDaLinha())
+      await u.click(within(screen.getByRole('dialog', { name: 'Editar compra' })).getByRole('button', { name: 'Estornar' }))
+      await u.type(screen.getByLabelText('Valor do estorno (R$)'), '40,00')
+      await u.click(screen.getByRole('button', { name: 'Estornar' }))
+      expect(mock.estornarParcela).toHaveBeenCalledWith('p1', expect.objectContaining({ valor: 4000 }))
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull())
+      // exclusão: prévia primeiro, só exclui ao confirmar
+      await u.click(alvoDaLinha())
+      await u.click(within(screen.getByRole('dialog', { name: 'Editar compra' })).getByRole('button', { name: 'Excluir compra' }))
+      expect(await screen.findByText(/Parcelas ainda não cobradas serão canceladas/)).toBeTruthy()
+      expect(mock.excluirCompra).not.toHaveBeenCalled()
+      await u.click(within(screen.getByRole('group', { name: 'Excluir compra' })).getByRole('button', { name: 'Excluir compra' }))
+      expect(mock.excluirCompra).toHaveBeenCalledWith('k1', 'x')
+    })
+
+    it('na folha, o envio para a fatura anterior aparece desabilitado com o motivo quando a anterior já fechou, e não chama o banco', async () => {
+      fixarHoje('2099-04-10')
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      await u.click(alvoDaLinha())
+      const folha = within(screen.getByRole('dialog', { name: 'Editar compra' }))
+      const anterior = folha.getByRole('button', { name: 'Enviar para a fatura anterior' }) as HTMLButtonElement
+      expect(anterior.disabled).toBe(true)
+      expect(anterior.textContent).toContain('a fatura anterior já fechou')
+      await u.click(anterior)
+      expect(mock.moverParcelaDeFatura).not.toHaveBeenCalled()
+      expect((folha.getByRole('button', { name: 'Enviar para a próxima fatura' }) as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    it('fatura paga e travada: a linha abre a folha só para consulta e "Mudar de quem foi a despesa" (sem editar, enviar, estornar nem excluir)', async () => {
+      const u = userEvent.setup()
+      fixarHoje('2026-11-05')
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), aCobrar: c(0), total: c(10000), pago: c(10000), faturaId: 'f3' })])
+      mock.listarItens.mockResolvedValue([{ ...item, falta: c(0) }])
+      montar()
+      await u.click(await screen.findByRole('link', { name: /^Fatura de março/ }))
+      await u.click(await screen.findByRole('button', { name: 'Ver a compra TV' }))
+      const folha = screen.getByRole('dialog', { name: 'Detalhes da compra' })
+      expect(within(folha).getByLabelText('Dados da compra').textContent).toContain('TV')
+      expect(within(within(folha).getByRole('list', { name: 'Ações da compra' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Mudar de quem foi a despesa'])
+      await u.click(within(folha).getByRole('button', { name: 'Mudar de quem foi a despesa' }))
+      await u.selectOptions(screen.getByLabelText('Despesa de quem?'), 'shared')
+      await u.click(screen.getByRole('button', { name: 'Salvar' }))
+      expect(mock.trocarPessoaDaCompra).toHaveBeenCalledWith('k1', 'x', { personId: null, isSharedExpense: true })
+      expect(mock.editarParcela).not.toHaveBeenCalled()
+    })
+
+    it('crédito e assinatura prevista não ganham a linha clicável (só as compras)', async () => {
+      const u = userEvent.setup()
+      mock.listarCreditosDaFatura.mockResolvedValue([{ id: 'cr1', descricao: 'Cashback', dataCredito: '2099-04-03', fechamento: '2099-04-17', valor: c(1000), categoriaId: 'g2' }])
+      await abrirFatura(u)
+      await screen.findByText('Cashback')
+      expect(screen.getAllByRole('button', { name: /^Editar a compra / })).toHaveLength(1)
+      expect(screen.getByTestId('credito-fatura').querySelector('[data-linha-clicavel]')).toBeNull()
     })
   })
 
@@ -1773,7 +1965,7 @@ describe('Fatura paga travada (migration 064)', () => {
     expect(mock.listarPagamentosDaFatura).toHaveBeenCalledWith('k1', 'f9')
   })
 
-  it('fatura com 2 pagamentos mostra as 2 linhas com as datas; resumo com saldo anterior, gasto do mês e valor pago do banco', async () => {
+  it('fatura com 2 pagamentos mostra as 2 linhas com as datas; resumo com saldo anterior, fatura atual e valor pago do banco', async () => {
     const u = userEvent.setup()
     await abrirSetembro(u)
     const lista = screen.getByRole('list', { name: 'Pagamentos da fatura' })
@@ -1782,7 +1974,7 @@ describe('Fatura paga travada (migration 064)', () => {
     const resumo = screen.getByLabelText('Resumo da fatura')
     const valor = (rotulo: string) => within(resumo).getByText(rotulo).nextElementSibling?.textContent?.replace(/\u00a0/g, ' ')
     expect(valor('Saldo anterior')).toBe('R$ 15,00')
-    expect(valor('Gasto do mês')).toBe('R$ 300,00')
+    expect(valor('Fatura atual')).toBe('R$ 300,00')
     expect(valor('Valor pago')).toBe('R$ 300,00')
   })
 
@@ -1907,12 +2099,12 @@ describe('Fatura paga travada (migration 064)', () => {
     expect(parcela.parentElement!.className).toContain('text-xs')
   })
 
-  it('#183: no resumo da fatura (saldo anterior, gasto do mês, valor pago) os valores não quebram e empilham quando falta espaço', async () => {
+  it('#183: no resumo da fatura (saldo anterior, fatura atual, valor pago) os valores não quebram e empilham quando falta espaço', async () => {
     const u = userEvent.setup()
     await abrirSetembro(u)
     const resumo = screen.getByLabelText('Resumo da fatura')
     expect(resumo.className.split(' ')).toEqual(expect.arrayContaining(['grid-cols-1', 'sm:grid-cols-3', 'md:grid-cols-1', 'xl:grid-cols-3']))
-    for (const rotulo of ['Saldo anterior', 'Gasto do mês', 'Valor pago']) {
+    for (const rotulo of ['Saldo anterior', 'Fatura atual', 'Valor pago']) {
       const dd = within(resumo).getByText(rotulo).nextElementSibling as HTMLElement
       expect(dd.className.split(' ')).toEqual(expect.arrayContaining(['whitespace-nowrap', 'tabular-nums']))
     }
