@@ -295,6 +295,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#302** (11/11/2026): Cotação PTAX do Banco Central e "≈ R$" ao lado do dólar e do euro (migration 108, aplicada no mesmo dia).
 - **#303** (11/11/2026): Diário: migration 108 aplicada e primeira busca PTAX conferida (só documentação).
 - **#304** (aberta em 11/11/2026; data do merge a preencher pelo histórico do `main`): Diário: pendências em dia, migrations 100 a 108 conferidas como aplicadas e o que segue aberto (só documentação).
+- **#308** (aberta em 12/11/2026, rascunho; data do merge a preencher pelo histórico do `main`): Investimentos, etapa 1 de 5 do redesenho visual (pedido do dono, 12/11/2026): valor atual da carteira em destaque, Aportado/Rendimento/Proventos como indicadores menores, cabeçalho com uma ação principal e aviso compacto e expansível. Só front.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

@@ -630,3 +630,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
 
+
+## Redesenho visual de Investimentos (12/11/2026, 5 etapas)
+- [x] Etapa 1 (#308): resumo patrimonial e cabeçalho.
+- [ ] Etapas 2 a 5 (a combinar com o dono, uma PR cada).
+- [ ] "Investir" (no resumo) e "Registrar operação" (no cabeçalho) abrem a mesma folha e são dois botões azuis cheios; decidir na etapa seguinte qual fica.
+- [ ] Conferir em 390 px e 1280 px com dados reais depois do deploy (a conferência da #308 foi com dados falsos e sem o menu lateral).
