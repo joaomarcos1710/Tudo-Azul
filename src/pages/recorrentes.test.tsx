@@ -574,3 +574,97 @@ describe('Recorrentes', () => {
     })
   })
 })
+
+describe('Recorrentes: natureza', () => {
+  const opcoesDe = (rotulo: string) => Array.from((screen.getByLabelText(rotulo) as HTMLSelectElement).options).map((o) => o.textContent)
+  const TRES = ['Sem classificação', 'Custo fixo', 'Assinatura ou app', 'Gasto variável']
+
+  it('despesa: seletor "Natureza" com "Sem classificação" e as três naturezas; sem escolha, grava nature null', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+    expect(opcoesDe('Natureza')).toEqual(TRES)
+    expect((screen.getByLabelText('Natureza') as HTMLSelectElement).value).toBe('')
+    await u.type(screen.getByLabelText('Descrição'), 'Luz')
+    await u.type(screen.getByLabelText('Valor estimado (R$)'), '180,00')
+    await u.selectOptions(screen.getByLabelText('Dia do mês'), '10')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
+    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', nature: null }))
+  })
+
+  it('cadastra com a natureza escolhida', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+    await u.type(screen.getByLabelText('Descrição'), 'Aluguel')
+    await u.type(screen.getByLabelText('Valor estimado (R$)'), '1500,00')
+    await u.selectOptions(screen.getByLabelText('Dia do mês'), '5')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
+    await u.selectOptions(screen.getByLabelText('Natureza'), 'fixed')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
+    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', nature: 'fixed' }))
+  })
+
+  it('receita só oferece ressarcimento; assinatura de cartão oferece as três; transferência não tem o campo', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
+    expect(opcoesDe('Natureza')).toEqual(['Sem classificação', 'Ressarcimento a receber'])
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'card')
+    expect(opcoesDe('Natureza')).toEqual(TRES)
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'transfer')
+    expect(screen.queryByLabelText('Natureza')).toBeNull()
+  })
+
+  it('trocar o tipo limpa a natureza escolhida (não vaza ressarcimento para despesa)', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
+    await u.selectOptions(screen.getByLabelText('Natureza'), 'reimbursement')
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'expense')
+    expect((screen.getByLabelText('Natureza') as HTMLSelectElement).value).toBe('')
+    await u.type(screen.getByLabelText('Descrição'), 'Luz')
+    await u.type(screen.getByLabelText('Valor estimado (R$)'), '180,00')
+    await u.selectOptions(screen.getByLabelText('Dia do mês'), '10')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
+    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', nature: null }))
+  })
+
+  it('editar: mostra a natureza atual; trocar e limpar mandam o valor; não mexer não manda nature', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([{ ...luz, nature: 'fixed' as const }])
+    montar()
+    await acao(u, 'Luz', 'Editar')
+    expect((screen.getByLabelText('Natureza') as HTMLSelectElement).value).toBe('fixed')
+    await u.selectOptions(screen.getByLabelText('Natureza'), 'variable')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarRecorrencia).toHaveBeenLastCalledWith('r1', expect.objectContaining({ nature: 'variable' }))
+
+    await acao(u, 'Luz', 'Editar')
+    await u.selectOptions(screen.getByLabelText('Natureza'), '')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarRecorrencia).toHaveBeenLastCalledWith('r1', expect.objectContaining({ nature: null }))
+
+    await acao(u, 'Luz', 'Editar')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarRecorrencia.mock.lastCall![1]).not.toHaveProperty('nature')
+  })
+
+  it('a lista mostra o selo da natureza só nas regras classificadas', async () => {
+    mock.listarRecorrencias.mockResolvedValue([
+      { ...luz, nature: 'fixed' as const },
+      { ...luz, id: 'r2', descricao: 'Streaming', nature: 'subscription' as const },
+      { ...luz, id: 'r3', descricao: 'Mercado', nature: null },
+      { ...luz, id: 'r4', descricao: 'Água' },
+    ])
+    montar()
+    await screen.findByText('Luz')
+    const selos = screen.getAllByTestId('selo-natureza').map((s) => s.textContent)
+    expect(selos).toEqual(expect.arrayContaining(['Custo fixo', 'Assinatura ou app']))
+    expect(selos).toHaveLength(2)
+  })
+})
