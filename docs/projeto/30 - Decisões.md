@@ -663,9 +663,21 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Sem confirmação na tela:** não cria lançamento e dá para mandar de volta. A tela avisa para onde a parcela foi.
 - **A parcela leva os dias de fechamento e vencimento do mês de destino**, para o vencimento da fatura sair certo depois de uma troca de dias do cartão.
 
+## 12/11/2026 — Recorrentes: campo de natureza próprio (dono, #314)
+- **Decisão do dono:** a natureza (custo fixo, assinatura ou app, gasto variável, ressarcimento a receber) é um **campo escolhido por ele**, não derivado do tipo, da categoria ou do cartão. Motivo: derivar erra (um aluguel pago no cartão não é assinatura; categoria não diz se o gasto é fixo ou variável) e o dono quer o agrupamento preciso. Esta PR é só o campo e a classificação; abas e totais por natureza são outra PR.
+- **Consistência mínima no banco:** receita só 'reimbursement'; despesa e cartão só fixed, subscription ou variable; transferência nenhuma. Motivo: "ressarcimento a receber" só faz sentido como receita, e um custo fixo em receita ou em transferência sujaria o agrupamento futuro. O check é o último recurso; a RPC dá a mensagem (22023 valor desconhecido, 55000 incompatível com o tipo).
+- **Funções novas em vez de mudar as classified:** criar e atualizar com natureza são `recurrence_create_with_nature` e `recurrence_update_with_nature` (chamam as existentes e `recurrence_set_nature` na mesma transação). Motivo: acrescentar um parâmetro com default a `recurrence_create_classified` criaria um segundo overload com a mesma lista de nomes, e a chamada por nome do PostgREST ficaria ambígua; dropar e recriar muda a assinatura que clientes antigos usam. Função nova não quebra nada e se desfaz soltando as três funções. O front só chama as novas quando há natureza a gravar; sem natureza o caminho é o de antes (funciona mesmo em banco sem a migration) e, com natureza escolhida em banco sem a função, o erro aparece em vez de descartar a escolha.
+- **Preenchimento do existente:** só o tipo `card` vira 'subscription' (no app esse tipo se chama "Assinatura no cartão"); o resto fica sem classificação. Motivo: o dono escolhe, e adivinhar despesa em conta como fixa ou variável seria inventar dado.
+
 ## 12/11/2026 — Composição da carteira: seletor só com as moedas que têm posição (dono, #312, etapa 2)
 - **Decisão:** o seletor de moeda lista só BRL, EUR e USD com posição (em vez de todas com estado vazio) e some quando há uma moeda só. Motivo: aba vazia convida ao clique sem nada para mostrar, e o resumo logo acima já mostra só as moedas que existem.
 - **Previdência grande na barra:** a visão Liquidez (que já existia) fica a um clique da Classe, com um atalho; nenhum cálculo novo. Mostrar a classe do que é líquido exigiria um número novo do banco: fica em Pendências.
+## 12/11/2026 — Parcelas ativas em Recorrentes (dono, #316)
+- **Uma função de leitura nova** (`active_installment_plans`) em vez de montar no front: nenhuma RPC entregava n de N, % pago, saldo restante nem status do mês por parcelamento, e o front não soma dinheiro. O que já existia (`card_months_as_of`) é reaproveitado para a fatura.
+- **Paga no cartão é por fatura** (fechada e paga), não por parcela: o banco não registra pagamento por parcela. **Parcela do mês pelo vencimento da fatura**, como no Entradas x Saídas (decisão de 05/11).
+- **Fora do bloco**: empréstimo, financiamento e consignado (têm a tela Dívidas), receita e transferência parceladas, assinatura de cartão. Parcela cancelada ou estornada inteira não conta no "n de N".
+- **Sem "carnê" como tipo**: o banco não distingue; parcelamento em conta cobre.
+- **"+ Novo parcelamento"** reaproveita os fluxos existentes (`?novo=cartao`), sem fluxo novo; a despesa parcelada em conta tem link próprio para Nova despesa.
 
 ## 12/11/2026 — Cartão: despesas por categoria de uma fatura (dono, #315)
 - **O que o banco já tinha:** total por categoria só por PERÍODO (`expenses_by_category*`); por fatura, só a lista de itens (`card_items`) e o total (`card_months`). Como o front não soma dinheiro de relatório, nasceu `card_invoice_categories`, que parte de `card_items` para ter a MESMA definição de parcela da fatura (líquida de cancelamento e estorno).

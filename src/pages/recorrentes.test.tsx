@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   listarContas: vi.fn(),
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
+  listarParcelasAtivas: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -25,6 +26,7 @@ vi.mock('../lib/recorrencias', async (o) => ({
   resumoRecorrencias: mock.resumoRecorrencias,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
+vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas }))
 vi.mock('../lib/projecaoCompromissos', () => ({ carregarProjecaoCompromissos: vi.fn().mockResolvedValue([]) }))
 vi.mock('../lib/cartoes', async (o) => ({ ...(await o<typeof import('../lib/cartoes')>()), listarCartoes: mock.listarCartoes }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
@@ -57,6 +59,7 @@ async function acao(u: ReturnType<typeof userEvent.setup>, item: string, nome: s
 }
 
 beforeEach(() => {
+  mock.listarParcelasAtivas.mockResolvedValue({ parcelamentos: [], totais: [] })
   mock.listarRecorrencias.mockResolvedValue([])
   mock.resumoRecorrencias.mockResolvedValue([])
   mock.listarContas.mockResolvedValue({
@@ -83,6 +86,33 @@ afterEach(() => {
 })
 
 describe('Recorrentes', () => {
+  it('mostra a seção "Parcelas ativas" com os parcelamentos do banco', async () => {
+    mock.listarParcelasAtivas.mockResolvedValue({
+      parcelamentos: [{
+        chave: 'card:k1:p1', origem: 'card', moeda: 'BRL', descricao: 'Geladeira', origemId: 'k1', origemNome: 'Nubank',
+        valorParcela: c(10000), parcelaAtual: 5, totalParcelas: 10, parcelasPagas: 4, percentualPago: 40,
+        total: c(100000), pago: c(40000), saldoRestante: c(60000), futuro: c(50000), situacaoMes: 'pending',
+        proximoVencimento: '2026-11-15', emAtraso: 0,
+      }],
+      totais: [{ moeda: 'BRL', qtde: 1, saldoRestante: c(60000), futuro: c(50000) }],
+    })
+    montar()
+    expect(await screen.findByRole('heading', { name: 'Parcelas ativas' })).toBeTruthy()
+    expect(await screen.findByText('Parcela 5 de 10')).toBeTruthy()
+  })
+
+  it('se as parcelas ativas falharem, só esse bloco avisa: os recorrentes continuam na tela', async () => {
+    mock.listarParcelasAtivas.mockRejectedValue({ code: '57014' })
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    mock.resumoRecorrencias.mockResolvedValue([
+      { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'expense', frequencia: null, qtde: 1, porOcorrencia: c(18000), porMes: c(18000) },
+    ])
+    montar()
+    expect(await screen.findByText(/Não foi possível carregar as parcelas ativas/)).toBeTruthy()
+    expect(await screen.findByText('Luz')).toBeTruthy()
+    expect(screen.queryByText('Nenhum recorrente ainda')).toBeNull()
+  })
+
   it('sem regras, convida a cadastrar', async () => {
     montar()
     expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
@@ -398,7 +428,7 @@ describe('Recorrentes', () => {
       { id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true },
       { id: 'g3', nome: 'Condomínio', tipo: 'expense', paiId: 'g1', sistema: false, ativa: true },
     ]
-    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => t !== 'Resumo por mês' && t !== 'Projeção de compromissos')
+    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => t !== 'Resumo por mês' && t !== 'Projeção de compromissos' && t !== 'Parcelas ativas')
     /** Faixas de frequência (h3) dentro do card de um tipo. */
     const faixas = (card: HTMLElement) => within(card).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
     const card = (titulo: RegExp) => screen.getByRole('region', { name: titulo })
@@ -572,5 +602,99 @@ describe('Recorrentes', () => {
       montar()
       expect(await screen.findByText('1 recorrente em outra moeda fica fora dos totais (que são em reais).')).toBeTruthy()
     })
+  })
+})
+
+describe('Recorrentes: natureza', () => {
+  const opcoesDe = (rotulo: string) => Array.from((screen.getByLabelText(rotulo) as HTMLSelectElement).options).map((o) => o.textContent)
+  const TRES = ['Sem classificação', 'Custo fixo', 'Assinatura ou app', 'Gasto variável']
+
+  it('despesa: seletor "Natureza" com "Sem classificação" e as três naturezas; sem escolha, grava nature null', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+    expect(opcoesDe('Natureza')).toEqual(TRES)
+    expect((screen.getByLabelText('Natureza') as HTMLSelectElement).value).toBe('')
+    await u.type(screen.getByLabelText('Descrição'), 'Luz')
+    await u.type(screen.getByLabelText('Valor estimado (R$)'), '180,00')
+    await u.selectOptions(screen.getByLabelText('Dia do mês'), '10')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
+    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', nature: null }))
+  })
+
+  it('cadastra com a natureza escolhida', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+    await u.type(screen.getByLabelText('Descrição'), 'Aluguel')
+    await u.type(screen.getByLabelText('Valor estimado (R$)'), '1500,00')
+    await u.selectOptions(screen.getByLabelText('Dia do mês'), '5')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
+    await u.selectOptions(screen.getByLabelText('Natureza'), 'fixed')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
+    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', nature: 'fixed' }))
+  })
+
+  it('receita só oferece ressarcimento; assinatura de cartão oferece as três; transferência não tem o campo', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
+    expect(opcoesDe('Natureza')).toEqual(['Sem classificação', 'Ressarcimento a receber'])
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'card')
+    expect(opcoesDe('Natureza')).toEqual(TRES)
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'transfer')
+    expect(screen.queryByLabelText('Natureza')).toBeNull()
+  })
+
+  it('trocar o tipo limpa a natureza escolhida (não vaza ressarcimento para despesa)', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
+    await u.selectOptions(screen.getByLabelText('Natureza'), 'reimbursement')
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'expense')
+    expect((screen.getByLabelText('Natureza') as HTMLSelectElement).value).toBe('')
+    await u.type(screen.getByLabelText('Descrição'), 'Luz')
+    await u.type(screen.getByLabelText('Valor estimado (R$)'), '180,00')
+    await u.selectOptions(screen.getByLabelText('Dia do mês'), '10')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
+    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', nature: null }))
+  })
+
+  it('editar: mostra a natureza atual; trocar e limpar mandam o valor; não mexer não manda nature', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([{ ...luz, nature: 'fixed' as const }])
+    montar()
+    await acao(u, 'Luz', 'Editar')
+    expect((screen.getByLabelText('Natureza') as HTMLSelectElement).value).toBe('fixed')
+    await u.selectOptions(screen.getByLabelText('Natureza'), 'variable')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarRecorrencia).toHaveBeenLastCalledWith('r1', expect.objectContaining({ nature: 'variable' }))
+
+    await acao(u, 'Luz', 'Editar')
+    await u.selectOptions(screen.getByLabelText('Natureza'), '')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarRecorrencia).toHaveBeenLastCalledWith('r1', expect.objectContaining({ nature: null }))
+
+    await acao(u, 'Luz', 'Editar')
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    expect(mock.editarRecorrencia.mock.lastCall![1]).not.toHaveProperty('nature')
+  })
+
+  it('a lista mostra o selo da natureza só nas regras classificadas', async () => {
+    mock.listarRecorrencias.mockResolvedValue([
+      { ...luz, nature: 'fixed' as const },
+      { ...luz, id: 'r2', descricao: 'Streaming', nature: 'subscription' as const },
+      { ...luz, id: 'r3', descricao: 'Mercado', nature: null },
+      { ...luz, id: 'r4', descricao: 'Água' },
+    ])
+    montar()
+    await screen.findByText('Luz')
+    const selos = screen.getAllByTestId('selo-natureza').map((s) => s.textContent)
+    expect(selos).toEqual(expect.arrayContaining(['Custo fixo', 'Assinatura ou app']))
+    expect(selos).toHaveLength(2)
   })
 })

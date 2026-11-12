@@ -678,9 +678,23 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Atalho: se a lista de pessoas não carregar, o painel só oferece "Não classificada" e "Toda a família". Melhorar se aparecer.
 - [ ] Compra com parcelas de pessoas diferentes (só possível por dado antigo de recorrência): o painel mostra a pessoa da parcela do mês; salvar uniformiza a compra toda.
 
+## Recorrentes: Parcelas ativas (12/11/2026, #316, migration 112)
+- [x] Bloco Parcelas ativas em Recorrentes com leitura própria no banco, testes de banco e de tela.
+- [ ] **Aplicar a migration 112** (`20261112130000`) em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono, depois da 111.
+- [ ] Atalho: sem atalho direto para "parcelado em conta" em Lançamentos (o link abre Nova despesa; Repetir > parcelado é manual). Criar `?novo=parcelado` se o dono quiser.
+- [ ] Atalho: pagamento no cartão é por fatura; fatura aberta paga adiantada só conta como paga depois de fechar.
+- [ ] Posição do bloco (fim da tela) a combinar com as PRs de abas e agrupamento de Recorrentes.
+
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
 
+
+## Recorrentes: natureza (12/11/2026, #314, migration 112)
+- [x] Campo `nature` em `recurrences` com check de consistência, RPC `recurrence_set_nature`, criar/atualizar com natureza, leitura com fallback, seletor no formulário e selo na lista; teste no banco (107) e no front.
+- [ ] **Aplicar a migration 112** (`20261112120000`) em produção pelo workflow (simular, ler o log, aplicar), depois das anteriores (109 a 111), só com o "pode" do dono. O preenchimento marca as 20 assinaturas de cartão como 'subscription'.
+- [ ] **Abas e totais por natureza** na tela Recorrentes (Custos Fixos, Assinaturas e Apps, Gastos Variáveis, Ressarcimentos a Receber): outra PR; o total virá do banco (o front não soma).
+- [ ] O dono classificar as 12 despesas em conta e as 13 receitas existentes (ficaram sem classificação); a tela ainda não tem edição em lote nem aviso de "sem classificação".
+- [ ] `recurrence_set_nature` ainda não é chamada pela tela (o formulário usa as variantes de criar e atualizar); fica para a edição rápida da PR das abas.
 
 ## Redesenho visual de Investimentos (12/11/2026, 5 etapas)
 - [x] Etapa 1 (#308): resumo patrimonial e cabeçalho.
