@@ -19,6 +19,8 @@ export interface AtivoInvestimento {
   liquidez: Liquidez
   /** Onde o investimento está (corretora, banco, fundo de pensão); null = não informado (ou banco sem a migration 106). */
   instituicao: string | null
+  /** O valor acompanha a cotação da bolsa (migration 109). null = banco ainda sem a migration: a opção não aparece. */
+  cotacaoBolsa: boolean | null
   quantidadeOperacoes: number
   quantidadeAvaliacoes: number
   quantidadeProventos: number
@@ -184,8 +186,9 @@ export function normalizarDecimalInvestimento(valor: string, casas: number): str
 export async function listarAtivosInvestimento(familiaId: string): Promise<AtivoInvestimento[]> {
   // Preserva a subclasse da migration 034 e conta os registros históricos para proteger a exclusão.
   const ler = (colunas: string) => db().from('investment_assets').select(colunas).eq('household_id', familiaId).order('name')
-  let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity,institution')
-  // banco ainda sem a coluna institution (106), sem a liquidity ou sem a subclass (034): lê o que existe
+  let { data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity,institution,market_quote')
+  // banco ainda sem a coluna market_quote (109), sem a institution (106), sem a liquidity ou sem a subclass (034): lê o que existe
+  if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity,institution'))
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass,liquidity'))
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active,subclass'))
   if (error) ({ data, error } = await ler('id,name,ticker,asset_class,currency_code,active'))
@@ -212,6 +215,7 @@ export async function listarAtivosInvestimento(familiaId: string): Promise<Ativo
     subclasse: (r.subclass as string | null | undefined) ?? null,
     liquidez: r.liquidity === 'restricted' ? 'restricted' : 'liquid',
     instituicao: (r.institution as string | null | undefined) ?? null,
+    cotacaoBolsa: typeof r.market_quote === 'boolean' ? r.market_quote : null,
     quantidadeOperacoes: qtdOperacoes.get(r.id as string) ?? 0,
     quantidadeAvaliacoes: qtdAvaliacoes.get(r.id as string) ?? 0,
     quantidadeProventos: qtdProventos.get(r.id as string) ?? 0,
@@ -289,6 +293,41 @@ export async function listarAportesInvestimentos(familiaId: string, dataRef: str
     else porAtivo.set(r.asset_id as string, linha)
   }
   return { porAtivo, totais }
+}
+
+/**
+ * O código que a cotação da bolsa usaria para este ativo, ou null quando ele não pode acompanhar a bolsa: só ação, FII,
+ * ETF ou fundo, em reais, com código da B3 (4 letras e 1 ou 2 números). É o mesmo critério do banco
+ * (private.investment_quote_symbol, migration 109), repetido aqui só para decidir o que a tela oferece; quem decide é o banco.
+ */
+export function codigoDaBolsa(ticker: string | null, classe: ClasseAtivo | '', moeda: MoedaInvestimento): string | null {
+  const codigo = (ticker ?? '').trim().toUpperCase()
+  const classeDaBolsa = classe === 'equity' || classe === 'reit' || classe === 'etf' || classe === 'fund'
+  return moeda === 'BRL' && classeDaBolsa && /^[A-Z]{4}[0-9]{1,2}$/.test(codigo) ? codigo : null
+}
+
+/** O ativo está com a cotação da bolsa ligada E ainda pode usá-la (o código pode ter sido trocado depois). */
+export function segueABolsa(a: Pick<AtivoInvestimento, 'cotacaoBolsa' | 'ticker' | 'classe' | 'moeda'>): boolean {
+  return a.cotacaoBolsa === true && codigoDaBolsa(a.ticker, a.classe, a.moeda) !== null
+}
+
+/** Dias corridos sem preço novo a partir dos quais a tela avisa: cobre fim de semana com feriado colado (sexta → terça). */
+export const DIAS_COTACAO_PARADA = 4
+
+/**
+ * Há quantos dias corridos o preço de um ativo que segue a bolsa não muda, quando isso já merece aviso; null = em dia.
+ * `dataPreco` nulo (nenhuma cotação nem avaliação ainda) devolve 'sem-preco'. Datas no formato AAAA-MM-DD.
+ */
+export function cotacaoParada(dataPreco: string | null, hoje: string): number | 'sem-preco' | null {
+  if (!dataPreco) return 'sem-preco'
+  const dias = Math.round((Date.parse(`${hoje}T00:00:00Z`) - Date.parse(`${dataPreco}T00:00:00Z`)) / 86_400_000)
+  return dias > DIAS_COTACAO_PARADA ? dias : null
+}
+
+/** Liga ou desliga a cotação da bolsa no ativo (investment_asset_set_market_quote, migration 109). */
+export async function definirCotacaoBolsaAtivo(ativoId: string, ligada: boolean): Promise<void> {
+  const { error } = await db().rpc('investment_asset_set_market_quote', { p_asset: ativoId, p_on: ligada })
+  if (error) throw error
 }
 
 /** Define a instituição do ativo (corretora, banco); texto vazio limpa. O banco aceita até 40 caracteres. */

@@ -1,8 +1,9 @@
 import { Fragment } from 'react'
-import { CLASSES_ATIVO } from '../../lib/investimentos'
+import { CLASSES_ATIVO, cotacaoParada, segueABolsa } from '../../lib/investimentos'
 import type { AportesCarteira, AtivoInvestimento, MoedaInvestimento, PosicaoInvestimento, TotalInvestimento } from '../../lib/investimentos'
 import type { Cents } from '../../lib/format'
 import { formatDate } from '../../lib/format'
+import { hojeSP } from '../../lib/contas'
 import { valoresOcultos } from '../../lib/privacidade'
 import { corDoValor } from '../../lib/cores'
 
@@ -73,6 +74,7 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
   formatarQuantidade: (v: string) => string
 }) {
   const porId = new Map(ativos.map((a) => [a.id, a]))
+  const hoje = hojeSP()
   const moedas = [...new Set(posicoes.map((p) => p.moeda))]
   const numero = 'px-2 py-3 text-right align-top tabular-nums whitespace-nowrap'
   // um jeito só de contar na tabela inteira: se faltar o aporte de alguma posição, todas as linhas ficam no custo, nunca
@@ -115,6 +117,7 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                   const valorAtual = ap ? ap.valorAtual : p.valorAtual
                   const resultado = ap ? ap.ganho : p.resultado
                   const comResgate = ap !== undefined && ap.resgatado > 0
+                  const parada = a && segueABolsa(a) ? cotacaoParada(p.dataAvaliacao, hoje) : null
                   // com resgate, rendimento ÷ aportado líquido não quer dizer nada (o líquido pode ser quase zero): some
                   const relativo = comResgate ? null : sobreOAportado(resultado, aportado)
                   const rendimento = (
@@ -137,6 +140,9 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                         <p className="text-xs text-slate-500">
                           {p.dataAvaliacao ? `Valor de ${formatDate(p.dataAvaliacao)}${p.fonteAvaliacao ? ` · ${p.fonteAvaliacao}` : ''}` : ap ? 'Sem avaliação: pelo preço de compra' : 'Sem avaliação: vale o aportado'}
                         </p>
+                        {/* ativo que acompanha a bolsa e está sem preço novo: a busca diária pode ter falhado ou o código estar errado */}
+                        {parada === 'sem-preco' && <p className="text-xs font-medium text-atencao">Ainda sem cotação da bolsa: a próxima busca é no fim do pregão.</p>}
+                        {typeof parada === 'number' && <p className="text-xs font-medium text-atencao">Cotação da bolsa parada há {parada} dias: confira o código do ativo.</p>}
                       </th>
                       <td className={`hidden sm:table-cell ${numero}`}>{formatar(aportado, p.moeda)}</td>
                       <td className={`${numero} pr-3 sm:pr-2`}>
