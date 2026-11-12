@@ -707,7 +707,10 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Etapa 1 (#308): resumo patrimonial e cabeçalho.
 - [x] Etapa 2 (#312): composição da carteira unificada por moeda (seletor BRL/EUR/USD e visões Classe, Liquidez, Instituição e Ativos).
 - [x] Etapa 3 (#320): gráfico de evolução com as duas linhas (valor atual e aportado), legenda, tooltip e tabela. Só front, sem número novo do banco.
-- [ ] Etapas 4 e 5 (a combinar com o dono, uma PR cada): 4 tabela de posições, 5 lista de ativos cadastrados.
+- [x] Proposta de tela aprovada pelo dono (12/11/2026): nova ordem dos blocos e seletor de período do gráfico entraram na #321. Sem banco: o retorno em % e por ativo já existe na tela.
+- [ ] Próxima parte da proposta (uma PR, com o "pode" do dono): ativos como cartões, com o retorno em destaque e ordenação por valor ou por retorno.
+- [ ] Meta de alocação por classe (a coluna "meta" da proposta): precisa de banco (tabela e função de leitura) e de uma decisão do dono sobre como definir e editar as metas. Só depois da parte dos ativos.
+- [ ] Seletor de período: o gráfico não tem tooltip por período nem "tudo"; 24 meses é o máximo.
 - [ ] Gráfico de evolução: o período segue fixo em 12 meses e não há seletor; sem linha de rendimento própria (a tela não subtrai: o espaço entre as linhas mostra a diferença). Se o dono quiser rendimento em linha, ele precisa vir do banco. Conferir em 390 px e 1280 px com dados reais.
 - [ ] Previdência grande: a visão Liquidez separa líquido e restrito, mas não mostra a classe do que é líquido. Isso pede um número novo do banco (classe x liquidez), nunca soma no front; decidir com o dono se vale.
 - [ ] Em Liquidez, Instituição e Ativos o percentual continua sendo valor ÷ valor de mercado da moeda, feito no front (apresentação, como em #301); agora vale também para dólar e euro. Levar para o banco se o dono quiser tudo vindo pronto.
