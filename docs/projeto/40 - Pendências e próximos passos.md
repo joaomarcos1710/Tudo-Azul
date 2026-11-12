@@ -683,6 +683,13 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
 
 
+## Recorrentes: natureza (12/11/2026, #314, migration 112)
+- [x] Campo `nature` em `recurrences` com check de consistência, RPC `recurrence_set_nature`, criar/atualizar com natureza, leitura com fallback, seletor no formulário e selo na lista; teste no banco (107) e no front.
+- [ ] **Aplicar a migration 112** (`20261112120000`) em produção pelo workflow (simular, ler o log, aplicar), depois das anteriores (109 a 111), só com o "pode" do dono. O preenchimento marca as 20 assinaturas de cartão como 'subscription'.
+- [ ] **Abas e totais por natureza** na tela Recorrentes (Custos Fixos, Assinaturas e Apps, Gastos Variáveis, Ressarcimentos a Receber): outra PR; o total virá do banco (o front não soma).
+- [ ] O dono classificar as 12 despesas em conta e as 13 receitas existentes (ficaram sem classificação); a tela ainda não tem edição em lote nem aviso de "sem classificação".
+- [ ] `recurrence_set_nature` ainda não é chamada pela tela (o formulário usa as variantes de criar e atualizar); fica para a edição rápida da PR das abas.
+
 ## Redesenho visual de Investimentos (12/11/2026, 5 etapas)
 - [x] Etapa 1 (#308): resumo patrimonial e cabeçalho.
 - [x] Etapa 2 (#312): composição da carteira unificada por moeda (seletor BRL/EUR/USD e visões Classe, Liquidez, Instituição e Ativos).
