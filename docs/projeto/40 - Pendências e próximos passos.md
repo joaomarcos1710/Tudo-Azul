@@ -664,6 +664,14 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [x] Conferido em produção (11/11/2026, só leitura, com o critério de meses de `card_months` reproduzido nas tabelas): nenhum pagamento ligado a fatura que sumiu (68 meses de cartão). Aplicar a 110 não muda número existente.
 - [ ] O vencimento gravado na linha nova de `debt_invoices` vem do cálculo de `card_months`; em mês só com crédito avulso, depois de troca de ciclo, pode usar os dias novos do cartão. Não reproduzido.
 
+## Cartão: de quem foi a despesa (12/11/2026, #309, migration 111)
+- [x] Trocar a pessoa de uma compra de cartão já lançada, inclusive em fatura paga, com teste no banco e na tela.
+- [x] Conferido: lançamento de conta passado (pago, em período conciliado) já troca de pessoa pela edição normal; teste de banco e de tela como guarda.
+- [ ] **Aplicar a migration 111** (`20261112100000`) em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono, na ordem: 109 (#305), 110 (#306), 111.
+- [ ] A tela só oferece a troca nas compras da fatura (não nos itens da lista "Ver compras" de Lançamentos nem nas assinaturas previstas). Para assinatura de cartão, a pessoa vem da regra recorrente (`recurrence_set_person`: só futuras).
+- [ ] Atalho: se a lista de pessoas não carregar, o painel só oferece "Não classificada" e "Toda a família". Melhorar se aparecer.
+- [ ] Compra com parcelas de pessoas diferentes (só possível por dado antigo de recorrência): o painel mostra a pessoa da parcela do mês; salvar uniformiza a compra toda.
+
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
 

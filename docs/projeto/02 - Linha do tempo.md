@@ -299,6 +299,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#306** (aberta em 11/11/2026; data do merge a preencher pelo histórico do `main`): Cartão: mudar a fatura de um pagamento, sem anular e lançar de novo (migration 110, ainda não aplicada).
 - **#307** (aberta em 12/11/2026; data do merge a preencher pelo histórico do `main`): Cartões: "+ Lançamento" (despesa D, receita R) com o formulário de compra e de crédito numa folha por cima da tela, na página do cartão e na da fatura; `MenuNovo` virou componente comum com Lançamentos (só front).
 - **#308** (aberta em 12/11/2026, rascunho; data do merge a preencher pelo histórico do `main`): Investimentos, etapa 1 de 5 do redesenho visual (pedido do dono, 12/11/2026): valor atual da carteira em destaque, Aportado/Rendimento/Proventos como indicadores menores, cabeçalho com uma ação principal e aviso compacto e expansível. Só front.
+- **#309** (aberta em 12/11/2026; data do merge a preencher pelo histórico do `main`): Cartão: mudar de quem foi a despesa de uma compra já lançada, inclusive em fatura paga (migration 111, ainda não aplicada).
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

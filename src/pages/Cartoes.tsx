@@ -18,12 +18,15 @@ import type { ItemNovo } from '../components/ui/MenuNovo'
 import { Selecao } from '../components/ui/Selecao'
 import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
+import { PessoaSelectField } from '../components/PessoaSelectField'
+import { listarPessoasFamilia } from '../lib/pessoasFamilia'
+import type { PessoaFamilia } from '../lib/pessoasFamilia'
 import {
   arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
   fechamentoNoCiclo, inicioDaTroca, moverPagamentoDeFatura, moverParcelaDeFatura, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
-  visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura,
+  visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura, trocarPessoaDaCompra,
 } from '../lib/cartoes'
 import type { Cartao, CreditoFatura, DirecaoDaParcela, Fatura, FaturaAgendada, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
 import { IconeCadeadoAberto, IconeCadeadoFechado, IconeCadeadoPago, IconeCadeadoVencido } from '../components/layout/icons'
@@ -978,6 +981,7 @@ type Acao =
   | { tipo: 'estornar'; item: ItemFatura; faturaId: string | null }
   | { tipo: 'editar'; item: ItemFatura }
   | { tipo: 'excluir'; item: ItemFatura }
+  | { tipo: 'pessoa'; item: ItemFatura }
   | { tipo: 'categoria'; credito: CreditoFatura }
 
 /** Pagamentos e devoluções do cartão, com "Anular" para corrigir lançamento errado (ex.: crédito de teste). */
@@ -1225,6 +1229,16 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const [avisoMover, setAvisoMover] = useState('')
   const hoje = hojeSP()
   useTitulo(`${cartao.nome} · ${primeiraMaiuscula(formatMonth(mes))}`)
+  // pessoas da família para "Mudar de quem foi a despesa"; sem a lista o painel só oferece "não classificada" e "toda a família"
+  const { familia } = useFamilia()
+  const familiaId = familia?.id
+  const [pessoas, setPessoas] = useState<PessoaFamilia[]>([])
+  useEffect(() => {
+    if (!familiaId) return
+    let vivo = true
+    listarPessoasFamilia(familiaId).then((l) => { if (vivo) setPessoas(l) }).catch(() => { if (vivo) setPessoas([]) })
+    return () => { vivo = false }
+  }, [familiaId])
 
   useEffect(() => {
     let vivo = true
@@ -1240,7 +1254,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
     let vivo = true
     setItens(null)
     setErroItens('')
-    listarItens(cartaoId, mes)
+    listarItens(cartaoId, mes, { comPessoa: true })
       .then((i) => { if (vivo) setItens(i) })
       .catch((err) => { if (vivo) setErroItens(mensagemErroBanco(err)) })
     return () => { vivo = false }
@@ -1537,19 +1551,26 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                         detalhe={`${nomeCategoria.get(i.categoriaId) ?? 'Sem categoria'}${i.falta > 0 ? ' · a cobrar no fechamento' : ''}`}
                         parcela={i.deParcelas > 1 ? `${i.parcela}/${i.deParcelas}` : null}
                         valor={`−${formatBRL(i.valor)}`} corValor="text-prejuizo"
-                        // fatura paga (travada, migration 064): sem ⋯; o banco também recusa
-                        acoes={travada ? null : (
+                        // fatura paga (travada, migration 064): só "Mudar de quem foi a despesa" (classificação, não mexe em
+                        // dinheiro); estornar, editar, enviar para outra fatura e excluir seguem fora e o banco também recusa
+                        acoes={(
                           <MenuAcoes rotulo={`Ações de ${i.descricao}`} desabilitado={acao !== null || movendo !== null} acoes={[
-                            { rotulo: 'Estornar', aoEscolher: () => setAcao({ tipo: 'estornar', item: i, faturaId: f.faturaId }) },
-                            { rotulo: 'Editar valor', aoEscolher: () => setAcao({ tipo: 'editar', item: i }) },
-                            ...(podeMover && i.falta > 0 ? [
+                            ...(travada ? [] : [{ rotulo: 'Estornar', aoEscolher: () => setAcao({ tipo: 'estornar', item: i, faturaId: f.faturaId }) }]),
+                            ...(travada ? [] : [{ rotulo: 'Editar valor', aoEscolher: () => setAcao({ tipo: 'editar', item: i }) }]),
+                            ...(!travada && podeMover && i.falta > 0 ? [
                               ...(podeAnterior ? [{ rotulo: 'Enviar para a fatura anterior', aoEscolher: () => { void moverParcela(i, 'previous') } }] : []),
                               { rotulo: 'Enviar para a próxima fatura', aoEscolher: () => { void moverParcela(i, 'next') } },
                             ] : []),
-                            { rotulo: 'Excluir compra', aoEscolher: () => setAcao({ tipo: 'excluir', item: i }), perigo: true },
+                            { rotulo: 'Mudar de quem foi a despesa', aoEscolher: () => setAcao({ tipo: 'pessoa', item: i }) },
+                            ...(travada ? [] : [{ rotulo: 'Excluir compra', aoEscolher: () => setAcao({ tipo: 'excluir', item: i }), perigo: true }]),
                           ]} />
                         )}
-                        painel={acao?.tipo === 'estornar' && acao.item.parcelaId === i.parcelaId && (
+                        painel={acao?.tipo === 'pessoa' && acao.item.parcelaId === i.parcelaId ? (
+                          <PainelJunto className="mt-2 w-full">
+                            <PainelPessoa cartaoId={cartaoId} item={acao.item} pessoas={pessoas} aoFechar={() => setAcao(null)}
+                              aoConcluir={async () => { setAcao(null); await carregar() }} />
+                          </PainelJunto>
+                        ) : acao?.tipo === 'estornar' && acao.item.parcelaId === i.parcelaId && (
                           <PainelJunto className="mt-2 w-full">
                             <PainelEstornar item={acao.item} faturaId={acao.faturaId} aoFechar={() => setAcao(null)}
                               aoConcluir={async () => { setAcao(null); await carregar() }} />
@@ -2234,6 +2255,36 @@ function PainelCategoriaCredito({ credito, categorias, aoFechar, aoConcluir }: {
       </p>
       <SeletorCategoria rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} opcoes={receitas} categorias={categorias} tipo="income" />
       <Botoes rotulo="Salvar categoria" enviando={enviando} aoCancelar={aoFechar} />
+    </form>
+  )
+}
+
+/**
+ * "De quem foi a despesa" de uma compra de cartão já lançada (card_purchase_set_person): vale para todas as parcelas, também
+ * as já cobradas e as de fatura paga e travada. Só a classificação muda; valor, fatura e totais ficam iguais.
+ */
+function PainelPessoa({ cartaoId, item, pessoas, aoFechar, aoConcluir }: {
+  cartaoId: string; item: ItemFatura; pessoas: PessoaFamilia[]; aoFechar: () => void; aoConcluir: () => Promise<void>
+}) {
+  const [escolha, setEscolha] = useState({ personId: item.personId ?? null, isSharedExpense: item.isSharedExpense ?? false })
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    void enviar(async () => { await trocarPessoaDaCompra(cartaoId, item.compra, escolha) })
+  }
+
+  return (
+    <form onSubmit={salvar} noValidate className="mt-2 grid gap-3 rounded-lg border border-slate-200 bg-azul-claro p-4 md:grid-cols-2"
+      aria-label={`Mudar de quem foi a despesa de ${item.descricao}`}>
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <p className="text-sm md:col-span-2">
+        A mudança vale para a compra <strong>{item.descricao}</strong> inteira (todas as parcelas, também as já cobradas). Só a
+        classificação muda: valor e fatura ficam como estão (vale também em fatura paga).
+      </p>
+      <PessoaSelectField id={`pessoa-${item.parcelaId}`} pessoas={pessoas} personId={escolha.personId} isSharedExpense={escolha.isSharedExpense}
+        onChange={setEscolha} />
+      <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoFechar} />
     </form>
   )
 }

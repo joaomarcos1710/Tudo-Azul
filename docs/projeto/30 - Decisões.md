@@ -648,6 +648,13 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Pagamento cuja fatura some e depois volta: soltar de vez (opção 1, dono, 12/11/2026).** A segunda revisão mostrou que, com só o adiantamento da opção B, o mês podia voltar com uma compra nova e a fatura paga voltava a "a pagar". Escolhido soltar o pagamento da fatura quando ela some (vira adiantamento de vez), em vez de aceitar o caso (2) ou limitar o destino a fatura fechada a pagar (3, que mataria o caso do pagamento no dia do fechamento).
 - **"Pagar fatura" depois de mover um pagamento:** sugere o aberto da fatura fechada quando ele é maior que a dívida do cartão (o pagamento movido deixa a dívida menor), e explica a diferença. "Reabrir fatura" em fatura aberta continua como era (comportamento antigo, com teste e confirmação); não foi mudado sem o dono.
 
+## 12/11/2026 — Cartão: a pessoa da despesa muda depois, inclusive em fatura paga (dono, #309)
+- **Pedido:** "não consigo alterar os lançamentos passados com quem da família gastou".
+- **Apuração:** lançamento de conta já trocava a pessoa pela edição normal (o gatilho de período só recusa o que mexe em saldo); a parcela de cartão não tinha caminho.
+- **Compra inteira, não parcela a parcela.** A pessoa é por parcela no banco, mas a classificação é da compra (todas as parcelas do mesmo `plan`), como na criação. Motivo: trocar só uma parcela deixaria a compra dividida e o relatório por pessoa confuso.
+- **Fatura paga e travada não impede:** é só classificação analítica (nada entra em `card_months`, saldo ou `period_summary`), a mesma lógica de trocar a categoria de um crédito (077). A trava da 064 protege total e pago, não quem gastou.
+- **Pessoa inativa:** só se já for a atual (histórico preservado); nunca para uma nova atribuição (regra da 083).
+- **Leitura sem mexer em `card_items`:** a tela lê `person_id`/`is_shared_expense` direto de `debt_installments` (RLS da família) só na página da fatura. Evitou recriar uma função de leitura que outras PRs também mexem.
 ## 12/11/2026 — Cartão: enviar parcela para a fatura anterior ou próxima (dono, #310)
 - **Parcela por parcela, não a compra inteira.** Só parcela ainda não cobrada; fatura paga continua travada (nem origem nem destino, sem reabrir). Destino é a fatura vizinha. Motivo: é o que o Organizze faz e não cria evento nenhum.
 - **Muda o mês da despesa:** a despesa conta no mês da fatura, então mandar para outra fatura move a despesa de mês nos relatórios por fatura. É o efeito esperado. Relatórios por data da compra ou da parcela não mudam.

@@ -81,6 +81,9 @@ export interface ItemFatura {
   /** Quanto da parcela ainda não foi cobrado (0 = já está na fatura fechada). */
   falta: Cents
   categoriaId: string
+  /** De quem foi a despesa (debt_installments.person_id / is_shared_expense). Ausentes = não classificada. */
+  personId?: string | null
+  isSharedExpense?: boolean
 }
 
 /** Uma ocorrência prevista de assinatura numa fatura (card_subscription_previews): ainda não virou parcela. */
@@ -414,10 +417,25 @@ export async function listarFaturas(cartaoId: string): Promise<Fatura[]> {
   }))
 }
 
-export async function listarItens(cartaoId: string, mes: string): Promise<ItemFatura[]> {
+/**
+ * Itens (parcelas) da fatura. `comPessoa` junta a classificação "de quem foi a despesa" (uma leitura a mais, só para a
+ * tela da fatura que oferece a troca); sem ela, personId/isSharedExpense ficam ausentes.
+ */
+export async function listarItens(cartaoId: string, mes: string, opcoes: { comPessoa?: boolean } = {}): Promise<ItemFatura[]> {
   const { data, error } = await cliente().rpc('card_items', { p_debt: cartaoId, p_label: mes })
   if (error) throw error
-  return ((data ?? []) as Record<string, string | number | null>[]).map((i) => ({
+  const linhas = (data ?? []) as Record<string, string | number | null>[]
+  // card_items não traz a classificação; vem das próprias parcelas (RLS da família), só leitura
+  const pessoas = new Map<string, { personId: string | null; isSharedExpense: boolean }>()
+  if (opcoes.comPessoa && linhas.length > 0) {
+    const r = await cliente().from('debt_installments').select('id, person_id, is_shared_expense')
+      .in('id', linhas.map((i) => i.installment_id as string))
+    if (r.error) throw r.error
+    for (const x of (r.data ?? []) as { id: string; person_id: string | null; is_shared_expense: boolean | null }[]) {
+      pessoas.set(x.id, { personId: x.person_id ?? null, isSharedExpense: x.is_shared_expense ?? false })
+    }
+  }
+  return linhas.map((i) => ({
     parcelaId: i.installment_id as string,
     compra: i.plan as string,
     parcela: Number(i.seq),
@@ -427,7 +445,23 @@ export async function listarItens(cartaoId: string, mes: string): Promise<ItemFa
     valor: centsFromDb(i.face ?? 0),
     falta: centsFromDb(i.remaining ?? 0),
     categoriaId: i.category_id as string,
+    ...(opcoes.comPessoa ? pessoas.get(i.installment_id as string) ?? { personId: null, isSharedExpense: false } : {}),
   }))
+}
+
+/**
+ * Muda "de quem foi a despesa" de uma compra inteira (todas as parcelas, também as já cobradas e as de fatura paga e
+ * travada; migration 20261112100000). Só a classificação muda: valor, fatura e totais ficam iguais. Devolve quantas
+ * parcelas mudaram.
+ */
+export async function trocarPessoaDaCompra(
+  cartaoId: string, compra: string, pessoa: { personId: string | null; isSharedExpense: boolean },
+): Promise<number> {
+  const { data, error } = await cliente().rpc('card_purchase_set_person', {
+    p_debt: cartaoId, p_plan: compra, p_person_id: pessoa.personId, p_is_shared_expense: pessoa.isSharedExpense,
+  })
+  if (error) throw error
+  return data as number
 }
 
 /**
