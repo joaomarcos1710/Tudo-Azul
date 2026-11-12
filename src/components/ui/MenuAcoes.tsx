@@ -5,6 +5,8 @@ export interface AcaoMenu {
   rotulo: string
   aoEscolher: () => void
   desabilitado?: boolean
+  /** Por que a ação está desabilitada (texto curto, visível sob o rótulo e lido pelo leitor de tela). */
+  motivo?: string
   /** Ação destrutiva (Excluir): vai separada por um traço, em vermelho. Ponha por último. */
   perigo?: boolean
 }
@@ -54,14 +56,15 @@ export function MenuAcoes({ rotulo, acoes, desabilitado = false }: { rotulo: str
       {aberto && (
         <div id={idMenu} role="menu" aria-label={rotulo} onKeyDown={navegar}
           className="absolute right-0 z-40 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-card">
-          {acoes.map((a) => (
+          {acoes.map((a, k) => (
             <div key={a.rotulo} role="none">
               {a.perigo && <div role="separator" className="my-1 border-t border-slate-200" />}
-              <button type="button" role="menuitem" disabled={a.desabilitado}
+              <button type="button" role="menuitem" disabled={a.desabilitado} aria-label={a.rotulo} aria-describedby={a.motivo ? `${idMenu}-motivo-${k}` : undefined}
                 onClick={() => { setAberto(false); botao.current?.focus(); a.aoEscolher() }}
-                className={`flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
+                className={`group flex min-h-11 w-full flex-col justify-center rounded-lg px-3 py-1 text-left text-sm font-semibold disabled:cursor-not-allowed ${
                   a.perigo ? 'text-negativo hover:bg-negativo-fundo' : 'text-marinho hover:bg-azul-claro'}`}>
-                {a.rotulo}
+                <span className="group-disabled:opacity-50">{a.rotulo}</span>
+                {a.motivo && <span id={`${idMenu}-motivo-${k}`} className="text-xs font-normal text-slate-600">{a.motivo}</span>}
               </button>
             </div>
           ))}
