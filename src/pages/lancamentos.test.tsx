@@ -1150,6 +1150,22 @@ describe('painel de lançamento (como no Organizze)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('o menu do "+" é navegável pelo teclado: abre no primeiro item, setas andam, Esc fecha e devolve o foco ao botão', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const botao = await screen.findByRole('button', { name: 'Novo lançamento' })
+    await u.click(botao)
+    const itens = within(screen.getByRole('menu', { name: 'Novo lançamento' })).getAllByRole('menuitem')
+    expect(document.activeElement).toBe(itens[0])
+    await u.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(itens[1])
+    await u.keyboard('{End}')
+    expect(document.activeElement).toBe(itens[5])
+    await u.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(botao)
+  })
+
   describe('aporte e resgate de investimento pelo "+" (pedido do dono, 10/11/2026)', () => {
     const cofrinho = { id: 'k1', nome: 'Cofrinho 140% CDI', ticker: null, classe: 'fixed_income', moeda: 'BRL', ativo: true, subclasse: null,
       liquidez: 'liquid', quantidadeOperacoes: 2, quantidadeAvaliacoes: 1, quantidadeProventos: 0 }

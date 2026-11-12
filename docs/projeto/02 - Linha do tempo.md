@@ -295,7 +295,9 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#302** (11/11/2026): Cotação PTAX do Banco Central e "≈ R$" ao lado do dólar e do euro (migration 108, aplicada no mesmo dia).
 - **#303** (11/11/2026): Diário: migration 108 aplicada e primeira busca PTAX conferida (só documentação).
 - **#304** (11/11/2026): Diário: pendências em dia, migrations 100 a 108 conferidas como aplicadas e o que segue aberto (só documentação).
+- **#305** (aberta em 11/11/2026; data do merge a preencher pelo histórico do `main`): Cotação da bolsa pela brapi para ação, FII, ETF e fundo, por escolha em cada ativo (migration 109, ainda não aplicada).
 - **#306** (aberta em 11/11/2026; data do merge a preencher pelo histórico do `main`): Cartão: mudar a fatura de um pagamento, sem anular e lançar de novo (migration 110, ainda não aplicada).
+- **#307** (aberta em 12/11/2026; data do merge a preencher pelo histórico do `main`): Cartões: "+ Lançamento" (despesa D, receita R) com o formulário de compra e de crédito numa folha por cima da tela, na página do cartão e na da fatura; `MenuNovo` virou componente comum com Lançamentos (só front).
 - **#309** (aberta em 12/11/2026; data do merge a preencher pelo histórico do `main`): Cartão: mudar de quem foi a despesa de uma compra já lançada, inclusive em fatura paga (migration 111, ainda não aplicada).
 
 ## Ainda abertos
