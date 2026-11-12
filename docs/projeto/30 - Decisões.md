@@ -662,3 +662,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Parcela com estorno ou cancelamento, mesmo parcial, não muda** (como a edição de valor). Mais simples e seguro; se o dono quiser, abre-se depois.
 - **Sem confirmação na tela:** não cria lançamento e dá para mandar de volta. A tela avisa para onde a parcela foi.
 - **A parcela leva os dias de fechamento e vencimento do mês de destino**, para o vencimento da fatura sair certo depois de uma troca de dias do cartão.
+
+## 12/11/2026 — Parcelas ativas em Recorrentes (dono, #316)
+- **Uma função de leitura nova** (`active_installment_plans`) em vez de montar no front: nenhuma RPC entregava n de N, % pago, saldo restante nem status do mês por parcelamento, e o front não soma dinheiro. O que já existia (`card_months_as_of`) é reaproveitado para a fatura.
+- **Paga no cartão é por fatura** (fechada e paga), não por parcela: o banco não registra pagamento por parcela. **Parcela do mês pelo vencimento da fatura**, como no Entradas x Saídas (decisão de 05/11).
+- **Fora do bloco**: empréstimo, financiamento e consignado (têm a tela Dívidas), receita e transferência parceladas, assinatura de cartão. Parcela cancelada ou estornada inteira não conta no "n de N".
+- **Sem "carnê" como tipo**: o banco não distingue; parcelamento em conta cobre.
+- **"+ Novo parcelamento"** reaproveita os fluxos existentes (`?novo=cartao`), sem fluxo novo; a despesa parcelada em conta tem link próprio para Nova despesa.
