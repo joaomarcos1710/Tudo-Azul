@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Cents } from '../lib/format'
@@ -43,6 +43,7 @@ const mock = vi.hoisted(() => ({
   totalFaturasDoMes: vi.fn(),
   estornarParcela: vi.fn(),
   listarPagamentosDaFatura: vi.fn(),
+  moverPagamentoDeFatura: vi.fn(),
   visaoDosCartoes: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
@@ -56,7 +57,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
-  trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
+  trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura, moverPagamentoDeFatura: mock.moverPagamentoDeFatura,
   visaoDosCartoes: mock.visaoDosCartoes,
 }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0), excluirRecorrencia: mock.excluirRecorrencia }))
@@ -83,7 +84,7 @@ const c = (n: number) => n as Cents
 /**
  * #203: Cartões são três páginas (lista `/cartoes`, cartão `/cartoes/:id` e fatura `/cartoes/:id/fatura/:mes`), o mesmo
  * componente escolhendo pelo endereço. Os testes montam as três rotas e começam pela página pedida; o padrão é a página
- * do cartão Nubank (k1), onde ficam Nova compra, o menu ⋯ e as faturas.
+ * do cartão Nubank (k1), onde ficam o "+ Lançamento", o menu ⋯ e as faturas.
  */
 function montar(rota = '/cartoes/k1') {
   return render(
@@ -106,6 +107,14 @@ function fixarHoje(dia: string) {
 async function escolherNoMenu(u: ReturnType<typeof userEvent.setup>, acao: string, cartao = 'Nubank') {
   await u.click(await screen.findByRole('button', { name: `Mais opções do cartão ${cartao}` }))
   await u.click(within(screen.getByRole('menu', { name: `Mais opções do cartão ${cartao}` })).getByRole('menuitem', { name: acao }))
+}
+/**
+ * Abre o "+ Lançamento" (cartão e fatura) e escolhe o item: compra e crédito abrem numa folha por cima da tela, como em
+ * Lançamentos (pedido do dono, 12/11/2026).
+ */
+async function novoLancamento(u: ReturnType<typeof userEvent.setup>, item: 'Nova despesa' | 'Nova receita') {
+  await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
+  await u.click(within(screen.getByRole('menu', { name: 'Novo lançamento' })).getByRole('menuitem', { name: new RegExp(`^${item}`) }))
 }
 /** Ações de uma compra ou crédito da fatura (#183): ficam no ⋯ da linha ("Ações de TV", "Ações do crédito Cashback"). */
 async function acaoDaLinha(u: ReturnType<typeof userEvent.setup>, menu: string, acao: string) {
@@ -152,6 +161,7 @@ beforeEach(() => {
   mock.totalFaturasDoMes.mockResolvedValue(null)
   mock.estornarParcela.mockResolvedValue(undefined)
   mock.listarPagamentosDaFatura.mockResolvedValue([])
+  mock.moverPagamentoDeFatura.mockResolvedValue(undefined)
   // padrão: banco sem a migration 065 (a tela lê card_months por cartão); os testes da 065 definem o resumo
   mock.visaoDosCartoes.mockResolvedValue(null)
   for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.definirContaPagamento, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
@@ -191,7 +201,7 @@ describe('Cartões', () => {
     expect(screen.getByText('R$ 396,66')).toBeTruthy()
   })
 
-  it('no cartão, "Abrir fatura" em pílula azul (link para a página da fatura); sem dívida, "Nova compra" é a principal', async () => {
+  it('no cartão, "Abrir fatura" em pílula azul (link para a página da fatura); sem dívida, "+ Lançamento" é o principal', async () => {
     const { unmount } = montar()
     await screen.findByText('Nubank')
     const ver = await botaoVerFatura()
@@ -199,7 +209,7 @@ describe('Cartões', () => {
     expect(ver.className.split(' ')).toEqual(expect.arrayContaining(['rounded-full', 'bg-azul-claro', 'text-azul']))
     // pagar não fica no cabeçalho do cartão: mora na página da fatura (ou, sem fatura nenhuma, junto da fileira)
     expect(within(document.querySelector('header')!).queryByRole('button', { name: /^Pagar fatura/ })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Nova compra' }).className.split(' ')).not.toContain('bg-azul')
+    expect(screen.getByRole('button', { name: 'Novo lançamento' }).className.split(' ')).not.toContain('bg-azul')
     // #183: "Fatura fechada a pagar" ainda no prazo é atenção (âmbar); vermelho só quando vence
     expect(screen.getByText('R$ 133,34').className).toContain('text-atencao')
     expect(screen.getByText('R$ 133,34').className).not.toContain('text-prejuizo')
@@ -208,7 +218,7 @@ describe('Cartões', () => {
     mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }])
     montar()
     await screen.findByText('Nubank')
-    expect(screen.getByRole('button', { name: 'Nova compra' }).className.split(' ')).toContain('bg-azul')
+    expect(screen.getByRole('button', { name: 'Novo lançamento' }).className.split(' ')).toContain('bg-azul')
     expect((await botaoVerFatura()).className.split(' ')).not.toContain('bg-azul')
     expect(screen.queryByText('R$ 0,00')).toBeNull() // sem fatura fechada, o zero não vai para o destaque (#163)
   })
@@ -223,7 +233,7 @@ describe('Cartões', () => {
   it('#203: a lista (/cartoes) não tem extrato nem formulários do cartão: só "Abrir cartão" e "Abrir fatura" por cartão', async () => {
     montar(LISTA)
     await screen.findByText('Nubank')
-    expect(screen.queryByRole('button', { name: 'Nova compra' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Novo lançamento' })).toBeNull()
     expect(screen.queryByRole('button', { name: /^Mais opções/ })).toBeNull()
     expect(screen.queryByRole('list', { name: 'Faturas' })).toBeNull()
     expect(screen.getByRole('link', { name: 'Abrir cartão Nubank' }).getAttribute('href')).toBe('/cartoes/k1')
@@ -464,7 +474,7 @@ describe('Cartões', () => {
     mock.listarCartoes.mockResolvedValue([{ ...nubank, fechamento: null, vencimento: null }])
     montar()
     expect(await screen.findByText(/Defina o dia de fechamento/)).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Nova compra' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Novo lançamento' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('cadastra cartão com fechamento, vencimento e faturas em aberto', async () => {
@@ -532,7 +542,7 @@ describe('Cartões', () => {
   it('compra nova parcelada envia o total e o número de parcelas', async () => {
     const u = userEvent.setup()
     montar()
-    await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
+    await novoLancamento(u, 'Nova despesa')
     await u.type(screen.getByLabelText('Descrição'), 'TV')
     await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     expect(screen.queryByRole('option', { name: 'Salário' })).toBeNull() // só categorias de despesa
@@ -550,7 +560,7 @@ describe('Cartões', () => {
   it('compra em outra fatura: o seletor manda o deslocamento escolhido', async () => {
     const u = userEvent.setup()
     montar()
-    await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
+    await novoLancamento(u, 'Nova despesa')
     await u.type(screen.getByLabelText('Descrição'), 'TV')
     await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
     await u.type(screen.getByLabelText('Valor total (R$)'), '300,00')
@@ -567,7 +577,7 @@ describe('Cartões', () => {
   it('parcelamento em andamento: valor da parcela × parcelas restantes, a partir de hoje', async () => {
     const u = userEvent.setup()
     montar()
-    await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
+    await novoLancamento(u, 'Nova despesa')
     await u.click(screen.getByLabelText('Parcelamento já em andamento'))
     await u.type(screen.getByLabelText('Descrição'), 'Geladeira (iniciada em agosto)')
     await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
@@ -585,7 +595,7 @@ describe('Cartões', () => {
   it('compra sem categoria não é enviada', async () => {
     const u = userEvent.setup()
     montar()
-    await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
+    await novoLancamento(u, 'Nova despesa')
     await u.type(screen.getByLabelText('Descrição'), 'TV')
     await u.type(screen.getByLabelText('Valor total (R$)'), '300,00')
     await u.click(screen.getByRole('button', { name: 'Lançar compra' }))
@@ -626,6 +636,69 @@ describe('Cartões', () => {
     await u.type(screen.getByLabelText('Valor (R$)'), '120,00')
     await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
     expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ contaId: 'a1', valor: 12000, faturaId: null }), expect.any(String))
+  })
+
+  it('#306: pagamento movido para a fatura seguinte deixa a dívida menor que o aberto; sugere o aberto da fatura e explica', async () => {
+    const u = userEvent.setup()
+    // dívida do cartão (debt_balances) 40,00; a fatura fechada tem 100,00 sem pagamento (os 60 foram para a seguinte)
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(4000), compromissos: c(20000) }])
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), total: c(10000), pago: c(0), faturaId: 'f3' }),
+      fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(20000), total: c(20000), pago: c(6000), faturaId: 'f9' }),
+    ])
+    montar()
+    await abrirPagar(u)
+    await waitFor(() => expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('100,00'))
+    expect((await screen.findByText(/em aberto; a dívida do cartão/)).textContent).toMatch(/R\$ 100,00 em aberto; a dívida do cartão \(R\$ 40,00\) é menor/)
+    expect(screen.queryByText(/O que passar da fatura fechada/)).toBeNull() // 100,00 não passa do aberto
+    // "mais que tudo" usa a dívida real: 40,00 + 200,00 de parcelas futuras = 240,00 (não 100 + 200)
+    const campo = screen.getByLabelText('Valor (R$)')
+    await u.clear(campo)
+    await u.type(campo, '250,00')
+    expect(await screen.findByText(/mais do que tudo o que este cartão tem a pagar/)).toBeTruthy()
+    await u.clear(campo)
+    await u.type(campo, '100,00')
+    await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ valor: 10000, faturaId: 'f3' }), expect.any(String))
+  })
+
+  it('#306: o aberto da fatura que chega depois não apaga o valor que a pessoa já digitou', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(4000), compromissos: c(20000) }])
+    const fs = [fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), total: c(10000), pago: c(0), faturaId: 'f3' })]
+    mock.listarFaturas.mockResolvedValue(fs)
+    montar()
+    await u.click(await botaoVerFatura())
+    // a leitura do painel de pagar fica pendente até a pessoa digitar
+    let soltar: (x: Fatura[]) => void = () => {}
+    mock.listarFaturas.mockReturnValueOnce(new Promise<Fatura[]>((r) => { soltar = r }))
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    const campo = screen.getByLabelText('Valor (R$)')
+    await u.clear(campo)
+    await u.type(campo, '55,00')
+    soltar(fs)
+    expect(await screen.findByText(/em aberto; a dívida do cartão/)).toBeTruthy()
+    expect((campo as HTMLInputElement).value).toBe('55,00')
+  })
+
+  it('#306: cartão sem dívida, mas com fatura fechada em aberto (pagamento movido): sugere o aberto e não diz "Não há fatura fechada"', async () => {
+    const u = userEvent.setup()
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), credito: c(2000), compromissos: c(20000) }])
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), total: c(10000), pago: c(0), faturaId: 'f3' }),
+      fatura({ mes: '2099-01', fechamento: '2099-01-17', aCobrar: c(20000), total: c(20000), pago: c(12000), faturaId: 'f9' }),
+    ])
+    montar()
+    await u.click(await botaoVerFatura())
+    await u.click(await screen.findByRole('button', { name: 'Pagar fatura' }))
+    await waitFor(() => expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('100,00'))
+    expect((await screen.findByText(/mesmo com o cartão sem dívida/)).textContent).toMatch(/R\$ 100,00 em aberto, mesmo com o cartão sem dívida/)
+    expect(screen.queryByText(/Não há fatura fechada/)).toBeNull()
+    await u.selectOptions(screen.getByLabelText('Pagar com a conta'), 'a1')
+    await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+    // sem dívida o pagamento não se liga a fatura (comportamento de antes): como adiantamento, abate primeiro a fatura em aberto mais antiga
+    expect(mock.pagarFatura).toHaveBeenCalledWith('k1', expect.objectContaining({ valor: 10000, faturaId: null }), expect.any(String))
   })
 
   it('pagar mais que a fatura fechada: o excedente vira crédito e a tela avisa; mais que tudo, pede para conferir', async () => {
@@ -753,7 +826,7 @@ describe('Cartões', () => {
   it('crédito / reembolso: só categorias de RECEITA e envia valor em centavos, data e descrição', async () => {
     const u = userEvent.setup()
     montar()
-    await escolherNoMenu(u, 'Crédito / reembolso')
+    await novoLancamento(u, 'Nova receita')
     await u.type(screen.getByLabelText('Descrição'), 'Estorno de IOF')
     expect(screen.queryByRole('option', { name: 'Compras pessoais' })).toBeNull() // só receita
     await escolherCategoria(u, screen.getByLabelText('Categoria de receita'), 'g2')
@@ -772,7 +845,7 @@ describe('Cartões', () => {
       fatura({ mes: '2026-09', fechamento: '2026-09-17' }), fatura({ mes: '2026-11', fechamento: '2026-11-17' }),
     ])
     montar()
-    await escolherNoMenu(u, 'Crédito / reembolso')
+    await novoLancamento(u, 'Nova receita')
     await u.type(screen.getByLabelText('Descrição'), 'Cashback')
     await u.type(screen.getByLabelText('Valor (R$)'), '10,00')
     const data = screen.getByLabelText('Data do crédito')
@@ -865,7 +938,7 @@ describe('Limite do cartão', () => {
     mock.listarCartoes.mockResolvedValue([{ ...comLimite, limiteComprometido: c(600000), limiteDisponivel: c(-20000) }])
     montar()
     expect(await screen.findByText('Passou do limite em R$ 200,00')).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Nova compra' }) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('button', { name: 'Novo lançamento' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('grava o limite em centavos', async () => {
@@ -1115,14 +1188,14 @@ describe('Destaque da fatura (fatura atual)', () => {
     expect(screen.getByText('R$ 438,97').closest('a')).not.toBeNull()
   })
 
-  it('fecha dia 31: a ajuda de Nova compra e de Crédito diz que em mês curto fecha no último dia', async () => {
+  it('fecha dia 31: a ajuda de Nova despesa e de Nova receita diz que em mês curto fecha no último dia', async () => {
     const u = userEvent.setup()
     mock.listarCartoes.mockResolvedValue([{ ...nubank, fechamento: 31, vencimento: 10 }])
     montar()
-    await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
+    await novoLancamento(u, 'Nova despesa')
     expect(screen.getByText(/Compra antes do fechamento \(dia 31 ou o último dia do mês, se for mais curto\)/)).toBeTruthy()
     await u.click(screen.getByRole('button', { name: 'Cancelar' }))
-    await escolherNoMenu(u, 'Crédito / reembolso')
+    await novoLancamento(u, 'Nova receita')
     expect(screen.getByText(/Crédito antes do fechamento \(dia 31 ou o último dia do mês, se for mais curto\)/)).toBeTruthy()
   })
 
@@ -1161,19 +1234,19 @@ describe('Destaque da fatura (fatura atual)', () => {
 })
 
 describe('Menos botões: ações secundárias no menu "Mais opções"', () => {
-  const OITO = ['Crédito / reembolso', 'Alterar dias', 'Definir limite', 'Banco e bandeira', 'Conta de pagamento', 'Renomear', 'Arquivar', 'Excluir']
+  const SETE = ['Alterar dias', 'Definir limite', 'Banco e bandeira', 'Conta de pagamento', 'Renomear', 'Arquivar', 'Excluir']
 
-  it('no cabeçalho do cartão ficam só Nova compra e o botão "⋯"; "Abrir fatura" é um link (#181/#203: "Pagar fatura" mora na fatura)', async () => {
+  it('no cabeçalho do cartão ficam só o "+ Lançamento" e o botão "⋯"; "Abrir fatura" é um link (#181/#203: "Pagar fatura" mora na fatura)', async () => {
     montar()
     await screen.findByRole('heading', { level: 1, name: /^Nubank/ })
     const cabecalho = document.querySelector('header')!
-    expect(within(cabecalho).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(['Nova compra', 'Mais opções do cartão Nubank'])
+    expect(within(cabecalho).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(['Novo lançamento', 'Mais opções do cartão Nubank'])
     // o nome acessível diz o mês da fatura (a atual: sem fatura fechada listada, só o saldo de referência)
     expect(screen.getByRole('link', { name: /^Abrir fatura de \p{L}+, Nubank$/u })).toBeTruthy()
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
-  it('o menu abre, lista as 8 ações (Excluir por último, separado e em vermelho) e fecha com Esc devolvendo o foco', async () => {
+  it('o menu abre, lista as 7 ações (Excluir por último, separado e em vermelho) e fecha com Esc devolvendo o foco', async () => {
     const u = userEvent.setup()
     montar()
     const gatilho = await screen.findByRole('button', { name: 'Mais opções do cartão Nubank' })
@@ -1183,14 +1256,14 @@ describe('Menos botões: ações secundárias no menu "Mais opções"', () => {
     expect(gatilho.getAttribute('aria-expanded')).toBe('true')
     const menu = screen.getByRole('menu', { name: 'Mais opções do cartão Nubank' })
     const itens = within(menu).getAllByRole('menuitem')
-    expect(itens.map((i) => i.textContent)).toEqual(OITO)
-    expect(itens[7].className).toContain('text-negativo')
+    expect(itens.map((i) => i.textContent)).toEqual(SETE)
+    expect(itens[6].className).toContain('text-negativo')
     expect(within(menu).getByRole('separator')).toBeTruthy()
     expect(document.activeElement).toBe(itens[0]) // abre com o foco na primeira ação
     await u.keyboard('{ArrowDown}')
     expect(document.activeElement).toBe(itens[1])
     await u.keyboard('{End}')
-    expect(document.activeElement).toBe(itens[7])
+    expect(document.activeElement).toBe(itens[6])
     await u.keyboard('{ArrowDown}')
     expect(document.activeElement).toBe(itens[0])
     await u.keyboard('{Escape}')
@@ -1208,7 +1281,6 @@ describe('Menos botões: ações secundárias no menu "Mais opções"', () => {
   })
 
   it.each([
-    ['Crédito / reembolso', () => screen.getByRole('heading', { name: 'Crédito / reembolso · Nubank' })],
     ['Alterar dias', () => screen.getByLabelText('Dia do fechamento')],
     ['Definir limite', () => screen.getByLabelText('Limite do cartão (R$)')],
     ['Banco e bandeira', () => screen.getByLabelText('Banco emissor')],
@@ -1238,16 +1310,16 @@ describe('Menos botões: ações secundárias no menu "Mais opções"', () => {
   it('com um diálogo aberto, o menu fica desabilitado (como os botões eram)', async () => {
     const u = userEvent.setup()
     montar()
-    await u.click(await screen.findByRole('button', { name: 'Nova compra' }))
+    await novoLancamento(u, 'Nova despesa')
     expect((screen.getByRole('button', { name: 'Mais opções do cartão Nubank' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('cartão sem ciclo: Crédito / reembolso desabilitado e "Definir fechamento" no menu', async () => {
+  it('cartão sem ciclo: "+ Lançamento" desabilitado e "Definir fechamento" no menu ⋯', async () => {
     const u = userEvent.setup()
     mock.listarCartoes.mockResolvedValue([{ ...nubank, fechamento: null, vencimento: null }])
     montar()
     await u.click(await screen.findByRole('button', { name: 'Mais opções do cartão Nubank' }))
-    expect((screen.getByRole('menuitem', { name: 'Crédito / reembolso' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Novo lançamento' }) as HTMLButtonElement).disabled).toBe(true)
     await u.click(screen.getByRole('menuitem', { name: 'Definir fechamento' }))
     expect(screen.getByLabelText('Dia do fechamento')).toBeTruthy()
   })
@@ -2036,15 +2108,15 @@ describe('Tela de Cartões no celular (#201, queixa do dono no iPhone)', () => {
     expect(screen.getByText('Mostrando os 30 mais recentes.')).toBeTruthy()
   })
 
-  it('a fatura oferece lançamento rápido de despesa/receita e impressão', async () => {
+  it('a fatura oferece o "+ Lançamento" (despesa/receita) e a impressão', async () => {
     const u = userEvent.setup()
     const imprimir = vi.fn()
     Object.defineProperty(window, 'print', { configurable: true, value: imprimir })
     await abrir(u)
-    await u.click(screen.getByRole('button', { name: 'Nova despesa' }))
+    await novoLancamento(u, 'Nova despesa')
     expect(await screen.findByRole('heading', { name: 'Nova compra · Nubank' })).toBeTruthy()
     await u.click(screen.getByRole('button', { name: 'Cancelar' }))
-    await u.click(screen.getByRole('button', { name: 'Nova receita' }))
+    await novoLancamento(u, 'Nova receita')
     expect(await screen.findByRole('heading', { name: 'Crédito / reembolso · Nubank' })).toBeTruthy()
     await u.click(screen.getByRole('button', { name: 'Cancelar' }))
     await u.click(screen.getByRole('button', { name: 'Imprimir fatura' }))
@@ -2060,5 +2132,250 @@ describe('Tela de Cartões no celular (#201, queixa do dono no iPhone)', () => {
     for (const cr of screen.getAllByTestId('credito-fatura')) {
       expect(cr.querySelector('[data-linha-principal] [data-valor]')!.textContent).toMatch(/^\+R\$/)
     }
+  })
+})
+
+describe('"+ Lançamento" com a folha por cima da tela (pedido do dono, 12/11/2026, como em Lançamentos)', () => {
+  const aberta = fatura({ mes: '2026-11', fechamento: '2026-11-17', vencimento: '2026-11-25', aCobrar: c(5000), total: c(5000), faturaId: null })
+
+  /** Página do cartão (k1) ou da fatura aberta de novembro, com hoje em 06/11/2026. */
+  function abrirPagina(naFatura: boolean, cartao: Record<string, unknown> = {}) {
+    fixarHoje('2026-11-06')
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0), ...cartao }])
+    mock.listarFaturas.mockResolvedValue([aberta])
+    montar(naFatura ? '/cartoes/k1/fatura/2026-11' : '/cartoes/k1')
+  }
+  const botaoNovo = () => screen.findByRole('button', { name: 'Novo lançamento' })
+
+  it('o menu lista Nova despesa (D) e Nova receita (R), abre com o foco no primeiro item e anda pelas setas', async () => {
+    const u = userEvent.setup()
+    abrirPagina(false)
+    const gatilho = await botaoNovo()
+    expect(gatilho.getAttribute('aria-haspopup')).toBe('menu')
+    expect(gatilho.getAttribute('aria-expanded')).toBe('false')
+    await u.click(gatilho)
+    expect(gatilho.getAttribute('aria-expanded')).toBe('true')
+    const itens = within(screen.getByRole('menu', { name: 'Novo lançamento' })).getAllByRole('menuitem')
+    expect(itens.map((i) => i.textContent)).toEqual(['Nova despesatecla D', 'Nova receitatecla R'])
+    expect(document.activeElement).toBe(itens[0])
+    await u.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(itens[1])
+    await u.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(itens[0])
+    await u.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(gatilho)
+  })
+
+  it('o formulário de compra abre numa folha por cima da tela (não empilhado no topo); Esc fecha e o foco volta ao botão', async () => {
+    const u = userEvent.setup()
+    abrirPagina(false)
+    const gatilho = await botaoNovo()
+    await novoLancamento(u, 'Nova despesa')
+    const folha = screen.getByRole('dialog', { name: 'Nova compra · Nubank' })
+    expect(folha.getAttribute('aria-modal')).toBe('true')
+    // o formulário inteiro mora dentro da folha, e nada dele ficou solto na página
+    expect(within(folha).getByLabelText('Descrição')).toBeTruthy()
+    expect(document.querySelectorAll('form')).toHaveLength(1)
+    expect(document.querySelector('form')!.closest('[role="dialog"]')).toBe(folha)
+    expect(document.body.style.overflow).toBe('hidden') // a página de trás não rola
+    await u.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.body.style.overflow).not.toBe('hidden')
+    expect(document.activeElement).toBe(gatilho)
+  })
+
+  it('a folha fecha no × e clicando fora; Cancelar também fecha; o foco volta ao botão nos três', async () => {
+    const u = userEvent.setup()
+    abrirPagina(false)
+    const gatilho = await botaoNovo()
+    await novoLancamento(u, 'Nova despesa')
+    await u.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Fechar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(gatilho)
+    await novoLancamento(u, 'Nova receita')
+    fireEvent.mouseDown(screen.getByRole('dialog').parentElement!)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(gatilho)
+    await novoLancamento(u, 'Nova despesa')
+    await u.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(gatilho)
+  })
+
+  it('lançar pela folha chama a mesma função de antes, fecha a folha e devolve o foco ao botão', async () => {
+    const u = userEvent.setup()
+    abrirPagina(false)
+    const gatilho = await botaoNovo()
+    await novoLancamento(u, 'Nova despesa')
+    const folha = screen.getByRole('dialog', { name: 'Nova compra · Nubank' })
+    await u.type(within(folha).getByLabelText('Descrição'), 'TV')
+    await escolherCategoria(u, within(folha).getByLabelText('Categoria'), 'g1')
+    await u.type(within(folha).getByLabelText('Valor total (R$)'), '300,00')
+    await u.click(within(folha).getByRole('button', { name: 'Lançar compra' }))
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', expect.objectContaining({ descricao: 'TV', total: 30000, parcelas: 1, categoriaId: 'g1' }), expect.any(String))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(document.activeElement).toBe(gatilho)
+
+    await novoLancamento(u, 'Nova receita')
+    const credito = screen.getByRole('dialog', { name: 'Crédito / reembolso · Nubank' })
+    await u.type(within(credito).getByLabelText('Descrição'), 'Cashback')
+    await escolherCategoria(u, within(credito).getByLabelText('Categoria de receita'), 'g2')
+    await u.type(within(credito).getByLabelText('Valor (R$)'), '10,00')
+    await u.click(within(credito).getByRole('button', { name: 'Lançar crédito' }))
+    expect(mock.lancarCreditoNoCartao).toHaveBeenCalledWith('k1', expect.objectContaining({ descricao: 'Cashback', valor: 1000, categoriaId: 'g2' }), expect.any(String))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('teclas D e R abrem a folha de despesa e a de receita; digitar um "d" num campo não abre outra', async () => {
+    const u = userEvent.setup()
+    abrirPagina(false)
+    await botaoNovo()
+    await u.keyboard('d')
+    const folha = screen.getByRole('dialog', { name: 'Nova compra · Nubank' })
+    // o foco já está num campo da folha: a tecla vira texto, e não abre outra folha por cima
+    await u.type(within(folha).getByLabelText('Descrição'), 'dr')
+    expect((within(folha).getByLabelText('Descrição') as HTMLInputElement).value).toBe('dr')
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    await u.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await u.keyboard('R')
+    expect(screen.getByRole('dialog', { name: 'Crédito / reembolso · Nubank' })).toBeTruthy()
+  })
+
+  it('as teclas não valem com outro painel aberto na página nem em cartão sem fechamento, e o botão fica desabilitado', async () => {
+    const u = userEvent.setup()
+    abrirPagina(false)
+    await botaoNovo()
+    await escolherNoMenu(u, 'Alterar dias')
+    expect((screen.getByRole('button', { name: 'Novo lançamento' }) as HTMLButtonElement).disabled).toBe(true)
+    await u.keyboard('d')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    cleanup()
+    abrirPagina(false, { fechamento: null, vencimento: null })
+    await screen.findByText(/Defina o dia de fechamento/)
+    await u.keyboard('d')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('na fatura: "+ Lançamento" no cabeçalho com despesa e receita, folha por cima, Esc fecha e o foco volta ao botão', async () => {
+    const u = userEvent.setup()
+    abrirPagina(true)
+    const gatilho = await botaoNovo()
+    expect(within(document.querySelector('header')!).getByRole('button', { name: 'Novo lançamento' })).toBe(gatilho)
+    expect(screen.queryByRole('button', { name: 'Nova despesa' })).toBeNull() // os dois botões soltos saíram
+    expect(screen.queryByRole('button', { name: 'Nova receita' })).toBeNull()
+    await novoLancamento(u, 'Nova despesa')
+    expect(screen.getByRole('dialog', { name: 'Nova compra · Nubank' })).toBeTruthy()
+    expect(document.querySelector('form')!.closest('[role="dialog"]')).not.toBeNull()
+    await u.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(gatilho)
+    await u.keyboard('r')
+    expect(screen.getByRole('dialog', { name: 'Crédito / reembolso · Nubank' })).toBeTruthy()
+  })
+
+  it('na fatura paga e travada não há "+ Lançamento" nem tecla que abra a folha', async () => {
+    const u = userEvent.setup()
+    fixarHoje('2026-11-06')
+    mock.listarCartoes.mockResolvedValue([{ ...nubank, divida: c(0) }])
+    mock.listarFaturas.mockResolvedValue([
+      fatura({ mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', cobrado: c(4000), total: c(4000), pago: c(4000), faturaId: 'f10' }), aberta,
+    ])
+    mock.listarPagamentosDaFatura.mockResolvedValue([{ id: 'pg1', data: '2026-10-24', valor: c(4000) }])
+    montar('/cartoes/k1/fatura/2026-10')
+    expect(await screen.findByTestId('fatura-travada')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Novo lançamento' })).toBeNull()
+    await u.keyboard('d')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // a fatura seguinte, aberta, tem o botão (e a tecla vale)
+    await u.click(screen.getByRole('button', { name: 'Fatura seguinte (novembro de 2026)' }))
+    expect(await botaoNovo()).toBeTruthy()
+    await u.keyboard('d')
+    expect(screen.getByRole('dialog', { name: 'Nova compra · Nubank' })).toBeTruthy()
+  })
+
+  it('na fatura, com a ação de uma compra aberta (editar, estornar…), a tecla D não abre a folha por baixo', async () => {
+    const u = userEvent.setup()
+    mock.listarItens.mockResolvedValue([{ parcelaId: 'p1', compra: 'x1', parcela: 1, deParcelas: 1, descricao: 'Mercado', dataCompra: '2026-11-02', valor: c(5000), falta: c(5000), categoriaId: 'g1' }])
+    abrirPagina(true)
+    await screen.findByText('Mercado')
+    await acaoDaLinha(u, 'Ações de Mercado', 'Editar valor')
+    expect(screen.getByRole('form', { name: 'Editar parcela' })).toBeTruthy()
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    await u.keyboard('d')
+    expect(screen.queryByRole('dialog', { name: 'Nova compra · Nubank' })).toBeNull()
+    // fechado o painel da compra, a mesma tecla volta a valer
+    await u.click(screen.getByRole('button', { name: 'Cancelar' }))
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    await u.keyboard('d')
+    expect(screen.getByRole('dialog', { name: 'Nova compra · Nubank' })).toBeTruthy()
+  })
+})
+
+describe('Mudar a fatura de um pagamento (migration 110, pedido do dono de 11/11/2026)', () => {
+  // setembro paga (travada); outubro fechada e paga em parte; novembro aberta; dezembro futura
+  const setembro = fatura({ mes: '2026-09', fechamento: '2026-09-17', vencimento: '2026-09-25', cobrado: c(30000), total: c(30000), pago: c(30000), faturaId: 'f9' })
+  const outubro = fatura({ mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', cobrado: c(4000), total: c(4000), pago: c(1000), faturaId: 'f10' })
+  const novembro = fatura({ mes: '2026-11', fechamento: '2026-11-17', vencimento: '2026-11-25', aCobrar: c(20000), total: c(20000), faturaId: null })
+  const dezembro = fatura({ mes: '2026-12', fechamento: '2026-12-17', vencimento: '2026-12-25', aCobrar: c(5000), total: c(5000), faturaId: null })
+
+  async function abrirOutubro(u: ReturnType<typeof userEvent.setup>, faturas: Fatura[] = [setembro, outubro, novembro, dezembro]) {
+    fixarHoje('2026-11-05')
+    mock.listarFaturas.mockResolvedValue(faturas)
+    mock.listarPagamentosDaFatura.mockResolvedValue([{ id: 'pg1', data: '2026-10-18', valor: c(1000) }])
+    montar('/cartoes/k1/fatura/2026-10')
+    await screen.findByRole('heading', { level: 1, name: /Outubro de 2026/ })
+    return u
+  }
+
+  it('o pagamento ganha "Mudar fatura"; o painel começa na seguinte e só lista faturas que não estão pagas', async () => {
+    const u = await abrirOutubro(userEvent.setup())
+    await u.click(await screen.findByRole('button', { name: 'Mudar a fatura do pagamento de 18/10/2026' }))
+    const painel = screen.getByRole('form', { name: 'Mudar a fatura do pagamento' })
+    expect(painel.textContent?.replace(/\u00a0/g, ' ')).toMatch(/O pagamento de R\$ 10,00, recebido em 18\/10\/2026, passa a quitar a fatura escolhida\. A data, o valor e a conta não mudam\./)
+    const destino = within(painel).getByLabelText('Fatura de destino') as HTMLSelectElement
+    // começa na seguinte (o pedido do dono); setembro (paga) e outubro (a própria) não aparecem
+    expect(destino.value).toBe('2026-11')
+    expect([...destino.options].map((o) => o.value)).toEqual(['2026-11', '2026-12'])
+    await u.selectOptions(destino, '2026-12')
+    await u.click(within(painel).getByRole('button', { name: 'Mudar fatura' }))
+    await waitFor(() => expect(mock.moverPagamentoDeFatura).toHaveBeenCalledWith('pg1', '2026-12'))
+    expect(mock.moverPagamentoDeFatura).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.queryByRole('form', { name: 'Mudar a fatura do pagamento' })).toBeNull())
+  })
+
+  it('recusa do banco (ex.: a fatura de destino ficou paga) aparece dentro do painel, que continua aberto', async () => {
+    mock.moverPagamentoDeFatura.mockRejectedValue({ code: '55000', message: 'fatura paga não muda: a fatura de origem ou a de destino já está fechada e paga' })
+    const u = await abrirOutubro(userEvent.setup())
+    await u.click(await screen.findByRole('button', { name: 'Mudar a fatura do pagamento de 18/10/2026' }))
+    const painel = screen.getByRole('form', { name: 'Mudar a fatura do pagamento' })
+    await u.click(within(painel).getByRole('button', { name: 'Mudar fatura' }))
+    expect((await within(painel).findByRole('alert')).textContent).toMatch(/fatura paga não muda/i)
+    expect(screen.getByRole('form', { name: 'Mudar a fatura do pagamento' })).toBeTruthy()
+  })
+
+  it('Cancelar fecha o painel sem chamar o banco', async () => {
+    const u = await abrirOutubro(userEvent.setup())
+    await u.click(await screen.findByRole('button', { name: 'Mudar a fatura do pagamento de 18/10/2026' }))
+    await u.click(within(screen.getByRole('form', { name: 'Mudar a fatura do pagamento' })).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('form', { name: 'Mudar a fatura do pagamento' })).toBeNull()
+    expect(mock.moverPagamentoDeFatura).not.toHaveBeenCalled()
+  })
+
+  it('sem outra fatura que possa receber (as outras estão pagas), o botão não aparece', async () => {
+    await abrirOutubro(userEvent.setup(), [setembro, outubro])
+    await screen.findByTestId('pagamento-fatura')
+    expect(screen.queryByRole('button', { name: /^Mudar a fatura do pagamento/ })).toBeNull()
+  })
+
+  it('fatura paga (travada): o pagamento não tem "Mudar fatura"', async () => {
+    fixarHoje('2026-11-05')
+    mock.listarFaturas.mockResolvedValue([setembro, outubro, novembro])
+    mock.listarPagamentosDaFatura.mockResolvedValue([{ id: 'pg9', data: '2026-09-24', valor: c(30000) }])
+    montar('/cartoes/k1/fatura/2026-09')
+    await screen.findByTestId('fatura-travada')
+    await screen.findByTestId('pagamento-fatura')
+    expect(screen.queryByRole('button', { name: /^Mudar a fatura do pagamento/ })).toBeNull()
   })
 })
