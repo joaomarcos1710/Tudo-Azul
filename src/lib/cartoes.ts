@@ -616,6 +616,19 @@ export async function moverPagamentoDeFatura(pagamentoId: string, mes: string): 
   if (error) throw error
 }
 
+/**
+ * Manda UMA parcela ainda não cobrada para a fatura anterior (`previous`) ou para a próxima (`next`) do cartão
+ * (card_installment_move, migration 111). Só o fechamento da parcela muda; valor, data da compra e "n de N" ficam. O
+ * banco recusa (55000, com a mensagem em português) parcela já cobrada ou estornada, fatura de origem fechada e destino
+ * já fechado ou pago. Devolve o fechamento (AAAA-MM-DD) da fatura de destino.
+ */
+export type DirecaoDaParcela = 'previous' | 'next'
+export async function moverParcelaDeFatura(parcelaId: string, direcao: DirecaoDaParcela): Promise<string> {
+  const { data, error } = await cliente().rpc('card_installment_move', { p_installment: parcelaId, p_direction: direcao })
+  if (error) throw error
+  return data as string
+}
+
 /** Reabre a fatura: desfaz os pagamentos ligados a ela e o dinheiro volta para a conta. Devolve quantos desfez. */
 export async function reabrirFatura(cartaoId: string, mes: string, motivo = 'fatura reaberta'): Promise<number> {
   const { data, error } = await cliente().rpc('card_invoice_reopen', { p_debt: cartaoId, p_label: mes, p_reason: motivo })

@@ -655,3 +655,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Fatura paga e travada não impede:** é só classificação analítica (nada entra em `card_months`, saldo ou `period_summary`), a mesma lógica de trocar a categoria de um crédito (077). A trava da 064 protege total e pago, não quem gastou.
 - **Pessoa inativa:** só se já for a atual (histórico preservado); nunca para uma nova atribuição (regra da 083).
 - **Leitura sem mexer em `card_items`:** a tela lê `person_id`/`is_shared_expense` direto de `debt_installments` (RLS da família) só na página da fatura. Evitou recriar uma função de leitura que outras PRs também mexem.
+## 12/11/2026 — Cartão: enviar parcela para a fatura anterior ou próxima (dono, #310)
+- **Parcela por parcela, não a compra inteira.** Só parcela ainda não cobrada; fatura paga continua travada (nem origem nem destino, sem reabrir). Destino é a fatura vizinha. Motivo: é o que o Organizze faz e não cria evento nenhum.
+- **Muda o mês da despesa:** a despesa conta no mês da fatura, então mandar para outra fatura move a despesa de mês nos relatórios por fatura. É o efeito esperado. Relatórios por data da compra ou da parcela não mudam.
+- **Também fechada a pagar é recusada**, não só a paga: a parcela dela já foi ou vai ser cobrada no fechamento.
+- **Parcela com estorno ou cancelamento, mesmo parcial, não muda** (como a edição de valor). Mais simples e seguro; se o dono quiser, abre-se depois.
+- **Sem confirmação na tela:** não cria lançamento e dá para mandar de volta. A tela avisa para onde a parcela foi.
+- **A parcela leva os dias de fechamento e vencimento do mês de destino**, para o vencimento da fatura sair certo depois de uma troca de dias do cartão.
