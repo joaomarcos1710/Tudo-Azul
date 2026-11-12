@@ -8,6 +8,8 @@ import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
 import { useFocoPreso } from '../components/ui/useFocoPreso'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
+import { MenuNovo, useAtalhosNovo } from '../components/ui/MenuNovo'
+import type { ItemNovo } from '../components/ui/MenuNovo'
 import type { AcaoMenu } from '../components/ui/MenuAcoes'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
@@ -164,23 +166,8 @@ export default function Lancamentos() {
   }, [params, contas.length, setParams, editando, operacaoInv, abrirNovo])
 
   // atalhos de teclado como no Organizze: D despesa, R receita, T transferência, C compra no cartão, A aporte e G resgate
-  // (fora de campos de texto)
-  useEffect(() => {
-    if (editando !== null || operacaoInv !== null || contas.length === 0) return
-    function tecla(e: KeyboardEvent) {
-      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
-      // com a tela de filtros aberta, a tecla não abre um lançamento por baixo dela
-      if (filtrosAbertos) return
-      const alvo = e.target as HTMLElement | null
-      if (alvo && (alvo.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(alvo.tagName))) return
-      const t = ATALHOS[e.key.toLowerCase()]
-      if (!t) return
-      e.preventDefault()
-      abrirNovo(t)
-    }
-    window.addEventListener('keydown', tecla)
-    return () => window.removeEventListener('keydown', tecla)
-  }, [editando, operacaoInv, contas.length, filtrosAbertos, abrirNovo])
+  // (fora de campos de texto; com a tela de filtros aberta, a tecla não abre um lançamento por baixo dela)
+  useAtalhosNovo(ITENS_NOVO, editando === null && operacaoInv === null && contas.length > 0 && !filtrosAbertos, abrirNovo)
 
   // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
   const [automaticosProntos, setAutomaticosProntos] = useState(false)
@@ -587,7 +574,7 @@ export default function Lancamentos() {
         aviso={filtros.tipo || filtros.categoriaId || filtros.situacao || filtros.cartaoId || filtros.soFixos || filtros.soParcelados
           ? 'Os totais seguem só o filtro de conta (não os de tipo, categoria, situação, cartão, fixos ou parcelados).' : undefined}
         // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
-        acao={<MenuNovo desabilitado={contas.length === 0} aoEscolher={abrirNovo} />} />
+        acao={<MenuNovo itens={ITENS_NOVO} desabilitado={contas.length === 0} aoEscolher={abrirNovo} />} />
     </>
   )
 }
@@ -1260,51 +1247,12 @@ const PERIODOS: { chave: string; rotulo: string; unidade: 'month' | 'week' | 'da
   { chave: 'dias', rotulo: 'Dias', unidade: 'day', cada: 1 },
 ]
 
-const ATALHOS: Record<string, EscolhaNovo> = { d: 'expense', r: 'income', t: 'transfer', c: 'cartao', a: 'aporte', g: 'resgate' }
-
-/**
- * Botão flutuante "+" (pedido do dono, 10/11/2026, como no Organizze): menu com os quatro tipos de lançamento, mais
- * aporte e resgate de investimento, e a tecla de atalho de cada um.
- */
-function MenuNovo({ desabilitado, aoEscolher }: { desabilitado: boolean; aoEscolher: (t: EscolhaNovo) => void }) {
-  const [aberto, setAberto] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!aberto) return
-    const fora = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false) }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAberto(false) }
-    document.addEventListener('mousedown', fora)
-    document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc) }
-  }, [aberto])
-  const itens: [EscolhaNovo, string, string][] = [
-    ['expense', 'Nova despesa', 'D'], ['income', 'Nova receita', 'R'], ['transfer', 'Nova transferência', 'T'], ['cartao', 'Compra no cartão', 'C'],
-    ['aporte', 'Aporte em investimento', 'A'], ['resgate', 'Resgate de investimento', 'G'],
-  ]
-  return (
-    <div className="relative" ref={ref}>
-      <button type="button" onClick={() => setAberto((v) => !v)} disabled={desabilitado} aria-haspopup="menu" aria-expanded={aberto}
-        aria-label="Novo lançamento" title="Novo lançamento (teclas D, R, T, C, A, G)"
-        className="flex h-14 w-14 items-center justify-center rounded-full bg-azul text-3xl font-light leading-none text-white shadow-card hover:bg-marinho focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul disabled:cursor-not-allowed disabled:opacity-50">
-        <span aria-hidden="true">+</span>
-      </button>
-      {aberto && (
-        <div role="menu" aria-label="Novo lançamento" className="absolute bottom-full right-0 z-40 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-xl bg-marinho p-2 shadow-card">
-          {itens.map(([t, rotulo, tecla]) => (
-            <button key={t} type="button" role="menuitem"
-              // o foco volta ao "+" antes do painel abrir: o painel o guarda como origem e o devolve ao fechar
-              onClick={() => { setAberto(false); ref.current?.querySelector<HTMLButtonElement>('button')?.focus(); aoEscolher(t) }}
-              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg px-3 text-left text-sm font-semibold text-white hover:bg-white/10">
-              {rotulo}
-              {/* atalho de teclado físico: escondido no celular e em telas de toque */}
-              <span className="hidden rounded-full border border-white/30 px-2 text-xs font-normal text-blue-100 sm:inline [@media(pointer:coarse)]:hidden" aria-label={`atalho: tecla ${tecla}`}>tecla {tecla}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+/** O "+ Lançamento": os quatro tipos, mais aporte e resgate de investimento, e a tecla de atalho de cada um (como no Organizze). */
+const ITENS_NOVO: ItemNovo<EscolhaNovo>[] = [
+  { chave: 'expense', rotulo: 'Nova despesa', tecla: 'D' }, { chave: 'income', rotulo: 'Nova receita', tecla: 'R' },
+  { chave: 'transfer', rotulo: 'Nova transferência', tecla: 'T' }, { chave: 'cartao', rotulo: 'Compra no cartão', tecla: 'C' },
+  { chave: 'aporte', rotulo: 'Aporte em investimento', tecla: 'A' }, { chave: 'resgate', rotulo: 'Resgate de investimento', tecla: 'G' },
+]
 
 /**
  * Painel por cima da lista (como no Organizze): fecha no ×, no Esc ou clicando fora; a página de trás não rola; o foco

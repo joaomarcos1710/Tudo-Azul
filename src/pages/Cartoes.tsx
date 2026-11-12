@@ -11,7 +11,10 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { FaturasDoMes } from '../components/ui/FaturasDoMes'
 import { Field } from '../components/ui/Field'
+import { Folha } from '../components/ui/Folha'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
+import { MenuNovo, useAtalhosNovo } from '../components/ui/MenuNovo'
+import type { ItemNovo } from '../components/ui/MenuNovo'
 import { Selecao } from '../components/ui/Selecao'
 import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
@@ -48,6 +51,34 @@ type Painel =
   | { tipo: 'contapag'; cartao: Cartao }
   | { tipo: 'arquivar'; cartao: Cartao }
   | { tipo: 'excluir'; cartao: Cartao }
+
+/** Compra e crédito abrem numa folha por cima da tela (como o "+ Lançamento" de Lançamentos); os outros painéis ficam na página. */
+type PainelFolha = Extract<Painel, { tipo: 'compra' | 'credito' }>
+const emFolha = (p: Painel | null): p is PainelFolha => p?.tipo === 'compra' || p?.tipo === 'credito'
+
+/** O "+ Lançamento" do cartão: despesa (compra, parcelada ou não) e receita (crédito / reembolso), com as teclas D e R. */
+const ITENS_NOVO: ItemNovo<PainelFolha['tipo']>[] = [
+  { chave: 'compra', rotulo: 'Nova despesa', tecla: 'D' }, { chave: 'credito', rotulo: 'Nova receita', tecla: 'R' },
+]
+
+/**
+ * Botão "+ Lançamento" do cabeçalho do cartão e da fatura: o item abre a folha de compra ou de crédito. Fica desabilitado
+ * enquanto outro painel (limite, pagamento…) está aberto na página; com a folha aberta ele só fica atrás dela, para o foco
+ * poder voltar a ele ao fechar. As teclas só valem com `atalhos` e sem nada aberto.
+ */
+function NovoNoCartao({ cartao, painel, setPainel, forma, desabilitado = false, atalhos = true }: {
+  cartao: Cartao
+  painel: Painel | null
+  setPainel: (p: Painel | null) => void
+  forma: 'primario' | 'secundario'
+  desabilitado?: boolean
+  atalhos?: boolean
+}) {
+  const bloqueado = desabilitado || (painel !== null && !emFolha(painel))
+  const abrir = (tipo: PainelFolha['tipo']) => setPainel({ tipo, cartao })
+  useAtalhosNovo(ITENS_NOVO, !bloqueado && painel === null && atalhos, abrir)
+  return <MenuNovo itens={ITENS_NOVO} forma={forma} desabilitado={bloqueado} aoEscolher={abrir} />
+}
 
 const dias: [string, string][] = Array.from({ length: 31 }, (_, i) => [String(i + 1), `Dia ${i + 1}`])
 
@@ -386,7 +417,7 @@ export default function Cartoes() {
   const hoje = hojeSP()
   const fechar = () => setPainel(null)
 
-  /** O formulário aberto para um cartão: aparece na página do cartão (ou da fatura, no caso de Pagar), logo abaixo do cabeçalho. */
+  /** O formulário aberto para um cartão: aparece na página do cartão (ou da fatura, no caso de Pagar), logo abaixo do cabeçalho; compra e crédito abrem numa folha por cima da tela. */
   function painelDoCartao(p: Painel) {
     switch (p.tipo) {
       case 'novo': return null
@@ -395,9 +426,17 @@ export default function Cartoes() {
       case 'contapag': return <FormContaPagamento cartao={p.cartao} contas={contas} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'renomear': return <FormRenomear cartao={p.cartao} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'identidade': return <FormIdentidade cartao={p.cartao} aoSalvar={aoSalvar} aoCancelar={fechar} />
-      case 'compra': return <FormCompra cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar}
-        aoCategoriaCriada={(c) => setCategorias((atual) => [...atual, c])} />
-      case 'credito': return <FormCredito cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar} />
+      case 'compra': return (
+        <Folha titulo={`Nova compra · ${p.cartao.nome}`} aoFechar={fechar} larga>
+          <FormCompra cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar}
+            aoCategoriaCriada={(c) => setCategorias((atual) => [...atual, c])} />
+        </Folha>
+      )
+      case 'credito': return (
+        <Folha titulo={`Crédito / reembolso · ${p.cartao.nome}`} aoFechar={fechar} larga>
+          <FormCredito cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar} />
+        </Folha>
+      )
       case 'pagar': return <FormPagar cartao={p.cartao} contas={contas} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'arquivar':
       case 'excluir': return <PainelRemoverCartao tipo={p.tipo} cartao={p.cartao} aoConcluir={aoSalvar} aoFechar={fechar} />
@@ -594,9 +633,9 @@ function CabecalhoCartao({ cartao: c, nomeConta, hoje }: { cartao: Cartao; nomeC
 }
 
 /**
- * `/cartoes/:id`: o cartão inteiro — cabeçalho com Nova compra e o menu ⋯ (editar, arquivar…), a fatura em destaque,
+ * `/cartoes/:id`: o cartão inteiro — cabeçalho com o "+ Lançamento" e o menu ⋯ (editar, arquivar…), a fatura em destaque,
  * "A cobrar", limite, a fileira de faturas (cada uma leva à sua página) e "Pagamentos e devoluções". Os formulários do
- * menu abrem aqui, abaixo do cabeçalho.
+ * menu abrem aqui, abaixo do cabeçalho; compra e crédito abrem numa folha por cima da tela.
  */
 function PaginaCartao({ cartao: c, faturasDe, painel, setPainel, carregar, erro, aviso, versao, hoje, nomeConta, painelDoCartao }: Comum & { cartao: Cartao }) {
   useTitulo(c.nome)
@@ -609,10 +648,8 @@ function PaginaCartao({ cartao: c, faturasDe, painel, setPainel, carregar, erro,
         titulo={<span className="flex items-center gap-3"><IconeEmissor nome={c.nome} emissor={c.emissor} /><span className="flex min-w-0 flex-wrap items-center gap-2">{c.nome} <BandeiraCartao bandeira={c.bandeira} /></span></span>}
         descricao={<DiasDoCartao cartao={c} nomeConta={nomeConta} hoje={hoje} />}
         acoes={<>
-          <Button variante={c.divida > 0 ? 'secundario' : 'primario'} onClick={() => setPainel({ tipo: 'compra', cartao: c })}
-            disabled={c.fechamento === null || painel !== null}>Nova compra</Button>
+          <NovoNoCartao cartao={c} painel={painel} setPainel={setPainel} forma={c.divida > 0 ? 'secundario' : 'primario'} desabilitado={c.fechamento === null} />
           <MenuAcoes rotulo={`Mais opções do cartão ${c.nome}`} desabilitado={painel !== null} acoes={[
-            { rotulo: 'Crédito / reembolso', aoEscolher: () => setPainel({ tipo: 'credito', cartao: c }), desabilitado: c.fechamento === null },
             { rotulo: c.fechamento === null ? 'Definir fechamento' : 'Alterar dias', aoEscolher: () => setPainel({ tipo: 'ciclo', cartao: c }) },
             { rotulo: c.limite === null ? 'Definir limite' : 'Alterar limite', aoEscolher: () => setPainel({ tipo: 'limite', cartao: c }) },
             { rotulo: 'Banco e bandeira', aoEscolher: () => setPainel({ tipo: 'identidade', cartao: c }) },
@@ -626,7 +663,8 @@ function PaginaCartao({ cartao: c, faturasDe, painel, setPainel, carregar, erro,
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {aviso && !erro && <div className="mb-4"><Aviso tipo="erro">{aviso}</Aviso></div>}
 
-      {meu && meu.tipo !== 'pagar' && <PainelJunto className="mb-4">{painelDoCartao(meu)}</PainelJunto>}
+      {emFolha(meu) && painelDoCartao(meu)}
+      {meu && meu.tipo !== 'pagar' && !emFolha(meu) && <PainelJunto className="mb-4">{painelDoCartao(meu)}</PainelJunto>}
 
       <Card>
         {/* destaque: a fatura fechada a pagar, se houver; senão a fatura atual (aberta), como no Organizze */}
@@ -1295,8 +1333,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const fechadaAPagar = fechadaAPagarDe(cartao, faturas, hoje)
   const pagaAqui = pagaNaFatura(cartao, f, fechadaAPagar, hoje)
   const formularioPagar = painel?.tipo === 'pagar' && painel.cartao.id === cartaoId ? <PainelJunto>{painelDoCartao(painel)}</PainelJunto> : null
-  const formularioRapido = painel && (painel.tipo === 'compra' || painel.tipo === 'credito') && painel.cartao.id === cartaoId
-    ? <PainelJunto>{painelDoCartao(painel)}</PainelJunto> : null
+  const formularioRapido = emFolha(painel) && painel.cartao.id === cartaoId ? painelDoCartao(painel) : null
   const seta = 'inline-flex min-h-11 min-w-11 items-center justify-center rounded-full text-xl leading-none text-azul hover:bg-azul-claro disabled:cursor-not-allowed disabled:opacity-40'
   const idPagamentos = `${idBase}-pagamentos`, idEntradas = `${idBase}-entradas`, idSaidas = `${idBase}-saidas`
 
@@ -1312,8 +1349,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         acoes={
           <div className="flex flex-wrap items-center justify-end gap-2 print:hidden">
             {pagaAqui && <Button variante="pilula" compacto onClick={() => setPainel({ tipo: 'pagar', cartao })} disabled={painel !== null}>Pagar fatura</Button>}
-            {!travada && <Button variante="secundario" compacto onClick={() => setPainel({ tipo: 'compra', cartao })} disabled={painel !== null}>Nova despesa</Button>}
-            {!travada && <Button variante="secundario" compacto onClick={() => setPainel({ tipo: 'credito', cartao })} disabled={painel !== null}>Nova receita</Button>}
+            {!travada && <NovoNoCartao cartao={cartao} painel={painel} setPainel={setPainel} forma="secundario" atalhos={acao === null && painelPrevista === null} />}
             <Button variante="fantasma" compacto aria-label="Imprimir fatura" title="Imprimir fatura" onClick={() => window.print()}>Imprimir</Button>
             <nav aria-label="Outras faturas" className="flex items-center gap-1">
               <button type="button" className={seta} disabled={!anterior} aria-label={anterior ? `Fatura anterior (${formatMonth(anterior.mes)})` : 'Fatura anterior (não há)'}
@@ -1790,44 +1826,41 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar, aoCategoriaCriad
   }
 
   return (
-    <Card className="mb-6">
-      <h2 className="mb-4 text-lg font-semibold">Nova compra · {cartao.nome}</h2>
-      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
-        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
-        <fieldset className="flex flex-wrap gap-4 md:col-span-2">
-          <legend className="mb-1 text-sm font-medium">Tipo de compra</legend>
-          <label className="flex min-h-11 items-center gap-2 text-sm">
-            <input type="radio" name="modo" checked={!andamento} onChange={() => setAndamento(false)} /> Compra nova
-          </label>
-          <label className="flex min-h-11 items-center gap-2 text-sm">
-            <input type="radio" name="modo" checked={andamento} onChange={() => setAndamento(true)} /> Parcelamento já em andamento
-          </label>
-        </fieldset>
-        <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: TV da sala" value={descricao} onChange={(e) => setDescricao(e.target.value)}
-          erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
-        <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={despesas} categorias={categorias}
-          tipo="expense" aoCriada={aoCategoriaCriada} />
-        {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria.</p>}
-        <Field rotulo={andamento ? 'Valor de cada parcela (R$)' : 'Valor total (R$)'} inputMode="decimal" value={valorTexto}
-          onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
-        <Field rotulo={andamento ? 'Parcelas que ainda faltam (incluindo a da fatura aberta)' : 'Parcelas'} type="number" min={1} max={72}
-          inputMode="numeric" value={parcelasTexto} onChange={(e) => setParcelasTexto(e.target.value)} erro={erroParcelas} />
-        {!andamento && (
-          <Field rotulo="Data da compra" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou && !data ? 'Informe a data.' : undefined} />
-        )}
-        {!andamento && cartao.fechamento !== null && data && (
-          <Selecao rotulo="Fatura" valor={String(deslocamento)} aoMudar={(v) => setDeslocamento(Number(v))}
-            opcoes={opcoesDeFatura(data, cartao.fechamento, cartao.cicloAnterior).map((o) => [String(o.deslocamento), o.rotulo])} />
-        )}
-        <p className="text-sm text-slate-600 md:col-span-2">
-          {andamento
-            ? 'As parcelas restantes entram a partir da fatura aberta, uma por mês.'
-            : `Compra antes do fechamento (${textoDiaFechamento(cartao.fechamento ?? 0)}) entra na fatura deste mês; no dia do fechamento ou depois, na seguinte. Cada parcela vira despesa no mês da fatura. Se o banco lançou em outra fatura, escolha-a acima (até 3 antes ou 3 depois).`}
-          {total !== null && parcelasOk && parcelas > 1 && <> Total: <strong className="tabular-nums">{formatBRL(total)}</strong>.</>}
-        </p>
-        <Botoes rotulo="Lançar compra" enviando={enviando} aoCancelar={aoCancelar} />
-      </form>
-    </Card>
+    <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <fieldset className="flex flex-wrap gap-4 md:col-span-2">
+        <legend className="mb-1 text-sm font-medium">Tipo de compra</legend>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="radio" name="modo" checked={!andamento} onChange={() => setAndamento(false)} /> Compra nova
+        </label>
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <input type="radio" name="modo" checked={andamento} onChange={() => setAndamento(true)} /> Parcelamento já em andamento
+        </label>
+      </fieldset>
+      <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: TV da sala" value={descricao} onChange={(e) => setDescricao(e.target.value)}
+        erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
+      <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={despesas} categorias={categorias}
+        tipo="expense" aoCriada={aoCategoriaCriada} />
+      {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria.</p>}
+      <Field rotulo={andamento ? 'Valor de cada parcela (R$)' : 'Valor total (R$)'} inputMode="decimal" value={valorTexto}
+        onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+      <Field rotulo={andamento ? 'Parcelas que ainda faltam (incluindo a da fatura aberta)' : 'Parcelas'} type="number" min={1} max={72}
+        inputMode="numeric" value={parcelasTexto} onChange={(e) => setParcelasTexto(e.target.value)} erro={erroParcelas} />
+      {!andamento && (
+        <Field rotulo="Data da compra" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou && !data ? 'Informe a data.' : undefined} />
+      )}
+      {!andamento && cartao.fechamento !== null && data && (
+        <Selecao rotulo="Fatura" valor={String(deslocamento)} aoMudar={(v) => setDeslocamento(Number(v))}
+          opcoes={opcoesDeFatura(data, cartao.fechamento, cartao.cicloAnterior).map((o) => [String(o.deslocamento), o.rotulo])} />
+      )}
+      <p className="text-sm text-slate-600 md:col-span-2">
+        {andamento
+          ? 'As parcelas restantes entram a partir da fatura aberta, uma por mês.'
+          : `Compra antes do fechamento (${textoDiaFechamento(cartao.fechamento ?? 0)}) entra na fatura deste mês; no dia do fechamento ou depois, na seguinte. Cada parcela vira despesa no mês da fatura. Se o banco lançou em outra fatura, escolha-a acima (até 3 antes ou 3 depois).`}
+        {total !== null && parcelasOk && parcelas > 1 && <> Total: <strong className="tabular-nums">{formatBRL(total)}</strong>.</>}
+      </p>
+      <Botoes rotulo="Lançar compra" enviando={enviando} aoCancelar={aoCancelar} />
+    </form>
   )
 }
 
@@ -1872,26 +1905,23 @@ function FormCredito({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & {
   }
 
   return (
-    <Card className="mb-6">
-      <h2 className="mb-4 text-lg font-semibold">Crédito / reembolso · {cartao.nome}</h2>
-      <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
-        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
-        <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: Estorno de IOF, cashback, reembolso do plano" value={descricao}
-          onChange={(e) => setDescricao(e.target.value)} erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
-        <SeletorCategoria rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} opcoes={receitas} categorias={categorias} tipo="income" />
-        {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria de receita.</p>}
-        <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
-        <Field rotulo="Data do crédito" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou && !data ? 'Informe a data.' : undefined} />
-        <Selecao rotulo="Fatura" valor={escolhida} aoMudar={setFechamento} todos="A aberta na data do crédito (automática)"
-          opcoes={posteriores.map((f) => [f.fechamento, `${primeiraMaiuscula(formatMonth(f.mes))} (fecha ${formatDate(f.fechamento)})`])} />
-        <p className="text-sm text-slate-600 md:col-span-2">
-          O crédito abate a fatura e conta como <strong>receita</strong> no mês do fechamento dela (o mesmo mês em que as compras
-          dessa fatura viram despesa). Crédito antes do fechamento ({cartao.fechamento !== null && textoDiaFechamento(cartao.fechamento)}) entra na fatura deste mês; no dia do fechamento ou
-          depois, na seguinte. Para estorno de uma compra específica, use <strong>Estornar</strong> na linha da compra, em Ver faturas.
-        </p>
-        <Botoes rotulo="Lançar crédito" enviando={enviando} aoCancelar={aoCancelar} />
-      </form>
-    </Card>
+    <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <Field rotulo="Descrição" maxLength={80} placeholder="Ex.: Estorno de IOF, cashback, reembolso do plano" value={descricao}
+        onChange={(e) => setDescricao(e.target.value)} erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
+      <SeletorCategoria rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} opcoes={receitas} categorias={categorias} tipo="income" />
+      {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria de receita.</p>}
+      <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+      <Field rotulo="Data do crédito" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou && !data ? 'Informe a data.' : undefined} />
+      <Selecao rotulo="Fatura" valor={escolhida} aoMudar={setFechamento} todos="A aberta na data do crédito (automática)"
+        opcoes={posteriores.map((f) => [f.fechamento, `${primeiraMaiuscula(formatMonth(f.mes))} (fecha ${formatDate(f.fechamento)})`])} />
+      <p className="text-sm text-slate-600 md:col-span-2">
+        O crédito abate a fatura e conta como <strong>receita</strong> no mês do fechamento dela (o mesmo mês em que as compras
+        dessa fatura viram despesa). Crédito antes do fechamento ({cartao.fechamento !== null && textoDiaFechamento(cartao.fechamento)}) entra na fatura deste mês; no dia do fechamento ou
+        depois, na seguinte. Para estorno de uma compra específica, use <strong>Estornar</strong> na linha da compra, em Ver faturas.
+      </p>
+      <Botoes rotulo="Lançar crédito" enviando={enviando} aoCancelar={aoCancelar} />
+    </form>
   )
 }
 
