@@ -27,7 +27,7 @@ import { formatBRL, formatDate, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
-import { COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../components/graficos/cores'
+import { GraficoEvolucao } from '../components/investimentos/GraficoEvolucao'
 import {
   CATEGORIAS_NOVO_ATIVO, CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, codigoDaBolsa, criarAtivoInvestimento, definirCotacaoBolsaAtivo, definirInstituicaoAtivo, definirLiquidezAtivo, definirSubclasseAtivo, listarAportesInvestimentos, listarInstituicoesInvestimentos, listarLiquidezInvestimentos, listarTotalProventos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
@@ -400,7 +400,7 @@ export default function Investimentos() {
         {historico.some((p) => p.valorAtual > 0) ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[]).map((codigo) => (
-              <GraficoHistorico key={codigo} moedaCodigo={codigo} pontos={historico.filter((p) => p.moeda === codigo)} />
+              <GraficoEvolucao key={codigo} moedaCodigo={codigo} pontos={historico.filter((p) => p.moeda === codigo)} formatar={moeda} />
             ))}
           </div>
         ) : <p className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-500">
@@ -772,34 +772,6 @@ function inicioHistorico(hoje: string): string {
   const mes = Number(hoje.slice(5, 7)) - 1
   const inicio = new Date(Date.UTC(ano, mes - 11, 1))
   return `${inicio.getUTCFullYear()}-${String(inicio.getUTCMonth() + 1).padStart(2, '0')}-01`
-}
-
-function GraficoHistorico({ moedaCodigo, pontos }: { moedaCodigo: MoedaInvestimento; pontos: HistoricoInvestimento[] }) {
-  const largura = 640, altura = 210, esquerda = 58, direita = 14, topo = 14, base = 32
-  const valores = pontos.map((p) => p.valorAtual)
-  const maximo = Math.max(1, ...valores)
-  const x = (i: number) => esquerda + (pontos.length <= 1 ? 0 : i / (pontos.length - 1) * (largura - esquerda - direita))
-  const y = (v: number) => topo + (1 - v / maximo) * (altura - topo - base)
-  const caminho = pontos.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.valorAtual).toFixed(1)}`).join(' ')
-  const rotulo = (valor: number) => moeda(valor as Cents, moedaCodigo)
-  return <Card>
-    <h3 className="mb-2 font-semibold">Evolução em {moedaCodigo}</h3>
-    <svg viewBox={`0 0 ${largura} ${altura}`} className="h-auto w-full" role="img"
-      aria-label={`Gráfico de evolução do investimento em ${moedaCodigo}`}>
-      {[0, 0.5, 1].map((f) => <g key={f}>
-        <line x1={esquerda} x2={largura - direita} y1={y(maximo * f)} y2={y(maximo * f)} stroke={COR_GRADE} />
-        <text x={esquerda - 7} y={y(maximo * f) + 4} textAnchor="end" fontSize="10" fill={COR_TEXTO_EIXO}>{rotulo(maximo * f)}</text>
-      </g>)}
-      {caminho && <path d={caminho} fill="none" stroke={COR_LINHA} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
-      {pontos.map((p, i) => <g key={p.mes}>
-        <circle cx={x(i)} cy={y(p.valorAtual)} r="3.5" fill={COR_LINHA} />
-        {(i === 0 || i === pontos.length - 1 || i % 3 === 0) && <text x={x(i)} y={altura - 8} textAnchor="middle" fontSize="10" fill={COR_TEXTO_EIXO}>
-          {new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(new Date(`${p.mes}T12:00:00Z`))}
-        </text>}
-      </g>)}
-    </svg>
-    <p className="mt-1 text-xs text-slate-500">Último valor: <strong>{rotulo(pontos[pontos.length - 1]?.valorAtual ?? 0)}</strong></p>
-  </Card>
 }
 
 /** A escolha de acompanhar a cotação da bolsa (migration 109). Só aparece em ativo que pode: quem chama confere. */
