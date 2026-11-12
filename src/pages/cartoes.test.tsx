@@ -44,6 +44,8 @@ const mock = vi.hoisted(() => ({
   estornarParcela: vi.fn(),
   listarPagamentosDaFatura: vi.fn(),
   visaoDosCartoes: vi.fn(),
+  trocarPessoaDaCompra: vi.fn(),
+  listarPessoasFamilia: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -57,8 +59,9 @@ vi.mock('../lib/cartoes', async (o) => ({
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura,
-  visaoDosCartoes: mock.visaoDosCartoes,
+  visaoDosCartoes: mock.visaoDosCartoes, trocarPessoaDaCompra: mock.trocarPessoaDaCompra,
 }))
+vi.mock('../lib/pessoasFamilia', async (o) => ({ ...(await o<typeof import('../lib/pessoasFamilia')>()), listarPessoasFamilia: mock.listarPessoasFamilia }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0), excluirRecorrencia: mock.excluirRecorrencia }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
@@ -139,6 +142,11 @@ beforeEach(() => {
   ])
   mock.listarFaturas.mockResolvedValue([])
   mock.listarItens.mockResolvedValue([])
+  mock.listarPessoasFamilia.mockResolvedValue([
+    { id: 'pe1', userId: null, familiaId: 'h1', nome: 'Ana', fotoUrl: null, nascimento: null, vinculo: 'Familiar', ativo: true, criadaEm: '', atualizadaEm: '' },
+    { id: 'pe2', userId: null, familiaId: 'h1', nome: 'Beto', fotoUrl: null, nascimento: null, vinculo: 'Familiar', ativo: true, criadaEm: '', atualizadaEm: '' },
+  ])
+  mock.trocarPessoaDaCompra.mockResolvedValue(1)
   mock.listarOcorrenciasPrevistas.mockResolvedValue([])
   mock.listarFaturasAgendadas.mockResolvedValue([])
   mock.sincronizarAgendados.mockResolvedValue(0)
@@ -671,7 +679,7 @@ describe('Cartões', () => {
     expect(screen.getAllByText('Aberta').length).toBe(1)
     // #183: fatura aberta (a pagar no futuro) = agendado, verde
     for (const selo of screen.getAllByText('Aberta')) expect(selo.className).toContain('bg-agendado-fundo text-agendado')
-    expect(mock.listarItens).toHaveBeenCalledWith('k1', '2099-04')
+    expect(mock.listarItens).toHaveBeenCalledWith('k1', '2099-04', { comPessoa: true })
   })
 
   it('fatura como extrato: compras agrupadas por dia (mais recente primeiro), nome inteiro, categoria e situação; sem data no fim', async () => {
@@ -1311,7 +1319,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     // escolher uma fatura leva à página dela
     await u.click(within(lista).getByRole('link', { current: true }))
     expect(await screen.findByRole('heading', { level: 1, name: /^Nubank · Novembro de 2026/ })).toBeTruthy()
-    await vi.waitFor(() => expect(mock.listarItens).toHaveBeenCalledWith('k1', '2026-11'))
+    await vi.waitFor(() => expect(mock.listarItens).toHaveBeenCalledWith('k1', '2026-11', { comPessoa: true }))
     expect(mock.listarItens).not.toHaveBeenCalledWith('k1', '2025-01')
   })
 
@@ -1324,7 +1332,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     await screen.findByRole('heading', { level: 1, name: /^Nubank · Novembro de 2026/ })
     await u.click(screen.getByRole('button', { name: 'Fatura seguinte (dezembro de 2026)' }))
     expect(await screen.findByRole('heading', { level: 1, name: /^Nubank · Dezembro de 2026/ })).toBeTruthy()
-    await vi.waitFor(() => expect(mock.listarItens).toHaveBeenCalledWith('k1', '2026-12'))
+    await vi.waitFor(() => expect(mock.listarItens).toHaveBeenCalledWith('k1', '2026-12', { comPessoa: true }))
     expect((screen.getByRole('button', { name: /^Fatura seguinte/ }) as HTMLButtonElement).disabled).toBe(true) // dezembro é a última
     await u.click(screen.getByRole('button', { name: 'Fatura anterior (novembro de 2026)' }))
     expect(await screen.findByRole('heading', { level: 1, name: /^Nubank · Novembro de 2026/ })).toBeTruthy()
@@ -1558,14 +1566,17 @@ describe('Fatura paga travada (migration 064)', () => {
     const u = userEvent.setup()
     await abrirSetembro(u)
     const painel = document.body
-    for (const nome of [/Reabrir/, /Estornar/, /Editar/, /Excluir compra/, /Anular/, /^Pagar/, /^Ações de /]) {
+    for (const nome of [/Reabrir/, /Estornar/, /Editar/, /Excluir compra/, /Anular/, /^Pagar/]) {
       expect(within(painel).queryByRole('button', { name: nome })).toBeNull()
     }
-    // #183: nem o ⋯ aparece na compra da fatura paga (a linha continua com o valor)
+    // a compra da fatura paga só tem no ⋯ a classificação ("de quem foi a despesa"); nada que mude valor
     for (const linha of within(painel).getAllByTestId('compra-fatura')) {
-      expect(within(linha).queryByRole('button')).toBeNull()
       expect(linha.querySelector('[data-valor]')).not.toBeNull()
     }
+    await u.click(within(painel).getByRole('button', { name: 'Ações de TV' }))
+    expect(within(screen.getByRole('menu', { name: 'Ações de TV' })).getAllByRole('menuitem').map((i) => i.textContent))
+      .toEqual(['Mudar de quem foi a despesa'])
+    await u.keyboard('{Escape}')
     // #202 (migration 077): o crédito da fatura paga só troca de categoria (classificação); anular continua fora
     await u.click(within(painel).getByRole('button', { name: 'Ações do crédito Cashback' }))
     expect(within(screen.getByRole('menu', { name: 'Ações do crédito Cashback' })).getAllByRole('menuitem').map((i) => i.textContent))
@@ -1610,13 +1621,51 @@ describe('Fatura paga travada (migration 064)', () => {
     await u.click(screen.getByRole('button', { name: 'Ações de TV' }))
     const menu = screen.getByRole('menu', { name: 'Ações de TV' })
     const itens = within(menu).getAllByRole('menuitem')
-    expect(itens.map((i) => i.textContent)).toEqual(['Estornar', 'Editar valor', 'Excluir compra'])
-    expect(itens[2].className).toContain('text-negativo') // destrutiva, por último e separada
+    expect(itens.map((i) => i.textContent)).toEqual(['Estornar', 'Editar valor', 'Mudar de quem foi a despesa', 'Excluir compra'])
+    expect(itens[3].className).toContain('text-negativo') // destrutiva, por último e separada
     expect(within(menu).getByRole('separator')).toBeTruthy()
     await u.keyboard('{Escape}')
     await u.click(screen.getByRole('button', { name: 'Ações do crédito Cashback' }))
     expect(within(screen.getByRole('menu', { name: 'Ações do crédito Cashback' })).getAllByRole('menuitem').map((i) => i.textContent))
       .toEqual(['Trocar categoria', 'Anular crédito'])
+  })
+
+  it('"Mudar de quem foi a despesa" em compra de fatura paga: painel com a pessoa atual, grava na compra inteira e recarrega', async () => {
+    const u = userEvent.setup()
+    await abrirSetembro(u)
+    mock.listarItens.mockResolvedValue([{ ...tv, personId: 'pe1', isSharedExpense: false }])
+    await acaoDaLinha(u, 'Ações de TV', 'Mudar de quem foi a despesa')
+    const form = screen.getByRole('form', { name: 'Mudar de quem foi a despesa de TV' })
+    const select = within(form).getByLabelText('Despesa de quem?') as HTMLSelectElement
+    expect(select.value).toBe('unassigned') // o item carregado antes não trazia pessoa
+    await u.selectOptions(select, 'pe2')
+    await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+    expect(mock.trocarPessoaDaCompra).toHaveBeenCalledWith('k1', 'x9', { personId: 'pe2', isSharedExpense: false })
+    expect(mock.listarItens).toHaveBeenCalledWith('k1', '2026-09', { comPessoa: true }) // a fatura pede a classificação
+    expect(mock.listarItens.mock.calls.length).toBeGreaterThan(1) // recarrega depois de gravar
+    expect(screen.queryByRole('form', { name: 'Mudar de quem foi a despesa de TV' })).toBeNull()
+  })
+
+  it('"Mudar de quem foi a despesa": abre com a classificação atual do item, aceita "Toda a família" e mostra o erro do banco', async () => {
+    const u = userEvent.setup()
+    mock.trocarPessoaDaCompra.mockRejectedValueOnce(Object.assign(new Error('pessoa inativa, não encontrada ou de outra família'), { code: '23514' }))
+    fixarHoje('2026-11-05')
+    mock.listarFaturas.mockResolvedValue([setembro, novembro])
+    mock.listarItens.mockResolvedValue([{ ...tv, personId: 'pe1', isSharedExpense: false }])
+    montar()
+    await u.click(await screen.findByRole('link', { name: /^Fatura de setembro/ }))
+    await screen.findByText('TV')
+    await acaoDaLinha(u, 'Ações de TV', 'Mudar de quem foi a despesa')
+    const form = screen.getByRole('form', { name: 'Mudar de quem foi a despesa de TV' })
+    const select = within(form).getByLabelText('Despesa de quem?') as HTMLSelectElement
+    expect(select.value).toBe('pe1')
+    await u.selectOptions(select, 'shared')
+    await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+    expect(mock.trocarPessoaDaCompra).toHaveBeenCalledWith('k1', 'x9', { personId: null, isSharedExpense: true })
+    expect((await within(screen.getByRole('form', { name: 'Mudar de quem foi a despesa de TV' })).findByRole('alert')).textContent).toMatch(/[Pp]essoa inativa/) // recusa do banco aparece e o painel continua aberto
+    expect(screen.getByRole('form', { name: 'Mudar de quem foi a despesa de TV' })).toBeTruthy()
+    await u.click(within(screen.getByRole('form', { name: 'Mudar de quem foi a despesa de TV' })).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('form', { name: 'Mudar de quem foi a despesa de TV' })).toBeNull()
   })
 
   it('#202: "Trocar categoria" num crédito de fatura paga abre o painel com a categoria atual e chama a RPC em lote com o id', async () => {

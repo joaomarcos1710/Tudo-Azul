@@ -14,7 +14,7 @@ const fake = vi.hoisted(() => {
 vi.mock('./supabase', () => ({ supabase: { rpc: fake.rpc, from: fake.from } }))
 vi.mock('./contas', () => ({ COLUNA_INEXISTENTE: '42703', hojeSP: () => '2026-10-30' }))
 
-import { criarCartao, lancarCreditoNoCartao, listarCreditosDaFatura, visaoDosCartoes } from './cartoes'
+import { criarCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarItens, trocarPessoaDaCompra, visaoDosCartoes } from './cartoes'
 
 beforeEach(() => {
   fake.rpc.mockReset()
@@ -170,5 +170,41 @@ describe('visaoDosCartoes (card_overview, migration 065)', () => {
     expect(await visaoDosCartoes('h1', null)).toBeNull()
     fake.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'sem permissão' } })
     await expect(visaoDosCartoes('h1', null)).rejects.toMatchObject({ code: '42501' })
+  })
+})
+
+describe('classificação por pessoa nas compras da fatura', () => {
+  it('listarItens junta person_id e is_shared_expense das parcelas (card_items não traz)', async () => {
+    fake.rpc.mockResolvedValue({
+      data: [
+        { installment_id: 'i1', plan: 'p1', seq: 1, plan_count: 3, description: 'TV', purchase_date: '2026-08-05', face: '100.00', remaining: '0', category_id: 'c1' },
+        { installment_id: 'i2', plan: 'p2', seq: 1, plan_count: 1, description: 'Pizza', purchase_date: '2026-08-06', face: '50.00', remaining: '0', category_id: 'c1' },
+      ], error: null,
+    })
+    fake.consulta.chamadas.length = 0
+    fake.consulta.resultado = { data: [{ id: 'i1', person_id: 'pe1', is_shared_expense: false }, { id: 'i2', person_id: null, is_shared_expense: true }], error: null }
+    const itens = await listarItens('card-1', '2026-08', { comPessoa: true })
+    expect(fake.from).toHaveBeenCalledWith('debt_installments')
+    expect(fake.consulta.chamadas).toContainEqual(['in', ['id', ['i1', 'i2']]])
+    expect(itens.map((i) => [i.parcelaId, i.personId, i.isSharedExpense])).toEqual([['i1', 'pe1', false], ['i2', null, true]])
+  })
+
+  it('listarItens sem comPessoa não faz a leitura extra das parcelas', async () => {
+    fake.rpc.mockResolvedValue({ data: [{ installment_id: 'i1', plan: 'p1', seq: 1, plan_count: 1, description: 'TV', purchase_date: null, face: '10', remaining: '0', category_id: 'c1' }], error: null })
+    fake.from.mockClear()
+    const itens = await listarItens('card-1', '2026-08')
+    expect(fake.from).not.toHaveBeenCalled()
+    expect(itens[0].personId).toBeUndefined()
+  })
+
+  it('trocarPessoaDaCompra chama card_purchase_set_person com a dívida, a compra e a classificação', async () => {
+    fake.rpc.mockResolvedValue({ data: 3, error: null })
+    expect(await trocarPessoaDaCompra('card-1', 'plano-1', { personId: 'pe2', isSharedExpense: false })).toBe(3)
+    expect(fake.rpc).toHaveBeenCalledWith('card_purchase_set_person', { p_debt: 'card-1', p_plan: 'plano-1', p_person_id: 'pe2', p_is_shared_expense: false })
+  })
+
+  it('trocarPessoaDaCompra repassa o erro do banco', async () => {
+    fake.rpc.mockResolvedValue({ data: null, error: { code: '23514', message: 'pessoa inativa' } })
+    await expect(trocarPessoaDaCompra('card-1', 'plano-1', { personId: 'x', isSharedExpense: false })).rejects.toMatchObject({ code: '23514' })
   })
 })

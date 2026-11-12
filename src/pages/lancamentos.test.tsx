@@ -46,6 +46,11 @@ vi.mock('../lib/investimentos', async (original) => ({
   registrarOperacaoInvestimento: inv.registrarOperacaoInvestimento,
 }))
 vi.mock('../lib/supabase', () => ({ supabase: null }))
+const pessoasMock = vi.hoisted(() => ({ listarPessoasFamilia: vi.fn((_familia: string) => Promise.resolve([] as unknown[])) }))
+vi.mock('../lib/pessoasFamilia', async (original) => ({
+  ...(await original<typeof import('../lib/pessoasFamilia')>()),
+  listarPessoasFamilia: pessoasMock.listarPessoasFamilia,
+}))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
@@ -1385,6 +1390,32 @@ describe('multimoeda F2 (migration 056)', () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
     expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
+  })
+})
+
+describe('trocar "quem da família gastou" num lançamento de conta já passado e pago', () => {
+  const mercado = { id: 'p1', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'mer', descricao: 'Mercado antigo', valor: c(5000), data: '2026-08-10', status: 'paid', notas: '', recorrente: false, personId: null, isSharedExpense: false }
+  afterEach(() => { pessoasMock.listarPessoasFamilia.mockImplementation(() => Promise.resolve([])) })
+
+  it('o seletor aparece ao editar e grava a pessoa escolhida, sem mexer no valor, na data nem na situação', async () => {
+    pessoasMock.listarPessoasFamilia.mockImplementation(() => Promise.resolve([
+      { id: 'pe1', userId: null, familiaId: 'h1', nome: 'Ana', fotoUrl: null, nascimento: null, vinculo: 'Familiar', ativo: true, criadaEm: '', atualizadaEm: '' },
+    ]))
+    mock.listarLancamentos.mockResolvedValue([mercado])
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const item = (await screen.findByText('Mercado antigo')).closest('li') as HTMLElement
+    await u.click(within(item).getByRole('button', { name: 'Ações de Mercado antigo' }))
+    await u.click(within(item).getByRole('menuitem', { name: 'Editar' }))
+    await u.click(screen.getByText('Opções avançadas · Pessoa responsável'))
+    const select = await screen.findByLabelText('Despesa de quem?') as HTMLSelectElement
+    expect(select.value).toBe('unassigned')
+    await waitFor(() => expect(within(select).getByRole('option', { name: 'Ana' })).toBeTruthy())
+    await u.selectOptions(select, 'pe1')
+    await u.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+    await waitFor(() => expect(mock.editarLancamento).toHaveBeenCalledWith('p1', expect.objectContaining({
+      personId: 'pe1', isSharedExpense: false, valor: 5000, data: '2026-08-10', status: 'paid',
+    })))
   })
 })
 
