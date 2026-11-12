@@ -662,3 +662,7 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Parcela com estorno ou cancelamento, mesmo parcial, não muda** (como a edição de valor). Mais simples e seguro; se o dono quiser, abre-se depois.
 - **Sem confirmação na tela:** não cria lançamento e dá para mandar de volta. A tela avisa para onde a parcela foi.
 - **A parcela leva os dias de fechamento e vencimento do mês de destino**, para o vencimento da fatura sair certo depois de uma troca de dias do cartão.
+
+## 12/11/2026 — Composição da carteira: seletor só com as moedas que têm posição (dono, #312, etapa 2)
+- **Decisão:** o seletor de moeda lista só BRL, EUR e USD com posição (em vez de todas com estado vazio) e some quando há uma moeda só. Motivo: aba vazia convida ao clique sem nada para mostrar, e o resumo logo acima já mostra só as moedas que existem.
+- **Previdência grande na barra:** a visão Liquidez (que já existia) fica a um clique da Classe, com um atalho; nenhum cálculo novo. Mostrar a classe do que é líquido exigiria um número novo do banco: fica em Pendências.
