@@ -326,3 +326,21 @@ export async function resumoRecorrencias(familiaId: string): Promise<LinhaResumo
     porOcorrencia: centsFromDb(l.total_per_occurrence), porMes: centsFromDb(l.total_monthly),
   }))
 }
+
+/** Recorte do resumo por natureza: 'none' = regra sem natureza; 'all' = total do tipo (despesa em conta e cartão, ou receita). */
+export type NaturezaResumo = NaturezaRecorrencia | 'none' | 'all'
+export interface LinhaNatureza {
+  natureza: NaturezaResumo
+  tipo: 'expense' | 'income'
+  qtde: number
+  /** Equivalente por mês, em centavos, somado no banco (round(x, 2) por regra, só reais, sem transferência). */
+  porMes: Cents
+}
+
+/** Totais mensais dos recorrentes ativos por natureza (migration 20261112150000). Tudo somado no banco (a tela não soma). */
+export async function resumoPorNatureza(familiaId: string): Promise<LinhaNatureza[]> {
+  const { data, error } = await cliente().rpc('recurrence_nature_summary', { p_household: familiaId })
+  if (error) throw error
+  return ((data ?? []) as { nature: NaturezaResumo; kind: LinhaNatureza['tipo']; item_count: number; total_monthly: number | string }[])
+    .map((l) => ({ natureza: l.nature, tipo: l.kind, qtde: l.item_count, porMes: centsFromDb(l.total_monthly) }))
+}

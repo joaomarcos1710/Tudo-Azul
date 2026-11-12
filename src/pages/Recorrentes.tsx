@@ -21,10 +21,10 @@ import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMo
 import type { Cents } from '../lib/format'
 import {
   criarRecorrencia, diaDaSemana, editarRecorrencia, excluirRecorrencia, frequenciaResumo, frequencias, listarRecorrencias, MAX_CADA,
-  naturezasDoTipo, ordemFrequencias, proximasOcorrencias, resumoRecorrencias, rotuloFrequencia, rotuloGrupoFrequencia, rotuloNatureza, rotuloTipoRecorrencia,
+  naturezasDoTipo, ordemFrequencias, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias, rotuloFrequencia, rotuloGrupoFrequencia, rotuloNatureza, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
 import type {
-  FrequenciaResumo, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia, TipoRecorrencia, UnidadeFrequencia,
+  FrequenciaResumo, LinhaNatureza, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia, TipoRecorrencia, UnidadeFrequencia,
 } from '../lib/recorrencias'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo, SELO } from '../lib/cores'
@@ -41,6 +41,10 @@ const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 's
 
 type Aba = 'todos' | 'conta' | 'cartao'
 const abas: [Aba, string][] = [['todos', 'Todos'], ['conta', 'Conta'], ['cartao', 'Cartão']]
+/** Filtro por natureza (3ª PR de Recorrentes): 'todas' não filtra; 'none' = sem natureza. Transferência não tem natureza: sai quando há filtro. */
+type FiltroNatureza = 'todas' | NaturezaRecorrencia | 'none'
+const ordemNaturezas: NaturezaRecorrencia[] = ['fixed', 'subscription', 'variable', 'reimbursement']
+const rotuloFiltroNatureza = (n: FiltroNatureza) => n === 'todas' ? 'Todas' : n === 'none' ? 'Sem natureza' : rotuloNatureza[n]
 type TipoResumo = LinhaResumoRecorrencia['tipo']
 const rotuloTipoResumo: Record<TipoResumo, string> = { expense: 'saídas', income: 'entradas', transfer: 'transferências' }
 /**
@@ -107,6 +111,8 @@ export default function Recorrentes() {
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState<Recorrencia | 'nova' | null>(null)
   const [aba, setAba] = useState<Aba>('todos')
+  const [natureza, setNatureza] = useState<FiltroNatureza>('todas')
+  const [porNatureza, setPorNatureza] = useState<LinhaNatureza[]>([])
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
@@ -121,6 +127,8 @@ export default function Recorrentes() {
       setCategorias(cat)
       void listarPessoasFamilia(familiaId).then(setPessoas).catch(() => setPessoas([]))
       setResumo(s)
+      // banco sem a migration (ou falha só aqui): o resumo por natureza some, o resto da tela segue
+      void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => setPorNatureza([]))
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -155,6 +163,14 @@ export default function Recorrentes() {
   const terminadas = ativas.filter((r) => r.fim && r.fim < hoje)
   const emOutraMoeda = vigentes.filter((r) => r.tipo !== 'card' && (moedaConta.get(r.contaId ?? '') ?? 'BRL') !== 'BRL').length
 
+  // filtro por natureza: a contagem é da lista (não é dinheiro); os totais vêm de recurrence_nature_summary
+  const filtrando = natureza !== 'todas'
+  const daNatureza = (r: Recorrencia) => !filtrando || (r.tipo !== 'transfer' && (r.nature ?? 'none') === natureza)
+  const contagemNatureza = (n: FiltroNatureza) => vigentes.filter((r) => n === 'todas' || (r.tipo !== 'transfer' && (r.nature ?? 'none') === n)).length
+  const temNatureza = vigentes.some((r) => r.nature)
+  const chipsNatureza: FiltroNatureza[] = ['todas', ...ordemNaturezas, 'none']
+  const linhasDaNatureza = filtrando ? porNatureza.filter((l) => l.natureza === natureza) : []
+
   const proxima = (r: Recorrencia) => proximasOcorrencias(r, hoje, 1)[0] ?? null
   const proximaPrimeiro = (a: { r: Recorrencia; prox: string | null }, b: { r: Recorrencia; prox: string | null }) =>
     (a.prox ?? '9999').localeCompare(b.prox ?? '9999') || a.r.descricao.localeCompare(b.r.descricao, 'pt-BR')
@@ -162,7 +178,7 @@ export default function Recorrentes() {
   const cards = cardsPorTipo
     .filter((t) => aba === 'todos' || (aba === 'cartao') === (t.tipo === 'card'))
     .map((t) => {
-      const doTipo = vigentes.filter((r) => r.tipo === t.tipo)
+      const doTipo = vigentes.filter((r) => r.tipo === t.tipo && daNatureza(r))
       const grupos = ordemFrequencias
         .map((f) => ({ f, itens: doTipo.filter((r) => frequenciaResumo(r) === f).map((r) => ({ r, prox: proxima(r) })).sort(proximaPrimeiro) }))
         .filter((g) => g.itens.length > 0)
@@ -300,6 +316,21 @@ export default function Recorrentes() {
               </ul>
             </details>
           )}
+          {porNatureza.some((l) => l.natureza !== 'all' && l.natureza !== 'none') && (
+            <details className="mt-2 rounded-xl border border-slate-200 bg-white text-sm">
+              <summary className="flex min-h-11 cursor-pointer items-center px-4 font-semibold text-azul">Por natureza</summary>
+              <ul className="divide-y divide-slate-100 border-t border-slate-100" data-testid="resumo-natureza">
+                {porNatureza.filter((l) => l.natureza !== 'all').map((l) => (
+                  <li key={`${l.natureza}-${l.tipo}`} className="flex items-baseline gap-3 px-4 py-2">
+                    <span className="min-w-0 flex-1 truncate">
+                      {rotuloFiltroNatureza(l.natureza as FiltroNatureza)} <span className="text-slate-500">· {l.tipo === 'income' ? 'entradas' : 'saídas'} · {l.qtde}</span>
+                    </span>
+                    <span className={`shrink-0 whitespace-nowrap text-right tabular-nums ${corDoTipo(l.tipo)}`}><strong>{formatBRL(l.porMes)}</strong>/mês</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       )}
 
@@ -314,13 +345,35 @@ export default function Recorrentes() {
               </button>
             ))}
           </div>
+          {temNatureza && (
+            <div role="group" aria-label="Filtrar por natureza" className="mb-3 flex flex-wrap gap-2">
+              {chipsNatureza.filter((n) => n === 'todas' || n === natureza || contagemNatureza(n) > 0).map((n) => (
+                <button key={n} type="button" aria-pressed={natureza === n} onClick={() => setNatureza(n)}
+                  className={`min-h-11 rounded-full px-3 text-sm font-semibold transition-colors ${natureza === n
+                    ? 'bg-marinho text-white' : 'border border-slate-200 bg-white text-marinho hover:bg-azul-claro'}`}>
+                  {rotuloFiltroNatureza(n)} <span className="font-normal opacity-80">· {contagemNatureza(n)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {filtrando && (
+            <p className="mb-3 text-sm text-slate-700" data-testid="total-natureza">
+              <strong>{rotuloFiltroNatureza(natureza)}</strong>
+              {linhasDaNatureza.length === 0
+                ? ' · sem total em reais (recorrentes em outra moeda ficam fora)'
+                : linhasDaNatureza.map((l) => (
+                    <span key={l.tipo}> · <span className={`font-semibold tabular-nums ${corDoTipo(l.tipo)}`}>{formatBRL(l.porMes)}/mês</span>{' '}
+                      em {l.tipo === 'income' ? 'entradas' : 'saídas'} ({l.qtde})</span>
+                  ))}
+            </p>
+          )}
           <div className="space-y-4">
             {cards.length === 0 && (
               <Card><p className="text-sm text-slate-600">Nenhum recorrente {aba === 'cartao' ? 'no cartão' : 'em conta'}.</p></Card>
             )}
             {cards.map((t) => {
               // total do banco (só reais); sem linha (ex.: todos em outra moeda) a tela mostra só a contagem, nunca soma
-              const doTipo = linha('medium', t.meio, t.tipoResumo)
+              const doTipo = filtrando ? undefined : linha('medium', t.meio, t.tipoResumo)
               return (
                 <Card key={t.tipo} semPadding>
                   <section aria-labelledby={`card-${t.tipo}`}>
@@ -335,7 +388,7 @@ export default function Recorrentes() {
                       )}
                     </div>
                     {t.grupos.map((g) => {
-                      const daFrequencia = linha('frequency', t.meio, t.tipoResumo, g.f)
+                      const daFrequencia = filtrando ? undefined : linha('frequency', t.meio, t.tipoResumo, g.f)
                       return (
                         // o nome do card no rótulo: "Mensais" aparece em mais de um card e duas regiões com o mesmo nome confundem o leitor de tela
                         <section key={g.f} aria-label={`${rotuloGrupoFrequencia[g.f]} · ${g.itens.length} · ${t.titulo}`} className="border-t border-slate-100">
@@ -353,7 +406,7 @@ export default function Recorrentes() {
                 </Card>
               )
             })}
-            {terminadas.length > 0 && aba === 'todos' && (
+            {terminadas.length > 0 && aba === 'todos' && !filtrando && (
               <Card semPadding>
                 <section aria-labelledby="grupo-terminados">
                   <div className="px-4 py-3 sm:px-5">

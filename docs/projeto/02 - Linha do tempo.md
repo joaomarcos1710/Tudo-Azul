@@ -306,6 +306,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#314** (12/11/2026): Recorrentes: campo de natureza (custo fixo, assinatura ou app, gasto variável, ressarcimento a receber), alicerce para agrupar a tela por natureza (pedido do dono, 12/11/2026). Só classificação: coluna `recurrences.nature`, `recurrence_set_nature`, criar/atualizar com natureza, seletor no formulário e selo na lista. Migration 112 (`20261112120000`), aplicada em 12/11/2026, execução 43200042951. As abas e os totais por natureza são outra PR.
 - **#315** (12/11/2026): Cartão: botão "Categorias" na fatura, com as despesas da fatura por categoria (migration 112, aplicada em 12/11/2026, execução 43200042951).
 - **#316** (12/11/2026): Recorrentes: bloco Parcelas ativas, cartão e conta (migration 112, só leitura, aplicada em 12/11/2026, execução 43200042951).
+- **#317** (12/11/2026): diário: migrations 109 a 112 aplicadas em produção.
+- **#318** (12/11/2026, em rascunho): Recorrentes: resumo e filtro por natureza (migration 113, `recurrence_nature_summary`, só leitura, ainda não aplicada).
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
