@@ -11,6 +11,7 @@ const mock = vi.hoisted(() => ({
   editarRecorrencia: vi.fn(),
   excluirRecorrencia: vi.fn(),
   resumoRecorrencias: vi.fn(),
+  resumoPorNatureza: vi.fn(),
   listarContas: vi.fn(),
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
@@ -23,7 +24,7 @@ vi.mock('../lib/recorrencias', async (o) => ({
   ...(await o<typeof import('../lib/recorrencias')>()),
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
   editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
-  resumoRecorrencias: mock.resumoRecorrencias,
+  resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas }))
@@ -62,6 +63,7 @@ beforeEach(() => {
   mock.listarParcelasAtivas.mockResolvedValue({ parcelamentos: [], totais: [] })
   mock.listarRecorrencias.mockResolvedValue([])
   mock.resumoRecorrencias.mockResolvedValue([])
+  mock.resumoPorNatureza.mockResolvedValue([])
   mock.listarContas.mockResolvedValue({
     contas: [
       { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0) },
@@ -696,5 +698,117 @@ describe('Recorrentes: natureza', () => {
     const selos = screen.getAllByTestId('selo-natureza').map((s) => s.textContent)
     expect(selos).toEqual(expect.arrayContaining(['Custo fixo', 'Assinatura ou app']))
     expect(selos).toHaveLength(2)
+  })
+})
+
+describe('Recorrentes: resumo e filtro por natureza', () => {
+  const internet = { ...luz, id: 'r2', descricao: 'Internet', valor: c(12000) }
+  const seguro = { ...luz, id: 'r3', descricao: 'Seguro', valor: c(120000), cada: 12 }
+  const netflix = {
+    ...luz, id: 'r4', tipo: 'card' as const, descricao: 'Netflix', valor: c(3990), contaId: null, cartaoId: 'k1', nature: 'subscription' as const,
+  }
+  const regras = [{ ...luz, nature: 'fixed' as const }, internet, seguro, netflix]
+  // números do banco: o front só mostra (sentinelas diferentes de qualquer soma da tela)
+  const porNatureza = [
+    { natureza: 'all' as const, tipo: 'expense' as const, qtde: 4, porMes: c(777700) },
+    { natureza: 'fixed' as const, tipo: 'expense' as const, qtde: 1, porMes: c(18000) },
+    { natureza: 'none' as const, tipo: 'expense' as const, qtde: 2, porMes: c(22000) },
+    { natureza: 'subscription' as const, tipo: 'expense' as const, qtde: 1, porMes: c(3990) },
+  ]
+  const grupo = () => screen.getByRole('group', { name: 'Filtrar por natureza' })
+  const nomesNaLista = () => screen.getAllByTestId('meta-recorrente').length
+
+  it('sem nenhuma natureza escolhida, o filtro nem aparece', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz, internet])
+    montar()
+    await screen.findByText('Internet')
+    expect(screen.queryByRole('group', { name: 'Filtrar por natureza' })).toBeNull()
+  })
+
+  it('chips só das naturezas que existem, com a contagem da lista', async () => {
+    mock.listarRecorrencias.mockResolvedValue(regras)
+    mock.resumoPorNatureza.mockResolvedValue(porNatureza)
+    montar()
+    await screen.findByText('Internet')
+    const nomes = within(grupo()).getAllByRole('button').map((b) => b.textContent)
+    expect(nomes).toEqual(['Todas · 4', 'Custo fixo · 1', 'Assinatura ou app · 1', 'Sem natureza · 2'])
+  })
+
+  it('escolher "Custo fixo" filtra a lista e mostra o total do banco; os totais por card (que ignoram a natureza) somem', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue(regras)
+    mock.resumoPorNatureza.mockResolvedValue(porNatureza)
+    mock.resumoRecorrencias.mockResolvedValue([
+      { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'expense', frequencia: null, qtde: 3, porOcorrencia: c(150000), porMes: c(23000) },
+    ])
+    montar()
+    await screen.findByText('Internet')
+    expect(await screen.findByTestId('total-expense')).toBeTruthy()
+    await u.click(within(grupo()).getByRole('button', { name: /^Custo fixo/ }))
+    expect(nomesNaLista()).toBe(1)
+    expect(screen.getByText('Luz')).toBeTruthy()
+    expect(screen.queryByText('Internet')).toBeNull()
+    const total = screen.getByTestId('total-natureza')
+    expect(total.textContent).toContain('R$ 180,00/mês')
+    expect(total.textContent).toContain('saídas (1)')
+    expect(screen.queryByTestId('total-expense')).toBeNull()
+    expect(within(grupo()).getByRole('button', { name: /^Custo fixo/ }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('"Sem natureza" mostra as regras sem classificação (e o total do banco); "Todas" volta tudo', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue(regras)
+    mock.resumoPorNatureza.mockResolvedValue(porNatureza)
+    montar()
+    await screen.findByText('Internet')
+    await u.click(within(grupo()).getByRole('button', { name: /^Sem natureza/ }))
+    expect(nomesNaLista()).toBe(2)
+    expect(screen.getByText('Internet')).toBeTruthy()
+    expect(screen.getByText('Seguro')).toBeTruthy()
+    expect(screen.getByTestId('total-natureza').textContent).toContain('R$ 220,00/mês')
+    await u.click(within(grupo()).getByRole('button', { name: /^Todas/ }))
+    expect(nomesNaLista()).toBe(4)
+    expect(screen.queryByTestId('total-natureza')).toBeNull()
+  })
+
+  it('transferência não tem natureza: sai da lista com qualquer filtro (inclusive "Sem natureza")', async () => {
+    const u = userEvent.setup()
+    const transf = { ...luz, id: 'r5', tipo: 'transfer' as const, descricao: 'Reserva', destinoId: 'a2', categoriaId: null }
+    mock.listarRecorrencias.mockResolvedValue([{ ...luz, nature: 'fixed' as const }, internet, transf])
+    mock.resumoPorNatureza.mockResolvedValue(porNatureza)
+    montar()
+    await screen.findByText('Reserva')
+    await u.click(within(grupo()).getByRole('button', { name: /^Sem natureza/ }))
+    expect(screen.queryByText('Reserva')).toBeNull()
+    expect(screen.getByText('Internet')).toBeTruthy()
+    await u.click(within(grupo()).getByRole('button', { name: /^Custo fixo/ }))
+    expect(screen.queryByText('Reserva')).toBeNull()
+    await u.click(within(grupo()).getByRole('button', { name: /^Todas/ }))
+    expect(screen.getByText('Reserva')).toBeTruthy()
+  })
+
+  it('"Por natureza" lista os totais mensais do banco', async () => {
+    mock.listarRecorrencias.mockResolvedValue(regras)
+    mock.resumoPorNatureza.mockResolvedValue(porNatureza)
+    mock.resumoRecorrencias.mockResolvedValue([
+      { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'expense', frequencia: null, qtde: 3, porOcorrencia: c(150000), porMes: c(23000) },
+    ])
+    montar()
+    const lista = await screen.findByTestId('resumo-natureza')
+    const linhas = within(lista).getAllByRole('listitem').map((li) => li.textContent)
+    expect(linhas).toEqual([
+      'Custo fixo · saídas · 1R$ 180,00/mês',
+      'Sem natureza · saídas · 2R$ 220,00/mês',
+      'Assinatura ou app · saídas · 1R$ 39,90/mês',
+    ])
+  })
+
+  it('se o resumo por natureza falhar (banco sem a migration), a tela segue e só esse bloco some', async () => {
+    mock.listarRecorrencias.mockResolvedValue(regras)
+    mock.resumoPorNatureza.mockRejectedValue({ code: 'PGRST202' })
+    montar()
+    expect(await screen.findByText('Internet')).toBeTruthy()
+    expect(screen.queryByTestId('resumo-natureza')).toBeNull()
+    expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
 })

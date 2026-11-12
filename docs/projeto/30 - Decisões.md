@@ -684,3 +684,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Estorno de compra entra** (abate a categoria da compra), como na fatura. **Crédito/reembolso avulso (`income_credit`) não entra:** é receita (decisão de 04/11/2026), não tem categoria de despesa para abater. Consequência aceita: a soma das categorias pode passar do total que `card_months` mostra, que já desconta esses créditos; a folha avisa no texto. A alternativa (abater o crédito de alguma categoria) inventaria uma regra que o dono não pediu.
 - **Assinatura prevista não entra:** ainda não é parcela e `card_months` também não a conta; entra quando a compra é lançada.
 - **Categoria raiz**, como Início e Análises (subcategoria soma na mãe). Sem "Outros": a lista mostra todas as categorias da fatura.
+
+## 12/11/2026 — Recorrentes: resumo e filtro por natureza (#318)
+- **Totais vêm do banco:** nova função de leitura `recurrence_nature_summary` com a mesma base do `recurrence_summary`. O front só conta itens da lista (não é dinheiro) e mostra o que o banco devolve.
+- **Com filtro, somem os totais por card e por frequência:** eles vêm do `recurrence_summary`, que não conhece a natureza; mostrar o total do card inteiro sobre uma lista filtrada enganaria. O total do recorte é a linha da natureza.
+- **Transferência fora do filtro e dos totais por natureza:** não tem natureza e não é gasto. **Sem natureza** é um recorte próprio (`none`), para o dono achar o que falta classificar.
+- **Chip só das naturezas que existem**, e o filtro só aparece quando há ao menos uma regra classificada.
