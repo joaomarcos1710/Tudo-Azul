@@ -307,7 +307,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#315** (12/11/2026): Cartão: botão "Categorias" na fatura, com as despesas da fatura por categoria (migration 112, aplicada em 12/11/2026, execução 43200042951).
 - **#316** (12/11/2026): Recorrentes: bloco Parcelas ativas, cartão e conta (migration 112, só leitura, aplicada em 12/11/2026, execução 43200042951).
 - **#317** (12/11/2026): diário: migrations 109 a 112 aplicadas em produção.
-- **#318** (12/11/2026, em rascunho): Recorrentes: resumo e filtro por natureza (migration 113, `recurrence_nature_summary`, só leitura, ainda não aplicada).
+- **#318** (12/11/2026): Recorrentes: resumo e filtro por natureza (migration 113, `recurrence_nature_summary`, só leitura, aplicada em 12/11/2026, execução 43252197101).
+- **#319** (12/11/2026, em rascunho): diário: migration 113 aplicada em produção.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

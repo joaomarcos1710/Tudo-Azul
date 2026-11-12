@@ -379,11 +379,11 @@ Arquivo `20261112140000_card_invoice_categories.sql`. Ordem: 109, 110, 111 (as d
 - Vazio para fatura inexistente, rótulo fora do formato ou nulo, dívida que não é cartão, outra família; anônimo não executa. Fatura paga/travada continua consultável.
 - Teste `107_card_invoice_categories` (32 asserções) e as 2 listas do `00_audit`. Mutantes mortos: sem agrupar pela raiz, percentual e total errados, valor sem o líquido (cancelado e estorno), grant a anon, DEFINER, sem o HAVING (categoria zerada). Não pego: tirar `kind = 'card'` (só cartão tem parcela; a guarda é defensiva).
 
-## Resumo dos recorrentes por natureza (migration 113, PR #318, ainda não aplicada)
+## Resumo dos recorrentes por natureza (migration 113, PR #318, aplicada em 12/11/2026, execução 43252197101)
 Arquivo `20261112150000_recurrence_nature_summary.sql`. Recorrentes, 3ª PR: totais mensais por natureza (o front não soma dinheiro de relatório).
 - `public.recurrence_nature_summary(p_household uuid) returns table (nature text, kind text, item_count integer, total_monthly numeric)`, SQL, STABLE, SECURITY INVOKER, `search_path` vazio, `revoke` de public/anon, `grant` a authenticated. Só leitura.
 - Mesma base de `recurrence_summary`: regra ativa, data final não passada, só em reais (cartão é sempre reais), conta ativa, e o mesmo equivalente por mês (`round(x, 2)` por regra, depois a soma). **Transferência fica de fora** (não tem natureza e não é gasto). Despesa em conta e assinatura de cartão entram juntas em `expense`; receita em `income`.
 - Duas famílias de linha: `nature` = fixed, subscription, variable, reimbursement ou `none` (sem natureza) por tipo, e `nature = 'all'` por tipo (o total do tipo, que fecha com o `recurrence_summary`).
 - Outra família ou anônimo: vazio e 42501.
 - Teste `108_recurrence_nature_summary` (10 asserções) e as 2 listas do `00_audit` (não está na de SECURITY DEFINER). Mutante morto: sem excluir transferência. Não pego: o filtro de conta ativa (igual ao do `recurrence_summary`, já coberto no 63).
-- Aplicar pelo workflow, simulando antes, depois da 112, só com o "pode" do dono. Sem a migration a tela segue normal (só o bloco "Por natureza" some).
+- Aplicada pelo workflow em 12/11/2026 (execução 43252197101), simulada antes (43252072442: só ela estava pendente). Conferido em leitura direta no banco: a função existe, não é SECURITY DEFINER, `anon` sem execute, `authenticated` com execute, última migration registrada `20261112150000`. **Não** foi chamada com dados reais de uma família; a tela é o primeiro uso.
