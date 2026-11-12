@@ -672,6 +672,13 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Atalho: se a lista de pessoas não carregar, o painel só oferece "Não classificada" e "Toda a família". Melhorar se aparecer.
 - [ ] Compra com parcelas de pessoas diferentes (só possível por dado antigo de recorrência): o painel mostra a pessoa da parcela do mês; salvar uniformiza a compra toda.
 
+## Recorrentes: Parcelas ativas (12/11/2026, #316, migration 112)
+- [x] Bloco Parcelas ativas em Recorrentes com leitura própria no banco, testes de banco e de tela.
+- [ ] **Aplicar a migration 112** (`20261112130000`) em produção pelo workflow (simular, ler o log, aplicar), com o "pode" do dono, depois da 111.
+- [ ] Atalho: sem atalho direto para "parcelado em conta" em Lançamentos (o link abre Nova despesa; Repetir > parcelado é manual). Criar `?novo=parcelado` se o dono quiser.
+- [ ] Atalho: pagamento no cartão é por fatura; fatura aberta paga adiantada só conta como paga depois de fechar.
+- [ ] Posição do bloco (fim da tela) a combinar com as PRs de abas e agrupamento de Recorrentes.
+
 ## Para depois (pedidos do dono sem data)
 - [ ] Gráfico "Despesas acumuladas no mês": linha tracejada com a soma dos gastos no cartão no dia (pedido em 10/11/2026).
 

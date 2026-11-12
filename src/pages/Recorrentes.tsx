@@ -30,6 +30,7 @@ import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo, SELO } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
 import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
+import { ParcelasAtivas } from '../components/recorrentes/ParcelasAtivas'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import { useAuth } from '../lib/auth'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
@@ -369,6 +370,7 @@ export default function Recorrentes() {
         </>
       )}
 
+      {recorrencias !== null && <ParcelasAtivas familiaId={familiaId} />}
     </>
   )
 }

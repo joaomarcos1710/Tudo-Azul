@@ -672,3 +672,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 ## 12/11/2026 — Composição da carteira: seletor só com as moedas que têm posição (dono, #312, etapa 2)
 - **Decisão:** o seletor de moeda lista só BRL, EUR e USD com posição (em vez de todas com estado vazio) e some quando há uma moeda só. Motivo: aba vazia convida ao clique sem nada para mostrar, e o resumo logo acima já mostra só as moedas que existem.
 - **Previdência grande na barra:** a visão Liquidez (que já existia) fica a um clique da Classe, com um atalho; nenhum cálculo novo. Mostrar a classe do que é líquido exigiria um número novo do banco: fica em Pendências.
+## 12/11/2026 — Parcelas ativas em Recorrentes (dono, #316)
+- **Uma função de leitura nova** (`active_installment_plans`) em vez de montar no front: nenhuma RPC entregava n de N, % pago, saldo restante nem status do mês por parcelamento, e o front não soma dinheiro. O que já existia (`card_months_as_of`) é reaproveitado para a fatura.
+- **Paga no cartão é por fatura** (fechada e paga), não por parcela: o banco não registra pagamento por parcela. **Parcela do mês pelo vencimento da fatura**, como no Entradas x Saídas (decisão de 05/11).
+- **Fora do bloco**: empréstimo, financiamento e consignado (têm a tela Dívidas), receita e transferência parceladas, assinatura de cartão. Parcela cancelada ou estornada inteira não conta no "n de N".
+- **Sem "carnê" como tipo**: o banco não distingue; parcelamento em conta cobre.
+- **"+ Novo parcelamento"** reaproveita os fluxos existentes (`?novo=cartao`), sem fluxo novo; a despesa parcelada em conta tem link próprio para Nova despesa.

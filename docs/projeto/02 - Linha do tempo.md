@@ -304,6 +304,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#312** (12/11/2026, em aberto): Investimentos, etapa 2 de 5 do redesenho visual: "Composição da carteira" unificada, com seletor de moeda (BRL, EUR, USD) e as visões Classe, Liquidez, Instituição e Ativos em cada moeda. Só front.
 - **#313** (12/11/2026, rascunho: a data do merge entra quando for mergeada): Cartões: "Gasto do mês" vira "Fatura atual" no resumo da fatura; a linha da compra fica clicável e abre a folha "Editar compra"; "Enviar para a fatura anterior" aparece sempre, desabilitado com o motivo quando não pode. Só front.
 - **#314** (12/11/2026, em aberto): Recorrentes: campo de natureza (custo fixo, assinatura ou app, gasto variável, ressarcimento a receber), alicerce para agrupar a tela por natureza (pedido do dono, 12/11/2026). Só classificação: coluna `recurrences.nature`, `recurrence_set_nature`, criar/atualizar com natureza, seletor no formulário e selo na lista. Migration 112 (`20261112120000`), ainda não aplicada. As abas e os totais por natureza são outra PR.
+- **#316** (12/11/2026, rascunho): Recorrentes: bloco Parcelas ativas, cartão e conta (migration 112, só leitura, ainda não aplicada).
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
