@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { excluirRecorrencia } from '../lib/recorrencias'
-import type { FormEvent, ReactNode } from 'react'
+import type { FormEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BandeiraCartao, IconeEmissor } from '../components/ui/IconeConta'
 import { BANCOS_POR_NOME, BANDEIRAS } from '../lib/bancos'
@@ -13,6 +13,7 @@ import { FaturasDoMes } from '../components/ui/FaturasDoMes'
 import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
+import type { AcaoMenu } from '../components/ui/MenuAcoes'
 import { MenuNovo, useAtalhosNovo } from '../components/ui/MenuNovo'
 import type { ItemNovo } from '../components/ui/MenuNovo'
 import { Selecao } from '../components/ui/Selecao'
@@ -923,24 +924,40 @@ const valorResumo = 'shrink-0 whitespace-nowrap tabular-nums font-semibold'
  * nome inteiro no `title`) e o valor NA MESMA LINHA do começo do nome, à direita (nowrap, tabular, nunca encolhe) | ⋯ ao lado. Embaixo,
  * menor, a categoria (e "a cobrar no fechamento") com a parcela num selo. Sem `acoes` (fatura paga, travada) não há ⋯.
  * O painel (Estornar) abre na linha toda.
+ * Com `aoAbrir` (compras da fatura) a linha é clicável: a área do nome e do valor vira UM alvo de foco (role="button", Enter e
+ * Espaço abrem), irmão da área do ⋯ (não aninhado nem dentro do alvo, então o ⋯ e o painel nunca abrem a folha). A linha
+ * ganha o fundo azul-claro no hover e quando o foco está nela (focus-within).
  */
-function LinhaDaFatura({ testId, icone, titulo, detalhe, parcela = null, valor, corValor, acoes, painel }: {
+function LinhaDaFatura({ testId, icone, titulo, detalhe, parcela = null, valor, corValor, acoes, painel, aoAbrir, rotuloAbrir }: {
   testId: string; icone: ReactNode; titulo: string; detalhe: string; parcela?: string | null
   valor: string; corValor: string; acoes: ReactNode; painel?: ReactNode
+  aoAbrir?: (alvo: HTMLElement) => void; rotuloAbrir?: string
 }) {
+  const alvoProps = aoAbrir ? {
+    role: 'button', tabIndex: 0, 'aria-label': rotuloAbrir,
+    onClick: (e: MouseEvent<HTMLElement>) => aoAbrir(e.currentTarget),
+    onKeyDown: (e: KeyboardEvent<HTMLElement>) => {
+      if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return
+      e.preventDefault()
+      aoAbrir(e.currentTarget)
+    },
+  } : {}
   return (
     <li className="py-1.5" data-testid={testId}>
-      <div className="flex min-w-0 items-center gap-x-3">
-        <span className="shrink-0">{icone}</span>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-start gap-2" data-linha-principal>
-            <p className="line-clamp-2 min-w-0 flex-1 break-words font-medium leading-snug" title={titulo}>{titulo}</p>
-            <span data-valor className={`shrink-0 whitespace-nowrap tabular-nums font-semibold ${corValor}`}>{valor}</span>
+      <div className={`flex min-w-0 items-center gap-x-3 ${aoAbrir ? 'group/linha -mx-2 rounded-lg px-2 transition-colors hover:bg-azul-claro focus-within:bg-azul-claro' : ''}`}
+        data-linha-clicavel={aoAbrir ? '' : undefined}>
+        <div className={`flex min-w-0 flex-1 items-center gap-x-3 ${aoAbrir ? 'cursor-pointer rounded-lg py-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-azul' : ''}`} {...alvoProps}>
+          <span className="shrink-0">{icone}</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-start gap-2" data-linha-principal>
+              <p className="line-clamp-2 min-w-0 flex-1 break-words font-medium leading-snug" title={titulo}>{titulo}</p>
+              <span data-valor className={`shrink-0 whitespace-nowrap tabular-nums font-semibold ${corValor}`}>{valor}</span>
+            </div>
+            <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
+              <span className="min-w-0 truncate" title={detalhe}>{detalhe}</span>
+              {parcela && <span className="shrink-0 whitespace-nowrap rounded bg-neutro-fundo px-1.5 font-medium text-neutro">{parcela}</span>}
+            </p>
           </div>
-          <p className="flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
-            <span className="min-w-0 truncate" title={detalhe}>{detalhe}</span>
-            {parcela && <span className="shrink-0 whitespace-nowrap rounded bg-neutro-fundo px-1.5 font-medium text-neutro">{parcela}</span>}
-          </p>
         </div>
         {acoes && <div className="-mr-2 flex shrink-0 items-center gap-1">{acoes}</div>}
       </div>
@@ -1198,7 +1215,7 @@ function FileiraFaturas({ cartao, versao, foco, pagar }: {
 
 /**
  * `/cartoes/:id/fatura/:mes`: o extrato de uma fatura (pedido do dono, #203). Cabeçalho (cartão · mês · situação,
- * fecha/vence, setas ‹ › para a anterior e a seguinte), "Pagar fatura" e o resumo (Saldo anterior, Gasto do mês, Valor
+ * fecha/vence, setas ‹ › para a anterior e a seguinte), "Pagar fatura" e o resumo (Saldo anterior, Fatura atual, Valor
  * pago, de card_months) e o extrato em três blocos, nesta ordem: **Pagamentos** (os desta fatura, com a data em que
  * foram feitos), **Entradas — estornos e reembolsos** (créditos; o total é o do banco) e **Saídas** (compras e
  * parcelas, agrupadas pelo dia). Nenhum valor é somado aqui.
@@ -1230,6 +1247,8 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const [avisoMover, setAvisoMover] = useState('')
   // folha "Categorias" da fatura (só leitura; o foco volta ao botão ao fechar)
   const [verCategorias, setVerCategorias] = useState(false)
+  // "Editar compra": a compra cuja folha está aberta (clique na linha). O foco volta à linha ao fechar (a Folha cuida disso)
+  const [compraAberta, setCompraAberta] = useState<ItemFatura | null>(null)
   const hoje = hojeSP()
   useTitulo(`${cartao.nome} · ${primeiraMaiuscula(formatMonth(mes))}`)
   // pessoas da família para "Mudar de quem foi a despesa"; sem a lista o painel só oferece "não classificada" e "toda a família"
@@ -1297,7 +1316,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   }, [cartaoId, faturaId, versao])
 
   // trocar de fatura (setas, link) fecha o que estava aberto numa linha da outra
-  useEffect(() => { setAcaoBruta(null); setPainelPrevista(null); setErroMover('') }, [mes])
+  useEffect(() => { setAcaoBruta(null); setPainelPrevista(null); setErroMover(''); setCompraAberta(null) }, [mes])
 
   // assinatura cancelada na vida real: exclui a regra inteira (o que já foi cobrado continua no histórico)
   async function excluirAssinatura(o: OcorrenciaPrevista) {
@@ -1374,6 +1393,25 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const mesAberto = fechamentoNoCiclo(hoje, cartao)?.slice(0, 7) ?? null
   const podeMover = !fechou && mesAberto !== null
   const podeAnterior = podeMover && f.mes > mesAberto
+  // As ações de uma compra: UMA lista para o ⋯ da linha e para a folha "Editar compra" (cada um passa o que fazer ao escolher).
+  // "Enviar para a fatura anterior / próxima" aparece sempre na parcela ainda não cobrada; quando o banco recusaria, fica
+  // desabilitado com o motivo (a regra é a de antes: o destino só pode ser fatura que não fechou)
+  const acoesDaCompra = (i: ItemFatura, g: GatilhosDaCompra): AcaoMenu[] => [
+    ...(travada ? [] : [{ rotulo: 'Estornar', aoEscolher: g.estornar }]),
+    ...(travada ? [] : [{ rotulo: 'Editar valor', aoEscolher: g.editar }]),
+    ...(!travada && i.falta > 0 ? [
+      {
+        rotulo: 'Enviar para a fatura anterior', aoEscolher: () => g.mover('previous'), desabilitado: !podeAnterior,
+        motivo: podeAnterior ? undefined : mesAberto === null ? 'o cartão não tem dias de fechamento' : 'a fatura anterior já fechou',
+      },
+      {
+        rotulo: 'Enviar para a próxima fatura', aoEscolher: () => g.mover('next'), desabilitado: !podeMover,
+        motivo: podeMover ? undefined : mesAberto === null ? 'o cartão não tem dias de fechamento' : 'esta fatura já fechou',
+      },
+    ] : []),
+    { rotulo: 'Mudar de quem foi a despesa', aoEscolher: g.pessoa },
+    ...(travada ? [] : [{ rotulo: 'Excluir compra', aoEscolher: g.excluir, perigo: true }]),
+  ]
   const fechadaAPagar = fechadaAPagarDe(cartao, faturas, hoje)
   const pagaAqui = pagaNaFatura(cartao, f, fechadaAPagar, hoje)
   const formularioPagar = painel?.tipo === 'pagar' && painel.cartao.id === cartaoId ? <PainelJunto>{painelDoCartao(painel)}</PainelJunto> : null
@@ -1393,7 +1431,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         acoes={
           <div className="flex flex-wrap items-center justify-end gap-2 print:hidden">
             {pagaAqui && <Button variante="pilula" compacto onClick={() => setPainel({ tipo: 'pagar', cartao })} disabled={painel !== null}>Pagar fatura</Button>}
-            {!travada && <NovoNoCartao cartao={cartao} painel={painel} setPainel={setPainel} forma="secundario" atalhos={acao === null && painelPrevista === null} />}
+            {!travada && <NovoNoCartao cartao={cartao} painel={painel} setPainel={setPainel} forma="secundario" atalhos={acao === null && painelPrevista === null && compraAberta === null} />}
             <Button variante="fantasma" compacto aria-label="Imprimir fatura" title="Imprimir fatura" onClick={() => window.print()}>Imprimir</Button>
             <nav aria-label="Outras faturas" className="flex items-center gap-1">
               <button type="button" className={seta} disabled={!anterior} aria-label={anterior ? `Fatura anterior (${formatMonth(anterior.mes)})` : 'Fatura anterior (não há)'}
@@ -1450,7 +1488,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
               </dd>
             </div>
             <div className={itemResumo}>
-              <dt className="text-xs text-slate-500">Gasto do mês</dt>
+              <dt className="text-xs text-slate-500">Fatura atual</dt>
               <dd className={valorResumo}>{formatBRL(f.total)}</dd>
             </div>
             <div className={itemResumo}>
@@ -1561,17 +1599,17 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                         // fatura paga (travada, migration 064): só "Mudar de quem foi a despesa" (classificação, não mexe em
                         // dinheiro); estornar, editar, enviar para outra fatura e excluir seguem fora e o banco também recusa
                         acoes={(
-                          <MenuAcoes rotulo={`Ações de ${i.descricao}`} desabilitado={acao !== null || movendo !== null} acoes={[
-                            ...(travada ? [] : [{ rotulo: 'Estornar', aoEscolher: () => setAcao({ tipo: 'estornar', item: i, faturaId: f.faturaId }) }]),
-                            ...(travada ? [] : [{ rotulo: 'Editar valor', aoEscolher: () => setAcao({ tipo: 'editar', item: i }) }]),
-                            ...(!travada && podeMover && i.falta > 0 ? [
-                              ...(podeAnterior ? [{ rotulo: 'Enviar para a fatura anterior', aoEscolher: () => { void moverParcela(i, 'previous') } }] : []),
-                              { rotulo: 'Enviar para a próxima fatura', aoEscolher: () => { void moverParcela(i, 'next') } },
-                            ] : []),
-                            { rotulo: 'Mudar de quem foi a despesa', aoEscolher: () => setAcao({ tipo: 'pessoa', item: i }) },
-                            ...(travada ? [] : [{ rotulo: 'Excluir compra', aoEscolher: () => setAcao({ tipo: 'excluir', item: i }), perigo: true }]),
-                          ]} />
+                          <MenuAcoes rotulo={`Ações de ${i.descricao}`} desabilitado={acao !== null || movendo !== null} acoes={acoesDaCompra(i, {
+                            estornar: () => setAcao({ tipo: 'estornar', item: i, faturaId: f.faturaId }),
+                            editar: () => setAcao({ tipo: 'editar', item: i }),
+                            mover: (d) => { void moverParcela(i, d) },
+                            pessoa: () => setAcao({ tipo: 'pessoa', item: i }),
+                            excluir: () => setAcao({ tipo: 'excluir', item: i }),
+                          })} />
                         )}
+                        // a linha abre a folha "Editar compra"; com outro painel aberto ou uma parcela sendo enviada fica quieta, como o ⋯
+                        aoAbrir={acao === null && movendo === null ? (alvo) => { alvo.focus(); setCompraAberta(i) } : undefined}
+                        rotuloAbrir={travada ? `Ver a compra ${i.descricao}` : `Editar a compra ${i.descricao}`}
                         painel={acao?.tipo === 'pessoa' && acao.item.parcelaId === i.parcelaId ? (
                           <PainelJunto className="mt-2 w-full">
                             <PainelPessoa cartaoId={cartaoId} item={acao.item} pessoas={pessoas} aoFechar={() => setAcao(null)}
@@ -1625,10 +1663,84 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
           </section>
         )}
       </Card>
+      {compraAberta && (
+        <FolhaCompra item={compraAberta} cartaoId={cartaoId} nomeCartao={cartao.nome} mesFatura={f.mes} faturaId={f.faturaId} travada={travada}
+          categoria={nomeCategoria.get(compraAberta.categoriaId) ?? 'Sem categoria'} contas={contas} pessoas={pessoas}
+          montarAcoes={(g) => acoesDaCompra(compraAberta, g)}
+          aoFechar={() => setCompraAberta(null)}
+          aoMover={(d) => { const i = compraAberta; setCompraAberta(null); void moverParcela(i, d) }}
+          aoConcluir={async () => { setCompraAberta(null); await carregar() }}
+          // sem a compra a fatura pode deixar de existir: volta para o cartão depois de excluir
+          aoExcluir={async () => { setCompraAberta(null); await carregar(); navigate(rotaCartao(cartaoId)) }} />
+      )}
     </>
   )
 }
 
+/** O que fazer quando cada ação de uma compra é escolhida (o ⋯ e a folha passam o seu). */
+interface GatilhosDaCompra {
+  estornar: () => void; editar: () => void; pessoa: () => void; excluir: () => void; mover: (d: DirecaoDaParcela) => void
+}
+
+/**
+ * Folha "Editar compra" (pedido do dono, 12/11/2026, como no Organizze): abre ao clicar na linha da compra. Nesta etapa só junta
+ * o que o app já tinha: mostra descrição, categoria, valor, data da compra, cartão e fatura (somente leitura) e oferece as mesmas
+ * ações do ⋯ (a lista vem de `acoesDaCompra`, a mesma): editar o valor, enviar para a fatura anterior/próxima, mudar de quem foi a
+ * despesa, estornar e excluir. Cada ação abre o MESMO painel de antes, agora dentro da folha. Fatura paga (travada): só consulta e
+ * "Mudar de quem foi a despesa". Categoria, data, cartão e despesa/receita ainda não se editam (precisam de banco; ver Pendências).
+ */
+function FolhaCompra({ item, cartaoId, nomeCartao, mesFatura, faturaId, travada, categoria, contas, pessoas, montarAcoes, aoFechar, aoMover, aoConcluir, aoExcluir }: {
+  item: ItemFatura; cartaoId: string; nomeCartao: string; mesFatura: string; faturaId: string | null; travada: boolean; categoria: string
+  contas: Conta[]; pessoas: PessoaFamilia[]; montarAcoes: (g: GatilhosDaCompra) => AcaoMenu[]
+  aoFechar: () => void; aoMover: (d: DirecaoDaParcela) => void; aoConcluir: () => Promise<void>; aoExcluir: () => Promise<void>
+}) {
+  const [modo, setModo] = useState<'editar' | 'estornar' | 'pessoa' | 'excluir' | null>(null)
+  const volta = () => setModo(null)
+  const acoes = montarAcoes({
+    estornar: () => setModo('estornar'), editar: () => setModo('editar'), pessoa: () => setModo('pessoa'), excluir: () => setModo('excluir'),
+    mover: aoMover,
+  })
+  const parcela = item.deParcelas > 1 ? ` (parcela ${item.parcela}/${item.deParcelas})` : ''
+  const dados: [string, string][] = [
+    ['Descrição', item.descricao],
+    ['Categoria', categoria],
+    ['Valor', `${formatBRL(item.valor)}${parcela}`],
+    ['Data da compra', item.dataCompra ? formatDate(item.dataCompra) : 'Sem data da compra'],
+    ['Cartão', nomeCartao],
+    ['Fatura', primeiraMaiuscula(formatMonth(mesFatura))],
+  ]
+  return (
+    <Folha titulo={travada ? 'Detalhes da compra' : 'Editar compra'} aoFechar={aoFechar} larga>
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-2" aria-label="Dados da compra">
+        {dados.map(([rotulo, valor]) => (
+          <div key={rotulo} className="min-w-0">
+            <dt className="text-xs text-slate-500">{rotulo}</dt>
+            <dd className="break-words font-medium">{valor}</dd>
+          </div>
+        ))}
+      </dl>
+      {travada && <p className="mt-3 text-xs text-slate-600">Fatura paga não muda mais: aqui só dá para mudar de quem foi a despesa.</p>}
+      {modo === null && (
+        <ul className="mt-4 flex flex-col gap-2" aria-label="Ações da compra">
+          {acoes.map((a, k) => (
+            <li key={a.rotulo}>
+              <button type="button" disabled={a.desabilitado} aria-label={a.rotulo} aria-describedby={a.motivo ? `motivo-compra-${k}` : undefined} onClick={a.aoEscolher}
+                className={`group flex min-h-11 w-full flex-col justify-center rounded-lg border px-3 py-1 text-left text-sm font-semibold disabled:cursor-not-allowed ${
+                  a.perigo ? 'border-negativo-borda text-negativo hover:bg-negativo-fundo' : 'border-slate-200 text-marinho hover:bg-azul-claro'}`}>
+                <span className="group-disabled:opacity-50">{a.rotulo}</span>
+                {a.motivo && <span id={`motivo-compra-${k}`} className="text-xs font-normal text-slate-600">{a.motivo}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {modo === 'editar' && <PainelEditar item={item} aoFechar={volta} aoConcluir={aoConcluir} />}
+      {modo === 'estornar' && <PainelEstornar item={item} faturaId={faturaId} aoFechar={volta} aoConcluir={aoConcluir} />}
+      {modo === 'pessoa' && <PainelPessoa cartaoId={cartaoId} item={item} pessoas={pessoas} aoFechar={volta} aoConcluir={aoConcluir} />}
+      {modo === 'excluir' && <PainelExcluir cartaoId={cartaoId} item={item} contas={contas} aoFechar={volta} aoConcluir={aoExcluir} />}
+    </Folha>
+  )
+}
 
 interface PropsBase { aoSalvar: () => Promise<void>; aoCancelar: () => void }
 
