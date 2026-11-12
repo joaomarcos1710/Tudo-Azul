@@ -435,3 +435,67 @@ begin
     return next;
   end loop;
 end $function$;
+
+-- ---------------------------------------------------------------------------
+-- 4. O pagamento cuja fatura some é solto dela (vira adiantamento de vez)
+-- ---------------------------------------------------------------------------
+-- Segunda revisão da #306 (reproduzido), decisão do dono (12/11/2026, opção 1): contar o pagamento de um mês que sumiu
+-- como adiantamento (seção 3) não basta, porque o mês pode voltar (uma compra nova cai nele). Aí o pagamento voltava
+-- para a fatura de origem e saía das faturas que ele tinha quitado: uma fatura fechada e paga voltava a "a pagar" sem
+-- ninguém tocar nela. Agora, quando o mês some, o pagamento fica sem fatura (invoice_id nulo): é adiantamento de vez e
+-- não volta sozinho. Os números não mudam no momento da soltura, porque a seção 3 já o conta no mesmo lugar.
+--
+-- O mês some só por cancelamento de parcela (estorno inteiro, exclusão de compra, antecipação) ou por anulação de
+-- crédito avulso. Em vez de recriar as funções dessas operações, um gatilho no fim da transação (o estado final, não o
+-- de um passo intermediário da operação) solta os pagamentos órfãos do cartão. A marca de sessão é a mesma da
+-- card_payment_move, e só vale para pagamento.
+--
+-- atalho: "o mês existe" é decidido por card_month_labels, que repete o critério do CTE meses de card_months e de
+-- card_months_as_of (parcela com cancelado < face, ou crédito avulso); um teste confere que as três dão os mesmos
+-- meses. Unificar quando alguma delas mudar de novo. Fora do gatilho: apagar parcelas (só o "apagar tudo" da família,
+-- que apaga também os pagamentos).
+create function private.card_month_labels(p_debt uuid)
+returns setof text language sql stable security definer set search_path = '' as $$
+  select to_char(i.due_date, 'YYYY-MM')
+    from public.debt_installments i
+   where i.debt_id = p_debt
+     and coalesce((select sum(e.amount) from public.debt_events e
+                    where e.installment_id = i.id and e.voided_at is null and e.kind = 'cancel'), 0) < i.face
+  union
+  select to_char(e.date, 'YYYY-MM')
+    from public.debt_events e
+   where e.debt_id = p_debt and e.voided_at is null and e.kind = 'income_credit'
+$$;
+
+create function private.card_payment_release(p_debt uuid)
+returns integer language plpgsql security definer set search_path = '' as $$
+declare v_n integer; v_prev text;
+begin
+  if not exists (select 1 from public.debts d where d.id = p_debt and d.kind = 'card') then return 0; end if;
+  v_prev := coalesce(current_setting('app.card_payment_move', true), '');
+  perform set_config('app.card_payment_move', 'on', true);
+  update public.debt_events e set invoice_id = null
+    from public.debt_invoices i
+   where i.id = e.invoice_id
+     and e.debt_id = p_debt and e.voided_at is null and e.kind in ('payment', 'extra_principal')
+     and not exists (select 1 from private.card_month_labels(p_debt) as l(label) where l.label = i.label);
+  get diagnostics v_n = row_count;
+  perform set_config('app.card_payment_move', v_prev, true);
+  return v_n;
+end $$;
+
+create function private.card_payment_release_trg() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform private.card_payment_release(new.debt_id);
+  return null;
+end $$;
+
+-- por linha, porque gatilho de restrição não é por comando; só nos eventos que podem fazer um mês sumir
+create constraint trigger debt_events_payment_release after insert or update on public.debt_events
+  deferrable initially deferred for each row
+  when (new.kind in ('cancel', 'income_credit'))
+  execute function private.card_payment_release_trg();
+
+revoke execute on function private.card_month_labels(uuid), private.card_payment_release(uuid), private.card_payment_release_trg()
+  from public, anon, authenticated;

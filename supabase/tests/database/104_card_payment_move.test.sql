@@ -226,9 +226,15 @@ select is((select count(*) from public.card_months(pg_temp.fx('c')) m where m.la
 select is(pg_temp.sit(pg_temp.fx('c'), '2026-10'), '100.00|60.00',
           'R1.4 o pagamento órfão conta como adiantamento e é usado em outubro (antes: 100|0, os 60 sumiam)');
 select is(pg_temp.sit_as_of(pg_temp.fx('c'), '2026-10'), '100.00|60.00', 'R1.5 card_months_as_of dá o mesmo número');
-select is(pg_temp.pag('pc'), '2026-10-25|60.00|true|false|' || (select label from fut_c), 'R1.6 o pagamento não foi alterado (continua ligado à fatura que sumiu)');
-select is(pg_temp.move('pc', '2026-10'), null, 'R1.7 e ainda pode voltar para outubro pela RPC');
-select is(pg_temp.sit(pg_temp.fx('c'), '2026-10'), '100.00|60.00', 'R1.8 outubro continua com 60 pagos, agora ligados a ela');
+-- o gatilho solta o pagamento no fim da transação (opção 1 do dono, 12/11/2026); aqui o fim é antecipado por SET CONSTRAINTS
+select is(pg_temp.pag('pc'), '2026-10-25|60.00|true|false|' || (select label from fut_c), 'R1.6 antes do fim da transação o pagamento ainda aponta para a fatura que sumiu');
+select lives_ok($$set constraints debt_events_payment_release immediate$$, 'R1.6.1 fim da transação: o gatilho roda');
+select lives_ok($$set constraints debt_events_payment_release deferred$$, 'R1.6.2 volta ao normal');
+select is(pg_temp.pag('pc'), '2026-10-25|60.00|true|false|sem fatura', 'R1.7 o pagamento ficou sem fatura: é adiantamento de vez');
+select is(pg_temp.sit(pg_temp.fx('c'), '2026-10'), '100.00|60.00', 'R1.8 soltar não muda número nenhum');
+select is(pg_temp.sit_as_of(pg_temp.fx('c'), '2026-10'), '100.00|60.00', 'R1.8.1 nem em card_months_as_of');
+select is(pg_temp.move('pc', '2026-10'), null, 'R1.9 e ainda pode ir para outubro pela RPC (de adiantamento para fatura)');
+select is(pg_temp.sit(pg_temp.fx('c'), '2026-10'), '100.00|60.00', 'R1.10 outubro continua com 60 pagos, agora ligados a ela');
 
 -- R2: parcela futura estornada inteira (vira cancelamento e o mês some)
 insert into fixture select 'd', public.create_debt('Cartão D', 'card', '2026-01-01', 0);
@@ -247,6 +253,48 @@ select is((select count(*) from public.card_months(pg_temp.fx('d')) m where m.la
           'R2.2 a fatura aberta sumiu de card_months');
 select is(pg_temp.sit(pg_temp.fx('d'), '2026-10'), '80.00|30.00', 'R2.3 os 30 contam como adiantamento em outubro (antes: 80|0)');
 select is(pg_temp.sit_as_of(pg_temp.fx('d'), '2026-10'), '80.00|30.00', 'R2.4 card_months_as_of dá o mesmo número');
+select lives_ok($$set constraints debt_events_payment_release immediate$$, 'R2.5 fim da transação: o gatilho roda');
+select lives_ok($$set constraints debt_events_payment_release deferred$$, 'R2.5.1 volta ao normal');
+select is(pg_temp.pag('pd'), '2026-10-25|30.00|true|false|sem fatura', 'R2.6 o pagamento ficou sem fatura');
+select is(pg_temp.sit(pg_temp.fx('d'), '2026-10'), '80.00|30.00', 'R2.7 soltar não muda número nenhum');
+
+-- R3: o mês some e VOLTA (segunda revisão da #306): a fatura paga não pode voltar a "a pagar"
+insert into fixture select 'e', public.create_debt('Cartão E', 'card', '2026-01-01', 0);
+select public.set_card_cycle(pg_temp.fx('e'), 17, 25);
+select public.card_purchase(pg_temp.fx('e'), '2026-09-20', 80.00, 1, pg_temp.fx('cat'), 'Outubro E');
+select public.card_purchase(pg_temp.fx('e'), pg_temp.hoje(), 50.00, 1, pg_temp.fx('cat'), 'Futura E');
+select public.card_bill_due('2026-10-31');
+insert into fixture select 'pe1', public.debt_pay(pg_temp.fx('e'), '2026-10-25', pg_temp.fx('bank'), 60.00, pg_temp.fat(pg_temp.fx('e'), '2026-10'));
+create temp table fut_e as select pg_temp.futura(pg_temp.fx('e'), 0) as label;
+grant all on fut_e to public;
+select is(pg_temp.move('pe1', (select label from fut_e)), null, 'R3 pagamento de outubro vai para a fatura aberta');
+insert into fixture select 'pe2', public.debt_pay(pg_temp.fx('e'), '2026-10-26', pg_temp.fx('bank'), 20.00, pg_temp.fat(pg_temp.fx('e'), '2026-10'));
+select is(pg_temp.sit(pg_temp.fx('e'), '2026-10'), '80.00|20.00', 'R3.1 outubro: 80 com 20 pagos, ainda não paga');
+select lives_ok(format($$select public.debt_refund(%L, %L::date, 50.00)$$,
+          (select id from public.debt_installments where debt_id = pg_temp.fx('e') and description = 'Futura E'), pg_temp.hoje()),
+          'R3.2 a fatura aberta perde a compra (estorno inteiro) e some');
+select lives_ok($$set constraints debt_events_payment_release immediate$$, 'R3.3 fim da transação: o gatilho roda');
+select lives_ok($$set constraints debt_events_payment_release deferred$$, 'R3.3.1 volta ao normal');
+select is(pg_temp.sit(pg_temp.fx('e'), '2026-10'), '80.00|80.00', 'R3.4 os 60 soltos fecham outubro: paga (e travada)');
+select lives_ok(format($$select public.card_purchase(%L, %L::date, 30.00, 1, %L, 'Nova E')$$, pg_temp.fx('e'), pg_temp.hoje(), pg_temp.fx('cat')),
+          'R3.5 uma compra nova faz a fatura do mês voltar');
+select is((select count(*) from public.card_months(pg_temp.fx('e')) m where m.label = (select label from fut_e)), 1::bigint, 'R3.6 o mês voltou a existir');
+select is(pg_temp.sit(pg_temp.fx('e'), '2026-10'), '80.00|80.00',
+          'R3.7 outubro continua paga: o pagamento não volta para a fatura que reapareceu (antes: 80|20, vencida)');
+select is(pg_temp.sit_as_of(pg_temp.fx('e'), '2026-10'), '80.00|80.00', 'R3.8 card_months_as_of dá o mesmo número');
+select is(pg_temp.sit(pg_temp.fx('e'), (select label from fut_e)), '30.00|0.00', 'R3.9 a fatura que voltou tem só a compra nova, sem pago');
+select is(pg_temp.pag('pe1'), '2026-10-25|60.00|true|false|sem fatura', 'R3.10 o pagamento continua sem fatura');
+
+-- R4: o critério de "mês que existe" do gatilho é o mesmo de card_months (as três cópias não podem divergir)
+reset role;
+select is((select array_agg(l order by l) from private.card_month_labels(pg_temp.fx('c')) as l),
+          (select array_agg(m.label order by m.label) from public.card_months(pg_temp.fx('c')) m), 'R4.1 cartão C: mesmos meses');
+select is((select array_agg(l order by l) from private.card_month_labels(pg_temp.fx('d')) as l),
+          (select array_agg(m.label order by m.label) from public.card_months(pg_temp.fx('d')) m), 'R4.2 cartão D: mesmos meses');
+select is((select array_agg(l order by l) from private.card_month_labels(pg_temp.fx('e')) as l),
+          (select array_agg(m.label order by m.label) from public.card_months(pg_temp.fx('e')) m), 'R4.3 cartão E: mesmos meses');
+select is((select array_agg(l order by l) from private.card_month_labels(pg_temp.fx('a')) as l),
+          (select array_agg(m.label order by m.label) from public.card_months(pg_temp.fx('a')) m), 'R4.4 cartão A (com devolução e crédito): mesmos meses');
 reset role;
 
 select * from finish();
