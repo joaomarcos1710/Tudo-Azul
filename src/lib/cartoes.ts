@@ -572,6 +572,16 @@ export async function pagarFatura(
   if (error) throw error
 }
 
+/**
+ * Muda a fatura que um pagamento quita (card_payment_move, migration 110): o mesmo pagamento, com a mesma data, o mesmo
+ * valor e a mesma conta, passa a quitar a fatura `mes` (AAAA-MM). Fatura fechada e paga, na origem ou no destino, não
+ * muda: o banco recusa (55000).
+ */
+export async function moverPagamentoDeFatura(pagamentoId: string, mes: string): Promise<void> {
+  const { error } = await cliente().rpc('card_payment_move', { p_event: pagamentoId, p_label: mes })
+  if (error) throw error
+}
+
 /** Reabre a fatura: desfaz os pagamentos ligados a ela e o dinheiro volta para a conta. Devolve quantos desfez. */
 export async function reabrirFatura(cartaoId: string, mes: string, motivo = 'fatura reaberta'): Promise<number> {
   const { data, error } = await cliente().rpc('card_invoice_reopen', { p_debt: cartaoId, p_label: mes, p_reason: motivo })
