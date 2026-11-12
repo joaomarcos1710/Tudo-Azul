@@ -66,6 +66,20 @@ create table public.market_quotes (
 -- ---------------------------------------------------------------------------
 alter table public.investment_assets add column market_quote boolean not null default false;
 
+-- Opção B do dono (12/11/2026) para o achado B1: um ativo lançado "só pelo valor" guarda cotas escondidas (1 unidade pelo
+-- valor, ou frações); ligar a cotação multiplicaria isso pelo preço da bolsa e o valor despencaria (R$ 5.000 viram
+-- R$ 38,00). Então a cotação só liga em ativo que NUNCA teve lançamento só pelo valor, e para saber isso o banco passa a
+-- marcar cada operação feita por investment_operation_record_by_value.
+alter table public.investment_operations add column by_value boolean not null default false;
+
+-- Operações que já existem: não há marca de antes, então vale o que o lançamento "só pelo valor" deixa para trás (fração
+-- de cota, ou compra de exatamente 1 unidade, que é a primeira posição "pelo valor" da migration 104 e do "Só o valor"
+-- anterior). Em produção (leitura de 11/11/2026) nenhum ativo que poderia seguir a bolsa tem uma dessas operações.
+-- atalho: compra genuína de 1 cota fica marcada à toa e o ativo não liga a cotação; corrigir quando acontecer (anular a
+-- operação e lançar de novo com a quantidade real).
+update public.investment_operations set by_value = true
+ where quantity <> trunc(quantity) or (kind = 'buy' and quantity = 1);
+
 alter table public.market_quotes enable row level security;
 
 
@@ -105,10 +119,11 @@ begin
       raise exception 'para seguir a cotação da bolsa, o ativo precisa ser ação, fundo imobiliário, ETF ou fundo, em reais, com o código da B3 (ex.: PETR4)'
         using errcode = '22023';
     end if;
-    -- fração de cota não existe na B3: é sinal de aporte ou resgate lançado só pelo valor (cotas escondidas)
+    -- opção B: operação marcada como "só pelo valor" (cotas escondidas) e, como segunda defesa, fração de cota, que não
+    -- existe na B3. Operação anulada não conta: as cotas escondidas saíram da posição.
     if exists (select 1 from public.investment_operations o
                 where o.asset_id = v_asset.id and o.household_id = v_asset.household_id
-                  and o.voided_at is null and o.quantity <> trunc(o.quantity)) then
+                  and o.voided_at is null and (o.by_value or o.quantity <> trunc(o.quantity))) then
       raise exception 'este ativo tem lançamento só pelo valor (sem a quantidade de cotas); a cotação da bolsa precisa da quantidade real'
         using errcode = '22023';
     end if;
@@ -275,6 +290,7 @@ declare
   v_qty numeric;
   v_market numeric;
   v_last date;
+  v_op uuid;
 begin
   if auth.uid() is null then raise exception 'não autenticado' using errcode = '42501'; end if;
   select * into v_asset from public.investment_assets where id = p_asset for update;
@@ -324,7 +340,9 @@ begin
     if p_kind = 'sell' then
       raise exception 'este ativo não tem posição nesta data para resgatar' using errcode = '23514';
     end if;
-    return public.investment_operation_record(p_asset, p_date, 'buy', 1, p_amount, 0, p_notes, p_account);
+    v_op := public.investment_operation_record(p_asset, p_date, 'buy', 1, p_amount, 0, p_notes, p_account);
+    update public.investment_operations set by_value = true where id = v_op;
+    return v_op;
   end if;
 
   if p_kind = 'sell' then
@@ -350,7 +368,9 @@ begin
     raise exception 'não foi possível registrar este valor sem diferença de centavos'
       using errcode = '22023';
   end if;
-  return public.investment_operation_record(p_asset, p_date, p_kind, v_qty, v_price, 0, p_notes, p_account);
+  v_op := public.investment_operation_record(p_asset, p_date, p_kind, v_qty, v_price, 0, p_notes, p_account);
+  update public.investment_operations set by_value = true where id = v_op;
+  return v_op;
 end $$;
 
 revoke execute on function public.investment_asset_set_market_quote(uuid, boolean) from public, anon;

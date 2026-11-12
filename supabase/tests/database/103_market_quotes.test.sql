@@ -295,6 +295,33 @@ select is(pg_temp.erro_de($$select pg_temp.liga('curto', true)$$), '22023', 'L3 
 select is(pg_temp.erro_de($$select pg_temp.liga('porvalor', true)$$), '22023', 'L4 ativo com fração de cota (lançado só pelo valor) não liga');
 select ok(pg_temp.msg_de($$select pg_temp.liga('porvalor', true)$$) like '%só pelo valor%', 'L4.1 e a mensagem diz o motivo');
 select is((select market_quote from public.investment_assets where id = pg_temp.fx('porvalor')), false, 'L4.2 a recusa não deixou a escolha ligada');
+
+-- ---- B1 (opção B do dono, 12/11/2026): ativo que já teve lançamento "só pelo valor" não liga, mesmo com quantidade inteira ----
+-- o caso do achado: R$ 5.000 pelo valor = 1 unidade; ligar a bolsa faria 1 × cotação. Quantidade inteira, sem fração.
+insert into fixture select 'inteiro', public.investment_asset_create(pg_temp.fx('h'), 'Pelo valor com quantidade inteira', 'TAZL7', 'equity', 'BRL');
+select public.investment_operation_record_by_value(pg_temp.fx('inteiro'), pg_temp.dia(30), 'buy', 5000.00);
+select is((select quantity from public.investment_operations where asset_id = pg_temp.fx('inteiro') and voided_at is null), 1::numeric,
+          'B1.0 o lançamento só pelo valor virou 1 unidade (quantidade inteira, sem fração: a trava antiga não pegaria)');
+select is((select by_value from public.investment_operations where asset_id = pg_temp.fx('inteiro') and voided_at is null), true,
+          'B1.1 e o banco marcou a operação como "só pelo valor"');
+select is(pg_temp.erro_de($$select pg_temp.liga('inteiro', true)$$), '22023', 'B1.2 o ativo não liga a cotação');
+select ok(pg_temp.msg_de($$select pg_temp.liga('inteiro', true)$$) like '%só pelo valor%', 'B1.3 e a mensagem diz o motivo');
+select is((select market_quote from public.investment_assets where id = pg_temp.fx('inteiro')), false, 'B1.4 a recusa não deixou a escolha ligada');
+select is((select by_value from public.investment_operations where asset_id = pg_temp.fx('acao') and voided_at is null limit 1), false,
+          'B1.5 operação lançada com quantidade e preço não é marcada');
+-- segundo aporte e resgate pelo valor também marcam; anulados todos, o ativo volta a poder ligar (as cotas escondidas saíram)
+select public.investment_operation_record_by_value(pg_temp.fx('inteiro'), pg_temp.dia(20), 'buy', 5000.00);
+select public.investment_operation_record_by_value(pg_temp.fx('inteiro'), pg_temp.dia(10), 'sell', 1000.00);
+select is((select count(*) from public.investment_operations where asset_id = pg_temp.fx('inteiro') and voided_at is null and by_value), 3::bigint,
+          'B1.6 aporte e resgate seguintes pelo valor também são marcados');
+select lives_ok($$select public.investment_operation_void(o.id, 'teste') from public.investment_operations o
+                   where o.asset_id = pg_temp.fx('inteiro') and o.voided_at is null and o.kind = 'sell'$$, 'B1.7 anula o resgate pelo valor');
+select is(pg_temp.erro_de($$select pg_temp.liga('inteiro', true)$$), '22023', 'B1.8 com os aportes pelo valor ainda valendo, continua recusado');
+select lives_ok($$select public.investment_operation_void(o.id, 'teste') from public.investment_operations o
+                   where o.asset_id = pg_temp.fx('inteiro') and o.voided_at is null and o.kind = 'buy'$$, 'B1.9 anula os aportes pelo valor');
+select lives_ok($$select pg_temp.liga('inteiro', true)$$, 'B1.10 sem nenhuma operação pelo valor valendo, o ativo liga (as cotas escondidas saíram da posição)');
+select lives_ok($$select pg_temp.liga('inteiro', false)$$, 'B1.11 desliga de novo (o resto do teste não depende dele)');
+
 select is(pg_temp.erro_de($$select public.investment_asset_set_market_quote(pg_temp.fx('acao'), null)$$), '22023', 'L5 escolha nula: 22023');
 select is(pg_temp.erro_de($$select public.investment_asset_set_market_quote('00000000-0000-0000-0000-00000000dead', true)$$), '42501', 'L6 ativo inexistente: 42501');
 select lives_ok($$select pg_temp.liga('cofre', false)$$, 'L7 desligar o que já está desligado não é erro');
