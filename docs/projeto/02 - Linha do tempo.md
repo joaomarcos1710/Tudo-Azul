@@ -315,7 +315,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#323** (13/11/2026): diário: migrations 114 e 115 aplicadas em produção.
 - **#324** (13/11/2026): fechada sem merge: ia pôr editar em card no meio e "Mudar o dia" em Recorrentes, mas o dono decidiu que Recorrentes vira só informativa (ver 30 - Decisões).
 - **#325** (13/11/2026): Lançamentos: "Repetir" também no cartão de crédito (assinatura). Só front.
-- **#326** (13/11/2026, em rascunho): Recorrentes vira só informativa (Saídas × Entradas, sem cadastrar/editar/excluir) e Lançamentos ganha "Parar de repetir a partir daqui". Só front.
+- **#326** (13/11/2026): Recorrentes vira só informativa (Saídas × Entradas, sem cadastrar/editar/excluir) e Lançamentos ganha "Parar de repetir a partir daqui". Só front.
+- **#327** (13/11/2026, em rascunho): Recorrentes: total por mês e por ano e fixo × variável sugerido no topo (migration 116, `recurrence_overview`, ainda não aplicada).
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

@@ -344,3 +344,29 @@ export async function resumoPorNatureza(familiaId: string): Promise<LinhaNaturez
   return ((data ?? []) as { nature: NaturezaResumo; kind: LinhaNatureza['tipo']; item_count: number; total_monthly: number | string }[])
     .map((l) => ({ natureza: l.nature, tipo: l.kind, qtde: l.item_count, porMes: centsFromDb(l.total_monthly) }))
 }
+
+/** Uma linha de public.recurrence_overview (migration 20261113120000): despesa (conta + cartão) ou receita, no recorte 'all' (total) ou fixo/variável (só despesa). */
+export interface LinhaVisao {
+  tipo: 'expense' | 'income'
+  recorte: 'all' | 'fixed' | 'variable'
+  qtde: number
+  /** Quantas regras do recorte são SUGESTÃO do app (sem natureza marcada pela pessoa). */
+  sugeridas: number
+  /** Equivalente por mês, em centavos, somado no banco. */
+  porMes: Cents
+  /** Valor × ocorrências por ano (exato por regra), somado no banco: não é 12 × o mensal. */
+  porAno: Cents
+}
+
+/** Visão geral dos recorrentes: total por mês e por ano e fixo × variável sugerido. Tudo somado no banco (a tela não soma). */
+export async function resumoVisaoGeral(familiaId: string): Promise<LinhaVisao[]> {
+  const { data, error } = await cliente().rpc('recurrence_overview', { p_household: familiaId })
+  if (error) throw error
+  return ((data ?? []) as {
+    kind: LinhaVisao['tipo']; klass: LinhaVisao['recorte']; item_count: number; suggested_count: number
+    total_monthly: number | string; total_yearly: number | string
+  }[]).map((l) => ({
+    tipo: l.kind, recorte: l.klass, qtde: l.item_count, sugeridas: l.suggested_count,
+    porMes: centsFromDb(l.total_monthly), porAno: centsFromDb(l.total_yearly),
+  }))
+}

@@ -723,3 +723,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Recorrentes não cadastra, edita nem exclui.** Cadastro: "Repetir" em Lançamentos (conta ou cartão, #325). Mudar: o próprio lançamento ("este e os próximos") ou a fatura do cartão ("esta e as próximas"). Encerrar: "Parar de repetir a partir daqui" em Lançamentos (conta) ou "encerrar" na fatura (cartão).
 - **Encerrar usa o `recurrence_end` que já existia** (migration 031/074), com a véspera da ocorrência como data final. Sem banco novo.
 - **Perdeu-se de propósito:** escolher a natureza (fixo, assinatura, variável) e a pessoa do recorrente direto em Recorrentes. A natureza já marcada continua aparecendo, filtrando e somando. Nova marcação só voltará num formulário de origem, ou pela sugestão automática (PR seguinte).
+
+## 13/11/2026 — Recorrentes: total por ano e fixo × variável sugerido (dono, #327)
+- **O app sugere fixo × variável** (decisão do dono). Regra: a natureza marcada vence; sem ela, pelas últimas 6 cobranças efetivadas: valores diferentes = variável; iguais, ou sem histórico = fixo (palpite, avisado na tela como "sugerido").
+- **Por ano vem do banco,** valor × ocorrências por ano (exato por regra), nunca 12 × o mensal arredondado.
+- **Dividendo recorrente = só previsão** (não lança nada sozinho). PR própria depois; precisa de desenho de banco.

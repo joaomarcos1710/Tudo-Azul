@@ -239,4 +239,5 @@ continuam abaixo como histórico.
 | 2026.323 | **Diário:** as migrations 114 (aportado líquido) e 115 (data da compra) constam como aplicadas em produção em 13/11/2026, execução 43437374727, e Pendências registra o que ainda não foi conferido. Só documentação. |
 | 2026.325 | **Lançamentos: "Repetir" no cartão.** No formulário de compra do cartão, "Repetir" cria uma assinatura (recorrente de cartão) em vez de uma compra solta; sem parcelas. Só front. |
 | 2026.326 | **Recorrentes só informativa.** A página não cadastra, edita nem exclui mais: reúne Saídas, Entradas e Transferências em cards, com link para o lugar onde se muda. Lançamentos ganha "Parar de repetir a partir daqui" (conta). Só front. |
+| 2026.327 | **Recorrentes: mês, ano e fixo × variável.** Topo com "Você gasta" (por mês e por ano, fixo e variável sugeridos pelo histórico) e "Vai entrar" (por mês e por ano). Migration 116 (`recurrence_overview`, só leitura). Sem a migration aplicada, a tela mostra o resumo de antes. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
