@@ -32,7 +32,7 @@ import type { Cents } from '../lib/format'
 import {
   criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
   listarMovimentosDeDividaNoPeriodo, marcarComoPago,
-  moverParaLixeira, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, valoresDasParcelas,
+  moverParaLixeira, pararDeRepetirAPartirDe, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, valoresDasParcelas,
 } from '../lib/lancamentos'
 // import à parte para não conflitar com outras branches que mexem na lista acima
 import { situacaoDoLancamento } from '../lib/lancamentos'
@@ -276,6 +276,12 @@ export default function Lancamentos() {
     await agir(async () => { await moverParaLixeira(l.id); setNaLixeira(l) })
   }
 
+  async function pararDeRepetir(l: Lancamento) {
+    if (!l.recorrenciaId) return
+    if (!window.confirm(`Parar de repetir "${l.descricao || rotuloTipo[l.tipo]}" a partir de ${formatDate(l.data)}? Este e os próximos planejados vão para a lixeira, inclusive os que você corrigiu à mão. O que já foi pago fica no histórico, e o recorrente deixa de existir.`)) return
+    await agir(() => pararDeRepetirAPartirDe(l.recorrenciaId!, l.data))
+  }
+
   // agrupa por dia (mais recente primeiro); no mesmo dia, lançamentos antes dos movimentos de cartão/dívida
   type Item = ItemLista
   // filtro de cartão: só as faturas dele (a compra e o crédito vivem na fatura). Situação, fixos e parcelados valem só para
@@ -517,6 +523,7 @@ export default function Lancamentos() {
                     ...(l.status === 'planned' ? [{ rotulo: 'Marcar pago', aoEscolher: () => { setEditando(null); setPagando(l) }, desabilitado: pagando !== null }] : []),
                     { rotulo: 'Editar', aoEscolher: () => setEditando(l) },
                     { rotulo: 'Excluir', aoEscolher: () => { void excluir(l) }, perigo: true },
+                    ...(l.recorrente && l.recorrenciaId ? [{ rotulo: 'Parar de repetir a partir daqui', aoEscolher: () => { void pararDeRepetir(l) }, perigo: true }] : []),
                   ]
                   return (
                     <LinhaLista key={l.id}

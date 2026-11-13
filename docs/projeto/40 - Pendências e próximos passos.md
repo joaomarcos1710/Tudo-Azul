@@ -26,9 +26,13 @@ atualizado: 2026-11-11
 
 ### Recorrentes só informativa (decisão de 13/11/2026)
 - [x] 1. "Repetir" no cartão (#325).
-- [ ] 2. Recorrentes só de leitura: sem Novo/Editar/Excluir; Saídas × Entradas, cards por origem (conta, cartão, investimento) e frequência; total por mês (fixo × variável sugerido) e entradas por mês e por ano; atalho "Abrir em Lançamentos/Cartões" em cada item.
+- [x] 2a. Recorrentes só de leitura (#326): sem Novo/Editar/Excluir; Saídas × Entradas × Transferências; link "Abrir" em cada item; "Parar de repetir a partir daqui" em Lançamentos.
+- [ ] 2b. Totais novos no topo: **por ano** (entradas e saídas) e **fixo × variável sugerido**. Precisa de função de banco nova (o front não soma dinheiro; por ano exato = valor × ocorrências, não 12 × o mensal arredondado) e de migration com simulação e "pode".
 - [ ] 3. Dividendos recorrentes como previsão (banco novo, só com "pode").
-- **Lacuna confirmada (13/11/2026):** não há como **encerrar nem excluir uma série recorrente de conta** pelos Lançamentos (só editar "este e os próximos" e excluir ocorrências soltas). O "Excluir" de Recorrentes é hoje o único caminho; tirá-lo exige antes um "Encerrar este e os próximos" em Lançamentos (usa `recurrence_end`, já existe no banco). Entra no passo 2.
+- **Lacuna fechada na #326:** "Parar de repetir a partir daqui" em Lançamentos (usa `recurrence_end`). Conferir no app real numa conta fixa de teste.
+- **atalho:** sem tela para marcar a **natureza** de um recorrente (saiu do formulário de Recorrentes). Resolver com a sugestão automática (2b) ou levando a natureza para o formulário de Lançamentos.
+- **atalho:** recorrente encerrado fora do prazo (data final passada) continua aparecendo em "Já terminaram" e agora não dá para excluí-lo pela tela; some sozinho? Conferir; se não, decidir como limpar.
+- Visual novo de Recorrentes não visto no iPhone: conferir 390 px.
 - Conferir no app real: "Repetir" no cartão numa assinatura de valor baixo; com data passada, os meses desde então entram como compras no cartão (a tela avisa).
 ## Próximos PRs sugeridos
 ### Categorias da fatura (#315, migration 112, 12/11/2026)

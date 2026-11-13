@@ -17,7 +17,7 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { editarEsteEProximos, perguntaSeRepete } from './lancamentos'
+import { editarEsteEProximos, pararDeRepetirAPartirDe, perguntaSeRepete } from './lancamentos'
 import type { DadosLancamento, Lancamento } from './lancamentos'
 
 const c = (n: number) => n as Cents
@@ -66,5 +66,22 @@ describe('editarEsteEProximos (migration 074)', () => {
     fake.resposta.error = { code: '55000', message: 'a conta já foi conciliada' }
     await expect(editarEsteEProximos('r1', { ...dados, status: 'paid' })).rejects.toMatchObject({ code: '55000' })
     expect(fake.chamadas).toHaveLength(1)
+  })
+})
+
+describe('pararDeRepetirAPartirDe (recurrence_end)', () => {
+  it('manda a véspera da ocorrência como data final: esta e as próximas planejadas saem, as anteriores ficam', async () => {
+    await pararDeRepetirAPartirDe('r1', '2026-12-10')
+    expect(fake.chamadas).toEqual([['rpc', 'recurrence_end', { p_id: 'r1', p_end: '2026-12-09' }]])
+  })
+  it('a véspera atravessa mês e ano', async () => {
+    await pararDeRepetirAPartirDe('r1', '2026-12-01')
+    await pararDeRepetirAPartirDe('r1', '2027-01-01')
+    await pararDeRepetirAPartirDe('r1', '2028-03-01')
+    expect(fake.chamadas.map((x) => (x[2] as { p_end: string }).p_end)).toEqual(['2026-11-30', '2026-12-31', '2028-02-29'])
+  })
+  it('recusa do banco sobe como erro', async () => {
+    fake.resposta.error = { code: '42501' }
+    await expect(pararDeRepetirAPartirDe('r1', '2026-12-10')).rejects.toMatchObject({ code: '42501' })
   })
 })

@@ -718,3 +718,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Repetir no cartão** (#325): a compra do cartão ganha "Repetir", que cria a assinatura (regra de recorrente de cartão, a mesma de antes) sem parcelas. Sem banco novo.
 - **Fixo × variável:** o app **sugere** (o que se repete todo mês com o mesmo valor é fixo); decidido pelo dono. A natureza marcada à mão continua valendo e vence a sugestão. Na tela, a sugestão aparece como sugestão. (próxima PR)
 - **Dividendos recorrentes:** só **previsão** (quanto deve entrar, sem lançar nada sozinho); decidido pelo dono. Exige desenho de banco; PR própria depois.
+
+## 13/11/2026 — Recorrentes só informativa e "Parar de repetir" em Lançamentos (dono, #326)
+- **Recorrentes não cadastra, edita nem exclui.** Cadastro: "Repetir" em Lançamentos (conta ou cartão, #325). Mudar: o próprio lançamento ("este e os próximos") ou a fatura do cartão ("esta e as próximas"). Encerrar: "Parar de repetir a partir daqui" em Lançamentos (conta) ou "encerrar" na fatura (cartão).
+- **Encerrar usa o `recurrence_end` que já existia** (migration 031/074), com a véspera da ocorrência como data final. Sem banco novo.
+- **Perdeu-se de propósito:** escolher a natureza (fixo, assinatura, variável) e a pessoa do recorrente direto em Recorrentes. A natureza já marcada continua aparecendo, filtrando e somando. Nova marcação só voltará num formulário de origem, ou pela sugestão automática (PR seguinte).
