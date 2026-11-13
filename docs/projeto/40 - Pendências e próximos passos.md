@@ -28,7 +28,9 @@ atualizado: 2026-11-11
 - [x] 1. "Repetir" no cartão (#325).
 - [x] 2a. Recorrentes só de leitura (#326): sem Novo/Editar/Excluir; Saídas × Entradas × Transferências; link "Abrir" em cada item; "Parar de repetir a partir daqui" em Lançamentos.
 - [x] 2b. Totais no topo: **por ano** e **fixo × variável sugerido** (#327, migration 116 `recurrence_overview`). **Falta aplicar a 116 em produção** pelo workflow (simular, ler o log, aplicar com `APLICAR`), só com o "pode" do dono. Depois de aplicar, conferir direto no banco: função existe, anon sem execute, e os totais batem com Recorrentes.
-- [ ] 3. Dividendos recorrentes como previsão (banco novo, só com "pode").
+- [x] 3. Dividendos recorrentes como previsão (#328, migration 117). **Falta aplicar a 116 e a 117** (o workflow aplica as duas juntas): simular de novo (a 117 ainda não foi simulada), ler o log e só aplicar com o "pode" do dono. Depois conferir no banco: funções existem, anon sem execute; e no app: "Repetir" num provento planejado de teste e o card em Recorrentes.
+- Decidir com o dono: incluir os proventos previstos no total "Vai entrar"? (hoje fora, só informativos).
+- Renovar a previsão: depois de 12 meses a pessoa registra de novo; não há aviso de "acabando". Melhorar se incomodar.
 - **Lacuna fechada na #326:** "Parar de repetir a partir daqui" em Lançamentos (usa `recurrence_end`). Conferir no app real numa conta fixa de teste.
 - **atalho:** sem tela para marcar a **natureza** de um recorrente (saiu do formulário de Recorrentes). Resolver com a sugestão automática (2b) ou levando a natureza para o formulário de Lançamentos.
 - **atalho:** recorrente encerrado fora do prazo (data final passada) continua aparecendo em "Já terminaram" e agora não dá para excluí-lo pela tela; some sozinho? Conferir; se não, decidir como limpar.

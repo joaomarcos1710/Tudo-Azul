@@ -13,6 +13,7 @@ const mock = vi.hoisted(() => ({
   resumoRecorrencias: vi.fn(),
   resumoPorNatureza: vi.fn(),
   resumoVisaoGeral: vi.fn(),
+  listarProventosPrevistos: vi.fn(),
   listarContas: vi.fn(),
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
@@ -26,6 +27,10 @@ vi.mock('../lib/recorrencias', async (o) => ({
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
   editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
   resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza, resumoVisaoGeral: mock.resumoVisaoGeral,
+}))
+vi.mock('../lib/investimentos', async (o) => ({
+  ...(await o<typeof import('../lib/investimentos')>()),
+  listarProventosPrevistos: mock.listarProventosPrevistos,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas }))
@@ -53,6 +58,7 @@ beforeEach(() => {
   mock.resumoRecorrencias.mockResolvedValue([])
   mock.resumoPorNatureza.mockResolvedValue([])
   mock.resumoVisaoGeral.mockResolvedValue([])
+  mock.listarProventosPrevistos.mockResolvedValue([])
   mock.listarContas.mockResolvedValue({
     contas: [
       { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0) },
@@ -620,6 +626,60 @@ describe('Recorrentes: visão geral por mês e por ano, fixo × variável sugeri
     montar()
     expect(await screen.findByText('Na conta, por mês — saídas')).toBeTruthy()
     expect(screen.queryByTestId('visao-geral')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+
+describe('Recorrentes: proventos previstos de investimentos (migration 117)', () => {
+  const previstos = [
+    { ativoId: 'a1', nome: 'FII de teste', qtde: 12, proximaData: '2026-12-10', proximoValor: c(8550), total12m: c(102600) },
+    { ativoId: 'a2', nome: 'Ação de teste', qtde: 4, proximaData: '2027-01-15', proximoValor: c(4000), total12m: c(16000) },
+  ]
+
+  it('mostra um card com os ativos: próximo provento e o total de 12 meses, do banco; avisa que é previsão fora do total', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    mock.listarProventosPrevistos.mockResolvedValue(previstos)
+    montar()
+    const lista = await screen.findByTestId('proventos-previstos')
+    expect(screen.getByRole('heading', { name: 'Proventos previstos' })).toBeTruthy()
+    expect(within(lista).getByText('FII de teste')).toBeTruthy()
+    expect(lista.textContent).toContain('+R$ 1.026,00')
+    expect(lista.textContent).toContain('R$ 85,50')
+    expect(lista.textContent).toContain('12 previstos em 12 meses')
+    expect(lista.textContent).toContain('4 previstos em 12 meses')
+    expect(screen.getByText(/Fora do total "Vai entrar"/)).toBeTruthy()
+    expect(within(lista).getByRole('link', { name: 'Abrir FII de teste em Investimentos' }).getAttribute('href')).toBe('/investimentos')
+  })
+
+  it('só com proventos previstos (sem nenhum recorrente), a tela não diz "Nenhum recorrente ainda"', async () => {
+    mock.listarRecorrencias.mockResolvedValue([])
+    mock.listarProventosPrevistos.mockResolvedValue(previstos)
+    montar()
+    await screen.findByTestId('proventos-previstos')
+    expect(screen.queryByText('Nenhum recorrente ainda')).toBeNull()
+    expect(screen.queryByText(/Nenhum recorrente em conta/)).toBeNull()
+  })
+
+  it('a aba Cartão e o filtro por natureza escondem os proventos (não são cartão nem têm natureza)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([{ ...luz, tipo: 'card' as const, contaId: null, cartaoId: 'k1', nature: 'subscription' as const }])
+    mock.listarProventosPrevistos.mockResolvedValue(previstos)
+    const u = userEvent.setup()
+    montar()
+    await screen.findByTestId('proventos-previstos')
+    await u.click(screen.getByRole('button', { name: 'Cartão' }))
+    expect(screen.queryByTestId('proventos-previstos')).toBeNull()
+    await u.click(screen.getByRole('button', { name: 'Todos' }))
+    await u.click(screen.getByRole('button', { name: /Assinatura ou app/ }))
+    expect(screen.queryByTestId('proventos-previstos')).toBeNull()
+  })
+
+  it('banco ainda sem a função (migration 117): a tela segue sem o card e sem erro', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    mock.listarProventosPrevistos.mockRejectedValue({ code: 'PGRST202' })
+    montar()
+    await screen.findByText('Luz')
+    expect(screen.queryByTestId('proventos-previstos')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })

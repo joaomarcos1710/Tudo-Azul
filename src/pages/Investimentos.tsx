@@ -31,7 +31,7 @@ import { GraficoEvolucao } from '../components/investimentos/GraficoEvolucao'
 import {
   CATEGORIAS_NOVO_ATIVO, CLASSES_ATIVO, MACROS, SUGESTOES_SUBCLASSE, TIPOS_PROVENTO, anularOperacaoInvestimento, arquivarAtivoInvestimento, codigoDaBolsa, criarAtivoInvestimento, definirCotacaoBolsaAtivo, definirInstituicaoAtivo, definirLiquidezAtivo, definirSubclasseAtivo, listarAportesInvestimentos, listarInstituicoesInvestimentos, listarLiquidezInvestimentos, listarTotalProventos, editarAtivoInvestimento, excluirAtivoComHistorico, excluirAtivoInvestimento,
   juntarHistoricoEAportes, listarAlocacaoInvestimentos, listarAtivosInvestimento, listarExtratoAtivo, listarCarteiraInvestimentos, listarHistoricoAportes, listarHistoricoInvestimentos, listarProventosPorAtivo, macroDaClasse,
-  reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarAvaliacaoTotal, registrarProventoInvestimento,
+  reativarAtivoInvestimento, registrarAvaliacaoInvestimento, registrarAvaliacaoTotal, registrarProventoInvestimento, registrarProventosPrevistos,
 } from '../lib/investimentos'
 import type {
   AportesCarteira, AtivoInvestimento, ClasseAtivo, LinhaAlocacao, LinhaExtratoAtivo, LinhaInstituicao, LinhaLiquidez, Liquidez, MoedaInvestimento, PontoEvolucao, PosicaoInvestimento, ProventoAtivo,
@@ -232,9 +232,18 @@ export default function Investimentos() {
   }
   async function salvarProvento(d: {
     ativoId: string; tipo: TipoProvento; data: string; valor: Cents; contaId: string; status: 'paid' | 'planned'; observacao: string
+    /** só em "Planejado": repete a cada N meses (até 12 meses), tudo planejado */
+    repetir?: { cadaMeses: 1 | 3 | 6 | 12; ate: string | null }
   }) {
     // o erro sobe para a folha, que fica aberta e o mostra junto dos campos
-    await registrarProventoInvestimento(d)
+    if (d.repetir) {
+      await registrarProventosPrevistos({
+        ativoId: d.ativoId, tipo: d.tipo, primeira: d.data, valor: d.valor, contaId: d.contaId,
+        cadaMeses: d.repetir.cadaMeses, ate: d.repetir.ate, observacao: d.observacao,
+      })
+    } else {
+      await registrarProventoInvestimento(d)
+    }
     setNovoProvento(false)
     await carregar()
   }
@@ -572,7 +581,7 @@ function FormProvento({ ativos, contas, ativoInicial, aoSalvar, aoCancelar }: {
   /** ativo já escolhido (botão "+ Provento" da linha do ativo) */
   ativoInicial?: string
   contas: Conta[]
-  aoSalvar: (d: { ativoId: string; tipo: TipoProvento; data: string; valor: Cents; contaId: string; status: 'paid' | 'planned'; observacao: string }) => Promise<void>
+  aoSalvar: (d: { ativoId: string; tipo: TipoProvento; data: string; valor: Cents; contaId: string; status: 'paid' | 'planned'; observacao: string; repetir?: { cadaMeses: 1 | 3 | 6 | 12; ate: string | null } }) => Promise<void>
   aoCancelar: () => void
 }) {
   const [ativoId, setAtivoId] = useState(ativos.some((a) => a.id === ativoInicial) ? ativoInicial! : ativos[0]?.id ?? '')
@@ -582,16 +591,27 @@ function FormProvento({ ativos, contas, ativoInicial, aoSalvar, aoCancelar }: {
   const [contaId, setContaId] = useState(contas[0]?.id ?? '')
   const [status, setStatus] = useState<'paid' | 'planned'>('paid')
   const [observacao, setObservacao] = useState('')
+  // "Repetir" (só no planejado): previsão que se repete, no máximo 12 meses por vez (migration 117)
+  const [repetirCada, setRepetirCada] = useState<'' | '1' | '3' | '6' | '12'>('')
+  const [repetirAte, setRepetirAte] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
   const id = useId()
   const valor = parseBRL(valorTexto)
+  const repete = status === 'planned' && repetirCada !== ''
   async function enviar(e: FormEvent) {
     e.preventDefault()
     if (!ativoId || !contaId || !data || valor === null || valor <= 0) { setErro('Confira ativo, conta, data e o valor líquido recebido.'); return }
     if (status === 'paid' && data > hojeSP()) { setErro('Provento pago não pode ter data futura: marque como planejado.'); return }
+    if (repete && data < hojeSP()) { setErro('A previsão que se repete começa hoje ou depois.'); return }
+    if (repete && repetirAte && repetirAte < data) { setErro('A data final não pode ser antes da primeira.'); return }
     setErro(''); setEnviando(true)
-    try { await aoSalvar({ ativoId, tipo, data, valor, contaId, status, observacao }) }
+    try {
+      await aoSalvar({
+        ativoId, tipo, data, valor, contaId, status, observacao,
+        ...(repete ? { repetir: { cadaMeses: Number(repetirCada) as 1 | 3 | 6 | 12, ate: repetirAte || null } } : {}),
+      })
+    }
     catch (e2) { setErro(mensagemErroBanco(e2)) }
     finally { setEnviando(false) }
   }
@@ -630,10 +650,32 @@ function FormProvento({ ativos, contas, ativoInicial, aoSalvar, aoCancelar }: {
               {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
           </LinhaFolha>
+          {status === 'planned' && (
+            <LinhaFolha id={`${id}-repetir`} rotulo="Repetir">
+              <select id={`${id}-repetir`} value={repetirCada} onChange={(e) => setRepetirCada(e.target.value as typeof repetirCada)} className={CONTROLE_FOLHA}>
+                <option value="">Não repetir</option>
+                <option value="1">Todo mês</option>
+                <option value="3">A cada 3 meses</option>
+                <option value="6">A cada 6 meses</option>
+                <option value="12">Todo ano</option>
+              </select>
+            </LinhaFolha>
+          )}
+          {repete && (
+            <LinhaFolha id={`${id}-ate`} rotulo="Até (opcional)">
+              <input id={`${id}-ate`} type="date" value={repetirAte} min={data || undefined} onChange={(e) => setRepetirAte(e.target.value)} className={`${CONTROLE_FOLHA} appearance-none`} />
+            </LinhaFolha>
+          )}
           <LinhaFolha id={`${id}-obs`} rotulo="Observação">
             <input id={`${id}-obs`} value={observacao} onChange={(e) => setObservacao(e.target.value)} maxLength={500} placeholder="Opcional" className={CONTROLE_FOLHA} />
           </LinhaFolha>
         </div>
+        {repete && (
+          <p className="text-sm text-slate-600" data-testid="aviso-previsao">
+            É uma <strong>previsão</strong>: cria os proventos <strong>planejados</strong> dos próximos 12 meses no máximo, com o mesmo valor. Nada vira pago sozinho: você marca quando cair.
+            Se o valor mudar, edite o provento em Lançamentos.
+          </p>
+        )}
         <p className="text-sm text-slate-600">Entra como receita na categoria Rendimentos e muda o saldo da conta. Só ativos em reais por enquanto.</p>
       </form>
     </Folha>

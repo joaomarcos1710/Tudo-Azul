@@ -240,4 +240,5 @@ continuam abaixo como histórico.
 | 2026.325 | **Lançamentos: "Repetir" no cartão.** No formulário de compra do cartão, "Repetir" cria uma assinatura (recorrente de cartão) em vez de uma compra solta; sem parcelas. Só front. |
 | 2026.326 | **Recorrentes só informativa.** A página não cadastra, edita nem exclui mais: reúne Saídas, Entradas e Transferências em cards, com link para o lugar onde se muda. Lançamentos ganha "Parar de repetir a partir daqui" (conta). Só front. |
 | 2026.327 | **Recorrentes: mês, ano e fixo × variável.** Topo com "Você gasta" (por mês e por ano, fixo e variável sugeridos pelo histórico) e "Vai entrar" (por mês e por ano). Migration 116 (`recurrence_overview`, só leitura). Sem a migration aplicada, a tela mostra o resumo de antes. |
+| 2026.328 | **Dividendo recorrente como previsão.** "Repetir" no provento planejado (Investimentos) cria os proventos previstos dos próximos 12 meses, e Recorrentes ganha o card "Proventos previstos" (fora do total "Vai entrar"). Migration 117, ainda não aplicada. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

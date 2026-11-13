@@ -728,3 +728,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O app sugere fixo × variável** (decisão do dono). Regra: a natureza marcada vence; sem ela, pelas últimas 6 cobranças efetivadas: valores diferentes = variável; iguais, ou sem histórico = fixo (palpite, avisado na tela como "sugerido").
 - **Por ano vem do banco,** valor × ocorrências por ano (exato por regra), nunca 12 × o mensal arredondado.
 - **Dividendo recorrente = só previsão** (não lança nada sozinho). PR própria depois; precisa de desenho de banco.
+
+## 13/11/2026 — Dividendo recorrente: previsão pelo provento planejado (dono, #328)
+- **Previsão, não lançamento automático** (decisão do dono). Reaproveita o provento planejado que já existia; sem tipo novo de recorrente e sem mexer em `recurrence_materialize`.
+- **Limite de 12 meses por vez** (aceito pelo dono): mensal 12, trimestral 4, semestral 2, anual 1; a pessoa renova depois.
+- **Separado do total "Vai entrar"**, por enquanto: dividendo depende da empresa pagar. Juntar é uma linha a mais na tela se o dono quiser (anotado em Pendências).
+- O valor é o que a pessoa digita; o app não adivinha dividendo pelo histórico do ativo.

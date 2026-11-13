@@ -527,6 +527,49 @@ export async function registrarProventoInvestimento(d: {
   if (error) throw error
 }
 
+/**
+ * Proventos PREVISTOS que se repetem (migration 20261113140000): cria de uma vez os proventos PLANEJADOS (a cada 1, 3, 6 ou 12
+ * meses, no máximo 12 meses a partir da primeira data), como receitas planejadas ligadas ao ativo. Tudo ou nada. Não vira pago
+ * sozinho: quem marca é a pessoa, quando cair. O valor é o que ela digita; o app não adivinha dividendo. Devolve quantos criou.
+ */
+export async function registrarProventosPrevistos(d: {
+  ativoId: string
+  tipo: TipoProvento
+  primeira: string
+  valor: Cents
+  contaId: string
+  cadaMeses: 1 | 3 | 6 | 12
+  ate: string | null
+  observacao: string
+}): Promise<number> {
+  const { data, error } = await db().rpc('investment_distribution_record_series', {
+    p_asset: d.ativoId, p_kind: d.tipo, p_first: d.primeira, p_amount: centsToDecimal(d.valor), p_account: d.contaId,
+    p_every_months: d.cadaMeses, p_until: d.ate, p_notes: d.observacao.trim() || null,
+  })
+  if (error) throw error
+  return (data as number) ?? 0
+}
+
+/** Um ativo com proventos previstos de hoje a 12 meses (investment_planned_income). Soma e próxima data vêm do banco. */
+export interface ProventoPrevisto {
+  ativoId: string
+  nome: string
+  qtde: number
+  proximaData: string
+  proximoValor: Cents
+  total12m: Cents
+}
+
+export async function listarProventosPrevistos(familiaId: string): Promise<ProventoPrevisto[]> {
+  const { data, error } = await db().rpc('investment_planned_income', { p_household: familiaId })
+  if (error) throw error
+  return ((data ?? []) as { asset_id: string; asset_name: string; item_count: number; next_date: string; next_amount: number | string; total_12m: number | string }[])
+    .map((r) => ({
+      ativoId: r.asset_id, nome: r.asset_name, qtde: r.item_count, proximaData: r.next_date,
+      proximoValor: centsFromDb(r.next_amount), total12m: centsFromDb(r.total_12m),
+    }))
+}
+
 export async function listarProventosPorAtivo(familiaId: string, de: string, ate: string): Promise<ProventoAtivo[]> {
   const { data, error } = await db().rpc('investment_income_by_asset', { p_household: familiaId, p_from: de, p_to: ate })
   if (error) throw error

@@ -6,6 +6,8 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useFamilia } from '../lib/FamiliaContext'
 import { listarCartoes, rotaCartao } from '../lib/cartoes'
+import { listarProventosPrevistos } from '../lib/investimentos'
+import type { ProventoPrevisto } from '../lib/investimentos'
 import type { Cartao } from '../lib/cartoes'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
@@ -100,6 +102,8 @@ export default function Recorrentes() {
   const [porNatureza, setPorNatureza] = useState<LinhaNatureza[]>([])
   // visão por mês e por ano (migration 116): null = banco ainda sem a função (a tela mostra o resumo de antes)
   const [visao, setVisao] = useState<LinhaVisao[] | null>(null)
+  // proventos de investimento previstos (planejados) de hoje a 12 meses: só informação, fora do total "Vai entrar" (migration 117)
+  const [proventos, setProventos] = useState<ProventoPrevisto[]>([])
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
@@ -116,6 +120,7 @@ export default function Recorrentes() {
       // banco sem a migration (ou falha só aqui): o resumo por natureza some, o resto da tela segue
       void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => setPorNatureza([]))
       void resumoVisaoGeral(familiaId).then(setVisao).catch(() => setVisao(null))
+      void listarProventosPrevistos(familiaId).then(setProventos).catch(() => setProventos([]))
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -243,7 +248,7 @@ export default function Recorrentes() {
 
       {recorrencias === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
-      {recorrencias !== null && ativas.length === 0 && (
+      {recorrencias !== null && ativas.length === 0 && proventos.length === 0 && (
         <EmptyState
           titulo="Nenhum recorrente ainda"
           descricao="Aluguel, luz, salário, condomínio e assinaturas aparecem aqui quando você usa Repetir ao lançar (na conta ou no cartão)."
@@ -306,7 +311,7 @@ export default function Recorrentes() {
         </section>
       )}
 
-      {ativas.length > 0 && (
+      {(ativas.length > 0 || proventos.length > 0) && (
         <>
           <div role="group" aria-label="Mostrar recorrentes" className="mb-3 flex gap-2">
             {abas.map(([chave, rotulo]) => (
@@ -340,7 +345,7 @@ export default function Recorrentes() {
             </p>
           )}
           <div className="space-y-4">
-            {cards.length === 0 && (
+            {cards.length === 0 && ativas.length > 0 && (
               <Card><p className="text-sm text-slate-600">Nenhum recorrente {aba === 'cartao' ? 'no cartão' : 'em conta'}.</p></Card>
             )}
             {cards.map((t, i) => {
@@ -384,6 +389,40 @@ export default function Recorrentes() {
                 </Fragment>
               )
             })}
+            {proventos.length > 0 && aba === 'todos' && !filtrando && (
+              <>
+                <h2 className="pt-2 text-lg font-bold text-marinho">Proventos previstos</h2>
+                <Card semPadding>
+                  <section aria-labelledby="card-proventos">
+                    <div className="px-4 py-3 sm:px-5">
+                      <h3 id="card-proventos" className="text-base font-semibold text-marinho">
+                        Investimentos <span className="font-normal text-slate-500">· {proventos.length} ativo{proventos.length === 1 ? '' : 's'}</span>
+                      </h3>
+                      <p className="text-xs text-slate-500">Previsão dos próximos 12 meses: você digita o valor e nada vira pago sozinho. Fora do total "Vai entrar".</p>
+                    </div>
+                    <ul className="divide-y divide-slate-100 border-t border-slate-100" data-testid="proventos-previstos">
+                      {proventos.map((p) => (
+                        <li key={p.ativoId} className="flex items-center gap-1 py-1.5 pl-4 pr-1 sm:pl-5">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline gap-3">
+                              <p className="min-w-0 flex-1 truncate font-medium" title={p.nome}>{p.nome}</p>
+                              <span className={`shrink-0 whitespace-nowrap text-right font-semibold tabular-nums ${corDoTipo('income')}`}>+{formatBRL(p.total12m)}</span>
+                            </div>
+                            <p className="truncate text-xs text-slate-500">
+                              <span className="text-agendado">próximo {dataCurta(p.proximaData, hojeSP())}</span> · {formatBRL(p.proximoValor)} · {p.qtde} previsto{p.qtde === 1 ? '' : 's'} em 12 meses
+                            </p>
+                          </div>
+                          <Link to="/investimentos" aria-label={`Abrir ${p.nome} em Investimentos`} title="Ver em Investimentos (registrar ou repetir o provento)"
+                            className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-sm font-semibold text-azul hover:bg-azul-claro">
+                            Abrir <span aria-hidden="true" className="ml-1">›</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                </Card>
+              </>
+            )}
             {terminadas.length > 0 && aba === 'todos' && !filtrando && (
               <Card semPadding>
                 <section aria-labelledby="grupo-terminados">
