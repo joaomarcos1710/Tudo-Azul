@@ -16,8 +16,6 @@ const mock = vi.hoisted(() => ({
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
   listarParcelasAtivas: vi.fn(),
-  listarOcorrenciasMoviveis: vi.fn(),
-  mudarODiaDaquiPraFrente: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -27,10 +25,6 @@ vi.mock('../lib/recorrencias', async (o) => ({
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
   editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
   resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza,
-}))
-vi.mock('../lib/recorrenciasDia', async (o) => ({
-  ...(await o<typeof import('../lib/recorrenciasDia')>()),
-  listarOcorrenciasMoviveis: mock.listarOcorrenciasMoviveis, mudarODiaDaquiPraFrente: mock.mudarODiaDaquiPraFrente,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas }))
@@ -204,7 +198,7 @@ describe('Recorrentes', () => {
     expect(screen.getByText(/Valor e descrição valem para os planejados ainda não pagos de hoje em diante\. A categoria vale para todos os meses, inclusive os já pagos e os passados\. Em qualquer caso, o que você corrigiu à mão em um mês fica como está\./)).toBeTruthy()
     // frequência não muda na edição: diz como mudar
     expect(screen.queryByLabelText('Frequência')).toBeNull()
-    expect(screen.getByText(/Todo dia 10\. .*Para mudar o dia, use "Mudar o dia daqui pra frente" no menu ⋯ do recorrente\. Para mudar a frequência, exclua este recorrente e cadastre outro\./)).toBeTruthy()
+    expect(screen.getByText(/Todo dia 10\. .*Para mudar o dia, edite em Lançamentos .*"Este e os próximos".*Para mudar a frequência, exclua este recorrente e cadastre outro\./)).toBeTruthy()
     const valor = screen.getByLabelText('Valor estimado (R$)')
     await u.clear(valor)
     await u.type(valor, '200,00')
@@ -568,7 +562,7 @@ describe('Recorrentes', () => {
       expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull()
       await u.click(screen.getByRole('button', { name: 'Ações de Condomínio do prédio com nome bem comprido' }))
-      expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Editar', 'Mudar o dia daqui pra frente', 'Excluir'])
+      expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Editar', 'Excluir'])
     })
 
     it('mostra só a subcategoria; o caminho completo fica no title e para o leitor de tela', async () => {
@@ -816,139 +810,5 @@ describe('Recorrentes: resumo e filtro por natureza', () => {
     expect(await screen.findByText('Internet')).toBeTruthy()
     expect(screen.queryByTestId('resumo-natureza')).toBeNull()
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
-  })
-})
-
-
-describe('Recorrentes: editar em card no meio e mudar o dia daqui pra frente', () => {
-  const semanal = { ...luz, id: 'r2', descricao: 'Feira', dia: null, unidade: 'week' as const, inicio: '2026-11-06' }
-  beforeEach(() => {
-    mock.listarOcorrenciasMoviveis.mockResolvedValue([
-      { id: 't1', data: '2026-12-10', restante: { status: 'planned', notes: null, accountId: 'a1', destinationId: null } },
-      { id: 't2', data: '2027-01-10', restante: { status: 'planned', notes: null, accountId: 'a1', destinationId: null } },
-    ])
-    mock.mudarODiaDaquiPraFrente.mockResolvedValue({ naturezaPerdida: false })
-  })
-
-  it('editar abre num card no meio da tela (caixa de diálogo), não um formulário solto no topo da página', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    montar()
-    await acao(u, 'Luz', 'Editar')
-    const card = screen.getByRole('dialog', { name: 'Editar Luz' })
-    expect(card.parentElement!.className).toContain('items-center') // no meio também no celular (Folha centro)
-    expect(within(card).getByLabelText('Valor estimado (R$)')).toBeTruthy()
-    await u.click(within(card).getByRole('button', { name: 'Cancelar' }))
-    expect(screen.queryByRole('dialog')).toBeNull()
-  })
-
-  it('"Novo recorrente" também abre no card; salvar fecha o card e recarrega a lista', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Cadastrar o primeiro' }))
-    const card = screen.getByRole('dialog', { name: 'Novo recorrente' })
-    await u.type(within(card).getByLabelText('Descrição'), 'Internet')
-    await u.type(within(card).getByLabelText('Valor estimado (R$)'), '100,00')
-    await u.selectOptions(within(card).getByLabelText('Dia do mês'), '8')
-    await escolherCategoria(u, within(card).getByRole('button', { name: /Categoria/ }), 'g1')
-    await u.click(within(card).getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledTimes(1)
-    expect(screen.queryByRole('dialog', { name: 'Novo recorrente' })).toBeNull()
-  })
-
-  it('o menu oferece "Mudar o dia daqui pra frente" só no recorrente mensal', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz, semanal])
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Ações de Luz' }))
-    expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toContain('Mudar o dia daqui pra frente')
-    await u.keyboard('{Escape}')
-    await u.click(screen.getByRole('button', { name: 'Ações de Feira' }))
-    expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Editar', 'Excluir'])
-  })
-
-  it('escolhe a cobrança e o dia novo, grava, fecha o card e recarrega a lista', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    montar()
-    await acao(u, 'Luz', 'Mudar o dia daqui pra frente')
-    const card = await screen.findByRole('dialog', { name: 'Mudar o dia · Luz' })
-    expect(card.parentElement!.className).toContain('items-center')
-    expect(await within(card).findByLabelText('A partir de')).toBeTruthy()
-    // sem mudar o dia, não grava
-    expect((within(card).getByRole('button', { name: 'Mudar o dia' }) as HTMLButtonElement).disabled).toBe(true)
-    await u.selectOptions(within(card).getByLabelText('Novo dia'), '15')
-    await u.click(within(card).getByRole('button', { name: 'Mudar o dia' }))
-    expect(mock.mudarODiaDaquiPraFrente).toHaveBeenCalledTimes(1)
-    const [regra, ocorrencia, dia] = mock.mudarODiaDaquiPraFrente.mock.calls[0]
-    expect(regra.id).toBe('r1')
-    expect(ocorrencia.id).toBe('t1')
-    expect(dia).toBe(15)
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(mock.listarRecorrencias).toHaveBeenCalledTimes(2)
-  })
-
-  it('escolher outra cobrança grava a escolhida', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    montar()
-    await acao(u, 'Luz', 'Mudar o dia daqui pra frente')
-    const card = await screen.findByRole('dialog', { name: 'Mudar o dia · Luz' })
-    await u.selectOptions(await within(card).findByLabelText('A partir de'), 't2')
-    await u.selectOptions(within(card).getByLabelText('Novo dia'), '20')
-    await u.click(within(card).getByRole('button', { name: 'Mudar o dia' }))
-    expect(mock.mudarODiaDaquiPraFrente.mock.calls[0][1].id).toBe('t2')
-    expect(mock.mudarODiaDaquiPraFrente.mock.calls[0][2]).toBe(20)
-  })
-
-  it('recusa do banco aparece dentro do card, que continua aberto; nada recarrega', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    mock.mudarODiaDaquiPraFrente.mockRejectedValue({ code: '22023', message: 'a data nova precisa ser depois da cobrança anterior' })
-    montar()
-    await acao(u, 'Luz', 'Mudar o dia daqui pra frente')
-    const card = await screen.findByRole('dialog', { name: 'Mudar o dia · Luz' })
-    await u.selectOptions(await within(card).findByLabelText('Novo dia'), '3')
-    await u.click(within(card).getByRole('button', { name: 'Mudar o dia' }))
-    expect(await within(card).findByText(/A data nova precisa ser depois da cobrança anterior/)).toBeTruthy()
-    expect(screen.getByRole('dialog', { name: 'Mudar o dia · Luz' })).toBeTruthy()
-    expect(mock.listarRecorrencias).toHaveBeenCalledTimes(1)
-  })
-
-  it('sem cobrança futura para mudar, explica em vez de mostrar um formulário vazio', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    mock.listarOcorrenciasMoviveis.mockResolvedValue([])
-    montar()
-    await acao(u, 'Luz', 'Mudar o dia daqui pra frente')
-    const card = await screen.findByRole('dialog', { name: 'Mudar o dia · Luz' })
-    expect(await within(card).findByText(/Não há cobranças futuras para mudar/)).toBeTruthy()
-    expect(within(card).queryByLabelText('Novo dia')).toBeNull()
-  })
-
-  it('o dia só vai até o último dia do mês escolhido (fevereiro de 2027 tem 28)', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    mock.listarOcorrenciasMoviveis.mockResolvedValue([
-      { id: 't9', data: '2027-02-10', restante: { status: 'planned', notes: null, accountId: 'a1', destinationId: null } },
-    ])
-    montar()
-    await acao(u, 'Luz', 'Mudar o dia daqui pra frente')
-    const card = await screen.findByRole('dialog', { name: 'Mudar o dia · Luz' })
-    const dias = (await within(card).findByLabelText('Novo dia')) as HTMLSelectElement
-    expect(dias.options).toHaveLength(28)
-  })
-
-  it('assinatura de cartão que perdeu a natureza: o dia mudou e a tela avisa', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([{ ...luz, id: 'r9', tipo: 'card', descricao: 'Netflix', contaId: null, cartaoId: 'k1', nature: 'subscription' }])
-    mock.mudarODiaDaquiPraFrente.mockResolvedValue({ naturezaPerdida: true })
-    montar()
-    await acao(u, 'Netflix', 'Mudar o dia daqui pra frente')
-    const card = await screen.findByRole('dialog', { name: 'Mudar o dia · Netflix' })
-    expect(within(card).getByText(/termina na véspera e um novo começa/)).toBeTruthy()
-    await u.selectOptions(await within(card).findByLabelText('Novo dia'), '5')
-    await u.click(within(card).getByRole('button', { name: 'Mudar o dia' }))
-    expect(await screen.findByText(/a natureza de "Netflix" não foi mantida/)).toBeTruthy()
   })
 })

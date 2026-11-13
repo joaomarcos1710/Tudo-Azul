@@ -24,12 +24,6 @@ atualizado: 2026-11-11
 - [ ] Recorrências já reajustadas antes da migration 015: conferir os planejados futuros (correções feitas à mão podem ter sido sobrescritas e não há como recuperar automaticamente).
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
-### Recorrentes: mudar o dia daqui pra frente (#324, 13/11/2026)
-- Conferir no app real: editar em card no meio (390 px e computador), "Mudar o dia daqui pra frente" numa conta fixa e numa assinatura de cartão (a antiga termina na véspera e a nova aparece).
-- **atalho:** o dia novo só vai até o último dia do mês da cobrança escolhida (o banco guarda o dia da data nova; dia 31 em fevereiro viraria 28 para sempre). Melhorar se o dono pedir dia 29 a 31 em mês curto.
-- **atalho:** a natureza da assinatura de cartão é devolvida pelo app depois da divisão da regra (`card_scheduled_from_here` cria a regra nova sem natureza). Melhorar levando a natureza para dentro da função do banco (migration nova, com simulação e "pode").
-- Só aparecem para mudar as cobranças dos próximos 12 meses que ainda seguem a regra. Mudar o dia de uma já paga/lançada continua sendo "corrigir a data da compra" (compra normal) ou não tem como (assinatura de cartão: a data é a da cobrança).
-- Em andamento (PR seguinte): as outras telas em que a edição abre solta no topo (Lançamentos, Orçamentos, Cartões, Investimentos, Bens).
 ## Próximos PRs sugeridos
 ### Categorias da fatura (#315, migration 112, 12/11/2026)
 - Aplicar a migration 112 em produção pelo workflow (simular, ler o log, aplicar), em ordem com 109 a 111; só com o "pode" do dono. **Feito em 12/11/2026 (execução 43200042951).**
