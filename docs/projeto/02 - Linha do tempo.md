@@ -318,7 +318,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#326** (13/11/2026): Recorrentes vira só informativa (Saídas × Entradas, sem cadastrar/editar/excluir) e Lançamentos ganha "Parar de repetir a partir daqui". Só front.
 - **#327** (13/11/2026): Recorrentes: total por mês e por ano e fixo × variável sugerido no topo (migration 116, `recurrence_overview`, aplicada em 13/11/2026).
 - **#328** (13/11/2026): proventos previstos que se repetem ("Repetir" no provento planejado) e card "Proventos previstos" em Recorrentes (migration 117, aplicada em 13/11/2026, execução 43529901362, junto com a 116). Na mesma PR: mudar o dia de uma assinatura de cartão sem o ciclo Recorrentes ↔ cartão (editor num card no meio, "esta e as próximas" já marcado, link direto à fatura da próxima cobrança).
-- **#329** (13/11/2026, em rascunho): diário: migrations 116 e 117 aplicadas em produção (execução 43529901362).
+- **#329** (13/11/2026): diário: migrations 116 e 117 aplicadas em produção (execução 43529901362).
+- **#330** (13/11/2026, em rascunho): Recorrentes em três abas (Assinaturas e contas, Projeção, Parcelas ativas); matriz de projeção com blocos por tipo, cabeçalho fixo e mês atual destacado; Parcelas ativas sem o selo repetido e com ordenação. Só front.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

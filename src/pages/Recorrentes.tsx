@@ -28,6 +28,10 @@ import { ParcelasAtivas } from '../components/recorrentes/ParcelasAtivas'
 
 const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
+/** As três seções da página (abas de cima): a lista de recorrentes, a projeção dos próximos meses e as parcelas em andamento. */
+type Secao = 'lista' | 'projecao' | 'parcelas'
+const SECOES: [Secao, string][] = [['lista', 'Assinaturas e contas'], ['projecao', 'Projeção'], ['parcelas', 'Parcelas ativas']]
+
 type Aba = 'todos' | 'conta' | 'cartao'
 const abas: [Aba, string][] = [['todos', 'Todos'], ['conta', 'Conta'], ['cartao', 'Cartão']]
 /** Filtro por natureza (3ª PR de Recorrentes): 'todas' não filtra; 'none' = sem natureza. Transferência não tem natureza: sai quando há filtro. */
@@ -98,6 +102,7 @@ export default function Recorrentes() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<Aba>('todos')
+  const [secao, setSecao] = useState<Secao>('lista')
   const [natureza, setNatureza] = useState<FiltroNatureza>('todas')
   const [porNatureza, setPorNatureza] = useState<LinhaNatureza[]>([])
   // visão por mês e por ano (migration 116): null = banco ainda sem a função (a tela mostra o resumo de antes)
@@ -314,8 +319,29 @@ export default function Recorrentes() {
         </section>
       )}
 
-      {(ativas.length > 0 || proventos.length > 0) && (
-        <>
+      {recorrencias !== null && (
+        <div role="tablist" aria-label="Seções de Recorrentes" className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200"
+          onKeyDown={(e) => {
+            // setas movem entre as abas (padrão de abas): a aba nova recebe o foco e abre
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+            const i = SECOES.findIndex(([chave]) => chave === secao)
+            const novo = SECOES[(i + (e.key === 'ArrowRight' ? 1 : SECOES.length - 1)) % SECOES.length][0]
+            setSecao(novo)
+            document.getElementById(`aba-${novo}`)?.focus()
+          }}>
+          {SECOES.map(([chave, rotulo]) => (
+            <button key={chave} id={`aba-${chave}`} type="button" role="tab" aria-selected={secao === chave} aria-controls={`painel-${chave}`}
+              tabIndex={secao === chave ? 0 : -1} onClick={() => setSecao(chave)}
+              className={`min-h-11 shrink-0 whitespace-nowrap border-b-2 px-4 text-sm font-semibold transition-colors ${secao === chave
+                ? 'border-azul text-azul' : 'border-transparent text-slate-600 hover:text-marinho'}`}>
+              {rotulo}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {secao === 'lista' && (ativas.length > 0 || proventos.length > 0) && (
+        <div role="tabpanel" id="painel-lista" aria-labelledby="aba-lista">
           <div role="group" aria-label="Mostrar recorrentes" className="mb-3 flex gap-2">
             {abas.map(([chave, rotulo]) => (
               <button key={chave} type="button" aria-pressed={aba === chave} onClick={() => setAba(chave)}
@@ -439,11 +465,20 @@ export default function Recorrentes() {
               </Card>
             )}
           </div>
-          {familiaId && <ProjecaoCompromissos familiaId={familiaId} hoje={hojeSP()} />}
-        </>
+        </div>
       )}
 
-      {recorrencias !== null && <ParcelasAtivas familiaId={familiaId} />}
+      {/* a projeção e as parcelas só carregam quando a aba é aberta (menos consulta ao banco ao abrir a página) */}
+      {secao === 'projecao' && recorrencias !== null && (
+        <div role="tabpanel" id="painel-projecao" aria-labelledby="aba-projecao">
+          <ProjecaoCompromissos familiaId={familiaId} hoje={hojeSP()} />
+        </div>
+      )}
+      {secao === 'parcelas' && recorrencias !== null && (
+        <div role="tabpanel" id="painel-parcelas" aria-labelledby="aba-parcelas">
+          <ParcelasAtivas familiaId={familiaId} />
+        </div>
+      )}
     </>
   )
 }

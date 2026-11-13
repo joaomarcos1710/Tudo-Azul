@@ -96,6 +96,10 @@ describe('Recorrentes', () => {
       totais: [{ moeda: 'BRL', qtde: 1, saldoRestante: c(60000), futuro: c(50000) }],
     })
     montar()
+    // as parcelas ficam na aba "Parcelas ativas" e só carregam quando ela abre
+    await screen.findByRole('tab', { name: 'Parcelas ativas' })
+    expect(mock.listarParcelasAtivas).not.toHaveBeenCalled()
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Parcelas ativas' }))
     expect(await screen.findByRole('heading', { name: 'Parcelas ativas' })).toBeTruthy()
     expect(await screen.findByText('Parcela 5 de 10')).toBeTruthy()
   })
@@ -106,8 +110,13 @@ describe('Recorrentes', () => {
     mock.resumoRecorrencias.mockResolvedValue([
       { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'expense', frequencia: null, qtde: 1, porOcorrencia: c(18000), porMes: c(18000) },
     ])
+    const u = userEvent.setup()
     montar()
+    expect(await screen.findByText('Luz')).toBeTruthy()
+    await u.click(screen.getByRole('tab', { name: 'Parcelas ativas' }))
     expect(await screen.findByText(/Não foi possível carregar as parcelas ativas/)).toBeTruthy()
+    // a falha é só do bloco: voltar para a lista mostra os recorrentes de sempre
+    await u.click(screen.getByRole('tab', { name: 'Assinaturas e contas' }))
     expect(await screen.findByText('Luz')).toBeTruthy()
     expect(screen.queryByText('Nenhum recorrente ainda')).toBeNull()
   })
@@ -697,5 +706,54 @@ describe('Recorrentes: proventos previstos de investimentos (migration 117)', ()
     await screen.findByText('Luz')
     expect(screen.queryByTestId('proventos-previstos')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
+
+describe('Recorrentes: abas (assinaturas e contas, projeção, parcelas ativas)', () => {
+  beforeEach(() => { mock.listarRecorrencias.mockResolvedValue([luz]) })
+
+  it('abre em "Assinaturas e contas"; projeção e parcelas não carregam até a aba abrir', async () => {
+    montar()
+    expect(await screen.findByText('Luz')).toBeTruthy()
+    const abas = screen.getAllByRole('tab').map((a) => a.textContent)
+    expect(abas).toEqual(['Assinaturas e contas', 'Projeção', 'Parcelas ativas'])
+    expect(screen.getByRole('tab', { name: 'Assinaturas e contas' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tabpanel').id).toBe('painel-lista')
+    expect(screen.queryByRole('heading', { name: 'Parcelas ativas' })).toBeNull()
+    expect(screen.queryByText('Projeção de compromissos')).toBeNull()
+    expect(mock.listarParcelasAtivas).not.toHaveBeenCalled()
+  })
+
+  it('clicar troca o painel: só o da aba escolhida aparece', async () => {
+    const u = userEvent.setup()
+    montar()
+    await screen.findByText('Luz')
+    await u.click(screen.getByRole('tab', { name: 'Projeção' }))
+    expect(screen.getByRole('tab', { name: 'Projeção' }).getAttribute('aria-selected')).toBe('true')
+    expect(await screen.findByText('Projeção de compromissos')).toBeTruthy()
+    expect(screen.queryByText('Luz')).toBeNull()
+    await u.click(screen.getByRole('tab', { name: 'Parcelas ativas' }))
+    expect(await screen.findByRole('heading', { name: 'Parcelas ativas' })).toBeTruthy()
+    expect(screen.queryByText('Projeção de compromissos')).toBeNull()
+  })
+
+  it('setas movem entre as abas e o foco acompanha', async () => {
+    const u = userEvent.setup()
+    montar()
+    await screen.findByText('Luz')
+    screen.getByRole('tab', { name: 'Assinaturas e contas' }).focus()
+    await u.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Projeção' }))
+    expect(screen.getByRole('tab', { name: 'Projeção' }).getAttribute('aria-selected')).toBe('true')
+    await u.keyboard('{ArrowLeft}{ArrowLeft}')
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Parcelas ativas' })) // volta dando a volta
+  })
+
+  it('sem nenhum recorrente, as abas de projeção e parcelas continuam úteis (a tela não esconde tudo)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([])
+    montar()
+    expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Parcelas ativas' })).toBeTruthy()
   })
 })

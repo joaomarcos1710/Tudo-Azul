@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { Cents } from '../../lib/format'
 
 const mock = vi.hoisted(() => ({ carregar: vi.fn() }))
@@ -8,7 +9,7 @@ vi.mock('../../lib/projecaoCompromissos', () => ({
   carregarProjecaoCompromissos: mock.carregar,
 }))
 
-import { ProjecaoCompromissos } from './ProjecaoCompromissos'
+import { ProjecaoCompromissos, grupoDoCompromisso, unirRegrasDivididas } from './ProjecaoCompromissos'
 import { definirValoresOcultos, MASCARA } from '../../lib/privacidade'
 
 const c = (n: number) => n as Cents
@@ -103,5 +104,109 @@ describe('Projeção de compromissos', () => {
     render(<ProjecaoCompromissos familiaId="h1" hoje="2026-11-07" />)
 
     expect(await screen.findByText('Não foi possível concluir agora. Tente de novo em instantes.')).toBeTruthy()
+  })
+})
+
+
+describe('Matriz: blocos por tipo, regras divididas, cabeçalho fixo e mês atual', () => {
+  const item = (id: string, descricao: string, mes: string, valor: number, tipoOrigem = 'Conta', origem: string | null = 'Itaú') =>
+    linha({ id, descricao, mes, valor: c(valor), tipoOrigem, origem })
+  const total = (mes: string, valor: number) => linha({ id: null, descricao: 'Total do mês', origem: null, tipoOrigem: 'total', mes, valor: c(valor), tipoLinha: 'total' })
+
+  it('o id do banco decide o bloco', () => {
+    expect(grupoDoCompromisso('account-recurrence:r1')).toBe('fixas')
+    expect(grupoDoCompromisso('card-recurrence:r2')).toBe('assinaturas')
+    expect(grupoDoCompromisso('transaction-installment:g1')).toBe('parcelamentos')
+    expect(grupoDoCompromisso('card-purchase:k1:p1')).toBe('parcelamentos')
+    expect(grupoDoCompromisso('debt-schedule:d1')).toBe('parcelamentos')
+    expect(grupoDoCompromisso('transaction:t1')).toBe('avulsos')
+    expect(grupoDoCompromisso('card-invoice-adjustment:k1:2026-11')).toBe('avulsos')
+    expect(grupoDoCompromisso('algo-novo:1')).toBe('outros')
+  })
+
+  it('agrupa em blocos na ordem fixa; os avulsos começam recolhidos e abrem no clique; o bloco mostra só a contagem (nada somado)', async () => {
+    mock.carregar.mockResolvedValue([
+      item('transaction:t1', 'Uber', '2026-11', 4200), item('transaction:t2', 'IOF', '2026-11', 300),
+      item('card-recurrence:r1', 'Netflix', '2026-11', 4490, 'Cartão', 'Nubank'),
+      item('account-recurrence:r2', 'Aluguel', '2026-11', 150000),
+      item('card-purchase:k1:p1', 'Geladeira', '2026-11', 28900, 'Cartão', 'Nubank'),
+      total('2026-11', 187890),
+    ])
+    const u = userEvent.setup()
+    render(<ProjecaoCompromissos familiaId="h1" hoje="2026-11-07" />)
+    await screen.findByText('Aluguel')
+    const ordem = ['fixas', 'assinaturas', 'parcelamentos', 'avulsos'].map((g) => screen.getByTestId(`grupo-${g}`))
+    const todos = Array.from(document.querySelectorAll('[data-testid^="grupo-"]'))
+    expect(todos).toEqual(ordem)
+    const botaoAvulsos = within(screen.getByTestId('grupo-avulsos')).getByRole('button', { name: /Lançamentos avulsos e ajustes da fatura/ })
+    expect(botaoAvulsos.getAttribute('aria-expanded')).toBe('false')
+    expect(botaoAvulsos.textContent).toContain('· 2')
+    expect(screen.queryByText('Uber')).toBeNull()
+    await u.click(botaoAvulsos)
+    expect(botaoAvulsos.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByText('Uber')).toBeTruthy()
+    expect(screen.getByText('IOF')).toBeTruthy()
+    await u.click(botaoAvulsos)
+    expect(screen.queryByText('Uber')).toBeNull()
+    // um bloco aberto também recolhe
+    const botaoFixas = within(screen.getByTestId('grupo-fixas')).getByRole('button', { name: /Contas fixas e recorrentes/ })
+    await u.click(botaoFixas)
+    expect(screen.queryByText('Aluguel')).toBeNull()
+    // o total do mês continua o do banco
+    expect(screen.getByText('R$ 1.878,90')).toBeTruthy()
+  })
+
+  it('bloco vazio não aparece', async () => {
+    mock.carregar.mockResolvedValue([item('account-recurrence:r2', 'Aluguel', '2026-11', 150000), total('2026-11', 150000)])
+    render(<ProjecaoCompromissos familiaId="h1" hoje="2026-11-07" />)
+    await screen.findByText('Aluguel')
+    expect(screen.queryByTestId('grupo-assinaturas')).toBeNull()
+    expect(screen.queryByTestId('grupo-avulsos')).toBeNull()
+  })
+
+  it('assinatura dividida em duas regras (mesmo nome, meses que não se cruzam) vira uma linha só, sem somar nada', async () => {
+    mock.carregar.mockResolvedValue([
+      item('card-recurrence:antiga', 'Netflix', '2026-11', 4490, 'Cartão', 'Nubank'),
+      item('card-recurrence:nova', 'Netflix', '2026-12', 5590, 'Cartão', 'Nubank'),
+      item('card-recurrence:nova', 'Netflix', '2027-01', 5590, 'Cartão', 'Nubank'),
+      total('2026-11', 4490),
+    ])
+    render(<ProjecaoCompromissos familiaId="h1" hoje="2026-11-07" />)
+    await screen.findByText('Netflix')
+    expect(screen.getAllByText('Netflix')).toHaveLength(1)
+    const tr = screen.getByText('Netflix').closest('tr')!
+    expect(within(tr).getByText('R$ 44,90')).toBeTruthy()
+    expect(within(tr).getAllByText('R$ 55,90')).toHaveLength(2) // dez e jan, cada um com o valor do banco
+  })
+
+  it('se as duas regras têm o mesmo mês, ficam separadas (o banco decide; a tela não soma)', () => {
+    const celula = (mes: string, valor: number) => [mes, linha({ mes, valor: c(valor) })] as const
+    const a = { id: 'a', idBase: 'card-recurrence:a', descricao: 'Claude', origem: 'Nubank', tipoOrigem: 'Cartão', moeda: 'BRL', valores: new Map([celula('2026-11', 100)]) }
+    const b = { id: 'b', idBase: 'card-recurrence:b', descricao: 'Claude', origem: 'Nubank', tipoOrigem: 'Cartão', moeda: 'BRL', valores: new Map([celula('2026-11', 200), celula('2026-12', 200)]) }
+    expect(unirRegrasDivididas([a, b])).toHaveLength(2)
+  })
+
+  it('parcelamentos e avulsos com o mesmo nome nunca se unem (só contas fixas e assinaturas)', () => {
+    const m = (mes: string) => new Map([[mes, linha({ mes })] as const])
+    const a = { id: 'a', idBase: 'transaction:a', descricao: 'Uber', origem: 'Itaú', tipoOrigem: 'Conta', moeda: 'BRL', valores: m('2026-11') }
+    const b = { id: 'b', idBase: 'transaction:b', descricao: 'Uber', origem: 'Itaú', tipoOrigem: 'Conta', moeda: 'BRL', valores: m('2026-12') }
+    expect(unirRegrasDivididas([a, b])).toHaveLength(2)
+  })
+
+  it('o cabeçalho dos meses fica fixo na rolagem e o mês atual é destacado', async () => {
+    mock.carregar.mockResolvedValue([item('account-recurrence:r2', 'Aluguel', '2026-11', 150000), item('account-recurrence:r2', 'Aluguel', '2026-12', 150000), total('2026-11', 150000)])
+    render(<ProjecaoCompromissos familiaId="h1" hoje="2026-11-07" />)
+    await screen.findByText('Aluguel')
+    const rolagem = screen.getByTestId('matriz-rolagem')
+    expect(rolagem.className).toMatch(/max-h-/)
+    expect(rolagem.className).toMatch(/overflow-auto/)
+    const nov = screen.getByRole('columnheader', { name: 'Nov 26' })
+    const dez = screen.getByRole('columnheader', { name: 'Dez 26' })
+    expect(nov.className).toMatch(/sticky/)
+    expect(dez.className).toMatch(/sticky/)
+    expect(nov.getAttribute('aria-current')).toBe('date')
+    expect(dez.getAttribute('aria-current')).toBeNull()
+    expect(nov.className).toContain('bg-azul-claro')
+    expect(dez.className).not.toContain('bg-azul-claro')
   })
 })

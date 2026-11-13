@@ -46,7 +46,8 @@ describe('Parcelas ativas', () => {
     expect(geladeira.getByText('40% pago')).toBeTruthy()
     expect(geladeira.getByText('Saldo restante').nextSibling?.textContent).toBe('−R$ 600,00')
     expect(geladeira.getByText('−R$ 100,00')).toBeTruthy()
-    expect(geladeira.getByText('Pendente de pagamento')).toBeTruthy()
+    // o "pendente" repetido em todos os cartões saiu: não diz nada novo (o próximo vencimento está logo abaixo)
+    expect(geladeira.queryByText('Pendente de pagamento')).toBeNull()
     expect(geladeira.getByText('Próximo vencimento 15/11/2026')).toBeTruthy()
 
     const sofa = within(cartoes[1])
@@ -54,7 +55,7 @@ describe('Parcelas ativas', () => {
     expect(sofa.getByText('Parcela 3 de 5')).toBeTruthy()
     expect(sofa.getByText('Parcela deste mês paga')).toBeTruthy()
 
-    expect(within(cartoes[2]).getByText('Nenhuma parcela neste mês')).toBeTruthy()
+    expect(within(cartoes[2]).queryByText('Nenhuma parcela neste mês')).toBeNull()
     expect(within(cartoes[2]).queryByText(/Próximo vencimento/)).toBeNull()
   })
 
@@ -176,5 +177,59 @@ describe('Parcelas ativas', () => {
     expect(screen.queryByTestId('parcelamento')).toBeNull()
     expect(screen.queryByText(/Nenhum parcelamento/)).toBeNull()
     expect(mock.registrarFalhaConsulta).toHaveBeenCalledWith('active_installment_plans', falha)
+  })
+
+  it('selo só na exceção: "Última parcela" e a parcela em atraso; o "paga" fica; o resto sem selo', async () => {
+    mock.listarParcelasAtivas.mockResolvedValue(dados([
+      plano({ chave: 'a', descricao: 'Quase quitado', parcelaAtual: 10, totalParcelas: 10 }),
+      plano({ chave: 'b', descricao: 'Atrasado', emAtraso: 2 }),
+      plano({ chave: 'c', descricao: 'Normal' }),
+    ], [brl(1000)]))
+    montar()
+    const cartoes = await screen.findAllByTestId('parcelamento')
+    expect(within(cartoes[0]).getByText('Última parcela')).toBeTruthy()
+    expect(within(cartoes[1]).getByText('2 parcelas em atraso')).toBeTruthy()
+    expect(within(cartoes[1]).queryByText('Última parcela')).toBeNull()
+    expect(within(cartoes[2]).queryByText('Última parcela')).toBeNull()
+    expect(within(cartoes[2]).queryByText(/atraso/)).toBeNull()
+  })
+
+  describe('ordenação', () => {
+    const lista = [
+      plano({ chave: 'a', descricao: 'Ana', parcelaAtual: 2, totalParcelas: 12, valorParcela: c(20000), saldoRestante: c(200000) }), // 10 a quitar
+      plano({ chave: 'b', descricao: 'Beto', parcelaAtual: 9, totalParcelas: 10, valorParcela: c(50000), saldoRestante: c(50000) }), // 1 a quitar
+      plano({ chave: 'c', descricao: 'Caio', parcelaAtual: 4, totalParcelas: 6, valorParcela: c(10000), saldoRestante: c(900000) }), // 2 a quitar
+    ]
+    const nomes = () => screen.getAllByTestId('parcelamento').map((li) => within(li).getByRole('heading', { level: 3 }).textContent)
+
+    it('começa na ordem do banco (próximo vencimento) e reordena por quitação, parcela e saldo, sem consultar o banco de novo', async () => {
+      const u = (await import('@testing-library/user-event')).default.setup()
+      mock.listarParcelasAtivas.mockResolvedValue(dados(lista, [brl(1000)]))
+      montar()
+      await screen.findAllByTestId('parcelamento')
+      expect(nomes()).toEqual(['Ana', 'Beto', 'Caio'])
+      await u.selectOptions(screen.getByLabelText('Ordenar por'), 'quitar')
+      expect(nomes()).toEqual(['Beto', 'Caio', 'Ana'])
+      await u.selectOptions(screen.getByLabelText('Ordenar por'), 'parcela')
+      expect(nomes()).toEqual(['Beto', 'Ana', 'Caio'])
+      await u.selectOptions(screen.getByLabelText('Ordenar por'), 'saldo')
+      expect(nomes()).toEqual(['Caio', 'Ana', 'Beto'])
+      await u.selectOptions(screen.getByLabelText('Ordenar por'), 'vencimento')
+      expect(nomes()).toEqual(['Ana', 'Beto', 'Caio'])
+      expect(mock.listarParcelasAtivas).toHaveBeenCalledTimes(1)
+    })
+
+    it('moedas diferentes não se misturam ao ordenar por valor (cada moeda num bloco)', async () => {
+      const u = (await import('@testing-library/user-event')).default.setup()
+      mock.listarParcelasAtivas.mockResolvedValue(dados([
+        plano({ chave: 'u1', descricao: 'Em dólar pequeno', moeda: 'USD', valorParcela: c(100) }),
+        plano({ chave: 'r1', descricao: 'Em reais grande', moeda: 'BRL', valorParcela: c(900000) }),
+        plano({ chave: 'r2', descricao: 'Em reais pequeno', moeda: 'BRL', valorParcela: c(1000) }),
+      ], [brl(1000)]))
+      montar()
+      await screen.findAllByTestId('parcelamento')
+      await u.selectOptions(screen.getByLabelText('Ordenar por'), 'parcela')
+      expect(nomes()).toEqual(['Em reais grande', 'Em reais pequeno', 'Em dólar pequeno'])
+    })
   })
 })
