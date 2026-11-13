@@ -28,7 +28,7 @@ import {
   fechamentoNoCiclo, inicioDaTroca, moverPagamentoDeFatura, moverParcelaDeFatura, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
-  visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura, trocarPessoaDaCompra,
+  visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura, trocarPessoaDaCompra, corrigirDataDaCompra,
 } from '../lib/cartoes'
 import type { Cartao, CreditoFatura, DirecaoDaParcela, Fatura, FaturaAgendada, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
 import { IconeCadeadoAberto, IconeCadeadoFechado, IconeCadeadoPago, IconeCadeadoVencido } from '../components/layout/icons'
@@ -996,10 +996,6 @@ function ListaRecolhida<T>({ itens, rotulo, className, children }: {
 type Acao =
   | { tipo: 'reabrir'; fatura: Fatura }
   | { tipo: 'moverPagamento'; pagamento: PagamentoFatura }
-  | { tipo: 'estornar'; item: ItemFatura; faturaId: string | null }
-  | { tipo: 'editar'; item: ItemFatura }
-  | { tipo: 'excluir'; item: ItemFatura }
-  | { tipo: 'pessoa'; item: ItemFatura }
   | { tipo: 'categoria'; credito: CreditoFatura }
 
 /** Pagamentos e devoluções do cartão, com "Anular" para corrigir lançamento errado (ex.: crédito de teste). */
@@ -1247,8 +1243,10 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const [avisoMover, setAvisoMover] = useState('')
   // folha "Categorias" da fatura (só leitura; o foco volta ao botão ao fechar)
   const [verCategorias, setVerCategorias] = useState(false)
-  // "Editar compra": a compra cuja folha está aberta (clique na linha). O foco volta à linha ao fechar (a Folha cuida disso)
-  const [compraAberta, setCompraAberta] = useState<ItemFatura | null>(null)
+  // "Editar compra": a compra cuja folha está aberta, com a opção já escolhida quando veio do ⋯ (modo) ou nenhuma quando veio do
+  // clique na linha. Tudo o que se faz numa compra abre neste card no meio da tela (pedido do dono, 13/11/2026: antes o ⋯ abria um
+  // painel lá em cima). O foco volta a quem abriu ao fechar (a Folha cuida disso)
+  const [compraAberta, setCompraAberta] = useState<{ item: ItemFatura; modo: ModoCompra | null } | null>(null)
   const hoje = hojeSP()
   useTitulo(`${cartao.nome} · ${primeiraMaiuscula(formatMonth(mes))}`)
   // pessoas da família para "Mudar de quem foi a despesa"; sem a lista o painel só oferece "não classificada" e "toda a família"
@@ -1409,6 +1407,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         motivo: podeMover ? undefined : mesAberto === null ? 'o cartão não tem dias de fechamento' : 'esta fatura já fechou',
       },
     ] : []),
+    { rotulo: 'Corrigir data da compra', aoEscolher: g.data },
     { rotulo: 'Mudar de quem foi a despesa', aoEscolher: g.pessoa },
     ...(travada ? [] : [{ rotulo: 'Excluir compra', aoEscolher: g.excluir, perigo: true }]),
   ]
@@ -1507,14 +1506,6 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
           <PainelMoverPagamento pagamento={acao.pagamento} mesAtual={f.mes} destinos={destinosPagamento} hoje={hoje}
             aoFechar={() => setAcao(null)} aoConcluir={async () => { setAcao(null); await carregar() }} />
         )}
-        {acao?.tipo === 'editar' && (
-          <PainelEditar item={acao.item} aoFechar={() => setAcao(null)} aoConcluir={async () => { setAcao(null); await carregar() }} />
-        )}
-        {acao?.tipo === 'excluir' && (
-          // sem a compra a fatura pode deixar de existir: volta para o cartão depois de excluir
-          <PainelExcluir cartaoId={cartaoId} item={acao.item} contas={contas} aoFechar={() => setAcao(null)}
-            aoConcluir={async () => { setAcao(null); await carregar(); navigate(rotaCartao(cartaoId)) }} />
-        )}
 
         {/* extrato em três blocos, nesta ordem (pedido do dono): pagamentos, entradas, saídas */}
         <section className="mt-4 border-t border-slate-100 pt-4" aria-labelledby={idPagamentos} data-testid="bloco-pagamentos">
@@ -1600,27 +1591,17 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                         // dinheiro); estornar, editar, enviar para outra fatura e excluir seguem fora e o banco também recusa
                         acoes={(
                           <MenuAcoes rotulo={`Ações de ${i.descricao}`} desabilitado={acao !== null || movendo !== null} acoes={acoesDaCompra(i, {
-                            estornar: () => setAcao({ tipo: 'estornar', item: i, faturaId: f.faturaId }),
-                            editar: () => setAcao({ tipo: 'editar', item: i }),
+                            estornar: () => setCompraAberta({ item: i, modo: 'estornar' }),
+                            editar: () => setCompraAberta({ item: i, modo: 'editar' }),
                             mover: (d) => { void moverParcela(i, d) },
-                            pessoa: () => setAcao({ tipo: 'pessoa', item: i }),
-                            excluir: () => setAcao({ tipo: 'excluir', item: i }),
+                            pessoa: () => setCompraAberta({ item: i, modo: 'pessoa' }),
+                            data: () => setCompraAberta({ item: i, modo: 'data' }),
+                            excluir: () => setCompraAberta({ item: i, modo: 'excluir' }),
                           })} />
                         )}
                         // a linha abre a folha "Editar compra"; com outro painel aberto ou uma parcela sendo enviada fica quieta, como o ⋯
-                        aoAbrir={acao === null && movendo === null ? (alvo) => { alvo.focus(); setCompraAberta(i) } : undefined}
-                        rotuloAbrir={travada ? `Ver a compra ${i.descricao}` : `Editar a compra ${i.descricao}`}
-                        painel={acao?.tipo === 'pessoa' && acao.item.parcelaId === i.parcelaId ? (
-                          <PainelJunto className="mt-2 w-full">
-                            <PainelPessoa cartaoId={cartaoId} item={acao.item} pessoas={pessoas} aoFechar={() => setAcao(null)}
-                              aoConcluir={async () => { setAcao(null); await carregar() }} />
-                          </PainelJunto>
-                        ) : acao?.tipo === 'estornar' && acao.item.parcelaId === i.parcelaId && (
-                          <PainelJunto className="mt-2 w-full">
-                            <PainelEstornar item={acao.item} faturaId={acao.faturaId} aoFechar={() => setAcao(null)}
-                              aoConcluir={async () => { setAcao(null); await carregar() }} />
-                          </PainelJunto>
-                        )} />
+                        aoAbrir={acao === null && movendo === null ? (alvo) => { alvo.focus(); setCompraAberta({ item: i, modo: null }) } : undefined}
+                        rotuloAbrir={travada ? `Ver a compra ${i.descricao}` : `Editar a compra ${i.descricao}`} />
                     ))}
                   </ul>
                 </div>
@@ -1664,11 +1645,12 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         )}
       </Card>
       {compraAberta && (
-        <FolhaCompra item={compraAberta} cartaoId={cartaoId} nomeCartao={cartao.nome} mesFatura={f.mes} faturaId={f.faturaId} travada={travada}
-          categoria={nomeCategoria.get(compraAberta.categoriaId) ?? 'Sem categoria'} contas={contas} pessoas={pessoas}
-          montarAcoes={(g) => acoesDaCompra(compraAberta, g)}
+        <FolhaCompra key={`${compraAberta.item.parcelaId}-${compraAberta.modo ?? 'lista'}`} item={compraAberta.item} modoInicial={compraAberta.modo}
+          cartaoId={cartaoId} nomeCartao={cartao.nome} mesFatura={f.mes} faturaId={f.faturaId} travada={travada}
+          categoria={nomeCategoria.get(compraAberta.item.categoriaId) ?? 'Sem categoria'} contas={contas} pessoas={pessoas}
+          montarAcoes={(g) => acoesDaCompra(compraAberta.item, g)}
           aoFechar={() => setCompraAberta(null)}
-          aoMover={(d) => { const i = compraAberta; setCompraAberta(null); void moverParcela(i, d) }}
+          aoMover={(d) => { const i = compraAberta.item; setCompraAberta(null); void moverParcela(i, d) }}
           aoConcluir={async () => { setCompraAberta(null); await carregar() }}
           // sem a compra a fatura pode deixar de existir: volta para o cartão depois de excluir
           aoExcluir={async () => { setCompraAberta(null); await carregar(); navigate(rotaCartao(cartaoId)) }} />
@@ -1679,8 +1661,11 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
 
 /** O que fazer quando cada ação de uma compra é escolhida (o ⋯ e a folha passam o seu). */
 interface GatilhosDaCompra {
-  estornar: () => void; editar: () => void; pessoa: () => void; excluir: () => void; mover: (d: DirecaoDaParcela) => void
+  estornar: () => void; editar: () => void; pessoa: () => void; data: () => void; excluir: () => void; mover: (d: DirecaoDaParcela) => void
 }
+
+/** O que a folha "Editar compra" mostra: null = a lista de opções; o resto é o painel da opção escolhida. */
+type ModoCompra = 'editar' | 'estornar' | 'pessoa' | 'data' | 'excluir'
 
 /**
  * Folha "Editar compra" (pedido do dono, 12/11/2026, como no Organizze): abre ao clicar na linha da compra. Nesta etapa só junta
@@ -1689,15 +1674,15 @@ interface GatilhosDaCompra {
  * despesa, estornar e excluir. Cada ação abre o MESMO painel de antes, agora dentro da folha. Fatura paga (travada): só consulta e
  * "Mudar de quem foi a despesa". Categoria, data, cartão e despesa/receita ainda não se editam (precisam de banco; ver Pendências).
  */
-function FolhaCompra({ item, cartaoId, nomeCartao, mesFatura, faturaId, travada, categoria, contas, pessoas, montarAcoes, aoFechar, aoMover, aoConcluir, aoExcluir }: {
-  item: ItemFatura; cartaoId: string; nomeCartao: string; mesFatura: string; faturaId: string | null; travada: boolean; categoria: string
+function FolhaCompra({ item, modoInicial, cartaoId, nomeCartao, mesFatura, faturaId, travada, categoria, contas, pessoas, montarAcoes, aoFechar, aoMover, aoConcluir, aoExcluir }: {
+  item: ItemFatura; modoInicial: ModoCompra | null; cartaoId: string; nomeCartao: string; mesFatura: string; faturaId: string | null; travada: boolean; categoria: string
   contas: Conta[]; pessoas: PessoaFamilia[]; montarAcoes: (g: GatilhosDaCompra) => AcaoMenu[]
   aoFechar: () => void; aoMover: (d: DirecaoDaParcela) => void; aoConcluir: () => Promise<void>; aoExcluir: () => Promise<void>
 }) {
-  const [modo, setModo] = useState<'editar' | 'estornar' | 'pessoa' | 'excluir' | null>(null)
+  const [modo, setModo] = useState<ModoCompra | null>(modoInicial)
   const volta = () => setModo(null)
   const acoes = montarAcoes({
-    estornar: () => setModo('estornar'), editar: () => setModo('editar'), pessoa: () => setModo('pessoa'), excluir: () => setModo('excluir'),
+    estornar: () => setModo('estornar'), editar: () => setModo('editar'), pessoa: () => setModo('pessoa'), data: () => setModo('data'), excluir: () => setModo('excluir'),
     mover: aoMover,
   })
   const parcela = item.deParcelas > 1 ? ` (parcela ${item.parcela}/${item.deParcelas})` : ''
@@ -1710,7 +1695,7 @@ function FolhaCompra({ item, cartaoId, nomeCartao, mesFatura, faturaId, travada,
     ['Fatura', primeiraMaiuscula(formatMonth(mesFatura))],
   ]
   return (
-    <Folha titulo={travada ? 'Detalhes da compra' : 'Editar compra'} aoFechar={aoFechar} larga>
+    <Folha titulo={travada ? 'Detalhes da compra' : 'Editar compra'} aoFechar={aoFechar} larga centro>
       <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-2" aria-label="Dados da compra">
         {dados.map(([rotulo, valor]) => (
           <div key={rotulo} className="min-w-0">
@@ -1719,7 +1704,7 @@ function FolhaCompra({ item, cartaoId, nomeCartao, mesFatura, faturaId, travada,
           </div>
         ))}
       </dl>
-      {travada && <p className="mt-3 text-xs text-slate-600">Fatura paga não muda mais: aqui só dá para mudar de quem foi a despesa.</p>}
+      {travada && <p className="mt-3 text-xs text-slate-600">Fatura paga não muda mais: aqui só dá para corrigir a data da compra e mudar de quem foi a despesa.</p>}
       {modo === null && (
         <ul className="mt-4 flex flex-col gap-2" aria-label="Ações da compra">
           {acoes.map((a, k) => (
@@ -1737,6 +1722,7 @@ function FolhaCompra({ item, cartaoId, nomeCartao, mesFatura, faturaId, travada,
       {modo === 'editar' && <PainelEditar item={item} aoFechar={volta} aoConcluir={aoConcluir} />}
       {modo === 'estornar' && <PainelEstornar item={item} faturaId={faturaId} aoFechar={volta} aoConcluir={aoConcluir} />}
       {modo === 'pessoa' && <PainelPessoa cartaoId={cartaoId} item={item} pessoas={pessoas} aoFechar={volta} aoConcluir={aoConcluir} />}
+      {modo === 'data' && <PainelData cartaoId={cartaoId} item={item} travada={travada} aoFechar={volta} aoConcluir={aoConcluir} />}
       {modo === 'excluir' && <PainelExcluir cartaoId={cartaoId} item={item} contas={contas} aoFechar={volta} aoConcluir={aoExcluir} />}
     </Folha>
   )
@@ -2404,6 +2390,41 @@ function PainelPessoa({ cartaoId, item, pessoas, aoFechar, aoConcluir }: {
       <PessoaSelectField id={`pessoa-${item.parcelaId}`} pessoas={pessoas} personId={escolha.personId} isSharedExpense={escolha.isSharedExpense}
         onChange={setEscolha} />
       <Botoes rotulo="Salvar" enviando={enviando} aoCancelar={aoFechar} />
+    </form>
+  )
+}
+
+/**
+ * Corrigir a data da compra (pedido do dono, 13/11/2026: uma compra lançada no dia errado não tinha como mudar). Vale para a compra
+ * inteira. A fatura em que ela cai NÃO muda sozinha, e nenhum valor muda; o banco recusa data futura e assinatura de cartão.
+ */
+function PainelData({ cartaoId, item, travada, aoFechar, aoConcluir }: {
+  cartaoId: string; item: ItemFatura; travada: boolean; aoFechar: () => void; aoConcluir: () => Promise<void>
+}) {
+  const hoje = hojeSP()
+  const [data, setData] = useState(item.dataCompra ?? hoje)
+  const [tentou, setTentou] = useState(false)
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+  const erroData = tentou && (!data ? 'Informe a data.' : data > hoje ? 'A data da compra não pode ser futura.' : undefined)
+
+  function salvar(e: FormEvent) {
+    e.preventDefault()
+    setTentou(true)
+    if (!data || data > hoje) return
+    void enviar(async () => { await corrigirDataDaCompra(cartaoId, item.compra, data) })
+  }
+
+  return (
+    <form onSubmit={salvar} noValidate className="mt-3 grid gap-3 rounded-lg border border-slate-200 bg-azul-claro p-4 md:grid-cols-2"
+      aria-label={`Corrigir a data da compra ${item.descricao}`}>
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <p className="text-sm md:col-span-2">
+        A nova data vale para a compra <strong>{item.descricao}</strong> inteira (todas as parcelas).
+        A <strong>fatura em que ela cai não muda</strong>{travada ? '' : ': para trocar de fatura, use "Enviar para a fatura anterior" ou "Enviar para a próxima fatura"'}.
+        Nenhum valor muda.
+      </p>
+      <Field rotulo="Data da compra" type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value)} erro={erroData || undefined} />
+      <Botoes rotulo="Salvar data" enviando={enviando} aoCancelar={aoFechar} />
     </form>
   )
 }

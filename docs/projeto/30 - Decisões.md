@@ -703,3 +703,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Linha "Aportado" do gráfico = aporte líquido (pedido do dono, 12/11/2026):** o gráfico de evolução e o resumo passam a falar do mesmo número. Uma função de leitura nova, `investment_contribution_history` (migration 114), calcula o líquido mês a mês no banco com a mesma regra de `investment_contributions`; o front só escolhe de onde vem o número (não soma). O último mês bate com o resumo, e um teste prova isso.
 - **Fallback para o custo, com aviso:** sem a migration, a linha usa o custo do histórico e uma nota explica o que ela é (a linha cai a cada resgate). Preferimos mostrar o gráfico com aviso a escondê-lo.
 - **Entrou na #321, e não numa PR separada:** só há uma branch autorizada e a #321 ainda era rascunho; o escopo real está na descrição da PR.
+
+## 13/11/2026 — Cartões: corrigir a data da compra e card no meio para todas as ações da compra (dono, #322)
+- **Pedido do dono:** uma compra lançada no dia errado não tinha como mudar de data, e o menu ⋯ abria um painel lá em cima; ele quer um card no meio, com as opções.
+- **Qual data:** a **data da compra** (confirmado pelo dono). Não é a data do pagamento nem o fechamento/vencimento do cartão (esses seguem como estão).
+- **A fatura não muda sozinha com a data.** Mudar a data de uma compra não a leva para outra fatura: isso seria mexer em valor de fatura sem o dono ver. Para trocar de fatura há "Enviar para a fatura anterior/próxima". O card avisa isso.
+- **Vale em fatura paga e travada**, como "de quem foi a despesa": a data só ordena a fatura e entra no relatório por categoria com base na data da compra; não mexe em saldo nem em fatura.
+- **Assinatura de cartão não muda de data:** a geração das assinaturas confere por essa data, e mudar poderia duplicar a cobrança.
+- **Um só jeito de abrir:** o ⋯ e o clique na linha abrem o mesmo card (a folha "Editar compra"), no meio da tela também no celular. O painel inline do topo saiu.
