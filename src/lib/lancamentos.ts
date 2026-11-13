@@ -521,6 +521,18 @@ export async function editarEsteEProximos(id: string, d: DadosLancamento): Promi
 }
 
 /**
+ * "Parar de repetir a partir daqui" (migration 031/074, recurrence_end): o recorrente deixa de existir; os planejados desta data em
+ * diante (inclusive os corrigidos à mão) vão para a lixeira. O que já foi pago e os planejados de antes desta data ficam como
+ * lançamentos avulsos, sem o vínculo com a regra. É o caminho de encerrar uma conta fixa depois que Recorrentes virou só consulta.
+ */
+export async function pararDeRepetirAPartirDe(recorrenciaId: string, data: string): Promise<void> {
+  const [a, m, d] = data.split('-').map(Number)
+  const vespera = new Date(Date.UTC(a, m - 1, d - 1)).toISOString().slice(0, 10)
+  const { error } = await cliente().rpc('recurrence_end', { p_id: recorrenciaId, p_end: vespera })
+  if (error) throw error
+}
+
+/**
  * Marca o planejado como pago com o que REALMENTE saiu ou entrou na conta. A data e o valor do planejado são só
  * estimativa (conta de luz paga dia 12 por 143,20, e não dia 10 por 150,00): sem trocar os dois, o saldo do dia
  * deixa de bater com o extrato. O banco confere período conciliado, abertura da conta e centavos.

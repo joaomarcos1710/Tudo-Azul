@@ -34,14 +34,6 @@ vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/c
 
 import Recorrentes from './Recorrentes'
 
-/** Categoria agora é um seletor em folha (como no Organizze): abre pelo botão e toca na categoria. */
-async function escolherCategoria(u: ReturnType<typeof userEvent.setup>, campo: HTMLElement, id: string) {
-  await u.click(campo)
-  const folhas = screen.getAllByRole('dialog', { name: 'Selecionar uma categoria' })
-  const folha = folhas[folhas.length - 1]
-  await u.click(folha.querySelector(`[data-categoria-id="${id}"]`) as HTMLElement)
-}
-
 
 const c = (n: number) => n as Cents
 const luz = {
@@ -53,11 +45,6 @@ const montar = () => render(<MemoryRouter><Recorrentes /></MemoryRouter>)
 /** Texto da linha de metadados de um item (a subcategoria vem em dois spans: visível e para leitor de tela). */
 const metas = () => screen.getAllByTestId('meta-recorrente').map((p) => Array.from(p.childNodes)
   .map((n) => ((n as HTMLElement).className === 'sr-only' ? '' : n.textContent)).join(''))
-/** Abre o menu "⋯" do item e escolhe a ação. */
-async function acao(u: ReturnType<typeof userEvent.setup>, item: string, nome: string) {
-  await u.click(await screen.findByRole('button', { name: `Ações de ${item}` }))
-  await u.click(screen.getByRole('menuitem', { name: nome }))
-}
 
 beforeEach(() => {
   mock.listarParcelasAtivas.mockResolvedValue({ parcelamentos: [], totais: [] })
@@ -128,99 +115,6 @@ describe('Recorrentes', () => {
     expect(screen.getByText('−R$ 180,00')).toBeTruthy()
   })
 
-  it('cadastra despesa mensal em conta', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.type(screen.getByLabelText('Descrição'), 'Luz')
-    await u.type(screen.getByLabelText('Valor estimado (R$)'), '180,00')
-    await u.selectOptions(screen.getByLabelText('Dia do mês'), '10')
-    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({
-      tipo: 'expense', descricao: 'Luz', valor: 18000, dia: 10, contaId: 'a1', destinoId: null, cartaoId: null, categoriaId: 'g1',
-      unidade: 'month', cada: 1, fim: null,
-    }))
-  })
-
-  it('assinatura no cartão: pede o cartão, não a conta', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'card')
-    expect(screen.queryByLabelText('Conta')).toBeNull()
-    await u.type(screen.getByLabelText('Descrição'), 'Netflix')
-    await u.type(screen.getByLabelText('Valor (R$)'), '55,90')
-    await u.selectOptions(screen.getByLabelText('Dia do mês'), '5')
-    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({
-      tipo: 'card', valor: 5590, dia: 5, contaId: null, cartaoId: 'k1', categoriaId: 'g1',
-    }))
-  })
-
-  it('receita só oferece categorias de receita', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
-    // a categoria abre a folha do seletor: só as de receita aparecem
-    await u.click(screen.getByLabelText('Categoria'))
-    const folha = screen.getByRole('dialog', { name: 'Selecionar uma categoria' })
-    expect(within(folha).queryByRole('button', { name: 'Moradia' })).toBeNull()
-    expect(within(folha).getByRole('button', { name: 'Salário' })).toBeTruthy()
-  })
-
-  it('transferência exige destino diferente e não tem categoria', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'transfer')
-    expect(screen.queryByLabelText('Categoria')).toBeNull()
-    await u.type(screen.getByLabelText('Descrição'), 'Guardar')
-    await u.type(screen.getByLabelText('Valor estimado (R$)'), '500,00')
-    await u.selectOptions(screen.getByLabelText('Dia do mês'), '31')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(screen.getByText('Escolha uma conta de destino diferente.')).toBeTruthy()
-    await u.selectOptions(screen.getByLabelText('Para a conta'), 'a2')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'transfer', contaId: 'a1', destinoId: 'a2', categoriaId: null }))
-  })
-
-  it('editar muda valor', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    montar()
-    await acao(u, 'Luz', 'Editar')
-    expect(screen.queryByLabelText('Dia do mês')).toBeNull() // dia e conta não mudam na edição
-    // avisa o alcance de cada campo e que a correção feita à mão em um mês não é desfeita pelo reajuste
-    expect(screen.getByText(/Valor e descrição valem para os planejados ainda não pagos de hoje em diante\. A categoria vale para todos os meses, inclusive os já pagos e os passados\. Em qualquer caso, o que você corrigiu à mão em um mês fica como está\./)).toBeTruthy()
-    // frequência não muda na edição: diz como mudar
-    expect(screen.queryByLabelText('Frequência')).toBeNull()
-    expect(screen.getByText(/Todo dia 10\. .*Para mudar o dia, edite em Lançamentos .*"Este e os próximos".*Para mudar a frequência, exclua este recorrente e cadastre outro\./)).toBeTruthy()
-    const valor = screen.getByLabelText('Valor estimado (R$)')
-    await u.clear(valor)
-    await u.type(valor, '200,00')
-    await u.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(mock.editarRecorrencia).toHaveBeenCalledWith('r1', { descricao: 'Luz', valor: 20000, categoriaId: 'g1', personId: null, isSharedExpense: false })
-  })
-
-  it('excluir pede confirmação e só então exclui; recusar a confirmação não faz nada', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    montar()
-    await acao(u, 'Luz', 'Excluir')
-    expect(confirmar).toHaveBeenCalledWith(expect.stringContaining('Excluir "Luz"?'))
-    expect(mock.excluirRecorrencia).not.toHaveBeenCalled()
-    confirmar.mockReturnValue(true)
-    await acao(u, 'Luz', 'Excluir')
-    expect(mock.excluirRecorrencia).toHaveBeenCalledWith('r1')
-    expect(mock.listarRecorrencias).toHaveBeenCalledTimes(2) // recarrega a lista
-    expect(mock.resumoRecorrencias).toHaveBeenCalledTimes(2) // e os totais do banco
-  })
-
   it('não existe mais "Encerrar": o fim de um recorrente é excluí-lo', async () => {
     mock.listarRecorrencias.mockResolvedValue([luz])
     montar()
@@ -234,17 +128,6 @@ describe('Recorrentes', () => {
     expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
     expect(screen.queryByText('Academia antiga')).toBeNull()
     expect(screen.queryByText(/Encerrados/)).toBeNull()
-  })
-
-  it('erro ao excluir aparece na tela e a lista não some', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    mock.excluirRecorrencia.mockRejectedValue({ code: '42501', message: 'registro não encontrado' })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
-    montar()
-    await acao(u, 'Luz', 'Excluir')
-    expect(await screen.findByRole('alert')).toBeTruthy()
-    expect(screen.getByText('Luz')).toBeTruthy()
   })
 
   it('lista mostra a frequência, a próxima data e a data final', async () => {
@@ -268,97 +151,6 @@ describe('Recorrentes', () => {
     vi.useRealTimers()
   })
 
-  it('cadastra quinzenal: sem dia do mês, primeira data, data final e prévia das próximas', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-10-28T15:00:00Z'))
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
-    await u.type(screen.getByLabelText('Descrição'), 'Freela')
-    await u.type(screen.getByLabelText('Valor estimado (R$)'), '700,00')
-    await u.selectOptions(screen.getByLabelText('Frequência'), 'quinzenal')
-    expect(screen.queryByLabelText('Dia do mês')).toBeNull()
-    const primeira = screen.getByLabelText('Primeira vez em')
-    await u.clear(primeira)
-    await u.type(primeira, '2026-10-30')
-    await u.type(screen.getByLabelText('Até (opcional)'), '2027-03-31')
-    expect(screen.getByText(/Repete toda sexta, a cada 14 dias\./)).toBeTruthy()
-    expect(screen.getByText('30/10/2026 · 13/11/2026 · 27/11/2026')).toBeTruthy()
-    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g2')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({
-      tipo: 'income', unidade: 'week', cada: 2, dia: null, inicio: '2026-10-30', fim: '2027-03-31',
-    }))
-    vi.useRealTimers()
-  })
-
-  it('anual (PLR): dia do mês e mês do início; prévia mostra os anos seguintes', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-10-28T15:00:00Z'))
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
-    await u.type(screen.getByLabelText('Descrição'), 'PLR')
-    await u.type(screen.getByLabelText('Valor estimado (R$)'), '9.000,00')
-    await u.selectOptions(screen.getByLabelText('Frequência'), 'anual')
-    await u.selectOptions(screen.getByLabelText('Dia do mês'), '20')
-    const inicio = screen.getByLabelText('A partir de')
-    await u.clear(inicio)
-    await u.type(inicio, '2027-02-01')
-    expect(screen.getByText('20/02/2027 · 20/02/2028 · 20/02/2029')).toBeTruthy()
-    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g2')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ unidade: 'month', cada: 12, dia: 20, inicio: '2027-02-01', fim: null }))
-    vi.useRealTimers()
-  })
-
-  it('personalizada valida o limite (1–4 semanas) e avisa que datas antes de hoje não entram', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-10-28T15:00:00Z'))
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.type(screen.getByLabelText('Descrição'), 'Faxina')
-    await u.type(screen.getByLabelText('Valor estimado (R$)'), '200,00')
-    await u.selectOptions(screen.getByLabelText('Frequência'), 'personalizada')
-    await u.selectOptions(screen.getByLabelText('Unidade'), 'week')
-    const cada = screen.getByLabelText('A cada')
-    await u.clear(cada)
-    await u.type(cada, '5')
-    const primeira = screen.getByLabelText('Primeira vez em')
-    await u.clear(primeira)
-    await u.type(primeira, '2026-09-01')
-    expect(screen.getByText(/Datas antes de hoje não são criadas\./)).toBeTruthy()
-    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(screen.getByText('Use de 1 a 4 semanas.')).toBeTruthy()
-    expect(mock.criarRecorrencia).not.toHaveBeenCalled()
-    await u.clear(cada)
-    await u.type(cada, '3')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ unidade: 'week', cada: 3, dia: null }))
-    vi.useRealTimers()
-  })
-
-  it('data final antes do início é recusada', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.type(screen.getByLabelText('Descrição'), 'Luz')
-    await u.type(screen.getByLabelText('Valor estimado (R$)'), '180,00')
-    await u.selectOptions(screen.getByLabelText('Dia do mês'), '10')
-    const inicio = screen.getByLabelText('A partir de')
-    await u.clear(inicio)
-    await u.type(inicio, '2027-01-01')
-    await u.type(screen.getByLabelText('Até (opcional)'), '2026-12-01')
-    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(screen.getByText('A data final não pode ser antes do início.')).toBeTruthy()
-    expect(mock.criarRecorrencia).not.toHaveBeenCalled()
-  })
-
   describe('multimoeda F2 (migration 056)', () => {
     const contasMoedas = [
       { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' },
@@ -367,33 +159,6 @@ describe('Recorrentes', () => {
     ]
     /** "€ 9,90" com o espaço do Intl (NBSP ou espaço comum). */
     const moeda = (texto: string) => new RegExp(`^${texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(' ', '[\\s\\u00a0]')}$`)
-
-    it('conta em euro é oferecida no recorrente de despesa e o valor pede €', async () => {
-      mock.listarContas.mockResolvedValue({ contas: contasMoedas, total: c(0) })
-      const u = userEvent.setup()
-      montar()
-      await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-      const opcoes = Array.from((screen.getByLabelText('Conta') as HTMLSelectElement).options).map((o) => o.textContent)
-      expect(opcoes).toEqual(['Escolha…', 'Itaú', 'Conta em euro', 'Reserva em euro'])
-      await u.selectOptions(screen.getByLabelText('Conta'), 'a3')
-      await u.type(screen.getByLabelText('Descrição'), 'Assinatura')
-      await u.type(screen.getByLabelText('Valor estimado (€)'), '9,90')
-      await u.selectOptions(screen.getByLabelText('Dia do mês'), '5')
-      await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
-      await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-      expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', contaId: 'a3', valor: 990 }))
-    })
-
-    it('transferência: o destino só oferece contas da moeda da origem', async () => {
-      mock.listarContas.mockResolvedValue({ contas: contasMoedas, total: c(0) })
-      const u = userEvent.setup()
-      montar()
-      await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-      await u.selectOptions(screen.getByLabelText('Tipo'), 'transfer')
-      await u.selectOptions(screen.getByLabelText('Da conta'), 'a3')
-      const destinos = Array.from((screen.getByLabelText('Para a conta') as HTMLSelectElement).options).map((o) => o.textContent)
-      expect(destinos).toEqual(['Escolha…', 'Reserva em euro'])
-    })
 
     it('a lista mostra o valor na moeda da conta', async () => {
       mock.listarContas.mockResolvedValue({ contas: contasMoedas, total: c(0) })
@@ -430,7 +195,7 @@ describe('Recorrentes', () => {
       { id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true },
       { id: 'g3', nome: 'Condomínio', tipo: 'expense', paiId: 'g1', sistema: false, ativa: true },
     ]
-    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => t !== 'Resumo por mês' && t !== 'Projeção de compromissos' && t !== 'Parcelas ativas')
+    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => !['Saídas', 'Entradas', 'Transferências · à parte, fora dos gastos'].includes(t ?? '') && t !== 'Resumo por mês' && t !== 'Projeção de compromissos' && t !== 'Parcelas ativas')
     /** Faixas de frequência (h3) dentro do card de um tipo. */
     const faixas = (card: HTMLElement) => within(card).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
     const card = (titulo: RegExp) => screen.getByRole('region', { name: titulo })
@@ -548,8 +313,7 @@ describe('Recorrentes', () => {
       expect(cabecalhos()).toEqual([])
     })
 
-    it('item compacto: título, valor numa coluna própria, uma linha de metadados e ações no menu ⋯', async () => {
-      const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    it('item compacto: título, valor numa coluna própria, uma linha de metadados e um link para o lugar de mudar', async () => {
       montar()
       const titulo = await screen.findByText('Condomínio do prédio com nome bem comprido')
       expect(titulo.className).toContain('truncate')
@@ -558,11 +322,11 @@ describe('Recorrentes', () => {
       expect(valor.textContent).toBe('−R$ 180,00')
       expect(valor.className).toContain('whitespace-nowrap')
       expect(li.querySelectorAll('p')).toHaveLength(2) // no máximo 2 linhas de texto
-      // sem botões soltos de Editar/Excluir: só o menu
+      // só consulta: sem Editar, Excluir nem menu ⋯; um link leva ao lugar onde se muda
       expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull()
-      await u.click(screen.getByRole('button', { name: 'Ações de Condomínio do prédio com nome bem comprido' }))
-      expect(screen.getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Editar', 'Excluir'])
+      expect(screen.queryByRole('button', { name: /^Ações de/ })).toBeNull()
+      expect(within(li).getByRole('link', { name: 'Abrir Condomínio do prédio com nome bem comprido em Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
     })
 
     it('mostra só a subcategoria; o caminho completo fica no title e para o leitor de tela', async () => {
@@ -608,83 +372,6 @@ describe('Recorrentes', () => {
 })
 
 describe('Recorrentes: natureza', () => {
-  const opcoesDe = (rotulo: string) => Array.from((screen.getByLabelText(rotulo) as HTMLSelectElement).options).map((o) => o.textContent)
-  const TRES = ['Sem classificação', 'Custo fixo', 'Assinatura ou app', 'Gasto variável']
-
-  it('despesa: seletor "Natureza" com "Sem classificação" e as três naturezas; sem escolha, grava nature null', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    expect(opcoesDe('Natureza')).toEqual(TRES)
-    expect((screen.getByLabelText('Natureza') as HTMLSelectElement).value).toBe('')
-    await u.type(screen.getByLabelText('Descrição'), 'Luz')
-    await u.type(screen.getByLabelText('Valor estimado (R$)'), '180,00')
-    await u.selectOptions(screen.getByLabelText('Dia do mês'), '10')
-    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', nature: null }))
-  })
-
-  it('cadastra com a natureza escolhida', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.type(screen.getByLabelText('Descrição'), 'Aluguel')
-    await u.type(screen.getByLabelText('Valor estimado (R$)'), '1500,00')
-    await u.selectOptions(screen.getByLabelText('Dia do mês'), '5')
-    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
-    await u.selectOptions(screen.getByLabelText('Natureza'), 'fixed')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', nature: 'fixed' }))
-  })
-
-  it('receita só oferece ressarcimento; assinatura de cartão oferece as três; transferência não tem o campo', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
-    expect(opcoesDe('Natureza')).toEqual(['Sem classificação', 'Ressarcimento a receber'])
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'card')
-    expect(opcoesDe('Natureza')).toEqual(TRES)
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'transfer')
-    expect(screen.queryByLabelText('Natureza')).toBeNull()
-  })
-
-  it('trocar o tipo limpa a natureza escolhida (não vaza ressarcimento para despesa)', async () => {
-    const u = userEvent.setup()
-    montar()
-    await u.click(await screen.findByRole('button', { name: 'Novo recorrente' }))
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'income')
-    await u.selectOptions(screen.getByLabelText('Natureza'), 'reimbursement')
-    await u.selectOptions(screen.getByLabelText('Tipo'), 'expense')
-    expect((screen.getByLabelText('Natureza') as HTMLSelectElement).value).toBe('')
-    await u.type(screen.getByLabelText('Descrição'), 'Luz')
-    await u.type(screen.getByLabelText('Valor estimado (R$)'), '180,00')
-    await u.selectOptions(screen.getByLabelText('Dia do mês'), '10')
-    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
-    await u.click(screen.getByRole('button', { name: 'Cadastrar recorrente' }))
-    expect(mock.criarRecorrencia).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'expense', nature: null }))
-  })
-
-  it('editar: mostra a natureza atual; trocar e limpar mandam o valor; não mexer não manda nature', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue([{ ...luz, nature: 'fixed' as const }])
-    montar()
-    await acao(u, 'Luz', 'Editar')
-    expect((screen.getByLabelText('Natureza') as HTMLSelectElement).value).toBe('fixed')
-    await u.selectOptions(screen.getByLabelText('Natureza'), 'variable')
-    await u.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(mock.editarRecorrencia).toHaveBeenLastCalledWith('r1', expect.objectContaining({ nature: 'variable' }))
-
-    await acao(u, 'Luz', 'Editar')
-    await u.selectOptions(screen.getByLabelText('Natureza'), '')
-    await u.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(mock.editarRecorrencia).toHaveBeenLastCalledWith('r1', expect.objectContaining({ nature: null }))
-
-    await acao(u, 'Luz', 'Editar')
-    await u.click(screen.getByRole('button', { name: 'Salvar' }))
-    expect(mock.editarRecorrencia.mock.lastCall![1]).not.toHaveProperty('nature')
-  })
 
   it('a lista mostra o selo da natureza só nas regras classificadas', async () => {
     mock.listarRecorrencias.mockResolvedValue([
@@ -810,5 +497,62 @@ describe('Recorrentes: resumo e filtro por natureza', () => {
     expect(await screen.findByText('Internet')).toBeTruthy()
     expect(screen.queryByTestId('resumo-natureza')).toBeNull()
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
+  })
+})
+
+
+describe('Recorrentes: só informativa, separada em Saídas e Entradas', () => {
+  const salario = { ...luz, id: 'r5', tipo: 'income' as const, descricao: 'Salário', categoriaId: 'g2', dia: 5 }
+  const netflix = { ...luz, id: 'r8', tipo: 'card' as const, descricao: 'Netflix', contaId: null, cartaoId: 'k1', dia: 20 }
+  const guardar = { ...luz, id: 'r6', tipo: 'transfer' as const, descricao: 'Guardar', categoriaId: null, destinoId: 'a2', dia: 6 }
+
+  it('não tem como cadastrar, editar nem excluir: sem botão de novo, sem menu e sem formulário', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz, netflix])
+    montar()
+    await screen.findByText('Luz')
+    expect(screen.queryByRole('button', { name: /Novo recorrente|Cadastrar/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Ações de/ })).toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByRole('menuitem')).toBeNull()
+    // diz onde fazer cada coisa
+    expect(screen.getByText(/só para consulta/)).toBeTruthy()
+    expect(screen.getAllByRole('link', { name: 'Lançamentos' }).length).toBeGreaterThan(0)
+  })
+
+  it('os cards ficam sob os títulos Saídas, Entradas e Transferências, nessa ordem', async () => {
+    mock.listarRecorrencias.mockResolvedValue([guardar, salario, netflix, luz])
+    montar()
+    await screen.findByText('Netflix')
+    const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+      .filter((t) => ['Saídas', 'Entradas', 'Transferências · à parte, fora dos gastos'].includes(t ?? ''))
+    expect(titulos).toEqual(['Saídas', 'Entradas', 'Transferências · à parte, fora dos gastos'])
+    const todos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+    expect(todos.indexOf('Saídas')).toBeLessThan(todos.findIndex((t) => t?.startsWith('Assinaturas no cartão')))
+    expect(todos.findIndex((t) => t?.startsWith('Contas fixas'))).toBeLessThan(todos.indexOf('Entradas'))
+    expect(todos.indexOf('Entradas')).toBeLessThan(todos.findIndex((t) => t?.startsWith('Receitas')))
+  })
+
+  it('sem entradas, o título Entradas não aparece', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    montar()
+    await screen.findByText('Luz')
+    expect(screen.queryByRole('heading', { name: 'Entradas' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Saídas' })).toBeTruthy()
+  })
+
+  it('cada item leva ao lugar de mudar: assinatura de cartão → a fatura do cartão; conta → Lançamentos', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz, netflix])
+    montar()
+    await screen.findByText('Netflix')
+    const cartao = screen.getByRole('link', { name: 'Abrir Netflix em Cartões' }).getAttribute('href')!
+    expect(cartao).toContain('/cartoes')
+    expect(cartao).toContain('k1')
+    expect(screen.getByRole('link', { name: 'Abrir Luz em Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
+  })
+
+  it('sem nenhum recorrente, aponta para Lançamentos em vez de oferecer um formulário', async () => {
+    montar()
+    expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Ir para Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
   })
 })

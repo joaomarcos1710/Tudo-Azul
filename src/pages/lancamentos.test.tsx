@@ -23,6 +23,7 @@ const mock = vi.hoisted(() => ({
   editarEsteEProximos: vi.fn(),
   marcarComoPago: vi.fn(),
   moverParaLixeira: vi.fn(),
+  pararDeRepetirAPartirDe: vi.fn(),
   restaurarDaLixeira: vi.fn(),
   listarContas: vi.fn(),
   listarSaldosDiarios: vi.fn(),
@@ -68,6 +69,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
   editarEsteEProximos: mock.editarEsteEProximos,
   marcarComoPago: mock.marcarComoPago,
   moverParaLixeira: mock.moverParaLixeira,
+  pararDeRepetirAPartirDe: mock.pararDeRepetirAPartirDe,
   restaurarDaLixeira: mock.restaurarDaLixeira,
 }))
 vi.mock('../lib/fluxoCaixa', async (original) => ({
@@ -1477,6 +1479,42 @@ describe('trocar "quem da família gastou" num lançamento de conta já passado 
     await waitFor(() => expect(mock.editarLancamento).toHaveBeenCalledWith('p1', expect.objectContaining({
       personId: 'pe1', isSharedExpense: false, valor: 5000, data: '2026-08-10', status: 'paid',
     })))
+  })
+})
+
+describe('Parar de repetir a partir daqui (recorrente de conta)', () => {
+  const luz = { id: 't9', recorrenciaId: 'r1', tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'mer', descricao: 'Luz', valor: c(10000), data: '2026-12-10', status: 'planned', notas: '', recorrente: true }
+  async function abrirMenu(l: Record<string, unknown>) {
+    mock.listarLancamentos.mockResolvedValue([l])
+    mock.pararDeRepetirAPartirDe.mockResolvedValue(undefined)
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const item = (await screen.findByText(l.descricao as string)).closest('li') as HTMLElement
+    await u.click(within(item).getByRole('button', { name: `Ações de ${l.descricao as string}` }))
+    return { u, item }
+  }
+
+  it('a ação só existe em lançamento que vem de um recorrente', async () => {
+    const { item } = await abrirMenu({ ...luz, recorrente: false, recorrenciaId: null })
+    expect(within(item).queryByRole('menuitem', { name: 'Parar de repetir a partir daqui' })).toBeNull()
+  })
+
+  it('pede confirmação e então encerra a série a partir desta data; recusar a confirmação não faz nada', async () => {
+    const { u, item } = await abrirMenu(luz)
+    ;(window.confirm as ReturnType<typeof vi.fn>).mockReturnValueOnce(false)
+    await u.click(within(item).getByRole('menuitem', { name: 'Parar de repetir a partir daqui' }))
+    expect(mock.pararDeRepetirAPartirDe).not.toHaveBeenCalled()
+    await u.click(within(item).getByRole('button', { name: 'Ações de Luz' }))
+    await u.click(within(item).getByRole('menuitem', { name: 'Parar de repetir a partir daqui' }))
+    expect(window.confirm).toHaveBeenLastCalledWith(expect.stringContaining('Parar de repetir "Luz" a partir de 10/12/2026'))
+    expect(mock.pararDeRepetirAPartirDe).toHaveBeenCalledWith('r1', '2026-12-10')
+  })
+
+  it('recusa do banco aparece na tela', async () => {
+    const { u, item } = await abrirMenu(luz)
+    mock.pararDeRepetirAPartirDe.mockRejectedValue(Object.assign(new Error('x'), { code: '55000' }))
+    await u.click(within(item).getByRole('menuitem', { name: 'Parar de repetir a partir daqui' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
   })
 })
 
