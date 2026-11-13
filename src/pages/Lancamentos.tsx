@@ -1158,7 +1158,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
                   <p className="text-xs text-slate-500">
                     {cartaoMode
                       ? 'Repete sem fim (ou até a data escolhida): a cobrança entra na fatura certa a cada vez. Aparece em Recorrentes (só para consulta); para mudar o dia ou encerrar, use a fatura do cartão.'
-                      : 'Repete sem fim (ou até a data escolhida). Aparece também em Recorrentes (só para consulta); para editar ou encerrar, use os lançamentos.'}
+                      : 'Repete sem fim (ou até a data escolhida). Aparece também em Recorrentes (só para consulta); para editar, use o lançamento.'}
                   </p>
                   {assinatura && data && data < hoje && (
                     <p className="text-xs text-slate-600">Data anterior a hoje: os meses desde essa data também entram como compras no cartão.</p>

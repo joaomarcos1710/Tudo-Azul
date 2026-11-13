@@ -28,7 +28,7 @@ atualizado: 2026-11-11
 - [x] 1. "Repetir" no cartão (#325).
 - [ ] 2. Recorrentes só de leitura: sem Novo/Editar/Excluir; Saídas × Entradas, cards por origem (conta, cartão, investimento) e frequência; total por mês (fixo × variável sugerido) e entradas por mês e por ano; atalho "Abrir em Lançamentos/Cartões" em cada item.
 - [ ] 3. Dividendos recorrentes como previsão (banco novo, só com "pode").
-- Conferir antes de tirar "Excluir" de Recorrentes: como encerrar uma recorrente de conta pelos Lançamentos (hoje só há "este e os próximos" para editar).
+- **Lacuna confirmada (13/11/2026):** não há como **encerrar nem excluir uma série recorrente de conta** pelos Lançamentos (só editar "este e os próximos" e excluir ocorrências soltas). O "Excluir" de Recorrentes é hoje o único caminho; tirá-lo exige antes um "Encerrar este e os próximos" em Lançamentos (usa `recurrence_end`, já existe no banco). Entra no passo 2.
 - Conferir no app real: "Repetir" no cartão numa assinatura de valor baixo; com data passada, os meses desde então entram como compras no cartão (a tela avisa).
 ## Próximos PRs sugeridos
 ### Categorias da fatura (#315, migration 112, 12/11/2026)
