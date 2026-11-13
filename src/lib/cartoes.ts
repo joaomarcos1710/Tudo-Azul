@@ -1013,4 +1013,22 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
 
 /** Endereços das páginas de Cartões (#203): o cartão e uma fatura dele (`mes` = AAAA-MM do fechamento). */
 export const rotaCartao = (cartaoId: string) => `/cartoes/${cartaoId}`
+/**
+ * Para cada assinatura (recorrência de cartão), o mês AAAA-MM da fatura em que cai a PRÓXIMA cobrança ainda agendada. Serve ao
+ * link "Abrir" de Recorrentes, que leva direto a essa fatura (onde se muda o dia ou se encerra). O mês vem do banco
+ * (closing_date do item agendado); o app não calcula fatura. Sem item agendado (ou falha), a assinatura não entra no mapa.
+ */
+export async function faturaDaProximaCobranca(recorrenciaIds: string[]): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>()
+  if (recorrenciaIds.length === 0) return mapa
+  const { data, error } = await cliente().from('card_scheduled_items')
+    .select('recurrence_id, closing_date')
+    .in('recurrence_id', recorrenciaIds).eq('status', 'scheduled').order('occurrence_date')
+  if (error) throw error
+  for (const l of (data ?? []) as { recurrence_id: string; closing_date: string }[]) {
+    if (!mapa.has(l.recurrence_id)) mapa.set(l.recurrence_id, l.closing_date.slice(0, 7))
+  }
+  return mapa
+}
+
 export const rotaFatura = (cartaoId: string, mes: string) => `/cartoes/${cartaoId}/fatura/${mes}`

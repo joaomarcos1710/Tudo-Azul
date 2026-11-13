@@ -734,3 +734,4 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Limite de 12 meses por vez** (aceito pelo dono): mensal 12, trimestral 4, semestral 2, anual 1; a pessoa renova depois.
 - **Separado do total "Vai entrar"**, por enquanto: dividendo depende da empresa pagar. Juntar é uma linha a mais na tela se o dono quiser (anotado em Pendências).
 - O valor é o que a pessoa digita; o app não adivinha dividendo pelo histórico do ativo.
+- **Assinatura de cartão: acertar o dia (dono, 13/11/2026, mesma PR #328).** O ciclo Recorrentes ↔ cartão foi um erro de revisão meu (Recorrentes virou só consulta e o cartão ainda mandava para lá). Agora o cartão resolve sozinho: o editor da cobrança agendada abre no card no meio com "esta e as próximas" marcado, e "Abrir" de Recorrentes cai na fatura da próxima cobrança. **Cobrança que já virou compra não muda de data** (por desenho); só as próximas.

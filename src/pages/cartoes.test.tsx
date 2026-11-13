@@ -342,7 +342,7 @@ describe('Cartões', () => {
       const u = userEvent.setup()
       await abrir(u, 'Editar…')
       const form = await screen.findByRole('form', { name: 'Editar Academia' })
-      expect(within(form).getByRole('radio', { name: 'Só esta cobrança' })).toHaveProperty('checked', true)
+      await u.click(within(form).getByRole('radio', { name: 'Só esta cobrança' }))
       const valor = within(form).getByLabelText('Valor (R$)')
       await u.clear(valor)
       await u.type(valor, '95,50')
@@ -351,6 +351,37 @@ describe('Cartões', () => {
       expect(mock.editarAgendada).toHaveBeenCalledWith('i1', { data: '2099-04-05', valor: c(9550), descricao: 'Academia', categoriaId: 'g1' })
       expect(mock.aPartirDaqui).not.toHaveBeenCalled()
       await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Editar Academia' })).toBeNull())
+    })
+
+    it('Editar a assinatura abre num card no meio da tela, já com "Esta e as próximas" marcado (acertar o dia de todas)', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const card = await screen.findByRole('dialog', { name: 'Editar a assinatura Academia' })
+      expect(card.parentElement!.className).toContain('items-center') // no meio também no celular, não um painel solto na página
+      const form = within(card).getByRole('form', { name: 'Editar Academia' })
+      expect(within(form).getByRole('radio', { name: 'Esta e as próximas' })).toHaveProperty('checked', true)
+      expect(within(form).getByRole('radio', { name: 'Só esta cobrança' })).toHaveProperty('checked', false)
+      expect(within(form).getByLabelText('Data da cobrança')).toBeTruthy()
+      await u.click(within(card).getByRole('button', { name: 'Cancelar' }))
+      expect(screen.queryByRole('dialog', { name: 'Editar a assinatura Academia' })).toBeNull()
+    })
+
+    it('Editar: acertar só o dia (data nova) com o padrão "esta e as próximas" divide a assinatura na data nova', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      fireEvent.change(within(form).getByLabelText('Data da cobrança'), { target: { value: '2099-04-20' } })
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      await vi.waitFor(() => expect(mock.aPartirDaqui).toHaveBeenCalledWith('i1', 'update', { data: '2099-04-20', valor: c(8999), descricao: 'Academia', categoriaId: 'g1' }))
+      expect(mock.editarAgendada).not.toHaveBeenCalled()
+    })
+
+    it('Cancelar cobrança continua começando em "só esta" (a opção segura)', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Cancelar cobrança…')
+      const form = await screen.findByRole('form', { name: 'Cancelar Academia' })
+      expect(within(form).getByRole('radio', { name: 'Só esta cobrança' })).toHaveProperty('checked', true)
+      expect(screen.getByRole('dialog', { name: 'Cancelar a cobrança de Academia' })).toBeTruthy()
     })
 
     it('Editar: "esta e as próximas" divide a assinatura (ação update)', async () => {
@@ -403,7 +434,19 @@ describe('Cartões', () => {
       expect(screen.getByRole('form', { name: 'Cancelar Academia' })).toBeTruthy()
     })
 
-    it('linha ainda sem item agendado (app não gerou): só excluir assinatura e abrir Recorrentes', async () => {
+    it('não há mais ciclo com Recorrentes: nenhuma ação "Abrir Recorrentes" e o texto diz como mudar aqui mesmo', async () => {
+      const u = userEvent.setup()
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+      mock.listarOcorrenciasPrevistas.mockResolvedValue([prevista])
+      montar('/cartoes/k1/fatura/2099-04')
+      const bloco = await screen.findByTestId('bloco-previstas')
+      expect(within(bloco).queryByText(/abra Recorrentes/)).toBeNull()
+      expect(within(bloco).getByText(/mudar o dia, o valor ou a descrição/)).toBeTruthy()
+      await u.click(await screen.findByRole('button', { name: 'Ações de Academia' }))
+      expect(within(screen.getByRole('menu', { name: 'Ações de Academia' })).queryByRole('menuitem', { name: 'Abrir Recorrentes' })).toBeNull()
+    })
+
+    it('linha ainda sem item agendado (app não gerou): só excluir assinatura', async () => {
       const u = userEvent.setup()
       mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
       mock.listarOcorrenciasPrevistas.mockResolvedValue([{ ...prevista, itemId: null }])
@@ -411,7 +454,7 @@ describe('Cartões', () => {
       await screen.findByTestId('bloco-previstas')
       await u.click(await screen.findByRole('button', { name: 'Ações de Academia' }))
       const menu = screen.getByRole('menu', { name: 'Ações de Academia' })
-      expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Abrir Recorrentes', 'Excluir assinatura'])
+      expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Excluir assinatura'])
     })
 
     it('a linha editada à mão mostra "alterada"', async () => {

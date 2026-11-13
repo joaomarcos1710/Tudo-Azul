@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   resumoPorNatureza: vi.fn(),
   resumoVisaoGeral: vi.fn(),
   listarProventosPrevistos: vi.fn(),
+  faturaDaProximaCobranca: vi.fn(),
   listarContas: vi.fn(),
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
@@ -35,7 +36,7 @@ vi.mock('../lib/investimentos', async (o) => ({
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas }))
 vi.mock('../lib/projecaoCompromissos', () => ({ carregarProjecaoCompromissos: vi.fn().mockResolvedValue([]) }))
-vi.mock('../lib/cartoes', async (o) => ({ ...(await o<typeof import('../lib/cartoes')>()), listarCartoes: mock.listarCartoes }))
+vi.mock('../lib/cartoes', async (o) => ({ ...(await o<typeof import('../lib/cartoes')>()), listarCartoes: mock.listarCartoes, faturaDaProximaCobranca: mock.faturaDaProximaCobranca }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
 import Recorrentes from './Recorrentes'
@@ -59,6 +60,7 @@ beforeEach(() => {
   mock.resumoPorNatureza.mockResolvedValue([])
   mock.resumoVisaoGeral.mockResolvedValue([])
   mock.listarProventosPrevistos.mockResolvedValue([])
+  mock.faturaDaProximaCobranca.mockResolvedValue(new Map())
   mock.listarContas.mockResolvedValue({
     contas: [
       { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0) },
@@ -546,6 +548,20 @@ describe('Recorrentes: só informativa, separada em Saídas e Entradas', () => {
     await screen.findByText('Luz')
     expect(screen.queryByRole('heading', { name: 'Entradas' })).toBeNull()
     expect(screen.getByRole('heading', { name: 'Saídas' })).toBeTruthy()
+  })
+
+  it('a assinatura de cartão abre direto a fatura da próxima cobrança (onde se muda o dia), e sem essa informação abre o cartão', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz, netflix])
+    mock.faturaDaProximaCobranca.mockResolvedValue(new Map([['r8', '2026-12']]))
+    montar()
+    await screen.findByText('Netflix')
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Abrir Netflix em Cartões' }).getAttribute('href')).toBe('/cartoes/k1/fatura/2026-12'))
+    expect(mock.faturaDaProximaCobranca).toHaveBeenCalledWith(['r8'])
+    cleanup()
+    mock.faturaDaProximaCobranca.mockRejectedValue(new Error('x'))
+    montar()
+    await screen.findByText('Netflix')
+    expect(screen.getByRole('link', { name: 'Abrir Netflix em Cartões' }).getAttribute('href')).toBe('/cartoes/k1')
   })
 
   it('cada item leva ao lugar de mudar: assinatura de cartão → a fatura do cartão; conta → Lançamentos', async () => {

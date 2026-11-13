@@ -5,7 +5,7 @@ import { Aviso } from '../components/ui/Aviso'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useFamilia } from '../lib/FamiliaContext'
-import { listarCartoes, rotaCartao } from '../lib/cartoes'
+import { faturaDaProximaCobranca, listarCartoes, rotaCartao, rotaFatura } from '../lib/cartoes'
 import { listarProventosPrevistos } from '../lib/investimentos'
 import type { ProventoPrevisto } from '../lib/investimentos'
 import type { Cartao } from '../lib/cartoes'
@@ -104,6 +104,8 @@ export default function Recorrentes() {
   const [visao, setVisao] = useState<LinhaVisao[] | null>(null)
   // proventos de investimento previstos (planejados) de hoje a 12 meses: só informação, fora do total "Vai entrar" (migration 117)
   const [proventos, setProventos] = useState<ProventoPrevisto[]>([])
+  // assinatura → mês da fatura da próxima cobrança, para o link "Abrir" cair direto onde se muda o dia (sem o mapa, abre o cartão)
+  const [faturaDe, setFaturaDe] = useState<Map<string, string>>(new Map())
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
@@ -121,6 +123,7 @@ export default function Recorrentes() {
       void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => setPorNatureza([]))
       void resumoVisaoGeral(familiaId).then(setVisao).catch(() => setVisao(null))
       void listarProventosPrevistos(familiaId).then(setProventos).catch(() => setProventos([]))
+      void faturaDaProximaCobranca(r.filter((x) => x.tipo === 'card' && x.ativa).map((x) => x.id)).then(setFaturaDe).catch(() => setFaturaDe(new Map()))
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -207,9 +210,9 @@ export default function Recorrentes() {
             {fimTexto && <> · {fimTexto}</>}
           </p>
         </div>
-        <Link to={r.tipo === 'card' && r.cartaoId ? rotaCartao(r.cartaoId) : '/lancamentos'}
+        <Link to={r.tipo === 'card' && r.cartaoId ? (faturaDe.get(r.id) ? rotaFatura(r.cartaoId, faturaDe.get(r.id)!) : rotaCartao(r.cartaoId)) : '/lancamentos'}
           aria-label={`Abrir ${r.descricao} em ${r.tipo === 'card' ? 'Cartões' : 'Lançamentos'}`}
-          title={r.tipo === 'card' ? 'Ver na fatura do cartão (mudar o dia ou encerrar)' : 'Ver em Lançamentos (editar ou parar de repetir)'}
+          title={r.tipo === 'card' ? 'Ver a fatura da próxima cobrança (mudar o dia ou encerrar: ⋯ → Editar)' : 'Ver em Lançamentos (editar ou parar de repetir)'}
           className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-sm font-semibold text-azul hover:bg-azul-claro">
           Abrir <span aria-hidden="true" className="ml-1">›</span>
         </Link>
