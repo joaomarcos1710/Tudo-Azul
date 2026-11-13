@@ -592,6 +592,38 @@ export async function listarHistoricoInvestimentos(
   }))
 }
 
+/** Aporte líquido de um mês numa moeda (migration 114): o que já entrou menos o que já saiu, até o fim do mês. */
+export interface AporteMensal { mes: string; moeda: MoedaInvestimento; liquido: Cents }
+
+/** Aporte líquido mês a mês, calculado no banco (a mesma regra do "Aportado" do resumo). Falha em banco sem a migration 114. */
+export async function listarHistoricoAportes(familiaId: string, deData: string, ateData: string): Promise<AporteMensal[]> {
+  const { data, error } = await db().rpc('investment_contribution_history', {
+    p_household: familiaId, p_from: deData, p_to: ateData,
+  })
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    mes: String(r.month),
+    moeda: r.currency_code as MoedaInvestimento,
+    liquido: centsFromDb(r.net_contributed as string | number),
+  }))
+}
+
+/**
+ * Ponto do gráfico de evolução: valor atual e aportado do mês. `aportadoLiquido` diz de onde veio o aportado: true = aporte
+ * líquido (o que o dono pôs menos o que tirou, igual ao resumo); false = custo do que AINDA está investido (banco sem a
+ * migration 114: cai a cada resgate e não bate com o resumo).
+ */
+export interface PontoEvolucao { mes: string; moeda: MoedaInvestimento; valorAtual: Cents; aportado: Cents; aportadoLiquido: boolean }
+
+/** Junta o histórico de valor com o aporte líquido do mesmo mês e moeda; sem o aporte (null ou mês ausente), usa o custo do histórico. Só escolhe de onde vem o número: não soma nada. */
+export function juntarHistoricoEAportes(historico: HistoricoInvestimento[], aportes: AporteMensal[] | null): PontoEvolucao[] {
+  const liquido = new Map((aportes ?? []).map((a) => [`${a.mes}|${a.moeda}`, a.liquido]))
+  return historico.map((h) => {
+    const l = liquido.get(`${h.mes}|${h.moeda}`)
+    return { mes: h.mes, moeda: h.moeda, valorAtual: h.valorAtual, aportado: l ?? h.custoTotal, aportadoLiquido: l !== undefined }
+  })
+}
+
 export type TipoLinhaExtrato = 'buy' | 'sell' | 'valuation' | 'distribution'
 
 /** Uma linha do extrato do ativo. Valor e saldo de quantidade vêm calculados do banco. */

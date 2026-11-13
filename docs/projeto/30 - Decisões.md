@@ -695,3 +695,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Duas linhas, sem rendimento calculado:** o gráfico mostra valor atual e aportado (`valorAtual` e `custoTotal` de `investment_history`). O rendimento é o espaço entre as linhas; a tela não subtrai, porque o front não soma nem calcula dinheiro de relatório.
 - **Aportado tracejado e com legenda:** a cor não é a única pista (daltonismo e impressão). Tabela dos mesmos pontos sob "Ver como tabela".
 - **Sem seletor de período por enquanto:** segue em 12 meses, como era.
+
+## 12/11/2026 — Investimentos: nova ordem da página e período do gráfico, sem banco (#321)
+- **Dono aprovou a proposta de tela** (desenho com dados de exemplo, 12/11/2026): ordem Resumo, Evolução, Composição, Posições, Proventos, Ativos cadastrados. A organização segue as perguntas de quem investe, e não a ordem em que as peças foram sendo criadas.
+- **Retorno em % e por ativo já existem na tela** ("sobre o aportado", calculado no front só para exibir, como em #301). Eu tinha dito que precisavam de banco, e estava errado. **Não há função nova de banco nesta fase.** A meta de alocação (que não existe) fica para depois, com banco.
+- **24 meses só é lido quando o dono escolhe**, e guardado: a leitura do histórico é a mais cara da tela e não deve dobrar para quem nunca pede 24. 6 meses sai da leitura de 12, sem custo.
+- **Linha "Aportado" do gráfico = aporte líquido (pedido do dono, 12/11/2026):** o gráfico de evolução e o resumo passam a falar do mesmo número. Uma função de leitura nova, `investment_contribution_history` (migration 114), calcula o líquido mês a mês no banco com a mesma regra de `investment_contributions`; o front só escolhe de onde vem o número (não soma). O último mês bate com o resumo, e um teste prova isso.
+- **Fallback para o custo, com aviso:** sem a migration, a linha usa o custo do histórico e uma nota explica o que ela é (a linha cai a cada resgate). Preferimos mostrar o gráfico com aviso a escondê-lo.
+- **Entrou na #321, e não numa PR separada:** só há uma branch autorizada e a #321 ainda era rascunho; o escopo real está na descrição da PR.

@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event'
 
 const mock = vi.hoisted(() => ({
   listarAtivosInvestimento: vi.fn(),
+  listarHistoricoInvestimentos: vi.fn(),
+  listarHistoricoAportes: vi.fn(),
   listarCarteiraInvestimentos: vi.fn(),
   listarAlocacaoInvestimentos: vi.fn(),
   criarAtivoInvestimento: vi.fn(),
@@ -38,6 +40,8 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/investimentos', async (o) => ({
   ...(await o<typeof import('../lib/investimentos')>()),
   listarAtivosInvestimento: mock.listarAtivosInvestimento,
+  listarHistoricoInvestimentos: mock.listarHistoricoInvestimentos,
+  listarHistoricoAportes: mock.listarHistoricoAportes,
   listarCarteiraInvestimentos: mock.listarCarteiraInvestimentos,
   listarAlocacaoInvestimentos: mock.listarAlocacaoInvestimentos,
   criarAtivoInvestimento: mock.criarAtivoInvestimento,
@@ -92,7 +96,22 @@ const extratoBase = () => [
   linhaExtrato({ id: 'd1', tipo: 'distribution', data: '2026-10-12', quantidade: null, precoUnitario: null, taxa: null, valor: c(350), tipoProvento: 'dividend', statusProvento: 'paid', saldoQuantidade: null }),
 ]
 
+/** Série mensal de exemplo, do mês de `de` ao de `ate` (1º dia de cada mês), numa moeda só. */
+function serieHistorico(de: string, ate: string) {
+  const meses: string[] = []
+  let [a, m] = [Number(de.slice(0, 4)), Number(de.slice(5, 7))]
+  const [fa, fm] = [Number(ate.slice(0, 4)), Number(ate.slice(5, 7))]
+  while (a < fa || (a === fa && m <= fm)) {
+    meses.push(`${a}-${String(m).padStart(2, '0')}-01`)
+    if (++m > 12) { m = 1; a++ }
+  }
+  return meses.map((mes, i) => ({ mes, moeda: 'BRL' as const, valorAtual: c(100000 + i * 1000), custoTotal: c(90000 + i * 500) }))
+}
+
 beforeEach(() => {
+  mock.listarHistoricoInvestimentos.mockImplementation(async (_f: string, de: string, ate: string) => serieHistorico(de, ate))
+  // padrão: banco sem a migration 114 (o aportado do gráfico cai para o custo); o bloco "aporte líquido" liga a função
+  mock.listarHistoricoAportes.mockRejectedValue(new Error('PGRST202'))
   mock.listarAtivosInvestimento.mockResolvedValue([
     ativo('a1', 'Tesouro Selic', 'fixed_income', { subclasse: 'Tesouro Direto' }),
     ativo('a2', 'Ação Y', 'equity', { subclasse: 'Ações' }),
@@ -1840,5 +1859,106 @@ describe('Composição da carteira: uma área, um seletor de moeda (etapa 2 do r
     await u.keyboard('{ArrowRight}')
     expect(document.activeElement).toBe(visoes[1])
     expect(visoes[1].getAttribute('aria-selected')).toBe('true')
+  })
+})
+
+describe('Investimentos: ordem dos blocos e período da evolução', () => {
+  const linhasDaTabela = () => screen.getAllByRole('row').map((tr) => tr.textContent ?? '').filter((t) => /de \d\d/.test(t))
+
+  it('ordem da proposta: resumo, evolução, composição, posições, proventos, ativos cadastrados', async () => {
+    mock.listarProventosPorAtivo.mockResolvedValue([
+      { assetId: 'a2', nome: 'Ação Y', moeda: 'BRL', recebido: c(8500), previsto: c(0), ultimoRecebimento: '2026-10-20' },
+    ])
+    render(<Investimentos />)
+    const titulos = ['Resumo da carteira', 'Evolução dos investimentos', 'Composição da carteira', 'Posições', 'Proventos recebidos', 'Ativos cadastrados']
+    const hs = await Promise.all(titulos.map((t) => screen.findByRole('heading', { name: t, level: 2 })))
+    for (let i = 1; i < hs.length; i++) {
+      expect(hs[i - 1].compareDocumentPosition(hs[i]) & Node.DOCUMENT_POSITION_FOLLOWING, `${titulos[i - 1]} antes de ${titulos[i]}`).toBeTruthy()
+    }
+  })
+
+  it('começa em 12 meses, com a leitura de sempre e sem pedir os 24', async () => {
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Evolução em BRL' })
+    const grupo = screen.getByRole('group', { name: 'Período do gráfico' })
+    expect(within(grupo).getByRole('button', { name: '12 meses' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText(/nos últimos 12 meses/)).toBeTruthy()
+    expect(linhasDaTabela()).toHaveLength(12)
+    expect(mock.listarHistoricoInvestimentos).toHaveBeenCalledTimes(1)
+  })
+
+  it('6 meses mostra só os 6 últimos da mesma leitura (nenhuma leitura nova)', async () => {
+    const u = userEvent.setup()
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Evolução em BRL' })
+    await u.click(within(screen.getByRole('group', { name: 'Período do gráfico' })).getByRole('button', { name: '6 meses' }))
+    expect(linhasDaTabela()).toHaveLength(6)
+    expect(screen.getByText(/nos últimos 6 meses/)).toBeTruthy()
+    expect(mock.listarHistoricoInvestimentos).toHaveBeenCalledTimes(1)
+  })
+
+  it('24 meses lê a série longa só ao escolher, uma vez, e mostra os 24', async () => {
+    const u = userEvent.setup()
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Evolução em BRL' })
+    const grupo = screen.getByRole('group', { name: 'Período do gráfico' })
+    await u.click(within(grupo).getByRole('button', { name: '24 meses' }))
+    await waitFor(() => expect(linhasDaTabela()).toHaveLength(24))
+    expect(mock.listarHistoricoInvestimentos).toHaveBeenCalledTimes(2)
+    const [, de24, ate24] = mock.listarHistoricoInvestimentos.mock.calls[1]
+    expect(serieHistorico(de24, ate24)).toHaveLength(24)
+    // ir e voltar não lê de novo
+    await u.click(within(grupo).getByRole('button', { name: '6 meses' }))
+    await u.click(within(grupo).getByRole('button', { name: '24 meses' }))
+    expect(linhasDaTabela()).toHaveLength(24)
+    expect(mock.listarHistoricoInvestimentos).toHaveBeenCalledTimes(2)
+  })
+
+  it('se a leitura de 24 meses falhar, o gráfico volta para 12 e a tela segue sem erro', async () => {
+    const u = userEvent.setup()
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Evolução em BRL' })
+    mock.listarHistoricoInvestimentos.mockRejectedValueOnce(new Error('timeout'))
+    await u.click(within(screen.getByRole('group', { name: 'Período do gráfico' })).getByRole('button', { name: '24 meses' }))
+    await waitFor(() => expect(within(screen.getByRole('group', { name: 'Período do gráfico' })).getByRole('button', { name: '12 meses' }).getAttribute('aria-pressed')).toBe('true'))
+    expect(linhasDaTabela()).toHaveLength(12)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('sem histórico, o seletor de período não aparece', async () => {
+    mock.listarHistoricoInvestimentos.mockResolvedValue([])
+    render(<Investimentos />)
+    await screen.findByText(/O gráfico aparecerá depois da primeira compra/)
+    expect(screen.queryByRole('group', { name: 'Período do gráfico' })).toBeNull()
+  })
+
+  it('aporte líquido (migration 114): a linha "Aportado" usa o que veio do banco, não o custo, e não avisa', async () => {
+    mock.listarHistoricoAportes.mockImplementation(async (_f: string, de: string, ate: string) =>
+      serieHistorico(de, ate).map((p) => ({ mes: p.mes, moeda: p.moeda, liquido: c(777700) })))
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Evolução em BRL' })
+    const linhas = screen.getAllByRole('row').filter((tr) => /de \d\d/.test(tr.textContent ?? ''))
+    expect(linhas).toHaveLength(12)
+    expect(linhas[0].textContent).toContain('R$ 7.777,00') // o líquido do banco, e não o custo de 900,00
+    expect(screen.queryByText(/custo do que ainda está investido: ele cai a cada resgate/)).toBeNull()
+    expect(mock.listarHistoricoAportes).toHaveBeenCalledTimes(1)
+  })
+
+  it('banco sem a migration 114: o aportado cai para o custo e o gráfico avisa, sem erro na tela', async () => {
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Evolução em BRL' })
+    expect(screen.getByText(/custo do que ainda está investido: ele cai a cada resgate/)).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('24 meses também lê o aporte líquido, do mesmo período', async () => {
+    const u = userEvent.setup()
+    mock.listarHistoricoAportes.mockImplementation(async (_f: string, de: string, ate: string) =>
+      serieHistorico(de, ate).map((p) => ({ mes: p.mes, moeda: p.moeda, liquido: c(777700) })))
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Evolução em BRL' })
+    await u.click(within(screen.getByRole('group', { name: 'Período do gráfico' })).getByRole('button', { name: '24 meses' }))
+    await waitFor(() => expect(mock.listarHistoricoAportes).toHaveBeenCalledTimes(2))
+    expect(mock.listarHistoricoAportes.mock.calls[1][1]).toBe(mock.listarHistoricoInvestimentos.mock.calls[1][1])
   })
 })
