@@ -107,7 +107,20 @@ select public.card_credit_income(pg_temp.fx('c'), '2026-11-10', 100.00, pg_temp.
 -- Encurtada: a parcela 2 (futura) é estornada inteira e a compra fica com 1 parcela viva
 select public.debt_refund(pg_temp.parcela(pg_temp.fx('b'), 'Encurtada', 2), '2026-11-10', 100.00);
 -- Excluída: todas as parcelas canceladas
+-- card_purchase_delete data o cancelamento em greatest(private.today_sp(), referência + 1), isto é, no dia REAL. O teste fixa o
+-- "hoje" em 12/11/2026, então a partir de 13/11 esses eventos (imutáveis) ficavam DEPOIS do corte e a compra excluída voltava a
+-- aparecer: as asserções 9 e 22 falhavam em qualquer dia depois de 12/11, inclusive no main. Para o resultado não depender do dia
+-- em que o teste roda, o "hoje" do banco é fixado em 12/11 só durante a exclusão (como o 07_liabilities faz) e o original volta
+-- logo depois. Tudo dentro da transação do teste, que termina em rollback.
+reset role;
+create temp table hoje_original (def text);
+insert into hoje_original select pg_get_functiondef('private.today_sp()'::regprocedure);
+create or replace function private.today_sp() returns date language sql stable set search_path = '' as $f$ select date '2026-11-12' $f$;
+select pg_temp.login('00000000-0000-0000-0000-000000100a01');
 select public.card_purchase_delete(pg_temp.fx('b'), pg_temp.fx('excluida')::text, 'exclusão de teste');
+reset role;
+do $f$ begin execute (select def from hoje_original); end $f$;
+select pg_temp.login('00000000-0000-0000-0000-000000100a01');
 -- Estornada: a parcela 1 já cobrada é estornada inteira (crédito) e sai da conta de "n de N"
 select public.debt_refund(pg_temp.parcela(pg_temp.fx('b'), 'Estornada', 1), '2026-11-10', 100.00, pg_temp.fat(pg_temp.fx('b'), '2026-11'));
 
