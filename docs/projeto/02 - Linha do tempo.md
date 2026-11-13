@@ -316,7 +316,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#324** (13/11/2026): fechada sem merge: ia pôr editar em card no meio e "Mudar o dia" em Recorrentes, mas o dono decidiu que Recorrentes vira só informativa (ver 30 - Decisões).
 - **#325** (13/11/2026): Lançamentos: "Repetir" também no cartão de crédito (assinatura). Só front.
 - **#326** (13/11/2026): Recorrentes vira só informativa (Saídas × Entradas, sem cadastrar/editar/excluir) e Lançamentos ganha "Parar de repetir a partir daqui". Só front.
-- **#327** (13/11/2026, em rascunho): Recorrentes: total por mês e por ano e fixo × variável sugerido no topo (migration 116, `recurrence_overview`, ainda não aplicada).
+- **#327** (13/11/2026): Recorrentes: total por mês e por ano e fixo × variável sugerido no topo (migration 116, `recurrence_overview`, ainda não aplicada).
+- **#328** (13/11/2026, em rascunho): proventos previstos que se repetem ("Repetir" no provento planejado) e card "Proventos previstos" em Recorrentes (migration 117, ainda não aplicada). Na mesma PR: mudar o dia de uma assinatura de cartão sem o ciclo Recorrentes ↔ cartão (editor num card no meio, "esta e as próximas" já marcado, link direto à fatura da próxima cobrança).
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

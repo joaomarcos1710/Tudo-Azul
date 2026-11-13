@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const mock = vi.hoisted(() => ({
@@ -25,6 +25,7 @@ const mock = vi.hoisted(() => ({
   definirInstituicaoAtivo: vi.fn(),
   definirCotacaoBolsaAtivo: vi.fn(),
   registrarProventoInvestimento: vi.fn(),
+  registrarProventosPrevistos: vi.fn(),
   listarContas: vi.fn(),
   editarAtivoInvestimento: vi.fn(),
   arquivarAtivoInvestimento: vi.fn(),
@@ -59,6 +60,7 @@ vi.mock('../lib/investimentos', async (o) => ({
   definirInstituicaoAtivo: mock.definirInstituicaoAtivo,
   definirCotacaoBolsaAtivo: mock.definirCotacaoBolsaAtivo,
   registrarProventoInvestimento: mock.registrarProventoInvestimento,
+  registrarProventosPrevistos: mock.registrarProventosPrevistos,
   editarAtivoInvestimento: mock.editarAtivoInvestimento,
   arquivarAtivoInvestimento: mock.arquivarAtivoInvestimento,
   reativarAtivoInvestimento: mock.reativarAtivoInvestimento,
@@ -131,6 +133,7 @@ beforeEach(() => {
   ])
   mock.listarProventosPorAtivo.mockResolvedValue([])
   mock.registrarProventoInvestimento.mockResolvedValue(undefined)
+  mock.registrarProventosPrevistos.mockResolvedValue(12)
   mock.listarContas.mockResolvedValue({ contas: [{ id: 'c1', nome: 'Corretora', ativa: true }, { id: 'c2', nome: 'Antiga', ativa: false }], total: c(0) })
   for (const f of [mock.editarAtivoInvestimento, mock.arquivarAtivoInvestimento, mock.reativarAtivoInvestimento, mock.excluirAtivoInvestimento]) f.mockResolvedValue(undefined)
   mock.criarAtivoInvestimento.mockResolvedValue('novo-id')
@@ -405,6 +408,52 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(mock.registrarProventoInvestimento).toHaveBeenCalledWith(expect.objectContaining({
         ativoId: 'a2', tipo: 'jcp', valor: 12050, contaId: 'c1', status: 'paid',
       }))
+    })
+
+    it('Repetir só existe no provento planejado; "Já recebido" não oferece', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar provento' }))
+      expect(screen.queryByLabelText('Repetir')).toBeNull()
+      await u.click(screen.getByRole('radio', { name: 'Planejado' }))
+      expect(screen.getByLabelText('Repetir')).toBeTruthy()
+      expect(screen.queryByLabelText('Até (opcional)')).toBeNull() // só aparece com uma repetição escolhida
+      await u.click(screen.getByRole('radio', { name: 'Já recebido' }))
+      expect(screen.queryByLabelText('Repetir')).toBeNull()
+    })
+
+    it('Planejado + Repetir "Todo mês": cria a previsão (série) e não um provento solto; avisa que é previsão', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar provento' }))
+      await u.selectOptions(screen.getByLabelText('Ativo'), 'a2')
+      await u.type(screen.getByLabelText('Valor líquido recebido (R$)'), '85,50')
+      await u.click(screen.getByRole('radio', { name: 'Planejado' }))
+      await u.selectOptions(screen.getByLabelText('Repetir'), '1')
+      expect(screen.getByTestId('aviso-previsao').textContent).toMatch(/previsão/)
+      expect(screen.getByTestId('aviso-previsao').textContent).toMatch(/Nada vira pago sozinho/)
+      await u.click(screen.getAllByRole('button', { name: 'Registrar provento' })[1])
+      expect(mock.registrarProventosPrevistos).toHaveBeenCalledWith(expect.objectContaining({
+        ativoId: 'a2', valor: 8550, contaId: 'c1', cadaMeses: 1, ate: null,
+      }))
+      expect(mock.registrarProventoInvestimento).not.toHaveBeenCalled()
+    })
+
+    it('Repetir com "até" antes da primeira data é recusado na tela; sem Repetir o provento planejado segue solto', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await u.click(await screen.findByRole('button', { name: 'Registrar provento' }))
+      await u.type(screen.getByLabelText('Valor líquido recebido (R$)'), '10,00')
+      await u.click(screen.getByRole('radio', { name: 'Planejado' }))
+      await u.selectOptions(screen.getByLabelText('Repetir'), '3')
+      fireEvent.change(screen.getByLabelText('Até (opcional)'), { target: { value: '2000-01-01' } })
+      await u.click(screen.getAllByRole('button', { name: 'Registrar provento' })[1])
+      expect(screen.getByText('A data final não pode ser antes da primeira.')).toBeTruthy()
+      expect(mock.registrarProventosPrevistos).not.toHaveBeenCalled()
+      await u.selectOptions(screen.getByLabelText('Repetir'), '')
+      await u.click(screen.getAllByRole('button', { name: 'Registrar provento' })[1])
+      expect(mock.registrarProventoInvestimento).toHaveBeenCalledWith(expect.objectContaining({ status: 'planned' }))
+      expect(mock.registrarProventosPrevistos).not.toHaveBeenCalled()
     })
 
     it('só oferece contas ativas em reais (multimoeda F1) e só ativos em reais', async () => {

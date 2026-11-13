@@ -1613,7 +1613,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         {previstas.length > 0 && (
           <section className="mt-4 border-t border-slate-100 pt-4" aria-label="Assinaturas previstas nesta fatura" data-testid="bloco-previstas">
             <h2 className="mb-1 text-sm font-semibold text-slate-600">Assinaturas previstas <SeloAgendado /></h2>
-            <p className="mb-1 text-xs text-slate-500">Ainda não cobradas: entram nesta fatura no dia indicado. Cancelou? Use ⋯ na linha para excluir a assinatura; para mudar valor ou descrição, abra Recorrentes.</p>
+            <p className="mb-1 text-xs text-slate-500">Ainda não cobradas: entram nesta fatura no dia indicado. Use ⋯ na linha para mudar o dia, o valor ou a descrição (de só esta cobrança ou desta em diante), cancelar uma cobrança ou excluir a assinatura.</p>
             {erroPrevistas && <div className="mb-2"><Aviso tipo="erro">{erroPrevistas}</Aviso></div>}
             <ul className="divide-y divide-slate-100">
               {previstas.map((o) => (
@@ -1628,18 +1628,15 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                         { rotulo: 'Editar…', aoEscolher: () => setPainelPrevista({ tipo: 'editar', ocorrencia: o }) },
                         { rotulo: 'Cancelar cobrança…', aoEscolher: () => setPainelPrevista({ tipo: 'cancelar', ocorrencia: o }) },
                       ] : []),
-                      { rotulo: 'Abrir Recorrentes', aoEscolher: () => navigate('/recorrentes') },
                       { rotulo: 'Excluir assinatura', aoEscolher: () => { void excluirAssinatura(o) }, perigo: true },
                     ]} />
                   )} />
               ))}
             </ul>
             {painelPrevista && (
-              <PainelJunto>
-                <PainelAgendada tipo={painelPrevista.tipo} ocorrencia={painelPrevista.ocorrencia} categorias={categorias} hoje={hoje}
-                  aoFechar={() => setPainelPrevista(null)}
-                  aoConcluir={async () => { setPainelPrevista(null); await carregar() }} />
-              </PainelJunto>
+              <PainelAgendada tipo={painelPrevista.tipo} ocorrencia={painelPrevista.ocorrencia} categorias={categorias} hoje={hoje}
+                aoFechar={() => setPainelPrevista(null)}
+                aoConcluir={async () => { setPainelPrevista(null); await carregar() }} />
             )}
           </section>
         )}
@@ -2271,7 +2268,8 @@ function PainelAgendada({ tipo, ocorrencia: o, categorias, hoje, aoFechar, aoCon
   tipo: 'editar' | 'cancelar'; ocorrencia: OcorrenciaPrevista; categorias: Categoria[]; hoje: string
   aoFechar: () => void; aoConcluir: () => Promise<void>
 }) {
-  const [escopo, setEscopo] = useState<'esta' | 'proximas'>('esta')
+  // editar uma assinatura: o caso comum é acertar o dia de TODAS as próximas (pedido do dono, 13/11/2026); cancelar começa só nesta, que é a opção segura
+  const [escopo, setEscopo] = useState<'esta' | 'proximas'>(tipo === 'editar' ? 'proximas' : 'esta')
   const [descricao, setDescricao] = useState(o.descricao)
   const [valorTexto, setValorTexto] = useState(formatBRLCampo(o.valor).replace(/\u00a0/g, ''))
   const [data, setData] = useState(o.data)
@@ -2299,7 +2297,8 @@ function PainelAgendada({ tipo, ocorrencia: o, categorias, hoje, aoFechar, aoCon
   }
 
   return (
-    <form onSubmit={enviarForm} noValidate className="grid gap-3 rounded-lg border border-slate-200 bg-azul-claro p-4 md:grid-cols-2"
+    <Folha titulo={editar ? `Editar a assinatura ${o.descricao}` : `Cancelar a cobrança de ${o.descricao}`} aoFechar={aoFechar} larga centro>
+    <form onSubmit={enviarForm} noValidate className="grid gap-3 md:grid-cols-2"
       aria-label={editar ? `Editar ${o.descricao}` : `Cancelar ${o.descricao}`}>
       {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
       <p className="text-sm md:col-span-2">
@@ -2334,6 +2333,7 @@ function PainelAgendada({ tipo, ocorrencia: o, categorias, hoje, aoFechar, aoCon
       </p>
       <Botoes rotulo={editar ? 'Salvar' : 'Cancelar cobrança'} enviando={enviando} aoCancelar={aoFechar} />
     </form>
+    </Folha>
   )
 }
 
