@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
+import { Folha } from '../components/ui/Folha'
 import { MenuAcoes } from '../components/ui/MenuAcoes'
 import { Selecao } from '../components/ui/Selecao'
 import { SeletorCategoria } from '../components/SeletorCategoria'
@@ -31,6 +32,8 @@ import { corDoTipo, SELO } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
 import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
 import { ParcelasAtivas } from '../components/recorrentes/ParcelasAtivas'
+import { FolhaMudarDia } from '../components/recorrentes/FolhaMudarDia'
+import { podeMudarODia } from '../lib/recorrenciasDia'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import { useAuth } from '../lib/auth'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
@@ -110,6 +113,8 @@ export default function Recorrentes() {
   const [pessoas, setPessoas] = useState<PessoaFamilia[]>([])
   const [erro, setErro] = useState('')
   const [editando, setEditando] = useState<Recorrencia | 'nova' | null>(null)
+  const [mudandoDia, setMudandoDia] = useState<Recorrencia | null>(null)
+  const [aviso, setAviso] = useState('')
   const [aba, setAba] = useState<Aba>('todos')
   const [natureza, setNatureza] = useState<FiltroNatureza>('todas')
   const [porNatureza, setPorNatureza] = useState<LinhaNatureza[]>([])
@@ -227,6 +232,7 @@ export default function Recorrentes() {
         </div>
         <MenuAcoes rotulo={`Ações de ${r.descricao}`} acoes={[
           { rotulo: 'Editar', aoEscolher: () => setEditando(r), desabilitado: editando !== null },
+          ...(podeMudarODia(r) ? [{ rotulo: 'Mudar o dia daqui pra frente', aoEscolher: () => setMudandoDia(r), desabilitado: editando !== null }] : []),
           { rotulo: 'Excluir', aoEscolher: () => { void excluir(r) }, perigo: true },
         ]} />
       </li>
@@ -260,6 +266,13 @@ export default function Recorrentes() {
         </>} />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {aviso && <div className="mb-4"><Aviso tipo="info">{aviso}</Aviso></div>}
+
+      {mudandoDia !== null && (
+        <FolhaMudarDia recorrencia={mudandoDia}
+          aoConcluir={async (a) => { setMudandoDia(null); setAviso(a ?? ''); await carregar() }}
+          aoCancelar={() => setMudandoDia(null)} />
+      )}
 
       {editando !== null && (
         <FormRecorrencia
@@ -557,8 +570,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
   const erroDe = (k: keyof typeof problemas) => (tentou ? problemas[k] : undefined)
 
   return (
-    <Card className="mb-6">
-      <h2 className="mb-4 text-lg font-semibold">{r ? `Editar ${r.descricao}` : 'Novo recorrente'}</h2>
+    <Folha titulo={r ? `Editar ${r.descricao}` : 'Novo recorrente'} aoFechar={aoCancelar} larga centro>
       <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         {!editando && (
@@ -634,7 +646,7 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
         )}
         <p className="text-sm text-slate-600 md:col-span-2">
           {editando
-            ? `${rotuloFrequencia(r!)}. Valor e descrição valem para os planejados ainda não pagos de hoje em diante. A categoria vale para todos os meses, inclusive os já pagos e os passados. Em qualquer caso, o que você corrigiu à mão em um mês fica como está. Para mudar o dia, edite em Lançamentos a ocorrência a partir da qual ele muda e escolha "Este e os próximos" (só recorrente em conta). Para mudar a frequência, exclua este recorrente e cadastre outro.`
+            ? `${rotuloFrequencia(r!)}. Valor e descrição valem para os planejados ainda não pagos de hoje em diante. A categoria vale para todos os meses, inclusive os já pagos e os passados. Em qualquer caso, o que você corrigiu à mão em um mês fica como está. Para mudar o dia, use "Mudar o dia daqui pra frente" no menu ⋯ do recorrente. Para mudar a frequência, exclua este recorrente e cadastre outro.`
             : unidade === 'day'
               ? `Repete a cada ${cadaValido ? cada : 1} dia${cadaValido && cada > 1 ? 's' : ''}, a partir da primeira data.`
               : unidade === 'week'
@@ -655,6 +667,6 @@ function FormRecorrencia({ recorrencia: r, contas, cartoes, categorias, pessoas,
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
-    </Card>
+    </Folha>
   )
 }

@@ -711,3 +711,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Vale em fatura paga e travada**, como "de quem foi a despesa": a data só ordena a fatura e entra no relatório por categoria com base na data da compra; não mexe em saldo nem em fatura.
 - **Assinatura de cartão não muda de data:** a geração das assinaturas confere por essa data, e mudar poderia duplicar a cobrança.
 - **Um só jeito de abrir:** o ⋯ e o clique na linha abrem o mesmo card (a folha "Editar compra"), no meio da tela também no celular. O painel inline do topo saiu.
+
+## 13/11/2026 — Recorrentes: editar em card no meio e mudar o dia daqui pra frente (dono, #324)
+- **Pedido:** "nas assinaturas recorrentes eu não consigo mudar a data" e "na hora de editar vai lá pra cima"; "poder mudar a data da recorrência daquele mês pra frente".
+- **Sem migration:** o banco já tinha o "esta e as próximas" para conta (074, `recurrence_update_from`) e para cartão (`card_scheduled_from_here`, etapa 4 do plano 28). A tela de Recorrentes só não oferecia. Reaproveitado, nada novo no banco.
+- **Escopo do dia:** só recorrente mensal (os outros não têm "dia do mês"). A pessoa escolhe a cobrança em que a mudança começa; o que veio antes, o que já foi pago ou lançado na fatura e o que foi corrigido à mão não mudam. Cobrança corrigida à mão nem aparece na lista: não é sobrescrita em silêncio.
+- **Valores da regra, não da ocorrência:** a chamada manda valor, descrição e categoria da regra. Assim mudar o dia não troca o valor da regra pelo de uma cobrança que alguém tinha ajustado.
+- **Assinatura de cartão divide a regra** (a antiga termina na véspera, uma nova começa no dia escolhido): parcela é imutável. A natureza (Assinatura, Custo fixo…) não vai na divisão do banco; o app a devolve à regra nova e avisa se não conseguir.
+- **Um card no meio também para editar** (como o dono pediu para as compras do cartão na #322): "Novo recorrente" e "Editar" abrem a folha em modo `centro`. As outras telas com edição solta no topo seguem em PR à parte.

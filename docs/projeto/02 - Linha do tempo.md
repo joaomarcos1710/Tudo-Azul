@@ -312,7 +312,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#320** (12/11/2026): Investimentos, etapa 3 de 5 do redesenho visual: gráfico de evolução com valor atual e aportado, legenda, tooltip e tabela. Só front.
 - **#321** (13/11/2026): Investimentos, nova ordem dos blocos (proposta aprovada pelo dono), seletor de período do gráfico (6, 12 e 24 meses) e linha "Aportado" do gráfico como aporte líquido (migration 114, `investment_contribution_history`, só leitura; simulada em 13/11/2026, execução 43434285938; aplicada em 13/11/2026, execução 43437374727).
 - **#322** (13/11/2026): Cartões: corrigir a data da compra (migration 115, `card_purchase_set_date`, aplicada em 13/11/2026, execução 43437374727) e todas as ações da compra no card no meio da tela, também as do ⋯. Corrigiu também o teste `100_active_installment_plans`, que dependia do dia em que roda.
-- **#323** (13/11/2026, em rascunho): diário: migrations 114 e 115 aplicadas em produção.
+- **#323** (13/11/2026): diário: migrations 114 e 115 aplicadas em produção.
+- **#324** (13/11/2026, em rascunho): Recorrentes: o formulário de editar e de cadastrar abre num card no meio da tela e nasce a ação "Mudar o dia daqui pra frente" (conta e cartão, sem migration). Só front.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
