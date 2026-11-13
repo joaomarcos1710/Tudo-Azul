@@ -474,6 +474,18 @@ export async function listarCategoriasDaFatura(cartaoId: string, mes: string): P
 }
 
 /**
+ * Corrige a DATA DA COMPRA de uma compra inteira (todas as parcelas; migration 20261113100000). A fatura em que cada parcela
+ * cai NÃO muda (para isso há "Enviar para a fatura anterior/próxima"), e nenhum valor de fatura, saldo ou limite muda: a data só
+ * ordena a fatura e entra no relatório por categoria quando a base escolhida é a data da compra. Vale também em fatura paga.
+ * Recusas do banco: data futura, assinatura de cartão (a data é a da cobrança) e compra inexistente. Devolve quantas parcelas mudaram.
+ */
+export async function corrigirDataDaCompra(cartaoId: string, compra: string, data: string): Promise<number> {
+  const { data: n, error } = await cliente().rpc('card_purchase_set_date', { p_debt: cartaoId, p_plan: compra, p_date: data })
+  if (error) throw error
+  return n as number
+}
+
+/**
  * Muda "de quem foi a despesa" de uma compra inteira (todas as parcelas, também as já cobradas e as de fatura paga e
  * travada; migration 20261112100000). Só a classificação muda: valor, fatura e totais ficam iguais. Devolve quantas
  * parcelas mudaram.

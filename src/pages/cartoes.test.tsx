@@ -47,6 +47,7 @@ const mock = vi.hoisted(() => ({
   moverParcelaDeFatura: vi.fn(),
   visaoDosCartoes: vi.fn(),
   trocarPessoaDaCompra: vi.fn(),
+  corrigirDataDaCompra: vi.fn(),
   listarPessoasFamilia: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
@@ -61,7 +62,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura, moverPagamentoDeFatura: mock.moverPagamentoDeFatura, moverParcelaDeFatura: mock.moverParcelaDeFatura,
-  visaoDosCartoes: mock.visaoDosCartoes, trocarPessoaDaCompra: mock.trocarPessoaDaCompra,
+  visaoDosCartoes: mock.visaoDosCartoes, trocarPessoaDaCompra: mock.trocarPessoaDaCompra, corrigirDataDaCompra: mock.corrigirDataDaCompra,
 }))
 vi.mock('../lib/pessoasFamilia', async (o) => ({ ...(await o<typeof import('../lib/pessoasFamilia')>()), listarPessoasFamilia: mock.listarPessoasFamilia }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0), excluirRecorrencia: mock.excluirRecorrencia }))
@@ -157,6 +158,7 @@ beforeEach(() => {
     { id: 'pe2', userId: null, familiaId: 'h1', nome: 'Beto', fotoUrl: null, nascimento: null, vinculo: 'Familiar', ativo: true, criadaEm: '', atualizadaEm: '' },
   ])
   mock.trocarPessoaDaCompra.mockResolvedValue(1)
+  mock.corrigirDataDaCompra.mockResolvedValue(3)
   mock.listarOcorrenciasPrevistas.mockResolvedValue([])
   mock.listarFaturasAgendadas.mockResolvedValue([])
   mock.sincronizarAgendados.mockResolvedValue(0)
@@ -900,13 +902,14 @@ describe('Cartões', () => {
       expect(proxima.textContent).toContain('esta fatura já fechou')
     })
 
-    it('fatura paga (travada): o menu da linha só traz "Mudar de quem foi a despesa" (nada de dinheiro: sem enviar, estornar, editar nem excluir)', async () => {
+    it('fatura paga (travada): o menu da linha só traz "Corrigir data da compra" e "Mudar de quem foi a despesa" (nada de dinheiro: sem enviar, estornar, editar nem excluir)', async () => {
       const u = userEvent.setup()
       await montarFatura(u, { mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), aCobrar: c(0), total: c(10000), pago: c(10000) })
       await u.click(screen.getByRole('button', { name: 'Ações de TV' }))
       const menu = within(screen.getByRole('menu'))
       expect(menu.getByRole('menuitem', { name: 'Mudar de quem foi a despesa' })).toBeTruthy()
-      expect(menu.getAllByRole('menuitem')).toHaveLength(1)
+      expect(menu.getByRole('menuitem', { name: 'Corrigir data da compra' })).toBeTruthy()
+      expect(menu.getAllByRole('menuitem')).toHaveLength(2)
       expect(screen.queryByRole('menuitem', { name: /^Enviar para/ })).toBeNull()
     })
 
@@ -978,7 +981,7 @@ describe('Cartões', () => {
       expect(dado('Cartão')).toBe('Nubank')
       expect(dado('Fatura')).toBe('Abril de 2099')
       const acoes = within(within(folha).getByRole('list', { name: 'Ações da compra' })).getAllByRole('button').map((b) => b.textContent)
-      expect(acoes).toEqual(['Estornar', 'Editar valor', 'Enviar para a fatura anterior', 'Enviar para a próxima fatura', 'Mudar de quem foi a despesa', 'Excluir compra'])
+      expect(acoes).toEqual(['Estornar', 'Editar valor', 'Enviar para a fatura anterior', 'Enviar para a próxima fatura', 'Corrigir data da compra', 'Mudar de quem foi a despesa', 'Excluir compra'])
     })
 
     it('Enter e Espaço na linha abrem a folha; o Esc e o × fecham e o foco volta à linha', async () => {
@@ -997,25 +1000,109 @@ describe('Cartões', () => {
       expect(document.activeElement).toBe(alvoDaLinha())
     })
 
-    it('o ⋯ da linha (botão e itens) não abre a folha, e o menu continua com as mesmas ações', async () => {
+    it('o ⋯ da linha só abre o menu; escolher uma ação abre o card no meio da tela já nela (não mais um painel lá em cima)', async () => {
       const u = userEvent.setup()
       await abrirFatura(u)
       await u.click(screen.getByRole('button', { name: 'Ações de TV' }))
       expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()
       expect(within(screen.getByRole('menu', { name: 'Ações de TV' })).getAllByRole('menuitem').map((m) => m.textContent)).toEqual([
-        'Estornar', 'Editar valor', 'Enviar para a fatura anterior', 'Enviar para a próxima fatura', 'Mudar de quem foi a despesa', 'Excluir compra',
+        'Estornar', 'Editar valor', 'Enviar para a fatura anterior', 'Enviar para a próxima fatura', 'Corrigir data da compra', 'Mudar de quem foi a despesa', 'Excluir compra',
       ])
       await u.click(screen.getByRole('menuitem', { name: 'Editar valor' }))
-      expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()
-      expect(screen.getByRole('form', { name: 'Editar parcela' })).toBeTruthy() // o painel de antes, no lugar de antes
+      // o card no meio da tela, já no painel de valor; o painel de antes, lá em cima na página, não existe mais
+      const folha = screen.getByRole('dialog', { name: 'Editar compra' })
+      expect(within(folha).getByRole('form', { name: 'Editar parcela' })).toBeTruthy()
+      expect(document.querySelectorAll('form[aria-label="Editar parcela"]')).toHaveLength(1)
     })
 
-    it('com outro painel aberto (ex.: Editar valor pelo ⋯) a linha fica quieta, como o ⋯', async () => {
+    it('cada ação do ⋯ abre o card no meio já nela: estornar, data, de quem foi e excluir; "Cancelar" volta à lista de opções', async () => {
+      const u = userEvent.setup()
+      await abrirFatura(u)
+      for (const [acao, papel, painel] of [
+        ['Estornar', 'form', /^Estornar/], ['Corrigir data da compra', 'form', /Corrigir a data da compra/],
+        ['Mudar de quem foi a despesa', 'form', /Mudar de quem foi a despesa/], ['Excluir compra', 'group', 'Excluir compra'],
+      ] as const) {
+        await acaoDaLinha(u, 'Ações de TV', acao)
+        const folha = screen.getByRole('dialog', { name: 'Editar compra' })
+        expect(within(folha).getByRole(papel, { name: painel }), acao).toBeTruthy()
+        await u.click(within(folha).getByRole('button', { name: 'Fechar' }))
+        expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull()
+      }
+    })
+
+    it('na folha aberta pelo ⋯, "Cancelar" volta à lista com todas as opções (a folha continua aberta)', async () => {
       const u = userEvent.setup()
       await abrirFatura(u)
       await acaoDaLinha(u, 'Ações de TV', 'Editar valor')
-      expect(screen.queryByRole('button', { name: 'Editar a compra TV' })).toBeNull()
-      expect(linhaDaTV().querySelector('[data-linha-clicavel]')).toBeNull()
+      const folha = screen.getByRole('dialog', { name: 'Editar compra' })
+      await u.click(within(folha).getByRole('button', { name: 'Cancelar' }))
+      expect(within(screen.getByRole('dialog', { name: 'Editar compra' })).getByRole('list', { name: 'Ações da compra' })).toBeTruthy()
+    })
+
+    describe('corrigir a data da compra (pedido do dono, 13/11/2026)', () => {
+      const abrirData = async (u: ReturnType<typeof userEvent.setup>) => {
+        await abrirFatura(u)
+        await acaoDaLinha(u, 'Ações de TV', 'Corrigir data da compra')
+        return within(screen.getByRole('dialog', { name: 'Editar compra' })).getByRole('form', { name: 'Corrigir a data da compra TV' })
+      }
+
+      it('abre no card no meio, com a data atual da compra, e explica que a fatura não muda', async () => {
+        const u = userEvent.setup()
+        const form = await abrirData(u)
+        expect((within(form).getByLabelText('Data da compra') as HTMLInputElement).value).toBe('2099-03-15')
+        expect(form.textContent).toContain('A fatura em que ela cai não muda')
+        expect(form.textContent).toContain('Enviar para a fatura anterior')
+      })
+
+      it('salvar chama corrigirDataDaCompra(cartão, compra, data), fecha o card e recarrega', async () => {
+        const u = userEvent.setup()
+        const form = await abrirData(u)
+        const carregou = mock.listarItens.mock.calls.length
+        fireEvent.change(within(form).getByLabelText('Data da compra'), { target: { value: '2026-03-10' } })
+        await u.click(within(form).getByRole('button', { name: 'Salvar data' }))
+        expect(mock.corrigirDataDaCompra).toHaveBeenCalledWith('k1', 'x', '2026-03-10')
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Editar compra' })).toBeNull())
+        await waitFor(() => expect(mock.listarItens.mock.calls.length).toBeGreaterThan(carregou))
+      })
+
+      it('data futura é recusada na tela, sem chamar o banco; data vazia pede a data', async () => {
+        const u = userEvent.setup()
+        const form = await abrirData(u)
+        fireEvent.change(within(form).getByLabelText('Data da compra'), { target: { value: '2999-01-01' } })
+        await u.click(within(form).getByRole('button', { name: 'Salvar data' }))
+        expect(within(form).getByText('A data da compra não pode ser futura.')).toBeTruthy()
+        fireEvent.change(within(form).getByLabelText('Data da compra'), { target: { value: '' } })
+        await u.click(within(form).getByRole('button', { name: 'Salvar data' }))
+        expect(within(form).getByText('Informe a data.')).toBeTruthy()
+        expect(mock.corrigirDataDaCompra).not.toHaveBeenCalled()
+      })
+
+      it('a recusa do banco (ex.: assinatura de cartão) aparece no card e ele continua aberto', async () => {
+        const u = userEvent.setup()
+        mock.corrigirDataDaCompra.mockRejectedValue({ code: '55000', message: 'assinatura de cartão: a data é a da cobrança e não muda' })
+        const form = await abrirData(u)
+        fireEvent.change(within(form).getByLabelText('Data da compra'), { target: { value: '2026-03-10' } })
+        await u.click(within(form).getByRole('button', { name: 'Salvar data' }))
+        expect(await within(form).findByText(/a data é a da cobrança e não muda/)).toBeTruthy()
+        expect(screen.getByRole('dialog', { name: 'Editar compra' })).toBeTruthy()
+      })
+
+      it('na fatura paga e travada também dá para corrigir a data (é só classificação), e o aviso não manda trocar de fatura', async () => {
+        const u = userEvent.setup()
+        fixarHoje('2026-11-05')
+        mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), aCobrar: c(0), total: c(10000), pago: c(10000), faturaId: 'f3' })])
+        mock.listarItens.mockResolvedValue([{ ...item, falta: c(0), dataCompra: '2026-03-05' }])
+        montar()
+        await u.click(await screen.findByRole('link', { name: /^Fatura de março/ }))
+        await u.click(await screen.findByRole('button', { name: 'Ver a compra TV' }))
+        await u.click(within(screen.getByRole('dialog', { name: 'Detalhes da compra' })).getByRole('button', { name: 'Corrigir data da compra' }))
+        const form = screen.getByRole('form', { name: 'Corrigir a data da compra TV' })
+        expect(form.textContent).not.toContain('Enviar para')
+        fireEvent.change(within(form).getByLabelText('Data da compra'), { target: { value: '2026-03-03' } })
+        await u.click(within(form).getByRole('button', { name: 'Salvar data' }))
+        expect(mock.corrigirDataDaCompra).toHaveBeenCalledWith('k1', 'x', '2026-03-03')
+        expect(mock.editarParcela).not.toHaveBeenCalled()
+      })
     })
 
     it('na folha, "Editar valor" usa o mesmo painel e chama editarParcela com a parcela e o valor', async () => {
@@ -1082,7 +1169,7 @@ describe('Cartões', () => {
       expect((folha.getByRole('button', { name: 'Enviar para a próxima fatura' }) as HTMLButtonElement).disabled).toBe(false)
     })
 
-    it('fatura paga e travada: a linha abre a folha só para consulta e "Mudar de quem foi a despesa" (sem editar, enviar, estornar nem excluir)', async () => {
+    it('fatura paga e travada: a linha abre a folha só para consulta, "Corrigir data da compra" e "Mudar de quem foi a despesa" (sem editar, enviar, estornar nem excluir)', async () => {
       const u = userEvent.setup()
       fixarHoje('2026-11-05')
       mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(10000), aCobrar: c(0), total: c(10000), pago: c(10000), faturaId: 'f3' })])
@@ -1092,7 +1179,7 @@ describe('Cartões', () => {
       await u.click(await screen.findByRole('button', { name: 'Ver a compra TV' }))
       const folha = screen.getByRole('dialog', { name: 'Detalhes da compra' })
       expect(within(folha).getByLabelText('Dados da compra').textContent).toContain('TV')
-      expect(within(within(folha).getByRole('list', { name: 'Ações da compra' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Mudar de quem foi a despesa'])
+      expect(within(within(folha).getByRole('list', { name: 'Ações da compra' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Corrigir data da compra', 'Mudar de quem foi a despesa'])
       await u.click(within(folha).getByRole('button', { name: 'Mudar de quem foi a despesa' }))
       await u.selectOptions(screen.getByLabelText('Despesa de quem?'), 'shared')
       await u.click(screen.getByRole('button', { name: 'Salvar' }))
@@ -1838,8 +1925,7 @@ describe('Melhorias de uso da aba Cartões (#166)', () => {
     await u.click(await botaoVerFatura())
     await acaoDaLinha(u, 'Ações de TV', 'Estornar')
     const form = screen.getByRole('form', { name: 'Estornar TV' })
-    expect(form.closest('li')!.textContent).toContain('TV') // abre na linha da compra
-    expect(document.activeElement).toBe(form)
+    expect(within(screen.getByRole('dialog', { name: 'Editar compra' })).getByRole('form', { name: 'Estornar TV' })).toBe(form) // abre no card no meio da tela
     await u.type(within(form).getByLabelText('Valor do estorno (R$)'), '150,00')
     await u.click(within(form).getByRole('button', { name: 'Estornar' }))
     expect(within(form).getByText('No máximo o valor da parcela (R$ 100,00).')).toBeTruthy()
@@ -1950,7 +2036,7 @@ describe('Fatura paga travada (migration 064)', () => {
     }
     await u.click(within(painel).getByRole('button', { name: 'Ações de TV' }))
     expect(within(screen.getByRole('menu', { name: 'Ações de TV' })).getAllByRole('menuitem').map((i) => i.textContent))
-      .toEqual(['Mudar de quem foi a despesa'])
+      .toEqual(['Corrigir data da compra', 'Mudar de quem foi a despesa'])
     await u.keyboard('{Escape}')
     // #202 (migration 077): o crédito da fatura paga só troca de categoria (classificação); anular continua fora
     await u.click(within(painel).getByRole('button', { name: 'Ações do crédito Cashback' }))
@@ -1996,8 +2082,8 @@ describe('Fatura paga travada (migration 064)', () => {
     await u.click(screen.getByRole('button', { name: 'Ações de TV' }))
     const menu = screen.getByRole('menu', { name: 'Ações de TV' })
     const itens = within(menu).getAllByRole('menuitem')
-    expect(itens.map((i) => i.textContent)).toEqual(['Estornar', 'Editar valor', 'Mudar de quem foi a despesa', 'Excluir compra'])
-    expect(itens[3].className).toContain('text-negativo') // destrutiva, por último e separada
+    expect(itens.map((i) => i.textContent)).toEqual(['Estornar', 'Editar valor', 'Corrigir data da compra', 'Mudar de quem foi a despesa', 'Excluir compra'])
+    expect(itens[4].className).toContain('text-negativo') // destrutiva, por último e separada
     expect(within(menu).getByRole('separator')).toBeTruthy()
     await u.keyboard('{Escape}')
     await u.click(screen.getByRole('button', { name: 'Ações do crédito Cashback' }))
@@ -2657,8 +2743,8 @@ describe('"+ Lançamento" com a folha por cima da tela (pedido do dono, 12/11/20
     ;(document.activeElement as HTMLElement | null)?.blur()
     await u.keyboard('d')
     expect(screen.queryByRole('dialog', { name: 'Nova compra · Nubank' })).toBeNull()
-    // fechado o painel da compra, a mesma tecla volta a valer
-    await u.click(screen.getByRole('button', { name: 'Cancelar' }))
+    // fechado o card da compra, a mesma tecla volta a valer
+    await u.click(within(screen.getByRole('dialog', { name: 'Editar compra' })).getByRole('button', { name: 'Fechar' }))
     ;(document.activeElement as HTMLElement | null)?.blur()
     await u.keyboard('d')
     expect(screen.getByRole('dialog', { name: 'Nova compra · Nubank' })).toBeTruthy()

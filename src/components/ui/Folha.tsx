@@ -7,13 +7,15 @@ import { useFocoPreso } from './useFocoPreso'
  * (lg) fica no centro. Fecha no ×, no Esc e clicando fora; o Tab não sai dela; ao abrir, o foco vai para o primeiro
  * controle e, ao fechar, volta para quem a abriu. A página de trás não rola enquanto ela está aberta.
  */
-export function Folha({ titulo, aoFechar, rodape, larga = false, children }: {
+export function Folha({ titulo, aoFechar, rodape, larga = false, centro = false, children }: {
   titulo: string
   aoFechar: () => void
   /** Botões fixos no pé (ex.: Cancelar · Aplicar). */
   rodape?: ReactNode
   /** Formulário em duas colunas no computador (Cartões): mais larga que a folha de filtros. */
   larga?: boolean
+  /** No meio da tela também no celular (um card), em vez de subir de baixo: usado onde o dono pediu "um card no meio" (Cartões). */
+  centro?: boolean
   children: ReactNode
 }) {
   const painel = useRef<HTMLDivElement>(null)
@@ -23,10 +25,11 @@ export function Folha({ titulo, aoFechar, rodape, larga = false, children }: {
   const prenderTab = useFocoPreso(painel, aoFechar, () => corpo.current)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 lg:items-center lg:p-4"
+    <div className={`fixed inset-0 z-50 flex justify-center bg-slate-900/50 ${centro ? 'items-center p-4' : 'items-end lg:items-center lg:p-4'}`}
       onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar() }}>
       <div ref={painel} role="dialog" aria-modal="true" aria-labelledby={idTitulo} onKeyDown={prenderTab}
-        className={`flex max-h-[88vh] w-full ${larga ? 'max-w-2xl' : 'max-w-lg'} flex-col rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-card lg:rounded-2xl lg:pb-0`}>
+        className={`flex max-h-[88vh] w-full ${larga ? 'max-w-2xl' : 'max-w-lg'} flex-col bg-white shadow-card ${
+          centro ? 'rounded-2xl' : 'rounded-t-2xl pb-[env(safe-area-inset-bottom)] lg:rounded-2xl lg:pb-0'}`}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
           <h2 id={idTitulo} className="text-base font-semibold text-marinho">{titulo}</h2>
           <button type="button" aria-label="Fechar" onClick={aoFechar}
