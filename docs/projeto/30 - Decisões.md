@@ -711,3 +711,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Vale em fatura paga e travada**, como "de quem foi a despesa": a data só ordena a fatura e entra no relatório por categoria com base na data da compra; não mexe em saldo nem em fatura.
 - **Assinatura de cartão não muda de data:** a geração das assinaturas confere por essa data, e mudar poderia duplicar a cobrança.
 - **Um só jeito de abrir:** o ⋯ e o clique na linha abrem o mesmo card (a folha "Editar compra"), no meio da tela também no celular. O painel inline do topo saiu.
+
+## 13/11/2026 — Recorrentes passa a ser só informativa; "Repetir" nasce no cartão (dono, #325)
+- **Decisão do dono:** o recorrente não se cadastra nem se edita em Recorrentes. Cada coisa nasce e muda onde o dinheiro acontece (conta, cartão, investimento) e a página de Recorrentes só **reúne e mostra**: entradas × saídas, conta × cartão × investimento, mensal/bimestral/semestral/anual, em cards limpos, com o total por mês (fixo × variável) e as entradas por mês e por ano. Ordem combinada: (1) "Repetir" no cartão, (2) Recorrentes só de leitura, (3) dividendos.
+- **#324 fechada sem merge** (card no meio + "Mudar o dia" em Recorrentes): deixou de fazer sentido com a página só de leitura.
+- **Repetir no cartão** (#325): a compra do cartão ganha "Repetir", que cria a assinatura (regra de recorrente de cartão, a mesma de antes) sem parcelas. Sem banco novo.
+- **Fixo × variável:** o app **sugere** (o que se repete todo mês com o mesmo valor é fixo); decidido pelo dono. A natureza marcada à mão continua valendo e vence a sugestão. Na tela, a sugestão aparece como sugestão. (próxima PR)
+- **Dividendos recorrentes:** só **previsão** (quanto deve entrar, sem lançar nada sozinho); decidido pelo dono. Exige desenho de banco; PR própria depois.

@@ -24,6 +24,12 @@ atualizado: 2026-11-11
 - [ ] Recorrências já reajustadas antes da migration 015: conferir os planejados futuros (correções feitas à mão podem ter sido sobrescritas e não há como recuperar automaticamente).
 - [x] Aplicar a migration 015 em produção pelo workflow após o merge do PR #59 (26/10/2026; execução 20).
 
+### Recorrentes só informativa (decisão de 13/11/2026)
+- [x] 1. "Repetir" no cartão (#325).
+- [ ] 2. Recorrentes só de leitura: sem Novo/Editar/Excluir; Saídas × Entradas, cards por origem (conta, cartão, investimento) e frequência; total por mês (fixo × variável sugerido) e entradas por mês e por ano; atalho "Abrir em Lançamentos/Cartões" em cada item.
+- [ ] 3. Dividendos recorrentes como previsão (banco novo, só com "pode").
+- Conferir antes de tirar "Excluir" de Recorrentes: como encerrar uma recorrente de conta pelos Lançamentos (hoje só há "este e os próximos" para editar).
+- Conferir no app real: "Repetir" no cartão numa assinatura de valor baixo; com data passada, os meses desde então entram como compras no cartão (a tela avisa).
 ## Próximos PRs sugeridos
 ### Categorias da fatura (#315, migration 112, 12/11/2026)
 - Aplicar a migration 112 em produção pelo workflow (simular, ler o log, aplicar), em ordem com 109 a 111; só com o "pode" do dono. **Feito em 12/11/2026 (execução 43200042951).**
