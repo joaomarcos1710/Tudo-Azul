@@ -527,6 +527,51 @@ describe('Lançamentos', () => {
     expect(mock.criarLancamento).not.toHaveBeenCalled()
   })
 
+  it('Repetir no cartão cria a assinatura (regra de recorrente de cartão) e não uma compra solta', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    await u.type(screen.getByLabelText('Valor (R$)'), '55,90')
+    await u.type(screen.getByLabelText('Descrição'), 'Netflix')
+    await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
+    fireEvent.change(screen.getByLabelText('Data da compra'), { target: { value: '2026-11-20' } })
+    await u.click(screen.getByRole('button', { name: /Repetir/ }))
+    expect(screen.queryByLabelText('Parcelas')).toBeNull() // assinatura não tem parcelas
+    expect(screen.queryByRole('radio', { name: 'Lançamento parcelado' })).toBeNull()
+    await u.click(screen.getByRole('button', { name: 'Criar assinatura' }))
+    await waitFor(() => expect(mock.criarRecorrencia).toHaveBeenCalled())
+    expect(mock.criarRecorrencia.mock.calls[0][0]).toMatchObject({
+      tipo: 'card', descricao: 'Netflix', valor: 5590, dia: 20, unidade: 'month', cada: 1, inicio: '2026-11-20', fim: null,
+      cartaoId: 'k1', contaId: null, destinoId: null, categoriaId: 'mer',
+    })
+    expect(mock.registrarCompra).not.toHaveBeenCalled()
+    expect(mock.criarLancamento).not.toHaveBeenCalled()
+  })
+
+  it('Repetir no cartão: "até" antes da data é recusado, e sem Repetir a compra parcelada segue como sempre', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    await u.type(screen.getByLabelText('Valor (R$)'), '10,00')
+    await u.type(screen.getByLabelText('Descrição'), 'Spotify')
+    await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
+    fireEvent.change(screen.getByLabelText('Data da compra'), { target: { value: '2026-11-20' } })
+    await u.click(screen.getByRole('button', { name: /Repetir/ }))
+    fireEvent.change(screen.getByLabelText('Até (opcional)'), { target: { value: '2026-10-01' } })
+    await u.click(screen.getByRole('button', { name: 'Criar assinatura' }))
+    expect(screen.getByText(/O "até" não pode ser antes da data/)).toBeTruthy()
+    expect(mock.criarRecorrencia).not.toHaveBeenCalled()
+    // desligando o Repetir, volta a compra comum
+    await u.click(screen.getByRole('button', { name: /Repetir/ }))
+    await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
+    expect(mock.registrarCompra).toHaveBeenCalledTimes(1)
+    expect(mock.criarRecorrencia).not.toHaveBeenCalled()
+  })
+
   it('cartão: parcela fora de 1 a 72 e cartão não escolhido não chamam o banco', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)

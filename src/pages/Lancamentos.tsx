@@ -872,6 +872,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const cartaoMode = !l && onde === 'cartao'
   const fixo = !l && !cartaoMode && repetir && modoRepetir === 'fixo'
   const parcelado = !l && !cartaoMode && repetir && modoRepetir === 'parcelado'
+  // "Repetir" no cartão = assinatura: a regra de recorrente de cartão em vez de uma compra solta (pedido do dono, 13/11/2026)
+  const assinatura = !l && cartaoMode && repetir
   const nParcelas = Number(nParcelasTexto)
   const nParcelasOk = Number.isInteger(nParcelas) && nParcelas >= 2 && nParcelas <= 360
   const cartoesComCiclo = cartoes.filter((c) => c.ativo && c.fechamento !== null)
@@ -889,14 +891,14 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     valor: valor === null || valor <= 0 ? 'Informe um valor maior que zero. Exemplo: 1.250,50.' : undefined,
     conta: !cartaoMode && !contaId ? 'Escolha a conta.' : undefined,
     cartao: cartaoMode && !cartaoId ? 'Escolha o cartão.' : undefined,
-    parcelas: cartaoMode && !(Number.isInteger(parcelas) && parcelas >= 1 && parcelas <= 72) ? 'De 1 a 72 parcelas.' : undefined,
+    parcelas: cartaoMode && !assinatura && !(Number.isInteger(parcelas) && parcelas >= 1 && parcelas <= 72) ? 'De 1 a 72 parcelas.' : undefined,
     descricao: cartaoMode && !descricao.trim() ? 'Descreva a compra (ex.: Fone, Mercado).' : undefined,
     destino: transferencia && (!destinoId || destinoId === contaId) ? 'Escolha uma conta de destino diferente da origem.'
       : transferencia && !destinos.some((c) => c.id === destinoId) ? 'Transferência só entre contas da mesma moeda.' : undefined,
     categoria: !transferencia && !categoriaId ? 'Escolha a categoria.' : undefined,
     data: !data ? 'Informe a data.' : undefined,
     repetir: fixo && !descricao.trim() ? 'Dê um nome ao lançamento fixo (ex.: Aluguel, Internet).'
-      : fixo && repetirAte && data && repetirAte < data ? 'O "até" não pode ser antes da data.'
+      : (fixo || assinatura) && repetirAte && data && repetirAte < data ? 'O "até" não pode ser antes da data.'
       : parcelado && !descricao.trim() ? 'Dê um nome ao parcelado (ex.: Sofá, Curso).'
       : parcelado && !nParcelasOk ? 'De 2 a 360 parcelas.'
       : parcelado && valor !== null && valor > 0 && Math.floor(valor / nParcelas) < 1 ? 'Valor pequeno demais para tantas parcelas.' : undefined,
@@ -919,6 +921,18 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
     setErro('')
     setEnviando(true)
     try {
+      if (assinatura) {
+        const f = frequencias.find((x) => x.chave === frequencia) ?? frequencias[2]
+        await criarRecorrencia({
+          tipo: 'card', descricao: descricao.trim(), valor: valor as Cents, dia: f.unidade === 'month' ? Number(data.slice(8, 10)) : null,
+          unidade: f.unidade, cada: f.cada, inicio: data, fim: repetirAte || null,
+          contaId: null, destinoId: null, cartaoId, categoriaId, personId, isSharedExpense,
+        })
+        lembrarEscolha(familiaId, 'cartao', cartaoId)
+        setRepetir(false); setRepetirAte('')
+        await concluir(`Assinatura criada (${f.rotulo.toLowerCase()}). As próximas cobranças aparecem nas faturas.`)
+        return
+      }
       if (cartaoMode) {
         // mesma regra do cartão (card_purchase): parcela por fechamento; chave evita compra duplicada num reenvio
         // mesma chave só para o mesmo conteúdo reenviado; se algo mudou, é outra compra (evita gravar um valor diferente do mostrado)
@@ -1064,11 +1078,13 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
                   {cartoesComCiclo.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>{seta}
               </Linha>
+              {!assinatura && (
               <Linha icone={<IconeCartoes />} rotulo="Parcelas" htmlFor="lanc-parcelas">
                 <input id="lanc-parcelas" type="number" min={1} max={72} value={parcelasTexto} onChange={(e) => setParcelasTexto(e.target.value)}
                   aria-invalid={tentou && !!erros.parcelas} className={`${controleLinha} w-20`} />
                 <span className="text-sm text-slate-500">x</span>
               </Linha>
+              )}
             </>
           ) : (
             <Linha icone={<IconeContas />} rotulo={transferencia ? 'Da conta' : 'Conta'} htmlFor="lanc-conta">
@@ -1120,7 +1136,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
           <p className="text-sm text-slate-600">Nenhum cartão com fechamento definido. Defina em <Link to="/cartoes" className="font-semibold text-azul underline">Cartões</Link>.</p>
         )}
 
-        {!l && !cartaoMode && (
+        {!l && (
           <details className="rounded-xl border border-slate-200 px-3 py-2">
             <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Opções avançadas · Recorrência e parcelamento</summary>
             <div className="pb-2">
@@ -1130,16 +1146,23 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
             </button>
             {repetir && (
               <fieldset className="mt-3 space-y-3">
-                <legend className="text-sm font-semibold text-marinho">Repetir {tipo === 'income' ? 'receita' : tipo === 'transfer' ? 'transferência' : 'despesa'}</legend>
-                <div className="flex flex-col gap-1">
+                <legend className="text-sm font-semibold text-marinho">{cartaoMode ? 'Repetir compra no cartão (assinatura)' : `Repetir ${tipo === 'income' ? 'receita' : tipo === 'transfer' ? 'transferência' : 'despesa'}`}</legend>
+                {!cartaoMode && <div className="flex flex-col gap-1">
                   {([['fixo', 'Lançamento fixo'], ['parcelado', 'Lançamento parcelado']] as const).map(([m, rotulo]) => (
                     <label key={m} className="flex min-h-11 items-center gap-3 text-sm">
                       <input type="radio" name="modo-repetir" className="h-5 w-5" checked={modoRepetir === m} onChange={() => setModoRepetir(m)} />{rotulo}
                     </label>
                   ))}
-                </div>
-                {modoRepetir === 'fixo' ? (<>
-                  <p className="text-xs text-slate-500">Repete sem fim (ou até a data escolhida). Aparece também em Recorrentes, onde dá para editar ou encerrar.</p>
+                </div>}
+                {cartaoMode || modoRepetir === 'fixo' ? (<>
+                  <p className="text-xs text-slate-500">
+                    {cartaoMode
+                      ? 'Repete sem fim (ou até a data escolhida): a cobrança entra na fatura certa a cada vez. Aparece em Recorrentes (só para consulta); para mudar o dia ou encerrar, use a fatura do cartão.'
+                      : 'Repete sem fim (ou até a data escolhida). Aparece também em Recorrentes (só para consulta); para editar, use o lançamento.'}
+                  </p>
+                  {assinatura && data && data < hoje && (
+                    <p className="text-xs text-slate-600">Data anterior a hoje: os meses desde essa data também entram como compras no cartão.</p>
+                  )}
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex flex-col gap-1 text-sm">
                       <span className="font-medium">Repetir</span>
@@ -1223,7 +1246,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
 
         <div className="flex flex-col gap-2">
           <Button type="submit" carregando={enviando} className="w-full" onClick={() => { outroRef.current = false }}>
-            {l ? 'Salvar alterações' : fixo ? 'Criar lançamento fixo' : parcelado ? 'Lançar parcelas' : rotuloAcao[aba]}
+            {l ? 'Salvar alterações' : assinatura ? 'Criar assinatura' : fixo ? 'Criar lançamento fixo' : parcelado ? 'Lançar parcelas' : rotuloAcao[aba]}
           </Button>
           <div className="flex flex-wrap justify-center gap-2">
             {!l && <Button type="submit" variante="fantasma" disabled={enviando} onClick={() => { outroRef.current = true }}>Registrar e lançar outro</Button>}
