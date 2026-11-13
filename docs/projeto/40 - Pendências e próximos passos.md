@@ -711,7 +711,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Próxima parte da proposta (uma PR, com o "pode" do dono): ativos como cartões, com o retorno em destaque e ordenação por valor ou por retorno.
 - [ ] Meta de alocação por classe (a coluna "meta" da proposta): precisa de banco (tabela e função de leitura) e de uma decisão do dono sobre como definir e editar as metas. Só depois da parte dos ativos.
 - [ ] Seletor de período: o gráfico não tem tooltip por período nem "tudo"; 24 meses é o máximo.
-- [x] Linha "Aportado" do gráfico como aporte líquido (#321, migration 114). **Falta aplicar a migration 114** pelo workflow (simular, ler o log, aplicar), depois da 113, só com o "pode" do dono; antes disso o gráfico mostra o custo e avisa.
+- [x] Linha "Aportado" do gráfico como aporte líquido (#321, migration 114). **Migration 114 aplicada em 13/11/2026 (execução 43437374727)**, junto com a 115. O dono precisa ver no app que a linha "Aportado" bate com o resumo.
 - [ ] Aporte líquido negativo é desenhado em zero no gráfico (a escala não tem parte negativa). Se o dono tiver um caso, desenhar abaixo do eixo.
 - [ ] Conferir com carteira real o tempo da leitura de 24 meses e do aporte líquido (a série tem o desenho de `investment_history`).
 - [ ] Gráfico de evolução: o período segue fixo em 12 meses e não há seletor; sem linha de rendimento própria (a tela não subtrai: o espaço entre as linhas mostra a diferença). Se o dono quiser rendimento em linha, ele precisa vir do banco. Conferir em 390 px e 1280 px com dados reais.
@@ -722,7 +722,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Conferir em 390 px e 1280 px com dados reais depois do deploy (a conferência da #308 foi com dados falsos e sem o menu lateral).
 - [x] **Parcelas (etapa 2, #310, migration 111):** enviar a parcela para a fatura anterior ou próxima, uma por vez, só ainda não cobrada, fatura paga travada. Com teste no banco e na tela.
 - [x] **Cartões, ajustes de tela (#313):** rótulo "Fatura atual", linha da compra clicável com a folha "Editar compra" e "anterior" sempre à vista (desabilitado com motivo). Só front.
-- [x] **Data da compra editável (#322, migration 115):** "Corrigir data da compra" na folha e no ⋯; a fatura não muda sozinha. **Falta aplicar a migration 115** pelo workflow (simular, ler o log, aplicar), depois da 114, só com o "pode" do dono; antes disso a opção aparece e o banco responde que a função não existe.
+- [x] **Data da compra editável (#322, migration 115):** "Corrigir data da compra" na folha e no ⋯; a fatura não muda sozinha. **Migration 115 aplicada em 13/11/2026 (execução 43437374727)**, junto com a 114. **Falta o dono corrigir a data de uma compra real no app e confirmar que funcionou**, e a conferência direta no banco (a função existe, anônimo sem execute, o gatilho continua barrando mudança de valor), que não foi possível por a ferramenta do Supabase estar fora do ar.
 - [ ] **Folha "Editar compra": categoria, cartão e despesa→receita ainda não são editáveis** (aparecem só para leitura). Virão em PR própria, com banco (RPC + migration + teste de banco). O dono também quer tudo num único formulário com todos os campos; hoje são ações separadas na lista.
 - [ ] **Tela que o dono pediu e não foi feita:** o mesmo card no meio para as outras edições do cartão (editar o cartão, pagamentos, assinaturas previstas) segue como estava; só a compra mudou.
 - [ ] Conferir no iPhone o card no meio ao corrigir a data (e o teclado do campo de data).
@@ -733,3 +733,5 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Parcela com estorno ou cancelamento parcial não muda de fatura (recusada); liberar se o dono pedir.
 - [ ] Destino só a fatura vizinha (anterior ou próxima), repetindo para ir mais longe. Escolher qualquer fatura aberta ou futura de uma vez, se o dono quiser.
 - [ ] Não conferido: a cobrança no fechamento da fatura nova (`card_bill_due` só cobra até hoje; o teste não viaja no tempo) e a suíte completa de banco no CI.
+- [ ] **Aviso genérico engana quando falta a função no banco:** o app mostrou "Não foi possível concluir agora. Tente de novo em instantes." quando a migration 115 ainda não estava aplicada; tentar de novo não resolvia. Sugestão: tratar o erro de função inexistente (PGRST202 / 42883) com "Esta opção ainda não está disponível". Não feito; precisa do "pode" do dono.
+- [ ] **Workflow de migrations aplica tudo que está pendente:** não dá para aplicar uma migration só (aconteceu com a 114 e a 115 em 13/11/2026). Se isso incomodar, uma PR para o workflow aceitar uma versão específica.
