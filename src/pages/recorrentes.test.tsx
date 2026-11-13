@@ -12,6 +12,7 @@ const mock = vi.hoisted(() => ({
   excluirRecorrencia: vi.fn(),
   resumoRecorrencias: vi.fn(),
   resumoPorNatureza: vi.fn(),
+  resumoVisaoGeral: vi.fn(),
   listarContas: vi.fn(),
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock('../lib/recorrencias', async (o) => ({
   ...(await o<typeof import('../lib/recorrencias')>()),
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
   editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
-  resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza,
+  resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza, resumoVisaoGeral: mock.resumoVisaoGeral,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas }))
@@ -51,6 +52,7 @@ beforeEach(() => {
   mock.listarRecorrencias.mockResolvedValue([])
   mock.resumoRecorrencias.mockResolvedValue([])
   mock.resumoPorNatureza.mockResolvedValue([])
+  mock.resumoVisaoGeral.mockResolvedValue([])
   mock.listarContas.mockResolvedValue({
     contas: [
       { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0) },
@@ -554,5 +556,70 @@ describe('Recorrentes: só informativa, separada em Saídas e Entradas', () => {
     montar()
     expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Ir para Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
+  })
+})
+
+
+describe('Recorrentes: visão geral por mês e por ano, fixo × variável sugerido (migration 116)', () => {
+  const linha = (tipo: 'expense' | 'income', recorte: 'all' | 'fixed' | 'variable', qtde: number, sugeridas: number, mes: number, ano: number) =>
+    ({ tipo, recorte, qtde, sugeridas, porMes: c(mes), porAno: c(ano) })
+  const visao = [
+    linha('expense', 'all', 7, 5, 241752, 2853023),
+    linha('expense', 'fixed', 5, 4, 207752, 2493023),
+    linha('expense', 'variable', 2, 1, 30000, 360000),
+    linha('income', 'all', 2, 0, 550000, 6600000),
+  ]
+  beforeEach(() => { mock.listarRecorrencias.mockResolvedValue([luz]) })
+
+  it('mostra quanto gasta e quanto entra, por mês e por ano, com os números do banco', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    montar()
+    await screen.findByTestId('visao-geral')
+    expect(screen.getByTestId('visao-saidas-mes').textContent).toBe('R$ 2.417,52/mês')
+    expect(screen.getByTestId('visao-saidas-ano').textContent).toContain('R$ 28.530,23 por ano')
+    expect(screen.getByTestId('visao-entradas-mes').textContent).toBe('R$ 5.500,00/mês')
+    expect(screen.getByTestId('visao-entradas-ano').textContent).toContain('R$ 66.000,00 por ano')
+  })
+
+  it('fixo e variável aparecem com a marca de sugerido (quantas são sugestão do app)', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    montar()
+    await screen.findByTestId('visao-geral')
+    const fixo = screen.getByTestId('visao-fixo')
+    expect(fixo.textContent).toContain('R$ 2.077,52/mês')
+    expect(fixo.textContent).toContain('R$ 24.930,23/ano')
+    expect(fixo.textContent).toContain('4 sugeridos')
+    expect(screen.getByTestId('visao-variável').textContent).toContain('1 sugerido')
+    expect(screen.getByText(/A natureza que você marcou vale mais/)).toBeTruthy()
+  })
+
+  it('tudo sugerido vira "sugerido"; nada sugerido (natureza toda marcada) não leva a marca nem a nota', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue([
+      linha('expense', 'all', 2, 2, 20000, 240000), linha('expense', 'fixed', 2, 2, 20000, 240000), linha('income', 'all', 1, 0, 100000, 1200000),
+    ])
+    montar()
+    await screen.findByTestId('visao-geral')
+    expect(screen.getByTestId('visao-fixo').textContent).toContain('· sugerido')
+    expect(screen.queryByTestId('visao-variável')).toBeNull()
+    cleanup()
+    mock.resumoVisaoGeral.mockResolvedValue([
+      linha('expense', 'all', 2, 0, 20000, 240000), linha('expense', 'fixed', 2, 0, 20000, 240000),
+    ])
+    montar()
+    await screen.findByTestId('visao-geral')
+    expect(screen.getByTestId('visao-fixo').textContent).not.toContain('sugerid')
+    expect(screen.queryByText(/A natureza que você marcou vale mais/)).toBeNull()
+    expect(screen.queryByTestId('visao-entradas-mes')).toBeNull()
+  })
+
+  it('banco ainda sem a função (migration 116): a tela cai no resumo de antes, sem erro', async () => {
+    mock.resumoVisaoGeral.mockRejectedValue({ code: 'PGRST202' })
+    mock.resumoRecorrencias.mockResolvedValue([
+      { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'expense', frequencia: null, qtde: 1, porOcorrencia: c(18000), porMes: c(18000) },
+    ])
+    montar()
+    expect(await screen.findByText('Na conta, por mês — saídas')).toBeTruthy()
+    expect(screen.queryByTestId('visao-geral')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

@@ -27,7 +27,7 @@ atualizado: 2026-11-11
 ### Recorrentes só informativa (decisão de 13/11/2026)
 - [x] 1. "Repetir" no cartão (#325).
 - [x] 2a. Recorrentes só de leitura (#326): sem Novo/Editar/Excluir; Saídas × Entradas × Transferências; link "Abrir" em cada item; "Parar de repetir a partir daqui" em Lançamentos.
-- [ ] 2b. Totais novos no topo: **por ano** (entradas e saídas) e **fixo × variável sugerido**. Precisa de função de banco nova (o front não soma dinheiro; por ano exato = valor × ocorrências, não 12 × o mensal arredondado) e de migration com simulação e "pode".
+- [x] 2b. Totais no topo: **por ano** e **fixo × variável sugerido** (#327, migration 116 `recurrence_overview`). **Falta aplicar a 116 em produção** pelo workflow (simular, ler o log, aplicar com `APLICAR`), só com o "pode" do dono. Depois de aplicar, conferir direto no banco: função existe, anon sem execute, e os totais batem com Recorrentes.
 - [ ] 3. Dividendos recorrentes como previsão (banco novo, só com "pode").
 - **Lacuna fechada na #326:** "Parar de repetir a partir daqui" em Lançamentos (usa `recurrence_end`). Conferir no app real numa conta fixa de teste.
 - **atalho:** sem tela para marcar a **natureza** de um recorrente (saiu do formulário de Recorrentes). Resolver com a sugestão automática (2b) ou levando a natureza para o formulário de Lançamentos.

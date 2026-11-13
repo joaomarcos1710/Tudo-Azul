@@ -15,10 +15,10 @@ import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatDate, formatMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  diaDaSemana, frequenciaResumo, listarRecorrencias, ordemFrequencias, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias,
+  diaDaSemana, frequenciaResumo, listarRecorrencias, ordemFrequencias, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias, resumoVisaoGeral,
   rotuloFrequencia, rotuloGrupoFrequencia, rotuloNatureza, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
-import type { FrequenciaResumo, LinhaNatureza, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia, TipoRecorrencia } from '../lib/recorrencias'
+import type { FrequenciaResumo, LinhaNatureza, LinhaVisao, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia, TipoRecorrencia } from '../lib/recorrencias'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo, SELO } from '../lib/cores'
 import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
@@ -98,6 +98,8 @@ export default function Recorrentes() {
   const [aba, setAba] = useState<Aba>('todos')
   const [natureza, setNatureza] = useState<FiltroNatureza>('todas')
   const [porNatureza, setPorNatureza] = useState<LinhaNatureza[]>([])
+  // visão por mês e por ano (migration 116): null = banco ainda sem a função (a tela mostra o resumo de antes)
+  const [visao, setVisao] = useState<LinhaVisao[] | null>(null)
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
@@ -113,6 +115,7 @@ export default function Recorrentes() {
       setResumo(s)
       // banco sem a migration (ou falha só aqui): o resumo por natureza some, o resto da tela segue
       void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => setPorNatureza([]))
+      void resumoVisaoGeral(familiaId).then(setVisao).catch(() => setVisao(null))
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -230,7 +233,7 @@ export default function Recorrentes() {
             Em conta, os próximos 12 meses aparecem como <strong>Planejado</strong> (ou, se houver data final, todas as parcelas até ela) em{' '}
             <Link to="/lancamentos" className="font-semibold text-azul hover:underline">Lançamentos</Link>: quando a conta chegar,
             corrija o valor e marque como pago. No cartão, a compra entra no dia, na fatura certa.
-            Os totais do topo são o <strong>equivalente por mês</strong>: anual ÷ 12, a cada N meses ÷ N, semanal × 52 ÷ 12,
+            Os totais do topo são o <strong>equivalente por mês</strong> e o <strong>total por ano</strong> (valor × vezes por ano, exato por recorrente): anual ÷ 12, a cada N meses ÷ N, semanal × 52 ÷ 12,
             a cada N dias × 365 ÷ 12 ÷ N, arredondado no centavo em cada recorrente. Só contam os recorrentes em reais e sem data final passada;
             transferências ficam à parte, fora dos gastos.
           </Explicacao>
@@ -251,6 +254,7 @@ export default function Recorrentes() {
       {vigentes.length > 0 && (
         <section aria-labelledby="resumo-recorrentes" className="mb-4">
           <h2 id="resumo-recorrentes" className="sr-only">Resumo por mês</h2>
+          {visao !== null && visao.length > 0 ? <VisaoGeral linhas={visao} /> : (
           <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
             <CartaoResumo titulo="No cartão, por mês" linha={linha('medium', 'card', 'expense')} unidade="assinatura" tipo="expense" />
             <CartaoResumo titulo="Na conta, por mês — saídas" linha={linha('medium', 'account', 'expense')} unidade="despesa" tipo="expense" />
@@ -260,6 +264,7 @@ export default function Recorrentes() {
                 nota="à parte, fora dos gastos" />
             )}
           </div>
+          )}
           {emOutraMoeda > 0 && (
             <p className="mt-2 text-xs text-slate-600">
               {emOutraMoeda === 1 ? '1 recorrente em outra moeda fica' : `${emOutraMoeda} recorrentes em outra moeda ficam`} fora dos totais (que são em reais).
@@ -417,5 +422,60 @@ function CartaoResumo({ titulo, linha, unidade, tipo, nota }: {
         {nota && <> · {nota}</>}
       </p>
     </Card>
+  )
+}
+
+/**
+ * Topo da página: quanto se gasta por mês e por ano (com fixo × variável) e quanto entra por mês e por ano. Os valores vêm do banco
+ * (recurrence_overview); a tela não soma. "Sugerido" = o app decidiu pelo histórico, porque a pessoa não marcou a natureza.
+ */
+function VisaoGeral({ linhas }: { linhas: LinhaVisao[] }) {
+  const achar = (tipo: LinhaVisao['tipo'], recorte: LinhaVisao['recorte']) => linhas.find((l) => l.tipo === tipo && l.recorte === recorte)
+  const saidas = achar('expense', 'all')
+  const entradas = achar('income', 'all')
+  const fixo = achar('expense', 'fixed')
+  const variavel = achar('expense', 'variable')
+  const parte = (rotulo: string, l: LinhaVisao | undefined) => l && (
+    <li className="flex items-baseline justify-between gap-3" data-testid={`visao-${rotulo.toLowerCase()}`}>
+      <span className="text-slate-700">
+        {rotulo} <span className="text-slate-500">· {l.qtde}{l.sugeridas > 0 && <> · {l.sugeridas === l.qtde ? 'sugerido' : `${l.sugeridas} sugerido${l.sugeridas === 1 ? '' : 's'}`}</>}</span>
+      </span>
+      <span className="whitespace-nowrap tabular-nums">
+        <strong>{formatBRL(l.porMes)}</strong>/mês <span className="text-slate-500">· {formatBRL(l.porAno)}/ano</span>
+      </span>
+    </li>
+  )
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 sm:gap-3" data-testid="visao-geral">
+      {saidas && (
+        <Card semPadding className="p-4">
+          <h3 className="text-sm font-semibold text-slate-600">Você gasta</h3>
+          <p className={`mt-1 whitespace-nowrap text-2xl font-bold tabular-nums ${corDoTipo('expense')}`} data-testid="visao-saidas-mes">
+            {formatBRL(saidas.porMes)}<span className="text-base font-semibold">/mês</span>
+          </p>
+          <p className="text-sm text-slate-600 tabular-nums" data-testid="visao-saidas-ano">{formatBRL(saidas.porAno)} por ano · {saidas.qtde} recorrente{saidas.qtde === 1 ? '' : 's'}</p>
+          {(fixo || variavel) && (
+            <ul className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-sm">
+              {parte('Fixo', fixo)}
+              {parte('Variável', variavel)}
+            </ul>
+          )}
+          {(fixo?.sugeridas ?? 0) + (variavel?.sugeridas ?? 0) > 0 && (
+            <p className="mt-2 text-xs text-slate-500">
+              "Sugerido": o app decidiu pelo histórico (valor sempre igual = fixo; valores diferentes = variável). A natureza que você marcou vale mais.
+            </p>
+          )}
+        </Card>
+      )}
+      {entradas && (
+        <Card semPadding className="p-4">
+          <h3 className="text-sm font-semibold text-slate-600">Vai entrar</h3>
+          <p className={`mt-1 whitespace-nowrap text-2xl font-bold tabular-nums ${corDoTipo('income')}`} data-testid="visao-entradas-mes">
+            {formatBRL(entradas.porMes)}<span className="text-base font-semibold">/mês</span>
+          </p>
+          <p className="text-sm text-slate-600 tabular-nums" data-testid="visao-entradas-ano">{formatBRL(entradas.porAno)} por ano · {entradas.qtde} recorrente{entradas.qtde === 1 ? '' : 's'}</p>
+        </Card>
+      )}
+    </div>
   )
 }
