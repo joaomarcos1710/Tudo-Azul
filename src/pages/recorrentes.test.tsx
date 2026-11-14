@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   resumoPorNatureza: vi.fn(),
   resumoVisaoGeral: vi.fn(),
   listarProventosPrevistos: vi.fn(),
+  listarProventosAcabando: vi.fn(),
   faturaDaProximaCobranca: vi.fn(),
   definirNaturezaRecorrencia: vi.fn(),
   listarContas: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('../lib/recorrencias', async (o) => ({
 vi.mock('../lib/investimentos', async (o) => ({
   ...(await o<typeof import('../lib/investimentos')>()),
   listarProventosPrevistos: mock.listarProventosPrevistos,
+  listarProventosAcabando: mock.listarProventosAcabando,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas, listarParcelasQueAcabam: vi.fn().mockResolvedValue({ planos: [], totais: [] }), listarCronogramaParcelas: vi.fn().mockResolvedValue(new Map()), resumoParcelasDoMes: mock.resumoParcelasDoMes }))
@@ -66,6 +68,7 @@ beforeEach(() => {
   mock.resumoPorNatureza.mockResolvedValue([])
   mock.resumoVisaoGeral.mockResolvedValue([])
   mock.listarProventosPrevistos.mockResolvedValue([])
+  mock.listarProventosAcabando.mockResolvedValue([])
   mock.faturaDaProximaCobranca.mockResolvedValue(new Map())
   mock.definirNaturezaRecorrencia.mockResolvedValue(undefined)
   mock.listarContas.mockResolvedValue({
@@ -951,5 +954,39 @@ describe('Recorrentes: card "Parcelas & carnês" (Saídas)', () => {
     montar()
     await screen.findByTitle('Luz')
     expect(screen.queryByTestId('card-parcelas-BRL')).toBeNull()
+  })
+})
+
+describe('Recorrentes: aviso "a previsão de proventos está acabando" (Entradas)', () => {
+  const previsto = (ativoId: string, nome: string) => ({ ativoId, nome, qtde: 2, proximaData: '2026-12-10', proximoValor: c(8550), total12m: c(17100) })
+  const acabando = { ativoId: 'a1', nome: 'FII', ultimaData: '2027-01-10', ultimoValor: c(8550), qtdePrevistos: 2 }
+
+  it('avisa no card Proventos previstos: faixa com a contagem e o link para Investimentos, e o selo "Previsão termina em" só no ativo certo', async () => {
+    mock.listarProventosPrevistos.mockResolvedValue([previsto('a1', 'FII'), previsto('a2', 'Ação')])
+    mock.listarProventosAcabando.mockResolvedValue([acabando])
+    montar(ENTRADAS)
+    const aviso = await screen.findByTestId('aviso-proventos-acabando')
+    expect(aviso.textContent).toContain('A previsão de 1 ativo está acabando')
+    expect(aviso.textContent).toContain('próximos 60 dias')
+    expect(within(aviso).getByRole('link', { name: 'Investimentos' }).getAttribute('href')).toBe('/investimentos')
+    expect(within(screen.getByTestId('acabando-a1')).getByText(/Previsão termina em/)).toBeTruthy()
+    expect(screen.queryByTestId('acabando-a2')).toBeNull()
+  })
+
+  it('sem ativo acabando, ou com falha na consulta (banco sem a função), não há aviso e o card segue normal; o plural concorda', async () => {
+    mock.listarProventosPrevistos.mockResolvedValue([previsto('a1', 'FII')])
+    montar(ENTRADAS)
+    await screen.findByTestId('proventos-previstos')
+    expect(screen.queryByTestId('aviso-proventos-acabando')).toBeNull()
+    cleanup()
+    mock.listarProventosAcabando.mockRejectedValue(new Error('sem a função'))
+    montar(ENTRADAS)
+    await screen.findByTestId('proventos-previstos')
+    expect(screen.queryByTestId('aviso-proventos-acabando')).toBeNull()
+    cleanup()
+    mock.listarProventosPrevistos.mockResolvedValue([previsto('a1', 'FII'), previsto('a2', 'Ação')])
+    mock.listarProventosAcabando.mockResolvedValue([acabando, { ...acabando, ativoId: 'a2', nome: 'Ação' }])
+    montar(ENTRADAS)
+    expect((await screen.findByTestId('aviso-proventos-acabando')).textContent).toContain('A previsão de 2 ativos está acabando')
   })
 })

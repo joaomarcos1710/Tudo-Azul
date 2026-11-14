@@ -9,7 +9,7 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { listarProventosPrevistos, registrarProventosPrevistos } from './investimentos'
+import { listarProventosAcabando, listarProventosPrevistos, registrarProventosPrevistos } from './investimentos'
 
 const c = (n: number) => n as Cents
 beforeEach(() => { fake.chamadas.length = 0; fake.resposta.error = null; fake.resposta.data = [] })
@@ -53,5 +53,28 @@ describe('listarProventosPrevistos', () => {
     expect(await listarProventosPrevistos('h1')).toEqual([])
     fake.resposta.error = { code: 'PGRST202' }
     await expect(listarProventosPrevistos('h1')).rejects.toMatchObject({ code: 'PGRST202' })
+  })
+})
+
+describe('listarProventosAcabando', () => {
+  it('chama investment_planned_income_ending com a família e os dias (60 por padrão) e converte reais do banco em centavos inteiros', async () => {
+    fake.resposta.data = [
+      { asset_id: 'a1', asset_name: 'FII de teste', last_date: '2026-12-20', last_amount: '85.50', planned_count: 2, history_count: 4 },
+      { asset_id: 'a2', asset_name: 'Ação de teste', last_date: '2027-01-10', last_amount: 6.2, planned_count: 1, history_count: 2 },
+    ]
+    const r = await listarProventosAcabando('h1')
+    expect(fake.chamadas).toEqual([['investment_planned_income_ending', { p_household: 'h1', p_days: 60 }]])
+    expect(r).toEqual([
+      { ativoId: 'a1', nome: 'FII de teste', ultimaData: '2026-12-20', ultimoValor: 8550, qtdePrevistos: 2 },
+      { ativoId: 'a2', nome: 'Ação de teste', ultimaData: '2027-01-10', ultimoValor: 620, qtdePrevistos: 1 },
+    ])
+  })
+  it('aceita outro horizonte; sem dados devolve vazio; erro do banco sobe (a tela segue sem o aviso)', async () => {
+    await listarProventosAcabando('h1', 90)
+    expect(fake.chamadas[0][1]).toEqual({ p_household: 'h1', p_days: 90 })
+    fake.resposta.data = null
+    expect(await listarProventosAcabando('h1')).toEqual([])
+    fake.resposta.error = { code: 'PGRST202' }
+    await expect(listarProventosAcabando('h1')).rejects.toMatchObject({ code: 'PGRST202' })
   })
 })

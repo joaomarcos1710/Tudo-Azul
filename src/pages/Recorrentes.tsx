@@ -6,8 +6,8 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useFamilia } from '../lib/FamiliaContext'
 import { faturaDaProximaCobranca, listarCartoes, rotaCartao, rotaFatura } from '../lib/cartoes'
-import { listarProventosPrevistos } from '../lib/investimentos'
-import type { ProventoPrevisto } from '../lib/investimentos'
+import { listarProventosAcabando, listarProventosPrevistos } from '../lib/investimentos'
+import type { ProventoAcabando, ProventoPrevisto } from '../lib/investimentos'
 import type { Cartao } from '../lib/cartoes'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
@@ -134,6 +134,8 @@ export default function Recorrentes() {
   const [visao, setVisao] = useState<LinhaVisao[] | null>(null)
   // proventos de investimento previstos (planejados) de hoje a 12 meses: só informação, fora do total "Vai entrar" (migration 117)
   const [proventos, setProventos] = useState<ProventoPrevisto[]>([])
+  // ativos cuja previsão de proventos acaba em até 60 dias (migration 122): só um aviso, opcional (banco sem a função ou falha: some)
+  const [proventosAcabando, setProventosAcabando] = useState<ProventoAcabando[]>([])
   // assinatura → mês da fatura da próxima cobrança, para o link "Abrir" cair direto onde se muda o dia (sem o mapa, abre o cartão)
   const [faturaDe, setFaturaDe] = useState<Map<string, string>>(new Map())
   // peso dos parcelamentos neste mês (migration 120, somado no banco): o card "Parcelas e carnês" em Saídas; falha ou banco sem a função: some
@@ -155,6 +157,7 @@ export default function Recorrentes() {
       void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => setPorNatureza([]))
       void resumoVisaoGeral(familiaId).then(setVisao).catch(() => setVisao(null))
       void listarProventosPrevistos(familiaId).then(setProventos).catch(() => setProventos([]))
+      void listarProventosAcabando(familiaId, 60).then(setProventosAcabando).catch(() => setProventosAcabando([]))
       void resumoParcelasDoMes(familiaId).then(setParcelasMes).catch(() => setParcelasMes([]))
       void faturaDaProximaCobranca(r.filter((x) => x.tipo === 'card' && x.ativa).map((x) => x.id)).then(setFaturaDe).catch(() => setFaturaDe(new Map()))
       setErro('')
@@ -332,14 +335,29 @@ export default function Recorrentes() {
               Investimentos · {proventos.length} ativo{proventos.length === 1 ? '' : 's'} · previsão dos próximos 12 meses: você digita o valor e nada vira pago sozinho. Fora do total "Vai entrar".
             </p>
           </div>
+          {proventosAcabando.length > 0 && (
+            <div role="status" data-testid="aviso-proventos-acabando"
+              className={`mx-4 mb-3 rounded-lg px-3 py-2 text-sm sm:mx-5 ${SELO.atencao}`}>
+              <strong>A previsão de {proventosAcabando.length} ativo{proventosAcabando.length === 1 ? '' : 's'} está acabando</strong> nos próximos 60 dias.
+              A previsão cobre 12 meses por vez: para continuar, registre de novo com "Repetir" em{' '}
+              <Link to="/investimentos" className="font-semibold underline">Investimentos</Link>.
+            </div>
+          )}
           <ul className="divide-y divide-slate-100 border-t border-slate-100" data-testid="proventos-previstos">
-            {proventos.map((p) => (
+            {proventos.map((p) => {
+              const fim = proventosAcabando.find((a) => a.ativoId === p.ativoId)
+              return (
               <li key={p.ativoId} className="flex items-center gap-2 py-2 pl-4 pr-1 sm:pl-5">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium" title={p.nome}>{p.nome}</p>
                   <p className="truncate text-xs text-slate-500">
                     <span className="text-agendado">próximo {dataCurta(p.proximaData, hojeSP())}</span> · {formatBRL(p.proximoValor)} · {p.qtde} previsto{p.qtde === 1 ? '' : 's'} em 12 meses
                   </p>
+                  {fim && (
+                    <p className="mt-0.5" data-testid={`acabando-${p.ativoId}`}>
+                      <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${SELO.atencao}`}>Previsão termina em {dataCurta(fim.ultimaData, hojeSP())}</span>
+                    </p>
+                  )}
                 </div>
                 <span className={`shrink-0 whitespace-nowrap text-right text-sm font-semibold tabular-nums ${corDoTipo('income')}`}>+{formatBRL(p.total12m)}</span>
                 <Link to="/investimentos" aria-label={`Abrir ${p.nome} em Investimentos`} title="Ver em Investimentos (registrar ou repetir o provento)"
@@ -347,7 +365,8 @@ export default function Recorrentes() {
                   <span aria-hidden="true">›</span>
                 </Link>
               </li>
-            ))}
+              )
+            })}
           </ul>
         </section>
       </Card>

@@ -336,6 +336,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#344** (14/11/2026): diário: funções 116 a 121 conferidas direto no banco de produção (existem, `anon` sem execute, matriz é a versão nova) e notas velhas de Pendências limpas (natureza resolvida na #331; link da fatura na #336). Só documentação.
 - **#345** (14/11/2026): diário: desempenho das funções novas medido em produção (tempo e contagem, sem ler valores): nada lento; o resumo do mês das parcelas leva ~0,8 s por chamar duas funções (atalho anotado). Só documentação.
 - **#346** (14/11/2026): dois gráficos (Despesa acumulada no Início e Evolução da carteira em Investimentos) passam a desenhar na largura real da caixa: no celular o texto dos eixos estava com ~6 px. Só front.
+- **#347** (14/11/2026): aviso de proventos acabando em Recorrentes › Entradas (faixa e selo "Previsão termina em" quando o último provento previsto cai em até 60 dias e o ativo tem padrão de repetição). Migration 122 (`investment_planned_income_ending`, só leitura), ainda não aplicada; sem ela o aviso não aparece e nada quebra.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
