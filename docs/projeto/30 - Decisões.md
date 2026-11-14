@@ -749,3 +749,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Pedido do dono**, vindo da análise colada da tela de Parcelas ativas. Precisou de função de banco porque "libera R$ X/mês" é soma de dinheiro (o app não soma).
 - **Regra:** última parcela viva vence em até 60 dias (inclusive o último dia); valor liberado = a última parcela; plano em atraso não conta (o dinheiro ainda não foi liberado); moedas separadas. Reaproveita a definição de "parcelamento ativo" da função que já existia.
 - **Consulta opcional:** se falhar ou a migration ainda não estiver aplicada, o aviso some e a lista segue.
+
+## 14/11/2026 — Recorrentes em duas visões: Saídas e Entradas (dono, #333)
+- **Eu tinha lido errado** "separado entre entrada e saída" como títulos dentro de uma página só. O dono mandou uma imagem de referência (os valores dela são **só ilustrativos**): um seletor no topo com Gastos × Receitas e, embaixo, cards por tipo que funcionam como filtro. Agora é assim.
+- **Cards por natureza no lugar dos chips**, com o total do banco e exemplos. Mapeamento ao nosso modelo: Custos fixos, Assinaturas & apps, Gastos variáveis (despesas) e A ressarcir (**receita**: no nosso banco o ressarcimento só vale em receita); sem natureza vira "Sem natureza".
+- **Não feito, de propósito:** o card "Parcelas & carnês" com o valor mensal da referência. Precisa de uma soma das parcelas do mês no banco (função nova); por ora as parcelas ficam na aba Parcelas (com o aviso dos que terminam em 60 dias).
+- **Mantidos:** os botões "Novo lançamento" e "+ Parcelamento" da referência **não** entram: Recorrentes continua só consulta (decisão de 13/11, #326); o cadastro é em Lançamentos.

@@ -321,7 +321,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#329** (13/11/2026): diário: migrations 116 e 117 aplicadas em produção (execução 43529901362).
 - **#330** (13/11/2026): Recorrentes em três abas (Assinaturas e contas, Projeção, Parcelas ativas); matriz de projeção com blocos por tipo, cabeçalho fixo e mês atual destacado; Parcelas ativas sem o selo repetido e com ordenação. Só front.
 - **#331** (14/11/2026): Recorrentes: corrigir a natureza (toque na linha), layout refeito depois de ver a página renderizada (cards lado a lado, sem estourar no celular, linha de duas linhas, proventos em Entradas) e cabeçalho dos meses da matriz que nunca aparecia. Só front.
-- **#332** (14/11/2026, em rascunho): Parcelas ativas: aviso "N parcelamentos terminam nos próximos 60 dias, liberando R$ X por mês" (migration 118, `installments_ending_soon`, ainda não aplicada).
+- **#332** (14/11/2026): Parcelas ativas: aviso "N parcelamentos terminam nos próximos 60 dias, liberando R$ X por mês" (migration 118, `installments_ending_soon`, ainda não aplicada).
+- **#333** (14/11/2026, em rascunho): Recorrentes em **duas visões**, Saídas e Entradas (seletor no topo com o total por mês e por ano), com **cards por natureza** que filtram a lista, como na referência do dono. Só front.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
