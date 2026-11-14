@@ -338,6 +338,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#346** (14/11/2026): dois gráficos (Despesa acumulada no Início e Evolução da carteira em Investimentos) passam a desenhar na largura real da caixa: no celular o texto dos eixos estava com ~6 px. Só front.
 - **#347** (14/11/2026): aviso de proventos acabando em Recorrentes › Entradas (faixa e selo "Previsão termina em" quando o último provento previsto cai em até 60 dias e o ativo tem padrão de repetição). Migration 122 (`investment_planned_income_ending`, só leitura), aplicada em 14/11/2026 (execução 43612958939).
 - **#348** (14/11/2026): diário: migration 122 aplicada em produção e conferida direto no banco (execução 43612958939). Só documentação.
+- **#349** (14/11/2026): Recorrentes: "Já terminaram" mostra só o que terminou nos últimos 90 dias; o mais antigo fica atrás de um botão (nada é apagado). Só front.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

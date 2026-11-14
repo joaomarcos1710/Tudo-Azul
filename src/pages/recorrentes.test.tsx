@@ -990,3 +990,60 @@ describe('Recorrentes: aviso "a previsão de proventos está acabando" (Entradas
     expect((await screen.findByTestId('aviso-proventos-acabando')).textContent).toContain('A previsão de 2 ativos está acabando')
   })
 })
+
+describe('Recorrentes: "Já terminaram" só mostra o recente (nada é apagado)', () => {
+  // hoje = 05/11/2026: o limite de 90 dias é 07/08/2026 (o dia do limite ainda é "recente")
+  const encerrada = (id: string, nome: string, fim: string) => ({ ...luz, id, descricao: nome, fim })
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-05T15:00:00Z'))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('mostra o que terminou nos últimos 90 dias (inclusive o dia do limite) e esconde o mais antigo atrás de um botão que mostra e esconde', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz,
+      encerrada('t1', 'Terminou ontem', '2026-11-04'),
+      encerrada('t2', 'No limite', '2026-08-07'),
+      encerrada('t3', 'Um dia além do limite', '2026-08-06'),
+      encerrada('t4', 'Terminou faz tempo', '2026-01-15'),
+    ])
+    montar()
+    await screen.findByText('Luz')
+    const bloco = screen.getByRole('region', { name: /Já terminaram/ })
+    expect(within(bloco).getByTitle('Terminou ontem')).toBeTruthy()
+    expect(within(bloco).getByTitle('No limite')).toBeTruthy()
+    expect(within(bloco).queryByTitle('Um dia além do limite')).toBeNull()
+    expect(within(bloco).queryByTitle('Terminou faz tempo')).toBeNull()
+    const botao = within(bloco).getByTestId('terminadas-antigas')
+    expect(botao.textContent).toBe('Mostrar os 2 que terminaram há mais de 90 dias')
+    await userEvent.click(botao)
+    expect(within(bloco).getByTitle('Um dia além do limite')).toBeTruthy()
+    expect(within(bloco).getByTitle('Terminou faz tempo')).toBeTruthy()
+    expect(within(bloco).getByTestId('terminadas-antigas').textContent).toBe('Esconder os mais antigos')
+    await userEvent.click(within(bloco).getByTestId('terminadas-antigas'))
+    expect(within(bloco).queryByTitle('Terminou faz tempo')).toBeNull()
+  })
+
+  it('só com recorrentes antigos, o bloco avisa que nenhum terminou nos últimos 90 dias e oferece mostrar (singular concorda)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz, encerrada('t4', 'Terminou faz tempo', '2026-01-15')])
+    montar()
+    await screen.findByText('Luz')
+    const bloco = screen.getByRole('region', { name: /Já terminaram/ })
+    expect(within(bloco).getByTestId('terminadas-vazio').textContent).toBe('Nenhum terminou nos últimos 90 dias.')
+    expect(within(bloco).queryByTitle('Terminou faz tempo')).toBeNull()
+    const botao = within(bloco).getByTestId('terminadas-antigas')
+    expect(botao.textContent).toBe('Mostrar 1 que terminou há mais de 90 dias')
+    await userEvent.click(botao)
+    expect(within(bloco).getByTitle('Terminou faz tempo')).toBeTruthy()
+    expect(within(bloco).queryByTestId('terminadas-vazio')).toBeNull()
+  })
+
+  it('sem nenhum antigo não há botão nem aviso de vazio', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz, encerrada('t1', 'Terminou ontem', '2026-11-04')])
+    montar()
+    await screen.findByText('Luz')
+    expect(screen.queryByTestId('terminadas-antigas')).toBeNull()
+    expect(screen.queryByTestId('terminadas-vazio')).toBeNull()
+  })
+})
+
