@@ -50,7 +50,9 @@ const luz = {
   inicio: '2026-10-01', fim: null as string | null,
   contaId: 'a1', destinoId: null, cartaoId: null, categoriaId: 'g1', ativa: true,
 }
-const montar = () => render(<MemoryRouter><Recorrentes /></MemoryRouter>)
+/** `entrada` = a rota inicial: "/" abre em Saídas; "/?v=entradas" abre em Entradas. */
+const montar = (entrada = '/') => render(<MemoryRouter initialEntries={[entrada]}><Recorrentes /></MemoryRouter>)
+const ENTRADAS = '/?v=entradas'
 /** Texto da linha de metadados de um item (a subcategoria vem em dois spans: visível e para leitor de tela). */
 const metas = () => screen.getAllByTestId('meta-recorrente').map((p) => Array.from(p.childNodes)
   .map((n) => ((n as HTMLElement).className === 'sr-only' ? '' : n.textContent)).join(''))
@@ -160,15 +162,16 @@ describe('Recorrentes', () => {
       { ...luz, id: 'r4', descricao: 'Diarista', unidade: 'week' as const, cada: 2, dia: null, inicio: '2026-10-23', fim: '2027-06-30' },
     ])
     montar()
+    expect(await screen.findByText('Diarista')).toBeTruthy()
+    // saídas: a quinzenal; "próxima" curta no ano corrente (auditoria 5h: a próxima data abre a linha)
+    expect(metas()).toEqual(['próxima 06/11 · quinzenal · sexta · Itaú · Moradia · até 30/06/2027'])
+    cleanup()
+    // entradas: a anual, em outra visão
+    montar(ENTRADAS)
     expect(await screen.findByText('PLR')).toBeTruthy()
-    // grupos por frequência: semanais antes de anuais; dentro do item, "próxima" curta no ano corrente
-    expect(metas()).toEqual([
-      // auditoria 5h: a próxima data abre a linha (no fim, era cortada pelas reticências no celular)
-      'próxima 06/11 · quinzenal · sexta · Itaú · Moradia · até 30/06/2027',
-      'próxima 20/02/2027 · 20 de fev · Itaú · Salário',
-    ])
+    expect(metas()).toEqual(['próxima 20/02/2027 · 20 de fev · Itaú · Salário'])
     // o detalhe completo continua no title
-    expect(screen.getAllByTestId('meta-recorrente')[1].getAttribute('title')).toBe(
+    expect(screen.getAllByTestId('meta-recorrente')[0].getAttribute('title')).toBe(
       'Anual · 20 de fevereiro · Itaú · Salário · Receita em conta · próxima 20/02/2027')
     vi.useRealTimers()
   })
@@ -217,7 +220,7 @@ describe('Recorrentes', () => {
       { id: 'g1', nome: 'Moradia', tipo: 'expense', paiId: null, sistema: false, ativa: true },
       { id: 'g3', nome: 'Condomínio', tipo: 'expense', paiId: 'g1', sistema: false, ativa: true },
     ]
-    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => !['Saídas', 'Entradas', 'Transferências · à parte, fora dos gastos'].includes(t ?? '') && t !== 'Resumo por mês' && t !== 'Projeção de compromissos' && t !== 'Parcelas ativas')
+    const cabecalhos = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent).filter((t) => !['Saídas', 'Entradas', 'Transferências · à parte, fora dos gastos'].includes(t ?? '') && t !== 'Saídas e entradas por mês' && t !== 'Projeção de compromissos' && t !== 'Parcelas ativas')
     /** Faixas de frequência (h3) dentro do card de um tipo. */
     const faixas = (card: HTMLElement) => within(card).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
     const card = (titulo: RegExp) => screen.getByRole('region', { name: titulo })
@@ -231,19 +234,10 @@ describe('Recorrentes', () => {
     })
     afterEach(() => { vi.useRealTimers() })
 
-    it('cartões do topo mostram o equivalente mensal e o total por ocorrência vindos do banco', async () => {
+    it('o resumo por cartão e por conta vem do banco (lista expansível, só das saídas)', async () => {
       montar()
-      const cartao = (await screen.findByRole('heading', { name: 'No cartão, por mês' })).parentElement!
-      expect(cartao.textContent).toContain('R$ 65,90')
-      expect(cartao.textContent).toContain('equivalente por mês · R$ 175,90 por ocorrência · 2 assinaturas')
-      const saidas = screen.getByRole('heading', { name: 'Na conta, por mês — saídas' }).parentElement!
-      expect(saidas.textContent).toContain('R$ 2.354,16')
-      expect(saidas.textContent).toContain('R$ 3.070,00 por ocorrência · 3 despesas')
-      expect(screen.getByRole('heading', { name: 'Na conta, por mês — entradas' }).parentElement!.textContent).toContain('R$ 5.000,00')
-      const transf = screen.getByRole('heading', { name: 'Transferências, por mês' }).parentElement!
-      expect(transf.textContent).toContain('à parte, fora dos gastos')
+      await screen.findByText('Streaming')
       expect(mock.resumoRecorrencias).toHaveBeenCalledWith('h1')
-      // por cartão e por conta (lista expansível)
       const detalhe = screen.getByText('Por cartão e por conta').closest('details')!
       expect(detalhe.querySelector('li')?.textContent).toBe('Nubank · cartão · 2R$ 65,90/mêsR$ 175,90 por vez')
     })
@@ -265,13 +259,19 @@ describe('Recorrentes', () => {
         { ...luz, id: 'r7', descricao: 'Academia antiga', fim: '2026-09-30' },
       ])
       montar()
-      await screen.findByText('Salário')
-      expect(cabecalhos()).toEqual(['Assinaturas no cartão · 2', 'Contas fixas · 2', 'Receitas · 1', 'Transferências · 1',
-        'Já terminaram · fora dos totais'])
+      await screen.findByText('Guardar')
+      // Saídas: cartão, contas fixas e as transferências (à parte); "Já terminaram" é o último card (só de saídas)
+      expect(cabecalhos()).toEqual(['Assinaturas no cartão · 2', 'Contas fixas · 2', 'Transferências · 1', 'Já terminaram · fora dos totais'])
+      expect(within(card(/^Já terminaram/)).getByText('Academia antiga')).toBeTruthy()
+      cleanup()
+      // Entradas: as receitas, numa visão própria
+      montar(ENTRADAS)
+      await screen.findByText('Salário', { selector: '[title]' })
+      expect(cabecalhos()).toEqual(['Receitas · 1'])
       // sem linha 'frequency' do banco para receitas: a faixa mostra só a contagem, a tela não soma
       expect(within(card(/^Receitas/)).getByRole('region', { name: 'Mensais · 1 · Receitas' }).textContent).not.toContain('/mês')
       expect(screen.getByTestId('total-income').textContent).toBe('R$ 5.000,00/mês')
-      expect(within(card(/^Já terminaram/)).getByText('Academia antiga')).toBeTruthy()
+      expect(screen.queryByText('Academia antiga')).toBeNull()
     })
 
     it('título de cada card traz o total por mês do banco (nível medium), não a soma dos itens', async () => {
@@ -405,7 +405,7 @@ describe('Recorrentes: natureza', () => {
       { ...luz, id: 'r4', descricao: 'Água' },
     ])
     montar()
-    await screen.findByText('Luz')
+    await screen.findByTitle('Luz')
     const selos = screen.getAllByTestId('selo-natureza').map((s) => s.textContent)
     // o selo é curto (cabe no celular); o nome completo fica no title
     expect(selos).toEqual(expect.arrayContaining(['Fixo', 'Assinatura']))
@@ -438,16 +438,22 @@ describe('Recorrentes: resumo e filtro por natureza', () => {
     expect(screen.queryByRole('group', { name: 'Filtrar por natureza' })).toBeNull()
   })
 
-  it('chips só das naturezas que existem, com a contagem da lista', async () => {
+  it('cards só das naturezas que existem: nome, quantas, total do banco e exemplos; a ordem é fixa', async () => {
     mock.listarRecorrencias.mockResolvedValue(regras)
     mock.resumoPorNatureza.mockResolvedValue(porNatureza)
     montar()
     await screen.findByText('Internet')
-    const nomes = within(grupo()).getAllByRole('button').map((b) => b.textContent)
-    expect(nomes).toEqual(['Todas · 4', 'Custo fixo · 1', 'Assinatura ou app · 1', 'Sem natureza · 2'])
+    const ids = within(grupo()).getAllByRole('button').map((b) => b.getAttribute('data-testid'))
+    expect(ids).toEqual(['natureza-fixed', 'natureza-subscription', 'natureza-none'])
+    expect(screen.queryByTestId('natureza-variable')).toBeNull() // ninguém é "variável": o card não aparece
+    expect(screen.getByTestId('natureza-fixed').textContent).toContain('R$ 180,00/mês')
+    expect(screen.getByTestId('natureza-fixed').textContent).toContain('Custos fixos · 1')
+    expect(screen.getByTestId('natureza-subscription').textContent).toContain('R$ 39,90/mês')
+    expect(screen.getByTestId('natureza-none').textContent).toContain('R$ 220,00/mês')
+    expect(screen.getByTestId('natureza-none').textContent).toContain('Seguro') // exemplo da natureza
   })
 
-  it('escolher "Custo fixo" filtra a lista e mostra o total do banco; os totais por card (que ignoram a natureza) somem', async () => {
+  it('tocar num card filtra a lista e mostra o total do banco; os totais por card (que ignoram a natureza) somem', async () => {
     const u = userEvent.setup()
     mock.listarRecorrencias.mockResolvedValue(regras)
     mock.resumoPorNatureza.mockResolvedValue(porNatureza)
@@ -457,31 +463,32 @@ describe('Recorrentes: resumo e filtro por natureza', () => {
     montar()
     await screen.findByText('Internet')
     expect(await screen.findByTestId('total-expense')).toBeTruthy()
-    await u.click(within(grupo()).getByRole('button', { name: /^Custo fixo/ }))
+    await u.click(screen.getByTestId('natureza-fixed'))
     expect(nomesNaLista()).toBe(1)
-    expect(screen.getByText('Luz')).toBeTruthy()
-    expect(screen.queryByText('Internet')).toBeNull()
+    expect(screen.getByTitle('Luz')).toBeTruthy()
+    expect(screen.queryByTitle('Internet')).toBeNull()
     const total = screen.getByTestId('total-natureza')
     expect(total.textContent).toContain('R$ 180,00/mês')
     expect(total.textContent).toContain('saídas (1)')
     expect(screen.queryByTestId('total-expense')).toBeNull()
-    expect(within(grupo()).getByRole('button', { name: /^Custo fixo/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByTestId('natureza-fixed').getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('"Sem natureza" mostra as regras sem classificação (e o total do banco); "Todas" volta tudo', async () => {
+  it('"Sem natureza" mostra as regras sem classificação; tocar no card de novo limpa o filtro', async () => {
     const u = userEvent.setup()
     mock.listarRecorrencias.mockResolvedValue(regras)
     mock.resumoPorNatureza.mockResolvedValue(porNatureza)
     montar()
     await screen.findByText('Internet')
-    await u.click(within(grupo()).getByRole('button', { name: /^Sem natureza/ }))
+    await u.click(screen.getByTestId('natureza-none'))
     expect(nomesNaLista()).toBe(2)
-    expect(screen.getByText('Internet')).toBeTruthy()
-    expect(screen.getByText('Seguro')).toBeTruthy()
+    expect(screen.getByTitle('Internet')).toBeTruthy()
+    expect(screen.getByTitle('Seguro')).toBeTruthy()
     expect(screen.getByTestId('total-natureza').textContent).toContain('R$ 220,00/mês')
-    await u.click(within(grupo()).getByRole('button', { name: /^Todas/ }))
+    await u.click(screen.getByTestId('natureza-none'))
     expect(nomesNaLista()).toBe(4)
     expect(screen.queryByTestId('total-natureza')).toBeNull()
+    expect(screen.getByTestId('natureza-none').getAttribute('aria-pressed')).toBe('false')
   })
 
   it('transferência não tem natureza: sai da lista com qualquer filtro (inclusive "Sem natureza")', async () => {
@@ -490,30 +497,28 @@ describe('Recorrentes: resumo e filtro por natureza', () => {
     mock.listarRecorrencias.mockResolvedValue([{ ...luz, nature: 'fixed' as const }, internet, transf])
     mock.resumoPorNatureza.mockResolvedValue(porNatureza)
     montar()
-    await screen.findByText('Reserva')
-    await u.click(within(grupo()).getByRole('button', { name: /^Sem natureza/ }))
+    await screen.findByTitle('Internet')
+    expect(screen.getByText('Reserva')).toBeTruthy()
+    await u.click(screen.getByTestId('natureza-none'))
     expect(screen.queryByText('Reserva')).toBeNull()
-    expect(screen.getByText('Internet')).toBeTruthy()
-    await u.click(within(grupo()).getByRole('button', { name: /^Custo fixo/ }))
+    expect(screen.getByTitle('Internet')).toBeTruthy()
+    await u.click(screen.getByTestId('natureza-fixed'))
     expect(screen.queryByText('Reserva')).toBeNull()
-    await u.click(within(grupo()).getByRole('button', { name: /^Todas/ }))
+    await u.click(screen.getByTestId('natureza-fixed'))
     expect(screen.getByText('Reserva')).toBeTruthy()
   })
 
-  it('"Por natureza" lista os totais mensais do banco', async () => {
-    mock.listarRecorrencias.mockResolvedValue(regras)
+  it('trocar de visão limpa o filtro de natureza (cada visão tem as suas naturezas)', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([...regras, { ...luz, id: 'r9', tipo: 'income' as const, descricao: 'Salário', categoriaId: 'g2' }])
     mock.resumoPorNatureza.mockResolvedValue(porNatureza)
-    mock.resumoRecorrencias.mockResolvedValue([
-      { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'expense', frequencia: null, qtde: 3, porOcorrencia: c(150000), porMes: c(23000) },
-    ])
     montar()
-    const lista = await screen.findByTestId('resumo-natureza')
-    const linhas = within(lista).getAllByRole('listitem').map((li) => li.textContent)
-    expect(linhas).toEqual([
-      'Custo fixo · saídas · 1R$ 180,00/mês',
-      'Sem natureza · saídas · 2R$ 220,00/mês',
-      'Assinatura ou app · saídas · 1R$ 39,90/mês',
-    ])
+    await screen.findByText('Internet')
+    await u.click(screen.getByTestId('natureza-fixed'))
+    expect(screen.getByTestId('total-natureza')).toBeTruthy()
+    await u.click(screen.getByRole('tab', { name: /^Entradas/ }))
+    expect(screen.queryByTestId('total-natureza')).toBeNull()
+    expect(await screen.findByRole('region', { name: /^Receitas/ })).toBeTruthy()
   })
 
   it('se o resumo por natureza falhar (banco sem a migration), a tela segue e só esse bloco some', async () => {
@@ -521,7 +526,8 @@ describe('Recorrentes: resumo e filtro por natureza', () => {
     mock.resumoPorNatureza.mockRejectedValue({ code: 'PGRST202' })
     montar()
     expect(await screen.findByText('Internet')).toBeTruthy()
-    expect(screen.queryByTestId('resumo-natureza')).toBeNull()
+    // sem o resumo do banco os cards ficam sem total ("—"), mas a lista e os filtros seguem
+    expect(screen.getByTestId('natureza-none').textContent).toContain('—')
     expect(screen.queryByText(/Não foi possível/)).toBeNull()
   })
 })
@@ -545,39 +551,57 @@ describe('Recorrentes: só informativa, separada em Saídas e Entradas', () => {
     expect(screen.getAllByRole('link', { name: 'Lançamentos' }).length).toBeGreaterThan(0)
   })
 
-  it('os cards ficam sob os títulos Saídas, Entradas e Transferências, nessa ordem', async () => {
+  it('são duas visões: Saídas mostra cartão, contas fixas e transferências (à parte); Entradas mostra só as receitas', async () => {
     mock.listarRecorrencias.mockResolvedValue([guardar, salario, netflix, luz])
+    const u = userEvent.setup()
     montar()
     await screen.findByText('Netflix')
+    // visão Saídas (a padrão)
+    expect(screen.getByRole('tab', { name: /^Saídas/ }).getAttribute('aria-selected')).toBe('true')
     const titulos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-      .filter((t) => ['Saídas', 'Entradas', 'Transferências · à parte, fora dos gastos'].includes(t ?? ''))
-    expect(titulos).toEqual(['Saídas', 'Entradas', 'Transferências · à parte, fora dos gastos'])
-    const todos = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-    expect(todos.indexOf('Saídas')).toBeLessThan(todos.findIndex((t) => t?.startsWith('Assinaturas no cartão')))
-    expect(todos.findIndex((t) => t?.startsWith('Contas fixas'))).toBeLessThan(todos.indexOf('Entradas'))
-    expect(todos.indexOf('Entradas')).toBeLessThan(todos.findIndex((t) => t?.startsWith('Receitas')))
+    expect(titulos.findIndex((t) => t?.startsWith('Assinaturas no cartão'))).toBeLessThan(titulos.findIndex((t) => t?.startsWith('Contas fixas')))
+    expect(titulos).toContain('Transferências · à parte, fora dos gastos')
+    expect(titulos.some((t) => t?.startsWith('Receitas'))).toBe(false)
+    expect(screen.queryByTitle('Salário')).toBeNull()
+    // visão Entradas
+    await u.click(screen.getByRole('tab', { name: /^Entradas/ }))
+    expect(screen.getByRole('tab', { name: /^Entradas/ }).getAttribute('aria-selected')).toBe('true')
+    expect(await screen.findByTitle('Salário')).toBeTruthy()
+    expect(screen.queryByText('Netflix')).toBeNull()
+    expect(screen.queryByText('Guardar')).toBeNull()
+    expect(screen.queryByRole('tablist', { name: 'Seções de Recorrentes' })).toBeNull() // projeção e parcelas são das saídas
   })
 
-  it('sem entradas, o título Entradas não aparece', async () => {
+  it('a visão vai na URL (?v=entradas): abre direto em Entradas, com só as entradas', async () => {
+    mock.listarRecorrencias.mockResolvedValue([salario, luz])
+    montar(ENTRADAS)
+    expect(await screen.findByTitle('Salário')).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /^Entradas/ }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.queryByTitle('Luz')).toBeNull()
+  })
+
+  it('o seletor mostra o total por mês e por ano do banco de cada visão; as setas do teclado trocam', async () => {
+    mock.listarRecorrencias.mockResolvedValue([salario, luz])
+    mock.resumoVisaoGeral.mockResolvedValue([
+      { tipo: 'expense', recorte: 'all', qtde: 1, sugeridas: 1, porMes: c(18000), porAno: c(216000) },
+      { tipo: 'income', recorte: 'all', qtde: 1, sugeridas: 0, porMes: c(500000), porAno: c(6000000) },
+    ])
+    const u = userEvent.setup()
+    montar()
+    await screen.findByTestId('visao-saidas-mes')
+    expect(screen.getByTestId('visao-saidas-mes').textContent).toBe('R$ 180,00/mês')
+    expect(screen.getByTestId('visao-saidas-ano').textContent).toContain('R$ 2.160,00 por ano')
+    expect(screen.getByTestId('visao-entradas-mes').textContent).toBe('R$ 5.000,00/mês')
+    screen.getByRole('tab', { name: /^Saídas/ }).focus()
+    await u.keyboard('{ArrowRight}')
+    expect(screen.getByRole('tab', { name: /^Entradas/ }).getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: /^Entradas/ }))
+  })
+
+  it('visão Entradas sem nenhuma receita avisa, em vez de ficar em branco', async () => {
     mock.listarRecorrencias.mockResolvedValue([luz])
-    montar()
-    await screen.findByText('Luz')
-    expect(screen.queryByRole('heading', { name: 'Entradas' })).toBeNull()
-    expect(screen.getByRole('heading', { name: 'Saídas' })).toBeTruthy()
-  })
-
-  it('a assinatura de cartão abre direto a fatura da próxima cobrança (onde se muda o dia), e sem essa informação abre o cartão', async () => {
-    mock.listarRecorrencias.mockResolvedValue([luz, netflix])
-    mock.faturaDaProximaCobranca.mockResolvedValue(new Map([['r8', '2026-12']]))
-    montar()
-    await screen.findByText('Netflix')
-    await vi.waitFor(() => expect(screen.getByRole('link', { name: 'Abrir Netflix em Cartões' }).getAttribute('href')).toBe('/cartoes/k1/fatura/2026-12'))
-    expect(mock.faturaDaProximaCobranca).toHaveBeenCalledWith(['r8'])
-    cleanup()
-    mock.faturaDaProximaCobranca.mockRejectedValue(new Error('x'))
-    montar()
-    await screen.findByText('Netflix')
-    expect(screen.getByRole('link', { name: 'Abrir Netflix em Cartões' }).getAttribute('href')).toBe('/cartoes/k1')
+    montar(ENTRADAS)
+    expect(await screen.findByText('Nenhum recorrente de entrada.')).toBeTruthy()
   })
 
   it('cada item leva ao lugar de mudar: assinatura de cartão → a fatura do cartão; conta → Lançamentos', async () => {
@@ -656,8 +680,11 @@ describe('Recorrentes: visão geral por mês e por ano, fixo × variável sugeri
       { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'expense', frequencia: null, qtde: 1, porOcorrencia: c(18000), porMes: c(18000) },
     ])
     montar()
-    expect(await screen.findByText('Na conta, por mês — saídas')).toBeTruthy()
-    expect(screen.queryByTestId('visao-geral')).toBeNull()
+    await screen.findByText('Luz')
+    // as duas visões continuam: sem o resumo do banco o seletor só não mostra os totais ("sem total ainda")
+    expect(screen.getByRole('tab', { name: /^Saídas/ }).textContent).toContain('sem total ainda')
+    expect(screen.getByRole('tab', { name: /^Entradas/ }).textContent).toContain('sem total ainda')
+    expect(screen.queryByTestId('visao-saidas-mes')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })
@@ -672,7 +699,7 @@ describe('Recorrentes: proventos previstos de investimentos (migration 117)', ()
   it('mostra um card com os ativos: próximo provento e o total de 12 meses, do banco; avisa que é previsão fora do total', async () => {
     mock.listarRecorrencias.mockResolvedValue([luz])
     mock.listarProventosPrevistos.mockResolvedValue(previstos)
-    montar()
+    montar(ENTRADAS)
     const lista = await screen.findByTestId('proventos-previstos')
     expect(screen.getByRole('heading', { name: 'Proventos previstos' })).toBeTruthy() // dentro de Entradas, ao lado das receitas
     expect(within(lista).getByText('FII de teste')).toBeTruthy()
@@ -687,30 +714,36 @@ describe('Recorrentes: proventos previstos de investimentos (migration 117)', ()
   it('só com proventos previstos (sem nenhum recorrente), a tela não diz "Nenhum recorrente ainda"', async () => {
     mock.listarRecorrencias.mockResolvedValue([])
     mock.listarProventosPrevistos.mockResolvedValue(previstos)
+    const u = userEvent.setup()
     montar()
+    // a visão Entradas aparece mesmo sem nenhum recorrente: é onde os proventos previstos moram
+    await u.click(await screen.findByRole('tab', { name: /^Entradas/ }))
     await screen.findByTestId('proventos-previstos')
     expect(screen.queryByText('Nenhum recorrente ainda')).toBeNull()
-    expect(screen.queryByText(/Nenhum recorrente em conta/)).toBeNull()
+    expect(screen.queryByText(/Nenhum recorrente de entrada/)).toBeNull()
   })
 
-  it('a aba Cartão e o filtro por natureza escondem os proventos (não são cartão nem têm natureza)', async () => {
-    mock.listarRecorrencias.mockResolvedValue([{ ...luz, tipo: 'card' as const, contaId: null, cartaoId: 'k1', nature: 'subscription' as const }])
+  it('proventos só existem na visão Entradas; em Saídas não aparecem, e filtrar por natureza (de entrada) também os esconde', async () => {
+    mock.listarRecorrencias.mockResolvedValue([
+      { ...luz, id: 'r2', tipo: 'income' as const, descricao: 'Reembolso', categoriaId: 'g2', nature: 'reimbursement' as const },
+      { ...luz, id: 'r3', tipo: 'income' as const, descricao: 'Salário', categoriaId: 'g2' },
+    ])
     mock.listarProventosPrevistos.mockResolvedValue(previstos)
     const u = userEvent.setup()
     montar()
+    await screen.findByRole('tab', { name: /^Entradas/ })
+    expect(screen.queryByTestId('proventos-previstos')).toBeNull() // visão Saídas
+    await u.click(screen.getByRole('tab', { name: /^Entradas/ }))
     await screen.findByTestId('proventos-previstos')
-    await u.click(screen.getByRole('button', { name: 'Cartão' }))
-    expect(screen.queryByTestId('proventos-previstos')).toBeNull()
-    await u.click(screen.getByRole('button', { name: 'Todos' }))
-    await u.click(screen.getByRole('button', { name: /^Assinatura ou app ·/ }))
+    await u.click(screen.getByTestId('natureza-reimbursement'))
     expect(screen.queryByTestId('proventos-previstos')).toBeNull()
   })
 
   it('banco ainda sem a função (migration 117): a tela segue sem o card e sem erro', async () => {
     mock.listarRecorrencias.mockResolvedValue([luz])
     mock.listarProventosPrevistos.mockRejectedValue({ code: 'PGRST202' })
-    montar()
-    await screen.findByText('Luz')
+    montar(ENTRADAS)
+    await screen.findByRole('tab', { name: /^Entradas/ })
     expect(screen.queryByTestId('proventos-previstos')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -723,7 +756,7 @@ describe('Recorrentes: abas (assinaturas e contas, projeção, parcelas ativas)'
   it('abre em "Recorrentes"; projeção e parcelas não carregam até a aba abrir', async () => {
     montar()
     expect(await screen.findByText('Luz')).toBeTruthy()
-    const abas = screen.getAllByRole('tab').map((a) => a.textContent)
+    const abas = within(screen.getByRole('tablist', { name: 'Seções de Recorrentes' })).getAllByRole('tab').map((a) => a.textContent)
     expect(abas).toEqual(['Recorrentes', 'Projeção', 'Parcelas'])
     expect(screen.getByRole('tab', { name: 'Recorrentes' }).getAttribute('aria-selected')).toBe('true')
     expect(screen.getByRole('tabpanel').id).toBe('painel-lista')
@@ -813,12 +846,14 @@ describe('Recorrentes: corrigir a natureza (a única edição da página)', () =
   it('receita só oferece ressarcimento (e "sem natureza"); transferência não tem natureza (a linha nem é botão)', async () => {
     mock.listarRecorrencias.mockResolvedValue([salario, guardar])
     const u = userEvent.setup()
-    montar()
+    montar(ENTRADAS)
     const card = await abrirNatureza(u, 'Salário')
     expect(within(card).getAllByRole('radio').map((r) => r.parentElement!.textContent)).toEqual(['Ressarcimento a receber', 'Sem natureza'])
     await u.click(within(card).getByRole('button', { name: 'Cancelar' }))
+    cleanup()
+    montar() // a transferência é uma saída (à parte) e não tem natureza: a linha nem é botão
+    expect(await screen.findByText('Guardar')).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Natureza de Guardar/ })).toBeNull()
-    expect(screen.getByText('Guardar')).toBeTruthy()
   })
 
   it('recusa do banco aparece dentro do card, que continua aberto; Cancelar não grava nada', async () => {
@@ -855,7 +890,7 @@ describe('Recorrentes: layout (lado a lado no computador, sem estourar no celula
     mock.listarRecorrencias.mockResolvedValue([luz, { ...luz, id: 'r8', tipo: 'card' as const, descricao: 'Netflix', contaId: null, cartaoId: 'k1' }])
     montar()
     await screen.findByText('Netflix')
-    const grade = screen.getByText('Saídas').nextElementSibling as HTMLElement
+    const grade = screen.getByRole('region', { name: /^Contas fixas/ }).parentElement!.parentElement as HTMLElement
     expect(grade.className).toContain('grid-cols-1')
     expect(grade.className).toContain('lg:grid-cols-2')
   })
@@ -863,9 +898,9 @@ describe('Recorrentes: layout (lado a lado no computador, sem estourar no celula
   it('proventos previstos ficam no bloco Entradas (uma entrada prevista), ao lado das receitas', async () => {
     mock.listarRecorrencias.mockResolvedValue([{ ...luz, id: 'r5', tipo: 'income' as const, descricao: 'Salário', categoriaId: 'g2' }])
     mock.listarProventosPrevistos.mockResolvedValue([{ ativoId: 'a1', nome: 'FII', qtde: 12, proximaData: '2026-12-10', proximoValor: c(8550), total12m: c(102600) }])
-    montar()
+    montar(ENTRADAS)
     await screen.findByTestId('proventos-previstos')
-    const grade = screen.getByText('Entradas').nextElementSibling as HTMLElement
+    const grade = screen.getByRole('region', { name: /^Receitas/ }).parentElement!.parentElement as HTMLElement
     expect(within(grade).getByTestId('proventos-previstos')).toBeTruthy()
     expect(within(grade).getByTitle('Salário')).toBeTruthy()
   })
