@@ -15,6 +15,7 @@ import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatDate, formatMoeda } from '../lib/format'
+import { somarDias } from '../lib/periodoRelatorio'
 import type { Cents } from '../lib/format'
 import {
   diaDaSemana, frequenciaResumo, listarRecorrencias, ordemFrequencias, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias, resumoVisaoGeral,
@@ -107,6 +108,9 @@ function Explicacao({ rotulo, children }: { rotulo: string; children: ReactNode 
   )
 }
 
+/** "Já terminaram" mostra só o que acabou nesse prazo; o mais antigo fica atrás de um botão (nada é apagado). */
+const DIAS_TERMINADAS_RECENTES = 90
+
 export default function Recorrentes() {
   const { familia } = useFamilia()
   const familiaId = familia?.id
@@ -118,6 +122,7 @@ export default function Recorrentes() {
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<Aba>('todos')
   const [secao, setSecao] = useState<Secao>('lista')
+  const [verAntigas, setVerAntigas] = useState(false)
   const [params, setParams] = useSearchParams()
   const lado: Lado = params.get('v') === 'entradas' ? 'entradas' : 'saidas'
   function mudarLado(novo: Lado) {
@@ -179,7 +184,7 @@ export default function Recorrentes() {
   if (!familiaId) return null
   const hoje = hojeSP()
   const ativas = recorrencias?.filter((r) => r.ativa) ?? []
-  // mesma base do banco (migration 063): data final passada fica fora dos grupos e dos totais, mas continua à mão para excluir
+  // mesma base do banco (migration 063): data final passada fica fora dos grupos e dos totais (aparece só em "Já terminaram")
   const vigentes = ativas.filter((r) => !r.fim || r.fim >= hoje)
   const terminadasTodas = ativas.filter((r) => r.fim && r.fim < hoje)
   const emOutraMoeda = vigentes.filter((r) => r.tipo !== 'card' && (moedaConta.get(r.contaId ?? '') ?? 'BRL') !== 'BRL').length
@@ -190,6 +195,11 @@ export default function Recorrentes() {
   // cada visão só vê o que é dela: saídas = cartão, despesa e transferência (à parte); entradas = receita
   const doLado = (r: Recorrencia) => (lado === 'saidas') === (r.tipo !== 'income')
   const terminadas = terminadasTodas.filter(doLado)
+  // "Já terminaram" só mostra o que acabou nos últimos 90 dias; o mais antigo fica atrás de um botão (Recorrentes é só de consulta, sem Excluir)
+  const limiteRecentes = somarDias(hoje, -DIAS_TERMINADAS_RECENTES)
+  const terminadasRecentes = terminadas.filter((r) => (r.fim ?? '') >= limiteRecentes)
+  const terminadasAntigas = terminadas.length - terminadasRecentes.length
+  const terminadasVisiveis = verAntigas ? terminadas : terminadasRecentes
   const temNatureza = vigentes.some((r) => doLado(r) && r.tipo !== 'transfer' && r.nature)
   // cards por natureza (do banco: recurrence_nature_summary); tocar filtra a lista
   const tipoDoLado = lado === 'saidas' ? 'expense' : 'income'
@@ -516,7 +526,21 @@ export default function Recorrentes() {
                       Já terminaram <span className="font-normal text-slate-500">· fora dos totais</span>
                     </h2>
                   </div>
-                  <ul className="divide-y divide-slate-100 border-t border-slate-100">{terminadas.map((r) => item(r, null))}</ul>
+                  {terminadasVisiveis.length > 0
+                    ? <ul className="divide-y divide-slate-100 border-t border-slate-100">{terminadasVisiveis.map((r) => item(r, null))}</ul>
+                    : <p className="border-t border-slate-100 px-4 py-3 text-sm text-slate-500 sm:px-5" data-testid="terminadas-vazio">Nenhum terminou nos últimos {DIAS_TERMINADAS_RECENTES} dias.</p>}
+                  {terminadasAntigas > 0 && (
+                    <div className="border-t border-slate-100 px-4 py-1 sm:px-5">
+                      <button type="button" aria-expanded={verAntigas} onClick={() => setVerAntigas((v) => !v)} data-testid="terminadas-antigas"
+                        className="min-h-11 text-sm font-semibold text-azul hover:underline">
+                        {verAntigas
+                          ? 'Esconder os mais antigos'
+                          : terminadasAntigas === 1
+                            ? `Mostrar 1 que terminou há mais de ${DIAS_TERMINADAS_RECENTES} dias`
+                            : `Mostrar os ${terminadasAntigas} que terminaram há mais de ${DIAS_TERMINADAS_RECENTES} dias`}
+                      </button>
+                    </div>
+                  )}
                 </section>
               </Card>
             )}
