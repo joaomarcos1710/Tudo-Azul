@@ -325,7 +325,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#333** (14/11/2026): Recorrentes em **duas visões**, Saídas e Entradas (seletor no topo com o total por mês e por ano), com **cards por natureza** que filtram a lista, como na referência do dono. Só front.
 - **#334** (14/11/2026): diário: migration 118 aplicada em produção (execução 43534532207). Só documentação.
 - **#335** (14/11/2026): Parcelas ativas: volta o selo "Pendente de pagamento" (parcela do mês não paga) e cada card ganha o link para o pagamento original (carnê: Lançamentos no mês do vencimento; cartão: a tela do cartão). Só front.
-- **#336** (14/11/2026): Parcelas ativas: **linha do tempo parcela a parcela** em cada card (faixa de pontos e, ao abrir, uma linha por parcela com mês, valor e situação, levando à fatura do cartão ou a Lançamentos do mês). Migration 119 (`installment_plan_schedule`, só leitura), ainda não aplicada; sem ela a linha do tempo não aparece e nada quebra.
+- **#336** (14/11/2026): Parcelas ativas: **linha do tempo parcela a parcela** em cada card (faixa de pontos e, ao abrir, uma linha por parcela com mês, valor e situação, levando à fatura do cartão ou a Lançamentos do mês). Migration 119 (`installment_plan_schedule`, só leitura), aplicada em 14/11/2026 (execução 43538870997).
+- **#337** (14/11/2026): diário: migration 119 aplicada em produção (execução 43538870997). Só documentação.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
