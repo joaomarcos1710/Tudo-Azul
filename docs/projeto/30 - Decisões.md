@@ -788,3 +788,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Decisão:** **não excluir** (contradiz "só informativa" e apagaria histórico), mas **tirar do caminho**: o bloco mostra só o que terminou nos **últimos 90 dias** (o dia do limite ainda conta como recente) e o mais antigo fica atrás do botão "Mostrar os N que terminaram há mais de 90 dias" (com "Esconder os mais antigos" para voltar). Se só houver antigos, o bloco diz "Nenhum terminou nos últimos 90 dias." e oferece o botão. Nada é apagado, nenhum total muda (o bloco já ficava fora dos totais) e não há mudança no banco.
 - **Por que 90 dias:** dá tempo de ver o que acabou no último trimestre (um seguro ou plano trimestral que terminou); mais que isso é histórico. Constante `DIAS_TERMINADAS_RECENTES` em `Recorrentes.tsx` (uma linha para mudar).
 - **Se o dono quiser apagar de verdade:** é outra decisão (um "Excluir" só para regra terminada, com a regra de `recurrence_delete` da 025 e confirmação). Não feito.
+
+## 14/11/2026 — Card "Parcelas & carnês" numa passada só (dono, #350)
+- **Pedido:** otimizar o card. A medição em produção (#345) mostrou o resumo do mês em ~0,8 s, o dobro das funções que ele junta.
+- **Feito:** a mesma função, reescrita para calcular as parcelas uma vez (migration 123). Sem mudança de tela, de regra nem de resultado. Provado por teste (o 116 já existente + mutantes), por comparação de saída (idêntica) e por contagem de chamadas de `card_months_as_of` (4 → 2 com 2 cartões).
+- **Não feito de propósito:** a matriz (Projeção e Início, o maior custo) e as abas de Parcelas. Cada uma seria outra migration; só vale se o dono sentir lentidão.
+- **Ganho em tempo:** esperado ~0,4 s a menos; só confirmável depois de aplicar, medindo de novo em produção.
