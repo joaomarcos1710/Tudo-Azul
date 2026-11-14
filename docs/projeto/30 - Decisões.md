@@ -744,3 +744,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 ## 14/11/2026 — Recorrentes: corrigir a natureza e layout refeito vendo a página (dono, #331)
 - **Corrigir a natureza (pedido do dono):** é a **única edição** que Recorrentes aceita: só classifica (usa `recurrence_set_nature`), não muda valor, data nem lançamento. Fica como exceção explícita à decisão "só informativa" (#326). Motivo: o app sugere fixo × variável pelo histórico, e a sugestão pode errar; a pessoa precisa poder corrigir.
 - **Lição:** as PRs #330 anteriores foram feitas só por testes e **eu nunca tinha visto a página renderizada**. O dono estranhou o resultado com razão. Agora há uma bancada local descartável (Vite com um "Supabase" falso e dados inventados + Playwright, fora do repositório) para olhar a tela em 1280 e 390 px antes de propor mudança de layout. Ela achou dois defeitos que nenhum teste pegava: a página estourar a largura no celular e o cabeçalho dos meses que nunca aparecia na matriz.
+
+## 14/11/2026 — Aviso "parcelamentos que terminam em breve" (dono, #332)
+- **Pedido do dono**, vindo da análise colada da tela de Parcelas ativas. Precisou de função de banco porque "libera R$ X/mês" é soma de dinheiro (o app não soma).
+- **Regra:** última parcela viva vence em até 60 dias (inclusive o último dia); valor liberado = a última parcela; plano em atraso não conta (o dinheiro ainda não foi liberado); moedas separadas. Reaproveita a definição de "parcelamento ativo" da função que já existia.
+- **Consulta opcional:** se falhar ou a migration ainda não estiver aplicada, o aviso some e a lista segue.

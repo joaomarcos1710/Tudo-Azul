@@ -112,3 +112,43 @@ export async function listarParcelasAtivas(familiaId: string): Promise<ParcelasA
   }
   return { parcelamentos, totais }
 }
+
+/** Um parcelamento cuja última parcela vence em breve (installments_ending_soon, migration 20261114100000). */
+export interface ParcelamentoQueAcaba {
+  chave: string
+  moeda: string
+  descricao: string
+  origemNome: string | null
+  /** Vencimento da última parcela (a da fatura, no cartão). */
+  ultimoVencimento: string
+  /** Valor líquido da última parcela: o que sobra no orçamento por mês depois dela. */
+  valor: Cents
+}
+export interface ParcelasQueAcabam {
+  planos: ParcelamentoQueAcaba[]
+  /** Por moeda: quantos terminam e quanto liberam por mês. Somado no banco; a tela não soma. */
+  totais: { moeda: string; qtde: number; liberado: Cents }[]
+}
+
+/** Parcelamentos que terminam nos próximos `dias` dias e quanto liberam por mês. Falha aqui não deve esconder a lista (aviso opcional). */
+export async function listarParcelasQueAcabam(familiaId: string, dias = 60): Promise<ParcelasQueAcabam> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const { data, error } = await supabase.rpc('installments_ending_soon', { p_household: familiaId, p_days: dias })
+  if (error) throw error
+  const planos: ParcelamentoQueAcaba[] = []
+  const totais: ParcelasQueAcabam['totais'] = []
+  for (const l of (data ?? []) as {
+    row_kind: 'plan' | 'total'; currency_code: string; plan_key: string | null; description: string | null; source_name: string | null
+    last_due: string | null; freed_monthly: number | string; plan_count: number | null
+  }[]) {
+    if (l.row_kind === 'total') {
+      totais.push({ moeda: l.currency_code, qtde: Number(l.plan_count ?? 0), liberado: centsFromDb(l.freed_monthly) })
+      continue
+    }
+    planos.push({
+      chave: l.plan_key ?? `${l.currency_code}:${l.description}`, moeda: l.currency_code, descricao: l.description ?? 'Parcelamento',
+      origemNome: l.source_name, ultimoVencimento: l.last_due ?? '', valor: centsFromDb(l.freed_monthly),
+    })
+  }
+  return { planos, totais }
+}
