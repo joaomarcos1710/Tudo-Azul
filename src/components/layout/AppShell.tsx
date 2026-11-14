@@ -240,7 +240,7 @@ export function AppShell() {
             </button>
           </div>
         )}
-        <main className={`mx-auto w-full flex-1 p-4 transition-[max-width,padding] duration-300 ${modoFatura ? "max-w-none pb-4" : "max-w-6xl pb-28"} md:p-8 md:pb-8`}>
+        <main className={`mx-auto w-full flex-1 p-4 transition-[max-width,padding] duration-300 ${modoFatura ? "max-w-none pb-4" : "max-w-7xl pb-28"} md:p-8 md:pb-8`}>
           <Suspense fallback={<p role="status" className="text-sm text-slate-500">Carregando…</p>}><Outlet /></Suspense>
         </main>
       </div>

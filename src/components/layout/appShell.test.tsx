@@ -168,6 +168,17 @@ describe('menu em grupos', () => {
     expect(itemAtivo('/')?.rotulo).toBe('Início')
     expect(itemAtivo('/desconhecida')).toBeUndefined()
   })
+  it('largura do conteúdo: até 1280 px (max-w-7xl) nas telas comuns, centralizado; a fatura usa a largura toda', () => {
+    montar('/recorrentes')
+    const principal = screen.getByRole('main')
+    expect(principal.className).toContain('max-w-7xl')
+    expect(principal.className).toContain('mx-auto')
+    expect(principal.className).not.toContain('max-w-6xl')
+    cleanup()
+    montar('/cartoes/k1/fatura/2026-11')
+    expect(screen.getByRole('main').className).toContain('max-w-none')
+  })
+
   it('a fatura tem modo de foco: recolhe e expande o menu lateral e esconde a barra inferior', async () => {
     const u = userEvent.setup()
     montar('/cartoes/k1/fatura/2026-11')
