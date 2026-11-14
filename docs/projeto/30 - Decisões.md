@@ -764,3 +764,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
   3. **O "Total do mês" só aparecia no fim da rolagem**; no computador ele ficou **fixo no pé** da rolagem (sempre visível) e no celular usa a mesma grade de 3 colunas.
   Também: o título do bloco recolhível ("Lançamentos avulsos e ajustes da fatura · 10") quebrava e deixava o "· 10" solto; agora rótulo e contagem ficam juntos.
 - **Continua em aberto (precisa de print):** se o dono viu duas linhas do mesmo gasto na matriz, preciso do print da aba Projeção com a linha repetida (nome, tipo "Conta"/"Cartão" e os meses), para ver se o id do banco é diferente (aí é do banco) ou o nome só se parece.
+
+## 14/11/2026 — Linhas duplicadas na matriz: o achado foi outro (dono, #342)
+- **Pedido:** "segue com as linhas duplicadas", sem print. **Reproduzi** no Postgres local (assinaturas de cartão com cancelar "só esta", editar "só esta" e "esta e as próximas").
+- **Duplicata de verdade, não achei:** a regra dividida vem com ids diferentes e o mesmo nome, mas em **meses diferentes**; o banco devolve uma linha por mês e a tela une as duas. Se o dono ainda vê duas linhas do mesmo gasto, **preciso do print** (nome, tipo e meses).
+- **O que achei foi pior:** a matriz **ignorava as exceções das assinaturas de cartão** (cancelada continuava e entrava no total; editada com o valor antigo). Corrigido no banco (migration 121), no mesmo padrão de `private.card_recurrence_pending`, que as outras telas já usavam. **Motivo da correção no banco:** o valor e o total do mês vêm do banco (regra do projeto); a tela não pode "adivinhar" o que foi cancelado.
+- **Por que não unir linhas de mesmo nome com meses repetidos na tela:** seria somar dinheiro no front. Se existir esse caso, é real (duas cobranças no mesmo mês) e a matriz deve mostrá-lo.
