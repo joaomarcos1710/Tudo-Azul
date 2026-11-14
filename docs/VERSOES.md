@@ -256,4 +256,5 @@ continuam abaixo como histórico.
 | 2026.341 | **Matriz de projeção mais fácil de usar.** No celular a lista deixa de ter rolagem própria (cortava linhas) e os meses ficam em 3 colunas (2 linhas por item em vez de 6); no computador o total do mês fica sempre visível no pé da tabela. Valores iguais; só layout. |
 | 2026.342 | **Matriz de projeção respeita o que você mudou na fatura do cartão.** Uma assinatura cancelada "só esta" deixa de aparecer na matriz e de entrar no total do mês, e uma editada aparece com o valor novo. Migration 121 (só leitura), aplicada em 14/11/2026. |
 | 2026.343 | **Diário da migration 121.** Só documentação: registra que a 121 foi aplicada em produção em 14/11/2026. Nada muda no app. |
+| 2026.344 | **Diário: banco conferido.** Só documentação: registra a conferência direta no banco de produção das funções 116 a 121 (existem, só leitura, `anon` sem execute) e limpa notas velhas das Pendências. Nada muda no app. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
