@@ -331,6 +331,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#339** (14/11/2026): diário: migration 120 aplicada em produção (execução 43543332334). Só documentação.
 - **#340** (14/11/2026): largura das páginas de `max-w-6xl` para `max-w-7xl` (1152 → 1280 px) no `AppShell`, para o monitor largo; celular, iPad e a fatura não mudam. Só front.
 - **#341** (14/11/2026): Matriz de projeção (Recorrentes › Projeção): no celular sem rolagem própria e com os meses em 3 colunas; no computador o total do mês fica fixo no pé da tabela; título do bloco recolhível sem quebrar a contagem. Só front.
+- **#342** (14/11/2026): Matriz de compromissos respeita as exceções das assinaturas de cartão: a cobrança cancelada na fatura saía na matriz e no total do mês, e a editada aparecia com o valor antigo. Migration 121 (`dashboard_commitment_matrix`, só leitura), ainda não aplicada; sem ela o app segue com o defeito.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
