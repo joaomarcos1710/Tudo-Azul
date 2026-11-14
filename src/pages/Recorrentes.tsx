@@ -25,6 +25,8 @@ import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo, SELO } from '../lib/cores'
 import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
 import { ParcelasAtivas } from '../components/recorrentes/ParcelasAtivas'
+import { resumoParcelasDoMes } from '../lib/parcelasAtivas'
+import type { ResumoParcelasDoMes } from '../lib/parcelasAtivas'
 import { FolhaNatureza } from '../components/recorrentes/FolhaNatureza'
 
 const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
@@ -134,6 +136,8 @@ export default function Recorrentes() {
   const [proventos, setProventos] = useState<ProventoPrevisto[]>([])
   // assinatura → mês da fatura da próxima cobrança, para o link "Abrir" cair direto onde se muda o dia (sem o mapa, abre o cartão)
   const [faturaDe, setFaturaDe] = useState<Map<string, string>>(new Map())
+  // peso dos parcelamentos neste mês (migration 120, somado no banco): o card "Parcelas e carnês" em Saídas; falha ou banco sem a função: some
+  const [parcelasMes, setParcelasMes] = useState<ResumoParcelasDoMes[]>([])
 
   const carregar = useCallback(async () => {
     if (!familiaId) return
@@ -151,6 +155,7 @@ export default function Recorrentes() {
       void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => setPorNatureza([]))
       void resumoVisaoGeral(familiaId).then(setVisao).catch(() => setVisao(null))
       void listarProventosPrevistos(familiaId).then(setProventos).catch(() => setProventos([]))
+      void resumoParcelasDoMes(familiaId).then(setParcelasMes).catch(() => setParcelasMes([]))
       void faturaDaProximaCobranca(r.filter((x) => x.tipo === 'card' && x.ativa).map((x) => x.id)).then(setFaturaDe).catch(() => setFaturaDe(new Map()))
       setErro('')
     } catch (err) {
@@ -439,8 +444,9 @@ export default function Recorrentes() {
 
       {(lado === 'entradas' || secao === 'lista') && (ativas.length > 0 || proventos.length > 0) && (
         <div role="tabpanel" id="painel-lista" aria-labelledby="aba-lista">
-          {temNatureza && itensNatureza.length > 0 && (
-            <CartoesNatureza itens={itensNatureza} escolhida={natureza} aoEscolher={setNatureza} />
+          {((temNatureza && itensNatureza.length > 0) || (lado === 'saidas' && parcelasMes.length > 0)) && (
+            <CartoesNatureza itens={temNatureza ? itensNatureza : []} escolhida={natureza} aoEscolher={setNatureza}
+              parcelas={lado === 'saidas' ? parcelasMes : []} aoAbrirParcelas={() => setSecao('parcelas')} />
           )}
           {lado === 'saidas' && (
             <div role="group" aria-label="Mostrar recorrentes" className="mb-3 flex gap-2">
@@ -589,10 +595,13 @@ function FixoVariavel({ linhas }: { linhas: LinhaVisao[] }) {
  * Cards por natureza, como na referência do dono: cada um mostra o total por mês (do banco), quantos são e exemplos; tocar filtra a
  * lista, tocar de novo limpa. Só aparece quando há natureza marcada (sem nenhuma, seria um card só).
  */
-function CartoesNatureza({ itens, escolhida, aoEscolher }: {
+function CartoesNatureza({ itens, escolhida, aoEscolher, parcelas = [], aoAbrirParcelas }: {
   itens: { chave: FiltroNatureza; rotulo: string; qtde: number; porMes: Cents | null; exemplos: string[]; tipo: 'expense' | 'income' }[]
   escolhida: FiltroNatureza
   aoEscolher: (n: FiltroNatureza) => void
+  /** Card "Parcelas e carnês" (um por moeda): não é natureza, então não filtra; tocar abre a aba Parcelas. */
+  parcelas?: ResumoParcelasDoMes[]
+  aoAbrirParcelas?: () => void
 }) {
   return (
     <div role="group" aria-label="Filtrar por natureza" className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4" data-testid="cartoes-natureza">
@@ -609,6 +618,22 @@ function CartoesNatureza({ itens, escolhida, aoEscolher }: {
           </button>
         )
       })}
+      {parcelas.map((c) => (
+        <button key={c.moeda} type="button" onClick={aoAbrirParcelas} data-testid={`card-parcelas-${c.moeda}`}
+          aria-label={`Parcelas e carnês${parcelas.length > 1 ? ` (${c.moeda})` : ''}: ${c.ativos} em andamento. Abrir a aba Parcelas`}
+          className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-left transition-colors hover:bg-slate-50">
+          <span className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Parcelas &amp; carnês{parcelas.length > 1 ? ` (${c.moeda})` : ''} <span className="font-normal normal-case">· {c.ativos}</span>
+          </span>
+          <span className={`mt-1 block whitespace-nowrap text-lg font-bold tabular-nums ${corDoTipo('expense')}`}>
+            {formatMoeda(c.totalMes, c.moeda)}<span className="text-xs font-semibold">/mês</span>
+          </span>
+          <span className="block truncate text-xs text-slate-500" data-testid={`parcelas-falta-${c.moeda}`}>
+            {c.comParcelaNoMes === 0 ? 'Nenhuma parcela neste mês' : c.faltaMes > 0 ? `Faltam ${formatMoeda(c.faltaMes, c.moeda)} neste mês` : 'Tudo pago neste mês'}
+          </span>
+          <span className="block truncate text-xs text-slate-400">{c.exemplos.join(', ') || ' '}</span>
+        </button>
+      ))}
     </div>
   )
 }

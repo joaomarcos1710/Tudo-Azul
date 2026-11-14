@@ -20,6 +20,7 @@ const mock = vi.hoisted(() => ({
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
   listarParcelasAtivas: vi.fn(),
+  resumoParcelasDoMes: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -36,7 +37,7 @@ vi.mock('../lib/investimentos', async (o) => ({
   listarProventosPrevistos: mock.listarProventosPrevistos,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
-vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas, listarParcelasQueAcabam: vi.fn().mockResolvedValue({ planos: [], totais: [] }), listarCronogramaParcelas: vi.fn().mockResolvedValue(new Map()) }))
+vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas, listarParcelasQueAcabam: vi.fn().mockResolvedValue({ planos: [], totais: [] }), listarCronogramaParcelas: vi.fn().mockResolvedValue(new Map()), resumoParcelasDoMes: mock.resumoParcelasDoMes }))
 vi.mock('../lib/projecaoCompromissos', () => ({ carregarProjecaoCompromissos: vi.fn().mockResolvedValue([]) }))
 vi.mock('../lib/cartoes', async (o) => ({ ...(await o<typeof import('../lib/cartoes')>()), listarCartoes: mock.listarCartoes, faturaDaProximaCobranca: mock.faturaDaProximaCobranca }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
@@ -59,6 +60,7 @@ const metas = () => screen.getAllByTestId('meta-recorrente').map((p) => Array.fr
 
 beforeEach(() => {
   mock.listarParcelasAtivas.mockResolvedValue({ parcelamentos: [], totais: [] })
+  mock.resumoParcelasDoMes.mockResolvedValue([])
   mock.listarRecorrencias.mockResolvedValue([])
   mock.resumoRecorrencias.mockResolvedValue([])
   mock.resumoPorNatureza.mockResolvedValue([])
@@ -903,5 +905,51 @@ describe('Recorrentes: layout (lado a lado no computador, sem estourar no celula
     const grade = screen.getByRole('region', { name: /^Receitas/ }).parentElement!.parentElement as HTMLElement
     expect(within(grade).getByTestId('proventos-previstos')).toBeTruthy()
     expect(within(grade).getByTitle('Salário')).toBeTruthy()
+  })
+})
+
+describe('Recorrentes: card "Parcelas & carnês" (Saídas)', () => {
+  const brl = { moeda: 'BRL', ativos: 6, comParcelaNoMes: 5, totalMes: c(43333), pagoMes: c(10000), faltaMes: c(33333), exemplos: ['Notebook', 'Sofá', 'Curso'] }
+
+  it('mostra quantos parcelamentos, o valor do mês (do banco), quanto falta pagar e exemplos; tocar abre a aba Parcelas', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    mock.resumoParcelasDoMes.mockResolvedValue([brl])
+    montar()
+    const card = await screen.findByTestId('card-parcelas-BRL')
+    expect(within(card).getByText(/Parcelas & carnês/)).toBeTruthy()
+    expect(within(card).getByText('· 6')).toBeTruthy()
+    expect(card.textContent).toContain('R$ 433,33')
+    expect(within(card).getByText('Faltam R$ 333,33 neste mês')).toBeTruthy()
+    expect(within(card).getByText('Notebook, Sofá, Curso')).toBeTruthy()
+    await userEvent.click(card)
+    expect(screen.getByRole('tab', { name: 'Parcelas', selected: true })).toBeTruthy()
+  })
+
+  it('tudo pago e sem parcela no mês têm texto próprio; o card não filtra a lista (não é natureza)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    mock.resumoParcelasDoMes.mockResolvedValue([{ ...brl, faltaMes: c(0), pagoMes: c(43333) }])
+    montar()
+    expect(await screen.findByText('Tudo pago neste mês')).toBeTruthy()
+    cleanup()
+    mock.resumoParcelasDoMes.mockResolvedValue([{ ...brl, comParcelaNoMes: 0, totalMes: c(0), pagoMes: c(0), faltaMes: c(0) }])
+    montar()
+    expect(await screen.findByText('Nenhuma parcela neste mês')).toBeTruthy()
+  })
+
+  it('moedas diferentes ganham um card cada, sem misturar; em Entradas o card não aparece; sem a função (falha) a tela segue sem o card', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz, { ...luz, id: 'r5', tipo: 'income' as const, descricao: 'Salário', categoriaId: 'g2' }])
+    mock.resumoParcelasDoMes.mockResolvedValue([brl, { ...brl, moeda: 'USD', ativos: 1, totalMes: c(10000), faltaMes: c(10000), exemplos: ['Em dólar'] }])
+    montar()
+    expect(await screen.findByTestId('card-parcelas-BRL')).toBeTruthy()
+    expect(screen.getByTestId('card-parcelas-USD').textContent).toContain('US$')
+    cleanup()
+    montar(ENTRADAS)
+    await screen.findByTitle('Salário')
+    expect(screen.queryByTestId('card-parcelas-BRL')).toBeNull()
+    cleanup()
+    mock.resumoParcelasDoMes.mockRejectedValue(new Error('sem a função'))
+    montar()
+    await screen.findByTitle('Luz')
+    expect(screen.queryByTestId('card-parcelas-BRL')).toBeNull()
   })
 })
