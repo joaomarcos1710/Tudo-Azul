@@ -253,4 +253,5 @@ continuam abaixo como histórico.
 | 2026.338 | **Card "Parcelas & carnês".** Em Recorrentes › Saídas, junto dos cards por natureza: quantos parcelamentos estão em andamento, o valor das parcelas que vencem neste mês, quanto falta pagar e exemplos; tocar abre a aba Parcelas. Migration 120 (`installment_month_summary`, só leitura), aplicada em 14/11/2026. |
 | 2026.339 | **Diário da migration 120.** Só documentação: registra que a 120 foi aplicada em produção em 14/11/2026. Nada muda no app. |
 | 2026.340 | **Páginas um pouco mais largas no monitor.** O limite de largura do conteúdo passa de 1152 para 1280 px (só aparece em tela larga, a partir de ~1600 px); celular, iPad e a fatura do cartão ficam como estavam. Só front. |
+| 2026.341 | **Matriz de projeção mais fácil de usar.** No celular a lista deixa de ter rolagem própria (cortava linhas) e os meses ficam em 3 colunas (2 linhas por item em vez de 6); no computador o total do mês fica sempre visível no pé da tabela. Valores iguais; só layout. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

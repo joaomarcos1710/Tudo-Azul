@@ -209,4 +209,34 @@ describe('Matriz: blocos por tipo, regras divididas, cabeçalho fixo e mês atua
     expect(nov.className).toContain('bg-azul-claro')
     expect(dez.className).not.toContain('bg-azul-claro')
   })
+
+  it('celular: a lista não tem rolagem própria (não corta linha no meio) e os meses ficam em 3 colunas; no computador a rolagem tem altura máxima e o total do mês fica fixo no pé', async () => {
+    mock.carregar.mockResolvedValue([item('account-recurrence:r2', 'Aluguel', '2026-11', 150000), item('account-recurrence:r2', 'Aluguel', '2026-12', 150000), total('2026-11', 150000), total('2026-12', 150000)])
+    render(<ProjecaoCompromissos familiaId="h1" hoje="2026-11-07" />)
+    await screen.findByText('Aluguel')
+    // só no md em diante a rolagem tem altura máxima (a classe sem prefixo prendia a rolagem no celular)
+    const rolagem = screen.getByTestId('matriz-rolagem')
+    expect(rolagem.className).toContain('md:max-h-')
+    expect(rolagem.className.split(/\s+/)).not.toContain('max-h-[70vh]')
+    // item: nome em cima (3 colunas) e os 6 meses em 3 colunas = 2 linhas, não 6
+    const linhaItem = screen.getByRole('rowheader', { name: /Aluguel/ }).closest('tr') as HTMLElement
+    expect(linhaItem.className).toContain('grid-cols-3')
+    expect(screen.getByRole('rowheader', { name: /Aluguel/ }).className).toContain('col-span-3')
+    // total do mês: mesma grade no celular; fixo no pé da rolagem no computador (sempre visível)
+    const rotuloTotal = screen.getByRole('rowheader', { name: /Total do mês/ })
+    const linhaTotal = rotuloTotal.closest('tr') as HTMLElement
+    expect(linhaTotal.className).toContain('grid-cols-3')
+    expect(rotuloTotal.className).toContain('md:sticky')
+    expect(rotuloTotal.className).toContain('md:bottom-0')
+    for (const celula of within(linhaTotal).getAllByRole('cell')) expect(celula.className).toContain('md:sticky')
+  })
+
+  it('o título do bloco não quebra a contagem sozinha: rótulo e "· n" ficam juntos no mesmo texto', async () => {
+    mock.carregar.mockResolvedValue([item('transaction:t1', 'Uber', '2026-11', 3000), total('2026-11', 3000)])
+    render(<ProjecaoCompromissos familiaId="h1" hoje="2026-11-07" />)
+    const botao = await screen.findByRole('button', { name: /Lançamentos avulsos/ })
+    const contagem = within(botao).getByText('· 1')
+    expect(contagem.className).toContain('whitespace-nowrap')
+    expect(contagem.parentElement?.className).toContain('min-w-0')
+  })
 })
