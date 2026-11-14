@@ -46,17 +46,22 @@ describe('Parcelas ativas', () => {
     expect(geladeira.getByText('40% pago')).toBeTruthy()
     expect(geladeira.getByText('Saldo restante').nextSibling?.textContent).toBe('−R$ 600,00')
     expect(geladeira.getByText('−R$ 100,00')).toBeTruthy()
-    // o "pendente" repetido em todos os cartões saiu: não diz nada novo (o próximo vencimento está logo abaixo)
-    expect(geladeira.queryByText('Pendente de pagamento')).toBeNull()
+    // a parcela que vence no mês e não foi paga ganha o selo "Pendente de pagamento" (volta a pedido do dono) e o link ao cartão
+    expect(geladeira.getByText('Pendente de pagamento')).toBeTruthy()
+    expect(geladeira.getByRole('link', { name: 'Ver fatura no cartão' }).getAttribute('href')).toBe('/cartoes/k1')
     expect(geladeira.getByText('Próximo vencimento 15/11/2026')).toBeTruthy()
 
     const sofa = within(cartoes[1])
     expect(sofa.getByText(/Parcelamento em conta/)).toBeTruthy()
     expect(sofa.getByText('Parcela 3 de 5')).toBeTruthy()
     expect(sofa.getByText('Parcela deste mês paga')).toBeTruthy()
+    expect(sofa.queryByText('Pendente de pagamento')).toBeNull()
+    // carnê: o pagamento é um lançamento da conta, no mês do vencimento
+    expect(sofa.getByRole('link', { name: 'Ver lançamento' }).getAttribute('href')).toBe('/lancamentos?mes=2026-12')
 
     expect(within(cartoes[2]).queryByText('Nenhuma parcela neste mês')).toBeNull()
     expect(within(cartoes[2]).queryByText(/Próximo vencimento/)).toBeNull()
+    expect(within(cartoes[2]).queryByText('Pendente de pagamento')).toBeNull()
   })
 
   it('a barra de progresso é acessível e usa o percentual que veio do banco (nada é recalculado a partir dos valores)', async () => {

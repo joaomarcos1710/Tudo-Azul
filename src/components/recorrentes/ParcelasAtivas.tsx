@@ -15,12 +15,24 @@ const NOVO_NO_CARTAO = '/lancamentos?novo=cartao'
 const NOVO_EM_CONTA = '/lancamentos?novo=despesa'
 
 /**
- * Selo da situação do mês só quando é novidade: "paga" (boa notícia). O "pendente" e o "sem parcela neste mês" eram o mesmo selo
- * em quase todos os cartões e não diziam nada novo (o próximo vencimento já está logo abaixo); saíram. Exceções ganham selo próprio:
- * "Última parcela" e as parcelas em atraso.
+ * Selo da parcela que vence neste mês: "paga" ou "pendente de pagamento" (o banco decide: month_status). Sem parcela neste mês
+ * ('none') não há selo: o próximo vencimento já está logo abaixo. A pedido do dono (14/11/2026) o "pendente" voltou, agora
+ * com o link para o pagamento. Exceções com selo próprio: "Última parcela" e as parcelas em atraso.
  */
 const SITUACAO_MES: Partial<Record<SituacaoMes, { texto: string; estilo: string }>> = {
   paid: { texto: 'Parcela deste mês paga', estilo: SELO.pago },
+  pending: { texto: 'Pendente de pagamento', estilo: SELO.atencao },
+}
+
+/**
+ * Onde ver o pagamento original. Carnê (parcelamento em conta): Lançamentos no mês do vencimento (a parcela é um lançamento da conta).
+ * Cartão: a tela do cartão, onde estão as faturas. atalho: não levamos direto à fatura da parcela porque o mês da fatura
+ * (fechamento) não vem na lista do banco e o app não calcula fatura; melhorar quando a função de planos devolver o mês da fatura.
+ */
+function destinoPagamento(p: ParcelamentoAtivo): { to: string; texto: string } | null {
+  if (p.origem === 'card') return p.origemId ? { to: rotaCartao(p.origemId), texto: 'Ver fatura no cartão' } : null
+  const mes = p.proximoVencimento?.slice(0, 7)
+  return mes ? { to: `/lancamentos?mes=${mes}`, texto: 'Ver lançamento' } : null
 }
 
 type Ordem = 'vencimento' | 'quitar' | 'parcela' | 'saldo'
@@ -55,6 +67,7 @@ const linkSecundario = 'inline-flex min-h-11 items-center text-sm font-semibold 
 function CartaoParcelamento({ p }: { p: ParcelamentoAtivo }) {
   const situacao = SITUACAO_MES[p.situacaoMes]
   const ultima = p.parcelaAtual === p.totalParcelas
+  const destino = destinoPagamento(p)
   return (
     <li className="flex min-w-0 flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4" data-testid="parcelamento">
       <div className="flex items-start justify-between gap-3">
@@ -98,6 +111,7 @@ function CartaoParcelamento({ p }: { p: ParcelamentoAtivo }) {
           </span>
         )}
         {p.proximoVencimento && <span className="text-xs text-slate-500">Próximo vencimento {formatDate(p.proximoVencimento)}</span>}
+        {destino && <Link to={destino.to} className="text-xs font-semibold text-azul hover:underline">{destino.texto}</Link>}
       </div>
     </li>
   )
