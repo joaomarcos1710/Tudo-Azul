@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Card } from '../ui/Card'
 import { Aviso } from '../ui/Aviso'
@@ -14,10 +14,28 @@ import { useValoresOcultos } from '../../lib/privacidade'
 const NOVO_NO_CARTAO = '/lancamentos?novo=cartao'
 const NOVO_EM_CONTA = '/lancamentos?novo=despesa'
 
-const SITUACAO_MES: Record<SituacaoMes, { texto: string; estilo: string }> = {
+/**
+ * Selo da situação do mês só quando é novidade: "paga" (boa notícia). O "pendente" e o "sem parcela neste mês" eram o mesmo selo
+ * em quase todos os cartões e não diziam nada novo (o próximo vencimento já está logo abaixo); saíram. Exceções ganham selo próprio:
+ * "Última parcela" e as parcelas em atraso.
+ */
+const SITUACAO_MES: Partial<Record<SituacaoMes, { texto: string; estilo: string }>> = {
   paid: { texto: 'Parcela deste mês paga', estilo: SELO.pago },
-  pending: { texto: 'Pendente de pagamento', estilo: SELO.atencao },
-  none: { texto: 'Nenhuma parcela neste mês', estilo: SELO.neutro },
+}
+
+type Ordem = 'vencimento' | 'quitar' | 'parcela' | 'saldo'
+const ORDENS: [Ordem, string][] = [
+  ['vencimento', 'Próximo vencimento'], ['quitar', 'Mais perto de quitar'], ['parcela', 'Maior parcela'], ['saldo', 'Maior saldo restante'],
+]
+/** Só ordena (a ordem de chegada do banco é a de "Próximo vencimento"). Moedas diferentes não se comparam: ficam em blocos. */
+function ordenar(lista: ParcelamentoAtivo[], ordem: Ordem): ParcelamentoAtivo[] {
+  if (ordem === 'vencimento') return lista
+  const restantes = (p: ParcelamentoAtivo) => p.totalParcelas - p.parcelaAtual
+  const chave = (a: ParcelamentoAtivo, b: ParcelamentoAtivo) =>
+    ordem === 'quitar' ? restantes(a) - restantes(b)
+      : ordem === 'parcela' ? b.valorParcela - a.valorParcela
+        : b.saldoRestante - a.saldoRestante
+  return [...lista].sort((a, b) => a.moeda.localeCompare(b.moeda) || chave(a, b))
 }
 
 const ROTULO_ORIGEM = { card: 'Cartão de crédito', account: 'Parcelamento em conta' } as const
@@ -27,6 +45,7 @@ const linkSecundario = 'inline-flex min-h-11 items-center text-sm font-semibold 
 
 function CartaoParcelamento({ p }: { p: ParcelamentoAtivo }) {
   const situacao = SITUACAO_MES[p.situacaoMes]
+  const ultima = p.parcelaAtual === p.totalParcelas
   return (
     <li className="flex min-w-0 flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4" data-testid="parcelamento">
       <div className="flex items-start justify-between gap-3">
@@ -62,7 +81,8 @@ function CartaoParcelamento({ p }: { p: ParcelamentoAtivo }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${situacao.estilo}`}>{situacao.texto}</span>
+        {situacao && <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${situacao.estilo}`}>{situacao.texto}</span>}
+        {ultima && <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${SELO.planejado}`}>Última parcela</span>}
         {p.emAtraso > 0 && (
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${SELO.vencido}`}>
             {p.emAtraso === 1 ? '1 parcela em atraso' : `${p.emAtraso} parcelas em atraso`}
@@ -82,6 +102,7 @@ function CartaoParcelamento({ p }: { p: ParcelamentoAtivo }) {
 export function ParcelasAtivas({ familiaId }: { familiaId: string }) {
   const [dados, setDados] = useState<Dados | null>(null)
   const [erro, setErro] = useState(false)
+  const [ordem, setOrdem] = useState<Ordem>('vencimento')
   useValoresOcultos() // re-renderiza ao ocultar/mostrar valores (formatMoeda já devolve a máscara)
 
   useEffect(() => {
@@ -96,7 +117,7 @@ export function ParcelasAtivas({ familiaId }: { familiaId: string }) {
     return () => { ativo = false }
   }, [familiaId])
 
-  const lista = dados?.parcelamentos ?? []
+  const lista = useMemo(() => ordenar(dados?.parcelamentos ?? [], ordem), [dados, ordem])
   return (
     <Card className="mt-4">
       <section aria-labelledby="parcelas-ativas">
@@ -134,6 +155,13 @@ export function ParcelasAtivas({ familiaId }: { familiaId: string }) {
                 </div>
               ))}
             </dl>
+            <div className="mb-3 flex items-center gap-2 text-sm">
+              <label htmlFor="ordem-parcelas" className="font-medium text-slate-600">Ordenar por</label>
+              <select id="ordem-parcelas" value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)}
+                className="min-h-11 rounded-lg border border-slate-300 bg-white px-3">
+                {ORDENS.map(([v, r]) => <option key={v} value={v}>{r}</option>)}
+              </select>
+            </div>
             <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {lista.map((p) => <CartaoParcelamento key={p.chave} p={p} />)}
             </ul>
