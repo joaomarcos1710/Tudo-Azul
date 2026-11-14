@@ -5,9 +5,9 @@ import { Aviso } from '../ui/Aviso'
 import { SELO } from '../../lib/cores'
 import { formatDate, formatMoeda } from '../../lib/format'
 import { registrarFalhaConsulta } from '../../lib/consultaOpcional'
-import { listarParcelasAtivas, listarParcelasQueAcabam } from '../../lib/parcelasAtivas'
-import type { ParcelamentoAtivo, ParcelasAtivas as Dados, ParcelasQueAcabam, SituacaoMes } from '../../lib/parcelasAtivas'
-import { rotaCartao } from '../../lib/cartoes'
+import { listarCronogramaParcelas, listarParcelasAtivas, listarParcelasQueAcabam } from '../../lib/parcelasAtivas'
+import type { EstadoParcela, ParcelaDoCronograma, ParcelamentoAtivo, ParcelasAtivas as Dados, ParcelasQueAcabam, SituacaoMes } from '../../lib/parcelasAtivas'
+import { rotaCartao, rotaFatura } from '../../lib/cartoes'
 import { useValoresOcultos } from '../../lib/privacidade'
 
 /** Os dois caminhos que já existem para criar um parcelamento (nenhum fluxo novo): compra no cartão e despesa parcelada. */
@@ -64,7 +64,71 @@ const ROTULO_ORIGEM = { card: 'Cartão de crédito', account: 'Parcelamento em c
 const linkPrimario = 'inline-flex min-h-11 items-center justify-center rounded-lg bg-azul px-4 text-sm font-semibold text-white transition-colors hover:bg-blue-700'
 const linkSecundario = 'inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline'
 
-function CartaoParcelamento({ p }: { p: ParcelamentoAtivo }) {
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+/** "2026-11-15" -> "nov/2026" (texto puro, sem fuso). */
+function mesAno(data: string | null): string {
+  if (!data) return 'sem data'
+  return `${MESES[Number(data.slice(5, 7)) - 1] ?? '?'}/${data.slice(0, 4)}`
+}
+const ESTADO_PARCELA: Record<EstadoParcela, { texto: string; ponto: string; selo: string }> = {
+  paid: { texto: 'Paga', ponto: 'bg-lucro-marca', selo: SELO.pago },
+  overdue: { texto: 'Em atraso', ponto: 'bg-prejuizo', selo: SELO.vencido },
+  open: { texto: 'A vencer', ponto: 'bg-slate-300', selo: SELO.neutro },
+}
+
+/** Para onde a parcela leva: cartão abre a fatura dela (rótulo do banco); carnê abre Lançamentos no mês da data. */
+function destinoParcela(p: ParcelamentoAtivo, parcela: ParcelaDoCronograma): string | null {
+  if (p.origem === 'card') {
+    if (!p.origemId) return null
+    return parcela.faturaRotulo ? rotaFatura(p.origemId, parcela.faturaRotulo) : rotaCartao(p.origemId)
+  }
+  return parcela.vencimento ? `/lancamentos?mes=${parcela.vencimento.slice(0, 7)}` : null
+}
+
+/**
+ * Linha do tempo do parcelamento: uma faixa de pontos (um por parcela: verde paga, vermelho em atraso, cinza a vencer; o mês
+ * atual ganha anel) e, ao abrir, uma linha por parcela com o mês, o valor e a situação, cada uma levando ao pagamento
+ * original (fatura do cartão ou Lançamentos do mês). Estado e valores vêm do banco (installment_plan_schedule).
+ */
+function LinhaDoTempo({ p, parcelas }: { p: ParcelamentoAtivo; parcelas: ParcelaDoCronograma[] }) {
+  return (
+    <details className="group rounded-lg bg-slate-50" data-testid="linha-do-tempo">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-sm font-semibold text-azul">
+        <span>Parcela a parcela</span>
+        <span className="flex flex-wrap items-center justify-end gap-1" aria-hidden="true">
+          {parcelas.map((x) => (
+            <span key={x.numero} title={`${x.numero}/${p.totalParcelas} · ${mesAno(x.vencimento)} · ${ESTADO_PARCELA[x.estado].texto}`}
+              className={`h-2.5 w-2.5 rounded-full ${ESTADO_PARCELA[x.estado].ponto} ${x.noMes ? 'ring-2 ring-azul ring-offset-1' : ''}`} />
+          ))}
+        </span>
+      </summary>
+      <ol className="divide-y divide-slate-200 border-t border-slate-200 text-sm">
+        {parcelas.map((x) => {
+          const estado = ESTADO_PARCELA[x.estado]
+          const to = destinoParcela(p, x)
+          const conteudo = (
+            <>
+              <span className="w-12 shrink-0 tabular-nums text-slate-500">{x.numero}/{p.totalParcelas}</span>
+              <span className="min-w-0 flex-1 text-slate-700">{mesAno(x.vencimento)}{x.noMes ? <span className="ml-1 text-xs font-semibold text-azul">neste mês</span> : null}</span>
+              <span className="whitespace-nowrap font-semibold tabular-nums text-prejuizo">−{formatMoeda(x.valor, p.moeda)}</span>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${estado.selo}`}>{estado.texto}</span>
+            </>
+          )
+          return (
+            <li key={x.numero}>
+              {to
+                ? <Link to={to} className="flex min-h-11 items-center gap-2 px-3 py-2 hover:bg-white"
+                    aria-label={`Parcela ${x.numero} de ${p.totalParcelas}, ${mesAno(x.vencimento)}, ${estado.texto}. Ver pagamento`}>{conteudo}</Link>
+                : <div className="flex min-h-11 items-center gap-2 px-3 py-2">{conteudo}</div>}
+            </li>
+          )
+        })}
+      </ol>
+    </details>
+  )
+}
+
+function CartaoParcelamento({ p, parcelas }: { p: ParcelamentoAtivo; parcelas?: ParcelaDoCronograma[] }) {
   const situacao = SITUACAO_MES[p.situacaoMes]
   const ultima = p.parcelaAtual === p.totalParcelas
   const destino = destinoPagamento(p)
@@ -113,6 +177,7 @@ function CartaoParcelamento({ p }: { p: ParcelamentoAtivo }) {
         {p.proximoVencimento && <span className="text-xs text-slate-500">Próximo vencimento {formatDate(p.proximoVencimento)}</span>}
         {destino && <Link to={destino.to} className="text-xs font-semibold text-azul hover:underline">{destino.texto}</Link>}
       </div>
+      {parcelas && parcelas.length > 0 && <LinhaDoTempo p={p} parcelas={parcelas} />}
     </li>
   )
 }
@@ -128,6 +193,8 @@ export function ParcelasAtivas({ familiaId }: { familiaId: string }) {
   const [ordem, setOrdem] = useState<Ordem>('vencimento')
   // aviso "terminam em breve": opcional (função da migration 118); se falhar, a lista segue sem ele
   const [acabam, setAcabam] = useState<ParcelasQueAcabam | null>(null)
+  // linha do tempo parcela a parcela: opcional (função da migration 119); se falhar, os cards seguem sem ela
+  const [cronograma, setCronograma] = useState<Map<string, ParcelaDoCronograma[]> | null>(null)
   useValoresOcultos() // re-renderiza ao ocultar/mostrar valores (formatMoeda já devolve a máscara)
 
   useEffect(() => {
@@ -142,6 +209,9 @@ export function ParcelasAtivas({ familiaId }: { familiaId: string }) {
     listarParcelasQueAcabam(familiaId, DIAS_AVISO)
       .then((a) => { if (ativo) setAcabam(a) })
       .catch(() => { if (ativo) setAcabam(null) })
+    listarCronogramaParcelas(familiaId)
+      .then((c) => { if (ativo) setCronograma(c) })
+      .catch(() => { if (ativo) setCronograma(null) })
     return () => { ativo = false }
   }, [familiaId])
 
@@ -201,7 +271,7 @@ export function ParcelasAtivas({ familiaId }: { familiaId: string }) {
               </select>
             </div>
             <ul className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {lista.map((p) => <CartaoParcelamento key={p.chave} p={p} />)}
+              {lista.map((p) => <CartaoParcelamento key={p.chave} p={p} parcelas={cronograma?.get(p.chave)} />)}
             </ul>
           </>
         )}

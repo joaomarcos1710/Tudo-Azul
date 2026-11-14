@@ -6,12 +6,12 @@ import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../../lib/format'
 import { MASCARA, definirValoresOcultos } from '../../lib/privacidade'
 
-const mock = vi.hoisted(() => ({ listarParcelasAtivas: vi.fn(), listarParcelasQueAcabam: vi.fn(), registrarFalhaConsulta: vi.fn() }))
-vi.mock('../../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas, listarParcelasQueAcabam: mock.listarParcelasQueAcabam }))
+const mock = vi.hoisted(() => ({ listarParcelasAtivas: vi.fn(), listarParcelasQueAcabam: vi.fn(), listarCronogramaParcelas: vi.fn(), registrarFalhaConsulta: vi.fn() }))
+vi.mock('../../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas, listarParcelasQueAcabam: mock.listarParcelasQueAcabam, listarCronogramaParcelas: mock.listarCronogramaParcelas }))
 vi.mock('../../lib/consultaOpcional', () => ({ registrarFalhaConsulta: mock.registrarFalhaConsulta }))
 
 import { ParcelasAtivas } from './ParcelasAtivas'
-import type { ParcelamentoAtivo, ParcelasAtivas as Dados } from '../../lib/parcelasAtivas'
+import type { ParcelaDoCronograma, ParcelamentoAtivo, ParcelasAtivas as Dados } from '../../lib/parcelasAtivas'
 
 const c = (n: number) => n as Cents
 const plano = (p: Partial<ParcelamentoAtivo> = {}): ParcelamentoAtivo => ({
@@ -24,7 +24,7 @@ const dados = (parcelamentos: ParcelamentoAtivo[], totais: Dados['totais'] = [])
 const montar = () => render(<MemoryRouter><ParcelasAtivas familiaId="h1" /></MemoryRouter>)
 const brl = (cents: number, moeda = 'BRL') => ({ moeda, qtde: 1, saldoRestante: c(cents), futuro: c(cents) })
 
-beforeEach(() => { localStorage.clear(); definirValoresOcultos(false); mock.listarParcelasQueAcabam.mockResolvedValue({ planos: [], totais: [] }) })
+beforeEach(() => { localStorage.clear(); definirValoresOcultos(false); mock.listarParcelasQueAcabam.mockResolvedValue({ planos: [], totais: [] }); mock.listarCronogramaParcelas.mockResolvedValue(new Map()) })
 afterEach(() => { cleanup(); vi.clearAllMocks(); definirValoresOcultos(false) })
 
 describe('Parcelas ativas', () => {
@@ -303,6 +303,58 @@ describe('Parcelas ativas', () => {
       const aviso = await screen.findByTestId('acabam-BRL')
       expect(aviso.textContent).toContain(MASCARA)
       expect(aviso.textContent).not.toContain('100,00')
+    })
+  })
+
+  describe('linha do tempo (parcela a parcela)', () => {
+    const parc = (p: Partial<ParcelaDoCronograma>): ParcelaDoCronograma => ({
+      numero: 1, vencimento: '2026-10-15', valor: c(10000), faturaRotulo: '2026-10', estado: 'paid', noMes: false, ...p,
+    })
+
+    it('cartão: uma linha por parcela com mês, valor e situação; cada uma leva à fatura dela (o rótulo vem do banco)', async () => {
+      mock.listarParcelasAtivas.mockResolvedValue(dados([plano({ totalParcelas: 3 })], [brl(20000)]))
+      mock.listarCronogramaParcelas.mockResolvedValue(new Map([['card:k1:p1', [
+        parc({ numero: 1 }),
+        parc({ numero: 2, vencimento: '2026-11-15', faturaRotulo: '2026-11', estado: 'open', noMes: true }),
+        parc({ numero: 3, vencimento: '2026-12-15', faturaRotulo: '2026-12', estado: 'overdue' }),
+      ]]]))
+      montar()
+      const linha = await screen.findByTestId('linha-do-tempo')
+      const itens = within(linha).getAllByRole('listitem')
+      expect(itens).toHaveLength(3)
+      expect(within(itens[0]).getByText('1/3')).toBeTruthy()
+      expect(within(itens[0]).getByText('out/2026')).toBeTruthy()
+      expect(within(itens[0]).getByText('Paga')).toBeTruthy()
+      expect(within(itens[1]).getByText('A vencer')).toBeTruthy()
+      expect(within(itens[1]).getByText('neste mês')).toBeTruthy()
+      expect(within(itens[2]).getByText('Em atraso')).toBeTruthy()
+      expect(within(itens[0]).getByText('−R$ 100,00')).toBeTruthy()
+      const links = within(linha).getAllByRole('link')
+      expect(links.map((l) => l.getAttribute('href'))).toEqual(['/cartoes/k1/fatura/2026-10', '/cartoes/k1/fatura/2026-11', '/cartoes/k1/fatura/2026-12'])
+    })
+
+    it('carnê (conta): cada parcela leva a Lançamentos no mês da data', async () => {
+      mock.listarParcelasAtivas.mockResolvedValue(dados([plano({ chave: 'account:g1', origem: 'account', origemId: 'a1', totalParcelas: 2 })], [brl(10000)]))
+      mock.listarCronogramaParcelas.mockResolvedValue(new Map([['account:g1', [
+        parc({ numero: 1, vencimento: '2026-11-12', faturaRotulo: null, estado: 'open', noMes: true }),
+        parc({ numero: 2, vencimento: '2026-12-12', faturaRotulo: null, estado: 'open' }),
+      ]]]))
+      montar()
+      const linha = await screen.findByTestId('linha-do-tempo')
+      expect(within(linha).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['/lancamentos?mes=2026-11', '/lancamentos?mes=2026-12'])
+    })
+
+    it('cartão sem rótulo de fatura cai na tela do cartão; sem a linha do tempo (função ausente) o card continua igual', async () => {
+      mock.listarParcelasAtivas.mockResolvedValue(dados([plano({ totalParcelas: 2 })], [brl(10000)]))
+      mock.listarCronogramaParcelas.mockResolvedValue(new Map([['card:k1:p1', [parc({ numero: 1, faturaRotulo: null, estado: 'open' })]]]))
+      montar()
+      const linha = await screen.findByTestId('linha-do-tempo')
+      expect(within(linha).getByRole('link').getAttribute('href')).toBe('/cartoes/k1')
+      cleanup()
+      mock.listarCronogramaParcelas.mockRejectedValue(new Error('sem a função'))
+      montar()
+      expect(await screen.findByTestId('parcelamento')).toBeTruthy()
+      expect(screen.queryByTestId('linha-do-tempo')).toBeNull()
     })
   })
 })
