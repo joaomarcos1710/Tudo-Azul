@@ -15,6 +15,7 @@ const mock = vi.hoisted(() => ({
   resumoVisaoGeral: vi.fn(),
   listarProventosPrevistos: vi.fn(),
   faturaDaProximaCobranca: vi.fn(),
+  definirNaturezaRecorrencia: vi.fn(),
   listarContas: vi.fn(),
   listarCartoes: vi.fn(),
   listarCategorias: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('../lib/recorrencias', async (o) => ({
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
   editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
   resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza, resumoVisaoGeral: mock.resumoVisaoGeral,
+  definirNaturezaRecorrencia: mock.definirNaturezaRecorrencia,
 }))
 vi.mock('../lib/investimentos', async (o) => ({
   ...(await o<typeof import('../lib/investimentos')>()),
@@ -61,6 +63,7 @@ beforeEach(() => {
   mock.resumoVisaoGeral.mockResolvedValue([])
   mock.listarProventosPrevistos.mockResolvedValue([])
   mock.faturaDaProximaCobranca.mockResolvedValue(new Map())
+  mock.definirNaturezaRecorrencia.mockResolvedValue(undefined)
   mock.listarContas.mockResolvedValue({
     contas: [
       { id: 'a1', nome: 'Itaú', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0) },
@@ -97,9 +100,9 @@ describe('Recorrentes', () => {
     })
     montar()
     // as parcelas ficam na aba "Parcelas ativas" e só carregam quando ela abre
-    await screen.findByRole('tab', { name: 'Parcelas ativas' })
+    await screen.findByRole('tab', { name: 'Parcelas' })
     expect(mock.listarParcelasAtivas).not.toHaveBeenCalled()
-    await userEvent.setup().click(screen.getByRole('tab', { name: 'Parcelas ativas' }))
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Parcelas' }))
     expect(await screen.findByRole('heading', { name: 'Parcelas ativas' })).toBeTruthy()
     expect(await screen.findByText('Parcela 5 de 10')).toBeTruthy()
   })
@@ -113,10 +116,10 @@ describe('Recorrentes', () => {
     const u = userEvent.setup()
     montar()
     expect(await screen.findByText('Luz')).toBeTruthy()
-    await u.click(screen.getByRole('tab', { name: 'Parcelas ativas' }))
+    await u.click(screen.getByRole('tab', { name: 'Parcelas' }))
     expect(await screen.findByText(/Não foi possível carregar as parcelas ativas/)).toBeTruthy()
     // a falha é só do bloco: voltar para a lista mostra os recorrentes de sempre
-    await u.click(screen.getByRole('tab', { name: 'Assinaturas e contas' }))
+    await u.click(screen.getByRole('tab', { name: 'Recorrentes' }))
     expect(await screen.findByText('Luz')).toBeTruthy()
     expect(screen.queryByText('Nenhum recorrente ainda')).toBeNull()
   })
@@ -300,7 +303,7 @@ describe('Recorrentes', () => {
       await screen.findByText('Internet')
       const mensais = within(card(/^Contas fixas/)).getByRole('region', { name: 'Mensais · 2 · Contas fixas' })
       // o dia 15 (próxima 15/11) vem antes do dia 1 (próxima 01/12)
-      expect(Array.from(mensais.querySelectorAll('li p:first-child')).map((p) => p.textContent))
+      expect(Array.from(mensais.querySelectorAll('li button > span:first-child > span:first-child')).map((p) => p.textContent))
         .toEqual(['Internet', 'Condomínio do prédio com nome bem comprido'])
     })
 
@@ -340,11 +343,13 @@ describe('Recorrentes', () => {
       const valor = li.querySelector('span.tabular-nums')!
       expect(valor.textContent).toBe('−R$ 180,00')
       expect(valor.className).toContain('whitespace-nowrap')
-      expect(li.querySelectorAll('p')).toHaveLength(2) // no máximo 2 linhas de texto
+      // no máximo 2 linhas de texto (nome e metadados), as duas dentro do botão da natureza
+      expect(li.querySelectorAll('button > span.block, button > span.flex')).toHaveLength(2)
       // só consulta: sem Editar, Excluir nem menu ⋯; um link leva ao lugar onde se muda
       expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull()
       expect(screen.queryByRole('button', { name: /^Ações de/ })).toBeNull()
+      expect(within(li).getByRole('button', { name: /^Natureza de Condomínio do prédio com nome bem comprido: sugerida pelo app\. Corrigir/ })).toBeTruthy()
       expect(within(li).getByRole('link', { name: 'Abrir Condomínio do prédio com nome bem comprido em Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
     })
 
@@ -402,7 +407,9 @@ describe('Recorrentes: natureza', () => {
     montar()
     await screen.findByText('Luz')
     const selos = screen.getAllByTestId('selo-natureza').map((s) => s.textContent)
-    expect(selos).toEqual(expect.arrayContaining(['Custo fixo', 'Assinatura ou app']))
+    // o selo é curto (cabe no celular); o nome completo fica no title
+    expect(selos).toEqual(expect.arrayContaining(['Fixo', 'Assinatura']))
+    expect(screen.getAllByTestId('selo-natureza').map((s) => s.getAttribute('title'))).toEqual(expect.arrayContaining(['Custo fixo', 'Assinatura ou app']))
     expect(selos).toHaveLength(2)
   })
 })
@@ -667,7 +674,7 @@ describe('Recorrentes: proventos previstos de investimentos (migration 117)', ()
     mock.listarProventosPrevistos.mockResolvedValue(previstos)
     montar()
     const lista = await screen.findByTestId('proventos-previstos')
-    expect(screen.getByRole('heading', { name: 'Proventos previstos' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Proventos previstos' })).toBeTruthy() // dentro de Entradas, ao lado das receitas
     expect(within(lista).getByText('FII de teste')).toBeTruthy()
     expect(lista.textContent).toContain('+R$ 1.026,00')
     expect(lista.textContent).toContain('R$ 85,50')
@@ -695,7 +702,7 @@ describe('Recorrentes: proventos previstos de investimentos (migration 117)', ()
     await u.click(screen.getByRole('button', { name: 'Cartão' }))
     expect(screen.queryByTestId('proventos-previstos')).toBeNull()
     await u.click(screen.getByRole('button', { name: 'Todos' }))
-    await u.click(screen.getByRole('button', { name: /Assinatura ou app/ }))
+    await u.click(screen.getByRole('button', { name: /^Assinatura ou app ·/ }))
     expect(screen.queryByTestId('proventos-previstos')).toBeNull()
   })
 
@@ -713,12 +720,12 @@ describe('Recorrentes: proventos previstos de investimentos (migration 117)', ()
 describe('Recorrentes: abas (assinaturas e contas, projeção, parcelas ativas)', () => {
   beforeEach(() => { mock.listarRecorrencias.mockResolvedValue([luz]) })
 
-  it('abre em "Assinaturas e contas"; projeção e parcelas não carregam até a aba abrir', async () => {
+  it('abre em "Recorrentes"; projeção e parcelas não carregam até a aba abrir', async () => {
     montar()
     expect(await screen.findByText('Luz')).toBeTruthy()
     const abas = screen.getAllByRole('tab').map((a) => a.textContent)
-    expect(abas).toEqual(['Assinaturas e contas', 'Projeção', 'Parcelas ativas'])
-    expect(screen.getByRole('tab', { name: 'Assinaturas e contas' }).getAttribute('aria-selected')).toBe('true')
+    expect(abas).toEqual(['Recorrentes', 'Projeção', 'Parcelas'])
+    expect(screen.getByRole('tab', { name: 'Recorrentes' }).getAttribute('aria-selected')).toBe('true')
     expect(screen.getByRole('tabpanel').id).toBe('painel-lista')
     expect(screen.queryByRole('heading', { name: 'Parcelas ativas' })).toBeNull()
     expect(screen.queryByText('Projeção de compromissos')).toBeNull()
@@ -733,7 +740,7 @@ describe('Recorrentes: abas (assinaturas e contas, projeção, parcelas ativas)'
     expect(screen.getByRole('tab', { name: 'Projeção' }).getAttribute('aria-selected')).toBe('true')
     expect(await screen.findByText('Projeção de compromissos')).toBeTruthy()
     expect(screen.queryByText('Luz')).toBeNull()
-    await u.click(screen.getByRole('tab', { name: 'Parcelas ativas' }))
+    await u.click(screen.getByRole('tab', { name: 'Parcelas' }))
     expect(await screen.findByRole('heading', { name: 'Parcelas ativas' })).toBeTruthy()
     expect(screen.queryByText('Projeção de compromissos')).toBeNull()
   })
@@ -742,18 +749,124 @@ describe('Recorrentes: abas (assinaturas e contas, projeção, parcelas ativas)'
     const u = userEvent.setup()
     montar()
     await screen.findByText('Luz')
-    screen.getByRole('tab', { name: 'Assinaturas e contas' }).focus()
+    screen.getByRole('tab', { name: 'Recorrentes' }).focus()
     await u.keyboard('{ArrowRight}')
     expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Projeção' }))
     expect(screen.getByRole('tab', { name: 'Projeção' }).getAttribute('aria-selected')).toBe('true')
     await u.keyboard('{ArrowLeft}{ArrowLeft}')
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Parcelas ativas' })) // volta dando a volta
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Parcelas' })) // volta dando a volta
   })
 
   it('sem nenhum recorrente, as abas de projeção e parcelas continuam úteis (a tela não esconde tudo)', async () => {
     mock.listarRecorrencias.mockResolvedValue([])
     montar()
     expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Parcelas ativas' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'Parcelas' })).toBeTruthy()
+  })
+})
+
+
+describe('Recorrentes: corrigir a natureza (a única edição da página)', () => {
+  const streaming = { ...luz, id: 'r2', tipo: 'card' as const, descricao: 'Streaming', contaId: null, cartaoId: 'k1', nature: 'subscription' as const }
+  const salario = { ...luz, id: 'r3', tipo: 'income' as const, descricao: 'Salário', categoriaId: 'g2' }
+  const guardar = { ...luz, id: 'r4', tipo: 'transfer' as const, descricao: 'Guardar', categoriaId: null, destinoId: 'a2' }
+  const abrirNatureza = async (u: ReturnType<typeof userEvent.setup>, nome: string) => {
+    await u.click(await screen.findByRole('button', { name: new RegExp(`^Natureza de ${nome}:`) }))
+    return screen.findByRole('dialog', { name: `Natureza · ${nome}` })
+  }
+
+  it('tocar na linha abre um card no meio com as naturezas do tipo e a opção de o app sugerir; a atual vem marcada', async () => {
+    mock.listarRecorrencias.mockResolvedValue([streaming, luz])
+    const u = userEvent.setup()
+    montar()
+    const card = await abrirNatureza(u, 'Streaming')
+    expect(card.parentElement!.className).toContain('items-center')
+    expect(within(card).getAllByRole('radio').map((r) => r.parentElement!.textContent))
+      .toEqual(['Custo fixo', 'Assinatura ou app', 'Gasto variável', 'Deixar o app sugerir'])
+    expect(within(card).getByRole('radio', { name: 'Assinatura ou app' })).toHaveProperty('checked', true)
+    expect((within(card).getByRole('button', { name: 'Salvar' }) as HTMLButtonElement).disabled).toBe(true) // nada mudou
+  })
+
+  it('escolher e salvar manda a natureza ao banco, fecha o card e recarrega a lista (os totais do topo se refazem)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    const u = userEvent.setup()
+    montar()
+    const card = await abrirNatureza(u, 'Luz')
+    await u.click(within(card).getByRole('radio', { name: 'Gasto variável' }))
+    await u.click(within(card).getByRole('button', { name: 'Salvar' }))
+    expect(mock.definirNaturezaRecorrencia).toHaveBeenCalledWith('r1', 'variable')
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(mock.listarRecorrencias).toHaveBeenCalledTimes(2)
+    expect(mock.resumoVisaoGeral).toHaveBeenCalledTimes(2)
+  })
+
+  it('"Deixar o app sugerir" tira a marcação (null)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([streaming])
+    const u = userEvent.setup()
+    montar()
+    const card = await abrirNatureza(u, 'Streaming')
+    await u.click(within(card).getByRole('radio', { name: 'Deixar o app sugerir' }))
+    await u.click(within(card).getByRole('button', { name: 'Salvar' }))
+    expect(mock.definirNaturezaRecorrencia).toHaveBeenCalledWith('r2', null)
+  })
+
+  it('receita só oferece ressarcimento (e "sem natureza"); transferência não tem natureza (a linha nem é botão)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([salario, guardar])
+    const u = userEvent.setup()
+    montar()
+    const card = await abrirNatureza(u, 'Salário')
+    expect(within(card).getAllByRole('radio').map((r) => r.parentElement!.textContent)).toEqual(['Ressarcimento a receber', 'Sem natureza'])
+    await u.click(within(card).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('button', { name: /^Natureza de Guardar/ })).toBeNull()
+    expect(screen.getByText('Guardar')).toBeTruthy()
+  })
+
+  it('recusa do banco aparece dentro do card, que continua aberto; Cancelar não grava nada', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    mock.definirNaturezaRecorrencia.mockRejectedValue({ code: '55000', message: 'esta natureza só vale para despesa ou assinatura de cartão' })
+    const u = userEvent.setup()
+    montar()
+    const card = await abrirNatureza(u, 'Luz')
+    await u.click(within(card).getByRole('radio', { name: 'Custo fixo' }))
+    await u.click(within(card).getByRole('button', { name: 'Salvar' }))
+    expect(await within(card).findByText(/Esta natureza só vale para despesa/)).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'Natureza · Luz' })).toBeTruthy()
+    expect(mock.listarRecorrencias).toHaveBeenCalledTimes(1)
+    await u.click(within(card).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('só classifica: nenhuma outra chamada de escrita (valor, data e lançamentos ficam como estão)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    const u = userEvent.setup()
+    montar()
+    const card = await abrirNatureza(u, 'Luz')
+    await u.click(within(card).getByRole('radio', { name: 'Custo fixo' }))
+    await u.click(within(card).getByRole('button', { name: 'Salvar' }))
+    await vi.waitFor(() => expect(mock.definirNaturezaRecorrencia).toHaveBeenCalledTimes(1))
+    expect(mock.editarRecorrencia).not.toHaveBeenCalled()
+    expect(mock.criarRecorrencia).not.toHaveBeenCalled()
+    expect(mock.excluirRecorrencia).not.toHaveBeenCalled()
+  })
+})
+
+describe('Recorrentes: layout (lado a lado no computador, sem estourar no celular)', () => {
+  it('os cards de cada bloco ficam numa grade de uma coluna no celular e duas no computador (sem a coluna "auto" que estourava a largura)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz, { ...luz, id: 'r8', tipo: 'card' as const, descricao: 'Netflix', contaId: null, cartaoId: 'k1' }])
+    montar()
+    await screen.findByText('Netflix')
+    const grade = screen.getByText('Saídas').nextElementSibling as HTMLElement
+    expect(grade.className).toContain('grid-cols-1')
+    expect(grade.className).toContain('lg:grid-cols-2')
+  })
+
+  it('proventos previstos ficam no bloco Entradas (uma entrada prevista), ao lado das receitas', async () => {
+    mock.listarRecorrencias.mockResolvedValue([{ ...luz, id: 'r5', tipo: 'income' as const, descricao: 'Salário', categoriaId: 'g2' }])
+    mock.listarProventosPrevistos.mockResolvedValue([{ ativoId: 'a1', nome: 'FII', qtde: 12, proximaData: '2026-12-10', proximoValor: c(8550), total12m: c(102600) }])
+    montar()
+    await screen.findByTestId('proventos-previstos')
+    const grade = screen.getByText('Entradas').nextElementSibling as HTMLElement
+    expect(within(grade).getByTestId('proventos-previstos')).toBeTruthy()
+    expect(within(grade).getByTitle('Salário')).toBeTruthy()
   })
 })

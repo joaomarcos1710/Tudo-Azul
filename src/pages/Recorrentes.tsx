@@ -25,12 +25,21 @@ import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo, SELO } from '../lib/cores'
 import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
 import { ParcelasAtivas } from '../components/recorrentes/ParcelasAtivas'
+import { FolhaNatureza } from '../components/recorrentes/FolhaNatureza'
 
 const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
 /** As três seções da página (abas de cima): a lista de recorrentes, a projeção dos próximos meses e as parcelas em andamento. */
 type Secao = 'lista' | 'projecao' | 'parcelas'
-const SECOES: [Secao, string][] = [['lista', 'Assinaturas e contas'], ['projecao', 'Projeção'], ['parcelas', 'Parcelas ativas']]
+const SECOES: [Secao, string][] = [['lista', 'Recorrentes'], ['projecao', 'Projeção'], ['parcelas', 'Parcelas']]
+
+/** Blocos da lista, na ordem. Os proventos previstos (investimentos) são uma ENTRADA prevista: ficam ao lado das receitas. */
+const SECOES_LISTA: { titulo: string; tipos: TipoRecorrencia[]; proventos?: boolean }[] = [
+  { titulo: 'Saídas', tipos: ['card', 'expense'] },
+  { titulo: 'Entradas', tipos: ['income'], proventos: true },
+  { titulo: 'Transferências · à parte, fora dos gastos', tipos: ['transfer'] },
+]
+const rotuloNaturezaCurto: Record<NaturezaRecorrencia, string> = { fixed: 'Fixo', subscription: 'Assinatura', variable: 'Variável', reimbursement: 'Ressarcimento' }
 
 type Aba = 'todos' | 'conta' | 'cartao'
 const abas: [Aba, string][] = [['todos', 'Todos'], ['conta', 'Conta'], ['cartao', 'Cartão']]
@@ -103,6 +112,8 @@ export default function Recorrentes() {
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<Aba>('todos')
   const [secao, setSecao] = useState<Secao>('lista')
+  // corrigir a natureza (a única edição que esta página aceita: só classifica)
+  const [corrigindo, setCorrigindo] = useState<Recorrencia | null>(null)
   const [natureza, setNatureza] = useState<FiltroNatureza>('todas')
   const [porNatureza, setPorNatureza] = useState<LinhaNatureza[]>([])
   // visão por mês e por ano (migration 116): null = banco ainda sem a função (a tela mostra o resumo de antes)
@@ -192,34 +203,46 @@ export default function Recorrentes() {
     const completo = [rotuloFrequencia(r), onde(r), caminho, rotuloTipoRecorrencia[r.tipo],
       prox && `próxima ${formatDate(prox)}`, fimTexto].filter(Boolean).join(' · ')
     const moeda = r.tipo === 'card' ? 'BRL' : moedaConta.get(r.contaId ?? '') ?? 'BRL'
-    return (
-      <li key={r.id} className="flex items-center gap-1 py-1.5 pl-4 pr-1 sm:pl-5">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-3">
-            <p className="min-w-0 flex-1 truncate font-medium" title={r.descricao}>{r.descricao}</p>
-            {r.nature && (
-              <span data-testid="selo-natureza" className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${SELO.neutro}`}>
-                {rotuloNatureza[r.nature]}
-              </span>
-            )}
-            <span className={`shrink-0 whitespace-nowrap text-right font-semibold tabular-nums ${corDoTipo(r.tipo === 'card' ? 'expense' : r.tipo)}`}>
-              {r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}{formatMoeda(r.valor, moeda)}
+    const valorTexto = `${r.tipo === 'income' ? '+' : r.tipo === 'transfer' ? '⇄ ' : '−'}${formatMoeda(r.valor, moeda)}`
+    const corpo = (
+      <>
+        <span className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate font-medium" title={r.descricao}>{r.descricao}</span>
+          {r.nature && (
+            <span data-testid="selo-natureza" title={rotuloNatureza[r.nature]}
+              className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${SELO.neutro}`}>
+              {rotuloNaturezaCurto[r.nature]}
             </span>
-          </div>
-          {/* relative: o texto sr-only (absolute) fica preso ao corte da linha; sem isso ele vazava e alargava a página no celular */}
-          <p className="relative truncate text-xs text-slate-500" title={completo} data-testid="meta-recorrente">
-            {/* a próxima data abre a linha: no fim ela era a primeira a sumir nas reticências do celular (auditoria 5h) */}
-            {prox && <><span className="text-agendado">próxima {dataCurta(prox, hoje)}</span> · </>}
-            {quando(r)} · {onde(r)}
-            {curta && <> · <span aria-hidden="true">{curta}</span><span className="sr-only">{caminho}</span></>}
-            {fimTexto && <> · {fimTexto}</>}
-          </p>
-        </div>
+          )}
+        </span>
+        {/* relative: o texto sr-only (absolute) fica preso ao corte da linha; sem isso ele vazava e alargava a página no celular */}
+        <span className="relative block truncate text-xs text-slate-500" title={completo} data-testid="meta-recorrente">
+          {/* a próxima data abre a linha: no fim ela era a primeira a sumir nas reticências do celular (auditoria 5h) */}
+          {prox && <><span className="text-agendado">próxima {dataCurta(prox, hoje)}</span> · </>}
+          {quando(r)} · {onde(r)}
+          {curta && <> · <span aria-hidden="true">{curta}</span><span className="sr-only">{caminho}</span></>}
+          {fimTexto && <> · {fimTexto}</>}
+        </span>
+      </>
+    )
+    return (
+      <li key={r.id} className="flex items-center gap-2 pl-4 pr-1 sm:pl-5">
+        {/* a linha é o botão da natureza (transferência não tem): toque para corrigir; o › leva ao lugar onde se muda o resto */}
+        {r.tipo === 'transfer' ? (
+          <div className="min-w-0 flex-1 py-2">{corpo}</div>
+        ) : (
+          <button type="button" onClick={() => setCorrigindo(r)} title="Corrigir a natureza"
+            aria-label={`Natureza de ${r.descricao}: ${r.nature ? rotuloNatureza[r.nature] : 'sugerida pelo app'}. Corrigir`}
+            className="-ml-2 min-w-0 flex-1 rounded-lg px-2 py-2 text-left hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-azul">
+            {corpo}
+          </button>
+        )}
+        <span className={`shrink-0 whitespace-nowrap text-right text-sm font-semibold tabular-nums ${corDoTipo(r.tipo === 'card' ? 'expense' : r.tipo)}`}>{valorTexto}</span>
         <Link to={r.tipo === 'card' && r.cartaoId ? (faturaDe.get(r.id) ? rotaFatura(r.cartaoId, faturaDe.get(r.id)!) : rotaCartao(r.cartaoId)) : '/lancamentos'}
           aria-label={`Abrir ${r.descricao} em ${r.tipo === 'card' ? 'Cartões' : 'Lançamentos'}`}
           title={r.tipo === 'card' ? 'Ver a fatura da próxima cobrança (mudar o dia ou encerrar: ⋯ → Editar)' : 'Ver em Lançamentos (editar ou parar de repetir)'}
-          className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-sm font-semibold text-azul hover:bg-azul-claro">
-          Abrir <span aria-hidden="true" className="ml-1">›</span>
+          className="inline-flex min-h-11 min-w-9 shrink-0 items-center justify-center rounded-lg text-lg font-semibold text-azul hover:bg-azul-claro">
+          <span aria-hidden="true">›</span>
         </Link>
       </li>
     )
@@ -233,6 +256,74 @@ export default function Recorrentes() {
   }
 
   const porAlvo = resumo.filter((l) => l.nivel === 'target')
+
+  function cartaoDoTipo(t: (typeof cards)[number]) {
+    // total do banco (só reais); sem linha (ex.: todos em outra moeda) a tela mostra só a contagem, nunca soma
+    const doTipo = filtrando ? undefined : linha('medium', t.meio, t.tipoResumo)
+    return (
+      <Card key={t.tipo} semPadding>
+        <section aria-labelledby={`card-${t.tipo}`}>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-4 py-3 sm:px-5">
+            <h2 id={`card-${t.tipo}`} className="text-base font-semibold text-marinho">
+              {t.titulo} <span className="font-normal text-slate-500">· {t.qtde}</span>
+            </h2>
+            {doTipo && (
+              <p className={`text-sm font-semibold tabular-nums ${corDoTipo(t.tipoResumo)}`} data-testid={`total-${t.tipo}`}>
+                {total(doTipo)}
+              </p>
+            )}
+          </div>
+          {t.grupos.map((g) => {
+            const daFrequencia = filtrando ? undefined : linha('frequency', t.meio, t.tipoResumo, g.f)
+            return (
+              // o nome do card no rótulo: "Mensais" aparece em mais de um card e duas regiões com o mesmo nome confundem o leitor de tela
+              <section key={g.f} aria-label={`${rotuloGrupoFrequencia[g.f]} · ${g.itens.length} · ${t.titulo}`} className="border-t border-slate-100">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 bg-slate-50 px-4 py-1.5 sm:px-5">
+                  <h3 id={`grupo-${t.tipo}-${g.f}`} className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    {rotuloGrupoFrequencia[g.f]} <span className="font-normal normal-case text-slate-500">· {g.itens.length}</span>
+                  </h3>
+                  {daFrequencia && <p className="text-xs text-slate-600 tabular-nums">{total(daFrequencia, g.f)}</p>}
+                </div>
+                <ul className="divide-y divide-slate-100">{g.itens.map(({ r, prox }) => item(r, prox))}</ul>
+              </section>
+            )
+          })}
+        </section>
+      </Card>
+    )
+  }
+
+  function cartaoProventos() {
+    return (
+      <Card semPadding key="proventos">
+        <section aria-labelledby="card-proventos">
+          <div className="px-4 py-3 sm:px-5">
+            <h3 id="card-proventos" className="text-base font-semibold text-marinho">Proventos previstos</h3>
+            <p className="text-xs text-slate-500">
+              Investimentos · {proventos.length} ativo{proventos.length === 1 ? '' : 's'} · previsão dos próximos 12 meses: você digita o valor e nada vira pago sozinho. Fora do total "Vai entrar".
+            </p>
+          </div>
+          <ul className="divide-y divide-slate-100 border-t border-slate-100" data-testid="proventos-previstos">
+            {proventos.map((p) => (
+              <li key={p.ativoId} className="flex items-center gap-2 py-2 pl-4 pr-1 sm:pl-5">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium" title={p.nome}>{p.nome}</p>
+                  <p className="truncate text-xs text-slate-500">
+                    <span className="text-agendado">próximo {dataCurta(p.proximaData, hojeSP())}</span> · {formatBRL(p.proximoValor)} · {p.qtde} previsto{p.qtde === 1 ? '' : 's'} em 12 meses
+                  </p>
+                </div>
+                <span className={`shrink-0 whitespace-nowrap text-right text-sm font-semibold tabular-nums ${corDoTipo('income')}`}>+{formatBRL(p.total12m)}</span>
+                <Link to="/investimentos" aria-label={`Abrir ${p.nome} em Investimentos`} title="Ver em Investimentos (registrar ou repetir o provento)"
+                  className="inline-flex min-h-11 min-w-9 shrink-0 items-center justify-center rounded-lg text-lg font-semibold text-azul hover:bg-azul-claro">
+                  <span aria-hidden="true">›</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </Card>
+    )
+  }
 
   return (
     <>
@@ -253,6 +344,10 @@ export default function Recorrentes() {
         </>} />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {corrigindo !== null && (
+        <FolhaNatureza recorrencia={corrigindo} aoCancelar={() => setCorrigindo(null)}
+          aoConcluir={async () => { setCorrigindo(null); await carregar() }} />
+      )}
 
       {recorrencias === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
@@ -342,26 +437,28 @@ export default function Recorrentes() {
 
       {secao === 'lista' && (ativas.length > 0 || proventos.length > 0) && (
         <div role="tabpanel" id="painel-lista" aria-labelledby="aba-lista">
-          <div role="group" aria-label="Mostrar recorrentes" className="mb-3 flex gap-2">
+          <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <div role="group" aria-label="Mostrar recorrentes" className="flex gap-2">
             {abas.map(([chave, rotulo]) => (
               <button key={chave} type="button" aria-pressed={aba === chave} onClick={() => setAba(chave)}
-                className={`min-h-11 rounded-full px-4 text-sm font-semibold transition-colors ${aba === chave
+                className={`min-h-11 rounded-full px-4 text-sm font-semibold transition-colors md:min-h-9 ${aba === chave
                   ? 'bg-azul text-white' : 'border border-slate-200 bg-white text-marinho hover:bg-azul-claro'}`}>
                 {rotulo}
               </button>
             ))}
           </div>
           {temNatureza && (
-            <div role="group" aria-label="Filtrar por natureza" className="mb-3 flex flex-wrap gap-2">
+            <div role="group" aria-label="Filtrar por natureza" className="flex flex-wrap gap-2">
               {chipsNatureza.filter((n) => n === 'todas' || n === natureza || contagemNatureza(n) > 0).map((n) => (
                 <button key={n} type="button" aria-pressed={natureza === n} onClick={() => setNatureza(n)}
-                  className={`min-h-11 rounded-full px-3 text-sm font-semibold transition-colors ${natureza === n
+                  className={`min-h-11 rounded-full px-3 text-sm font-semibold transition-colors md:min-h-9 ${natureza === n
                     ? 'bg-marinho text-white' : 'border border-slate-200 bg-white text-marinho hover:bg-azul-claro'}`}>
                   {rotuloFiltroNatureza(n)} <span className="font-normal opacity-80">· {contagemNatureza(n)}</span>
                 </button>
               ))}
             </div>
           )}
+          </div>
           {filtrando && (
             <p className="mb-3 text-sm text-slate-700" data-testid="total-natureza">
               <strong>{rotuloFiltroNatureza(natureza)}</strong>
@@ -377,81 +474,21 @@ export default function Recorrentes() {
             {cards.length === 0 && ativas.length > 0 && (
               <Card><p className="text-sm text-slate-600">Nenhum recorrente {aba === 'cartao' ? 'no cartão' : 'em conta'}.</p></Card>
             )}
-            {cards.map((t, i) => {
-              const secao = t.tipo === 'card' || t.tipo === 'expense' ? 'Saídas' : t.tipo === 'income' ? 'Entradas' : 'Transferências · à parte, fora dos gastos'
-              const anterior = cards[i - 1]
-              const novaSecao = !anterior || (anterior.tipo === 'card' || anterior.tipo === 'expense' ? 'Saídas' : anterior.tipo === 'income' ? 'Entradas' : 'Transferências · à parte, fora dos gastos') !== secao
-              // total do banco (só reais); sem linha (ex.: todos em outra moeda) a tela mostra só a contagem, nunca soma
-              const doTipo = filtrando ? undefined : linha('medium', t.meio, t.tipoResumo)
+            {SECOES_LISTA.map((sec) => {
+              const doGrupo = cards.filter((t) => sec.tipos.includes(t.tipo))
+              const comProventos = sec.proventos && proventos.length > 0 && aba === 'todos' && !filtrando
+              if (doGrupo.length === 0 && !comProventos) return null
               return (
-                <Fragment key={t.tipo}>
-                {novaSecao && <h2 className="pt-2 text-lg font-bold text-marinho">{secao}</h2>}
-                <Card semPadding>
-                  <section aria-labelledby={`card-${t.tipo}`}>
-                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-4 py-3 sm:px-5">
-                      <h2 id={`card-${t.tipo}`} className="text-base font-semibold text-marinho">
-                        {t.titulo} <span className="font-normal text-slate-500">· {t.qtde}</span>
-                      </h2>
-                      {doTipo && (
-                        <p className={`text-sm font-semibold tabular-nums ${corDoTipo(t.tipoResumo)}`} data-testid={`total-${t.tipo}`}>
-                          {total(doTipo)}
-                        </p>
-                      )}
-                    </div>
-                    {t.grupos.map((g) => {
-                      const daFrequencia = filtrando ? undefined : linha('frequency', t.meio, t.tipoResumo, g.f)
-                      return (
-                        // o nome do card no rótulo: "Mensais" aparece em mais de um card e duas regiões com o mesmo nome confundem o leitor de tela
-                        <section key={g.f} aria-label={`${rotuloGrupoFrequencia[g.f]} · ${g.itens.length} · ${t.titulo}`} className="border-t border-slate-100">
-                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 bg-slate-50 px-4 py-2 sm:px-5">
-                            <h3 id={`grupo-${t.tipo}-${g.f}`} className="text-sm font-semibold text-marinho">
-                              {rotuloGrupoFrequencia[g.f]} <span className="font-normal text-slate-500">· {g.itens.length}</span>
-                            </h3>
-                            {daFrequencia && <p className="text-xs text-slate-600 tabular-nums">{total(daFrequencia, g.f)}</p>}
-                          </div>
-                          <ul className="divide-y divide-slate-100">{g.itens.map(({ r, prox }) => item(r, prox))}</ul>
-                        </section>
-                      )
-                    })}
-                  </section>
-                </Card>
+                <Fragment key={sec.titulo}>
+                  <h2 className="pt-2 text-lg font-bold text-marinho">{sec.titulo}</h2>
+                  {/* no computador os cards ficam lado a lado (a lista de uma coluna só deixava metade da tela em branco) */}
+                  <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                    {doGrupo.map((t) => cartaoDoTipo(t))}
+                    {comProventos && cartaoProventos()}
+                  </div>
                 </Fragment>
               )
             })}
-            {proventos.length > 0 && aba === 'todos' && !filtrando && (
-              <>
-                <h2 className="pt-2 text-lg font-bold text-marinho">Proventos previstos</h2>
-                <Card semPadding>
-                  <section aria-labelledby="card-proventos">
-                    <div className="px-4 py-3 sm:px-5">
-                      <h3 id="card-proventos" className="text-base font-semibold text-marinho">
-                        Investimentos <span className="font-normal text-slate-500">· {proventos.length} ativo{proventos.length === 1 ? '' : 's'}</span>
-                      </h3>
-                      <p className="text-xs text-slate-500">Previsão dos próximos 12 meses: você digita o valor e nada vira pago sozinho. Fora do total "Vai entrar".</p>
-                    </div>
-                    <ul className="divide-y divide-slate-100 border-t border-slate-100" data-testid="proventos-previstos">
-                      {proventos.map((p) => (
-                        <li key={p.ativoId} className="flex items-center gap-1 py-1.5 pl-4 pr-1 sm:pl-5">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline gap-3">
-                              <p className="min-w-0 flex-1 truncate font-medium" title={p.nome}>{p.nome}</p>
-                              <span className={`shrink-0 whitespace-nowrap text-right font-semibold tabular-nums ${corDoTipo('income')}`}>+{formatBRL(p.total12m)}</span>
-                            </div>
-                            <p className="truncate text-xs text-slate-500">
-                              <span className="text-agendado">próximo {dataCurta(p.proximaData, hojeSP())}</span> · {formatBRL(p.proximoValor)} · {p.qtde} previsto{p.qtde === 1 ? '' : 's'} em 12 meses
-                            </p>
-                          </div>
-                          <Link to="/investimentos" aria-label={`Abrir ${p.nome} em Investimentos`} title="Ver em Investimentos (registrar ou repetir o provento)"
-                            className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-sm font-semibold text-azul hover:bg-azul-claro">
-                            Abrir <span aria-hidden="true" className="ml-1">›</span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                </Card>
-              </>
-            )}
             {terminadas.length > 0 && aba === 'todos' && !filtrando && (
               <Card semPadding>
                 <section aria-labelledby="grupo-terminados">
@@ -513,7 +550,7 @@ function VisaoGeral({ linhas }: { linhas: LinhaVisao[] }) {
   const fixo = achar('expense', 'fixed')
   const variavel = achar('expense', 'variable')
   const parte = (rotulo: string, l: LinhaVisao | undefined) => l && (
-    <li className="flex items-baseline justify-between gap-3" data-testid={`visao-${rotulo.toLowerCase()}`}>
+    <li className="flex flex-wrap items-baseline justify-between gap-x-3" data-testid={`visao-${rotulo.toLowerCase()}`}>
       <span className="text-slate-700">
         {rotulo} <span className="text-slate-500">· {l.qtde}{l.sugeridas > 0 && <> · {l.sugeridas === l.qtde ? 'sugerido' : `${l.sugeridas} sugerido${l.sugeridas === 1 ? '' : 's'}`}</>}</span>
       </span>
@@ -523,7 +560,7 @@ function VisaoGeral({ linhas }: { linhas: LinhaVisao[] }) {
     </li>
   )
   return (
-    <div className="grid gap-2 sm:grid-cols-2 sm:gap-3" data-testid="visao-geral">
+    <div className="grid items-start gap-2 sm:grid-cols-2 sm:gap-3" data-testid="visao-geral">
       {saidas && (
         <Card semPadding className="p-4">
           <h3 className="text-sm font-semibold text-slate-600">Você gasta</h3>

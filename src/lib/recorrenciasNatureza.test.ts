@@ -34,7 +34,7 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { criarRecorrencia, editarRecorrencia, listarRecorrencias, naturezasDoTipo, rotuloNatureza } from './recorrencias'
+import { criarRecorrencia, definirNaturezaRecorrencia, editarRecorrencia, listarRecorrencias, naturezasDoTipo, rotuloNatureza } from './recorrencias'
 import type { DadosRecorrencia } from './recorrencias'
 
 const c = (n: number) => n as Cents
@@ -120,5 +120,20 @@ describe('editarRecorrencia: natureza', () => {
   it('banco sem a função e com natureza escolhida: o erro aparece', async () => {
     fake.estado.rpcErro.recurrence_update_with_nature = { code: '42883' }
     await expect(editarRecorrencia('r1', { ...base, nature: 'fixed' })).rejects.toMatchObject({ code: '42883' })
+  })
+})
+
+describe('definirNaturezaRecorrencia (recurrence_set_nature)', () => {
+  it('manda só o id e a natureza; null tira a marcação', async () => {
+    await definirNaturezaRecorrencia('r1', 'variable')
+    await definirNaturezaRecorrencia('r1', null)
+    expect(fake.chamadas.filter((x) => x[0] === 'rpc')).toEqual([
+      ['rpc', 'recurrence_set_nature', { p_id: 'r1', p_nature: 'variable' }],
+      ['rpc', 'recurrence_set_nature', { p_id: 'r1', p_nature: null }],
+    ])
+  })
+  it('recusa do banco sobe como erro', async () => {
+    fake.estado.rpcErro.recurrence_set_nature = { code: '55000' }
+    await expect(definirNaturezaRecorrencia('r1', 'reimbursement')).rejects.toMatchObject({ code: '55000' })
   })
 })
