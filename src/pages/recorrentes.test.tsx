@@ -36,7 +36,7 @@ vi.mock('../lib/investimentos', async (o) => ({
   listarProventosPrevistos: mock.listarProventosPrevistos,
 }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
-vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas, listarParcelasQueAcabam: vi.fn().mockResolvedValue({ planos: [], totais: [] }) }))
+vi.mock('../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas, listarParcelasQueAcabam: vi.fn().mockResolvedValue({ planos: [], totais: [] }), listarCronogramaParcelas: vi.fn().mockResolvedValue(new Map()) }))
 vi.mock('../lib/projecaoCompromissos', () => ({ carregarProjecaoCompromissos: vi.fn().mockResolvedValue([]) }))
 vi.mock('../lib/cartoes', async (o) => ({ ...(await o<typeof import('../lib/cartoes')>()), listarCartoes: mock.listarCartoes, faturaDaProximaCobranca: mock.faturaDaProximaCobranca }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))

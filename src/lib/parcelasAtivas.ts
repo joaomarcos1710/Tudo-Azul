@@ -152,3 +152,42 @@ export async function listarParcelasQueAcabam(familiaId: string, dias = 60): Pro
   }
   return { planos, totais }
 }
+
+/** Situação de uma parcela na linha do tempo: paga, não paga e já vencida, ou ainda a vencer. */
+export type EstadoParcela = 'paid' | 'overdue' | 'open'
+/** Uma parcela viva de um parcelamento ativo (installment_plan_schedule, migration 20261114120000). */
+export interface ParcelaDoCronograma {
+  /** Posição entre as parcelas vivas (1 a N): a mesma do "Parcela n de N". */
+  numero: number
+  /** Cartão: vencimento da fatura; conta: data do lançamento. Pode faltar se o cartão não tiver essa fatura. */
+  vencimento: string | null
+  valor: Cents
+  /** Cartão: rótulo (AAAA-MM) da fatura que a tela de Cartões abre. Conta: nulo. */
+  faturaRotulo: string | null
+  estado: EstadoParcela
+  /** Vence no mês corrente (a "parcela do mês"). */
+  noMes: boolean
+}
+
+/**
+ * A linha do tempo de todos os parcelamentos ativos: as parcelas de cada um, em ordem, por chave do plano (a mesma de
+ * active_installment_plans). Estado, vencimento e valores vêm do banco; a tela só mostra. Falha aqui não deve esconder a lista (opcional).
+ */
+export async function listarCronogramaParcelas(familiaId: string): Promise<Map<string, ParcelaDoCronograma[]>> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const { data, error } = await supabase.rpc('installment_plan_schedule', { p_household: familiaId })
+  if (error) throw error
+  const mapa = new Map<string, ParcelaDoCronograma[]>()
+  for (const l of (data ?? []) as {
+    plan_key: string; installment_number: number; due_date: string | null; amount: number | string
+    invoice_label: string | null; state: EstadoParcela; in_month: boolean
+  }[]) {
+    const lista = mapa.get(l.plan_key) ?? []
+    lista.push({
+      numero: Number(l.installment_number), vencimento: l.due_date, valor: centsFromDb(l.amount),
+      faturaRotulo: l.invoice_label, estado: l.state, noMes: Boolean(l.in_month),
+    })
+    mapa.set(l.plan_key, lista)
+  }
+  return mapa
+}
