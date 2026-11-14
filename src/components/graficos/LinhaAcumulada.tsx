@@ -4,6 +4,7 @@ import { formatBRL, formatDate } from '../../lib/format'
 import { MASCARA, valoresOcultos } from '../../lib/privacidade'
 import type { Cents } from '../../lib/format'
 import { COR_CONTORNO, COR_EIXO, COR_GRADE, COR_LINHA } from './cores'
+import { useLargura } from './useLargura'
 
 export interface PontoDia {
   dia: string
@@ -33,7 +34,9 @@ export function topoRedondo(max: number): number {
  */
 export function LinhaAcumulada({ pontos, ate }: { pontos: PontoDia[]; ate: string }) {
   const [ativo, setAtivo] = useState<number | null>(null)
-  const L = 640, A = 220, esq = 64, dir = 12, topo = 12, base = 28
+  // desenha na largura real da caixa (1:1): com a largura fixa de 640 o texto encolhia para ~6px no celular e crescia para ~18px no monitor
+  const [caixa, L] = useLargura<HTMLDivElement>()
+  const A = 220, esq = 72, dir = 12, topo = 12, base = 28
   const visiveis = pontos.filter((p) => p.dia <= ate)
   const max = topoRedondo(Math.max(0, ...visiveis.map((p) => p.acumulado)))
   const x = (i: number) => esq + (pontos.length <= 1 ? 0 : (i / (pontos.length - 1)) * (L - esq - dir))
@@ -52,7 +55,7 @@ export function LinhaAcumulada({ pontos, ate }: { pontos: PontoDia[]; ate: strin
 
   const p = ativo !== null ? visiveis[ativo] : null
   return (
-    <div className="relative">
+    <div className="relative" ref={caixa}>
       <svg viewBox={`0 0 ${L} ${A}`} className="h-auto w-full" role="img"
         aria-label={`Despesa acumulada no mês: ${visiveis.length ? formatBRL(visiveis[visiveis.length - 1].acumulado) : 'R$ 0,00'} até ${formatDate(ate)}`}>
         <defs>
@@ -64,11 +67,11 @@ export function LinhaAcumulada({ pontos, ate }: { pontos: PontoDia[]; ate: strin
         {linhasGrade.map((v) => (
           <g key={v}>
             <line x1={esq} x2={L - dir} y1={y(v)} y2={y(v)} stroke={COR_GRADE} strokeWidth="1" />
-            <text x={esq - 8} y={y(v) + 4} textAnchor="end" fontSize="11" className="fill-slate-500">{brlCompacto(v)}</text>
+            <text x={esq - 8} y={y(v) + 4} textAnchor="end" fontSize="12" className="fill-slate-500">{brlCompacto(v)}</text>
           </g>
         ))}
         {marcasX.map(({ p: m, i }) => (
-          <text key={m.dia} x={x(i)} y={A - 8} textAnchor="middle" fontSize="11" className="fill-slate-500">{Number(m.dia.slice(8))}</text>
+          <text key={m.dia} x={x(i)} y={A - 8} textAnchor="middle" fontSize="12" className="fill-slate-500">{Number(m.dia.slice(8))}</text>
         ))}
         {area && <path d={area} fill="url(#area-acumulada)" />}
         {caminho && <path d={caminho} fill="none" stroke={COR_LINHA} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
