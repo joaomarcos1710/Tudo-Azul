@@ -334,6 +334,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#342** (14/11/2026): Matriz de compromissos respeita as exceções das assinaturas de cartão: a cobrança cancelada na fatura saía na matriz e no total do mês, e a editada aparecia com o valor antigo. Migration 121 (`dashboard_commitment_matrix`, só leitura), aplicada em 14/11/2026 (execução 43547999085).
 - **#343** (14/11/2026): diário: migration 121 aplicada em produção (execução 43547999085). Só documentação.
 - **#344** (14/11/2026): diário: funções 116 a 121 conferidas direto no banco de produção (existem, `anon` sem execute, matriz é a versão nova) e notas velhas de Pendências limpas (natureza resolvida na #331; link da fatura na #336). Só documentação.
+- **#345** (14/11/2026): diário: desempenho das funções novas medido em produção (tempo e contagem, sem ler valores): nada lento; o resumo do mês das parcelas leva ~0,8 s por chamar duas funções (atalho anotado). Só documentação.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
