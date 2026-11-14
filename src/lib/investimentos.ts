@@ -570,6 +570,31 @@ export async function listarProventosPrevistos(familiaId: string): Promise<Prove
     }))
 }
 
+/** Um ativo cuja previsão de proventos está acabando (investment_planned_income_ending, migration 20261114180000). Tudo vem do banco. */
+export interface ProventoAcabando {
+  ativoId: string
+  nome: string
+  /** Data do último provento previsto: a previsão termina aí. */
+  ultimaData: string
+  ultimoValor: Cents
+  /** Quantos proventos previstos ainda faltam (de hoje em diante). */
+  qtdePrevistos: number
+}
+
+/**
+ * Ativos cuja previsão de proventos acaba em até `dias` dias (o "Repetir" cobre 12 meses por vez). O banco decide o que é "acabando"
+ * (último previsto dentro do prazo e padrão de repetição); a tela só avisa. Falha aqui não deve esconder o card (aviso opcional).
+ */
+export async function listarProventosAcabando(familiaId: string, dias = 60): Promise<ProventoAcabando[]> {
+  const { data, error } = await db().rpc('investment_planned_income_ending', { p_household: familiaId, p_days: dias })
+  if (error) throw error
+  return ((data ?? []) as { asset_id: string; asset_name: string; last_date: string; last_amount: number | string; planned_count: number }[])
+    .map((r) => ({
+      ativoId: r.asset_id, nome: r.asset_name, ultimaData: r.last_date,
+      ultimoValor: centsFromDb(r.last_amount), qtdePrevistos: r.planned_count,
+    }))
+}
+
 export async function listarProventosPorAtivo(familiaId: string, de: string, ate: string): Promise<ProventoAtivo[]> {
   const { data, error } = await db().rpc('investment_income_by_asset', { p_household: familiaId, p_from: de, p_to: ate })
   if (error) throw error
