@@ -5,6 +5,7 @@ import type { MoedaInvestimento, PontoEvolucao } from '../../lib/investimentos'
 import { Card } from '../ui/Card'
 import { COR_CONTORNO, COR_EIXO, COR_GRADE, COR_LINHA, COR_TEXTO_EIXO } from '../graficos/cores'
 import { topoRedondo } from '../graficos/LinhaAcumulada'
+import { useLargura } from '../graficos/useLargura'
 
 const mesCurto = (mes: string) => new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(new Date(`${mes}T12:00:00Z`))
 const mesLongo = (mes: string) => new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${mes}T12:00:00Z`))
@@ -22,8 +23,12 @@ export function GraficoEvolucao({ moedaCodigo, pontos, formatar }: {
   formatar: (c: Cents, moeda: MoedaInvestimento) => string
 }) {
   const [ativo, setAtivo] = useState<number | null>(null)
-  const L = 640, A = 220, esq = 64, dir = 14, topo = 14, base = 30
+  // desenha na largura real da caixa (1:1), como os outros gráficos: com a largura fixa de 640 o texto encolhia para ~6px no celular
+  const [caixa, L] = useLargura<HTMLDivElement>()
+  const A = 220, esq = 84, dir = 14, topo = 14, base = 30
   const fmt = (v: number) => formatar(v as Cents, moedaCodigo)
+  // rótulos do eixo com pelo menos ~100px entre si (o último fica ancorado à direita e come ~30px do espaço; cabe "dez. de 26"), sempre terminando no último ponto: no celular são 3, no monitor mais
+  const salto = Math.max(1, Math.ceil(100 / ((L - esq - dir) / Math.max(1, pontos.length - 1))))
   const max = topoRedondo(Math.max(0, ...pontos.map((p) => Math.max(p.valorAtual, p.aportado))))
   const x = (i: number) => esq + (pontos.length <= 1 ? 0 : (i / (pontos.length - 1)) * (L - esq - dir))
   const y = (v: number) => topo + (1 - Math.max(0, v) / max) * (A - topo - base)
@@ -55,20 +60,20 @@ export function GraficoEvolucao({ moedaCodigo, pontos, formatar }: {
       {!aportadoLiquido && (
         <p className="mb-2 text-xs text-slate-500">Aportado, aqui, é o custo do que ainda está investido: ele cai a cada resgate.</p>
       )}
-      <div className="relative">
+      <div className="relative" ref={caixa}>
         <svg viewBox={`0 0 ${L} ${A}`} className="h-auto w-full" role="img"
           aria-label={`Evolução da carteira em ${moedaCodigo}: valor atual ${ultimo ? fmt(ultimo.valorAtual) : '—'}, aportado ${ultimo ? fmt(ultimo.aportado) : '—'}`}>
           {[0, 0.5, 1].map((f) => (
             <g key={f}>
               <line x1={esq} x2={L - dir} y1={y(max * f)} y2={y(max * f)} stroke={COR_GRADE} strokeWidth="1" />
-              <text x={esq - 7} y={y(max * f) + 4} textAnchor="end" fontSize="10" fill={COR_TEXTO_EIXO}>{fmt(max * f)}</text>
+              <text x={esq - 7} y={y(max * f) + 4} textAnchor="end" fontSize="12" fill={COR_TEXTO_EIXO}>{fmt(max * f)}</text>
             </g>
           ))}
           <path d={trilha((q) => q.aportado)} fill="none" stroke={COR_TEXTO_EIXO} strokeWidth="2" strokeDasharray="5 4" strokeLinecap="round" strokeLinejoin="round" />
           <path d={trilha((q) => q.valorAtual)} fill="none" stroke={COR_LINHA} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          {pontos.map((q, i) => (i === 0 || i === pontos.length - 1 || i % 3 === 0) && (
+          {pontos.map((q, i) => (pontos.length - 1 - i) % salto === 0 && (
             // o último rótulo termina na borda do gráfico: centrado no último ponto ele passava do SVG e era cortado (conferido a 400 px)
-            <text key={q.mes} x={x(i)} y={A - 8} textAnchor={i === pontos.length - 1 && i > 0 ? 'end' : 'middle'} fontSize="10" fill={COR_TEXTO_EIXO}>{mesCurto(q.mes)}</text>
+            <text key={q.mes} x={x(i)} y={A - 8} textAnchor={i === pontos.length - 1 && i > 0 ? 'end' : 'middle'} fontSize="12" fill={COR_TEXTO_EIXO}>{mesCurto(q.mes)}</text>
           ))}
           {ultimo && <circle cx={x(pontos.length - 1)} cy={y(ultimo.valorAtual)} r="4" fill={COR_LINHA} stroke={COR_CONTORNO} strokeWidth="2" />}
           {p && ativo !== null && (
