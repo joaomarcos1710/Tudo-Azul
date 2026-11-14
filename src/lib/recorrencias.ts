@@ -370,3 +370,13 @@ export async function resumoVisaoGeral(familiaId: string): Promise<LinhaVisao[]>
     porMes: centsFromDb(l.total_monthly), porAno: centsFromDb(l.total_yearly),
   }))
 }
+
+/**
+ * Corrige só a NATUREZA de um recorrente (recurrence_set_nature, migration 20261112120000): classificação analítica que alimenta o
+ * fixo × variável e o filtro de Recorrentes; não muda valor, data nem lançamento. `null` tira a marcação (o app volta a sugerir pelo
+ * histórico). O banco recusa natureza que não combina com o tipo (ressarcimento só em receita; as outras só em despesa e cartão).
+ */
+export async function definirNaturezaRecorrencia(id: string, natureza: NaturezaRecorrencia | null): Promise<void> {
+  const { error } = await cliente().rpc('recurrence_set_nature', { p_id: id, p_nature: natureza })
+  if (error) throw error
+}

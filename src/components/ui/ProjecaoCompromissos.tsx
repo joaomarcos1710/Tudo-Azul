@@ -195,7 +195,7 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
       ) : (
         <div className="-mx-5 max-h-[70vh] overflow-auto px-5" data-testid="matriz-rolagem">
           <table className="block w-full border-collapse text-sm md:table md:min-w-[660px]">
-            <thead className="sr-only md:table-header-group">
+            <thead className="sr-only md:not-sr-only md:table-header-group">
               <tr className="border-b border-slate-100 text-xs text-slate-500">
                 <th scope="col" className="sticky top-0 z-10 w-[34%] min-w-56 bg-white py-2 pr-4 text-left font-medium">Despesa / contrato</th>
                 {meses.map((mes) => (
