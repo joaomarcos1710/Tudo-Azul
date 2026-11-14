@@ -324,6 +324,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#332** (14/11/2026): Parcelas ativas: aviso "N parcelamentos terminam nos próximos 60 dias, liberando R$ X por mês" (migration 118, `installments_ending_soon`; aplicada em 14/11/2026, execução 43534532207).
 - **#333** (14/11/2026): Recorrentes em **duas visões**, Saídas e Entradas (seletor no topo com o total por mês e por ano), com **cards por natureza** que filtram a lista, como na referência do dono. Só front.
 - **#334** (14/11/2026): diário: migration 118 aplicada em produção (execução 43534532207). Só documentação.
+- **#335** (14/11/2026): Parcelas ativas: volta o selo "Pendente de pagamento" (parcela do mês não paga) e cada card ganha o link para o pagamento original (carnê: Lançamentos no mês do vencimento; cartão: a tela do cartão). Só front.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
