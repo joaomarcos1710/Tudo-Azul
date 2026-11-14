@@ -6,8 +6,8 @@ import { MemoryRouter } from 'react-router-dom'
 import type { Cents } from '../../lib/format'
 import { MASCARA, definirValoresOcultos } from '../../lib/privacidade'
 
-const mock = vi.hoisted(() => ({ listarParcelasAtivas: vi.fn(), registrarFalhaConsulta: vi.fn() }))
-vi.mock('../../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas }))
+const mock = vi.hoisted(() => ({ listarParcelasAtivas: vi.fn(), listarParcelasQueAcabam: vi.fn(), registrarFalhaConsulta: vi.fn() }))
+vi.mock('../../lib/parcelasAtivas', () => ({ listarParcelasAtivas: mock.listarParcelasAtivas, listarParcelasQueAcabam: mock.listarParcelasQueAcabam }))
 vi.mock('../../lib/consultaOpcional', () => ({ registrarFalhaConsulta: mock.registrarFalhaConsulta }))
 
 import { ParcelasAtivas } from './ParcelasAtivas'
@@ -24,7 +24,7 @@ const dados = (parcelamentos: ParcelamentoAtivo[], totais: Dados['totais'] = [])
 const montar = () => render(<MemoryRouter><ParcelasAtivas familiaId="h1" /></MemoryRouter>)
 const brl = (cents: number, moeda = 'BRL') => ({ moeda, qtde: 1, saldoRestante: c(cents), futuro: c(cents) })
 
-beforeEach(() => { localStorage.clear(); definirValoresOcultos(false) })
+beforeEach(() => { localStorage.clear(); definirValoresOcultos(false); mock.listarParcelasQueAcabam.mockResolvedValue({ planos: [], totais: [] }) })
 afterEach(() => { cleanup(); vi.clearAllMocks(); definirValoresOcultos(false) })
 
 describe('Parcelas ativas', () => {
@@ -230,6 +230,74 @@ describe('Parcelas ativas', () => {
       await screen.findAllByTestId('parcelamento')
       await u.selectOptions(screen.getByLabelText('Ordenar por'), 'parcela')
       expect(nomes()).toEqual(['Em reais grande', 'Em reais pequeno', 'Em dólar pequeno'])
+    })
+  })
+
+  describe('aviso "terminam nos próximos 60 dias" (migration 118)', () => {
+    const acaba = (descricao: string, valor: number, moeda = 'BRL') => ({ chave: descricao, moeda, descricao, origemNome: 'Nubank', ultimoVencimento: '2027-01-10', valor: c(valor) })
+    const comPlanos = () => mock.listarParcelasAtivas.mockResolvedValue(dados([plano()], [brl(1000)]))
+
+    it('mostra quantos terminam, os nomes e quanto liberam por mês: a soma vem do banco', async () => {
+      comPlanos()
+      mock.listarParcelasQueAcabam.mockResolvedValue({
+        planos: [acaba('Bagaggio', 25000), acaba('Pacco', 21154), acaba('Airbnb', 20000)],
+        totais: [{ moeda: 'BRL', qtde: 3, liberado: c(66154) }],
+      })
+      montar()
+      const aviso = await screen.findByTestId('acabam-BRL')
+      expect(aviso.textContent).toContain('3 parcelamentos terminam nos próximos 60 dias')
+      expect(aviso.textContent).toContain('Bagaggio, Pacco e Airbnb')
+      expect(aviso.textContent).toContain('R$ 661,54')
+      expect(aviso.textContent).toContain('por mês')
+      expect(mock.listarParcelasQueAcabam).toHaveBeenCalledWith('h1', 60)
+    })
+
+    it('um só: singular; mais de três: "e mais N"', async () => {
+      comPlanos()
+      mock.listarParcelasQueAcabam.mockResolvedValue({ planos: [acaba('Curso', 10000)], totais: [{ moeda: 'BRL', qtde: 1, liberado: c(10000) }] })
+      montar()
+      expect((await screen.findByTestId('acabam-BRL')).textContent).toMatch(/^1 parcelamento termina nos próximos 60 dias: Curso\. Libera R\$\s*100,00 por mês/)
+      cleanup()
+      mock.listarParcelasQueAcabam.mockResolvedValue({
+        planos: ['A', 'B', 'C', 'D', 'E'].map((n) => acaba(n, 1000)), totais: [{ moeda: 'BRL', qtde: 5, liberado: c(5000) }],
+      })
+      montar()
+      expect((await screen.findByTestId('acabam-BRL')).textContent).toContain('A, B, C e mais 2')
+    })
+
+    it('moedas diferentes ficam em avisos separados, cada um na sua moeda', async () => {
+      comPlanos()
+      mock.listarParcelasQueAcabam.mockResolvedValue({
+        planos: [acaba('Reais', 10000), acaba('Dólar', 5000, 'USD')],
+        totais: [{ moeda: 'BRL', qtde: 1, liberado: c(10000) }, { moeda: 'USD', qtde: 1, liberado: c(5000) }],
+      })
+      montar()
+      expect((await screen.findByTestId('acabam-BRL')).textContent).toContain('(BRL)')
+      expect(screen.getByTestId('acabam-USD').textContent).toContain('Dólar')
+      expect(screen.getByTestId('acabam-USD').textContent).not.toContain('Reais')
+    })
+
+    it('nenhum terminando: nenhum aviso; se a consulta falhar (banco sem a 118), a lista segue normal e sem erro', async () => {
+      comPlanos()
+      montar()
+      await screen.findAllByTestId('parcelamento')
+      expect(screen.queryByTestId('acabam-BRL')).toBeNull()
+      cleanup()
+      mock.listarParcelasQueAcabam.mockRejectedValue({ code: 'PGRST202' })
+      montar()
+      expect(await screen.findAllByTestId('parcelamento')).toHaveLength(1)
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(screen.queryByText(/terminam? nos próximos/)).toBeNull()
+    })
+
+    it('valores ocultos mascaram o valor liberado', async () => {
+      comPlanos()
+      mock.listarParcelasQueAcabam.mockResolvedValue({ planos: [acaba('Curso', 10000)], totais: [{ moeda: 'BRL', qtde: 1, liberado: c(10000) }] })
+      definirValoresOcultos(true)
+      montar()
+      const aviso = await screen.findByTestId('acabam-BRL')
+      expect(aviso.textContent).toContain(MASCARA)
+      expect(aviso.textContent).not.toContain('100,00')
     })
   })
 })

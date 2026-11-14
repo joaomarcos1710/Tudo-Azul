@@ -5,8 +5,8 @@ import { Aviso } from '../ui/Aviso'
 import { SELO } from '../../lib/cores'
 import { formatDate, formatMoeda } from '../../lib/format'
 import { registrarFalhaConsulta } from '../../lib/consultaOpcional'
-import { listarParcelasAtivas } from '../../lib/parcelasAtivas'
-import type { ParcelamentoAtivo, ParcelasAtivas as Dados, SituacaoMes } from '../../lib/parcelasAtivas'
+import { listarParcelasAtivas, listarParcelasQueAcabam } from '../../lib/parcelasAtivas'
+import type { ParcelamentoAtivo, ParcelasAtivas as Dados, ParcelasQueAcabam, SituacaoMes } from '../../lib/parcelasAtivas'
 import { rotaCartao } from '../../lib/cartoes'
 import { useValoresOcultos } from '../../lib/privacidade'
 
@@ -36,6 +36,15 @@ function ordenar(lista: ParcelamentoAtivo[], ordem: Ordem): ParcelamentoAtivo[] 
       : ordem === 'parcela' ? b.valorParcela - a.valorParcela
         : b.saldoRestante - a.saldoRestante
   return [...lista].sort((a, b) => a.moeda.localeCompare(b.moeda) || chave(a, b))
+}
+
+const DIAS_AVISO = 60
+
+/** "Bagaggio, Pacco e Airbnb" / "Bagaggio, Pacco, Airbnb e mais 2": no máximo três nomes. */
+function nomes(planos: { descricao: string }[]): string {
+  const n = planos.map((p) => p.descricao)
+  if (n.length <= 3) return n.length > 1 ? `${n.slice(0, -1).join(', ')} e ${n[n.length - 1]}` : n[0] ?? ''
+  return `${n.slice(0, 3).join(', ')} e mais ${n.length - 3}`
 }
 
 const ROTULO_ORIGEM = { card: 'Cartão de crédito', account: 'Parcelamento em conta' } as const
@@ -103,6 +112,8 @@ export function ParcelasAtivas({ familiaId }: { familiaId: string }) {
   const [dados, setDados] = useState<Dados | null>(null)
   const [erro, setErro] = useState(false)
   const [ordem, setOrdem] = useState<Ordem>('vencimento')
+  // aviso "terminam em breve": opcional (função da migration 118); se falhar, a lista segue sem ele
+  const [acabam, setAcabam] = useState<ParcelasQueAcabam | null>(null)
   useValoresOcultos() // re-renderiza ao ocultar/mostrar valores (formatMoeda já devolve a máscara)
 
   useEffect(() => {
@@ -114,6 +125,9 @@ export function ParcelasAtivas({ familiaId }: { familiaId: string }) {
         void registrarFalhaConsulta('active_installment_plans', falha)
         if (ativo) { setDados(null); setErro(true) }
       })
+    listarParcelasQueAcabam(familiaId, DIAS_AVISO)
+      .then((a) => { if (ativo) setAcabam(a) })
+      .catch(() => { if (ativo) setAcabam(null) })
     return () => { ativo = false }
   }, [familiaId])
 
@@ -143,6 +157,16 @@ export function ParcelasAtivas({ familiaId }: { familiaId: string }) {
           </p>
         ) : (
           <>
+            {acabam && acabam.totais.map((t) => {
+              const doGrupo = acabam.planos.filter((p) => p.moeda === t.moeda)
+              return (
+                <p key={t.moeda} data-testid={`acabam-${t.moeda}`} className="mb-3 rounded-lg bg-agendado-fundo px-4 py-3 text-sm text-agendado">
+                  <strong>{t.qtde === 1 ? '1 parcelamento termina' : `${t.qtde} parcelamentos terminam`}</strong> nos próximos {DIAS_AVISO} dias
+                  {acabam.totais.length > 1 ? ` (${t.moeda})` : ''}: {nomes(doGrupo)}.{' '}
+                  Libera{t.qtde === 1 ? '' : 'm'} <strong className="tabular-nums">{formatMoeda(t.liberado, t.moeda)}</strong> por mês no orçamento.
+                </p>
+              )
+            })}
             <dl className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="Totais dos parcelamentos">
               {dados.totais.map((t) => (
                 <div key={t.moeda} className="rounded-lg bg-slate-50 px-4 py-3" data-testid={`total-parcelas-${t.moeda}`}>
