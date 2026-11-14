@@ -191,3 +191,34 @@ export async function listarCronogramaParcelas(familiaId: string): Promise<Map<s
   }
   return mapa
 }
+
+/** O peso dos parcelamentos neste mês, por moeda (installment_month_summary, migration 20261114140000). Somado no banco. */
+export interface ResumoParcelasDoMes {
+  moeda: string
+  /** Parcelamentos ativos. */
+  ativos: number
+  /** Quantos deles têm parcela que vence neste mês. */
+  comParcelaNoMes: number
+  /** Soma das parcelas que vencem neste mês (pagas e não pagas). */
+  totalMes: Cents
+  pagoMes: Cents
+  /** O que falta pagar neste mês (inclui a parcela vencida e não paga). */
+  faltaMes: Cents
+  /** Até 3 descrições, dos parcelamentos de maior parcela. */
+  exemplos: string[]
+}
+
+/** Resumo do mês para o card "Parcelas e carnês". Falha aqui não deve esconder a tela (opcional: banco sem a função, o card some). */
+export async function resumoParcelasDoMes(familiaId: string): Promise<ResumoParcelasDoMes[]> {
+  if (!supabase) throw new Error('Supabase não configurado')
+  const { data, error } = await supabase.rpc('installment_month_summary', { p_household: familiaId })
+  if (error) throw error
+  return ((data ?? []) as {
+    currency_code: string; active_count: number; month_count: number
+    month_total: number | string; paid_total: number | string; pending_total: number | string; examples: string[] | null
+  }[]).map((l) => ({
+    moeda: l.currency_code, ativos: Number(l.active_count), comParcelaNoMes: Number(l.month_count),
+    totalMes: centsFromDb(l.month_total), pagoMes: centsFromDb(l.paid_total), faltaMes: centsFromDb(l.pending_total),
+    exemplos: l.examples ?? [],
+  }))
+}
