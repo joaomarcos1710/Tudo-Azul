@@ -193,7 +193,7 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
       ) : matriz.itens.length === 0 ? (
         <p className="py-4 text-sm text-slate-500">Nenhum compromisso previsto nos próximos {periodo} meses.</p>
       ) : (
-        <div className="-mx-5 max-h-[70vh] overflow-auto px-5" data-testid="matriz-rolagem">
+        <div className="-mx-5 overflow-auto px-5 md:max-h-[70vh]" data-testid="matriz-rolagem">
           <table className="block w-full border-collapse text-sm md:table md:min-w-[660px]">
             <thead className="sr-only md:not-sr-only md:table-header-group">
               <tr className="border-b border-slate-100 text-xs text-slate-500">
@@ -214,14 +214,14 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
                     <th scope="colgroup" colSpan={meses.length + 1} className="block px-0 py-0 text-left md:table-cell">
                       <button type="button" aria-expanded={!recolhido} onClick={() => alternar(g.chave)}
                         className="flex min-h-11 w-full items-center gap-2 px-1 text-left text-sm font-semibold text-marinho hover:bg-slate-100">
-                        <span aria-hidden="true" className="w-4 text-slate-500">{recolhido ? '▸' : '▾'}</span>
-                        {g.rotulo} <span className="font-normal text-slate-500">· {g.itens.length}</span>
+                        <span aria-hidden="true" className="w-4 shrink-0 text-slate-500">{recolhido ? '▸' : '▾'}</span>
+                        <span className="min-w-0">{g.rotulo} <span className="whitespace-nowrap font-normal text-slate-500">· {g.itens.length}</span></span>
                       </button>
                     </th>
                   </tr>
                   {!recolhido && g.itens.map((item) => (
-                    <tr key={item.id} className="block py-3 transition-colors hover:bg-slate-50 md:table-row md:py-0">
-                      <th scope="row" className="block pb-1 pr-0 text-left font-medium text-slate-800 md:table-cell md:py-3 md:pb-0 md:pr-4">
+                    <tr key={item.id} className="grid grid-cols-3 gap-x-3 gap-y-2 py-3 transition-colors hover:bg-slate-50 md:table-row md:py-0">
+                      <th scope="row" className="col-span-3 block min-w-0 pr-0 text-left font-medium text-slate-800 md:table-cell md:py-3 md:pr-4">
                         <span className="block truncate">{item.descricao}</span>
                         <span className="mt-0.5 block truncate text-xs font-normal text-slate-500">
                           {item.tipoOrigem}{item.origem ? ` · ${item.origem}` : ''}
@@ -230,7 +230,7 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
                       {meses.map((mes) => {
                         const valor = item.valores.get(mes)
                         return (
-                          <td key={mes} data-label={rotuloMes(mes)} className={`flex items-baseline justify-between gap-3 py-0.5 text-right tabular-nums before:text-xs before:font-normal before:text-slate-500 before:content-[attr(data-label)] md:table-cell md:px-2 md:py-3 md:before:content-none ${mes === mesAtual ? 'md:bg-azul-claro/40' : ''}`}>
+                          <td key={mes} data-label={rotuloMes(mes)} className={`flex min-w-0 flex-col items-start gap-0.5 text-left text-[13px] tabular-nums before:text-[11px] before:font-normal before:text-slate-500 before:content-[attr(data-label)] md:table-cell md:px-2 md:py-3 md:text-right md:text-sm md:before:content-none ${mes === mesAtual ? 'md:bg-azul-claro/40' : ''}`}>
                             {valor ? (valoresOcultos ? MASCARA : formatMoeda(valor.valor, item.moeda)) : <span className="text-slate-300">-</span>}
                           </td>
                         )
@@ -242,14 +242,14 @@ export function ProjecaoCompromissos({ familiaId, hoje }: Props) {
             })}
             <tfoot className="block border-t-2 border-slate-200 md:table-footer-group">
               {matriz.totais.map(([moeda, porMes]) => (
-                <tr key={moeda} className="block bg-slate-50/70 py-2 font-semibold md:table-row md:py-0">
-                  <th scope="row" className="block pr-0 pb-1 text-left text-slate-700 md:table-cell md:py-3 md:pb-0 md:pr-4">
+                <tr key={moeda} className="grid grid-cols-3 gap-x-3 gap-y-2 bg-slate-50 py-3 font-semibold md:table-row md:py-0">
+                  <th scope="row" className="col-span-3 block pr-0 text-left text-slate-700 md:sticky md:bottom-0 md:z-10 md:table-cell md:bg-slate-50 md:py-3 md:pr-4 md:shadow-[0_-1px_0_0_#e2e8f0]">
                     Total do mês <span className="ml-1 text-xs font-normal text-slate-500">({moeda})</span>
                   </th>
                   {meses.map((mes) => {
                     const total = porMes.get(mes)
                     return (
-                      <td key={mes} data-label={rotuloMes(mes)} className="flex items-baseline justify-between gap-3 py-0.5 text-right tabular-nums text-prejuizo before:text-xs before:font-normal before:text-slate-500 before:content-[attr(data-label)] md:table-cell md:px-2 md:py-3 md:before:content-none">
+                      <td key={mes} data-label={rotuloMes(mes)} className="flex min-w-0 flex-col items-start gap-0.5 text-left text-[13px] tabular-nums text-prejuizo before:text-[11px] before:font-normal before:text-slate-500 before:content-[attr(data-label)] md:sticky md:bottom-0 md:z-10 md:table-cell md:bg-slate-50 md:px-2 md:py-3 md:text-right md:text-sm md:shadow-[0_-1px_0_0_#e2e8f0] md:before:content-none">
                         {valoresOcultos ? MASCARA : formatMoeda(total?.valor ?? (0 as LinhaProjecaoCompromisso['valor']), moeda)}
                       </td>
                     )

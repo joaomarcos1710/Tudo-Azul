@@ -330,6 +330,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#338** (14/11/2026): Recorrentes › Saídas: card **"Parcelas & carnês"** (parcelamentos ativos, valor do mês, quanto falta pagar e exemplos; tocar abre a aba Parcelas). Migration 120 (`installment_month_summary`, só leitura), aplicada em 14/11/2026 (execução 43543332334).
 - **#339** (14/11/2026): diário: migration 120 aplicada em produção (execução 43543332334). Só documentação.
 - **#340** (14/11/2026): largura das páginas de `max-w-6xl` para `max-w-7xl` (1152 → 1280 px) no `AppShell`, para o monitor largo; celular, iPad e a fatura não mudam. Só front.
+- **#341** (14/11/2026): Matriz de projeção (Recorrentes › Projeção): no celular sem rolagem própria e com os meses em 3 colunas; no computador o total do mês fica fixo no pé da tabela; título do bloco recolhível sem quebrar a contagem. Só front.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
