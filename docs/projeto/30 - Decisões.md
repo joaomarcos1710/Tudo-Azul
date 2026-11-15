@@ -800,3 +800,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Decidido:** liberar a correção da data para assinatura de cartão. A recusa da 115 temia duplicar a cobrança, mas a geração é por `occurrence_date`, não por `purchase_date`.
 - **Não muda:** valor, fatura e a ocorrência da assinatura (a regra continua no dia dela). A **regra** do Claude segue no dia 12; se a cobrança real é todo dia 3, ajustar a regra por "este e os próximos" é outro passo, do dono.
 - **Não feito de propósito:** não mexi em `card_scheduled_item_update` nem na regra; só a recusa saiu.
+
+## 15/11/2026 — "Próxima" cobrança real nos recorrentes de conta (dono, #352)
+- **Pedido:** a tela mostrava como "próxima" uma cobrança já paga adiantada. Uma sugestão externa propunha uma lista nova de "próximas cobranças"; antes de construir, medi nos dados do dono: 3 de 25 contas divergiam, 0 de 19 cartões, nenhum valor, nenhuma atrasada.
+- **Decidido (opção 2 do dono):** corrigir a linha que já existe, com uma leitura nova só de datas no banco (migration 125), em vez de lista nova, contrato novo ou RPC grande. Se o banco falhar, a linha volta para a data da regra.
+- **Não feito de propósito:** a lista nova de próximas cobranças, busca, agrupar por e ordenar misturando conta e cartão; só voltam se o dono sentir falta. Cartão continua pela regra.

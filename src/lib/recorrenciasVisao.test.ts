@@ -8,7 +8,7 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { resumoVisaoGeral } from './recorrencias'
+import { proximasDatasDasContas, resumoVisaoGeral } from './recorrencias'
 
 beforeEach(() => { fake.chamadas.length = 0; fake.resposta.error = null; fake.resposta.data = [] })
 
@@ -34,5 +34,22 @@ describe('resumoVisaoGeral', () => {
     expect(await resumoVisaoGeral('h1')).toEqual([])
     fake.resposta.error = { code: 'PGRST202' }
     await expect(resumoVisaoGeral('h1')).rejects.toMatchObject({ code: 'PGRST202' })
+  })
+})
+
+describe('proximasDatasDasContas', () => {
+  it('chama recurrence_next_dates com a família e devolve um mapa id → data', async () => {
+    fake.resposta.data = [{ recurrence_id: 'r1', next_date: '2027-01-05' }, { recurrence_id: 'r2', next_date: '2026-11-20' }]
+    const mapa = await proximasDatasDasContas('h1')
+    expect(fake.chamadas).toEqual([['recurrence_next_dates', { p_household: 'h1' }]])
+    expect(mapa.get('r1')).toBe('2027-01-05')
+    expect(mapa.get('r2')).toBe('2026-11-20')
+    expect(mapa.size).toBe(2)
+  })
+  it('sem linhas devolve mapa vazio; erro do banco vira exceção (a tela cai na regra)', async () => {
+    fake.resposta.data = null
+    expect((await proximasDatasDasContas('h1')).size).toBe(0)
+    fake.resposta.error = { code: '42883', message: 'function does not exist' }
+    await expect(proximasDatasDasContas('h1')).rejects.toMatchObject({ code: '42883' })
   })
 })

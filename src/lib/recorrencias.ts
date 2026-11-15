@@ -158,6 +158,16 @@ function cliente() {
   return supabase
 }
 
+/**
+ * Próxima cobrança REAL de cada recorrente de conta (migration 125, recurrence_next_dates): pula a ocorrência já paga adiantada ou apagada
+ * e usa a data do lançamento planejado quando a pessoa a mexeu. Cartão não vem (a tela segue pela regra). Mapa id → AAAA-MM-DD; só datas.
+ */
+export async function proximasDatasDasContas(familiaId: string): Promise<Map<string, string>> {
+  const { data, error } = await cliente().rpc('recurrence_next_dates', { p_household: familiaId })
+  if (error) throw error
+  return new Map(((data ?? []) as { recurrence_id: string; next_date: string }[]).map((l) => [l.recurrence_id, l.next_date]))
+}
+
 export async function listarRecorrencias(familiaId: string): Promise<Recorrencia[]> {
   const db = cliente()
   const consultar = (colunas: string) => db.from('recurrences').select(colunas)

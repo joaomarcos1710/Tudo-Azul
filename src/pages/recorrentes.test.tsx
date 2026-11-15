@@ -16,6 +16,7 @@ const mock = vi.hoisted(() => ({
   listarProventosPrevistos: vi.fn(),
   listarProventosAcabando: vi.fn(),
   faturaDaProximaCobranca: vi.fn(),
+  proximasDatasDasContas: vi.fn(),
   definirNaturezaRecorrencia: vi.fn(),
   listarContas: vi.fn(),
   listarCartoes: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('../lib/recorrencias', async (o) => ({
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
   editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
   resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza, resumoVisaoGeral: mock.resumoVisaoGeral,
-  definirNaturezaRecorrencia: mock.definirNaturezaRecorrencia,
+  definirNaturezaRecorrencia: mock.definirNaturezaRecorrencia, proximasDatasDasContas: mock.proximasDatasDasContas,
 }))
 vi.mock('../lib/investimentos', async (o) => ({
   ...(await o<typeof import('../lib/investimentos')>()),
@@ -70,6 +71,7 @@ beforeEach(() => {
   mock.listarProventosPrevistos.mockResolvedValue([])
   mock.listarProventosAcabando.mockResolvedValue([])
   mock.faturaDaProximaCobranca.mockResolvedValue(new Map())
+  mock.proximasDatasDasContas.mockRejectedValue(new Error('sem a função do banco')) // padrão: cai na data da regra
   mock.definirNaturezaRecorrencia.mockResolvedValue(undefined)
   mock.listarContas.mockResolvedValue({
     contas: [
@@ -157,6 +159,29 @@ describe('Recorrentes', () => {
     expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
     expect(screen.queryByText('Academia antiga')).toBeNull()
     expect(screen.queryByText(/Encerrados/)).toBeNull()
+  })
+
+  it('próxima de conta vem do banco (já descontada a paga adiantada); cartão e falha do banco seguem pela regra', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-15T15:00:00Z'))
+    mock.listarRecorrencias.mockResolvedValue([
+      { ...luz, id: 'r1', descricao: 'Light', dia: 5, inicio: '2026-06-05' },
+      { ...luz, id: 'r2', descricao: 'Assinatura', tipo: 'card' as const, contaId: null, cartaoId: 'k1', dia: 20, inicio: '2026-06-20' },
+    ])
+    // a regra diria 05/12 para a Light, mas essa ocorrência já foi paga: a próxima real é 05/01. O cartão não vem do banco.
+    mock.proximasDatasDasContas.mockResolvedValue(new Map([['r1', '2027-01-05'], ['r2', '2027-03-01']]))
+    montar()
+    expect(await screen.findByText('Light')).toBeTruthy()
+    await vi.waitFor(() => expect(metas().some((m) => m.startsWith('próxima 05/01/2027'))).toBe(true))
+    expect(metas().some((m) => m.startsWith('próxima 05/12'))).toBe(false)
+    expect(metas().some((m) => m.startsWith('próxima 20/11'))).toBe(true)
+    cleanup()
+    // o banco falhou (ou ainda não tem a função): volta para a data da regra, como antes
+    mock.proximasDatasDasContas.mockRejectedValue(new Error('sem a função'))
+    montar()
+    expect(await screen.findByText('Light')).toBeTruthy()
+    expect(metas().some((m) => m.startsWith('próxima 05/12'))).toBe(true)
+    vi.useRealTimers()
   })
 
   it('lista mostra a frequência, a próxima data e a data final', async () => {
