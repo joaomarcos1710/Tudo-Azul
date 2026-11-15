@@ -18,7 +18,7 @@ import { formatBRL, formatDate, formatMoeda } from '../lib/format'
 import { somarDias } from '../lib/periodoRelatorio'
 import type { Cents } from '../lib/format'
 import {
-  diaDaSemana, frequenciaResumo, listarRecorrencias, ordemFrequencias, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias, resumoVisaoGeral,
+  diaDaSemana, frequenciaResumo, listarRecorrencias, ordemFrequencias, proximasDatasDasContas, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias, resumoVisaoGeral,
   rotuloFrequencia, rotuloGrupoFrequencia, rotuloNatureza, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
 import type { FrequenciaResumo, LinhaNatureza, LinhaVisao, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia, TipoRecorrencia } from '../lib/recorrencias'
@@ -143,6 +143,8 @@ export default function Recorrentes() {
   const [proventosAcabando, setProventosAcabando] = useState<ProventoAcabando[]>([])
   // assinatura → mês da fatura da próxima cobrança, para o link "Abrir" cair direto onde se muda o dia (sem o mapa, abre o cartão)
   const [faturaDe, setFaturaDe] = useState<Map<string, string>>(new Map())
+  // próxima cobrança real das contas (migration 125); null = ainda não veio ou o banco não tem a função: a tela cai na data da regra
+  const [proximasReais, setProximasReais] = useState<Map<string, string> | null>(null)
   // peso dos parcelamentos neste mês (migration 120, somado no banco): o card "Parcelas e carnês" em Saídas; falha ou banco sem a função: some
   const [parcelasMes, setParcelasMes] = useState<ResumoParcelasDoMes[]>([])
 
@@ -163,6 +165,8 @@ export default function Recorrentes() {
       void resumoVisaoGeral(familiaId).then(setVisao).catch(() => setVisao(null))
       void listarProventosPrevistos(familiaId).then(setProventos).catch(() => setProventos([]))
       void listarProventosAcabando(familiaId, 60).then(setProventosAcabando).catch(() => setProventosAcabando([]))
+      // atalho: se a consulta falhar a linha mostra a data da regra (como antes); melhorar com aviso por bloco junto dos estados de erro
+      void proximasDatasDasContas(familiaId).then(setProximasReais).catch(() => setProximasReais(null))
       void resumoParcelasDoMes(familiaId).then(setParcelasMes).catch(() => setParcelasMes([]))
       void faturaDaProximaCobranca(r.filter((x) => x.tipo === 'card' && x.ativa).map((x) => x.id)).then(setFaturaDe).catch(() => setFaturaDe(new Map()))
       setErro('')
@@ -213,7 +217,8 @@ export default function Recorrentes() {
   }).filter((c) => c.qtde > 0)
   const linhasDaNatureza = filtrando ? porNatureza.filter((l) => l.natureza === natureza) : []
 
-  const proxima = (r: Recorrencia) => proximasOcorrencias(r, hoje, 1)[0] ?? null
+  // conta: a próxima real do banco (já descontada a paga adiantada); cartão, ou sem a resposta do banco: a data da regra
+  const proxima = (r: Recorrencia) => r.tipo !== 'card' && proximasReais ? (proximasReais.get(r.id) ?? null) : (proximasOcorrencias(r, hoje, 1)[0] ?? null)
   const proximaPrimeiro = (a: { r: Recorrencia; prox: string | null }, b: { r: Recorrencia; prox: string | null }) =>
     (a.prox ?? '9999').localeCompare(b.prox ?? '9999') || a.r.descricao.localeCompare(b.r.descricao, 'pt-BR')
   // as abas filtram quais cards aparecem: Cartão = assinaturas; Conta = contas fixas, receitas e transferências

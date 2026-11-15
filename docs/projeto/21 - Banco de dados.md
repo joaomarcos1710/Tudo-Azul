@@ -484,3 +484,11 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - **Por que é seguro:** toda geração e leitura liga a parcela à ocorrência por `(recurrence_id, occurrence_date)` (índice único), nunca por `purchase_date`. Mudar a data não duplica a cobrança nem muda fatura, valor ou ocorrência.
 - **Teste:** `111_card_purchase_date.test.sql` (D21, D22, D22b, D22c: corrige a data, a ocorrência fica, gerar de novo não duplica). **Falha sem a migration** (D21 e D22 falham; testei com a migration fora). `00_audit` igual (nenhuma função nova).
 - **Aplicar:** pelo workflow (simular, ler o log, aplicar com `APLICAR`), só com o "pode" do dono.
+
+## Próxima cobrança real dos recorrentes de conta (migration 125, PR #352, ainda não aplicada)
+- **Arquivo:** `20261115140000_recurrence_next_dates.sql`. `public.recurrence_next_dates(p_household)` → `(recurrence_id, next_date)`, SECURITY INVOKER (RLS do chamador), `search_path=''`, só `authenticated`. Somente leitura, só datas (nenhum dinheiro).
+- **Regra:** por recorrente de conta (despesa, receita, transferência; ativo, não encerrado; cartão fora), a menor entre (a) lançamento planejado fora da lixeira com data de hoje em diante e (b) ocorrência da regra de hoje em diante que ainda não virou lançamento (a geração confere por `(recurrence_id, occurrence_date)`; ocorrência já paga ou na lixeira não volta). Hoje = São Paulo; janela da regra de 800 dias.
+- **Por quê:** medido em 15/11/2026 nos dados do dono, 3 de 25 contas mostravam como "próxima" uma ocorrência já paga adiantada (Condomínio, Light, Flora Energia); 0 de 19 assinaturas de cartão divergiam.
+- **atalho:** cartão segue pela regra no front; planejado atrasado (data antes de hoje) não vira "próxima". Ambos em `40 - Pendências`.
+- **Teste:** `119_recurrence_next_dates.test.sql` (15 asserções; **falha sem a migration**: a função não existe); `00_audit` lista a função nova. No front, `recorrentes.test.tsx` (falha sem o uso do mapa) e `recorrenciasVisao.test.ts`.
+- **Aplicar:** pelo workflow (simular, ler o log, aplicar com `APLICAR`), só com o "pode" do dono. Sem a migration a tela mostra a data da regra, como antes.
