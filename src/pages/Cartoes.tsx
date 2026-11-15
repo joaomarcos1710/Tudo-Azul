@@ -2396,7 +2396,7 @@ function PainelPessoa({ cartaoId, item, pessoas, aoFechar, aoConcluir }: {
 
 /**
  * Corrigir a data da compra (pedido do dono, 13/11/2026: uma compra lançada no dia errado não tinha como mudar). Vale para a compra
- * inteira. A fatura em que ela cai NÃO muda sozinha, e nenhum valor muda; o banco recusa data futura e assinatura de cartão.
+ * inteira. A fatura em que ela cai NÃO muda sozinha, e nenhum valor muda; o banco recusa data futura (assinatura de cartão também pode: a ocorrência não muda, migration 124).
  */
 function PainelData({ cartaoId, item, travada, aoFechar, aoConcluir }: {
   cartaoId: string; item: ItemFatura; travada: boolean; aoFechar: () => void; aoConcluir: () => Promise<void>

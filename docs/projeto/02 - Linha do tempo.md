@@ -340,6 +340,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#348** (14/11/2026): diário: migration 122 aplicada em produção e conferida direto no banco (execução 43612958939). Só documentação.
 - **#349** (14/11/2026): Recorrentes: "Já terminaram" mostra só o que terminou nos últimos 90 dias; o mais antigo fica atrás de um botão (nada é apagado). Só front.
 - **#350** (14/11/2026): card "Parcelas & carnês" otimizado: o resumo do mês dos parcelamentos calcula as faturas dos cartões uma vez em vez de duas (migration 123, a mesma função `installment_month_summary`, só leitura), ainda não aplicada. Mesmo resultado; sem mudança de tela.
+- **#351** (15/11/2026): a data da cobrança de uma assinatura de cartão já lançada pode ser corrigida (migration 124, só relaxa uma recusa de `card_purchase_set_date`). Veio da conciliação da fatura do CAIXA: o Claude de R$ 799,90 estava em 12/11 e o banco cobrou em 03/11. Ainda não aplicada.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

@@ -794,3 +794,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Feito:** a mesma função, reescrita para calcular as parcelas uma vez (migration 123). Sem mudança de tela, de regra nem de resultado. Provado por teste (o 116 já existente + mutantes), por comparação de saída (idêntica) e por contagem de chamadas de `card_months_as_of` (4 → 2 com 2 cartões).
 - **Não feito de propósito:** a matriz (Projeção e Início, o maior custo) e as abas de Parcelas. Cada uma seria outra migration; só vale se o dono sentir lentidão.
 - **Ganho em tempo:** esperado ~0,4 s a menos; só confirmável depois de aplicar, medindo de novo em produção.
+
+## 15/11/2026 — Data da cobrança de assinatura de cartão pode ser corrigida (dono, #351)
+- **Pedido:** ao conciliar a fatura, o dono viu que a cobrança do Claude estava em 12/11 e o banco cobrou em 03/11, e o app recusava mudar a data ("isso é um erro que temos que corrigir").
+- **Decidido:** liberar a correção da data para assinatura de cartão. A recusa da 115 temia duplicar a cobrança, mas a geração é por `occurrence_date`, não por `purchase_date`.
+- **Não muda:** valor, fatura e a ocorrência da assinatura (a regra continua no dia dela). A **regra** do Claude segue no dia 12; se a cobrança real é todo dia 3, ajustar a regra por "este e os próximos" é outro passo, do dono.
+- **Não feito de propósito:** não mexi em `card_scheduled_item_update` nem na regra; só a recusa saiu.

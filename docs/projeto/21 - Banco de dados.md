@@ -477,3 +477,10 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - **Prova de que ficou mais barato:** contei as chamadas de `private.card_months_as_of` no mesmo cenário: **4 na versão da 120 (2 cartões × 2 funções) e 2 na nova (uma por cartão)**. Metade do trabalho. O ganho em tempo (esperado: de ~0,8 s para ~0,4 s) **só se mede em produção depois de aplicar**.
 - **atalho:** o corpo repete a base de `installment_plan_schedule` e `active_installment_plans`; se a regra de "ativo", "viva" ou "paga" mudar, as três precisam mudar juntas (o teste 116 acusa a divergência). Não otimizado: a matriz (Projeção e Início, ~0,8 a 1,35 s) e as abas de Parcelas (~0,4 s cada) seguem como estavam.
 - **Antes da aplicação** o app funciona como sempre (a função da 120, mais lenta). Aplicar pelo workflow (simular, ler o log, aplicar com `APLICAR`), só com o "pode" do dono.
+
+## Data da cobrança de assinatura de cartão (migration 124, PR #351, ainda não aplicada)
+- **Arquivo:** `20261115120000_card_subscription_charge_date.sql`. `create or replace` de `public.card_purchase_set_date` (mesma assinatura, mesmos grants); só **sai a recusa** de parcela com `recurrence_id` (55000 "a data é a da cobrança e não muda"). O resto do corpo é o da 115.
+- **Por quê:** o Claude de R$ 799,90 estava na fatura em 12/11 e o banco cobrou em 03/11 (conciliação de 15/11). A "só esta" (110) só vale para cobrança ainda agendada.
+- **Por que é seguro:** toda geração e leitura liga a parcela à ocorrência por `(recurrence_id, occurrence_date)` (índice único), nunca por `purchase_date`. Mudar a data não duplica a cobrança nem muda fatura, valor ou ocorrência.
+- **Teste:** `111_card_purchase_date.test.sql` (D21, D22, D22b, D22c: corrige a data, a ocorrência fica, gerar de novo não duplica). **Falha sem a migration** (D21 e D22 falham; testei com a migration fora). `00_audit` igual (nenhuma função nova).
+- **Aplicar:** pelo workflow (simular, ler o log, aplicar com `APLICAR`), só com o "pode" do dono.
