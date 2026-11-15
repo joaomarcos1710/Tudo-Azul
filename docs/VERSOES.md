@@ -277,4 +277,5 @@ continuam abaixo como histórico.
 | 2026.362 | **Consulta que falha avisa.** Em Recorrentes e Lançamentos, os blocos secundários que falham (resumos, proventos, próxima cobrança, parcelas de empréstimo, créditos do cartão, outras moedas, saldo diário) entram num aviso em vez de sumir como se não houvesse dados. Nenhum cálculo muda. |
 | 2026.363 | **Agente `melhorias` analisa visual e gráficos.** Só instruções do agente (`.claude/agents/melhorias.md`); o app não muda. |
 | 2026.364 | **Aviso de dado defasado vem antes do Dinheiro Livre.** No Início e em Análises, os avisos de fatura e recorrente que falharam aparecem acima do card, não abaixo. Nenhum cálculo muda. |
+| 2026.365 | **Seletor de categoria com hierarquia clara.** Botão fechado com "Principal › Filha", "em Principal" na busca e cabeçalho por principal na grade. Nenhum cálculo muda. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

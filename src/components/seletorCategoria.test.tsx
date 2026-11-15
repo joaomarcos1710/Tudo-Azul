@@ -56,7 +56,9 @@ describe('SeletorCategoria (como no Organizze)', () => {
     await u.click(screen.getByLabelText('Categoria'))
     const folha = screen.getByRole('dialog', { name: 'Selecionar uma categoria' })
     await u.type(within(folha).getByLabelText('Buscar uma categoria'), 'netf')
-    expect(Array.from(folha.querySelectorAll('[data-categoria-id]')).map((b) => b.textContent)).toEqual(['Netflix'])
+    // a principal não entrou na busca: a filha traz "em Principal" para não perder o contexto
+    expect(Array.from(folha.querySelectorAll('[data-categoria-id]')).map((b) => b.textContent)).toEqual(['Netflixem Assinaturas e serviços'])
+    expect(within(folha).getByText('em Assinaturas e serviços')).toBeTruthy()
     await u.clear(within(folha).getByLabelText('Buscar uma categoria'))
     await u.type(within(folha).getByLabelText('Buscar uma categoria'), 'alimen')
     // a subcategoria aparece também quando a busca acerta o nome da principal
@@ -75,6 +77,29 @@ describe('SeletorCategoria (como no Organizze)', () => {
     await u.click(within(folha).getByRole('button', { name: 'Grade' }))
     expect(within(folha).getByRole('button', { name: 'Grade' }).getAttribute('aria-pressed')).toBe('true')
     expect(folha.querySelectorAll('[data-categoria-id]')).toHaveLength(5)
+  })
+
+  it('o botão fechado mostra "Principal › Filha"; principal escolhida mostra só o nome', async () => {
+    const u = userEvent.setup()
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    await u.click(within(screen.getByRole('dialog', { name: 'Selecionar uma categoria' })).getByRole('button', { name: 'Padaria' }))
+    expect(screen.getByLabelText('Categoria').textContent).toBe('Alimentação › Padaria')
+    await u.click(screen.getByLabelText('Categoria'))
+    await u.click(within(screen.getByRole('dialog', { name: 'Selecionar uma categoria' })).getByRole('button', { name: 'Alimentação' }))
+    expect(screen.getByLabelText('Categoria').textContent).toBe('Alimentação')
+  })
+
+  it('na grade, cada principal é um cabeçalho de linha inteira e as filhas ficam embaixo', async () => {
+    const u = userEvent.setup()
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    const folha = screen.getByRole('dialog', { name: 'Selecionar uma categoria' })
+    await u.click(within(folha).getByRole('button', { name: 'Grade' }))
+    const principais = Array.from(folha.querySelectorAll('li.col-span-4 [data-categoria-id]')).map((b) => b.textContent)
+    expect(principais).toEqual(['Alimentação', 'Assinaturas e serviços'])
+    // a filha não é cabeçalho
+    expect(folha.querySelector('li.col-span-4 [data-categoria-id="caf"]')).toBeNull()
   })
 
   it('Criar categoria: cria no banco, entra na lista e já fica escolhida', async () => {
