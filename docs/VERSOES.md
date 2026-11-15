@@ -278,4 +278,5 @@ continuam abaixo como histórico.
 | 2026.363 | **Agente `melhorias` analisa visual e gráficos.** Só instruções do agente (`.claude/agents/melhorias.md`); o app não muda. |
 | 2026.364 | **Aviso de dado defasado vem antes do Dinheiro Livre.** No Início e em Análises, os avisos de fatura e recorrente que falharam aparecem acima do card, não abaixo. Nenhum cálculo muda. |
 | 2026.365 | **Seletor de categoria com hierarquia clara.** Botão fechado com "Principal › Filha", "em Principal" na busca e cabeçalho por principal na grade. Nenhum cálculo muda. |
+| 2026.366 | **Detalhe de uma categoria do gráfico.** Tocar numa barra ou fatia abre o que a compõe (por dia e categoria, com o total do banco, igual à barra). Migration 127. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

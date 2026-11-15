@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
@@ -15,6 +16,7 @@ const mock = vi.hoisted(() => ({
   listarContas: vi.fn(),
   totaisPorMoeda: vi.fn(),
   despesasPorCategoria: vi.fn(),
+  detalheDaCategoria: vi.fn(),
   despesasPorDia: vi.fn(),
   regularidadeRenda: vi.fn(),
   projecaoDoMes: vi.fn(),
@@ -39,7 +41,7 @@ vi.mock('../lib/FamiliaContext', () => ({
 vi.mock('../lib/painel', () => ({
   carregarPatrimonio: mock.carregarPatrimonio, carregarResumoInvestimentos: mock.carregarResumoInvestimentos,
   proximosPlanejados: mock.proximosPlanejados,
-  despesasPorCategoria: mock.despesasPorCategoria, despesasPorDia: mock.despesasPorDia,
+  despesasPorCategoria: mock.despesasPorCategoria, detalheDaCategoria: mock.detalheDaCategoria, despesasPorDia: mock.despesasPorDia,
   regularidadeRenda: mock.regularidadeRenda,
   projecaoDoMes: mock.projecaoDoMes,
   vencidosPlanejados: mock.vencidosPlanejados,
@@ -114,6 +116,10 @@ beforeEach(() => {
     total: c(1282030),
   })
   mock.proximosPlanejados.mockResolvedValue([{ id: 't1', tipo: 'income', descricao: 'Freelance', valor: c(12000), data: '2026-10-20' }])
+  mock.detalheDaCategoria.mockResolvedValue({
+    linhas: [{ dia: '2026-10-12', categoriaId: 'g1b', nome: 'Condomínio', principal: 'Moradia', valor: c(150000) }, { dia: '2026-10-05', categoriaId: 'g1', nome: 'Moradia', principal: null, valor: c(350000) }],
+    total: c(500000),
+  })
   mock.despesasPorCategoria.mockResolvedValue([
     { categoriaId: 'g1', nome: 'Moradia', valor: c(500000), percentual: 57.7 },
     { categoriaId: null, nome: 'Outros', valor: c(366726), percentual: 42.3 },
@@ -882,14 +888,20 @@ describe('Visão geral', () => {
   })
 
   describe('Maiores gastos (etapa 3 do painel)', () => {
-    it('Início mostra a rosca com as 4 maiores + Outros do banco, legenda com nome, valor e %, e link para as despesas do mês', async () => {
+    it('Início mostra a rosca com as 4 maiores + Outros do banco, legenda com nome, valor e %, e abre o que compõe a categoria', async () => {
       montar()
       const titulo = await screen.findByText('Maiores gastos')
       const card = titulo.closest('div[class*="rounded"]') as HTMLElement
       expect(mock.despesasPorCategoria).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(String), 4, expect.anything())
       expect(within(card).getAllByTestId('fatia-categoria')).toHaveLength(2)
-      const moradia = within(card).getByRole('link', { name: /Moradia: .*57,7% das despesas/ })
-      expect(moradia.getAttribute('href')).toMatch(/^\/lancamentos\?mes=\d{4}-\d{2}&tipo=despesa$/)
+      const moradia = within(card).getByRole('button', { name: /Moradia: .*57,7% das despesas.*Ver o que compõe/ })
+      // "Outros" não tem categoria para abrir: segue como link para as despesas do mês
+      expect(within(card).getByRole('link', { name: /Outros: .*Ver lançamentos de despesa do mês/ }).getAttribute('href')).toMatch(/^\/lancamentos\?mes=\d{4}-\d{2}&tipo=despesa$/)
+      await userEvent.click(moradia)
+      const detalhe = await screen.findByTestId('detalhe-categoria')
+      expect(mock.detalheDaCategoria).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^\d{4}-\d{2}-01$/), expect.any(String), 'g1', expect.anything())
+      expect(within(detalhe).getByTestId('detalhe-total').textContent).toBe('R$ 5.000,00') // total do banco, nada somado no front
+      expect(within(detalhe).getByText('Moradia › Condomínio')).toBeTruthy()
       expect(within(card).getAllByText('R$ 5.000,00').length).toBeGreaterThan(0) // valor do banco, nada somado no front
       expect(within(card).getByText('Ver como tabela')).toBeTruthy()
     })
@@ -1403,13 +1415,28 @@ describe('Análises: despesas por categoria em barras (PR #167)', () => {
     expect(barras[1].style.width).toBe('50%')
     expect(screen.queryByRole('img', { name: /Despesas por categoria:/ })).toBeNull()
   })
-  it('cada barra leva aos lançamentos de despesa do mês', async () => {
+  it('cada barra abre o que compõe a categoria, na base de cartão escolhida; o "Outros" leva à lista do mês', async () => {
     mock.despesasPorCategoria.mockResolvedValue(sete)
     montar('analises')
     const lista = await screen.findByRole('list', { name: /Despesas por categoria/ })
     const mes = (mock.despesasPorCategoria.mock.calls[0][1] as string).slice(0, 7)
-    const link = within(lista).getByRole('link', { name: /^Mercado: R\$ 2\.500,00, 20% das despesas/ })
-    expect(link.getAttribute('href')).toBe(`/lancamentos?mes=${mes}&tipo=despesa`)
+    const barra = within(lista).getByRole('button', { name: /^Mercado: R\$ 2\.500,00, 20% das despesas.*Ver o que compõe/ })
+    await userEvent.click(barra)
+    expect(await screen.findByTestId('detalhe-categoria')).toBeTruthy()
+    expect(mock.detalheDaCategoria).toHaveBeenCalledWith(expect.anything(), `${mes}-01`, expect.any(String), expect.any(String), 'invoice')
+    // o link da lista do mês continua à mão, dentro do detalhe
+    expect(within(screen.getByTestId('detalhe-categoria')).getByRole('link', { name: /Ver todos os lançamentos de despesa do mês/ }).getAttribute('href')).toBe(`/lancamentos?mes=${mes}&tipo=despesa`)
+  })
+  it('se o detalhe falhar, avisa e oferece tentar de novo (não vira "nada nesta categoria")', async () => {
+    mock.despesasPorCategoria.mockResolvedValue(sete)
+    mock.detalheDaCategoria.mockRejectedValueOnce(new Error('x'))
+    montar('analises')
+    const lista = await screen.findByRole('list', { name: /Despesas por categoria/ })
+    await userEvent.click(within(lista).getByRole('button', { name: /^Mercado: / }))
+    expect(await screen.findByText(/Não foi possível carregar o detalhe/)).toBeTruthy()
+    expect(screen.queryByText(/Nada nesta categoria/)).toBeNull()
+    await userEvent.click(within(screen.getByTestId('detalhe-categoria')).getByRole('button', { name: 'Tentar de novo' }))
+    expect(await screen.findByTestId('detalhe-total')).toBeTruthy()
   })
   it('tem a tabela alternativa ("Ver como tabela") com os mesmos valores do banco', async () => {
     mock.despesasPorCategoria.mockResolvedValue(sete)

@@ -21,8 +21,10 @@ export function corDaFatia(f: BarraCategoria, i: number): string {
  * A cor nunca é a única informação: a legenda ao lado leva nome, valor e %, cada linha é um link para os
  * lançamentos de despesa do mês e há tabela com os mesmos números.
  */
-export function RoscaCategorias({ fatias, mes, destino: destinoPedido, icone, titulo }: {
+export function RoscaCategorias({ fatias, mes, destino: destinoPedido, icone, titulo, aoAbrir }: {
   fatias: BarraCategoria[]; mes: string
+  /** Com ela, tocar numa categoria (não no "Outros") abre o detalhe dela em vez de ir para a lista do mês. */
+  aoAbrir?: (f: BarraCategoria) => void
   /** Para onde cada linha leva; `null` = linhas sem link (ex.: fatura de cartão, que não tem lista de lançamentos do mês). */
   destino?: string | null
   /** Ícone da categoria, antes do nome (decorativo: o nome sempre vem em texto). */
@@ -51,6 +53,14 @@ export function RoscaCategorias({ fatias, mes, destino: destinoPedido, icone, ti
     )
     const base = 'flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm'
     if (destino === null) return <div className={base}>{conteudo}</div>
+    if (aoAbrir && f.categoriaId !== null) {
+      return (
+        <button type="button" onClick={() => aoAbrir(f)} aria-label={`${f.nome}: ${formatBRL(f.valor)}, ${pct(f.percentual)} das despesas. Ver o que compõe esta categoria`}
+          className={`${base} w-full text-left hover:bg-azul-claro focus-visible:bg-azul-claro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul`}>
+          {conteudo}
+        </button>
+      )
+    }
     return (
       <Link to={destino} aria-label={`${f.nome}: ${formatBRL(f.valor)}, ${pct(f.percentual)} das despesas. Ver lançamentos de despesa do mês`}
         className={`${base} hover:bg-azul-claro focus-visible:bg-azul-claro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul`}>

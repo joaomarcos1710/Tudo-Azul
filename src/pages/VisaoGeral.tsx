@@ -6,6 +6,7 @@ import { chaveVisaoGeral, invalidarDadosHome } from '../lib/consultas'
 import { LinhaAcumulada } from '../components/graficos/LinhaAcumulada'
 import { BarrasCategorias } from '../components/graficos/BarrasCategorias'
 import { RoscaCategorias } from '../components/graficos/RoscaCategorias'
+import { DetalheCategoria } from '../components/DetalheCategoria'
 import { BalancoMensal } from '../components/graficos/BalancoMensal'
 import type { MesBalanco } from '../components/graficos/BalancoMensal'
 import { Aviso } from '../components/ui/Aviso'
@@ -219,6 +220,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const { familia } = useFamilia()
   const { sessao } = useAuth()
   const familiaId = familia?.id
+  // barra ou fatia aberta: mostra o que compõe a categoria (migration 127), na mesma base de cartão do gráfico
+  const [detalheAberto, setDetalheAberto] = useState<{ categoriaId: string; nome: string } | null>(null)
   const [cobrancaFalhou, setCobrancaFalhou] = useState(false)
   const [recorrentesFalhou, setRecorrentesFalhou] = useState(false)
   // Análises: base dos gastos de cartão SÓ no gráfico por categoria (migration 062); guardada neste aparelho.
@@ -392,6 +395,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           <Aviso tipo="erro">Não foi possível lançar os recorrentes agora. Contas mensais e assinaturas podem estar faltando.</Aviso>
         </div>
       )}
+      {detalheAberto && familiaId && (
+        <DetalheCategoria familiaId={familiaId} categoriaId={detalheAberto.categoriaId} nome={detalheAberto.nome} mes={mes}
+          de={limitesDoMes(mes)[0]} ate={limitesDoMes(mes)[1]} base={baseCartao} aoFechar={() => setDetalheAberto(null)} />
+      )}
       {noInicio && <>
         <ResumoDecisao dados={dados.decisao} />
         <NavegacaoCarteira />
@@ -509,7 +516,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               ) : (
                 <>
                   <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida em Análises'}.</p>
-                  <RoscaCategorias fatias={dados.categorias} mes={mes} />
+                  <RoscaCategorias fatias={dados.categorias} mes={mes} aoAbrir={(f) => f.categoriaId && setDetalheAberto({ categoriaId: f.categoriaId, nome: f.nome })} />
                 </>
               )}
             </Card>
@@ -654,8 +661,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
           ) : (
             <>
-              <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida'}. Toque numa categoria para ver as despesas do mês.</p>
-              <BarrasCategorias barras={dados.categorias} mes={mes} />
+              <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida'}. Toque numa categoria para ver o que a compõe.</p>
+              <BarrasCategorias barras={dados.categorias} mes={mes} aoAbrir={(b) => b.categoriaId && setDetalheAberto({ categoriaId: b.categoriaId, nome: b.nome })} />
             </>
           )}
         </Card>

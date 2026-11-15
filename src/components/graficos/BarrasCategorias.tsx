@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { formatBRL, formatMonth } from '../../lib/format'
 import type { Cents } from '../../lib/format'
@@ -12,6 +13,13 @@ export interface BarraCategoria {
   percentual: number
 }
 
+const classeEntrada = 'group block w-full rounded-lg px-2 py-1.5 text-left hover:bg-azul-claro focus-visible:bg-azul-claro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul'
+/** Linha tocável: botão que abre o detalhe da categoria ou, sem ele, o link para a lista do mês. */
+function Entrada({ abrir, destino, rotulo, children }: { abrir?: () => void; destino: string; rotulo: string; children: ReactNode }) {
+  if (abrir) return <button type="button" onClick={abrir} aria-label={rotulo} className={classeEntrada}>{children}</button>
+  return <Link to={destino} aria-label={rotulo} className={classeEntrada}>{children}</Link>
+}
+
 const pct = (v: number) => `${v.toLocaleString('pt-BR')}%`
 
 /**
@@ -20,7 +28,11 @@ const pct = (v: number) => `${v.toLocaleString('pt-BR')}%`
  * entre o valor e o maior valor da lista (apresentação, nenhum dinheiro é somado aqui).
  * Cada linha leva aos lançamentos de despesa do mês.
  */
-export function BarrasCategorias({ barras, mes }: { barras: BarraCategoria[]; mes: string }) {
+export function BarrasCategorias({ barras, mes, aoAbrir }: {
+  barras: BarraCategoria[]; mes: string
+  /** Com ela, tocar numa categoria (não no "Outros") abre o detalhe dela em vez de ir para a lista do mês. */
+  aoAbrir?: (b: BarraCategoria) => void
+}) {
   const maior = Math.max(...barras.map((b) => b.valor as number), 0)
   const destino = `/lancamentos?mes=${mes}&tipo=despesa`
   return (
@@ -31,8 +43,8 @@ export function BarrasCategorias({ barras, mes }: { barras: BarraCategoria[]; me
           const largura = maior > 0 && b.valor > 0 ? Math.max(2, (b.valor / maior) * 100) : 0
           return (
             <li key={b.categoriaId ?? 'outros'}>
-              <Link to={destino} aria-label={`${b.nome}: ${formatBRL(b.valor)}, ${pct(b.percentual)} das despesas. Ver lançamentos de despesa do mês`}
-                className="group block rounded-lg px-2 py-1.5 hover:bg-azul-claro focus-visible:bg-azul-claro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-azul">
+              <Entrada abrir={aoAbrir && b.categoriaId !== null ? () => aoAbrir(b) : undefined} destino={destino}
+                rotulo={`${b.nome}: ${formatBRL(b.valor)}, ${pct(b.percentual)} das despesas. ${aoAbrir && b.categoriaId !== null ? 'Ver o que compõe esta categoria' : 'Ver lançamentos de despesa do mês'}`}>
                 <span className="flex items-baseline justify-between gap-3 text-sm">
                   <span className={`min-w-0 truncate ${b.categoriaId === null ? 'text-slate-500' : 'text-slate-700'}`}>{b.nome}</span>
                   <span className="shrink-0 whitespace-nowrap">
@@ -44,7 +56,7 @@ export function BarrasCategorias({ barras, mes }: { barras: BarraCategoria[]; me
                 <span className="mt-1 block h-3 w-full" aria-hidden="true">
                   <span data-testid="barra-categoria" className="block h-3 rounded-r" style={{ width: `${largura}%`, background: COR_LINHA }} />
                 </span>
-              </Link>
+              </Entrada>
             </li>
           )
         })}

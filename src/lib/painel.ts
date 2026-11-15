@@ -145,6 +145,37 @@ export async function despesasPorCategoria(familiaId: string, de: string, ate: s
   }))
 }
 
+export interface LinhaDetalheCategoria {
+  dia: string
+  categoriaId: string
+  nome: string
+  /** Nome da categoria principal quando a linha é de uma subcategoria; null na própria principal. */
+  principal: string | null
+  valor: Cents
+}
+export interface DetalheCategoria {
+  linhas: LinhaDetalheCategoria[]
+  /** Soma de TODAS as linhas, calculada no banco com os mesmos itens da barra (o front não soma dinheiro). null = sem linhas. */
+  total: Cents | null
+}
+
+/**
+ * O que compõe a barra de uma categoria raiz (migration 127): os mesmos itens do gráfico, por dia e categoria, na base
+ * de cartão escolhida. O total vem do banco e é igual ao valor da barra; sem descrição do lançamento (atalho, ver a migration).
+ */
+export async function detalheDaCategoria(familiaId: string, de: string, ate: string, categoriaId: string, base: BaseGastosCartao = 'invoice'): Promise<DetalheCategoria> {
+  const { data, error } = await cliente().rpc('expense_category_detail', { p_household: familiaId, p_from: de, p_to: ate, p_category: categoriaId, p_basis: base })
+  if (error) throw error
+  const linhas = ((data ?? []) as Record<string, string | number | null>[])
+  return {
+    linhas: linhas.map((r) => ({
+      dia: String(r.day), categoriaId: String(r.category_id), nome: String(r.name),
+      principal: (r.parent_name as string | null) ?? null, valor: centsFromDb(r.amount ?? 0),
+    })),
+    total: linhas.length > 0 ? centsFromDb(linhas[0].total ?? 0) : null,
+  }
+}
+
 export async function despesasPorDia(familiaId: string, de: string, ate: string): Promise<DespesaDia[]> {
   const { data, error } = await cliente().rpc('daily_expenses', { p_household: familiaId, p_from: de, p_to: ate })
   if (error) throw error
