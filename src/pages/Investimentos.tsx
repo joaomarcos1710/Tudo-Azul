@@ -350,7 +350,7 @@ export default function Investimentos() {
         descricao="Acompanhe ativos, operações, custo médio e avaliações da carteira familiar."
         acoes={
           // uma ação principal (Registrar operação: primeira no celular, à direita no computador) e as outras em peso menor
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+          <div className="flex w-full max-w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             <Button className="w-full sm:order-last sm:w-auto" onClick={() => setNovaOperacao(true)} disabled={ativosAtivos.length === 0}>Registrar operação</Button>
             <Button variante="fantasma" onClick={() => setNovoAtivo(true)}>Novo ativo</Button>
             <Button variante="fantasma" onClick={() => setNovoProvento(true)} disabled={ativosEmReais.length === 0}>Registrar provento</Button>

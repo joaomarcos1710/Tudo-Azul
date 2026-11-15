@@ -95,16 +95,16 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
               <caption className="sr-only">Posições em {moeda}: aportado, valor atual e rendimento por investimento</caption>
               <colgroup>
                 <col />
-                <col className="hidden w-32 sm:table-column" />
-                <col className="w-36 sm:w-32" />
-                <col className="hidden w-48 sm:table-column" />
+                <col className="hidden w-32 lg:table-column" />
+                <col className="w-36 lg:w-32" />
+                <col className="hidden w-48 lg:table-column" />
               </colgroup>
               <thead>
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <th scope="col" className="px-3 py-2 text-left font-semibold">Investimento{moedas.length > 1 ? ` (${moeda})` : ''}</th>
-                  <th scope="col" className="hidden px-2 py-2 text-right font-semibold sm:table-cell">Aportado</th>
-                  <th scope="col" className="px-2 py-2 pr-3 text-right font-semibold sm:pr-2">Valor atual<span className="sm:hidden"> e rendimento</span></th>
-                  <th scope="col" className="hidden px-2 py-2 pr-3 text-right font-semibold sm:table-cell">Rendimento</th>
+                  <th scope="col" className="hidden px-2 py-2 text-right font-semibold lg:table-cell">Aportado</th>
+                  <th scope="col" className="px-2 py-2 pr-3 text-right font-semibold lg:pr-2">Valor atual<span className="lg:hidden"> e rendimento</span></th>
+                  <th scope="col" className="hidden px-2 py-2 pr-3 text-right font-semibold lg:table-cell">Rendimento</th>
                 </tr>
               </thead>
               <tbody>
@@ -135,7 +135,7 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                         <p className="text-xs text-slate-500">{[...new Set([classe, a?.subclasse, a?.instituicao].filter(Boolean))].join(' · ')}</p>
                         {/* unidade e preço só fazem sentido em ativo com cota (migration 104) */}
                         {p.ticker && <p className="text-xs text-slate-500">{formatarQuantidade(p.quantidade)} un · preço {formatarPreco(p.precoAtual, p.moeda)}</p>}
-                        <p className="text-xs text-slate-500 sm:hidden">Aportado {formatar(aportado, p.moeda)}</p>
+                        <p className="text-xs text-slate-500 lg:hidden">Aportado {formatar(aportado, p.moeda)}</p>
                         {comResgate && <p className="text-xs text-slate-500">Pôs {formatar(ap.aportado, p.moeda)} · tirou {formatar(ap.resgatado, p.moeda)}</p>}
                         <p className="text-xs text-slate-500">
                           {p.dataAvaliacao ? `Valor de ${formatDate(p.dataAvaliacao)}${p.fonteAvaliacao ? ` · ${p.fonteAvaliacao}` : ''}` : ap ? 'Sem avaliação: pelo preço de compra' : 'Sem avaliação: vale o aportado'}
@@ -144,12 +144,12 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                         {parada === 'sem-preco' && <p className="text-xs font-medium text-atencao">Ainda sem cotação da bolsa: a próxima busca é no fim do pregão.</p>}
                         {typeof parada === 'number' && <p className="text-xs font-medium text-atencao">Cotação da bolsa parada há {parada} dias: confira o código do ativo.</p>}
                       </th>
-                      <td className={`hidden sm:table-cell ${numero}`}>{formatar(aportado, p.moeda)}</td>
-                      <td className={`${numero} pr-3 sm:pr-2`}>
+                      <td className={`hidden lg:table-cell ${numero}`}>{formatar(aportado, p.moeda)}</td>
+                      <td className={`${numero} pr-3 lg:pr-2`}>
                         <p className="font-semibold text-marinho">{formatar(valorAtual, p.moeda)}</p>
-                        <div className="sm:hidden">{rendimento}</div>
+                        <div className="lg:hidden">{rendimento}</div>
                       </td>
-                      <td className={`hidden sm:table-cell ${numero} pr-3`}>{rendimento}</td>
+                      <td className={`hidden lg:table-cell ${numero} pr-3`}>{rendimento}</td>
                     </tr>
                     {acoes && (
                       // linha própria: dentro da coluna do nome, no celular, os botões empilhavam. Ocupa 2 colunas: no celular
@@ -178,14 +178,14 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                   <tr className="border-t-2 border-slate-200 font-semibold">
                     <th scope="row" className="px-3 py-3 text-left">
                       Total
-                      <span className="block text-xs font-normal text-slate-500 sm:hidden">Aportado {formatar(total.aportado, moeda)}</span>
+                      <span className="block text-xs font-normal text-slate-500 lg:hidden">Aportado {formatar(total.aportado, moeda)}</span>
                     </th>
-                    <td className={`hidden sm:table-cell ${numero}`}>{formatar(total.aportado, moeda)}</td>
-                    <td className={`${numero} pr-3 sm:pr-2`}>
+                    <td className={`hidden lg:table-cell ${numero}`}>{formatar(total.aportado, moeda)}</td>
+                    <td className={`${numero} pr-3 lg:pr-2`}>
                       <span className="text-azul">{formatar(total.valorAtual, moeda)}</span>
-                      <span className={`block sm:hidden ${corDoResultado(total.rendimento)}`}>{comSinal(formatar(total.rendimento, moeda), total.rendimento)}</span>
+                      <span className={`block lg:hidden ${corDoResultado(total.rendimento)}`}>{comSinal(formatar(total.rendimento, moeda), total.rendimento)}</span>
                     </td>
-                    <td className={`hidden sm:table-cell ${numero} pr-3 ${corDoResultado(total.rendimento)}`}>{comSinal(formatar(total.rendimento, moeda), total.rendimento)}</td>
+                    <td className={`hidden lg:table-cell ${numero} pr-3 ${corDoResultado(total.rendimento)}`}>{comSinal(formatar(total.rendimento, moeda), total.rendimento)}</td>
                   </tr>
                 </tfoot>
               )}

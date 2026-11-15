@@ -10,11 +10,16 @@
 --   * a matriz de compromissos filtra period_month do mês e do mês seguinte (antes só o mês);
 --   * o abatimento da fatura já cobrada e não paga (card_reconciliado) olha vencimentos até o fim do mês seguinte, para não contar
 --     duas vezes uma fatura fechada que vence no mês seguinte (a tesouraria já descontou o cobrado − pago dela);
---   * CTE `atrasadas`: soma de despesa planejada de conta em reais com data antes do mês, mais parcela planejada de empréstimo ou
---     financiamento ATIVO que não é consignado, vencida antes do mês. Entra como um item "Despesas em atraso de meses anteriores".
+--   * CTE `atrasadas`: soma de despesa planejada de conta em reais com data antes do mês **e antes de hoje** (atrasada de verdade: se
+--     p_month é um mês futuro, o que ainda não venceu não é "atraso"), mais parcela planejada de empréstimo ou financiamento ATIVO
+--     que não é consignado, vencida nas mesmas condições. Entra como um item "Despesas em atraso de meses anteriores".
 --     O atraso dentro do mês corrente já está na matriz, então não entra de novo.
 --   * o texto da nota e as chaves 'horizonMonths' e 'overdueBeforeMonthIncluded' dizem o horizonte.
 -- Nada mais muda: a assinatura, o formato do JSON e as demais chaves ficam iguais. SECURITY INVOKER, a RLS decide.
+-- Limite conhecido (revisão do diff, 15/11/2026): o Dinheiro Livre só faz sentido para o MÊS ATUAL (é o único que o app pede). Para mês
+-- passado, o corte de datas (as_of) mistura o saldo daquele dia com os status de hoje; já era assim antes desta migration.
+-- Nota: `d.active` nas atrasadas é só uma trava a mais: arquivar uma dívida exige quitar ou cancelar as parcelas a vencer (o banco recusa
+-- antes), então não há parcela planejada de dívida arquivada.
 -- atalho: receita planejada fora do livre (como hoje); melhorar se o dono quiser o livre "líquido de entradas previstas".
 
 create or replace function public.get_home_decision_month(
@@ -114,12 +119,12 @@ as $$
           from public.transactions t
           join public.accounts a on a.household_id = t.household_id and a.id = t.account_id and a.currency_code = 'BRL'
          where t.household_id = p_household and t.type = 'expense' and t.status = 'planned'
-           and t.deleted_at is null and t.date < p.month_start
+           and t.deleted_at is null and t.date < least(p.month_start, p.today)
         union all
         select s.amount
           from public.debt_payment_schedule s
           join public.debts d on d.household_id = s.household_id and d.id = s.debt_id
-         where s.household_id = p_household and s.status = 'planned' and s.due_date < p.month_start
+         where s.household_id = p_household and s.status = 'planned' and s.due_date < least(p.month_start, p.today)
            and d.active and d.kind in ('loan', 'financing') and d.payment_method is distinct from 'payroll'
       ) x
   ),

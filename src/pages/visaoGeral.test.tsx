@@ -659,7 +659,13 @@ describe('Visão geral', () => {
     expect(caixa.textContent).toContain('2 contas a pagar (R$ 300,00)')
     expect(caixa.textContent).toContain('1 valor a receber (R$ 150,00)')
     expect(within(caixa).getByRole('link', { name: 'Ver em Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
+    expect(caixa.textContent).toContain('já reduz o Dinheiro Livre (o consignado, descontado em folha, fica de fora)')
     expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
+    recarregarPagina()
+    // só a receber em atraso: a frase de que reduz o livre não se aplica e some
+    mock.carregarHomeDecisao.mockResolvedValue({ ...decisao, atrasos: [{ tipo: 'receber', quantidade: 1, total: c(15000), primeiraData: '2026-11-01' }] })
+    montar()
+    expect((await screen.findByTestId('atrasos-da-home')).textContent).not.toContain('reduz o Dinheiro Livre')
     recarregarPagina()
     // nada em atraso: a caixa não aparece
     mock.carregarHomeDecisao.mockResolvedValue({ ...decisao, atrasos: [] })

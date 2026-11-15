@@ -182,7 +182,10 @@ function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
               </li>
             ))}
           </ul>
-          <p className="mt-1 text-xs">As contas a pagar atrasadas de meses anteriores já reduzem o Dinheiro Livre. <Link to="/lancamentos" className="font-semibold underline">Ver em Lançamentos</Link></p>
+          <p className="mt-1 text-xs">
+            {(dados.atrasos ?? []).some((a) => a.tipo === 'pagar') && 'O que está a pagar em atraso já reduz o Dinheiro Livre (o consignado, descontado em folha, fica de fora). '}
+            <Link to="/lancamentos" className="font-semibold underline">Ver em Lançamentos</Link>
+          </p>
         </div>
       )}
       <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
