@@ -40,7 +40,10 @@ export function SeletorCategoria({ id, rotulo, rotuloVisivel = true, valor, aoMu
       <button id={idBotao} type="button" aria-haspopup="dialog" aria-expanded={aberta} data-valor={valor} onClick={() => setAberta(true)}
         className={classeBotao ?? 'flex min-h-11 items-center gap-2 rounded-lg border border-slate-500 bg-white px-3 text-left text-base'}>
         {escolhida && <IconeCategoria visual={visualDaCategoria(escolhida, porId)} tamanho="pequeno" />}
-        <span className={`min-w-0 truncate ${escolhida ? '' : 'text-slate-500'}`}>{escolhida?.nome ?? 'Escolher'}</span>
+        {escolhida?.paiId && porId.get(escolhida.paiId)
+          // "Principal › Filha": a principal encolhe primeiro, para o nome da filha (o que foi escolhido) ser o último a cortar
+          ? <span className="flex min-w-0 items-baseline"><span className="min-w-0 shrink-[3] truncate text-slate-500">{porId.get(escolhida.paiId)?.nome}{' › '}</span><span className="min-w-0 truncate">{escolhida.nome}</span></span>
+          : <span className={`min-w-0 truncate ${escolhida ? '' : 'text-slate-500'}`}>{escolhida?.nome ?? 'Escolher'}</span>}
       </button>
       {aberta && (
         <FolhaCategorias opcoes={opcoes} categorias={categorias} porId={porId} tipo={tipo} valor={valor} aoCriada={aoCriada}
@@ -70,6 +73,10 @@ function FolhaCategorias({ opcoes, categorias, porId, tipo, valor, aoEscolher, a
     .filter((c): c is Categoria => c !== undefined)
     .filter((c) => !termo || c.nome.toLocaleLowerCase('pt-BR').includes(termo)
       || (c.paiId !== null && (porId.get(c.paiId)?.nome ?? '').toLocaleLowerCase('pt-BR').includes(termo)))
+
+  // a busca pode devolver só a filha ("feira"): sem a principal na lista, ela perde o contexto e ganha "em Principal"
+  const idsNaLista = new Set(itens.map((c) => c.id))
+  const semPrincipalNaLista = (c: Categoria) => c.paiId !== null && !idsNaLista.has(c.paiId)
 
   async function criar(e: FormEvent) {
     e.preventDefault()
@@ -139,7 +146,11 @@ function FolhaCategorias({ opcoes, categorias, porId, tipo, valor, aoEscolher, a
               <button type="button" data-categoria-id={c.id} aria-pressed={c.id === valor} onClick={() => aoEscolher(c.id)}
                 className={`flex min-h-12 w-full items-center gap-3 rounded-lg px-2 text-left text-base hover:bg-slate-50 ${c.paiId ? 'pl-8' : ''} ${c.id === valor ? 'bg-azul-claro' : ''}`}>
                 <IconeCategoria visual={visualDaCategoria(c, porId)} tamanho={c.paiId ? 'pequeno' : 'normal'} />
-                <span className={`min-w-0 truncate ${c.paiId ? '' : 'font-semibold'}`}>{c.nome}</span>
+                <span className="flex min-w-0 flex-col">
+                  <span className={`truncate ${c.paiId ? '' : 'font-semibold'}`}>{c.nome}</span>
+                  {/* na busca a principal pode não estar na lista: sem ela a filha perde o contexto */}
+                  {semPrincipalNaLista(c) && <span className="truncate text-xs text-slate-500">em {porId.get(c.paiId ?? '')?.nome}</span>}
+                </span>
               </button>
             </li>
           ))}
@@ -156,12 +167,22 @@ function FolhaCategorias({ opcoes, categorias, porId, tipo, valor, aoEscolher, a
             </li>
           )}
           {itens.map((c) => (
-            <li key={c.id}>
-              <button type="button" data-categoria-id={c.id} aria-pressed={c.id === valor} onClick={() => aoEscolher(c.id)}
-                className={`flex w-full flex-col items-center gap-1 rounded-lg p-1 text-center text-xs hover:bg-slate-50 ${c.id === valor ? 'bg-azul-claro' : ''}`}>
-                <IconeCategoria visual={visualDaCategoria(c, porId)} />
-                <span className="line-clamp-2 break-words">{c.nome}</span>
-              </button>
+            // a principal vira um cabeçalho de linha inteira (continua tocável); as filhas ficam embaixo, menores
+            <li key={c.id} className={c.paiId ? '' : 'col-span-4'}>
+              {c.paiId ? (
+                <button type="button" data-categoria-id={c.id} aria-pressed={c.id === valor} onClick={() => aoEscolher(c.id)}
+                  className={`flex w-full flex-col items-center gap-1 rounded-lg p-1 text-center text-xs hover:bg-slate-50 ${c.id === valor ? 'bg-azul-claro' : ''}`}>
+                  <IconeCategoria visual={visualDaCategoria(c, porId)} tamanho="pequeno" />
+                  <span className="line-clamp-2 break-words">{c.nome}</span>
+                  {semPrincipalNaLista(c) && <span className="line-clamp-1 break-words text-[11px] text-slate-500">em {porId.get(c.paiId ?? '')?.nome}</span>}
+                </button>
+              ) : (
+                <button type="button" data-categoria-id={c.id} aria-pressed={c.id === valor} onClick={() => aoEscolher(c.id)}
+                  className={`flex min-h-11 w-full items-center gap-2 rounded-lg border-b border-slate-200 px-1 text-left text-sm font-semibold hover:bg-slate-50 ${c.id === valor ? 'bg-azul-claro' : ''}`}>
+                  <IconeCategoria visual={visualDaCategoria(c, porId)} tamanho="pequeno" />
+                  <span className="min-w-0 truncate">{c.nome}</span>
+                </button>
+              )}
             </li>
           ))}
         </ul>
