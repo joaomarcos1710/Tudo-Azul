@@ -71,7 +71,7 @@ beforeEach(() => {
   mock.listarProventosPrevistos.mockResolvedValue([])
   mock.listarProventosAcabando.mockResolvedValue([])
   mock.faturaDaProximaCobranca.mockResolvedValue(new Map())
-  mock.proximasDatasDasContas.mockRejectedValue(new Error('sem a função do banco')) // padrão: cai na data da regra
+  mock.proximasDatasDasContas.mockResolvedValue(null as unknown as Map<string, string>) // padrão: sem datas reais, cai na data da regra (sem falha)
   mock.definirNaturezaRecorrencia.mockResolvedValue(undefined)
   mock.listarContas.mockResolvedValue({
     contas: [
@@ -551,14 +551,35 @@ describe('Recorrentes: resumo e filtro por natureza', () => {
     expect(await screen.findByRole('region', { name: /^Receitas/ })).toBeTruthy()
   })
 
-  it('se o resumo por natureza falhar (banco sem a migration), a tela segue e só esse bloco some', async () => {
+  it('se o resumo por natureza falhar, a tela segue, o bloco fica sem total e um aviso diz o que faltou', async () => {
     mock.listarRecorrencias.mockResolvedValue(regras)
     mock.resumoPorNatureza.mockRejectedValue({ code: 'PGRST202' })
     montar()
     expect(await screen.findByText('Internet')).toBeTruthy()
     // sem o resumo do banco os cards ficam sem total ("—"), mas a lista e os filtros seguem
     expect(screen.getByTestId('natureza-none').textContent).toContain('—')
-    expect(screen.queryByText(/Não foi possível/)).toBeNull()
+    expect(screen.getByTestId('recorrentes-blocos-falharam').textContent).toMatch(/Não foi possível carregar: resumo por natureza/)
+  })
+
+  it('cada consulta secundária que falha entra no aviso (nada vira "sem dados" em silêncio)', async () => {
+    mock.listarRecorrencias.mockResolvedValue(regras)
+    mock.resumoVisaoGeral.mockRejectedValue(new Error('x'))
+    mock.listarProventosPrevistos.mockRejectedValue(new Error('x'))
+    mock.proximasDatasDasContas.mockRejectedValue(new Error('x'))
+    mock.resumoParcelasDoMes.mockRejectedValue(new Error('x'))
+    mock.faturaDaProximaCobranca.mockRejectedValue(new Error('x'))
+    montar()
+    const aviso = (await screen.findByTestId('recorrentes-blocos-falharam')).textContent ?? ''
+    for (const bloco of ['visão por mês e por ano', 'proventos previstos', 'próxima cobrança das contas', 'card Parcelas & carnês', 'fatura da próxima cobrança']) {
+      expect(aviso).toContain(bloco)
+    }
+  })
+
+  it('sem falha nenhuma, não há aviso', async () => {
+    mock.listarRecorrencias.mockResolvedValue(regras)
+    montar()
+    await screen.findByText('Internet')
+    expect(screen.queryByTestId('recorrentes-blocos-falharam')).toBeNull()
   })
 })
 
@@ -704,7 +725,7 @@ describe('Recorrentes: visão geral por mês e por ano, fixo × variável sugeri
     expect(screen.queryByTestId('visao-entradas-mes')).toBeNull()
   })
 
-  it('banco ainda sem a função (migration 116): a tela cai no resumo de antes, sem erro', async () => {
+  it('consulta da visão por mês e por ano falhou (migration 116): a tela cai no resumo de antes e avisa', async () => {
     mock.resumoVisaoGeral.mockRejectedValue({ code: 'PGRST202' })
     mock.resumoRecorrencias.mockResolvedValue([
       { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'expense', frequencia: null, qtde: 1, porOcorrencia: c(18000), porMes: c(18000) },
@@ -715,7 +736,7 @@ describe('Recorrentes: visão geral por mês e por ano, fixo × variável sugeri
     expect(screen.getByRole('tab', { name: /^Saídas/ }).textContent).toContain('sem total ainda')
     expect(screen.getByRole('tab', { name: /^Entradas/ }).textContent).toContain('sem total ainda')
     expect(screen.queryByTestId('visao-saidas-mes')).toBeNull()
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByTestId('recorrentes-blocos-falharam').textContent).toContain('visão por mês e por ano')
   })
 })
 
@@ -769,13 +790,13 @@ describe('Recorrentes: proventos previstos de investimentos (migration 117)', ()
     expect(screen.queryByTestId('proventos-previstos')).toBeNull()
   })
 
-  it('banco ainda sem a função (migration 117): a tela segue sem o card e sem erro', async () => {
+  it('consulta de proventos falhou (migration 117): a tela segue sem o card e avisa', async () => {
     mock.listarRecorrencias.mockResolvedValue([luz])
     mock.listarProventosPrevistos.mockRejectedValue({ code: 'PGRST202' })
     montar(ENTRADAS)
     await screen.findByRole('tab', { name: /^Entradas/ })
     expect(screen.queryByTestId('proventos-previstos')).toBeNull()
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByTestId('recorrentes-blocos-falharam').textContent).toContain('proventos previstos')
   })
 })
 

@@ -15,6 +15,7 @@ const mock = vi.hoisted(() => ({
   listarCartoes: vi.fn(),
   resumoDoMes: vi.fn(),
   resumoPorMoeda: vi.fn(),
+  listarSaldosDiarios: vi.fn(),
   moverParaLixeira: vi.fn(),
   listarContas: vi.fn(),
   listarCategorias: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
 vi.mock('../lib/contas', async (original) => ({
   ...(await original<typeof import('../lib/contas')>()),
   listarContas: mock.listarContas,
+  listarSaldosDiarios: mock.listarSaldosDiarios,
   hojeSP: () => '2026-10-20',
 }))
 vi.mock('../lib/cartoes', async (original) => ({
@@ -104,6 +106,7 @@ beforeEach(() => {
   mock.listarCartoes.mockResolvedValue([])
   mock.resumoDoMes.mockResolvedValue({ receitas: c(0), despesas: c(25050), resultado: c(-25050), receitasPrevistas: c(800000), despesasPrevistas: c(0) })
   mock.resumoPorMoeda.mockResolvedValue([])
+  mock.listarSaldosDiarios.mockResolvedValue([])
   mock.moverParaLixeira.mockResolvedValue(undefined)
   mock.mudarCategoriaEmLote.mockResolvedValue(2)
   mock.marcarPagoEmLote.mockResolvedValue(2)

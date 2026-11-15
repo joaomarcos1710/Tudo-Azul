@@ -71,6 +71,10 @@ export default function Lancamentos() {
   const [ordemPreferida, setOrdemPreferida] = useState<'asc' | 'desc'>('desc')
   const [mostrarSaldoDiario, setMostrarSaldoDiario] = useState(true)
   const [saldosDiarios, setSaldosDiarios] = useState<SaldoDiario[]>([])
+  // consulta que falha NÃO pode parecer "sem dados": cada bloco secundário que falha entra num aviso único (a lista segue)
+  const [saldosFalharam, setSaldosFalharam] = useState(false)
+  const [cartoesFalharam, setCartoesFalharam] = useState(false)
+  const [blocosFalharam, setBlocosFalharam] = useState<string[]>([])
 
   useEffect(() => {
     let ativo = true
@@ -96,11 +100,12 @@ export default function Lancamentos() {
     let ativo = true
     if (!familiaId || !mostrarSaldoDiario) {
       setSaldosDiarios([])
+      setSaldosFalharam(false)
       return
     }
     void listarSaldosDiarios(familiaId, periodo.de, periodo.ate)
-      .then((valores) => { if (ativo) setSaldosDiarios(valores) })
-      .catch(() => { if (ativo) setSaldosDiarios([]) })
+      .then((valores) => { if (ativo) { setSaldosDiarios(valores); setSaldosFalharam(false) } })
+      .catch(() => { if (ativo) { setSaldosDiarios([]); setSaldosFalharam(true) } })
     return () => { ativo = false }
   }, [familiaId, periodo, mostrarSaldoDiario])
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
@@ -191,7 +196,7 @@ export default function Lancamentos() {
       .then(([c, cat]) => { setContas(c.contas); setInternas(c.internas ?? []); setCategorias(cat) })
       .catch((err) => setErro(mensagemErroBanco(err)))
     // cartões à parte: falha deles não tira contas e categorias da tela
-    listarCartoes(familiaId).then(setCartoes).catch(() => setCartoes([]))
+    listarCartoes(familiaId).then((k) => { setCartoes(k); setCartoesFalharam(false) }).catch(() => { setCartoes([]); setCartoesFalharam(true) })
   }, [familiaId])
 
   // só a resposta do último pedido vale: trocar de mês ou de filtro rápido não pode deixar a lista de um mês sob o título de outro
@@ -204,12 +209,14 @@ export default function Lancamentos() {
       // Com filtro de categoria, as compras e os créditos daquela categoria saem um a um (o total da fatura mistura categorias).
       const categoria = filtros.categoriaId
       const hoje = hojeSP()
+      const falhas = new Set<string>()
+      const falhou = <T,>(bloco: string, vazio: T) => (): T => { falhas.add(bloco); return vazio }
       const cartao = listarFaturasNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje)
         .then(async (fs) => (categoria
           ? {
               faturas: [], compras: await listarComprasDasFaturas(fs, categoria),
               // falha nos créditos não tira as compras da tela
-              creditos: await listarCreditosDasFaturas(fs, categoria, hoje).catch(() => [] as CreditoDeCartao[]),
+              creditos: await listarCreditosDasFaturas(fs, categoria, hoje).catch(falhou('créditos do cartão', [] as CreditoDeCartao[])),
             }
           : { faturas: fs, compras: [], creditos: [] as CreditoDeCartao[] }))
         .catch(() => null)
@@ -217,16 +224,16 @@ export default function Lancamentos() {
       const [deMes, ateMes] = [periodo.de, periodo.ate]
       const parcelas = filtros.categoriaId || (filtros.tipo && filtros.tipo !== 'expense')
         ? Promise.resolve([] as ParcelaDivida[])
-        : listarParcelasDivida(familiaId, deMes, ateMes).catch(() => [] as ParcelaDivida[])
+        : listarParcelasDivida(familiaId, deMes, ateMes).catch(falhou('parcelas de empréstimos e financiamentos', [] as ParcelaDivida[]))
             .then((ps) => (filtros.contaId ? ps.filter((p) => p.contaPagamentoId === filtros.contaId) : ps))
       // créditos do cartão (decisão do dono, 05/11/2026): sem filtro ficam DENTRO da fatura; soltos só com filtro de Receita
       // (no fechamento, o dia em que contam; a fatura não aparece em Receita, então não duplica) ou de categoria (acima).
       // Falha nos créditos não derruba a lista.
       const creditos = filtros.tipo === 'income'
-        ? listarCreditosDeCartaoNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje).catch(() => [] as CreditoDeCartao[])
+        ? listarCreditosDeCartaoNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje).catch(falhou('créditos do cartão', [] as CreditoDeCartao[]))
         : Promise.resolve([] as CreditoDeCartao[])
       // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
-      const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(() => [] as ResumoPorMoeda[])
+      const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(falhou('totais em outras moedas', [] as ResumoPorMoeda[]))
       // rodapé: o mesmo número do Relatório Entradas x Saídas (pagos / pagos e não pagos), seguindo só o filtro de conta;
       // se falhar, a lista continua e só o rodapé avisa
       const doFluxo = { contas: filtros.contaId ? [filtros.contaId] : undefined }
@@ -248,6 +255,7 @@ export default function Lancamentos() {
       setComprasFalharam(cc === null)
       setTotais(r)
       setPorMoeda(pm)
+      setBlocosFalharam([...falhas])
       setErro('')
     } catch (err) {
       if (meu === pedido.current) setErro(mensagemErroBanco(err))
@@ -430,6 +438,14 @@ export default function Lancamentos() {
 
       {lancamentos === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
 
+      {(blocosFalharam.length > 0 || cartoesFalharam || saldosFalharam) && (
+        <div className="mb-4" data-testid="lancamentos-blocos-falharam">
+          <Aviso tipo="erro">
+            Não foi possível carregar: {[...blocosFalharam, ...(cartoesFalharam ? ['lista de cartões (filtro)'] : []), ...(saldosFalharam ? ['saldo diário'] : [])].join(', ')}.
+            {' '}A lista pode estar incompleta; troque de mês e volte para tentar de novo.
+          </Aviso>
+        </div>
+      )}
       {comprasFalharam && (
         <div className="mb-4"><Aviso tipo="info">Não foi possível carregar as faturas dos cartões agora. Elas continuam em Cartões.</Aviso></div>
       )}
