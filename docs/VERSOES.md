@@ -270,4 +270,5 @@ continuam abaixo como histórico.
 | 2026.355 | **Diário.** Registra a aplicação da migration 126 em produção (15/11/2026) e o antes e depois do Dinheiro Livre. Sem mudança de código nem de tela. |
 | 2026.356 | **Agente de melhorias.** Novo agente do projeto (`melhorias`) que procura e propõe melhorias no próprio app, sempre com evidência e só leitura. Sem mudança de código nem de tela do app. |
 | 2026.357 | **iPad em pé: valores inteiros em Orçamentos e na legenda de Investimentos.** O resumo de Orçamentos (Orçado, Gasto, Saldo) não corta mais o valor com "…" e a legenda da carteira por classe não separa o "R$" do número. Só largura; nenhum valor muda. |
+| 2026.358 | **Legenda por subclasse de Investimentos sem nomes cortados.** Na composição da carteira, os nomes das subclasses (Renda fixa, Renda variável, Fundos e outros) apareciam como "Renda fi…" no iPad em pé e numa janela de 1024 px. Agora aparecem inteiros. Só largura; nenhum valor muda. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

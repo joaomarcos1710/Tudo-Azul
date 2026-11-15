@@ -35,6 +35,16 @@ describe('ComposicaoCarteira', () => {
     expect(within(lista).getByText(/BRL 198219\.07/).className).toContain('whitespace-nowrap')
   })
 
+  it('legenda por subclasse: uma coluna até lg e o nome nunca é cortado com "…" (iPad em pé e janela de 1024px: "Renda fi…", "Fun…")', () => {
+    render(<ComposicaoCarteira totais={[{ moeda: 'BRL', valorAtual: c(19821907) }]} alocacao={[macro('BRL', 19821907)]} liquidez={[]} instituicoes={[]} posicoes={[]} formatar={formatar} />)
+    const lista = screen.getByRole('list', { name: 'Subclasses' })
+    expect(lista.className).toContain('grid-cols-1')
+    expect(lista.className).toContain('lg:grid-cols-2')
+    expect(lista.className).toContain('xl:grid-cols-3')
+    expect(lista.className).not.toMatch(/(^|\s)sm:grid-cols-2|(^|\s)lg:grid-cols-3/)
+    for (const nome of within(lista).getAllByText(/Renda variável/)) expect(nome.className).not.toContain('truncate')
+  })
+
   it('sem nenhuma moeda com posição não desenha nada', () => {
     const { container } = render(<ComposicaoCarteira totais={[]} alocacao={[]} liquidez={[]} instituicoes={[]} posicoes={[]} formatar={formatar} />)
     expect(container.firstChild).toBeNull()

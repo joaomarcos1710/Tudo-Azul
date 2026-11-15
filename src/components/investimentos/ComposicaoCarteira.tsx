@@ -236,12 +236,12 @@ function BarraAlocacao({ fatias: doBanco, formatar, moedaPorExtenso }: { fatias:
           {/* largura mínima de 6px: num trecho de 0,2% a cor sumiria; o % certo está na legenda */}
           {trechos.map((t) => <span key={t.chave} data-fatia className="h-full shrink-0" style={{ width: `${t.percentual}%`, minWidth: '6px', background: t.cor }} />)}
         </div>
-        <ul className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2 lg:grid-cols-3" aria-label="Subclasses">
+        <ul className="mt-3 grid grid-cols-1 gap-x-4 gap-y-2 text-sm lg:grid-cols-2 xl:grid-cols-3" aria-label="Subclasses">
           {trechos.map((t) => (
             <li key={t.chave} className="flex items-center justify-between gap-2">
               <span className="flex min-w-0 items-center gap-2">
                 <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t.cor }} />
-                <span className="truncate text-slate-700">{t.nome}</span>
+                <span className="break-words text-slate-700">{t.nome}</span>
               </span>
               <span className="shrink-0 whitespace-nowrap tabular-nums text-slate-600">{formatar(t.valor)} · {pct(t.percentual)}</span>
             </li>
