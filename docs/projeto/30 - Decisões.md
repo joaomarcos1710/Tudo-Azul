@@ -824,6 +824,12 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 15/11/2026 — Clicar na categoria do gráfico mostra o detalhe do banco (dono, #366)
+- **Pergunta:** a barra "Mercado R$ 150" abria Lançamentos sem filtro de categoria. O `revisor-dinheiro` mostrou que um filtro só no front não faz a lista bater com a barra (a barra soma mãe e filhas, põe o cartão no fechamento da fatura e só conta pago em reais; a lista filtra categoria exata, põe o cartão no vencimento e mostra planejados e outras moedas).
+- **Decidido (dono: "B"):** uma função nova no banco devolve os **mesmos itens da barra** por dia e categoria, com o total somado no banco (migration 127); o clique abre uma folha com esse detalhe. Descartado: filtrar no front (valor diferente é bug) e deixar sem link.
+- **Limite aceito:** sem a descrição de cada compra (atalho em `40`).
+- **Risco conhecido:** a migration 127 precisa ser aplicada pelo workflow antes de a tela funcionar; sem ela a folha mostra o aviso de erro com "Tentar de novo".
+
 ## 15/11/2026 — Agente `melhorias` também analisa visual e gráficos (dono, #363)
 - **Pedido:** o dono mandou uma seção de regras de visual e gráficos para o agente.
 - **Decidido:** entrou a seção (objetivo ampliado, regra de ouro "pergunta + decisão + período, moeda e regra, sem misturar realizado, previsto e projetado", tabela de visual por pergunta, regras de cor e acessibilidade, hierarquia do card, formato curto da análise e proibições). As duas listas de perguntas (10 e 12) viraram uma só (10), e o "design system" aponta para o que já existe no repositório (`src/components/ui`, `src/components/graficos`, `src/lib/cores.ts`).
