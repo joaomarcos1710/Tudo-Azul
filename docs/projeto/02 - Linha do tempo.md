@@ -347,6 +347,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#355** (15/11/2026): diário: registra a aplicação da migration 126 em produção. Sem mudança de código.
 - **#356** (15/11/2026): novo agente do projeto `melhorias` (`.claude/agents/melhorias.md`): só lê e propõe melhorias no próprio app, com evidência e três larguras (celular, iPad em pé, computador). Veio de uma especificação externa bem maior, enxugada. Sem mudança de código do app.
 - **#357** (15/11/2026): dois consertos de largura no iPad em pé, achados pelo agente `melhorias` (primeiro trabalho dele): em **Orçamentos** o resumo (Orçado, Gasto, Saldo) cortava o valor com "…" (`R$ 12.345…`); na **legenda por classe** de Investimentos o "R$" ficava separado do número. Só classes de largura; o valor e o `formatBRL` não mudam.
+- **#358** (15/11/2026): legenda **por subclasse** de Investimentos (composição da carteira) mostrava os nomes cortados (`Renda fi…`, `Fun…`) no iPad em pé e também numa janela de 1024 px. Agora uma coluna até `lg`, duas em `lg` e três só em `xl`, e o nome quebra em vez de virar "…". Só classes; valor e `formatBRL` não mudam.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
