@@ -120,6 +120,8 @@ export default function Recorrentes() {
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
+  // bloco secundário que falha NÃO pode parecer "sem dados" (some o card, a linha cai na data da regra): fica num aviso
+  const [blocosFalharam, setBlocosFalharam] = useState<string[]>([])
   const [aba, setAba] = useState<Aba>('todos')
   const [secao, setSecao] = useState<Secao>('lista')
   const [verAntigas, setVerAntigas] = useState(false)
@@ -160,15 +162,17 @@ export default function Recorrentes() {
       setCartoes(k)
       setCategorias(cat)
       setResumo(s)
-      // banco sem a migration (ou falha só aqui): o resumo por natureza some, o resto da tela segue
-      void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => setPorNatureza([]))
-      void resumoVisaoGeral(familiaId).then(setVisao).catch(() => setVisao(null))
-      void listarProventosPrevistos(familiaId).then(setProventos).catch(() => setProventos([]))
-      void listarProventosAcabando(familiaId, 60).then(setProventosAcabando).catch(() => setProventosAcabando([]))
-      // atalho: se a consulta falhar a linha mostra a data da regra (como antes); melhorar com aviso por bloco junto dos estados de erro
-      void proximasDatasDasContas(familiaId).then(setProximasReais).catch(() => setProximasReais(null))
-      void resumoParcelasDoMes(familiaId).then(setParcelasMes).catch(() => setParcelasMes([]))
-      void faturaDaProximaCobranca(r.filter((x) => x.tipo === 'card' && x.ativa).map((x) => x.id)).then(setFaturaDe).catch(() => setFaturaDe(new Map()))
+      // falha só num bloco secundário: o resto da tela segue, mas o aviso (blocosFalharam) diz o que ficou de fora
+      setBlocosFalharam([])
+      const marcar = (bloco: string) => setBlocosFalharam((a) => (a.includes(bloco) ? a : [...a, bloco]))
+      void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => { setPorNatureza([]); marcar('resumo por natureza') })
+      void resumoVisaoGeral(familiaId).then(setVisao).catch(() => { setVisao(null); marcar('visão por mês e por ano') })
+      void listarProventosPrevistos(familiaId).then(setProventos).catch(() => { setProventos([]); marcar('proventos previstos') })
+      void listarProventosAcabando(familiaId, 60).then(setProventosAcabando).catch(() => { setProventosAcabando([]); marcar('aviso de proventos acabando') })
+      // se a consulta falhar a linha mostra a data da regra (que pode estar defasada) e o aviso diz isso
+      void proximasDatasDasContas(familiaId).then(setProximasReais).catch(() => { setProximasReais(null); marcar('próxima cobrança das contas') })
+      void resumoParcelasDoMes(familiaId).then(setParcelasMes).catch(() => { setParcelasMes([]); marcar('card Parcelas & carnês') })
+      void faturaDaProximaCobranca(r.filter((x) => x.tipo === 'card' && x.ativa).map((x) => x.id)).then(setFaturaDe).catch(() => { setFaturaDe(new Map()); marcar('fatura da próxima cobrança das assinaturas') })
       setErro('')
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -407,6 +411,11 @@ export default function Recorrentes() {
         </>} />
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {blocosFalharam.length > 0 && !erro && (
+        <div className="mb-4" data-testid="recorrentes-blocos-falharam">
+          <Aviso tipo="erro">Não foi possível carregar: {blocosFalharam.join(', ')}. A tela pode estar incompleta ou com datas da regra em vez da cobrança real; recarregue a página para tentar de novo.</Aviso>
+        </div>
+      )}
       {corrigindo !== null && (
         <FolhaNatureza recorrencia={corrigindo} aoCancelar={() => setCorrigindo(null)}
           aoConcluir={async () => { setCorrigindo(null); await carregar() }} />

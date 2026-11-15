@@ -704,6 +704,24 @@ describe('Lançamentos', () => {
       expect(screen.getByText(/Não foi possível carregar as faturas dos cartões/)).toBeTruthy()
     })
 
+    it('parcelas de empréstimo, totais em outras moedas e cartões que falham entram num aviso (não viram "sem dados")', async () => {
+      mock.listarParcelasDivida.mockRejectedValue(new Error('x'))
+      mock.resumoPorMoeda.mockRejectedValue(new Error('x'))
+      mock.listarCartoes.mockRejectedValue(new Error('x'))
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      expect(await screen.findByText('Supermercado')).toBeTruthy()
+      const aviso = (await screen.findByTestId('lancamentos-blocos-falharam')).textContent ?? ''
+      expect(aviso).toContain('parcelas de empréstimos e financiamentos')
+      expect(aviso).toContain('totais em outras moedas')
+      expect(aviso).toContain('lista de cartões')
+    })
+
+    it('sem falha nenhuma, não há aviso de bloco', async () => {
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      expect(await screen.findByText('Supermercado')).toBeTruthy()
+      expect(screen.queryByTestId('lancamentos-blocos-falharam')).toBeNull()
+    })
+
     it('se as compras da fatura falharem ao abrir, avisa dentro da fatura', async () => {
       mock.listarFaturasDoMes.mockResolvedValue([fatura()])
       mock.listarItens.mockRejectedValue(new Error('falhou'))
