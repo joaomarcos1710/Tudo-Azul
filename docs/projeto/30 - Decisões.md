@@ -824,6 +824,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 15/11/2026 — Agente `melhorias` também analisa visual e gráficos (dono, #363)
+- **Pedido:** o dono mandou uma seção de regras de visual e gráficos para o agente.
+- **Decidido:** entrou a seção (objetivo ampliado, regra de ouro "pergunta + decisão + período, moeda e regra, sem misturar realizado, previsto e projetado", tabela de visual por pergunta, regras de cor e acessibilidade, hierarquia do card, formato curto da análise e proibições). As duas listas de perguntas (10 e 12) viraram uma só (10), e o "design system" aponta para o que já existe no repositório (`src/components/ui`, `src/components/graficos`, `src/lib/cores.ts`).
+- **Risco conhecido:** o agente cresceu de ~30 para ~85 linhas; instrução longa demais dilui as regras. A trava continua sendo evidência obrigatória e só leitura. Se as análises ficarem genéricas, enxugar.
+
 ## 15/11/2026 — Contas e histórico do exterior ficam em reais (dono, #359)
 - **Pergunta:** a conta "NOMAD - DOLAR" estava em BRL com 36 lançamentos (R$ 272,50 de saldo) e o dono falou em dólar. O levantamento (só leitura) mostrou um razão **misturado**: despesas "Câmbio" em reais e receitas "Câmbio" em dólar na mesma conta (ex.: R$ 50,00 de despesa e 8,39 de receita com a nota "1 dólar = 5,9563"), royalties e cashback de centavos que só podem ser dólar, e valores grandes sem rótulo.
 - **Decidido (dono):** (1) **as contas ficam em reais** (inclusive NOMAD - DOLAR; a moeda só muda com a conta sem movimento, então recriar em USD foi descartado); (2) **o passado que está em reais fica em reais** (nada é reconvertido nem reescrito); (3) **cripto sempre em reais**; (4) o ativo **"Euro"** do módulo de Investimentos (€ 33,14, com cotação) **fica como está**.
