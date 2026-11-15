@@ -436,6 +436,11 @@ describe('Visão geral', () => {
     expect(antes(faturas, livre)).toBe(true)
     expect(antes(recorrentes, livre)).toBe(true)
   })
+  it('o card Dinheiro Livre chama a parte das reservas de "Reservas comprometidas", sem "Envelopes"', async () => {
+    montar()
+    expect(await screen.findByText('Reservas comprometidas')).toBeTruthy()
+    expect(screen.queryByText(/Envelope/i)).toBeNull()
+  })
   it('se a comparação falhar, o resto do painel aparece', async () => {
     mock.resumoDoPeriodo.mockReset()
     mock.resumoDoPeriodo.mockRejectedValue(new Error('x'))

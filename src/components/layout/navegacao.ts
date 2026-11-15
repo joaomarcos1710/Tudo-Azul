@@ -51,7 +51,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     titulo: 'Planejamento',
     itens: [
       { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos, descricao: 'Quanto gastar por categoria no mês.', atalho: true },
-      { caminho: '/reservas', rotulo: 'Reservas', curto: 'Reservas', Icone: IconeOrcamentos, descricao: 'Envelopes virtuais, aportes e resgates.' },
+      { caminho: '/reservas', rotulo: 'Reservas', curto: 'Reservas', Icone: IconeOrcamentos, descricao: 'Reservas virtuais, aportes e resgates.' },
       { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias, descricao: 'Como receitas e despesas são agrupadas.' },
     ],
   },

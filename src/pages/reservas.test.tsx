@@ -25,6 +25,14 @@ describe('Reservas: erro de consulta não pode parecer "nenhuma reserva" (audito
     expect(screen.queryByText(/Crie uma reserva para começar/)).toBeNull()
   })
 
+  it('a tela fala só em "reservas", nunca em "envelopes" (nome decidido pelo dono)', async () => {
+    mock.listarReservas.mockResolvedValue([])
+    const { container } = montar()
+    expect(await screen.findByText('Nenhuma reserva criada')).toBeTruthy()
+    expect(screen.getByText('Suas reservas')).toBeTruthy()
+    expect(container.textContent ?? '').not.toMatch(/envelope/i)
+    expect(document.body.innerHTML).not.toMatch(/envelope/i)
+  })
   it('a consulta dá certo e vem vazia: aí sim "Nenhuma reserva criada"', async () => {
     mock.listarReservas.mockResolvedValue([])
     montar()
