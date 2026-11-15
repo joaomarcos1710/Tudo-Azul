@@ -215,7 +215,7 @@ function BarraAlocacao({ fatias: doBanco, formatar, moedaPorExtenso }: { fatias:
     .filter((d) => d.percentual > 0).map((d) => ({ ...d, chave: `${f.chave}:${d.nome}`, macro: f.nome, cor: corDe(f.chave) })))
   return (
     <div className="flex flex-col gap-4">
-      <ul className="grid gap-2 sm:grid-cols-3" aria-label="Lista da carteira por classe">
+      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Lista da carteira por classe">
         {fatias.map((f) => (
           <li key={f.chave} className="rounded-xl border border-slate-100 bg-fundo p-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-marinho">
@@ -223,7 +223,7 @@ function BarraAlocacao({ fatias: doBanco, formatar, moedaPorExtenso }: { fatias:
               <span className="truncate">{f.nome}</span>
             </div>
             <p className="mt-1 flex items-baseline justify-between gap-2">
-              <span className="tabular-nums font-bold text-marinho">{formatar(f.valor)}</span>
+              <span className="whitespace-nowrap tabular-nums font-bold text-marinho">{formatar(f.valor)}</span>
               <span className="tabular-nums text-sm text-slate-500">{pct(f.percentual)}</span>
             </p>
           </li>

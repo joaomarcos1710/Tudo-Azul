@@ -131,7 +131,7 @@ export default function Orcamentos() {
       )}
 
       {itens !== null && itens.length > 0 && (
-        <section aria-label="Resumo dos orçamentos" data-testid="budget-summary" className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <section aria-label="Resumo dos orçamentos" data-testid="budget-summary" className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
           {([
             { titulo: 'Orçado', valor: itens.reduce((s, o) => s + o.limite, 0), cor: 'text-slate-900' },
             { titulo: 'Gasto', valor: itens.reduce((s, o) => s + o.gasto, 0), cor: 'text-slate-900' },
@@ -139,7 +139,7 @@ export default function Orcamentos() {
           ] as const).map((m) => (
             <Card key={m.titulo} semPadding className="min-w-0 border border-slate-100 p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{m.titulo}</p>
-              <p className={`mt-1 truncate text-xl font-semibold tabular-nums ${m.cor}`}>{formatBRL(m.valor as Cents)}</p>
+              <p className={`mt-1 text-xl font-semibold tabular-nums ${m.cor}`}>{formatBRL(m.valor as Cents)}</p>
             </Card>
           ))}
         </section>
