@@ -26,6 +26,15 @@ describe('ComposicaoCarteira', () => {
     expect(screen.queryByText(/USD/)).toBeNull()
   })
 
+  it('legenda por classe: duas colunas até lg e o valor nunca quebra entre "R$" e o número (iPad em pé, ~500px de conteúdo)', () => {
+    render(<ComposicaoCarteira totais={[{ moeda: 'BRL', valorAtual: c(19821907) }]} alocacao={[macro('BRL', 19821907)]} liquidez={[]} instituicoes={[]} posicoes={[]} formatar={formatar} />)
+    const lista = screen.getByRole('list', { name: 'Lista da carteira por classe' })
+    expect(lista.className).toContain('sm:grid-cols-2')
+    expect(lista.className).toContain('lg:grid-cols-3')
+    expect(lista.className).not.toContain('sm:grid-cols-3')
+    expect(within(lista).getByText(/BRL 198219\.07/).className).toContain('whitespace-nowrap')
+  })
+
   it('sem nenhuma moeda com posição não desenha nada', () => {
     const { container } = render(<ComposicaoCarteira totais={[]} alocacao={[]} liquidez={[]} instituicoes={[]} posicoes={[]} formatar={formatar} />)
     expect(container.firstChild).toBeNull()

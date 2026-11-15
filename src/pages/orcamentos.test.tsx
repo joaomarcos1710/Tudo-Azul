@@ -57,6 +57,11 @@ describe('Orçamentos', () => {
     expect(screen.getByTestId('budget-grid').className).toContain('lg:grid-cols-2')
     expect(screen.getByTestId('budget-grid').className).toContain('grid-cols-1')
     expect(screen.getByTestId('budget-summary')).toBeTruthy()
+    // iPad em pé: a janela de 820px tem barra lateral de 256px, ficam ~500px de conteúdo. Três cartões lado a lado só de lg em diante, e o valor
+    // nunca é cortado com "…" (truncate escondia os centavos: "R$ 12.345…" não diz se são 12 mil ou 123 mil). Auditoria do agente melhorias, 15/11/2026.
+    expect(screen.getByTestId('budget-summary').className).toContain('lg:grid-cols-3')
+    expect(screen.getByTestId('budget-summary').className).not.toContain('sm:grid-cols-3')
+    for (const v of ['R$ 1.000,00', 'R$ 300,00', 'R$ 700,00']) expect(within(screen.getByTestId('budget-summary')).getByText(v).className).not.toContain('truncate')
     expect(screen.getByText('Orçado')).toBeTruthy()
     expect(screen.getByText('Gasto')).toBeTruthy()
     expect(screen.getByText('Saldo')).toBeTruthy()
