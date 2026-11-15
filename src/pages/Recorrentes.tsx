@@ -676,10 +676,10 @@ function CartoesNatureza({ itens, escolhida, aoEscolher, parcelas = [], aoAbrirP
           <span className={`mt-1 block whitespace-nowrap text-lg font-bold tabular-nums ${corDoTipo('expense')}`}>
             {formatMoeda(c.totalMes, c.moeda)}<span className="text-xs font-semibold">/mês</span>
           </span>
-          <span className="block truncate text-xs text-slate-500" data-testid={`parcelas-falta-${c.moeda}`}>
+          <span className="block break-words text-xs text-slate-500" data-testid={`parcelas-falta-${c.moeda}`}>
             {c.comParcelaNoMes === 0 ? 'Nenhuma parcela neste mês' : c.faltaMes > 0 ? `Faltam ${formatMoeda(c.faltaMes, c.moeda)} neste mês` : 'Tudo pago neste mês'}
           </span>
-          <span className="block truncate text-xs text-slate-400">{c.exemplos.join(', ') || ' '}</span>
+          <span className="block break-words text-xs text-slate-400">{c.exemplos.join(', ') || ' '}</span>
         </button>
       ))}
     </div>
