@@ -805,3 +805,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Pedido:** a tela mostrava como "próxima" uma cobrança já paga adiantada. Uma sugestão externa propunha uma lista nova de "próximas cobranças"; antes de construir, medi nos dados do dono: 3 de 25 contas divergiam, 0 de 19 cartões, nenhum valor, nenhuma atrasada.
 - **Decidido (opção 2 do dono):** corrigir a linha que já existe, com uma leitura nova só de datas no banco (migration 125), em vez de lista nova, contrato novo ou RPC grande. Se o banco falhar, a linha volta para a data da regra.
 - **Não feito de propósito:** a lista nova de próximas cobranças, busca, agrupar por e ordenar misturando conta e cartão; só voltam se o dono sentir falta. Cartão continua pela regra.
+
+## 15/11/2026 — Aplicação das migrations 123, 124 e 125 e correção de dados do cartão (dono, #353)
+- **Pedido do dono:** "pode aplicar" cada passo (simular, ler o log, aplicar com `APLICAR`), com o "pode" dele em cada um. A 123 e a 124 foram aplicadas juntas, porque o workflow aplica tudo que está pendente (o dono foi avisado antes); a 125 foi aplicada sozinha.
+- **Dados do cartão CAIXA (final 8541), fatura aberta 2026-11:** conciliada com os prints do app do banco: 5 compras a mais excluídas, 8 que faltavam lançadas, 4 créditos duplicados ou errados corrigidos e um crédito único de R$ 0,23 para os ajustes de centavos; total R$ 15.105,78 (banco R$ 14.682,81 mais as 4 compras de 13 e 14/11 e o Wellhub de 17/11, lançamento fixo futuro). Feito pelas funções oficiais, numa transação com trava no total.
+- **Deixado como está de propósito:** a regra do Claude no dia 12 (a cobrança real é por volta do dia 3): decisão do dono. Os outros cartões e faturas anteriores não foram conferidos.
+
