@@ -419,6 +419,17 @@ describe('Visão geral', () => {
       expect(ate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     }
   })
+  it('o aviso de fatura ou recorrente que falhou vem ANTES do Dinheiro Livre na página', async () => {
+    cobrar.mockRejectedValueOnce(new Error('x'))
+    gerar.mockRejectedValueOnce(new Error('x'))
+    montar()
+    const faturas = await screen.findByText(/Não foi possível fechar as faturas dos cartões/)
+    const recorrentes = await screen.findByText(/Não foi possível lançar os recorrentes/)
+    const livre = await screen.findByText(/Dinheiro Livre/i)
+    const antes = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(antes(faturas, livre)).toBe(true)
+    expect(antes(recorrentes, livre)).toBe(true)
+  })
   it('se a comparação falhar, o resto do painel aparece', async () => {
     mock.resumoDoPeriodo.mockReset()
     mock.resumoDoPeriodo.mockRejectedValue(new Error('x'))

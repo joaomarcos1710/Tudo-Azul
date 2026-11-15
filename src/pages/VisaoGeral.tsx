@@ -381,15 +381,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         ? <CabecalhoInicio nome={nome} receitas={m?.receitas ?? null} despesas={m?.despesas ?? null}
           aReceber={m?.receitasPrevistas ?? null} aPagar={m?.despesasPrevistas ?? null} />
         : <CabecalhoPagina titulo="Análises" descricao={`Como as finanças da família estão indo em ${primeiraMaiuscula(formatMonth(mes))}.`} />}
-      {noInicio && <>
-        <ResumoDecisao dados={dados.decisao} />
-        <NavegacaoCarteira />
-        <section id="visao-geral" aria-label="Resumo geral" className="mb-4 scroll-mt-24">
-          <FaixaIndicadores dados={dados.indicadores} />
-        </section>
-      </>}
-      {/* receitas e despesas do mês em outras moedas: à parte, nunca somadas aos totais em reais acima */}
-      <ResultadoEmOutrasMoedas porMoeda={dados.mesPorMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
+      {/* antes do Dinheiro Livre: fatura e recorrente alimentam esse número; o aviso de que podem estar defasados tem de vir antes dele */}
       {cobrancaFalhou && (
         <div className="mb-4">
           <Aviso tipo="erro">Não foi possível fechar as faturas dos cartões agora. Os valores de cartão podem estar defasados.</Aviso>
@@ -400,6 +392,15 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           <Aviso tipo="erro">Não foi possível lançar os recorrentes agora. Contas mensais e assinaturas podem estar faltando.</Aviso>
         </div>
       )}
+      {noInicio && <>
+        <ResumoDecisao dados={dados.decisao} />
+        <NavegacaoCarteira />
+        <section id="visao-geral" aria-label="Resumo geral" className="mb-4 scroll-mt-24">
+          <FaixaIndicadores dados={dados.indicadores} />
+        </section>
+      </>}
+      {/* receitas e despesas do mês em outras moedas: à parte, nunca somadas aos totais em reais acima */}
+      <ResultadoEmOutrasMoedas porMoeda={dados.mesPorMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
 
       {noInicio && dados.cartoes === null && (
         // card que falhou não pode simplesmente sumir: sem aviso, "Cartões" ausente parece "nenhum cartão"
