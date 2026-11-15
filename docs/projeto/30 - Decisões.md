@@ -824,3 +824,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 15/11/2026 — Contas e histórico do exterior ficam em reais (dono, #359)
+- **Pergunta:** a conta "NOMAD - DOLAR" estava em BRL com 36 lançamentos (R$ 272,50 de saldo) e o dono falou em dólar. O levantamento (só leitura) mostrou um razão **misturado**: despesas "Câmbio" em reais e receitas "Câmbio" em dólar na mesma conta (ex.: R$ 50,00 de despesa e 8,39 de receita com a nota "1 dólar = 5,9563"), royalties e cashback de centavos que só podem ser dólar, e valores grandes sem rótulo.
+- **Decidido (dono):** (1) **as contas ficam em reais** (inclusive NOMAD - DOLAR; a moeda só muda com a conta sem movimento, então recriar em USD foi descartado); (2) **o passado que está em reais fica em reais** (nada é reconvertido nem reescrito); (3) **cripto sempre em reais**; (4) o ativo **"Euro"** do módulo de Investimentos (€ 33,14, com cotação) **fica como está**.
+- **Consequência:** a NOMAD - DOLAR é um razão em reais; os R$ 272,50 são o equivalente em reais. Patrimônio não muda (as demais contas do exterior estão inativas e zeradas). A "Viagem" de R$ 6.258,90 de 01/11/2026 fica como reais.
+- **Limite conhecido:** royalties e cashback em dólar (centavos) ficam sem conversão nesse razão; sem efeito relevante nos totais.
+- **Daqui para frente:** o que for do exterior entra pelo módulo de Investimentos na moeda certa, como o "Euro".
+- **Ainda aberto:** marcar a categoria "Câmbio" como "não conta como consumo" (hoje entra como despesa e receita e distorce o resultado do mês e a taxa de poupança). O dono ainda não respondeu. Antes de decidir, conferir se a marca também a tira do resumo de despesas do mês (a regra de 06/11 vale para taxa de poupança, reserva e renda regular).
+
