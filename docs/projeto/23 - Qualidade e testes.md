@@ -19,4 +19,4 @@ tags: [tudo-azul, testes]
 - `revisor-dinheiro` — revisa PRs atrás de bugs de valor e quebras de regra do banco.
 - `testador-banco` — escreve e roda pgTAP e reproduz bugs.
 - `pesquisador-produto` — pesquisa apps e projetos open source para ideias.
-- `melhorias` — procura e propõe melhorias no PRÓPRIO app (clareza dos números, atrito de uso no celular, iPad em pé e computador, estados de erro, desempenho, testes), com evidência do código ou dos dados do dono; só lê e propõe, nada altera. Dinheiro é encaminhado ao `revisor-dinheiro` e ao `testador-banco`.
+- `melhorias` — procura e propõe melhorias no PRÓPRIO app (clareza dos números, atrito de uso no celular, iPad em pé e computador, estados de erro, desempenho, testes, visual e gráficos), com evidência do código ou dos dados do dono; só lê e propõe, nada altera. Dinheiro é encaminhado ao `revisor-dinheiro` e ao `testador-banco`.
