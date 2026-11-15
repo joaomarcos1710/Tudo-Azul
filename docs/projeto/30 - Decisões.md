@@ -811,3 +811,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Dados do cartão CAIXA (final 8541), fatura aberta 2026-11:** conciliada com os prints do app do banco: 5 compras a mais excluídas, 8 que faltavam lançadas, 4 créditos duplicados ou errados corrigidos e um crédito único de R$ 0,23 para os ajustes de centavos; total R$ 15.105,78 (banco R$ 14.682,81 mais as 4 compras de 13 e 14/11 e o Wellhub de 17/11, lançamento fixo futuro). Feito pelas funções oficiais, numa transação com trava no total.
 - **Deixado como está de propósito:** a regra do Claude no dia 12 (a cobrança real é por volta do dia 3): decisão do dono. Os outros cartões e faturas anteriores não foram conferidos.
 
+## 15/11/2026 — Auditoria da Home: decisões do dono sobre o Dinheiro Livre (dono, #354)
+- **Decidido:** (1) a despesa atrasada de meses anteriores **reduz** o Dinheiro Livre; (2) o horizonte é o **mês corrente e o mês seguinte** (não três); (3) o **Disponível** não muda (corrente, poupança, dinheiro e corretora, menos faturas fechadas; renda fixa, variável e cripto fora); (4) a Home **volta a mostrar o que está em atraso** (caixa "Em atraso" no card do Dinheiro Livre, sem religar a faixa de avisos do topo).
+- **Motivo (da auditoria):** o saldo projetado já descontava o atrasado e o livre não; o livre só olhava o mês, então a fatura aberta que vence no mês seguinte só aparecia depois de fechar.
+- **Receita planejada continua fora do livre** (decisão anterior); o livre fica mais conservador (menor) com o horizonte maior.
+- **Corrigido na documentação:** a carteira de investimentos **soma** no patrimônio desde a migration 099 (as notas antigas diziam o contrário); aporte com conta reduz o Disponível desde a 100.
+- **Ainda pendente do dono:** aporte sem conta de origem (a resposta "sim" foi ambígua entre manter opcional e exigir: segue como está); como corrigir a conta "NOMAD - DOLAR" (cadastrada em BRL, 36 lançamentos, é em dólar; a moeda só muda sem movimento); se XP Ações e XP Fundo Imobiliário (R$ 356,68) estão também dentro dos investimentos.
+

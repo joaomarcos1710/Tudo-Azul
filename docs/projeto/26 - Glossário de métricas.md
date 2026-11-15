@@ -44,8 +44,7 @@ foram lidos e estão marcados como pendentes.
 - **Pendente:** o campo `available` de `net_worth_with_assets` inclui contas inativas? A função `account_balances` não
   foi lida.
 - Bens em USD/EUR e contas em outras moedas não entram no consolidado. Aparecem à parte (`EmOutrasMoedas`).
-- Investimentos aparecem separados, fora do disponível e do patrimônio consolidado (`inv` existe em `home_indicators`
-  mas não entra em `todas + cr + bens − debt`).
+- **Atualizado em 15/11/2026 (auditoria da Home):** os investimentos em reais **entram** no patrimônio (migration 099): `todas + cr + bens + inv − debt` (`net_worth_with_assets` e `home_indicators.net_worth`, mesma fórmula). Continuam **fora do Disponível** (renda fixa, variável e cripto; a corretora entra).
 
 ## Dinheiro Livre (Início) [verificado]
 
@@ -53,25 +52,28 @@ Equação lida em `get_home_decision_month`:
 
 ```
 circulatingBalance = disponível − reservas BRL comprometidas
-moneyFree          = circulatingBalance − compromissos pendentes do mês
+moneyFree          = circulatingBalance − compromissos pendentes (mês corrente + mês seguinte + atrasadas de meses anteriores)
 ```
 
 - **Reservas BRL comprometidas**: soma das alocações de reservas BRL com status `active` ou `completed`.
-- **Compromissos pendentes do mês**: matriz de compromissos do mês em BRL, sem o que já foi pago. Cartão entra só pela
-  parte **ainda não cobrada e não paga** (`card_months`): o que já está cobrado e não pago já saiu do disponível.
+- **Compromissos pendentes** (migration 126, decisão do dono de 15/11/2026): matriz de compromissos do **mês corrente e do mês seguinte** em BRL,
+  sem o que já foi pago, **mais** a despesa planejada **atrasada de meses anteriores** (despesa de conta em reais e parcela planejada de
+  empréstimo/financiamento ativo que não é consignado). O atraso dentro do mês já está na matriz e não conta duas vezes. Receita planejada
+  **não** entra. Cartão entra só pela parte **ainda não cobrada e não paga** (`card_months`): o que já está cobrado e não pago já saiu do
+  disponível, para o mês e para o seguinte. O texto da tela diz o horizonte.
 - **É um saldo, não um fluxo.** Não é "receitas − despesas do mês". Por isso, o que muda o disponível muda o Dinheiro
   Livre na mesma hora.
 - **Diária segura** = `moneyFree / dias restantes` (não negativo).
 
 ### Consequência para aportes [verificado]
 
-- `investment_operation_record` (compra e aporte) **não grava lançamento** (checado no corpo da função em produção).
-  Grava só em `investment_operations`, sem ligação com conta.
-- Logo, **um aporte registrado no módulo de investimentos não reduz o disponível nem o Dinheiro Livre.** O dinheiro sai
-  do banco na vida real, mas o app continua mostrando como livre.
-- O único lançamento de investimento é o **provento** (`investment_distribution_record` grava em `transactions`).
-- Para o aporte reduzir o Dinheiro Livre hoje, é preciso registrar à mão uma transferência ou despesa. Isso é uma decisão
-  de produto e contabilidade pendente do dono. Não há teste automatizado que cubra esse caso.
+- **Texto antigo (antes da migration 100) corrigido em 15/11/2026.** Desde a migration 100, aporte ou resgate **com conta** grava uma
+  **transferência** conta ↔ "Carteira de investimentos" (conta interna, fora de todas as somas): o aporte **reduz o Disponível e o
+  Dinheiro Livre** (o dinheiro sai da conta) e o patrimônio fica igual (sai da conta, entra no ativo). Não é despesa nem receita.
+- **Aporte SEM conta de origem** não grava a transferência: o ativo entra no patrimônio sem sair dinheiro de nenhuma conta. A conta é
+  opcional por decisão do dono (10/11/2026); a resposta do dono de 15/11/2026 ("sim") foi ambígua entre manter opcional e passar a
+  exigir, então **segue como está** até ele esclarecer.
+- O provento continua um lançamento em `transactions` (`investment_distribution_record`).
 
 ## Compromissos futuros
 
@@ -115,6 +117,5 @@ moneyFree          = circulatingBalance − compromissos pendentes do mês
 
 ## Decisão pendente do dono
 
-- **Aporte deve reduzir o Dinheiro Livre?** Hoje não reduz. Se a resposta for sim, a regra é gerar uma saída de conta
-  (transferência para conta de investimento ou lançamento) no ato do aporte. Isso mexe no fluxo de investimentos e
-  precisa de migration e testes antes de implementar.
+- **Aporte sem conta de origem:** manter opcional ou exigir a conta? (O aporte COM conta já reduz o Dinheiro Livre desde a migration 100.)
+  Se passar a exigir, é uma mudança no fluxo de investimentos e precisa de migration e teste antes.
