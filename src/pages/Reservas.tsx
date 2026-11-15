@@ -25,6 +25,8 @@ export default function Reservas() {
   const { familia } = useFamilia()
   const familiaId = familia?.id
   const [reservas, setReservas] = useState<Reserva[]>([])
+  // true depois da primeira carga que deu certo: antes disso uma lista vazia pode ser só uma consulta que falhou, não "nenhuma reserva"
+  const [carregou, setCarregou] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -52,6 +54,7 @@ export default function Reservas() {
     try {
       const lista = await listarReservas(familiaId)
       setReservas(lista)
+      setCarregou(true)
       setReservaId((atual) => lista.some((r) => r.id === atual) ? atual : (lista.find((r) => r.status !== 'archived')?.id ?? ''))
       setErro('')
     } catch (e) {
@@ -156,7 +159,9 @@ export default function Reservas() {
 
       <Card className="mt-4">
         <CardTitle>Registrar aporte ou resgate</CardTitle>
-        {reservas.length === 0
+        {!carregou
+          ? <p role="status" className="text-sm text-slate-500">{erro ? 'Reservas indisponíveis agora; não é que não exista nenhuma. Use Atualizar.' : 'Carregando reservas…'}</p>
+          : reservas.length === 0
           ? <p className="text-sm text-slate-500">Crie uma reserva para começar a organizar seus objetivos.</p>
           : <form onSubmit={salvarMovimento} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className={rotulo}>
@@ -199,6 +204,8 @@ export default function Reservas() {
         </div>
         {carregando
           ? <p role="status" className="text-sm text-slate-500">Carregando reservas…</p>
+          : !carregou
+            ? <p role="status" data-testid="reservas-indisponiveis" className="text-sm text-slate-500">Não foi possível carregar as reservas. Toque em Atualizar para tentar de novo; isso não quer dizer que não exista nenhuma.</p>
           : reservas.length === 0
             ? <EmptyState titulo="Nenhuma reserva criada" descricao="Crie seu primeiro envelope para separar o dinheiro destinado a um objetivo." />
             : <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
