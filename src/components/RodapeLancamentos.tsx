@@ -51,7 +51,7 @@ export function RodapeLancamentos({ realizado, previsto, aviso, acao }: {
 }
 
 function Linha({ totais, rotulos, titulo }: { totais: TotaisCaixa | undefined; rotulos: [string, string, string]; titulo?: string }) {
-  const valor = 'tabular-nums text-base font-semibold whitespace-nowrap sm:text-lg'
+  const valor = 'tabular-nums text-sm font-semibold whitespace-nowrap sm:text-lg'
   return (
     <dl className="grid grid-cols-3 gap-2 py-1 text-center" aria-label={titulo}>
       <div className="flex min-w-0 flex-col-reverse">

@@ -953,6 +953,17 @@ describe('Recorrentes: card "Parcelas & carnês" (Saídas)', () => {
     expect(screen.getByRole('tab', { name: 'Parcelas', selected: true })).toBeTruthy()
   })
 
+  it('o valor de "Faltam…" e os exemplos quebram linha em vez de virar "…" (celular de 390 px)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([luz])
+    mock.resumoParcelasDoMes.mockResolvedValue([brl])
+    montar()
+    const card = await screen.findByTestId('card-parcelas-BRL')
+    const falta = within(card).getByTestId('parcelas-falta-BRL')
+    expect(falta.className).not.toContain('truncate')
+    expect(falta.className).toContain('break-words')
+    expect(within(card).getByText('Notebook, Sofá, Curso').className).not.toContain('truncate')
+  })
+
   it('tudo pago e sem parcela no mês têm texto próprio; o card não filtra a lista (não é natureza)', async () => {
     mock.listarRecorrencias.mockResolvedValue([luz])
     mock.resumoParcelasDoMes.mockResolvedValue([{ ...brl, faltaMes: c(0), pagoMes: c(43333) }])
