@@ -1,7 +1,7 @@
 -- 111_card_purchase_date: corrigir a data da compra de uma compra de cartão já lançada (public.card_purchase_set_date,
 -- migration 20261113100000). Muda só purchase_date de TODAS as parcelas da compra; a fatura de cada parcela não muda
 -- (due_date, closing_day, due_day iguais); card_months, saldo e resumo do período iguais antes e depois; vale também para
--- parcela já cobrada e de fatura paga e travada; assinatura de cartão é recusada; outra família, anônimo e data inválida
+-- parcela já cobrada e de fatura paga e travada; assinatura de cartão também vale (migration 124); outra família, anônimo e data inválida
 -- são recusados. O gatilho de imutabilidade continua barrando qualquer outra mudança (a marca só libera purchase_date).
 -- Sem a migration este arquivo falha nas asserções (a função é chamada por SQL dinâmico), sem abortar.
 begin;
@@ -117,10 +117,17 @@ select is(pg_temp.mudar('a', pg_temp.nt('px'), date '1999-12-31'), 'erro 22023',
 select is(pg_temp.mudar('a', 'plano-que-nao-existe', date '2026-08-03'), 'erro 55000', 'D18 compra inexistente: 55000');
 select is(pg_temp.mudar('a', null, date '2026-08-03'), 'erro 55000', 'D19 compra nula: 55000');
 select is(pg_temp.mudar('loan', pg_temp.nt('px'), date '2026-08-03'), 'erro 22023', 'D20 dívida que não é cartão: 22023');
-select is(pg_temp.mudar('s', (select plan from public.debt_installments where debt_id = pg_temp.fx('s') and recurrence_id = pg_temp.fx('r') limit 1), pg_temp.hoje()),
-          'erro 55000', 'D21 assinatura de cartão (parcela com recurrence_id): recusada (55000)');
-select is((select purchase_date::text from public.debt_installments where debt_id = pg_temp.fx('s') and recurrence_id = pg_temp.fx('r') limit 1), pg_temp.hoje()::text,
-          'D22 e a data da assinatura continua a da cobrança');
+-- Assinatura de cartão (migration 124): a data da cobrança já lançada pode ser corrigida; a ocorrência (chave da geração) não muda
+select is(pg_temp.mudar('s', (select plan from public.debt_installments where debt_id = pg_temp.fx('s') and recurrence_id = pg_temp.fx('r') limit 1), pg_temp.hoje() - 2),
+          '1', 'D21 assinatura de cartão: a data da cobrança pode ser corrigida (1 parcela)');
+select is((select purchase_date::text from public.debt_installments where debt_id = pg_temp.fx('s') and recurrence_id = pg_temp.fx('r') limit 1), (pg_temp.hoje() - 2)::text,
+          'D22 e a data da assinatura passa a ser a corrigida');
+select is((select occurrence_date::text from public.debt_installments where debt_id = pg_temp.fx('s') and recurrence_id = pg_temp.fx('r') limit 1), pg_temp.hoje()::text,
+          'D22b a ocorrência (chave da geração) continua a original');
+select public.recurrence_materialize();
+select public.card_scheduled_sync();
+select is((select count(*)::int from public.debt_installments where debt_id = pg_temp.fx('s') and recurrence_id = pg_temp.fx('r')), 1,
+          'D22c gerar de novo depois da correção não duplica a cobrança');
 
 -- ---- o gatilho de imutabilidade continua barrando o resto ----
 -- Estas quatro rodam como superusuário (reset role): o usuário logado nem tem UPDATE na tabela, e o 42501 de permissão
