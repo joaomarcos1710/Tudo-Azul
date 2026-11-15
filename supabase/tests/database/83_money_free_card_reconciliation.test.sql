@@ -107,15 +107,18 @@ select is(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
-  0::numeric,
+  45.02::numeric,
   'C10 fatura já descontada da tesouraria não volta a ser deduzida'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
-  909.97::numeric,
+  864.95::numeric,
   'C11 Dinheiro Livre não duplica cobrança, crédito nem pagamento parcial'
 );
+-- Migration 126 (decisão do dono, 15/11/2026): o Dinheiro Livre considera também o mês seguinte. A fatura do próximo ciclo (compra de 50,03
+-- menos o crédito de 5,01 = 45,02) ainda não foi cobrada e vence no mês seguinte: entra como compromisso (plannedOutflows = 45,02) e o livre
+-- cai 45,02. A fatura já cobrada continua abatida uma vez só (a tesouraria já a descontou).
 -- Estorno do crédito: aumenta a dívida cobrada, mas não cria novo compromisso pendente.
 select public.debt_void(pg_temp.fx('credit_event'), 'Teste de estorno do crédito');
 select is(
@@ -127,13 +130,13 @@ select is(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
-  0::numeric,
+  45.02::numeric,
   'C14 estornar crédito não duplica a parcela já descontada'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
-  899.95::numeric,
+  854.93::numeric,
   'C15 Dinheiro Livre acompanha o estorno do crédito uma única vez'
 );
 
@@ -148,13 +151,13 @@ select is(
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'plannedOutflows')::numeric,
-  0::numeric,
+  45.02::numeric,
   'C17 estorno do pagamento não recria compromisso já refletido na tesouraria'
 );
 select is(
   (public.get_home_decision_month(pg_temp.fx('household'),
     date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
-  899.95::numeric,
+  854.93::numeric,
   'C18 estornar pagamento não provoca dupla contagem'
 );
 
@@ -179,7 +182,7 @@ select is((select count(*)::integer from public.reserve_overview(pg_temp.fx('hou
   'R2 histórico retorna os dois movimentos recentes');
 select is((public.get_home_decision_month(pg_temp.fx('household'),
   date_trunc('month', pg_temp.hoje()::timestamp)::date)->>'moneyFree')::numeric,
-  824.93::numeric,
+  779.91::numeric,
   'R20 reserva virtual reduz o Dinheiro Livre uma única vez');
 select ok(not (select prosecdef from pg_proc where oid='private.card_months_as_of(uuid,date)'::regprocedure),
   'C19 card_months_as_of permanece SECURITY INVOKER');

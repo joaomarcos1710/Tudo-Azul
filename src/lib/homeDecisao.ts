@@ -14,6 +14,14 @@ export interface CompromissoDecisao {
   valor: Cents
 }
 
+/** Atraso do banco (home_alerts via `risks`): contas a pagar ou a receber já vencidas. Só avisa; quem calcula é o banco. */
+export interface AtrasoDecisao {
+  tipo: 'pagar' | 'receber'
+  quantidade: number
+  total: Cents
+  primeiraData: string
+}
+
 export interface ProjecaoDecisao {
   diasNoMes: number
   diasDecorridos: number
@@ -43,6 +51,8 @@ export interface HomeDecisao {
   saidasPlanejadas: Cents
   projecao: ProjecaoDecisao
   compromissos: CompromissoDecisao[]
+  /** Contas já vencidas e não pagas (a pagar) ou não recebidas (a receber); vazio = nada em atraso. */
+  atrasos: AtrasoDecisao[]
   /**
    * Os indicadores que a função já calculou por dentro (public.home_indicators na data de corte), para o Início
    * não pedir a mesma conta duas vezes; null = não veio ou veio ilegível (o Início pede à parte).
@@ -90,6 +100,7 @@ export async function carregarHomeDecisao(familiaId: string, mes: string): Promi
   const r = data as Registro
   const p = (r.projection && typeof r.projection === 'object' ? r.projection : {}) as Registro
   const compromissos = Array.isArray(r.upcoming_commitments) ? r.upcoming_commitments : []
+  const riscos = Array.isArray(r.risks) ? r.risks : []
 
   return {
     inicioMes: texto(r.monthStart),
@@ -117,6 +128,11 @@ export async function carregarHomeDecisao(familiaId: string, mes: string): Promi
       extraRitmo: dinheiro(p.paceExtra),
       projetado: dinheiro(p.projected),
     },
+    atrasos: riscos.flatMap((item): AtrasoDecisao[] => {
+      const i = item as Registro
+      const tipo = i.kind === 'overdue_payable' ? 'pagar' : i.kind === 'overdue_receivable' ? 'receber' : null
+      return tipo ? [{ tipo, quantidade: numero(i.count), total: dinheiro(i.total), primeiraData: texto(i.firstDate) }] : []
+    }),
     tesouraria: tesouraria(r.treasury),
     compromissos: compromissos.map((item) => {
       const i = item as Registro

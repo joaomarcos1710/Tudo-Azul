@@ -57,6 +57,22 @@ describe('carregarHomeDecisao', () => {
     expect(d.tesouraria?.fonteRenda).toBe('recorrente')
   })
 
+  it('mapeia os atrasos do banco (risks): a pagar e a receber em centavos; outros avisos e ausência viram vazio', async () => {
+    fake.e.response = { data: { ...PAYLOAD, risks: [
+      { kind: 'overdue_payable', count: 2, total: '300.00', firstDate: '2026-10-05' },
+      { kind: 'overdue_receivable', count: 1, total: 150, firstDate: '2026-11-01' },
+      { kind: 'payable', count: 3, total: '99.00', firstDate: '2026-11-20' },
+      { kind: 'invoice', count: 1, total: '40.00', firstDate: '2026-11-22' },
+    ] }, error: null }
+    const d = await carregarHomeDecisao('h1', '2026-11')
+    expect(d.atrasos).toEqual([
+      { tipo: 'pagar', quantidade: 2, total: 30000, primeiraData: '2026-10-05' },
+      { tipo: 'receber', quantidade: 1, total: 15000, primeiraData: '2026-11-01' },
+    ])
+    fake.e.response = { data: { ...PAYLOAD }, error: null }
+    expect((await carregarHomeDecisao('h1', '2026-11')).atrasos).toEqual([])
+  })
+
   it('sem treasury, ou com treasury ilegível, tesouraria é null (o Início pede os indicadores à parte) e a decisão segue', async () => {
     expect((await carregarHomeDecisao('h1', '2026-11')).tesouraria).toBeNull()
     fake.e.response = { data: { ...PAYLOAD, treasury: { available: 'abc' } }, error: null }

@@ -164,13 +164,27 @@ function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-500">Dinheiro Livre</p>
           <p className={"mt-1 tabular-nums text-3xl font-bold " + corDoValor(dados.dinheiroLivre)}>{formatBRL(dados.dinheiroLivre)}</p>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500">Saldo disponível após reservas e compromissos futuros, com cartões conciliados pelo valor efetivamente cobrado.</p>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">Saldo disponível após reservas e compromissos do mês e do mês seguinte (inclui despesas atrasadas de meses anteriores), com cartões conciliados pelo valor efetivamente cobrado.</p>
         </div>
         <div className="rounded-xl bg-azul-claro px-4 py-3">
           <p className="text-xs font-semibold text-slate-600">Limite diário seguro</p>
           <p className="mt-1 tabular-nums text-xl font-bold text-azul">{formatBRL(dados.limiteDiarioSeguro)}</p>
         </div>
       </div>
+      {(dados.atrasos ?? []).length > 0 && (
+        <div role="status" data-testid="atrasos-da-home" className="mt-4 rounded-lg bg-negativo-fundo px-4 py-3 text-sm text-negativo">
+          <p className="font-semibold">Em atraso</p>
+          <ul className="mt-1 space-y-0.5">
+            {(dados.atrasos ?? []).map((a) => (
+              <li key={a.tipo}>
+                {a.quantidade} {a.tipo === 'pagar' ? (a.quantidade === 1 ? 'conta a pagar' : 'contas a pagar') : (a.quantidade === 1 ? 'valor a receber' : 'valores a receber')}
+                {' '}({formatBRL(a.total)}), a mais antiga de {formatDate(a.primeiraData)}.
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 text-xs">As contas a pagar atrasadas de meses anteriores já reduzem o Dinheiro Livre. <Link to="/lancamentos" className="font-semibold underline">Ver em Lançamentos</Link></p>
+        </div>
+      )}
       <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-3">
         <div><p className="text-xs text-slate-500">Saldo disponível</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.dinheiroDisponivel)}</p></div>
         <div><p className="text-xs text-slate-500">Envelopes comprometidos</p><p className="tabular-nums font-semibold text-marinho">{formatBRL(dados.reservasComprometidas)}</p></div>
@@ -568,8 +582,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {!p && <p className="mb-2 text-sm text-slate-500" role="status">Patrimônio indisponível agora.</p>}
       {p && (
         <p className="mb-2 text-xs text-slate-500">
-          Patrimônio = disponível {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens em BRL {formatBRL(p.bens)} − dívida {formatBRL(p.divida)}.
-          Bens em USD/EUR e contas em outras moedas ainda não entram no consolidado. Investimentos são exibidos separadamente até a integração com o caixa.
+          Patrimônio = contas {formatBRL(p.disponivel)} + crédito a receber {formatBRL(p.creditoAReceber)} + bens em BRL {formatBRL(p.bens)}
+          {p.investimentos != null && <> + investimentos {formatBRL(p.investimentos)}</>} − dívida {formatBRL(p.divida)}.
+          Bens em USD/EUR e contas em outras moedas ainda não entram no consolidado.
+          {p.investimentos == null && ' Investimentos são exibidos separadamente até o banco somar a carteira.'}
         </p>
       )}
       {p && <EmOutrasMoedas porMoeda={dados.porMoeda} className="mb-4" />}

@@ -318,6 +318,20 @@ describe('Visão geral', () => {
     expect(screen.queryByText(/Saldo em USD/)).toBeNull()
     expect(screen.queryByText('Saldo de investimentos')).toBeNull()
   })
+  it('a frase do patrimônio inclui os investimentos quando o banco os soma (auditoria da Home, 15/11/2026)', async () => {
+    mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(93314), creditoAReceber: c(0), divida: c(41757106), bens: c(42000000), patrimonio: c(20158115), compromissos: c(0), investimentos: c(19821907) })
+    montar('analises')
+    const frase = await screen.findByText(/Patrimônio = contas/)
+    expect(frase.textContent).toMatch(/\+ investimentos R\$\s198\.219,07 − dívida/)
+    expect(frase.textContent).not.toMatch(/exibidos separadamente/)
+    recarregarPagina()
+    // banco na regra antiga (sem investimentos): a frase não inventa a soma e avisa que a carteira fica à parte
+    mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(93314), creditoAReceber: c(0), divida: c(41757106), bens: c(42000000), patrimonio: c(20158115), compromissos: c(0) })
+    montar('analises')
+    const antiga = await screen.findByText(/Patrimônio = contas/)
+    expect(antiga.textContent).not.toMatch(/\+ investimentos/)
+    expect(antiga.textContent).toMatch(/exibidos separadamente/)
+  })
   it('resumo do mês (Análises): receitas e despesas do banco', async () => {
     montar('analises')
     expect(await screen.findByText('+R$ 12.150,00')).toBeTruthy()
@@ -634,6 +648,25 @@ describe('Visão geral', () => {
     expect(within(card).getByRole('link', { name: 'Ver todas as contas' })).toBeTruthy()
   })
 
+  it('Início mostra o que está em atraso, vindo do banco (decisão do dono, 15/11/2026), sem religar a faixa de avisos do topo', async () => {
+    const decisao = await mock.carregarHomeDecisao()
+    mock.carregarHomeDecisao.mockResolvedValue({ ...decisao, atrasos: [
+      { tipo: 'pagar', quantidade: 2, total: c(30000), primeiraData: '2026-10-05' },
+      { tipo: 'receber', quantidade: 1, total: c(15000), primeiraData: '2026-11-01' },
+    ] })
+    montar()
+    const caixa = await screen.findByTestId('atrasos-da-home')
+    expect(caixa.textContent).toContain('2 contas a pagar (R$ 300,00)')
+    expect(caixa.textContent).toContain('1 valor a receber (R$ 150,00)')
+    expect(within(caixa).getByRole('link', { name: 'Ver em Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
+    expect(screen.queryByRole('region', { name: 'Avisos' })).toBeNull()
+    recarregarPagina()
+    // nada em atraso: a caixa não aparece
+    mock.carregarHomeDecisao.mockResolvedValue({ ...decisao, atrasos: [] })
+    montar()
+    await screen.findByRole('heading', { name: 'Minha Carteira' })
+    expect(screen.queryByTestId('atrasos-da-home')).toBeNull()
+  })
   it('a faixa de avisos do topo saiu do app (pedido do dono, 10/11/2026): nem no Início nem em Análises, mesmo que o banco tenha aviso', async () => {
     // se alguém religar a faixa, ela acharia este aviso e o teste falharia
     mock.avisosDoInicio.mockResolvedValue([{ tipo: 'payable_soon', quantidade: 1, total: c(6000), data: '2026-11-12', cartaoId: null, cartaoNome: null }])
