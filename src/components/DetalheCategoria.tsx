@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Folha } from './ui/Folha'
 import { Aviso } from './ui/Aviso'
@@ -22,12 +22,17 @@ export function DetalheCategoria({ familiaId, categoriaId, nome, mes, de, ate, b
 }) {
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
   const [erro, setErro] = useState('')
+  // só a resposta do último pedido vale: trocar a categoria, o mês ou a base com a folha aberta não pode deixar valor velho
+  const pedido = useRef(0)
   const carregar = useCallback(() => {
+    const meu = ++pedido.current
     setErro('')
     setDetalhe(null)
-    detalheDaCategoria(familiaId, de, ate, categoriaId, base).then(setDetalhe).catch((e) => setErro(mensagemErroBanco(e)))
+    detalheDaCategoria(familiaId, de, ate, categoriaId, base)
+      .then((d) => { if (meu === pedido.current) setDetalhe(d) })
+      .catch((e) => { if (meu === pedido.current) setErro(mensagemErroBanco(e)) })
   }, [familiaId, de, ate, categoriaId, base])
-  useEffect(() => { carregar() }, [carregar])
+  useEffect(() => { carregar(); return () => { pedido.current++ } }, [carregar])
 
   return (
     <Folha titulo={`${nome} em ${formatMonth(mes)}`} aoFechar={aoFechar}>
@@ -39,7 +44,7 @@ export function DetalheCategoria({ familiaId, categoriaId, nome, mes, de, ate, b
           </div>
         )}
         {!erro && detalhe === null && <p className="py-4 text-sm text-slate-600" role="status">Carregando…</p>}
-        {detalhe && detalhe.linhas.length === 0 && <p className="py-4 text-sm text-slate-500">Nada nesta categoria no período.</p>}
+        {detalhe && detalhe.linhas.length === 0 && <p className="py-4 text-sm text-slate-500">Nenhum item com valor nesta categoria no período (se a barra mostra R$ 0,00, a soma é zero).</p>}
         {detalhe && detalhe.linhas.length > 0 && (
           <>
             <p className="mb-2 flex items-baseline justify-between gap-3 text-sm">

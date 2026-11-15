@@ -1434,7 +1434,7 @@ describe('Análises: despesas por categoria em barras (PR #167)', () => {
     const lista = await screen.findByRole('list', { name: /Despesas por categoria/ })
     await userEvent.click(within(lista).getByRole('button', { name: /^Mercado: / }))
     expect(await screen.findByText(/Não foi possível carregar o detalhe/)).toBeTruthy()
-    expect(screen.queryByText(/Nada nesta categoria/)).toBeNull()
+    expect(screen.queryByText(/Nenhum item com valor nesta categoria/)).toBeNull()
     await userEvent.click(within(screen.getByTestId('detalhe-categoria')).getByRole('button', { name: 'Tentar de novo' }))
     expect(await screen.findByTestId('detalhe-total')).toBeTruthy()
   })
