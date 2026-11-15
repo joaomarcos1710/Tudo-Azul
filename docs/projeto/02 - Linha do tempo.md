@@ -345,6 +345,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#353** (15/11/2026): diário: registra a aplicação das migrations 123, 124 e 125 em produção. Sem mudança de código.
 - **#354** (15/11/2026): auditoria de integridade da Home e as decisões do dono: o **Dinheiro Livre passa a considerar a despesa atrasada de meses anteriores e o mês seguinte** (migration 126, `get_home_decision_month`; receita planejada e Disponível não mudam); a Home mostra o que está em atraso; frase do patrimônio e documentação corrigidas (a carteira de investimentos soma desde a 099); e o layout de Investimentos (e o topo de todas as telas) no iPad em pé, que vinha com título e botões sobrepostos e a tabela espremida. Migration 126 **aplicada em 15/11/2026** (execução 43737922324, simulada antes na 43736923399).
 - **#355** (15/11/2026): diário: registra a aplicação da migration 126 em produção. Sem mudança de código.
+- **#356** (15/11/2026): novo agente do projeto `melhorias` (`.claude/agents/melhorias.md`): só lê e propõe melhorias no próprio app, com evidência e três larguras (celular, iPad em pé, computador). Veio de uma especificação externa bem maior, enxugada. Sem mudança de código do app.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

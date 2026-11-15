@@ -818,3 +818,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Corrigido na documentação:** a carteira de investimentos **soma** no patrimônio desde a migration 099 (as notas antigas diziam o contrário); aporte com conta reduz o Disponível desde a 100.
 - **Ainda pendente do dono:** aporte sem conta de origem (a resposta "sim" foi ambígua entre manter opcional e exigir: segue como está); como corrigir a conta "NOMAD - DOLAR" (cadastrada em BRL, 36 lançamentos, é em dólar; a moeda só muda sem movimento); se XP Ações e XP Fundo Imobiliário (R$ 356,68) estão também dentro dos investimentos.
 
+## 15/11/2026 — Agente `melhorias` (dono, #356)
+- **Pedido:** uma especificação externa de um "Agente de Melhorias" (formato de 17 seções, P0 a P3, vários agentes que não existem aqui). O dono autorizou criar a versão enxuta que eu propus.
+- **Decidido:** um agente só (`.claude/agents/melhorias.md`, ~30 linhas), somente leitura, em português, com **evidência obrigatória** (código ou dados do dono lidos em consulta de leitura), **três larguras** (celular, iPad em pé com a barra lateral, computador), erro de consulta que não vira "sem dados", formato curto e o longo só quando mexe em dinheiro, e fim com "o que ficou de fora e o risco" (regra do `CLAUDE.md`).
+- **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
+- **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
+
