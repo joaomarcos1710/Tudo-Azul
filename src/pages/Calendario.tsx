@@ -54,6 +54,8 @@ export default function Calendario() {
   const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
   const [erro, setErro] = useState('')
   const [automaticosFalharam, setAutomaticosFalharam] = useState(false)
+  // consultas de apoio que falharam: sem isto o calendário parecia completo (sem faturas, parcelas ou totais) e não estava
+  const [blocosFalharam, setBlocosFalharam] = useState<string[]>([])
   const pedido = useRef(0)
 
   useEffect(() => {
@@ -63,22 +65,26 @@ export default function Calendario() {
     setItens(null)
     setResumo(null)
     setPorMoeda([])
+    setBlocosFalharam([])
     setErro('')
+    const falhas = new Set<string>()
+    const falhou = <T,>(bloco: string, vazio: T) => (): T => { falhas.add(bloco); return vazio }
     atualizarAutomaticos()
       .then((r) => { if (vivo()) setAutomaticosFalharam(!r.faturasOk || !r.recorrentesOk) })
       .then(() => Promise.all([
         listarLancamentos(familiaId, mes),
         listarMovimentosDeDivida(familiaId, mes),
-        listarContas(familiaId, hoje).catch(() => null),
-        listarCategorias(familiaId).catch(() => null),
-        resumoDoMes(familiaId, mes).catch(() => null),
-        // faturas por vencimento: extra; se a consulta falhar (ex.: banco ainda sem a migration 025) o calendário segue sem elas
-        faturasQueVencem(familiaId, ...limitesDoMes(mes)).catch(() => []),
-        listarParcelasDivida(familiaId, ...limitesDoMes(mes)).catch(() => []),
-        resumoPorMoeda(familiaId, ...limitesDoMes(mes)).catch(() => [] as ResumoPorMoeda[]),
+        listarContas(familiaId, hoje).catch(falhou('nomes das contas', null)),
+        listarCategorias(familiaId).catch(falhou('nomes das categorias', null)),
+        resumoDoMes(familiaId, mes).catch(falhou('totais do mês', null)),
+        // faturas por vencimento e parcelas: se a consulta falhar o calendário segue sem elas, mas AVISA (blocosFalharam)
+        faturasQueVencem(familiaId, ...limitesDoMes(mes)).catch(falhou('faturas', [])),
+        listarParcelasDivida(familiaId, ...limitesDoMes(mes)).catch(falhou('parcelas de dívida', [])),
+        resumoPorMoeda(familiaId, ...limitesDoMes(mes)).catch(falhou('resumo em outras moedas', [] as ResumoPorMoeda[])),
       ]))
       .then(([lancs, movs, contas, cats, res, faturas, parcelasDivida, pm]) => {
         if (!vivo()) return
+        setBlocosFalharam([...falhas])
         // a conta interna da carteira (aporte e resgate) também tem nome nas transferências
         const nomeConta = new Map([...(contas?.contas ?? []), ...(contas?.internas ?? [])].map((c) => [c.id, c.nome]))
         const moedaConta = new Map((contas?.contas ?? []).map((c) => [c.id, c.moeda ?? 'BRL']))
@@ -162,6 +168,12 @@ export default function Calendario() {
   return (
     <>
       <CabecalhoPagina titulo="Calendário" descricao="O que entra e sai das contas a cada dia do mês." />
+
+      {blocosFalharam.length > 0 && (
+        <div className="mb-4" data-testid="calendario-blocos-falharam">
+          <Aviso tipo="erro">Não foi possível carregar: {blocosFalharam.join(', ')}. O calendário pode estar incompleto; troque de mês e volte para tentar de novo.</Aviso>
+        </div>
+      )}
 
       {automaticosFalharam && (
         <div className="mb-4">

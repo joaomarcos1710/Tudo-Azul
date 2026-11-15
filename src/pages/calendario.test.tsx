@@ -15,11 +15,13 @@ const mock = vi.hoisted(() => ({
   atualizarAutomaticos: vi.fn(),
   saldosProjetados: vi.fn(),
   faturasQueVencem: vi.fn(),
+  listarParcelasDivida: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
 vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados, faturasQueVencem: mock.faturasQueVencem }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarParcelasDivida: mock.listarParcelasDivida }))
 vi.mock('../lib/automaticos', () => ({ atualizarAutomaticos: mock.atualizarAutomaticos }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
@@ -43,6 +45,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-10-16T15:00:00Z')) // 12h de 16/10/2026 em São Paulo
   mock.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: true, faturasOk: true })
   mock.faturasQueVencem.mockResolvedValue([])
+  mock.listarParcelasDivida.mockResolvedValue([])
   mock.saldosProjetados.mockResolvedValue({
     contas: [
       { id: 'a1', nome: 'Itaú', ativa: true, efetuado: c(100000), planejado: c(-5000), faturas: c(20000), saldo: c(75000) },
@@ -77,6 +80,23 @@ afterEach(() => {
 })
 
 describe('Calendário', () => {
+  it('consulta de apoio que falha NÃO vira calendário sem faturas, parcelas ou totais: aparece o aviso dizendo o que faltou', async () => {
+    mock.faturasQueVencem.mockRejectedValue(new Error('falhou'))
+    mock.resumoDoMes.mockRejectedValue(new Error('falhou'))
+    montar()
+    const aviso = await screen.findByTestId('calendario-blocos-falharam')
+    expect(aviso.textContent).toContain('faturas')
+    expect(aviso.textContent).toContain('totais do mês')
+    expect(aviso.textContent).not.toContain('parcelas de dívida')
+    expect(screen.queryByLabelText('Totais do mês')).toBeNull()
+  })
+
+  it('tudo carregado: nenhum aviso de bloco que falhou', async () => {
+    montar()
+    await screen.findByText('Outubro de 2026')
+    expect(screen.queryByTestId('calendario-blocos-falharam')).toBeNull()
+  })
+
   it('abre no mês de hoje, com os 31 dias de outubro, hoje marcado e selecionado', async () => {
     montar()
     expect(await screen.findByRole('heading', { name: 'Outubro de 2026' })).toBeTruthy()
