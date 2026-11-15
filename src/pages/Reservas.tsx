@@ -122,9 +122,9 @@ export default function Reservas() {
 
   return (
     <>
-      <CabecalhoPagina titulo="Reservas" descricao="Organize objetivos com envelopes virtuais e acompanhe cada aporte e resgate." />
+      <CabecalhoPagina titulo="Reservas" descricao="Organize objetivos com reservas virtuais e acompanhe cada aporte e resgate." />
       <Aviso tipo="info">
-        As reservas são compromissos virtuais: aportes e resgates não movimentam suas contas bancárias. Reservas em BRL são descontadas do Dinheiro Livre; envelopes em USD e EUR ficam separados por moeda, sem conversão automática. O saldo só volta ao Dinheiro Livre após um resgate explícito.
+        As reservas são compromissos virtuais: aportes e resgates não movimentam suas contas bancárias. Reservas em BRL são descontadas do Dinheiro Livre; reservas em USD e EUR ficam separadas por moeda, sem conversão automática. O saldo só volta ao Dinheiro Livre após um resgate explícito.
       </Aviso>
       {erro && <div className="mt-4"><Aviso tipo="erro">{erro}</Aviso></div>}
 
@@ -197,9 +197,9 @@ export default function Reservas() {
           </form>}
       </Card>
 
-      <section className="mt-6" aria-label="Envelopes da família">
+      <section className="mt-6" aria-label="Reservas da família">
         <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-marinho">Seus envelopes</h2>
+          <h2 className="text-lg font-semibold text-marinho">Suas reservas</h2>
           <Button variante="secundario" compacto onClick={() => void recarregar()} carregando={carregando}>Atualizar</Button>
         </div>
         {carregando
@@ -207,7 +207,7 @@ export default function Reservas() {
           : !carregou
             ? <p role="status" data-testid="reservas-indisponiveis" className="text-sm text-slate-500">Não foi possível carregar as reservas. Toque em Atualizar para tentar de novo; isso não quer dizer que não exista nenhuma.</p>
           : reservas.length === 0
-            ? <EmptyState titulo="Nenhuma reserva criada" descricao="Crie seu primeiro envelope para separar o dinheiro destinado a um objetivo." />
+            ? <EmptyState titulo="Nenhuma reserva criada" descricao="Crie sua primeira reserva para separar o dinheiro destinado a um objetivo." />
             : <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {reservas.map((r) => (
                 <Card key={r.id}>

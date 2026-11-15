@@ -280,4 +280,5 @@ continuam abaixo como histórico.
 | 2026.365 | **Seletor de categoria com hierarquia clara.** Botão fechado com "Principal › Filha", "em Principal" na busca e cabeçalho por principal na grade. Nenhum cálculo muda. |
 | 2026.366 | **Detalhe de uma categoria do gráfico.** Tocar numa barra ou fatia abre o que a compõe (por dia e categoria, com o total do banco, igual à barra). Migration 127. |
 | 2026.367 | **Diário: migration 127 aplicada em produção.** Só notas e versão; o app não muda. |
+| 2026.368 | **"Reservas" em vez de "envelopes".** O card Dinheiro Livre diz "Reservas comprometidas" e a tela Reservas, o menu e a ajuda usam só "reserva". Só texto. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

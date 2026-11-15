@@ -824,6 +824,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 15/11/2026 — O nome é "Reservas", não "envelopes" (dono, #368)
+- **Pergunta (agente `melhorias`, proposta 4):** o mesmo conceito aparecia como "reservas" no texto do card, "Envelopes comprometidos" no rótulo e "Gerenciar reservas" no link.
+- **Decidido (dono):** "Reserva". Trocado o texto visível no Início, na tela Reservas e no menu. Notas antigas do diário que dizem "envelope" ficam como estão (histórico).
+- **Não feito (não foi decidido):** mostrar a conta do Dinheiro Livre com "−" e "=" nas três caixas, e remover a duplicidade entre o "Saldo disponível" do card e o "Disponível" da faixa de indicadores.
+
 ## 15/11/2026 — Clicar na categoria do gráfico mostra o detalhe do banco (dono, #366)
 - **Pergunta:** a barra "Mercado R$ 150" abria Lançamentos sem filtro de categoria. O `revisor-dinheiro` mostrou que um filtro só no front não faz a lista bater com a barra (a barra soma mãe e filhas, põe o cartão no fechamento da fatura e só conta pago em reais; a lista filtra categoria exata, põe o cartão no vencimento e mostra planejados e outras moedas).
 - **Decidido (dono: "B"):** uma função nova no banco devolve os **mesmos itens da barra** por dia e categoria, com o total somado no banco (migration 127); o clique abre uma folha com esse detalhe. Descartado: filtrar no front (valor diferente é bug) e deixar sem link.
