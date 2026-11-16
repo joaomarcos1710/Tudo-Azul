@@ -1425,7 +1425,7 @@ describe('Análises: despesas por categoria em barras (PR #167)', () => {
     { categoriaId: 'g6', nome: 'Educação', valor: c(50000), percentual: 4 },
     { categoriaId: null, nome: 'Demais categorias', valor: c(150000), percentual: 12 },
   ]
-  it('pede ao banco as 6 maiores + "Outros" e desenha barras com nome, valor e % (sem rosca)', async () => {
+  it('pede ao banco as 6 maiores + "Demais categorias" e desenha barras com nome, valor e % (sem rosca)', async () => {
     mock.despesasPorCategoria.mockResolvedValue(sete)
     montar('analises')
     const lista = await screen.findByRole('list', { name: /Despesas por categoria/ })
@@ -1447,7 +1447,7 @@ describe('Análises: despesas por categoria em barras (PR #167)', () => {
     expect(barras[1].style.width).toBe('50%')
     expect(screen.queryByRole('img', { name: /Despesas por categoria:/ })).toBeNull()
   })
-  it('cada barra abre o que compõe a categoria, na base de cartão escolhida; o "Outros" leva à lista do mês', async () => {
+  it('cada barra abre o que compõe a categoria, na base de cartão escolhida; "Demais categorias" leva à lista do mês', async () => {
     mock.despesasPorCategoria.mockResolvedValue(sete)
     montar('analises')
     const lista = await screen.findByRole('list', { name: /Despesas por categoria/ })
