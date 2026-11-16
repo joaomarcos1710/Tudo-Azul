@@ -20,6 +20,8 @@ export function ZerarTudo() {
   const familiaId = familia?.id
   const [previa, setPrevia] = useState<PreviaZerar | null>(null)
   const [baixou, setBaixou] = useState(false)
+  // o navegador não avisa se o arquivo foi salvo (pode ter bloqueado ou a pessoa cancelado): clicar em todos não basta
+  const [conferiu, setConferiu] = useState(false)
   const [frase, setFrase] = useState('')
   const [zerando, setZerando] = useState(false)
   const [erro, setErro] = useState('')
@@ -43,6 +45,7 @@ export function ZerarTudo() {
       setFeito(await zerarTudo(familiaId, frase))
       setFrase('')
       setBaixou(false)
+      setConferiu(false)
       await carregar()
     } catch (err) {
       setErro(mensagemErroBanco(err))
@@ -70,7 +73,7 @@ export function ZerarTudo() {
         </div>
       )}
       {previa === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
-      {vazio && !feito && <p className="text-sm text-slate-600">Não há nada para zerar: a família não tem contas, cartões, lançamentos, investimentos nem bens.</p>}
+      {vazio && !feito && <p className="text-sm text-slate-600">Não há nada para zerar: a família não tem contas, cartões, lançamentos, investimentos, bens nem reservas.</p>}
       {previa !== null && !vazio && (
         <>
           <p className="mb-2 text-sm text-slate-700">
@@ -92,6 +95,9 @@ export function ZerarTudo() {
               {plural(previa.avaliacoesInvestimento, 'avaliação', 'avaliações')} e {plural(previa.proventos, 'provento', 'proventos')}
             </li>
             <li>{plural(previa.bens, 'bem', 'bens')} da família, com {plural(previa.avaliacoesBens, 'avaliação', 'avaliações')}</li>
+            {(previa.reservas > 0 || previa.movimentosReserva > 0) && (
+              <li>{plural(previa.reservas, 'reserva', 'reservas')}, com {plural(previa.movimentosReserva, 'movimento', 'movimentos')} (o que foi guardado e usado em cada uma)</li>
+            )}
           </ul>
           <p className="mb-4 text-sm text-slate-700">
             <strong>Ficam:</strong> a família, os membros, as categorias e as etiquetas de conta (sem contas para marcar). <strong>Não tem volta</strong>: a exportação serve para consulta
@@ -100,10 +106,19 @@ export function ZerarTudo() {
 
           <h3 className="mb-2 text-sm font-semibold text-slate-600">1. Baixe a exportação completa</h3>
           <p className="mb-3 text-sm text-slate-700">
-            <strong>A exportação não inclui</strong> orçamentos, recorrências, lançamentos da lixeira nem eventos anulados:
-            esses você perde de verdade. E <strong>não lance nada entre baixar e zerar</strong>: o que for lançado depois não estará nos arquivos.
+            <strong>A exportação não inclui</strong> reservas, orçamentos, recorrências, lançamentos da lixeira nem eventos anulados:
+            esses você perde de verdade.{previa.reservas > 0 && <> Anote as suas reservas (nome e valor guardado) antes de zerar.</>} E <strong>não lance nada entre baixar e zerar</strong>: o que for lançado depois não estará nos arquivos.
           </p>
-          <ExportacaoCompleta aoMudarBaixados={setBaixou} />
+          <ExportacaoCompleta aoMudarBaixados={(todos) => { setBaixou(todos); if (!todos) setConferiu(false) }} />
+          {baixou && (
+            <label className="mt-3 flex min-h-11 items-start gap-3 text-sm text-slate-700">
+              <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-azul" checked={conferiu} onChange={(e) => setConferiu(e.target.checked)} />
+              <span>
+                Abri a pasta de downloads e <strong>conferi que os arquivos estão salvos</strong>. (O app só sabe que pediu o download;
+                se o navegador bloqueou ou você cancelou, o arquivo não existe.)
+              </span>
+            </label>
+          )}
 
           <h3 className="mb-2 mt-5 text-sm font-semibold text-slate-600">2. Confirme</h3>
           <div className="flex flex-col gap-3 sm:max-w-md">
@@ -111,12 +126,12 @@ export function ZerarTudo() {
               Para confirmar, escreva <strong>{FRASE_ZERAR}</strong>
             </label>
             <input
-              id="frase-zerar" autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={!baixou}
+              id="frase-zerar" autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={!baixou || !conferiu}
               className="min-h-11 rounded-lg border border-slate-500 px-3 disabled:bg-slate-100"
               value={frase} onChange={(e) => setFrase(e.target.value)}
             />
-            {!baixou && <p className="text-xs text-slate-500">Libera depois de baixar os arquivos acima.</p>}
-            <Button variante="perigo" onClick={zerar} carregando={zerando} disabled={!baixou || !fraseCerta || zerando}>Zerar tudo</Button>
+            {(!baixou || !conferiu) && <p className="text-xs text-slate-500">Libera depois de baixar os arquivos acima e conferir que estão salvos.</p>}
+            <Button variante="perigo" onClick={zerar} carregando={zerando} disabled={!baixou || !conferiu || !fraseCerta || zerando}>Zerar tudo</Button>
           </div>
         </>
       )}

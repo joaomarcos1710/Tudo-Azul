@@ -850,3 +850,15 @@ Três commits de 13/11 ficaram numa área de trabalho isolada (`.claude/worktree
 - **Cor da despesa:** seguir cada design aprovado: neutra no cabeçalho do Início (como está) e vermelha na lista de Lançamentos (design "Extrato"). A lista ainda usa cinza: falta aplicar.
 - **Contas de investimento ligadas aos ativos (opção A):** a conta ("XP Ações", "XP Fundo Imobiliário") passa a mostrar o valor dos ativos ligados a ela, em vez de um saldo digitado, contado uma vez só no patrimônio. Precisa de migration nova (hoje conta e ativo não têm vínculo). Plano em desenho.
 - **Cripto:** o dono quer. Primeiro passo: teste de rede da consulta em reais.
+
+## 16/11/2026 — Revisão externa do Tudo Azul (6 revisores, commit c465dc6, só leitura)
+Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistente antes de corrigir; os demais estão como a revisão descreve e precisam ser conferidos antes de mexer.
+- [x] **Alta — Zerar tudo apagava reservas sem mostrá-las nem exportá-las.** Conferido e corrigido: prévia, total e lista mostram as reservas; o aviso diz que a exportação não as inclui.
+- [x] **Média — clicar em "baixar" contava como backup feito.** Corrigido: a frase só libera depois de marcar "conferi que os arquivos estão salvos".
+- [ ] Incluir as reservas na exportação completa (hoje só o aviso).
+- [ ] **Média — convite aceito sem e-mail confirmado** (`accept_invitation` não olha `email_confirmed_at`). Condicional à configuração do Auth hospedado, não verificada. Exigir no banco, com teste.
+- [ ] **Média — itens agendados de cartão** (`card_scheduled_items`): `recurrence_id` e `installment_id` sem a família na chave estrangeira. Sem caminho de exploração hoje; migration com chaves compostas e teste de outra família.
+- [ ] **Média — menu do celular** anuncia diálogo modal mas não prende o foco do Tab (`AppShell.tsx`).
+- [ ] **Média — teste de integração** confere que a API é local, mas não o `SUPABASE_DB_URL` (`tests/integration/helpers.ts`).
+- [ ] **Baixa:** recorrência que começa além de hoje + 800 dias fica sem "próxima data"; teste de concorrência de reservas com `sleep` em vez de barreira; `scripts/local-db/run-tests.sh` apaga qualquer banco indicado em `TUDO_AZUL_TEST_DB`; `Bens.tsx` calcula a parte familiar com `Math.round` em ponto flutuante (1 centavo de diferença em caso de borda; fere a regra "o front não calcula dinheiro").
+- [ ] Também citados: Edge Function `delete-account` sem teste; `APP_ORIGIN` ausente libera CORS para qualquer origem (configuração de produção não verificada); "lint" é só typecheck; Dependabot não cobre npm.

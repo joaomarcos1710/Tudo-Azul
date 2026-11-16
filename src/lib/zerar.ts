@@ -21,6 +21,9 @@ export interface PreviaZerar {
   proventos: number
   bens: number
   avaliacoesBens: number
+  /** Reservas e os movimentos delas (migration 20261109060000): o banco também as apaga. */
+  reservas: number
+  movimentosReserva: number
 }
 
 function cliente() {
@@ -38,6 +41,9 @@ function paraPrevia(c: Contagens): PreviaZerar {
     agendaContrato: n(c, 'schedule'), ativosInvestimento: n(c, 'investment_assets'), operacoesInvestimento: n(c, 'investment_operations'),
     avaliacoesInvestimento: n(c, 'investment_valuations'), proventos: n(c, 'investment_distributions'), bens: n(c, 'family_assets'),
     avaliacoesBens: n(c, 'family_asset_valuations'),
+    // o banco apaga as reservas desde a migration 20261109060000 e já devolvia as contagens, mas a tela não as lia: a prévia
+    // não as mostrava e uma família só com reservas via "nada para zerar"
+    reservas: n(c, 'reserves'), movimentosReserva: n(c, 'reserve_allocations'),
   }
 }
 
@@ -45,6 +51,7 @@ function paraPrevia(c: Contagens): PreviaZerar {
 export function totalDaPrevia(p: PreviaZerar): number {
   return p.lancamentos + p.contas + p.cartoesEDividas + p.parcelas + p.eventos + p.recorrencias + p.conciliacoes + p.orcamentos
     + p.agendaContrato + p.ativosInvestimento + p.operacoesInvestimento + p.avaliacoesInvestimento + p.proventos + p.bens + p.avaliacoesBens
+    + p.reservas + p.movimentosReserva
 }
 
 export async function previaZerar(familiaId: string): Promise<PreviaZerar> {

@@ -24,6 +24,13 @@ describe('zerar: contagens da prévia e do reset (migration 054)', () => {
     expect(totalDaPrevia(p)).toBe(11)
   })
 
+  it('lê as reservas e os movimentos delas (o banco os apaga) e os soma no total: família só com reservas tem o que zerar', async () => {
+    rpc.mockResolvedValue({ data: { transactions: 0, accounts: 0, reserves: 2, reserve_allocations: 5 }, error: null })
+    const p = await previaZerar('h1')
+    expect([p.reservas, p.movimentosReserva]).toEqual([2, 5])
+    expect(totalDaPrevia(p)).toBe(7)
+  })
+
   it('banco ainda sem a migration 054 (chaves ausentes): as novas contam 0, sem quebrar', async () => {
     rpc.mockResolvedValue({ data: { transactions: 2, accounts: 1 }, error: null })
     const p = await zerarTudo('h1', 'zerar tudo')

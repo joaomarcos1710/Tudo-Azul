@@ -52,6 +52,7 @@ export function ExportacaoCompleta({ aoMudarBaixados }: { aoMudarBaixados?: (tod
         <div className="mt-4">
           <p className="mb-2 text-sm font-medium text-slate-700" role="status">
             Pronta. Baixe os {arquivos.length} arquivos ({baixados.size} de {arquivos.length} baixados):
+            <span className="block text-xs font-normal text-slate-500">"Baixado" quer dizer que o app pediu o download; confira na pasta de downloads que cada arquivo foi salvo.</span>
           </p>
           <ul className="flex flex-col gap-2">
             {arquivos.map((a) => (

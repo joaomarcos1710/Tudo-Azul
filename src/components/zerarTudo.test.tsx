@@ -23,10 +23,12 @@ import { ZerarTudo } from './ZerarTudo'
 const previa = {
   lancamentos: 12, contas: 2, cartoesEDividas: 1, parcelas: 3, eventos: 4, recorrencias: 1, conciliacoes: 0, orcamentos: 0,
   agendaContrato: 6, ativosInvestimento: 2, operacoesInvestimento: 5, avaliacoesInvestimento: 1, proventos: 3, bens: 1, avaliacoesBens: 2,
+  reservas: 0, movimentosReserva: 0,
 }
 const nada = Object.fromEntries(Object.keys(previa).map((k) => [k, 0]))
 const montar = () => render(<MemoryRouter><ZerarTudo /></MemoryRouter>)
 const arquivos = [1, 2].map((n) => ({ nome: `arq-${n}.csv`, conteudo: 'x', linhas: n }))
+const conferir = /conferi que os arquivos estão salvos/
 
 beforeEach(() => {
   mock.previaZerar.mockResolvedValue(previa)
@@ -73,6 +75,10 @@ describe('Zerar tudo', () => {
     await u.click(await screen.findByRole('button', { name: 'Baixar arq-1.csv' }))
     expect(campo.disabled).toBe(true) // falta um arquivo
     await u.click(screen.getByRole('button', { name: 'Baixar arq-2.csv' }))
+    // clicar em todos não prova que os arquivos foram salvos (o navegador pode bloquear ou a pessoa cancelar):
+    // a frase só libera depois de a pessoa dizer que conferiu
+    expect(campo.disabled).toBe(true)
+    await u.click(screen.getByRole('checkbox', { name: conferir }))
     expect(campo.disabled).toBe(false)
 
     await u.type(campo, 'zerar')
@@ -92,10 +98,15 @@ describe('Zerar tudo', () => {
     await u.click(screen.getByRole('button', { name: 'Preparar exportação completa' }))
     await u.click(await screen.findByRole('button', { name: 'Baixar arq-1.csv' }))
     await u.click(screen.getByRole('button', { name: 'Baixar arq-2.csv' }))
+    await u.click(screen.getByRole('checkbox', { name: conferir }))
     expect((screen.getByLabelText(/Para confirmar, escreva/) as HTMLInputElement).disabled).toBe(false)
     await u.click(screen.getByRole('button', { name: 'Preparar exportação completa' }))
     await screen.findByRole('button', { name: 'Baixar arq-1.csv' })
     expect((screen.getByLabelText(/Para confirmar, escreva/) as HTMLInputElement).disabled).toBe(true)
+    // a confirmação de que conferiu também volta a valer zero: é de outra exportação
+    await u.click(screen.getByRole('button', { name: 'Baixar arq-1.csv' }))
+    await u.click(screen.getByRole('button', { name: 'Baixar arq-2.csv' }))
+    expect((screen.getByRole('checkbox', { name: conferir }) as HTMLInputElement).checked).toBe(false)
   })
 
   it('avisa o que a exportação NÃO inclui, para ninguém achar que tem backup de tudo', async () => {
@@ -112,6 +123,7 @@ describe('Zerar tudo', () => {
     await u.click(screen.getByRole('button', { name: 'Preparar exportação completa' }))
     await u.click(await screen.findByRole('button', { name: 'Baixar arq-1.csv' }))
     await u.click(screen.getByRole('button', { name: 'Baixar arq-2.csv' }))
+    await u.click(screen.getByRole('checkbox', { name: conferir }))
     await u.type(screen.getByLabelText(/Para confirmar, escreva/), 'ZERAR TUDO')
     await u.click(screen.getByRole('button', { name: 'Zerar tudo' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
@@ -124,6 +136,21 @@ describe('Zerar tudo', () => {
     expect(await screen.findByText(/1 bem da família, com 1 avaliação/)).toBeTruthy()
     expect(screen.queryByText(/Não há nada para zerar/)).toBeNull()
     expect(screen.getByRole('button', { name: 'Zerar tudo' })).toBeTruthy()
+  })
+
+  it('família só com reservas tem o que zerar: a prévia mostra as reservas, e o aviso diz que elas não vão para a exportação', async () => {
+    mock.previaZerar.mockResolvedValue({ ...nada, reservas: 2, movimentosReserva: 5 })
+    montar()
+    expect(await screen.findByText(/2 reservas, com 5 movimentos/)).toBeTruthy()
+    expect(screen.queryByText(/Não há nada para zerar/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Zerar tudo' })).toBeTruthy()
+    expect(screen.getByText(/A exportação não inclui/).closest('p')!.textContent).toMatch(/não inclui reservas,.*Anote as suas reservas/)
+  })
+
+  it('sem reservas, a linha delas não aparece', async () => {
+    montar()
+    await screen.findByText(/12 lançamentos/)
+    expect(screen.queryByText(/reservas?, com/)).toBeNull()
   })
 
   it('sem nada para zerar, não oferece o botão', async () => {
