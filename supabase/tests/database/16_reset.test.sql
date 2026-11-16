@@ -24,10 +24,11 @@ create function pg_temp.sobra(p_h uuid) returns bigint language sql as $f$
        + (public.reset_preview(p_h) ->> 'reconciliations')::bigint + (public.reset_preview(p_h) ->> 'budgets')::bigint $f$;
 grant execute on function pg_temp.fx(text), pg_temp.login(uuid), pg_temp.sqlstate_of(text), pg_temp.sobra(uuid) to public;
 
-insert into auth.users (id, email) values
-  ('00000000-0000-0000-0000-0000000016a1', 'z1@teste.com'),
-  ('00000000-0000-0000-0000-0000000016a2', 'z2@teste.com'),
-  ('00000000-0000-0000-0000-0000000016a3', 'z3@teste.com');
+-- e-mail confirmado: aceitar convite exige isso desde a migration 129
+insert into auth.users (id, email, email_confirmed_at) values
+  ('00000000-0000-0000-0000-0000000016a1', 'z1@teste.com', now()),
+  ('00000000-0000-0000-0000-0000000016a2', 'z2@teste.com', now()),
+  ('00000000-0000-0000-0000-0000000016a3', 'z3@teste.com', now());
 
 -- ---- família H1: z1 dono, z2 membro; família H2: z3 dono ----
 select pg_temp.login('00000000-0000-0000-0000-0000000016a1');

@@ -10,8 +10,9 @@ grant all on fixture to public;
 create function pg_temp.fx(p_k text) returns uuid language sql as $f$ select v from fixture where k = p_k $f$;
 create function pg_temp.fxt(p_k text) returns text language sql as $f$ select t from fixture where k = p_k $f$;
 create function pg_temp.mkuser(p_id uuid, p_email text, p_name text default null) returns void language sql as $f$
-  insert into auth.users (id, email, raw_user_meta_data)
-  values (p_id, p_email, case when p_name is null then '{}'::jsonb else jsonb_build_object('name', p_name) end)
+  -- e-mail confirmado, como uma conta de verdade: aceitar convite exige isso desde a migration 129
+  insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at)
+  values (p_id, p_email, case when p_name is null then '{}'::jsonb else jsonb_build_object('name', p_name) end, now())
 $f$;
 -- Troca para um papel REAL (authenticated/anon). Sem isso a RLS não é exercitada.
 create function pg_temp.login(p_uid uuid) returns void language plpgsql as $f$

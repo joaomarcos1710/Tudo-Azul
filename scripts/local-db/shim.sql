@@ -24,6 +24,8 @@ create table auth.users (
   id                 uuid primary key,
   email              text,
   raw_user_meta_data jsonb default '{}'::jsonb,
+  -- existe no Supabase de verdade; aceitar convite exige e-mail confirmado (migration 129)
+  email_confirmed_at timestamptz,
   created_at         timestamptz default now()
 );
 
