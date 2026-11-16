@@ -28,7 +28,8 @@ import { corDoValor } from '../lib/cores'
  * Compra no cartão não aparece no dia da compra: entra na fatura, e o pagamento da fatura aparece no dia em que sai da conta.
  */
 
-type Sentido = 'entrada' | 'saida' | 'transferencia'
+// 'folha': parcela de consignado, descontada no salário (que entra líquido): aparece, mas não sai da conta nem entra nos totais
+type Sentido = 'entrada' | 'saida' | 'transferencia' | 'folha'
 
 interface ItemDoDia {
   id: string
@@ -154,7 +155,8 @@ export default function Calendario() {
                   : 'pagamento manual',
             valor: p.valor,
             moeda: 'BRL',
-            sentido: 'saida',
+            // consignado: o salário já entra líquido, então a parcela não sai da conta (mesma regra do banco, migration 131)
+            sentido: p.formaPagamento === 'payroll' ? 'folha' : 'saida',
             planejado: true,
             faturaOuParcela: true,
           })),
@@ -366,8 +368,8 @@ export default function Calendario() {
                           {x.detalhe && <span className="block truncate text-xs text-slate-500">{x.detalhe}</span>}
                         </span>
                         <span className="shrink-0 text-right">
-                          <span className={`block tabular-nums font-semibold ${x.sentido === 'entrada' ? 'text-lucro' : x.sentido === 'saida' ? 'text-prejuizo' : 'text-transferencia'}`}>
-                            {x.sentido === 'entrada' ? '+' : x.sentido === 'saida' ? '−' : '⇄ '}{formatMoeda(x.valor, x.moeda)}
+                          <span className={`block tabular-nums font-semibold ${x.sentido === 'entrada' ? 'text-lucro' : x.sentido === 'saida' ? 'text-prejuizo' : x.sentido === 'folha' ? 'text-slate-500' : 'text-transferencia'}`}>
+                            {x.sentido === 'entrada' ? '+' : x.sentido === 'saida' ? '−' : x.sentido === 'folha' ? '' : '⇄ '}{formatMoeda(x.valor, x.moeda)}
                           </span>
                           {(() => {
                             const s = situacaoDoLancamento(!x.planejado, x.data, hoje)
@@ -379,6 +381,11 @@ export default function Calendario() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {doDia.some((x) => x.sentido === 'folha') && (
+                  <p className="mt-2 text-xs text-slate-500" data-testid="dia-consignado">
+                    Consignado é descontado no salário, que já entra líquido: não sai da conta e não entra nas saídas do dia.
+                  </p>
                 )}
                 {doDia.some((x) => x.moeda !== 'BRL') && (
                   <p className="mt-2 text-xs text-slate-500" data-testid="dia-outras-moedas">

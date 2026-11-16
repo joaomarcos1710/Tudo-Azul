@@ -131,6 +131,12 @@ select public.debt_pay(pg_temp.fx('card'), '2026-10-24', pg_temp.fx('brl'), 200.
 select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-24', '2026-10-25'), array['2026-10-24|BRL|0.00|200.00|200.00'],
           'X6 fatura quitada: 25/10 some; o pagamento aparece no dia 24');
 
+-- consignado (desconto em folha) com parcela em 16/10: não sai da conta (o salário entra líquido), não aparece (migration 131)
+insert into fixture select 'folha', public.create_debt('Consignado', 'loan', '2026-09-01', 300);
+select public.debt_contract_set(pg_temp.fx('folha'), 'Banco folha', null, 3, 3, 100, 16, 'payroll', null, '2026-10-16');
+select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-16', '2026-10-16'), '{}'::text[],
+          '131 parcela de consignado não é saída do dia: o salário já entra líquido');
+
 -- ---------------------------------------------------------------------------
 -- 4. Período inválido, privilégios e isolamento
 -- ---------------------------------------------------------------------------

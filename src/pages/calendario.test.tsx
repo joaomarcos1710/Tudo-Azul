@@ -549,5 +549,23 @@ describe('Calendário financeiro: valores no dia, filtros, resumo do dia e Hoje'
     expect(cardGrade!.parentElement!.className).toContain('xl:grid-cols-12')
     expect(screen.getByText('16/10/2026 · hoje').closest('.xl\\:col-span-4')).not.toBeNull()
   })
-})
 
+  it('consignado (desconto em folha): aparece no dia sem sinal e com o aviso; não é saída (o salário entra líquido)', async () => {
+    mock.listarParcelasDivida.mockResolvedValue([
+      { id: 'p9', dividaId: 'd9', nomeDivida: 'Consignado', numero: 4, vencimento: '2026-10-16', valor: c(45000), formaPagamento: 'payroll', contaPagamentoId: null },
+    ])
+    const u = userEvent.setup()
+    montar()
+    await screen.findByRole('button', { name: /^16 de outubro de 2026, hoje: 1 lançamento, 1 planejado$/ })
+    const item = within(listaDoDia()).getByText('R$ 450,00')
+    expect(item.textContent).toBe('R$ 450,00') // sem "−"
+    expect(item.className).toContain('text-slate-500')
+    expect(screen.getByTestId('dia-consignado').textContent).toContain('já entra líquido')
+    // não é saída: o filtro Saídas não mostra; Faturas e Parcelas mostra (é parcela), mas fora dos totais (do banco)
+    const grupo = screen.getByRole('group', { name: 'Mostrar no calendário' })
+    await u.click(within(grupo).getByRole('button', { name: 'Saídas' }))
+    expect(screen.getByRole('button', { name: /^16 de outubro de 2026, hoje: nada$/ })).toBeTruthy()
+    await u.click(within(grupo).getByRole('button', { name: 'Faturas e Parcelas' }))
+    expect(within(listaDoDia()).getByText('Parcela 4 · Consignado')).toBeTruthy()
+  })
+})
