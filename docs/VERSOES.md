@@ -303,4 +303,5 @@ continuam abaixo como histórico.
 | 2026.388 | **Zerar tudo mais seguro.** A tela mostra as reservas que serão apagadas e avisa que elas não vão para a exportação; antes de zerar, é preciso confirmar que os arquivos baixados foram mesmo salvos. |
 | 2026.389 | **Convite mais seguro.** Para entrar numa família por convite, a conta precisa ter o e-mail confirmado. |
 | 2026.390 | **A conta de volta na lista de Lançamentos.** Cada despesa e receita mostra, depois da categoria, a conta de onde saiu ou para onde entrou. |
+| 2026.391 | **Preparação do novo Calendário.** O banco passa a somar o que entra e sai em cada dia (ainda sem mudança na tela). |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
