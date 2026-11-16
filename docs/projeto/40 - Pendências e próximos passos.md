@@ -837,3 +837,15 @@ Plano do agente de arquitetura: migration 129 com `investment_return_history` (p
 - [ ] **Cripto (o dono quer):** candidata CoinGecko (plano Demo gratuito, com chave). Antes de qualquer migration: teste de rede real da consulta em reais. Precisa de migration nova (o símbolo hoje só aceita o formato da B3 e a classe cripto não entra em `investment_quote_symbol`), chave no cofre e função de busca no molde de `market_quotes_fetch`. Na brapi, cripto é dos planos pagos.
 - Tesouro Direto (CSV oficial de 14 MiB, sem JSON gratuito) e previdência fechada (sem cota pública): continuam manuais.
 - [ ] **Decisão do dono:** despesa em vermelho ou neutra no app inteiro. A regra escrita (#183) diz vermelho; o cabeçalho do Início ficou neutro pelo handoff (#378) e a lista de Lançamentos usa cinza.
+
+## 16/11/2026 — Revisão externa do Tudo Azul (6 revisores, commit c465dc6, só leitura)
+Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistente antes de corrigir; os demais estão como a revisão descreve e precisam ser conferidos antes de mexer.
+- [x] **Alta — Zerar tudo apagava reservas sem mostrá-las nem exportá-las.** Conferido e corrigido: prévia, total e lista mostram as reservas; o aviso diz que a exportação não as inclui.
+- [x] **Média — clicar em "baixar" contava como backup feito.** Corrigido: a frase só libera depois de marcar "conferi que os arquivos estão salvos".
+- [ ] Incluir as reservas na exportação completa (hoje só o aviso).
+- [ ] **Média — convite aceito sem e-mail confirmado** (`accept_invitation` não olha `email_confirmed_at`). Condicional à configuração do Auth hospedado, não verificada. Exigir no banco, com teste.
+- [ ] **Média — itens agendados de cartão** (`card_scheduled_items`): `recurrence_id` e `installment_id` sem a família na chave estrangeira. Sem caminho de exploração hoje; migration com chaves compostas e teste de outra família.
+- [ ] **Média — menu do celular** anuncia diálogo modal mas não prende o foco do Tab (`AppShell.tsx`).
+- [ ] **Média — teste de integração** confere que a API é local, mas não o `SUPABASE_DB_URL` (`tests/integration/helpers.ts`).
+- [ ] **Baixa:** recorrência que começa além de hoje + 800 dias fica sem "próxima data"; teste de concorrência de reservas com `sleep` em vez de barreira; `scripts/local-db/run-tests.sh` apaga qualquer banco indicado em `TUDO_AZUL_TEST_DB`; `Bens.tsx` calcula a parte familiar com `Math.round` em ponto flutuante (1 centavo de diferença em caso de borda; fere a regra "o front não calcula dinheiro").
+- [ ] Também citados: Edge Function `delete-account` sem teste; `APP_ORIGIN` ausente libera CORS para qualquer origem (configuração de produção não verificada); "lint" é só typecheck; Dependabot não cobre npm.
