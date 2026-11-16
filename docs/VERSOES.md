@@ -299,4 +299,5 @@ continuam abaixo como histórico.
 | 2026.384 | **Lançamentos: dia da semana na lista.** O cabeçalho de cada dia mostra o dia da semana, e os lançamentos de hoje e de ontem aparecem como "Hoje" e "Ontem". |
 | 2026.385 | **Início: consertos.** Cartão perto ou acima do limite nunca fica escondido; os cards de Cartões e de Maiores gastos avisam quando não carregam, em vez de sumir; o cabeçalho e os atalhos ficam melhores no iPad em pé; o nome do cartão não é mais cortado. |
 | 2026.386 | **Lançamentos: a tela não fica mais em branco.** Quando um filtro esconde tudo, a tela diz que nada combina com os filtros e oferece "Limpar filtros". Antes, em alguns casos, ficava sem lista e sem mensagem. |
+| 2026.387 | **Lançamentos e Calendário abrem mais rápido.** A lista aparece sem esperar as rotinas automáticas (recorrentes e faturas) terminarem; se elas criarem algo novo, a lista se atualiza em seguida. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
