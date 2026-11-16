@@ -459,10 +459,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
 
       {noInicio && <div id="cartoes" className="scroll-mt-24" />}
-      {noInicio && <div className="mt-4 grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-        {/* No celular os dois blocos viram "display: contents" e cada cartão segue a ordem pedida pelo dono (10/11/2026: contas, cartões, maiores gastos, a receber, a pagar); no computador são duas colunas. */}
-        <div data-coluna="esquerda" className="contents lg:block lg:space-y-4">
-          <Card id="contas" className="order-1 scroll-mt-24">
+      {/* Cada cartão é filho direto da grade, na ordem pedida pelo dono (10/11/2026: contas, cartões, maiores gastos, a receber).
+          No celular é uma coluna nessa ordem; no computador, pares lado a lado (Contas | Cartões, Maiores gastos | Receitas a receber)
+          e a grade estica os dois cartões da mesma linha para a mesma altura (mudança 5 do handoff do Início, 16/11/2026). */}
+      {noInicio && <div data-testid="pares-inicio" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <Card id="contas" className="scroll-mt-24">
             <div className="flex items-start justify-between gap-3">
               <CardTitle>Minhas contas</CardTitle>
               {dados.saldoGeral !== null && dados.contas.length > 0 && (
@@ -508,26 +509,8 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               </div>
             )}
           </Card>
-          {dados.categorias && (
-            <Card className="order-3">
-              <div className="flex items-center justify-between">
-                <CardTitle>Maiores gastos</CardTitle>
-                <Link to="/analises" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver análises</Link>
-              </div>
-              {dados.categorias.length === 0 ? (
-                <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
-              ) : (
-                <>
-                  <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida em Análises'}.</p>
-                  <BarrasCategorias barras={dados.categorias} mes={mes} aoAbrir={(b) => b.categoriaId && setDetalheAberto({ categoriaId: b.categoriaId, nome: b.nome })} />
-                </>
-              )}
-            </Card>
-          )}
-        </div>
-        <div data-coluna="direita" className="contents lg:block lg:space-y-4">
           {dados.cartoes && (
-            <Card className="order-2">
+            <Card>
               <div className="flex items-center justify-between">
                 <CardTitle>Cartões</CardTitle>
                 <Link to="/cartoes" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver cartões</Link>
@@ -569,9 +552,24 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               </ul>}
             </Card>
           )}
-          <ListaPlanejada className="order-4" titulo="Receitas a receber" vazio="Nenhuma receita planejada a partir de hoje."
+          {dados.categorias && (
+            <Card>
+              <div className="flex items-center justify-between">
+                <CardTitle>Maiores gastos</CardTitle>
+                <Link to="/analises" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver análises</Link>
+              </div>
+              {dados.categorias.length === 0 ? (
+                <p className="text-sm text-slate-500">Nenhuma despesa paga neste mês ainda.</p>
+              ) : (
+                <>
+                  <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida em Análises'}.</p>
+                  <BarrasCategorias barras={dados.categorias} mes={mes} aoAbrir={(b) => b.categoriaId && setDetalheAberto({ categoriaId: b.categoriaId, nome: b.nome })} />
+                </>
+              )}
+            </Card>
+          )}
+          <ListaPlanejada titulo="Receitas a receber" vazio="Nenhuma receita planejada a partir de hoje."
             itens={dados.aReceber} moedaDe={moedaDe} categoriaPorId={dados.categoriaPorId} />
-        </div>
       </div>}
 
 

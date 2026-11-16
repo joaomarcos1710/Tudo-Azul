@@ -289,4 +289,5 @@ continuam abaixo como histórico.
 | 2026.374 | **Investimentos: composição em barras.** Cada item da carteira (classe, liquidez, instituição, ativo) é uma linha com valor, % e uma barra; em Classe, as subclasses ficam embaixo da macroclasse. Sai a barra empilhada e a rosca. Nenhum número muda. |
 | 2026.375 | **Investimentos: resumo mais compacto.** As moedas estrangeiras saem de cartões soltos e entram num card único "Em outras moedas", ao lado dos reais no computador. Nada muda no que cada moeda mostra. |
 | 2026.376 | **Início: maiores gastos em barras.** A rosca do card "Maiores gastos" vira barras, como em Análises, e o grupo do resto passa a se chamar "Demais categorias" (antes "Outros", que podia se confundir com uma categoria de mesmo nome). Nenhum número muda. |
+| 2026.377 | **Início: cartões em pares.** No computador, Contas e Cartões ficam lado a lado com a mesma altura, e Maiores gastos e Receitas a receber também. No celular nada muda. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
