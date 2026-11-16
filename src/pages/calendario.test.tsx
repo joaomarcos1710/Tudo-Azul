@@ -21,7 +21,11 @@ const mock = vi.hoisted(() => ({
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados, faturasQueVencem: mock.faturasQueVencem, totaisDoDia: mock.totaisDoDia }))
+// o Calendário pede só o total (saldoTotalProjetado); os testes seguem descrevendo a resposta completa e a tela usa o total dela
+vi.mock('../lib/saldoProjetado', () => ({
+  saldoTotalProjetado: (...a: unknown[]) => mock.saldosProjetados(...a).then((r: { total: unknown }) => r.total),
+  faturasQueVencem: mock.faturasQueVencem, totaisDoDia: mock.totaisDoDia,
+}))
 vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarParcelasDivida: mock.listarParcelasDivida }))
 vi.mock('../lib/automaticos', () => ({ atualizarAutomaticos: mock.atualizarAutomaticos }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))

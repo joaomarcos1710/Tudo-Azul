@@ -58,7 +58,8 @@ vi.mock('../lib/cartoes', async (o) => ({
   ...(await o<typeof import('../lib/cartoes')>()), cobrarFaturasFechadas: cobrar, resumoDosCartoes: mock.resumoDosCartoes, totalFaturasDoMes: mock.totalFaturasDoMes,
 }))
 vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: gerar }))
-vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados }))
+// o Início pede só o total (saldoTotalProjetado); os testes seguem descrevendo a resposta completa e a tela usa o total dela
+vi.mock('../lib/saldoProjetado', () => ({ saldoTotalProjetado: (...a: unknown[]) => mock.saldosProjetados(...a).then((r: { total: unknown }) => r.total) }))
 vi.mock('../lib/orcamentos', () => ({ listarOrcamentos: mock.listarOrcamentos }))
 vi.mock('../lib/fluxoCaixa', async (o) => ({ ...(await o<typeof import('../lib/fluxoCaixa')>()), fluxoDeCaixa: mock.fluxoDeCaixa }))
 vi.mock('../lib/indicadores', async (o) => ({ ...(await o<typeof import('../lib/indicadores')>()), carregarIndicadores: mock.carregarIndicadores }))
@@ -1499,6 +1500,24 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
     await screen.findByRole('heading', { name: 'Análises' })
     expect(screen.queryByRole('region', { name: 'Indicadores do mês' })).toBeNull()
     expect(mock.carregarIndicadores).not.toHaveBeenCalled()
+  })
+  it('Início: contas e cartões aparecem sem esperar a decisão do mês (a mais lenta do banco); o Dinheiro Livre mostra "calculando" e depois o valor', async () => {
+    let soltarDecisao: (v: unknown) => void = () => {}
+    const decisao = await mock.carregarHomeDecisao()
+    mock.carregarHomeDecisao.mockReset()
+    mock.carregarHomeDecisao.mockReturnValue(new Promise((r) => { soltarDecisao = r }))
+    montar()
+    // a decisão ainda não voltou, mas o resto do Início já está na tela
+    expect(await screen.findByText('Minhas contas')).toBeTruthy()
+    expect(screen.getByText('Dinheiro Livre')).toBeTruthy()
+    expect(screen.getByText(/Calculando o Dinheiro Livre/)).toBeTruthy()
+    expect(screen.getByText(/Calculando os indicadores/)).toBeTruthy()
+    expect(screen.queryByText(/temporariamente indisponível/)).toBeNull()
+    expect(screen.queryByText(/Indicadores indisponíveis/)).toBeNull()
+    soltarDecisao(decisao)
+    expect(await screen.findByText('R$ 8.050,00')).toBeTruthy()
+    expect(screen.queryByText(/Calculando o Dinheiro Livre/)).toBeNull()
+    expect(screen.queryByText(/Calculando os indicadores/)).toBeNull()
   })
 })
 

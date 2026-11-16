@@ -36,7 +36,7 @@ import type { BaseGastosCartao } from '../lib/baseGastosCartao'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
 import { EmOutrasMoedas, ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { LinhaMensal } from '../components/graficos/LinhaMensal'
-import { saldosProjetados } from '../lib/saldoProjetado'
+import { saldoTotalProjetado } from '../lib/saldoProjetado'
 import { fluxoDeCaixa } from '../lib/fluxoCaixa'
 import type { SaldoTotal } from '../lib/saldoProjetado'
 import { listarOrcamentos } from '../lib/orcamentos'
@@ -153,7 +153,17 @@ function variacao(atual: Cents, anterior: Cents): number | null {
 /** Início ("o que fazer agora") e Análises ("como estou indo"): cada seção carrega e mostra só os seus blocos. */
 export type SecaoResumo = 'inicio' | 'analises'
 
-function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
+function ResumoDecisao({ dados, carregando }: { dados: HomeDecisao | null; carregando: boolean }) {
+  if (carregando) {
+    // mesmo tamanho do cartão pronto: a tela não pula quando o valor chega
+    return (
+      <Card className="mb-4" aria-busy="true">
+        <p className="text-sm font-semibold text-slate-500">Dinheiro Livre</p>
+        <p className="mt-1 text-sm text-slate-500" role="status">Calculando o Dinheiro Livre…</p>
+        <div className="mt-4 min-h-[9rem]" aria-hidden="true" />
+      </Card>
+    )
+  }
   if (!dados) {
     return <div className="mb-4"><Aviso tipo="info">A visão de Dinheiro Livre está temporariamente indisponível. Os saldos e lançamentos continuam disponíveis.</Aviso></div>
   }
@@ -217,6 +227,19 @@ function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
     </Card>
   )
 }
+/**
+ * Dinheiro Livre e faixa de indicadores do Início, numa carga à parte: get_home_decision_month é a consulta mais lenta do
+ * banco (segundos) e antes segurava o desenho de TODA a tela. A decisão do mês já calcula os indicadores por dentro, na
+ * data de corte dela: quando o corte é hoje, o Início usa esses e não pede home_indicators de novo; senão, pede à parte.
+ */
+async function carregarDecisaoDoInicio(familiaId: string, mes: string, hoje: string) {
+  const decisao = await opcional('carregarHomeDecisao', carregarHomeDecisao(familiaId, mes))
+  const indicadores = decisao?.tesouraria && decisao.dataCorte === hoje
+    ? decisao.tesouraria
+    : await opcional('carregarIndicadores', carregarIndicadores(familiaId, hoje))
+  return { decisao, indicadores }
+}
+
 export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }) {
   const noInicio = secao === 'inicio'
   const { familia } = useFamilia()
@@ -249,12 +272,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       resumoDoPeriodo(familiaId, de, hoje),
       resumoDoPeriodo(familiaId, `${somarMeses(mes, -1)}-01`, mesmoDiaMesAnterior(hoje)),
     ]).then(([atual, anterior]) => ({ atual, anterior })))
-    // A decisão do mês já calcula os indicadores por dentro, na data de corte dela. Quando o corte é hoje, o Início
-    // usa esses e não pede home_indicators de novo (era a mesma conta duas vezes por abertura); senão, pede à parte.
-    const decisaoDoMes = noInicio ? opcional('carregarHomeDecisao', carregarHomeDecisao(familiaId, mes)) : Promise.resolve(null)
-    const indicadoresDoTopo = decisaoDoMes.then((d) => (d?.tesouraria && d.dataCorte === hoje
-      ? d.tesouraria
-      : noInicio ? opcional('carregarIndicadores', carregarIndicadores(familiaId, hoje)) : null))
     return (noInicio
         ? Promise.all([
             // essenciais do Início: se falharem, a tela inteira avisa o erro
@@ -262,22 +279,20 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             listarCategorias(familiaId),
             opcional('resumoDosCartoes', resumoDosCartoes(familiaId, hoje)),
             opcional('totalFaturasDoMes', totalFaturasDoMes(familiaId, mes)),
-            // a faixa de indicadores do topo (#188): os 7 números numa chamada só, calculados no banco
-            indicadoresDoTopo,
-            decisaoDoMes,
             // receita e despesa do mês, com o que ainda vai entrar e sair: só no cabeçalho
             opcional('resumoDoMes', resumoDoMes(familiaId, mes)),
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
-            opcional('saldosProjetados', saldosProjetados(familiaId, ate, true)),
+            opcional('saldoTotalProjetado', saldoTotalProjetado(familiaId, ate, true)),
             opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)),
             // maiores gastos: as 4 maiores categorias + "Demais categorias" (somado no banco), na base de cartão escolhida em Análises
             opcional('despesasPorCategoria', despesasPorCategoria(familiaId, de, ate, 4, baseCartaoRef.current)),
-          ]).then(([c, entradas, cats, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, mesPorMoeda, maioresGastos]): Dados => ({
-            patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores, decisao,
+          ]).then(([c, entradas, cats, cartoes, faturasDoMes, resumo, projetado, mesPorMoeda, maioresGastos]): Dados => ({
+            // indicadores e decisão do mês chegam à parte (carregarDecisaoDoInicio): são as consultas mais lentas do banco
+            patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores: null, decisao: null,
             categorias: maioresGastos, dias: null, regularidade: null, anoPassado: null, projecao: null,
             contas: c.contas.filter((x) => x.ativa), todasContas: c.contas, saldoGeral: c.total, porMoeda: c.porMoeda ?? [], mesPorMoeda: mesPorMoeda ?? [], vencidos: null, cartoes, faturasDoMes,
             aReceber: entradas.filter((x) => x.tipo === 'income'),
-            saldoPrevisto: projetado?.total ?? null, balanco: null,
+            saldoPrevisto: projetado ?? null, balanco: null,
             orcamentos: null,
             nomeCategoria: nomesCompletos(cats),
             categoriaPorId: new Map(cats.map((x) => [x.id, x])),
@@ -319,6 +334,13 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   const chave = chaveVisaoGeral(secao, familiaId ?? '', mes, hoje)
   const consulta = useQuery({ queryKey: chave, queryFn: () => carregarTela(familiaId as string), enabled: Boolean(familiaId) })
   const dados = consulta.data ?? null
+  // Dinheiro Livre e indicadores: carga própria (mesma família, mês e dia no cache; invalidarDadosHome pega as duas)
+  const consultaDecisao = useQuery({
+    queryKey: chaveVisaoGeral('inicio-decisao', familiaId ?? '', mes, hoje),
+    queryFn: () => carregarDecisaoDoInicio(familiaId as string, mes, hoje),
+    enabled: Boolean(familiaId) && noInicio,
+  })
+  const decisao = consultaDecisao.data?.decisao ?? null
   // erro só derruba a tela se não há nada para mostrar; falha numa revalidação deixa o que já estava
   const erro = consulta.error && !consulta.data ? mensagemErroBanco(consulta.error) : ''
 
@@ -402,9 +424,10 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
           de={limitesDoMes(mes)[0]} ate={limitesDoMes(mes)[1]} base={baseCartao} aoFechar={() => setDetalheAberto(null)} />
       )}
       {noInicio && <>
-        <ResumoDecisao dados={dados.decisao} />
+        <ResumoDecisao dados={decisao} carregando={consultaDecisao.isPending} />
         <section aria-label="Resumo geral" className="mb-4">
-          <FaixaIndicadores dados={dados.indicadores} semDisponivel={dados.decisao !== null} />
+          <FaixaIndicadores dados={consultaDecisao.data?.indicadores ?? null} semDisponivel={decisao !== null}
+            carregando={consultaDecisao.isPending} />
         </section>
       </>}
       {/* receitas e despesas do mês em outras moedas: à parte, nunca somadas aos totais em reais acima */}

@@ -9,7 +9,7 @@ import { hojeSP, listarContas } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
-import { saldosProjetados, faturasQueVencem, totaisDoDia } from '../lib/saldoProjetado'
+import { saldoTotalProjetado, faturasQueVencem, totaisDoDia } from '../lib/saldoProjetado'
 import type { SaldoTotal, TotalDoDia } from '../lib/saldoProjetado'
 import { useValoresOcultos } from '../lib/privacidade'
 import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, resumoPorMoeda, situacaoDoLancamento, somarMeses } from '../lib/lancamentos'
@@ -424,8 +424,8 @@ function SaldoAteADataEscolhida({ familiaId, ate, hoje }: { familiaId: string; a
     let vivo = true
     setCarregando(true)
     setIndisponivel(false)
-    saldosProjetados(familiaId, ate, incluir)
-      .then((r) => { if (vivo) { setTotal(r.total); setCarregando(false) } })
+    saldoTotalProjetado(familiaId, ate, incluir)
+      .then((r) => { if (vivo) { setTotal(r); setCarregando(false) } })
       .catch(() => { if (vivo) setIndisponivel(true) })
     return () => { vivo = false }
   }, [familiaId, ate, incluir])

@@ -13,18 +13,6 @@ function cliente() {
   return supabase
 }
 
-export interface SaldoDaConta {
-  id: string
-  nome: string
-  ativa: boolean
-  /** Moeda da conta (migration 055): os valores desta linha estão nela. Banco sem a 055: BRL. */
-  moeda: string
-  efetuado: Cents
-  planejado: Cents
-  faturas: Cents
-  saldo: Cents
-}
-
 export interface SaldoTotal {
   efetuado: Cents
   planejado: Cents
@@ -34,34 +22,22 @@ export interface SaldoTotal {
   saldo: Cents
 }
 
-export interface SaldoProjetado {
-  contas: SaldoDaConta[]
-  total: SaldoTotal | null
-}
-
 type Linha = Record<string, string | number | boolean | null>
 const dinheiro = (v: string | number | boolean | null | undefined) => centsFromDb((v ?? 0) as string | number)
 
-/** Saldo até a data (inclusive). `incluirPlanejados = false` é o saldo só do que já foi efetuado. */
-export async function saldosProjetados(familiaId: string, ate: string, incluirPlanejados: boolean): Promise<SaldoProjetado> {
-  const db = cliente()
-  const [contas, total] = await Promise.all([
-    db.rpc('account_balances_projected', { p_household: familiaId, p_as_of: ate, p_include_planned: incluirPlanejados }),
-    db.rpc('balance_totals_projected', { p_household: familiaId, p_as_of: ate, p_include_planned: incluirPlanejados }),
-  ])
-  if (contas.error) throw contas.error
-  if (total.error) throw total.error
-  const t = ((total.data ?? []) as Linha[])[0]
-  return {
-    contas: ((contas.data ?? []) as Linha[]).map((c) => ({
-      id: c.account_id as string, nome: c.name as string, ativa: c.active as boolean, moeda: (c.currency_code as string | undefined) ?? 'BRL',
-      efetuado: dinheiro(c.realized), planejado: dinheiro(c.planned), faturas: dinheiro(c.invoices), saldo: dinheiro(c.balance),
-    })),
-    total: t ? {
-      efetuado: dinheiro(t.realized), planejado: dinheiro(t.planned), faturas: dinheiro(t.invoices),
-      faturasSemConta: dinheiro(t.unassigned_invoices), saldo: dinheiro(t.total),
-    } : null,
-  }
+/**
+ * Saldo total em reais até a data (inclusive), do banco (balance_totals_projected). `incluirPlanejados = false` é o saldo
+ * só do que já foi efetuado. Uma chamada só: o Início e o Calendário mostram só o total; o saldo de cada conta
+ * (account_balances_projected) era lido e descartado, uma chamada a mais por abertura (melhoria de 13/11/2026).
+ */
+export async function saldoTotalProjetado(familiaId: string, ate: string, incluirPlanejados: boolean): Promise<SaldoTotal | null> {
+  const { data, error } = await cliente().rpc('balance_totals_projected', { p_household: familiaId, p_as_of: ate, p_include_planned: incluirPlanejados })
+  if (error) throw error
+  const t = ((data ?? []) as Linha[])[0]
+  return t ? {
+    efetuado: dinheiro(t.realized), planejado: dinheiro(t.planned), faturas: dinheiro(t.invoices),
+    faturasSemConta: dinheiro(t.unassigned_invoices), saldo: dinheiro(t.total),
+  } : null
 }
 
 export interface FaturaQueVence {
