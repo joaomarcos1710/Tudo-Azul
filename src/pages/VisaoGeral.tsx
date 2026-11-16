@@ -406,7 +406,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         <ResumoDecisao dados={dados.decisao} />
         <NavegacaoCarteira />
         <section id="visao-geral" aria-label="Resumo geral" className="mb-4 scroll-mt-24">
-          <FaixaIndicadores dados={dados.indicadores} />
+          <FaixaIndicadores dados={dados.indicadores} semDisponivel={dados.decisao !== null} />
         </section>
       </>}
       {/* receitas e despesas do mês em outras moedas: à parte, nunca somadas aos totais em reais acima */}
