@@ -301,5 +301,6 @@ continuam abaixo como histórico.
 | 2026.386 | **Lançamentos: a tela não fica mais em branco.** Quando um filtro esconde tudo, a tela diz que nada combina com os filtros e oferece "Limpar filtros". Antes, em alguns casos, ficava sem lista e sem mensagem. |
 | 2026.387 | **Lançamentos e Calendário abrem mais rápido.** A lista aparece sem esperar as rotinas automáticas (recorrentes e faturas) terminarem; se elas criarem algo novo, a lista se atualiza em seguida. |
 | 2026.388 | **Zerar tudo mais seguro.** A tela mostra as reservas que serão apagadas e avisa que elas não vão para a exportação; antes de zerar, é preciso confirmar que os arquivos baixados foram mesmo salvos. |
+| 2026.389 | **Convite mais seguro.** Para entrar numa família por convite, a conta precisa ter o e-mail confirmado. |
 | 2026.390 | **A conta de volta na lista de Lançamentos.** Cada despesa e receita mostra, depois da categoria, a conta de onde saiu ou para onde entrou. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

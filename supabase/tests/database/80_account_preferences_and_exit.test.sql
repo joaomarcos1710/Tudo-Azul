@@ -99,10 +99,11 @@ end
 $f$;
 grant execute on function pg_temp.fx80(text), pg_temp.login80(uuid), pg_temp.sqlstate80(text) to public;
 
-insert into auth.users (id, email) values
- ('00000000-0000-0000-0000-0000000080a1','prefs-owner@teste.com'),
- ('00000000-0000-0000-0000-0000000080a2','prefs-member@teste.com'),
- ('00000000-0000-0000-0000-0000000080a3','prefs-other@teste.com');
+-- e-mail confirmado: aceitar convite exige isso desde a migration 129
+insert into auth.users (id, email, email_confirmed_at) values
+ ('00000000-0000-0000-0000-0000000080a1','prefs-owner@teste.com', now()),
+ ('00000000-0000-0000-0000-0000000080a2','prefs-member@teste.com', now()),
+ ('00000000-0000-0000-0000-0000000080a3','prefs-other@teste.com', now());
 
 select pg_temp.login80('00000000-0000-0000-0000-0000000080a1');
 insert into fixture80 select 'household', public.create_household('Família Preferências');

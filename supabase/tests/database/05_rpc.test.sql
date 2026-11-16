@@ -10,8 +10,9 @@ grant all on fixture to public;
 create function pg_temp.fx(p_k text) returns uuid language sql as $f$ select v from fixture where k = p_k $f$;
 create function pg_temp.fxt(p_k text) returns text language sql as $f$ select t from fixture where k = p_k $f$;
 create function pg_temp.mkuser(p_id uuid, p_email text, p_name text default null) returns void language sql as $f$
-  insert into auth.users (id, email, raw_user_meta_data)
-  values (p_id, p_email, case when p_name is null then '{}'::jsonb else jsonb_build_object('name', p_name) end)
+  -- e-mail confirmado, como uma conta de verdade: aceitar convite exige isso desde a migration 129
+  insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at)
+  values (p_id, p_email, case when p_name is null then '{}'::jsonb else jsonb_build_object('name', p_name) end, now())
 $f$;
 -- Troca para um papel REAL (authenticated/anon). Sem isso a RLS não é exercitada.
 create function pg_temp.login(p_uid uuid) returns void language plpgsql as $f$
@@ -90,6 +91,17 @@ select is(pg_temp.msg_of($$select public.accept_invitation('0123456789abcdef0123
 select is(pg_temp.sqlstate_of($$select public.accept_invitation('curto')$$), '22023', 'token curto demais: 22023');
 select is(pg_temp.sqlstate_of($$select public.accept_invitation(null)$$), '22023', 'token nulo: 22023');
 reset role;
+
+-- migration 129: conta com o e-mail do convite, mas ainda NÃO confirmado, não entra; a recusa vem antes de olhar o convite
+-- (a mesma resposta com token válido e inválido: não revela se o link vale)
+update auth.users set email_confirmed_at = null where id = '00000000-0000-0000-0000-0000000000a2';
+select pg_temp.login('00000000-0000-0000-0000-0000000000a2');
+select is(pg_temp.msg_of(format($$select public.accept_invitation(%L)$$, pg_temp.fxt('tok_b'))), '55000 confirme o seu e-mail antes de aceitar o convite', '129: e-mail do convite, mas não confirmado: recusa com 55000');
+select is(pg_temp.msg_of($$select public.accept_invitation('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef')$$), '55000 confirme o seu e-mail antes de aceitar o convite', '129: token inexistente dá a MESMA resposta (não revela se o link vale)');
+reset role;
+select is((select count(*) from public.household_members where user_id = '00000000-0000-0000-0000-0000000000a2'), 0::bigint, '129: a conta não confirmada não entrou em família nenhuma');
+select is((select accepted_at from public.invitations where household_id = pg_temp.fx('h1')), null, '129: o convite continua aberto (não foi gasto)');
+update auth.users set email_confirmed_at = now() where id = '00000000-0000-0000-0000-0000000000a2';
 
 -- convite vencido
 update public.invitations set created_at = now() - interval '10 days', expires_at = now() - interval '3 days'
