@@ -782,7 +782,8 @@ Uma mudança por PR. Requisito do dono: o caminho para Análises continua (ícon
 - [ ] **2 e 3.** Conta à vista do Dinheiro Livre e "Ver todos (N)" dos compromissos. **Depois da etapa 2.** Falta definir o destino do "Ver todos".
 - [x] **9.** Disponível fora da faixa quando o card Dinheiro Livre carregou (6 indicadores, 3 + 3); se o card falhar, o Disponível continua na faixa.
 - [ ] A explicação "(i)" do Disponível (contas que entram, faturas fechadas, o que fica no Patrimônio) deixou de aparecer no caso normal: levar para o card Dinheiro Livre junto com a mudança 2.
-- [ ] **10, 11 e 12.** Só com "pode" explícito. A 10 tira as âncoras Contas/Cartões. A 11 e a 12 esperam a etapa 2, e "Compromissos futuros" também é nome de outro número em Análises.
+- [x] **10.** Chips "Visão geral · Contas · Cartões" removidos, com as âncoras e o componente.
+- [ ] **11 e 12.** Só com "pode" explícito. A 11 e a 12 esperam a etapa 2, e "Compromissos futuros" também é nome de outro número em Análises.
 - [ ] Conferir no navegador o novo card Maiores gastos e os pares de mesma altura (390, 820 e 1280 px). No par, o cartão mais curto fica com espaço vazio embaixo: ver se incomoda.
 
 ## 16/11/2026 — Investimentos: ativos "sem avaliação" e cotação automática (conversa com o dono)
@@ -790,3 +791,11 @@ Uma mudança por PR. Requisito do dono: o caminho para Análises continua (ícon
 - [ ] **Dono:** chave da brapi no cofre do Supabase (`brapi_token`) e ligar "seguir a cotação da bolsa" nos ativos da B3. Em 16/11/2026 o segredo não existia e nenhuma cotação tinha sido buscada.
 - [ ] Saldo em moeda estrangeira conta no aviso de "sem avaliação", embora o valor em reais já use a PTAX: decidir se sai da contagem.
 - [ ] **Projeto futuro (ideia do dono):** cotação automática de cripto, Tesouro Direto e moedas. Google Finance não tem API pública (só a função da planilha); validar fonte, cobertura, limites e termos antes de planejar. Só vale quando houver esses ativos na carteira.
+
+## 16/11/2026 — Ideias tiradas de repositórios que o dono mandou (pareceres do agente `pesquisador-produto`)
+Nenhum código copiado. Descartados: FinQuant, DenizSungurtekin/Investment-Portfolio-Tracker, Dev.Finances, gomoney, dashboard-financeiro-analytics.
+- [ ] **Rentabilidade por tempo (TWR) mensal** na evolução de Investimentos (ideia do Portfolio Performance; a licença EPL não deixa copiar código, só reimplementar a fórmula). Pedido do dono: pôr em prática. Plano em desenho. Limite: sem avaliação em todo fim de mês o número engana; mostrar "sem base" nesses casos.
+- [ ] **Proventos previstos no Calendário** (ideia do portfolio-tracker): Recorrentes já lista os previstos de 12 meses; falta conferir e, se faltar, mostrar no dia em que caem.
+- [ ] **Cota de fundo pela CVM** (fonte que o fundspy usa; o código dele está abandonado): só quando houver fundo com CNPJ na carteira. Os dados vêm em ZIP mensal, que o banco não abre; exigiria uma Edge Function.
+- [ ] **Quantidade e valor típico de lançamentos por categoria** (ideia do Analise_Financeira): só se o dono sentir falta; conferir antes se Análises já mostra.
+- Não fazer por enquanto: estimar cofrinho ou CDB por % do CDI (valor estimado que diverge do extrato).

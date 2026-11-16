@@ -293,4 +293,5 @@ continuam abaixo como histórico.
 | 2026.378 | **Início: cabeçalho mais claro.** A despesa do mês deixa de aparecer em vermelho, os botões de atalho ganham contorno visível e o atalho para Análises passa a ter texto ("Ver análises do mês"). |
 | 2026.379 | **Início: indicadores com mais espaço.** Os indicadores do topo ficam em 2 colunas no celular e no iPad em pé e em 4 por linha no computador, sem os cards apertados de antes. |
 | 2026.380 | **Início: um número a menos repetido.** O "Disponível" sai da faixa de indicadores, porque já aparece no card Dinheiro Livre como "Saldo disponível". Ficam 6 indicadores, em duas linhas de 3 no computador. |
+| 2026.381 | **Início mais limpo.** Saem os três botões "Visão geral · Contas · Cartões" do topo, que pareciam filtros mas só rolavam a página. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

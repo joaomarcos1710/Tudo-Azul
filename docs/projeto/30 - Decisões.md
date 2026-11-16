@@ -891,6 +891,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Dólar também (15/11/2026):** a categoria "Dólar" (receita, 1 lançamento de R$ 8,93, "Compra de Dólar") é do mesmo tipo de operação; o dono mandou marcar também e a marca foi gravada.
 
 
+## 16/11/2026 — Início sem os chips "Visão geral · Contas · Cartões" (dono, handoff, mudança 10)
+- **O quê:** os três atalhos acima da faixa de indicadores saem, com as âncoras da página.
+- **Por quê:** pareciam filtros, mas só rolavam a página; o handoff apontou que não ficava claro o que faziam.
+- **Custo aceito:** no celular não há mais atalho para pular até Contas ou Cartões.
+
 ## 16/11/2026 — Disponível sai da faixa de indicadores do Início (dono, handoff, mudança 9)
 - **O quê:** a faixa do Início passa a ter 6 indicadores; o Disponível fica só no card Dinheiro Livre ("Saldo disponível").
 - **Por quê:** era o mesmo número duas vezes na mesma tela (os dois vêm de `home_indicators`, conferido no SQL de `get_home_decision_month`).
