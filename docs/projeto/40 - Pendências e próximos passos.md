@@ -770,3 +770,15 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Não conferido: a cobrança no fechamento da fatura nova (`card_bill_due` só cobra até hoje; o teste não viaja no tempo) e a suíte completa de banco no CI.
 - [ ] **Aviso genérico engana quando falta a função no banco:** o app mostrou "Não foi possível concluir agora. Tente de novo em instantes." quando a migration 115 ainda não estava aplicada; tentar de novo não resolvia. Sugestão: tratar o erro de função inexistente (PGRST202 / 42883) com "Esta opção ainda não está disponível". Não feito; precisa do "pode" do dono.
 - [ ] **Workflow de migrations aplica tudo que está pendente:** não dá para aplicar uma migration só (aconteceu com a 114 e a 115 em 13/11/2026). Se isso incomodar, uma PR para o workflow aceitar uma versão específica.
+
+## 16/11/2026 — Handoff de design do Início (12 mudanças; parecer do agente `melhorias`)
+Uma mudança por PR. Requisito do dono: o caminho para Análises continua (ícone do cabeçalho e "Ver análises" no card Maiores gastos).
+- [x] **8.** Maiores gastos em barras no lugar da rosca, e "Demais categorias" no lugar de "Outros".
+- [ ] **5.** Pares de mesma altura (Contas | Cartões, Maiores gastos | Receitas a receber). Reorganiza a grade e atualiza o teste de ordem do celular.
+- [ ] **1.** Cabeçalho: despesa em tinta normal, contorno dos atalhos mais visível, e o ícone de Análises vira link com texto "Ver análises do mês".
+- [ ] **4.** Indicadores numa grade que respeite a barra lateral (iPad em pé; pendência 6). Fazer depois de decidir a 9.
+- [ ] **6.** Contas por instituição. **Decisão do dono:** o total por instituição não existe no banco; é preciso uma função nova ou agrupar sem total.
+- [ ] **7.** Cartões em uma linha, com barra de limite. O limite está em `card_overview` e em `listarCartoes`, mas `ResumoCartao` não o repassa. **Decisão do dono:** o rótulo da barra (o "comprometido" do banco inclui parcelas futuras, não é a fatura), e se a % aparece com os valores ocultos.
+- [ ] **2 e 3.** Conta à vista do Dinheiro Livre e "Ver todos (N)" dos compromissos. **Depois da etapa 2.** Falta definir o destino do "Ver todos".
+- [ ] **9, 10, 11 e 12.** Só com "pode" explícito. A 9 faz o Disponível sumir quando a decisão falha. A 10 tira as âncoras Contas/Cartões. A 11 e a 12 esperam a etapa 2, e "Compromissos futuros" também é nome de outro número em Análises.
+- [ ] Conferir no navegador o novo card Maiores gastos (390, 820 e 1280 px).

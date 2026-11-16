@@ -113,7 +113,11 @@ export async function proximosPlanejados(
   return previstos.sort((a, b) => a.data.localeCompare(b.data) || a.id.localeCompare(b.id)).slice(0, limite)
 }
 
-/** Fatia do gráfico de categorias; categoriaId nulo = "Outros" (somado no banco). */
+/** Nome do grupo do resto (categoriaId nulo). O banco o chama de "Outros"; aqui vira outro nome para não se confundir
+ * com uma categoria da família que se chame "Outros" (os dois apareciam juntos no gráfico). */
+export const NOME_DEMAIS_CATEGORIAS = 'Demais categorias'
+
+/** Fatia do gráfico de categorias; categoriaId nulo = "Demais categorias" (o resto, somado no banco). */
 export interface DespesaCategoria {
   categoriaId: string | null
   nome: string
@@ -139,7 +143,8 @@ export async function despesasPorCategoria(familiaId: string, de: string, ate: s
   if (error) throw error
   return ((data ?? []) as Record<string, string | number | null>[]).map((r) => ({
     categoriaId: (r.category_id as string | null) ?? null,
-    nome: r.name as string,
+    // o grupo do resto vem do banco como "Outros" e sem categoria; uma categoria real chamada "Outros" mantém o nome
+    nome: r.category_id == null ? NOME_DEMAIS_CATEGORIAS : (r.name as string),
     valor: centsFromDb(r.amount ?? 0),
     percentual: Number(r.share ?? 0),
   }))

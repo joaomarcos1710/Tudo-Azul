@@ -890,3 +890,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que a marca NÃO faz:** só a função `home_indicators` lê `categories.non_consumption`, então o Câmbio **continua** nos totais de "Despesas do mês" e "Receitas do mês" de Análises e Relatórios. Tirá-lo de lá seria outra decisão e exigiria mudar o banco.
 - **Dólar também (15/11/2026):** a categoria "Dólar" (receita, 1 lançamento de R$ 8,93, "Compra de Dólar") é do mesmo tipo de operação; o dono mandou marcar também e a marca foi gravada.
 
+
+## 16/11/2026 — "Demais categorias" no lugar de "Outros" no gráfico de categorias (handoff do Início, mudança 8)
+- **O quê:** o grupo do resto do gráfico de categorias (as que ficam fora das 4 maiores no Início ou das 6 maiores em Análises) passa a aparecer como **"Demais categorias"**.
+- **Por quê:** a família pode ter uma categoria de verdade chamada "Outros", e as duas apareciam juntas no mesmo gráfico.
+- **Como:** o banco continua devolvendo "Outros" com `category_id` nulo (`expenses_by_category` e `expenses_by_category_basis`, só com junção interna com `categories`, então nulo é sempre o grupo do resto). A troca é feita uma vez, no mapeamento `despesasPorCategoria` (`src/lib/painel.ts`). Nenhuma migration muda, e uma categoria real chamada "Outros" mantém o nome.
