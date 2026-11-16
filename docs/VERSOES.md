@@ -284,4 +284,5 @@ continuam abaixo como histórico.
 | 2026.369 | **Parcelado: o valor informado e de quem é a despesa.** Escolha "O total" ou "O de cada parcela" (total = valor × parcelas) e a despesa nova nasce "Toda a família", não a pessoa logada. Nenhum cálculo do banco muda. |
 | 2026.370 | **Seu mês começa no dia que você escolher.** Em Preferências, "Dia em que o seu mês começa" (1 a 28; o seu é o 20). O Limite diário seguro divide pelos dias até o próximo salário e diz "por dia, até DD/MM"; com o Dinheiro Livre zerado ou negativo mostra "Sem margem". O Dinheiro Livre não muda. Migration 128. |
 | 2026.371 | **Investimentos: gráfico de evolução mais honesto.** Um gráfico com abas de moeda, começando no mês do primeiro aporte (sem a linha saindo de zero) e, com pouco histórico, "Histórico a partir de <mês>". Nenhum número muda. |
+| 2026.372 | **Investimentos sem a lista longa de ativos.** "Ativos cadastrados" sai da página; o botão "Gerenciar ativos" abre uma folha com as mesmas ações. Nenhuma ação some. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

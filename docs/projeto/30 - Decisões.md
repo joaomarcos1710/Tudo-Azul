@@ -824,6 +824,12 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 16/11/2026 — Investimentos: "Ativos cadastrados" sai da página (dono, #372)
+- **Pedido:** "eu queria tirar Ativos cadastrados… isso tá tão feio na página, como resolver?". Era a mudança 6 do handoff, que o agente `melhorias` marcou como P2 e "só com o pode do dono".
+- **Decidido (dono):** tirar a lista da página. **Solução:** botão "Gerenciar ativos (N)" que abre uma folha com a mesma lista e as mesmas ações. O botão fica **sempre visível quando há ativo** (e não só quando há ativo sem posição, como o README do handoff sugeria): sem isso o dono perderia o único caminho de editar um ativo com posição e de reativar um arquivado.
+- **Nenhuma ação foi cortada;** a ordem aprovada na #321 passa a terminar em Proventos.
+- **Limite aceito:** editar, extrato e subclasse abrem dentro da folha (um painel sobre a página), não numa folha dentro de outra.
+
 ## 16/11/2026 — Investimentos: o handoff de design vira PRs, uma mudança por vez (dono, #371)
 - **Pedido:** o dono mandou o handoff v2 da tela de Investimentos (seis mudanças de apresentação, sem migration) e disse "fazer", depois do parecer do agente `melhorias`.
 - **Decidido (ordem do parecer, uma mudança por PR):** 3 (gráfico de evolução, #371) → 2 (aviso "sem avaliação") → 4 (composição em barras) → 1 (resumo num card) → 5 (tabela única, só se incomodar) → 6 ("Ativos cadastrados" sai, só com "pode" explícito). A 3 foi primeiro por ser defeito real de leitura (a linha saía de zero) e sem dinheiro novo.

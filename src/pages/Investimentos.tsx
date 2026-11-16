@@ -67,6 +67,7 @@ export default function Investimentos() {
   // período do gráfico de evolução (proposta de 12/11/2026): 6 e 12 meses saem da mesma leitura de 12; 24 meses só é lido
   // quando o dono escolhe (a leitura do histórico é a mais cara da tela: não dobrar o custo de quem nunca pede 24)
   const [periodoMeses, setPeriodoMeses] = useState<6 | 12 | 24>(12)
+  const [gerenciandoAtivos, setGerenciandoAtivos] = useState(false)
   // um gráfico só, com abas de moeda (só as que têm valor); a escolhida que deixa de existir cai para a primeira
   const [moedaEvolucao, setMoedaEvolucao] = useState<MoedaInvestimento>('BRL')
   const [historico24, setHistorico24] = useState<PontoEvolucao[] | null>(null)
@@ -332,6 +333,8 @@ export default function Investimentos() {
   const instituicoesExistentes = [...new Set(ativos.map((a) => a.instituicao).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   // 6 meses = os 6 últimos da leitura de 12; 24 meses = a leitura própria (enquanto ela não chega, o gráfico fica nos 12)
   const corte6Meses = inicioHistorico(hojeSP(), 6)
+  // ativo ativo que não tem posição aberta (zerado ou nunca comprado): vira uma linha de aviso ao lado do botão
+  const semPosicao = ativos.filter((a) => a.ativo && !posicoes.some((p) => p.assetId === a.id))
   const moedasEvolucao = ([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[])
   const moedaDaEvolucao = moedasEvolucao.includes(moedaEvolucao) ? moedaEvolucao : (moedasEvolucao[0] ?? 'BRL')
   const mesesMostrados = periodoMeses === 24 && historico24 === null ? 12 : periodoMeses
@@ -505,55 +508,69 @@ export default function Investimentos() {
 
       {proventos.length > 0 && <SecaoProventos linhas={proventos} />}
 
-      <section className="mt-8" aria-labelledby="titulo-cadastro-ativos">
-        <h2 id="titulo-cadastro-ativos" className="mb-3 text-lg font-semibold">Ativos cadastrados</h2>
-        {ativos.length === 0 ? <p className="text-sm text-slate-500">Nenhum ativo cadastrado.</p> : (
-          <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200">
-            {ativos.map((a) => {
-              const comPosicao = posicoes.some((p) => p.assetId === a.id)
-              // posição aberta = aparece em "Posições"; ativo sem ela (zerado ou nunca comprado) pode ser arquivado
-              const situacao = !a.ativo ? 'Arquivado' : comPosicao ? 'Posição aberta' : 'Sem posição'
-              const semHistorico = a.quantidadeOperacoes === 0 && a.quantidadeAvaliacoes === 0 && a.quantidadeProventos === 0
-              return (
-                <li key={a.id} className={`flex flex-wrap items-center justify-between gap-2 p-3 ${a.ativo ? '' : 'opacity-70'}`}>
-                  <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda} · {a.subclasse ?? 'sem subclasse'}{a.instituicao ? ` · ${a.instituicao}` : ''}{a.liquidez === 'restricted' ? ' · restrito' : ''}</p></div>
-                  <span className="flex flex-wrap items-center gap-1">
-                    <span className="mr-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{situacao}</span>
-                    <Button compacto variante="fantasma" onClick={() => setEditandoAtivo(a)} aria-label={`Editar ${a.nome}`}>Editar</Button>
-                    <Button compacto variante="fantasma" aria-expanded={extratoDe === a.id} onClick={() => setExtratoDe(extratoDe === a.id ? null : a.id)} aria-label={`Extrato de ${a.nome}`}>Extrato</Button>
-                    <Button compacto variante="fantasma" onClick={() => setEditandoSub(editandoSub === a.id ? null : a.id)}>Subclasse de {a.nome}</Button>
-                    <Button compacto variante="fantasma" aria-label={a.liquidez === 'restricted' ? `Marcar ${a.nome} como líquido` : `Marcar ${a.nome} como restrito`}
-                      onClick={() => void acaoNoAtivo(() => definirLiquidezAtivo(a.id, a.liquidez === 'restricted' ? 'liquid' : 'restricted'))}>
-                      {a.liquidez === 'restricted' ? 'Marcar como líquido' : 'Marcar como restrito'}
-                    </Button>
-                    {a.ativo && !comPosicao && (
-                      <Button compacto variante="fantasma" onClick={() => void acaoNoAtivo(() => arquivarAtivoInvestimento(a.id))} aria-label={`Arquivar ${a.nome}`}>Arquivar</Button>
+      {/* "Ativos cadastrados" saiu da página (pedido do dono, 16/11/2026: ficava enorme e feio); as mesmas ações moram em "Gerenciar ativos".
+          O botão aparece SEMPRE que há ativo: ativo com posição só se edita aqui e ativo arquivado só se reativa aqui. */}
+      {ativos.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-3" data-testid="gerenciar-ativos-rodape">
+          {semPosicao.length > 0 && (
+            <p className="text-sm text-slate-500">
+              {semPosicao.length === 1 ? '1 ativo cadastrado sem posição' : `${semPosicao.length} ativos cadastrados sem posição`}
+              {' '}({semPosicao.map((a) => a.ticker ?? a.nome).join(', ')})
+            </p>
+          )}
+          <Button variante="secundario" compacto aria-haspopup="dialog" onClick={() => setGerenciandoAtivos(true)}>Gerenciar ativos ({ativos.length})</Button>
+        </div>
+      )}
+      {gerenciandoAtivos && (
+        <Folha titulo="Gerenciar ativos" larga aoFechar={() => setGerenciandoAtivos(false)}>
+          {ativos.length === 0 ? <p className="text-sm text-slate-500">Nenhum ativo cadastrado.</p> : (
+            <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200">
+              {ativos.map((a) => {
+                const comPosicao = posicoes.some((p) => p.assetId === a.id)
+                // posição aberta = aparece em "Posições"; ativo sem ela (zerado ou nunca comprado) pode ser arquivado
+                const situacao = !a.ativo ? 'Arquivado' : comPosicao ? 'Posição aberta' : 'Sem posição'
+                const semHistorico = a.quantidadeOperacoes === 0 && a.quantidadeAvaliacoes === 0 && a.quantidadeProventos === 0
+                return (
+                  <li key={a.id} className={`flex flex-wrap items-center justify-between gap-2 p-3 ${a.ativo ? '' : 'opacity-70'}`}>
+                    <div><p className="font-medium">{a.nome}{a.ticker ? ` · ${a.ticker}` : ''}</p><p className="text-xs text-slate-500">{classes.find(([v]) => v === a.classe)?.[1] ?? a.classe} · {a.moeda} · {a.subclasse ?? 'sem subclasse'}{a.instituicao ? ` · ${a.instituicao}` : ''}{a.liquidez === 'restricted' ? ' · restrito' : ''}</p></div>
+                    <span className="flex flex-wrap items-center gap-1">
+                      <span className="mr-1 rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{situacao}</span>
+                      <Button compacto variante="fantasma" onClick={() => setEditandoAtivo(a)} aria-label={`Editar ${a.nome}`}>Editar</Button>
+                      <Button compacto variante="fantasma" aria-expanded={extratoDe === a.id} onClick={() => setExtratoDe(extratoDe === a.id ? null : a.id)} aria-label={`Extrato de ${a.nome}`}>Extrato</Button>
+                      <Button compacto variante="fantasma" onClick={() => setEditandoSub(editandoSub === a.id ? null : a.id)}>Subclasse de {a.nome}</Button>
+                      <Button compacto variante="fantasma" aria-label={a.liquidez === 'restricted' ? `Marcar ${a.nome} como líquido` : `Marcar ${a.nome} como restrito`}
+                        onClick={() => void acaoNoAtivo(() => definirLiquidezAtivo(a.id, a.liquidez === 'restricted' ? 'liquid' : 'restricted'))}>
+                        {a.liquidez === 'restricted' ? 'Marcar como líquido' : 'Marcar como restrito'}
+                      </Button>
+                      {a.ativo && !comPosicao && (
+                        <Button compacto variante="fantasma" onClick={() => void acaoNoAtivo(() => arquivarAtivoInvestimento(a.id))} aria-label={`Arquivar ${a.nome}`}>Arquivar</Button>
+                      )}
+                      {!a.ativo && (
+                        <Button compacto variante="fantasma" onClick={() => void acaoNoAtivo(() => reativarAtivoInvestimento(a.id))} aria-label={`Reativar ${a.nome}`}>Reativar</Button>
+                      )}
+                      {semHistorico ? (
+                        <Button compacto variante="secundario" type="button" carregando={excluindoId === a.id} aria-label={`Excluir ${a.nome}`}
+                          onClick={() => void excluirAtivo(a.id, a.nome)}>Excluir</Button>
+                      ) : <span className="text-xs text-slate-500">Histórico protegido</span>}
+                    </span>
+                    {editandoAtivo?.id === a.id && (
+                      <div className="w-full">
+                        <FormEditarAtivo ativo={a} instituicoes={bancoTemInstituicao ? instituicoesExistentes : null} aoSalvar={salvarEdicaoAtivo} aoCancelar={() => setEditandoAtivo(null)} />
+                      </div>
                     )}
-                    {!a.ativo && (
-                      <Button compacto variante="fantasma" onClick={() => void acaoNoAtivo(() => reativarAtivoInvestimento(a.id))} aria-label={`Reativar ${a.nome}`}>Reativar</Button>
+                    {extratoDe === a.id && familia?.id && (
+                      <div className="w-full">
+                        <ExtratoAtivo familiaId={familia.id} ativo={a} aoMudar={carregar} aoFechar={() => setExtratoDe(null)} />
+                      </div>
                     )}
-                    {semHistorico ? (
-                      <Button compacto variante="secundario" type="button" carregando={excluindoId === a.id} aria-label={`Excluir ${a.nome}`}
-                        onClick={() => void excluirAtivo(a.id, a.nome)}>Excluir</Button>
-                    ) : <span className="text-xs text-slate-500">Histórico protegido</span>}
-                  </span>
-                  {editandoAtivo?.id === a.id && (
-                    <div className="w-full">
-                      <FormEditarAtivo ativo={a} instituicoes={bancoTemInstituicao ? instituicoesExistentes : null} aoSalvar={salvarEdicaoAtivo} aoCancelar={() => setEditandoAtivo(null)} />
-                    </div>
-                  )}
-                  {extratoDe === a.id && familia?.id && (
-                    <div className="w-full">
-                      <ExtratoAtivo familiaId={familia.id} ativo={a} aoMudar={carregar} aoFechar={() => setExtratoDe(null)} />
-                    </div>
-                  )}
-                  {editandoSub === a.id && <EditorSubclasse ativo={a} aoSalvar={(v) => salvarSubclasse(a.id, v)} aoCancelar={() => setEditandoSub(null)} />}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </section>
+                    {editandoSub === a.id && <EditorSubclasse ativo={a} aoSalvar={(v) => salvarSubclasse(a.id, v)} aoCancelar={() => setEditandoSub(null)} />}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Folha>
+      )}
     </>
   )
 }
