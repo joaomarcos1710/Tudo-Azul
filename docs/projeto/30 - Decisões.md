@@ -824,6 +824,12 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 16/11/2026 — Parcelado: valor informado e despesa nasce "Toda a família" (dono, #369)
+- **Pedido:** ao lançar um parcelado, o dono listou o que a tela precisa deixar claro (fixo × parcelado; parcelas + período; "Serão lançadas X parcelas de R$ Y" com a regra da sobra; **o que é o valor informado**) e que **o app sempre presumia a dívida do João, e deveria ser da família**. Os três primeiros itens já existiam; faltavam o quarto e o quinto.
+- **Decidido (dono):** (1) o parcelado ganha **"O total" × "O de cada parcela"**; (2) a despesa nova nasce **"Toda a família"**.
+- **Alcance do (2), a confirmar com o dono:** valeu para **toda despesa nova** do formulário (à vista, parcelada, cartão, fixa), porque o padrão antigo (a pessoa logada) era o mesmo para todas. Se o dono quiser "família" só no parcelado/cartão, é voltar o padrão das demais.
+- **Limite aceito:** lançamentos e regras que já existem **não mudam** (continuam com a pessoa que tinham). Mudar as antigas é por edição, no seletor "Despesa de quem?".
+
 ## 15/11/2026 — O nome é "Reservas", não "envelopes" (dono, #368)
 - **Pergunta (agente `melhorias`, proposta 4):** o mesmo conceito aparecia como "reservas" no texto do card, "Envelopes comprometidos" no rótulo e "Gerenciar reservas" no link.
 - **Decidido (dono):** "Reserva". Trocado o texto visível no Início, na tela Reservas e no menu. Notas antigas do diário que dizem "envelope" ficam como estão (histórico).

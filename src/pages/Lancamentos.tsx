@@ -832,7 +832,6 @@ const controleLinha = 'min-h-11 min-w-0 max-w-full appearance-none truncate roun
 const seta = <span aria-hidden="true" className="text-lg text-slate-400">›</span>
 
 function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, familiaId, aoSalvar, aoRegistrarOutro, aoCancelar, aoCategoriaCriada }: PropsForm) {
-  const { sessao: sessaoAtual } = useAuth()
   const hoje = hojeSP()
   // multimoeda F2: receita, despesa e transferência aceitam conta em qualquer moeda (o destino da transferência, só na
   // mesma moeda da origem: ver `destinos`)
@@ -855,20 +854,16 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const [notas, setNotas] = useState(l?.notas ?? '')
   const [pessoas, setPessoas] = useState<PessoaFamilia[]>([])
   const [personId, setPersonId] = useState<string | null>(l?.personId ?? null)
-  const [isSharedExpense, setIsSharedExpense] = useState(l?.isSharedExpense ?? false)
-  const pessoaEscolhidaManualmente = useRef(false)
+  // Despesa nova nasce "Toda a família" (pedido do dono, 16/11/2026): antes o app presumia a pessoa logada (a dívida parecia do João)
+  const [isSharedExpense, setIsSharedExpense] = useState(l?.isSharedExpense ?? !l)
   useEffect(() => {
     let ativo = true
     void listarPessoasFamilia(familiaId).then((lista) => {
       if (!ativo) return
       setPessoas(lista)
-      if (!l && !pessoaEscolhidaManualmente.current && sessaoAtual?.user.id) {
-        const propria = lista.find((pessoa) => pessoa.userId === sessaoAtual.user.id && pessoa.ativo)
-        if (propria) setPersonId(propria.id)
-      }
     }).catch(() => { if (ativo) setPessoas([]) })
     return () => { ativo = false }
-  }, [familiaId, l, sessaoAtual?.user.id])
+  }, [familiaId])
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -888,6 +883,8 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const [repetir, setRepetir] = useState(false)
   const [modoRepetir, setModoRepetir] = useState<'fixo' | 'parcelado'>('fixo')
   const [nParcelasTexto, setNParcelasTexto] = useState('2')
+  // parcelado: o valor digitado é o TOTAL (dividir entre as parcelas) ou o de CADA parcela (repetir; o total é valor × N)
+  const [modoValor, setModoValor] = useState<'dividir' | 'repetir'>('dividir')
   const [periodo, setPeriodo] = useState('meses')
   const [frequencia, setFrequencia] = useState('mensal')
   const [repetirAte, setRepetirAte] = useState('')
@@ -903,6 +900,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
   const parcelas = Number(parcelasTexto)
 
   const valor = parseBRL(valorTexto)
+  const totalParcelado = valor !== null && nParcelasOk && modoValor === 'repetir' ? (valor * nParcelas) as Cents : valor
   const transferencia = tipo === 'transfer'
   const categoriasDoTipo = categorias.filter((c) => c.tipo === tipo && (c.ativa || c.id === l?.categoriaId))
   const conta = contas.find((c) => c.id === contaId)
@@ -924,13 +922,13 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
       : (fixo || assinatura) && repetirAte && data && repetirAte < data ? 'O "até" não pode ser antes da data.'
       : parcelado && !descricao.trim() ? 'Dê um nome ao parcelado (ex.: Sofá, Curso).'
       : parcelado && !nParcelasOk ? 'De 2 a 360 parcelas.'
-      : parcelado && valor !== null && valor > 0 && Math.floor(valor / nParcelas) < 1 ? 'Valor pequeno demais para tantas parcelas.' : undefined,
+      : parcelado && modoValor === 'dividir' && valor !== null && valor > 0 && Math.floor(valor / nParcelas) < 1 ? 'Valor pequeno demais para tantas parcelas.' : undefined,
   }
 
   /** Depois de gravar: fecha o formulário, ou (em "Registrar e lançar outro") limpa valor, descrição e categoria e continua aberto. */
   async function concluir(mensagem: string) {
     if (!outroRef.current || l) { await aoSalvar(); return }
-    setValorTexto(''); setDescricao(''); setCategoriaId(''); setNotas(''); setParcelasTexto('1'); setStatus(null); setPersonId(null); setIsSharedExpense(false); pessoaEscolhidaManualmente.current = false
+    setValorTexto(''); setDescricao(''); setCategoriaId(''); setNotas(''); setParcelasTexto('1'); setStatus(null); setPersonId(null); setIsSharedExpense(true)
     setTentou(false); chaveRef.current = null
     setRegistrado(mensagem)
     await aoRegistrarOutro()
@@ -969,13 +967,13 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
       if (parcelado) {
         const p = PERIODOS.find((x) => x.chave === periodo) ?? PERIODOS[4]
         await criarParcelado({
-          tipo, descricao, total: valor as Cents, parcelas: nParcelas, unidade: p.unidade, cada: p.cada, primeira: data,
+          tipo, descricao, total: totalParcelado as Cents, parcelas: nParcelas, unidade: p.unidade, cada: p.cada, primeira: data,
           contaId, destinoId: transferencia ? destinoId : null, categoriaId: transferencia ? null : categoriaId,
           primeiraPaga: statusEfetivo === 'paid', personId: tipo === 'expense' ? personId : null,
           isSharedExpense: tipo === 'expense' ? isSharedExpense : false,
         })
         lembrarEscolha(familiaId, 'conta', contaId)
-        setRepetir(false); setNParcelasTexto('2')
+        setRepetir(false); setNParcelasTexto('2'); setModoValor('dividir')
         await concluir(`${nParcelas} parcelas lançadas.`)
         return
       }
@@ -1143,7 +1141,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
               <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Opções avançadas · Pessoa responsável</summary>
               <div className="pb-2">
                 <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
-                  onChange={(value) => { pessoaEscolhidaManualmente.current = true; setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
+                  onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
               </div>
             </details>
           )}
@@ -1213,12 +1211,26 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
                       </select>
                     </label>
                   </div>
-                  {valor !== null && valor > 0 && nParcelasOk && Math.floor(valor / nParcelas) >= 1 && (() => {
-                    const v = valoresDasParcelas(valor as Cents, nParcelas)
+                  <fieldset className="flex flex-col gap-1">
+                    <legend className="text-sm font-medium">O valor informado é</legend>
+                    {([
+                      ['dividir', 'O total', 'cada parcela recebe a divisão.'],
+                      ['repetir', 'O de cada parcela', 'o total do compromisso é o valor × o número de parcelas.'],
+                    ] as const).map(([m, rotulo, explica]) => (
+                      <label key={m} className="flex min-h-11 items-start gap-3 text-sm">
+                        <input type="radio" name="modo-valor" className="mt-1 h-5 w-5" checked={modoValor === m} onChange={() => setModoValor(m)} />
+                        <span><span className="font-medium">{rotulo}</span><span className="block text-xs text-slate-500">{explica}</span></span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  {valor !== null && valor > 0 && nParcelasOk && (modoValor === 'repetir' || Math.floor(valor / nParcelas) >= 1) && (() => {
+                    const v = valoresDasParcelas(totalParcelado as Cents, nParcelas)
                     return (
                       <p className="rounded-lg bg-slate-50 p-3 text-sm" data-testid="previa-parcelas">
                         Serão lançadas {nParcelas} parcelas de <strong className="tabular-nums">{formatMoeda(v[1], moeda)}</strong>
-                        {v[0] !== v[1] && <> (a primeira de <strong className="tabular-nums">{formatMoeda(v[0], moeda)}</strong>, com a sobra dos centavos)</>}.
+                        {v[0] !== v[1] && <> (a primeira de <strong className="tabular-nums">{formatMoeda(v[0], moeda)}</strong>, com a sobra dos centavos)</>}
+                        {modoValor === 'repetir' && <>, total de <strong className="tabular-nums" data-testid="total-parcelado">{formatMoeda(totalParcelado as Cents, moeda)}</strong></>}.
+                        {v[0] !== v[1] && <span className="block text-xs text-slate-500">Em caso de divisão não exata, a sobra é somada à primeira parcela.</span>}
                         <span className="block text-xs text-slate-500">A primeira segue a situação escolhida abaixo; as outras entram como planejadas.</span>
                       </p>
                     )
