@@ -458,10 +458,20 @@ export default function Lancamentos() {
         </Explicacao>
       )}
 
-      {lancamentos?.length === 0 && movimentosDivida.length === 0 && parcelasContrato.length === 0 && creditosCartao.length === 0 && faturas.length === 0
-        && comprasCategoria.length === 0 && editando === null && contas.length > 0 && (
-        <EmptyState titulo="Nenhum lançamento neste mês" descricao="Registre receitas, despesas e transferências entre contas."
-          acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
+      {/* Decide pela lista que vai para a tela (`itens`), não pelos vetores crus: com filtro de cartão, situação, fixos ou
+          parcelados a lista pode ficar vazia mesmo havendo lançamentos no período, e a tela ficava em branco, sem lista
+          nem mensagem. Se alguma consulta falhou, quem fala é o aviso de erro: falha não é "nenhum lançamento". */}
+      {lancamentos !== null && itens.length === 0 && editando === null && contas.length > 0
+        && !erro && blocosFalharam.length === 0 && !comprasFalharam && (
+        filtrosLigados.length > 0 ? (
+          <EmptyState titulo="Nenhum lançamento com esses filtros"
+            descricao={`${filtrosLigados.length === 1 ? 'Há 1 filtro ligado' : `Há ${filtrosLigados.length} filtros ligados`}: ${filtrosLigados.map((f) => f.rotulo).join(', ')}. ${periodo.tipo === 'mes' ? 'Neste mês' : 'Neste período'} nada combina com ${filtrosLigados.length === 1 ? 'ele' : 'eles'}.`}
+            acao={<Button variante="secundario" onClick={() => setFiltros({})}>Limpar filtros</Button>} />
+        ) : (
+          <EmptyState titulo={periodo.tipo === 'mes' ? 'Nenhum lançamento neste mês' : 'Nenhum lançamento neste período'}
+            descricao="Registre receitas, despesas e transferências entre contas."
+            acao={<Button onClick={() => setEditando('novo')}>Novo lançamento</Button>} />
+        )
       )}
 
       {lote.confirmacao}
