@@ -1174,7 +1174,21 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
     expect(mock.carregarResumoInvestimentos).not.toHaveBeenCalled()
   })
 
-  it('mostra os 7, na ordem, com o valor do banco, o rótulo curto e o (i)', async () => {
+  it('mudança 9 do handoff: com o Dinheiro Livre carregado, a faixa tem 6 indicadores, sem o Disponível (o card já mostra o mesmo número)', async () => {
+    montar()
+    const faixa = await screen.findByRole('region', { name: 'Indicadores do mês' })
+    const ids = Array.from(faixa.querySelectorAll('[data-indicador]')).map((x) => x.getAttribute('data-indicador'))
+    expect(ids).toEqual(['patrimonio', 'resultado', 'poupanca', 'reserva', 'comprometimento', 'dividas'])
+    // o número não some da tela: está no card Dinheiro Livre
+    expect(screen.getByText('Saldo disponível')).toBeTruthy()
+    // 6 indicadores: 3 + 3 no computador (nunca 4 + 2)
+    const classes = faixa.querySelector('ul')!.className.split(/\s+/)
+    expect(classes).toContain('lg:grid-cols-3')
+    expect(classes).not.toContain('lg:grid-cols-4')
+  })
+
+  it('se o Dinheiro Livre falhar, o Disponível continua na faixa: mostra os 7, na ordem, com o valor do banco, o rótulo curto e o (i)', async () => {
+    mock.carregarHomeDecisao.mockRejectedValue(new Error('boom'))
     montar()
     const faixa = await screen.findByRole('region', { name: 'Indicadores do mês' })
     const itens = Array.from(faixa.querySelectorAll('[data-indicador]')) as HTMLElement[]
@@ -1202,6 +1216,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
   })
 
   it('grade: 2 colunas no celular e no iPad em pé, 4 por linha só de lg em diante (a barra lateral come 256 px a partir de md) e nunca 7', async () => {
+    mock.carregarHomeDecisao.mockRejectedValue(new Error('boom')) // 7 indicadores; com 6, o teste da mudança 9 confere 3 + 3
     montar()
     const lista = (await screen.findByRole('region', { name: 'Indicadores do mês' })).querySelector('ul')!
     const classes = lista.className.split(/\s+/)
@@ -1215,6 +1230,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
       ...IND, disponivel: c(-5000), resultado: c(-100), patrimonio: c(0),
       taxaPoupanca: -1.7, faixaPoupanca: 'critico', coberturaReserva: 3, faixaReserva: 'atencao', comprometimento: 40.2, faixaComprometimento: 'critico',
     })
+    mock.carregarHomeDecisao.mockRejectedValue(new Error('boom')) // o Disponível só fica na faixa sem o card Dinheiro Livre
     montar()
     const cor = (x: HTMLElement) => x.querySelectorAll('p')[1].className
     const selo = (x: HTMLElement) => x.querySelector('[data-selo]')!
@@ -1250,6 +1266,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
   })
 
   it('(i): botão com aria-expanded que abre a conta em uma linha, com os números do banco, e fecha com Esc', async () => {
+    mock.carregarHomeDecisao.mockRejectedValue(new Error('boom')) // o Disponível só fica na faixa sem o card Dinheiro Livre
     montar()
     const x = await indicador('disponivel')
     const botao = within(x).getByRole('button', { name: 'Como é calculado: Disponível' })
@@ -1266,6 +1283,7 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
   })
 
   it('(i) do Disponível diz que só conta o dinheiro de uso no mesmo dia e que renda fixa, variável e cripto ficam no Patrimônio (076)', async () => {
+    mock.carregarHomeDecisao.mockRejectedValue(new Error('boom')) // o Disponível só fica na faixa sem o card Dinheiro Livre
     montar()
     const x = await indicador('disponivel')
     const botao = within(x).getByRole('button', { name: 'Como é calculado: Disponível' })

@@ -776,11 +776,13 @@ Uma mudança por PR. Requisito do dono: o caminho para Análises continua (ícon
 - [x] **8.** Maiores gastos em barras no lugar da rosca, e "Demais categorias" no lugar de "Outros".
 - [x] **5.** Pares de mesma altura (Contas | Cartões, Maiores gastos | Receitas a receber): cartões como filhos diretos da grade; o teste de ordem do celular passou a olhar a ordem da página.
 - [x] **1.** Cabeçalho: despesa em tinta normal, contorno dos atalhos em slate-500, e o ícone de Análises virou link com texto "Ver análises do mês". Falta conferir em 390 px se os botões quebram bem de linha.
-- [x] **4.** Indicadores numa grade que respeite a barra lateral: 2 colunas até `lg`, 4 por linha depois (o dono pediu para fazer antes de decidir a 9). Com 7 indicadores fica 4 + 3, com um espaço vazio; rever quando a 9 for decidida.
+- [x] **4.** Indicadores numa grade que respeite a barra lateral: 2 colunas até `lg`, 4 por linha depois (o dono pediu para fazer antes de decidir a 9). Com 7 indicadores fica 4 + 3; com a 9 feita, o caso normal são 6, em 3 + 3.
 - [ ] **6.** Contas por instituição. **Decisão do dono:** o total por instituição não existe no banco; é preciso uma função nova ou agrupar sem total.
 - [ ] **7.** Cartões em uma linha, com barra de limite. O limite está em `card_overview` e em `listarCartoes`, mas `ResumoCartao` não o repassa. **Decisão do dono:** o rótulo da barra (o "comprometido" do banco inclui parcelas futuras, não é a fatura), e se a % aparece com os valores ocultos.
 - [ ] **2 e 3.** Conta à vista do Dinheiro Livre e "Ver todos (N)" dos compromissos. **Depois da etapa 2.** Falta definir o destino do "Ver todos".
-- [ ] **9, 10, 11 e 12.** Só com "pode" explícito. A 9 faz o Disponível sumir quando a decisão falha. A 10 tira as âncoras Contas/Cartões. A 11 e a 12 esperam a etapa 2, e "Compromissos futuros" também é nome de outro número em Análises.
+- [x] **9.** Disponível fora da faixa quando o card Dinheiro Livre carregou (6 indicadores, 3 + 3); se o card falhar, o Disponível continua na faixa.
+- [ ] A explicação "(i)" do Disponível (contas que entram, faturas fechadas, o que fica no Patrimônio) deixou de aparecer no caso normal: levar para o card Dinheiro Livre junto com a mudança 2.
+- [ ] **10, 11 e 12.** Só com "pode" explícito. A 10 tira as âncoras Contas/Cartões. A 11 e a 12 esperam a etapa 2, e "Compromissos futuros" também é nome de outro número em Análises.
 - [ ] Conferir no navegador o novo card Maiores gastos e os pares de mesma altura (390, 820 e 1280 px). No par, o cartão mais curto fica com espaço vazio embaixo: ver se incomoda.
 
 ## 16/11/2026 — Investimentos: ativos "sem avaliação" e cotação automática (conversa com o dono)

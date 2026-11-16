@@ -8,7 +8,7 @@ import type { Faixa, Indicadores } from '../../lib/indicadores'
  * Faixa de indicadores do topo do Início (#188): quanto tenho, quanto entra e sai, quanto devo e se estou avançando.
  * Todo número vem do banco (home_indicators, migration 071), inclusive as razões e as faixas de cor; aqui só se
  * formata. A cor nunca é a única pista: cada indicador tem um rótulo curto e um (i) com a conta em uma linha.
- * 2 colunas no celular e no iPad em pé, 4 por linha de `lg` em diante (mudança 4 do handoff do Início, 16/11/2026).
+ * 2 colunas no celular e no iPad em pé; de `lg` em diante, 3 por linha com 6 indicadores e 4 por linha com 7 (mudança 4 do handoff do Início, 16/11/2026).
  * A barra lateral de 256 px aparece de `md` em diante e `md:` olha a janela, não o conteúdo: com 4 colunas em `md` cada
  * card ficava com ~120 px no iPad em pé, e com 7 em `xl` ficava com ~137 px no computador. Nunca mais de 4 por linha.
  */
@@ -135,14 +135,24 @@ function Indicador({ item }: { item: Item }) {
   )
 }
 
-export function FaixaIndicadores({ dados }: { dados: Indicadores | null }) {
+export function FaixaIndicadores({ dados, semDisponivel = false }: {
+  dados: Indicadores | null
+  /**
+   * Mudança 9 do handoff do Início (decisão do dono, 16/11/2026): o Disponível sai da faixa quando o card Dinheiro Livre
+   * já o mostra ("Saldo disponível", o mesmo número: os dois vêm de home_indicators). Quem chama só liga isto quando
+   * esse card carregou; se ele falhar, o Disponível continua aqui, para o número não sumir da tela.
+   */
+  semDisponivel?: boolean
+}) {
+  const itens = dados === null ? [] : itensDaFaixa(dados).filter((item) => !(semDisponivel && item.id === 'disponivel'))
   return (
     <section aria-label="Indicadores do mês" className="mb-5">
       {dados === null ? (
         <p className="rounded-card bg-white p-4 text-sm text-slate-500 shadow-card" role="status">Indicadores indisponíveis agora. O resto do Início continua.</p>
       ) : (
-        <ul className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-          {itensDaFaixa(dados).map((item) => <Indicador key={item.id} item={item} />)}
+        // 6 indicadores: 3 + 3; 7 (com o Disponível): 4 + 3. Nunca uma linha de 4 e outra de 2.
+        <ul className={`grid grid-cols-2 gap-2 ${itens.length === 6 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
+          {itens.map((item) => <Indicador key={item.id} item={item} />)}
         </ul>
       )}
     </section>

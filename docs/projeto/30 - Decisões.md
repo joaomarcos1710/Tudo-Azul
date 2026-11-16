@@ -891,6 +891,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Dólar também (15/11/2026):** a categoria "Dólar" (receita, 1 lançamento de R$ 8,93, "Compra de Dólar") é do mesmo tipo de operação; o dono mandou marcar também e a marca foi gravada.
 
 
+## 16/11/2026 — Disponível sai da faixa de indicadores do Início (dono, handoff, mudança 9)
+- **O quê:** a faixa do Início passa a ter 6 indicadores; o Disponível fica só no card Dinheiro Livre ("Saldo disponível").
+- **Por quê:** era o mesmo número duas vezes na mesma tela (os dois vêm de `home_indicators`, conferido no SQL de `get_home_decision_month`).
+- **Salvaguarda:** se o card Dinheiro Livre não carregar, o Disponível continua na faixa, para o número não sumir.
+
 ## 16/11/2026 — "Demais categorias" no lugar de "Outros" no gráfico de categorias (handoff do Início, mudança 8)
 - **O quê:** o grupo do resto do gráfico de categorias (as que ficam fora das 4 maiores no Início ou das 6 maiores em Análises) passa a aparecer como **"Demais categorias"**.
 - **Por quê:** a família pode ter uma categoria de verdade chamada "Outros", e as duas apareciam juntas no mesmo gráfico.
