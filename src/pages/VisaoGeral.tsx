@@ -169,7 +169,11 @@ function ResumoDecisao({ dados }: { dados: HomeDecisao | null }) {
         </div>
         <div className="rounded-xl bg-azul-claro px-4 py-3">
           <p className="text-xs font-semibold text-slate-600">Limite diário seguro</p>
-          <p className="mt-1 tabular-nums text-xl font-bold text-azul">{formatBRL(dados.limiteDiarioSeguro)}</p>
+          {dados.dinheiroLivre <= 0
+            // livre zerado ou negativo: o banco devolve 0, e "R$ 0,00" em azul parecia "tudo bem"; o texto diz o que é
+            ? <p className="mt-1 text-xl font-bold text-slate-700" data-testid="limite-diario-sem-margem">Sem margem</p>
+            : <p className="mt-1 tabular-nums text-xl font-bold text-azul">{formatBRL(dados.limiteDiarioSeguro)}</p>}
+          {dados.limiteDiarioAte && <p className="text-xs text-slate-500" data-testid="limite-diario-ate">{dados.dinheiroLivre <= 0 ? 'até' : 'por dia, até'} {formatDate(dados.limiteDiarioAte).slice(0, 5)}</p>}
         </div>
       </div>
       {(dados.atrasos ?? []).length > 0 && (

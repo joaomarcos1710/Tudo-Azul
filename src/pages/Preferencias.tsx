@@ -9,8 +9,8 @@ import { useAuth } from '../lib/auth'
 import { useFamilia } from '../lib/FamiliaContext'
 import { supabase } from '../lib/supabase'
 
-type PreferenciasDados = { ordem_lancamentos: 'asc' | 'desc'; periodo_padrao: 'daily' | 'weekly' | 'monthly'; saldo_diario: boolean }
-const padrao: PreferenciasDados = { ordem_lancamentos: 'desc', periodo_padrao: 'monthly', saldo_diario: true }
+type PreferenciasDados = { ordem_lancamentos: 'asc' | 'desc'; periodo_padrao: 'daily' | 'weekly' | 'monthly'; saldo_diario: boolean; month_start_day: number }
+const padrao: PreferenciasDados = { ordem_lancamentos: 'desc', periodo_padrao: 'monthly', saldo_diario: true, month_start_day: 1 }
 const FRASE_EXCLUIR = 'excluir transações'
 
 function Opcao({ titulo, descricao, children }: { titulo: string; descricao: string; children: ReactNode }) {
@@ -46,10 +46,10 @@ export default function Preferencias() {
     let ativo = true
     async function carregar() {
       if (!supabase || !sessao?.user.id) { setCarregando(false); return }
-      const { data, error } = await supabase.from('user_preferences').select('ordem_lancamentos,periodo_padrao,saldo_diario').eq('user_id', sessao.user.id).maybeSingle()
+      const { data, error } = await supabase.from('user_preferences').select('ordem_lancamentos,periodo_padrao,saldo_diario,month_start_day').eq('user_id', sessao.user.id).maybeSingle()
       if (!ativo) return
       if (error) setErro('Não foi possível carregar suas preferências. Confira a conexão e tente novamente.')
-      else if (data) setDados({ ordem_lancamentos: data.ordem_lancamentos, periodo_padrao: data.periodo_padrao, saldo_diario: data.saldo_diario })
+      else if (data) setDados({ ordem_lancamentos: data.ordem_lancamentos, periodo_padrao: data.periodo_padrao, saldo_diario: data.saldo_diario, month_start_day: data.month_start_day ?? 1 })
       setCarregando(false)
     }
     void carregar()
@@ -131,6 +131,14 @@ export default function Preferencias() {
         <Opcao titulo="Saldo diário" descricao="Preferência pessoal para exibição do saldo ao final de cada dia, nas telas que oferecem esse resumo.">
           <Escolha nome="saldo" valor="Sim" selecionado={dados.saldo_diario} aoMudar={() => setDados(d => ({...d, saldo_diario:true}))} />
           <Escolha nome="saldo" valor="Não" selecionado={!dados.saldo_diario} aoMudar={() => setDados(d => ({...d, saldo_diario:false}))} />
+        </Opcao>
+        <Opcao titulo="Dia em que o seu mês começa" descricao="O dia em que o seu salário cai (de 1 a 28). Se o mês começa no dia 20, o Limite diário seguro divide o Dinheiro Livre pelos dias até o dia 19. O padrão é 1, o mês-calendário. Vale só para você.">
+          <label className="flex flex-col gap-1 text-sm font-medium text-slate-700" htmlFor="dia-mes-financeiro">Dia
+            <select id="dia-mes-financeiro" value={dados.month_start_day} onChange={(e) => setDados(d => ({...d, month_start_day: Number(e.target.value)}))}
+              className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base font-normal">
+              {Array.from({ length: 28 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n === 1 ? '1 (mês-calendário)' : n}</option>)}
+            </select>
+          </label>
         </Opcao>
         <div className="flex justify-end pt-5"><Button onClick={salvar} carregando={salvando}>Salvar alterações</Button></div>
       </>}

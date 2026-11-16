@@ -69,6 +69,25 @@ describe('Preferências', () => {
     ))
   })
 
+  it('o dia em que o mês começa: padrão 1, escolhe de 1 a 28 e grava só para a própria pessoa', async () => {
+    const u = userEvent.setup()
+    montar()
+    const dia = await screen.findByLabelText('Dia') as HTMLSelectElement
+    expect(dia.value).toBe('1')
+    expect(dia.options).toHaveLength(28)
+    await u.selectOptions(dia, '20')
+    await u.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+    await waitFor(() => expect(mock.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ user_id: 'u1', month_start_day: 20 }), { onConflict: 'user_id' },
+    ))
+  })
+
+  it('o dia salvo antes volta no seletor ao abrir a tela', async () => {
+    mock.maybeSingle.mockResolvedValue({ data: { ordem_lancamentos: 'desc', periodo_padrao: 'monthly', saldo_diario: true, month_start_day: 20 }, error: null })
+    montar()
+    expect(((await screen.findByLabelText('Dia')) as HTMLSelectElement).value).toBe('20')
+  })
+
   it('só habilita a exclusão da conta depois das duas confirmações', async () => {
     const u = userEvent.setup()
     montar()

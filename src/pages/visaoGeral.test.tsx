@@ -441,6 +441,27 @@ describe('Visão geral', () => {
     expect(await screen.findByText('Reservas comprometidas')).toBeTruthy()
     expect(screen.queryByText(/Envelope/i)).toBeNull()
   })
+  it('o Limite diário seguro diz até quando vale ("por dia, até 19/12") quando o banco manda a data do ciclo', async () => {
+    const base = await mock.carregarHomeDecisao()
+    mock.carregarHomeDecisao.mockResolvedValue({ ...base, limiteDiarioAte: '2026-12-19' })
+    montar()
+    expect((await screen.findByTestId('limite-diario-ate')).textContent).toBe('por dia, até 19/12')
+    expect(screen.queryByTestId('limite-diario-sem-margem')).toBeNull()
+  })
+  it('Dinheiro Livre zerado ou negativo: o limite diário diz "Sem margem" em vez de "R$ 0,00" em azul', async () => {
+    const base = await mock.carregarHomeDecisao()
+    mock.carregarHomeDecisao.mockResolvedValue({ ...base, dinheiroLivre: c(-3215500), limiteDiarioSeguro: c(0), limiteDiarioAte: '2026-12-19' })
+    montar()
+    const caixa = (await screen.findByTestId('limite-diario-sem-margem')).parentElement as HTMLElement
+    expect(within(caixa).getByText('Sem margem')).toBeTruthy()
+    expect(caixa.textContent).not.toContain('R$ 0,00')
+    expect(within(caixa).getByTestId('limite-diario-ate').textContent).toBe('até 19/12')
+  })
+  it('sem a data do banco (função antiga), o limite aparece como antes, sem rótulo de data', async () => {
+    montar()
+    expect(await screen.findByText('Limite diário seguro')).toBeTruthy()
+    expect(screen.queryByTestId('limite-diario-ate')).toBeNull()
+  })
   it('se a comparação falhar, o resto do painel aparece', async () => {
     mock.resumoDoPeriodo.mockReset()
     mock.resumoDoPeriodo.mockRejectedValue(new Error('x'))
