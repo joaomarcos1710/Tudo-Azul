@@ -906,3 +906,7 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** o grupo do resto do gráfico de categorias (as que ficam fora das 4 maiores no Início ou das 6 maiores em Análises) passa a aparecer como **"Demais categorias"**.
 - **Por quê:** a família pode ter uma categoria de verdade chamada "Outros", e as duas apareciam juntas no mesmo gráfico.
 - **Como:** o banco continua devolvendo "Outros" com `category_id` nulo (`expenses_by_category` e `expenses_by_category_basis`, só com junção interna com `categories`, então nulo é sempre o grupo do resto). A troca é feita uma vez, no mapeamento `despesasPorCategoria` (`src/lib/painel.ts`). Nenhuma migration muda, e uma categoria real chamada "Outros" mantém o nome.
+
+## 16/11/2026 — Calendário financeiro: totais do dia vêm do banco e o filtro "Faturas e Parcelas" é estreito
+- **O quê:** o Calendário vai mostrar entradas e saídas dentro de cada dia, com um filtro Todos · Entradas · Saídas · Faturas e Parcelas. Os totais do dia vêm de uma função do banco (`calendar_day_totals`), não de soma na tela. "Faturas e Parcelas" é só fatura de cartão e parcela de dívida (com juros e tarifa da parcela); compra parcelada e recorrente ficam fora.
+- **Por quê:** o modelo sugerido pelo Gemini somava os valores do dia no front, o que quebra a regra do dinheiro (o front não soma). O dono escolheu o filtro estreito porque recorrente já tem tela própria e misturar deixaria o filtro vago.
