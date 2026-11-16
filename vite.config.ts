@@ -1,4 +1,6 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
+import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { readFileSync } from 'node:fs'
 
@@ -15,5 +17,10 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
+  },
+  test: {
+    // .claude/worktrees guarda cópias inteiras do projeto (áreas de trabalho de agentes): sem isto, `npm test` rodava também os
+    // testes dessas cópias, com código antigo, e a contagem e as falhas ficavam misturadas com as do projeto.
+    exclude: [...configDefaults.exclude, '.claude/**'],
   },
 })

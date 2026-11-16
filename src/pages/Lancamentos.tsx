@@ -174,20 +174,24 @@ export default function Lancamentos() {
   // (fora de campos de texto; com a tela de filtros aberta, a tecla não abre um lançamento por baixo dela)
   useAtalhosNovo(ITENS_NOVO, editando === null && operacaoInv === null && contas.length > 0 && !filtrosAbertos, abrirNovo)
 
-  // gera os recorrentes uma vez ao abrir a tela; depois recarrega a lista
-  const [automaticosProntos, setAutomaticosProntos] = useState(false)
+  // gera os recorrentes e cobra as faturas uma vez ao abrir a tela, AO MESMO TEMPO que a lista carrega (como no Início, #260):
+  // esperar as 4 chamadas em fila antes de pedir a lista atrasava a tela. Se alguma gravou algo, a lista recarrega.
+  const [recarga, setRecarga] = useState(0)
   const [avisoAutomaticos, setAvisoAutomaticos] = useState('')
   useEffect(() => {
     if (!familiaId) return
+    let ativo = true
     void atualizarAutomaticos().then((r) => {
+      if (!ativo) return
       // sem este aviso, planejados e parcelas de cartão poderiam faltar na lista sem ninguém perceber
       setAvisoAutomaticos(
         !r.faturasOk ? 'Não foi possível fechar as faturas dos cartões agora; compras de cartão podem faltar. Tente de novo em instantes.'
         : !r.recorrentesOk ? 'Não foi possível lançar os recorrentes agora; contas mensais e assinaturas podem faltar. Tente de novo em instantes.'
         : '',
       )
-      setAutomaticosProntos(true)
+      if (r.mudou) setRecarga((n) => n + 1)
     })
+    return () => { ativo = false }
   }, [familiaId])
 
   useEffect(() => {
@@ -202,7 +206,7 @@ export default function Lancamentos() {
   // só a resposta do último pedido vale: trocar de mês ou de filtro rápido não pode deixar a lista de um mês sob o título de outro
   const pedido = useRef(0)
   const carregar = useCallback(async () => {
-    if (!familiaId || !automaticosProntos) return
+    if (!familiaId) return
     const meu = ++pedido.current
     try {
       // faturas do cartão carregam à parte: se falharem, a lista de conta continua e só este bloco avisa.
@@ -260,7 +264,7 @@ export default function Lancamentos() {
     } catch (err) {
       if (meu === pedido.current) setErro(mensagemErroBanco(err))
     }
-  }, [familiaId, periodo, filtros, automaticosProntos])
+  }, [familiaId, periodo, filtros, recarga])
 
   useEffect(() => { void carregar() }, [carregar])
 

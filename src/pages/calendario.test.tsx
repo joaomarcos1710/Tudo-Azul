@@ -252,6 +252,23 @@ describe('Calendário', () => {
     expect(await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' })).toBeTruthy()
   })
 
+  it('o mês carrega sem esperar as tarefas automáticas, e trocar de mês não as repete', async () => {
+    const u = userEvent.setup()
+    let terminar: (v: unknown) => void = () => {}
+    mock.atualizarAutomaticos.mockReset()
+    mock.atualizarAutomaticos.mockReturnValue(new Promise((r) => { terminar = r }))
+    montar()
+    // as automáticas ainda não terminaram e o mês já está na tela
+    expect(await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' })).toBeTruthy()
+    await u.click(screen.getByRole('button', { name: 'Próximo mês' }))
+    await screen.findByRole('heading', { name: 'Novembro de 2026' })
+    expect(mock.atualizarAutomaticos).toHaveBeenCalledTimes(1)
+    // se as automáticas gravaram algo, o mês recarrega
+    const antes = mock.listarLancamentos.mock.calls.length
+    terminar({ recorrentesOk: true, faturasOk: true, mudou: true })
+    await vi.waitFor(() => expect(mock.listarLancamentos.mock.calls.length).toBe(antes + 1))
+  })
+
   it('resposta atrasada do mês anterior não sobrescreve o mês novo', async () => {
     const u = userEvent.setup()
     let liberar: (v: unknown) => void = () => {}

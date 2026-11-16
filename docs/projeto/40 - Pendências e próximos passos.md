@@ -837,3 +837,16 @@ Plano do agente de arquitetura: migration 129 com `investment_return_history` (p
 - [ ] **Cripto (o dono quer):** candidata CoinGecko (plano Demo gratuito, com chave). Antes de qualquer migration: teste de rede real da consulta em reais. Precisa de migration nova (o símbolo hoje só aceita o formato da B3 e a classe cripto não entra em `investment_quote_symbol`), chave no cofre e função de busca no molde de `market_quotes_fetch`. Na brapi, cripto é dos planos pagos.
 - Tesouro Direto (CSV oficial de 14 MiB, sem JSON gratuito) e previdência fechada (sem cota pública): continuam manuais.
 - [ ] **Decisão do dono:** despesa em vermelho ou neutra no app inteiro. A regra escrita (#183) diz vermelho; o cabeçalho do Início ficou neutro pelo handoff (#378) e a lista de Lançamentos usa cinza.
+
+## 16/11/2026 — Trabalho de desempenho de 13/11 que tinha ficado para trás
+Três commits de 13/11 ficaram numa área de trabalho isolada (`.claude/worktrees/`) e nunca chegaram ao main nem ao GitHub. Achados em 16/11 porque os testes locais entravam nessa pasta. Cópia de segurança no GitHub: branch `claude/backup-desempenho-13-11` (sem PR). O dono mandou refazer sobre o main atual, uma PR por vez.
+- [x] Lançamentos e Calendário: a lista carrega junto com as tarefas automáticas.
+- [ ] Início: contas, cartões e gastos aparecem sem esperar a consulta do Dinheiro Livre (commit `ed8c1a0` da cópia; resolve o item "o Início ainda espera TODAS as consultas").
+- [ ] Início: ler só o saldo total previsto, sem o saldo de cada conta (commit `c12bc74` da cópia).
+- [ ] Depois das três: apagar a branch de cópia e a pasta `.claude/worktrees/` local.
+- [x] `npm test` ignora `.claude/` (`vite.config.ts`). Os totais de "2.7xx testes" citados nas PRs #376 a #386 contavam em dobro por causa dessa pasta; a suíte do projeto tem cerca de 1.460 testes. O CI nunca foi afetado.
+
+## 16/11/2026 — Decisões do dono no fim do dia
+- **Cor da despesa:** seguir cada design aprovado: neutra no cabeçalho do Início (como está) e vermelha na lista de Lançamentos (design "Extrato"). A lista ainda usa cinza: falta aplicar.
+- **Contas de investimento ligadas aos ativos (opção A):** a conta ("XP Ações", "XP Fundo Imobiliário") passa a mostrar o valor dos ativos ligados a ela, em vez de um saldo digitado, contado uma vez só no patrimônio. Precisa de migration nova (hoje conta e ativo não têm vínculo). Plano em desenho.
+- **Cripto:** o dono quer. Primeiro passo: teste de rede da consulta em reais.
