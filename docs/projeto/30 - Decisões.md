@@ -910,3 +910,7 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 ## 16/11/2026 — Calendário financeiro: totais do dia vêm do banco e o filtro "Faturas e Parcelas" é estreito
 - **O quê:** o Calendário vai mostrar entradas e saídas dentro de cada dia, com um filtro Todos · Entradas · Saídas · Faturas e Parcelas. Os totais do dia vêm de uma função do banco (`calendar_day_totals`), não de soma na tela. "Faturas e Parcelas" é só fatura de cartão e parcela de dívida (com juros e tarifa da parcela); compra parcelada e recorrente ficam fora.
 - **Por quê:** o modelo sugerido pelo Gemini somava os valores do dia no front, o que quebra a regra do dinheiro (o front não soma). O dono escolheu o filtro estreito porque recorrente já tem tela própria e misturar deixaria o filtro vago.
+
+## 16/11/2026 — Consignado não é saída do dia no Calendário (o salário entra líquido)
+- **O quê:** a parcela de consignado (desconto em folha) aparece na lista do dia, sem sinal e com um aviso, mas não entra nas saídas nem em "Faturas e Parcelas" dos totais (migration 131).
+- **Por quê:** o dono lança o salário líquido; a parcela já foi descontada antes de o dinheiro chegar. Contar de novo seria dupla contagem. Os relatórios já tratavam assim.
