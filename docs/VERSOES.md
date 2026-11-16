@@ -286,4 +286,5 @@ continuam abaixo como histórico.
 | 2026.371 | **Investimentos: gráfico de evolução mais honesto.** Um gráfico com abas de moeda, começando no mês do primeiro aporte (sem a linha saindo de zero) e, com pouco histórico, "Histórico a partir de <mês>". Nenhum número muda. |
 | 2026.372 | **Investimentos sem a lista longa de ativos.** "Ativos cadastrados" sai da página; o botão "Gerenciar ativos" abre uma folha com as mesmas ações. Nenhuma ação some. |
 | 2026.373 | **Investimentos: aviso único de "sem avaliação".** Uma faixa no resumo conta os ativos sem avaliação e diz que o rendimento usa o preço de compra; o Rendimento ganha o selo "estimado"; cada posição leva o selo curto "sem avaliação". Nenhum número muda. |
+| 2026.374 | **Investimentos: composição em barras.** Cada item da carteira (classe, liquidez, instituição, ativo) é uma linha com valor, % e uma barra; em Classe, as subclasses ficam embaixo da macroclasse. Sai a barra empilhada e a rosca. Nenhum número muda. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

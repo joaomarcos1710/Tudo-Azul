@@ -1,6 +1,5 @@
 import { useId, useState } from 'react'
 import type { KeyboardEvent } from 'react'
-import { GRAFICO } from '../../lib/cores'
 import type { Cents } from '../../lib/format'
 import { MACROS } from '../../lib/investimentos'
 import type { LinhaAlocacao, LinhaInstituicao, LinhaLiquidez, MoedaInvestimento, PosicaoInvestimento } from '../../lib/investimentos'
@@ -8,10 +7,6 @@ import type { LinhaAlocacao, LinhaInstituicao, LinhaLiquidez, MoedaInvestimento,
 type Aba = 'classe' | 'liquidez' | 'instituicao' | 'ativos'
 interface Fatia { chave: string; nome: string; valor: Cents; percentual: number; detalhes?: { nome: string; valor: Cents; percentual: number }[] }
 
-const R = 40
-const VOLTA = 2 * Math.PI * R
-/** 2px de folga entre fatias, como pedem as regras de gráfico. */
-const FOLGA = 2
 const pct = (v: number) => `${v.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
 /** Ordem fixa dos seletores de moeda (a do dono: BRL, EUR, USD); só entram as moedas que têm posição. */
 const ORDEM_MOEDAS: MoedaInvestimento[] = ['BRL', 'EUR', 'USD']
@@ -116,10 +111,10 @@ export function ComposicaoCarteira({ totais, alocacao, liquidez, instituicoes, p
   // a visão escolhida pode não existir nesta moeda (Instituição): volta para Classe
   const aba = abas.some(([c]) => c === abaEscolhida) ? abaEscolhida : 'classe'
   const fatias = porAba[aba]
-  const comRosca = fatias.length > 0 && fatias.length <= GRAFICO.rosca.length
-  const positivas = fatias.filter((f) => f.percentual > 0)
-  const somaPct = positivas.reduce((a, f) => a + f.percentual, 0)
-  let acumulado = 0
+  // Classe na ordem fixa das macroclasses (a do banco pode vir em outra); as demais visões já vêm do maior para o menor
+  const itens = aba === 'classe'
+    ? [...fatias].sort((x, y) => (MACROS.findIndex((m) => m.chave === x.chave) + 1 || 99) - (MACROS.findIndex((m) => m.chave === y.chave) + 1 || 99))
+    : fatias
   // nome para leitor de tela, com acento ("instituição", não a chave interna)
   const nomeAba = abas.find(([c]) => c === aba)?.[1].toLowerCase() ?? aba
   const temRestrito = doCodigo.liquidez.some((l) => l.liquidez === 'restricted' && l.valor > 0)
@@ -130,52 +125,31 @@ export function ComposicaoCarteira({ totais, alocacao, liquidez, instituicoes, p
     <>
       <div className="mb-3"><Abas rotulo="Ver a carteira por" itens={abas} ativa={aba} aoEscolher={setAba} idBase={`${id}-visao`} painelId={painelVisao} estilo="visao" /></div>
       <div role="tabpanel" id={painelVisao} aria-label={`Carteira em ${EM_MOEDA[codigo]} por ${nomeAba}`}>
-        {aba === 'classe' && fatias.length > 0 ? (
+        {fatias.length === 0 ? (
+          <p className="rounded-2xl bg-white p-4 text-sm text-slate-500 shadow-card">Nada para mostrar ainda.</p>
+        ) : (
           <div className="rounded-2xl bg-white p-4 shadow-card">
-            <BarraAlocacao fatias={fatias} formatar={fmt} moedaPorExtenso={EM_MOEDA[codigo]} />
-            {temRestrito && (
-              // a previdência pode ser uma fatia enorme e apertar o resto da barra: a visão por liquidez mostra o restrito à parte
+            <ul className="divide-y divide-slate-100" aria-label={`Lista da carteira por ${nomeAba}`}>
+              {itens.map((f) => (
+                <li key={f.chave} className="py-2.5">
+                  <LinhaDeBarra nome={f.nome} valor={fmt(f.valor)} percentual={f.percentual} forte />
+                  {f.detalhes && f.detalhes.length > 0 && (
+                    <ul className="mt-1 flex flex-col gap-1.5 border-l-2 border-slate-100 pl-3" aria-label={`Subclasses de ${f.nome}`}>
+                      {f.detalhes.map((d) => (
+                        <li key={d.nome}><LinhaDeBarra nome={d.nome} valor={fmt(d.valor)} percentual={d.percentual} /></li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {aba === 'classe' && temRestrito && (
+              // a previdência pode ser quase tudo e deixar o resto sem barra visível: a visão por liquidez mostra o restrito à parte
               <p className="mt-3 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
-                <span>Parte da carteira é restrita (previdência, FGTS) e pode ocupar boa parte da barra.</span>
+                <span>Parte da carteira é restrita (previdência, FGTS) e pode ocupar boa parte da carteira.</span>
                 <button type="button" onClick={() => setAba('liquidez')} className="min-h-11 font-semibold text-azul hover:underline">Ver por liquidez</button>
               </p>
             )}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-4 rounded-2xl bg-white p-4 shadow-card sm:flex-row sm:items-start">
-            {comRosca && (
-              <svg viewBox="0 0 100 100" className="h-36 w-36 shrink-0 -rotate-90" role="img"
-                aria-label={`Carteira em ${EM_MOEDA[codigo]} por ${nomeAba}: ${fatias.map((f) => `${f.nome} ${pct(f.percentual)}`).join(', ')}`}>
-                {somaPct > 0 && positivas.map((f) => {
-                  const parte = (f.percentual / somaPct) * VOLTA
-                  const tamanho = positivas.length > 1 ? Math.max(parte - FOLGA, 0.5) : parte
-                  const inicio = acumulado
-                  acumulado += parte
-                  return <circle key={f.chave} data-fatia cx="50" cy="50" r={R} fill="none" strokeWidth="16"
-                    stroke={GRAFICO.rosca[fatias.indexOf(f)]} strokeDasharray={`${tamanho} ${VOLTA - tamanho}`} strokeDashoffset={-inicio} />
-                })}
-              </svg>
-            )}
-            {fatias.length === 0
-              ? <p className="text-sm text-slate-500">Nada para mostrar ainda.</p>
-              : (
-                <ul className="w-full min-w-0 flex-1 divide-y divide-slate-100" aria-label={`Lista da carteira por ${nomeAba}`}>
-                  {fatias.map((f, i) => (
-                    <li key={f.chave} className="py-2">
-                      <div className="flex items-center justify-between gap-3 text-sm">
-                        <span className="flex min-w-0 items-center gap-2">
-                          {comRosca && <span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-sm" style={{ background: GRAFICO.rosca[i] }} />}
-                          <span className="truncate font-medium text-slate-800">{f.nome}</span>
-                        </span>
-                        <span className="shrink-0 whitespace-nowrap">
-                          <span className="tabular-nums font-semibold text-marinho">{fmt(f.valor)}</span>
-                          <span className="ml-2 inline-block w-12 text-right tabular-nums text-slate-500">{pct(f.percentual)}</span>
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
           </div>
         )}
       </div>
@@ -200,53 +174,24 @@ export function ComposicaoCarteira({ totais, alocacao, liquidez, instituicoes, p
 }
 
 /**
- * Alocação por classe em barra (pedido do dono, 10/11/2026, a partir de um desenho): em cima, um quadro por macroclasse
- * com valor e %; embaixo, uma barra com um trecho por subclasse e a legenda. Valores e % vêm do banco
- * (investment_allocation): a largura de cada trecho é o % do banco, nada é somado aqui. A cor é a da macroclasse (as 4
- * validadas da rosca, em ordem fixa) e os trechos da mesma macroclasse se separam por 2px: assim cabem quantas
- * subclasses houver sem inventar cor, e a legenda diz o nome de cada uma (a cor nunca é a única informação).
+ * Uma linha da composição (mudança 4 do handoff de Investimentos, #374): nome e valor/% na primeira linha, e embaixo uma barra
+ * horizontal de uma cor só. A largura da barra é o % que o banco mandou, com um mínimo de 1% para o item pequeno não sumir (o % exato
+ * está em texto ao lado); nada é somado aqui. No iPad em pé (~500 px) nada precisa caber lado a lado: o nome quebra linha, nunca é cortado
+ * com "…" (#357, #358), e o valor não quebra entre "R$" e o número.
  */
-function BarraAlocacao({ fatias: doBanco, formatar, moedaPorExtenso }: { fatias: Fatia[]; formatar: (c: Cents) => string; moedaPorExtenso: string }) {
-  // a cor segue a macroclasse, nunca a posição na lista: Renda fixa é sempre a 1ª cor, mesmo que o banco mande outra ordem
-  const ordem = (chave: string) => { const i = MACROS.findIndex((m) => m.chave === chave); return i < 0 ? MACROS.length : i }
-  const corDe = (chave: string) => GRAFICO.rosca[ordem(chave)] ?? GRAFICO.roscaOutros
-  const fatias = [...doBanco].sort((a, b) => ordem(a.chave) - ordem(b.chave))
-  const trechos = fatias.flatMap((f) => (f.detalhes && f.detalhes.length > 0 ? f.detalhes : [{ nome: f.nome, valor: f.valor, percentual: f.percentual }])
-    .filter((d) => d.percentual > 0).map((d) => ({ ...d, chave: `${f.chave}:${d.nome}`, macro: f.nome, cor: corDe(f.chave) })))
+function LinhaDeBarra({ nome, valor, percentual, forte = false }: { nome: string; valor: string; percentual: number; forte?: boolean }) {
+  const largura = Math.min(100, Math.max(1, percentual))
   return (
-    <div className="flex flex-col gap-4">
-      <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Lista da carteira por classe">
-        {fatias.map((f) => (
-          <li key={f.chave} className="rounded-xl border border-slate-100 bg-fundo p-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-marinho">
-              <span aria-hidden="true" className="h-3 w-3 shrink-0 rounded-sm" style={{ background: corDe(f.chave) }} />
-              <span className="truncate">{f.nome}</span>
-            </div>
-            <p className="mt-1 flex items-baseline justify-between gap-2">
-              <span className="whitespace-nowrap tabular-nums font-bold text-marinho">{formatar(f.valor)}</span>
-              <span className="tabular-nums text-sm text-slate-500">{pct(f.percentual)}</span>
-            </p>
-          </li>
-        ))}
-      </ul>
-      <div>
-        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Composição por subclasse</p>
-        <div role="img" className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-slate-100"
-          aria-label={`Carteira em ${moedaPorExtenso} por subclasse: ${trechos.map((t) => `${t.nome} (${t.macro}) ${pct(t.percentual)}`).join(', ')}`}>
-          {/* largura mínima de 6px: num trecho de 0,2% a cor sumiria; o % certo está na legenda */}
-          {trechos.map((t) => <span key={t.chave} data-fatia className="h-full shrink-0" style={{ width: `${t.percentual}%`, minWidth: '6px', background: t.cor }} />)}
-        </div>
-        <ul className="mt-3 grid grid-cols-1 gap-x-4 gap-y-2 text-sm lg:grid-cols-2 xl:grid-cols-3" aria-label="Subclasses">
-          {trechos.map((t) => (
-            <li key={t.chave} className="flex items-center justify-between gap-2">
-              <span className="flex min-w-0 items-center gap-2">
-                <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: t.cor }} />
-                <span className="break-words text-slate-700">{t.nome}</span>
-              </span>
-              <span className="shrink-0 whitespace-nowrap tabular-nums text-slate-600">{formatar(t.valor)} · {pct(t.percentual)}</span>
-            </li>
-          ))}
-        </ul>
+    <div>
+      <div className="flex items-baseline justify-between gap-3 text-sm">
+        <span className={`min-w-0 break-words ${forte ? 'font-semibold text-marinho' : 'text-slate-700'}`}>{nome}</span>
+        <span className="shrink-0 whitespace-nowrap">
+          <span className="tabular-nums font-semibold text-marinho">{valor}</span>
+          <span className="ml-2 inline-block w-12 text-right tabular-nums text-slate-500">{pct(percentual)}</span>
+        </span>
+      </div>
+      <div aria-hidden="true" className="mt-1 h-2 w-full overflow-hidden rounded-full bg-neutro-fundo">
+        <span data-barra className="block h-2 rounded-full bg-lucro-marca" style={{ width: `${largura}%` }} />
       </div>
     </div>
   )

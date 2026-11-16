@@ -161,25 +161,24 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 describe('Investimentos × macroclasse e subclasse', () => {
-  it('Composição da carteira, aba Classe: um quadro por macroclasse e a barra por subclasse, com valores e % do banco, e "Sem subclasse"', async () => {
+  it('Composição da carteira, aba Classe: uma linha com barra por macroclasse e as subclasses embaixo, com valores e % do banco, e "Sem subclasse"', async () => {
     render(<Investimentos />)
     const secao = (await screen.findByRole('heading', { name: 'Composição da carteira' })).closest('section') as HTMLElement
     expect(within(secao).getByRole('tab', { name: 'Classe' }).getAttribute('aria-selected')).toBe('true')
-    expect(within(secao).getAllByRole('img')[0].querySelectorAll('[data-fatia]')).toHaveLength(3)
+    const lista = within(secao).getByRole('list', { name: 'Lista da carteira por classe' })
+    expect(within(lista).getAllByRole('listitem').length).toBeGreaterThanOrEqual(3)
+    expect(secao.querySelector('svg[role="img"]')).toBeNull() // a rosca e a barra empilhada saíram
     expect(within(secao).getByText('Renda fixa')).toBeTruthy()
     expect(within(secao).getByText('Renda variável')).toBeTruthy()
     expect(within(secao).getByText('Fundos e outros')).toBeTruthy()
     expect(secao.textContent).toMatch(/600,0080%/)
-    expect(secao.textContent).toMatch(/50,00 · 6,7%/)
+    expect(secao.textContent).toMatch(/50,006,7%/)
     expect(within(secao).getByText('Tesouro Direto')).toBeTruthy()
     expect(within(secao).getByText('Sem subclasse')).toBeTruthy()
-    // a largura de cada trecho é o % do banco (nada somado aqui), com um mínimo para o trecho pequeno não sumir
-    const trechos = [...within(secao).getAllByRole('img')[0].querySelectorAll<HTMLElement>('[data-fatia]')]
-    // ordem e cor fixas por macroclasse (Renda fixa, Renda variável, Fundos e outros), mesmo com o banco em outra ordem
-    expect(trechos.map((t) => t.style.width)).toEqual(['80%', '13.3%', '6.7%'])
-    expect(new Set(trechos.map((t) => t.style.background)).size).toBe(3)
-    expect(trechos.every((t) => t.style.minWidth === '6px')).toBe(true)
-    expect(within(secao).getAllByRole('img')[0].getAttribute('aria-label')).toMatch(/Tesouro Direto \(Renda fixa\) 80%/)
+    // a largura de cada barra é o % do banco (nada somado aqui); a macroclasse sai na ordem fixa (Renda fixa, Renda variável, Fundos e outros)
+    const macros = within(lista).getAllByRole('listitem').filter((li) => li.parentElement === lista)
+    expect(macros.map((li) => li.querySelector<HTMLElement>('[data-barra]')?.style.width)).toEqual(['80%', '13.3%', '6.7%'])
+    expect(within(macros[0]).getByRole('list', { name: 'Subclasses de Renda fixa' })).toBeTruthy()
   })
 
   describe('botões de cada ativo na tabela (pedido do dono, 10/11/2026, a partir de um desenho)', () => {
