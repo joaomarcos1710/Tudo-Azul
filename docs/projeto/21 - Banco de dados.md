@@ -536,7 +536,7 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - **Teste:** `123_calendar_day_totals` (19 asserções: os quatro blocos, parcela paga, amortização avulsa, juros sozinhos, crédito de empréstimo, evento anulado, dívida inativa, parcela cancelada, fatura quitada, limites de 62/63 dias, privilégios e isolamento com dados nas duas casas). Falha sem a migration e com a regra antiga de `bills` (conferido).
 - **atalho:** a função repete em SQL os filtros que a tela usa para montar a lista do dia (`listarLancamentos`, `listarMovimentosDeDivida`, `listarParcelasDivida`, `faturasQueVencem`). Se um desses mudar, os totais do dia e a lista podem deixar de bater; melhorar movendo a lista do dia também para o banco.
 
-## Calendário sem a parcela de consignado (migration 131, **ainda não aplicada**)
+## Calendário sem a parcela de consignado (migration 131, PR #393, **ainda não aplicada**)
 - **Arquivo:** `20261116230000_calendar_day_totals_without_payroll.sql`. `create or replace` de `public.calendar_day_totals` com o corpo da 130 e uma condição a mais no bloco 3: parcela de dívida com `payment_method = 'payroll'` (consignado, desconto em folha) não entra.
 - **Motivo:** o salário da família é lançado **líquido** (dono, 16/11/2026): a parcela do consignado já saiu antes de o dinheiro chegar à conta, e contá-la como saída do dia descontava duas vezes. Os relatórios (`private.loan_schedule_planned`) já faziam assim.
 - Mesma assinatura, `SECURITY INVOKER` e grants (create or replace preserva); `00_audit` não muda.
