@@ -805,7 +805,7 @@ Nenhum código copiado. Descartados: FinQuant, DenizSungurtekin/Investment-Portf
 ## 16/11/2026 — Handoff de Lançamentos (Extrato e Gastos; levantamento do agente `melhorias`)
 Design: artefato "Lançamentos — Extrato e Gastos" (4 telas, dados fictícios). O dono pediu para ir por partes; a "PR 1" do handoff virou uma PR por item.
 - [x] **(f)** Trocar entre Despesa e Cartão não apaga a categoria.
-- [ ] **(b)** Cabeçalho do dia com dia da semana e "Hoje"/"Ontem" (dois testes procuram a região pela data).
+- [x] **(b)** Cabeçalho do dia com dia da semana e "Hoje"/"Ontem" (`rotuloDoDia`). Só em Lançamentos; outras listas por dia (Calendário, fatura do cartão) seguem com a data simples.
 - [ ] **(d)** Estado vazio conforme filtro e período, com "Limpar filtros". **Defeito a corrigir junto:** com filtro de cartão, situação, fixos ou parcelados a tela pode ficar em branco (a condição olha os vetores crus, não a lista filtrada).
 - [ ] **(a)** Conta na linha de despesa e receita (conferir corte em 390 px e no iPad em pé).
 - [ ] **(e)** Excluir sem `window.confirm`, com Desfazer fixo embaixo. "Parar de repetir" mantém a confirmação (é irreversível). Conferir antes: tela de Lixeira e se recorrente excluído é regerado.
@@ -820,3 +820,6 @@ Design: artefato "Lançamentos — Extrato e Gastos" (4 telas, dados fictícios)
 Plano do agente de arquitetura: migration 129 com `investment_return_history` (passe próprio por ativo, incluindo zerados; `investment_contribution_history` não serve porque muda de conjunto quando um ativo zera), teste 123, "sem base" em vez de 0% quando a parcela sem valor atualizado passa do limite. Esforço: 3 a 4 dias.
 - [ ] **Decisões do dono:** proventos entram? limite de 10% para "aproximado"? fórmula simples agora e Modified Dietz depois, ou Dietz já? acumulado desde o primeiro mês com base?
 - Limite conhecido: com a previdência sem avaliação mensal, o resultado será "sem base" quase sempre.
+
+## 16/11/2026 — Teste de Cartões que falhava com o CI carregado (achado na #384)
+- [x] `cartoes.test.tsx`, helper `acaoDaLinha`: procurava o menu de ações na mesma volta do clique (`getByRole`); com a máquina carregada o menu ainda não estava na tela ("6. a mensagem do banco aparece se o estorno for recusado" falhou no CI). Reproduzido aqui com 4 execuções em paralelo (2 de 4 falhavam); com `findByRole`, 8 de 8 passam. Não é defeito do app: é do teste.

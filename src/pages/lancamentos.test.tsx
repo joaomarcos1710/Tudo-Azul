@@ -204,6 +204,19 @@ describe('datas do mês', () => {
 })
 
 describe('Lançamentos', () => {
+  it('o cabeçalho de cada dia diz o dia da semana, e "Hoje" e "Ontem" quando for o caso (handoff de Lançamentos, item b)', async () => {
+    const hoje = hojeSP()
+    const ontem = new Date(Date.UTC(Number(hoje.slice(0, 4)), Number(hoje.slice(5, 7)) - 1, Number(hoje.slice(8, 10))) - 86_400_000).toISOString().slice(0, 10)
+    mock.listarLancamentos.mockResolvedValue([{ ...lancs[0], id: 'h1', data: hoje }, { ...lancs[0], id: 'h2', data: ontem }])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const dd = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
+    const semana = '(domingo|segunda|terça|quarta|quinta|sexta|sábado)'
+    // o título visível e o nome da região (leitor de tela) são o mesmo texto
+    expect((await screen.findByRole('heading', { level: 2, name: new RegExp(`^Hoje · ${semana}, ${dd(hoje)}$`) }))).toBeTruthy()
+    expect(screen.getByRole('region', { name: new RegExp(`^Hoje · ${semana}, ${dd(hoje)}$`) })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: new RegExp(`^Ontem · ${semana}, ${dd(ontem)}`) })).toBeTruthy()
+  })
+
   it('lista por dia com sinais do design system e totais vindos do banco', async () => {
     mock.listarLancamentos.mockResolvedValue(lancsComPlanejadoFuturo())
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
@@ -227,7 +240,7 @@ describe('Lançamentos', () => {
     expect(within(rodape).getByText('−R$ 250,50').className).toContain('text-prejuizo')
     expect(within(rodape).getByText('R$ 12.000,00').className).toContain('text-lucro')
     expect(screen.queryByText('Despesas pagas')).toBeNull()
-    expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: /^(Hoje · |Ontem · )?[a-zçá]+, 15\/10/i })).toBeTruthy() // 15/10/2026 é quinta
   })
 
   it('aporte para a carteira (migration 100): nome da conta interna, selo Investimento, só um link para Investimentos e fora do lote', async () => {
@@ -631,7 +644,8 @@ describe('Lançamentos', () => {
       render(<MemoryRouter><Lancamentos /></MemoryRouter>)
       const item = (await screen.findByText('Fatura Nubank')).closest('li') as HTMLElement
       const dia = item.closest('section') as HTMLElement
-      expect(dia.getAttribute('aria-label')).toBe(`28/${mesAtual().slice(5, 7)}/${mesAtual().slice(0, 4)}`)
+      // o cabeçalho do dia traz o dia da semana (e "Hoje"/"Ontem" quando for o caso); o ano some por ser o corrente
+      expect(dia.getAttribute('aria-label')).toMatch(new RegExp(`, 28/${mesAtual().slice(5, 7)}$`))
       expect(within(item).getByText('R$ 456,78')).toBeTruthy()
       expect(within(item).getByText('Fechada')).toBeTruthy()
       // metadados curtos (pedido do dono): situação + a data que importa, sem o ano e sem "N compras"
@@ -717,7 +731,7 @@ describe('Lançamentos', () => {
       expect(within(fone).getByText('Mercado')).toBeTruthy()
       expect(within(fone).getByText(/fatura Nubank · compra de 02\/01\/2026 · a despesa conta em 20\/.* \(fechamento da fatura\)/)).toBeTruthy()
       expect(within(fone).getByText('R$ 100,00')).toBeTruthy()
-      expect((fone.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/^28\//)
+      expect((fone.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/, 28\//)
       expect(mock.listarFaturasDoMes).toHaveBeenLastCalledWith('h1', ...limitesDoMes(mesAtual()), { categoriaId: 'mer' }, hojeSP())
     })
 
@@ -818,7 +832,7 @@ describe('Lançamentos', () => {
       render(<MemoryRouter initialEntries={[`/lancamentos?mes=${mesAtual()}&tipo=receita`]}><Lancamentos /></MemoryRouter>)
       const item = (await screen.findByText('IOF')).closest('li') as HTMLElement
       expect(mock.listarCreditosDeCartao).toHaveBeenCalledWith('h1', ...limitesDoMes(mesAtual()), { tipo: 'income' }, hojeSP())
-      expect((item.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/^18\//)
+      expect((item.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/, 18\//)
       expect(within(item).getByText('Crédito no cartão')).toBeTruthy()
       expect(within(item).getByText('Planejado')).toBeTruthy()
       expect(within(item).getByText(/CAIXA INFINITE · crédito de 03\/.* · a receita conta em 18\//)).toBeTruthy()
@@ -838,7 +852,7 @@ describe('Lançamentos', () => {
       expect(screen.queryByText('Fatura CAIXA INFINITE')).toBeNull()
       expect(screen.getByText('Ajuste de Crédito')).toBeTruthy()
       expect(screen.queryByText('Cashback')).toBeNull() // outra categoria
-      expect((item.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/^28\//)
+      expect((item.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/, 28\//)
       expect(within(item).getByText(/fatura CAIXA INFINITE · crédito de 03\/.* · a receita conta em 18\//)).toBeTruthy()
       // sem filtro de tipo, a lista solta de "Receita" não é pedida: não duplica
       expect(mock.listarCreditosDeCartao).not.toHaveBeenCalled()
