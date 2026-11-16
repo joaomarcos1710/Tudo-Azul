@@ -212,6 +212,16 @@ describe('Dívidas', () => {
     expect(screen.getByRole('heading', { name: 'Baixar parcela: Financiamento do imóvel' })).toBeTruthy()
   })
 
+  it('empréstimo com parcelas na agenda: o menu NÃO oferece "Registrar pagamento" (só "Amortização extra"); a parcela é paga pela agenda', async () => {
+    // trava: o pagamento comum não marca a parcela como paga, e o Calendário somaria o pagamento E a parcela (revisor-dinheiro, #391)
+    mock.listarDividas.mockImplementation(porSituacao([{ ...ativas()[0], parcelasRestantes: 353, parcelasOriginais: 412, valorParcela: c(119922) }]))
+    render(<Dividas />)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Ações de Financiamento do imóvel' }))
+    expect(screen.queryByRole('menuitem', { name: 'Registrar pagamento' })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Amortização extra' })).toBeTruthy()
+  })
+
   it('não oferece o simulador de quitação (removido a pedido do dono)', async () => {
     render(<Dividas />)
     await screen.findByText('Financiamento do imóvel')
