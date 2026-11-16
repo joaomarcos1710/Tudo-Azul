@@ -16,7 +16,7 @@ export function corDaFatia(f: BarraCategoria, i: number): string {
 }
 
 /**
- * Maiores gastos em rosca (Início). Valores, "Outros" e % vêm prontos do banco (expenses_by_category com p_top);
+ * Categorias em rosca (folha de categorias da fatura do cartão; o Início passou a usar barras). Valores, "Outros" e % vêm prontos do banco (expenses_by_category com p_top);
  * o ângulo de cada fatia é só a razão entre o % dela e a soma dos % (apresentação, nenhum dinheiro é somado aqui).
  * A cor nunca é a única informação: a legenda ao lado leva nome, valor e %, cada linha é um link para os
  * lançamentos de despesa do mês e há tabela com os mesmos números.

@@ -22,6 +22,14 @@ describe('despesasPorCategoria com a base do cartão (migration 062)', () => {
     expect(rpc).toHaveBeenCalledWith('expenses_by_category_basis', { p_household: 'h1', p_from: '2026-07-01', p_to: '2026-07-31', p_basis: base, p_top: 6 })
     expect(r).toEqual([{ categoriaId: 'g1', nome: 'Casa', valor: 120000, percentual: 100 }])
   })
+  it('o grupo do resto ("Outros" sem categoria, do banco) vira "Demais categorias"; uma categoria real chamada "Outros" mantém o nome', async () => {
+    rpc.mockResolvedValue({ data: [
+      { category_id: 'g9', name: 'Outros', amount: '300.00', share: '60.0' },
+      { category_id: null, name: 'Outros', amount: '200.00', share: '40.0' },
+    ], error: null })
+    const r = await despesasPorCategoria('h1', '2026-07-01', '2026-07-31', 4)
+    expect(r.map((x) => [x.categoriaId, x.nome, x.valor])).toEqual([['g9', 'Outros', 30000], [null, 'Demais categorias', 20000]])
+  })
   it('erro do banco sobe (a tela mostra "indisponível")', async () => {
     rpc.mockResolvedValue({ data: null, error: new Error('function does not exist') })
     await expect(despesasPorCategoria('h1', '2026-07-01', '2026-07-31', 6, 'purchase')).rejects.toThrow()

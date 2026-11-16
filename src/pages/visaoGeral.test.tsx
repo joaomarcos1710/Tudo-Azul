@@ -122,7 +122,7 @@ beforeEach(() => {
   })
   mock.despesasPorCategoria.mockResolvedValue([
     { categoriaId: 'g1', nome: 'Moradia', valor: c(500000), percentual: 57.7 },
-    { categoriaId: null, nome: 'Outros', valor: c(366726), percentual: 42.3 },
+    { categoriaId: null, nome: 'Demais categorias', valor: c(366726), percentual: 42.3 },
   ])
   mock.despesasPorDia.mockResolvedValue([
     { dia: '2026-10-01', valor: c(500000), acumulado: c(500000) },
@@ -188,7 +188,7 @@ describe('Visão geral', () => {
     montar('analises')
     expect((await screen.findAllByText('57,7%')).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Moradia').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Outros').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Demais categorias').length).toBeGreaterThan(0)
     expect(screen.getByRole('img', { name: /Despesa acumulada no mês: R\$ 8\.667,26/ })).toBeTruthy()
   })
   it('Últimos lançamentos não aparecem nem no Início nem em Análises (pedido do dono, 10/11/2026), e nenhuma das duas consulta lançamentos', async () => {
@@ -914,15 +914,19 @@ describe('Visão geral', () => {
   })
 
   describe('Maiores gastos (etapa 3 do painel)', () => {
-    it('Início mostra a rosca com as 4 maiores + Outros do banco, legenda com nome, valor e %, e abre o que compõe a categoria', async () => {
+    it('Início mostra barras (não rosca) com as 4 maiores + Demais categorias do banco, com nome, valor e %, e abre o que compõe a categoria', async () => {
       montar()
       const titulo = await screen.findByText('Maiores gastos')
       const card = titulo.closest('div[class*="rounded"]') as HTMLElement
       expect(mock.despesasPorCategoria).toHaveBeenCalledWith(expect.anything(), expect.any(String), expect.any(String), 4, expect.anything())
-      expect(within(card).getAllByTestId('fatia-categoria')).toHaveLength(2)
+      expect(within(card).getAllByTestId('barra-categoria')).toHaveLength(2)
+      expect(within(card).queryAllByTestId('fatia-categoria')).toHaveLength(0)
+      expect(within(card).queryByText('Outros')).toBeNull()
+      // o caminho para Análises continua no card
+      expect(within(card).getByRole('link', { name: 'Ver análises' }).getAttribute('href')).toBe('/analises')
       const moradia = within(card).getByRole('button', { name: /Moradia: .*57,7% das despesas.*Ver o que compõe/ })
-      // "Outros" não tem categoria para abrir: segue como link para as despesas do mês
-      expect(within(card).getByRole('link', { name: /Outros: .*Ver lançamentos de despesa do mês/ }).getAttribute('href')).toMatch(/^\/lancamentos\?mes=\d{4}-\d{2}&tipo=despesa$/)
+      // "Demais categorias" não tem categoria para abrir: segue como link para as despesas do mês
+      expect(within(card).getByRole('link', { name: /Demais categorias: .*Ver lançamentos de despesa do mês/ }).getAttribute('href')).toMatch(/^\/lancamentos\?mes=\d{4}-\d{2}&tipo=despesa$/)
       await userEvent.click(moradia)
       const detalhe = await screen.findByTestId('detalhe-categoria')
       expect(mock.detalheDaCategoria).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^\d{4}-\d{2}-01$/), expect.any(String), 'g1', expect.anything())
@@ -932,16 +936,18 @@ describe('Visão geral', () => {
       expect(within(card).getByText('Ver como tabela')).toBeTruthy()
     })
 
-    it('"Outros" é cinza e as demais usam as cores validadas, na ordem', async () => {
+    it('uma cor só nas barras (uma série); a largura é a razão com a maior; o nome de "Demais categorias" fica em cinza', async () => {
       mock.despesasPorCategoria.mockResolvedValue([
         { categoriaId: 'g1', nome: 'Moradia', valor: c(500000), percentual: 50 },
-        { categoriaId: 'g2', nome: 'Mercado', valor: c(300000), percentual: 30 },
-        { categoriaId: null, nome: 'Outros', valor: c(200000), percentual: 20 },
+        { categoriaId: 'g2', nome: 'Mercado', valor: c(250000), percentual: 25 },
+        { categoriaId: null, nome: 'Demais categorias', valor: c(250000), percentual: 25 },
       ])
       montar()
-      await screen.findByText('Maiores gastos')
-      const fatias = screen.getAllByTestId('fatia-categoria')
-      expect(fatias.map((f) => f.getAttribute('stroke'))).toEqual(['#1D4ED8', '#0891B2', '#94A3B8'])
+      const card = (await screen.findByText('Maiores gastos')).closest('div[class*="rounded"]') as HTMLElement
+      const barras = within(card).getAllByTestId('barra-categoria')
+      expect(new Set(barras.map((b) => b.style.background)).size).toBe(1)
+      expect(barras.map((b) => b.style.width)).toEqual(['100%', '50%', '50%'])
+      expect(within(within(card).getByRole('list', { name: /Despesas por categoria/ })).getByText('Demais categorias').className).toContain('text-slate-500')
     })
 
     it('sem despesa paga no mês, o card diz isso; se a consulta falhar, o card some e o resto segue', async () => {
@@ -1417,9 +1423,9 @@ describe('Análises: despesas por categoria em barras (PR #167)', () => {
     { categoriaId: 'g4', nome: 'Saúde', valor: c(100000), percentual: 8 },
     { categoriaId: 'g5', nome: 'Lazer', valor: c(75000), percentual: 6 },
     { categoriaId: 'g6', nome: 'Educação', valor: c(50000), percentual: 4 },
-    { categoriaId: null, nome: 'Outros', valor: c(150000), percentual: 12 },
+    { categoriaId: null, nome: 'Demais categorias', valor: c(150000), percentual: 12 },
   ]
-  it('pede ao banco as 6 maiores + "Outros" e desenha barras com nome, valor e % (sem rosca)', async () => {
+  it('pede ao banco as 6 maiores + "Demais categorias" e desenha barras com nome, valor e % (sem rosca)', async () => {
     mock.despesasPorCategoria.mockResolvedValue(sete)
     montar('analises')
     const lista = await screen.findByRole('list', { name: /Despesas por categoria/ })
@@ -1432,8 +1438,8 @@ describe('Análises: despesas por categoria em barras (PR #167)', () => {
     expect(linhas[0].textContent).toContain('Moradia')
     expect(linhas[0].textContent).toContain('R$ 5.000,00')
     expect(linhas[0].textContent).toContain('40%')
-    // "Outros" vem pronto do banco, no fim (nada somado no front)
-    expect(linhas[6].textContent).toContain('Outros')
+    // "Demais categorias" vem pronto do banco, no fim (nada somado no front)
+    expect(linhas[6].textContent).toContain('Demais categorias')
     expect(linhas[6].textContent).toContain('R$ 1.500,00')
     // largura = razão com a maior barra
     const barras = within(lista).getAllByTestId('barra-categoria')
@@ -1441,7 +1447,7 @@ describe('Análises: despesas por categoria em barras (PR #167)', () => {
     expect(barras[1].style.width).toBe('50%')
     expect(screen.queryByRole('img', { name: /Despesas por categoria:/ })).toBeNull()
   })
-  it('cada barra abre o que compõe a categoria, na base de cartão escolhida; o "Outros" leva à lista do mês', async () => {
+  it('cada barra abre o que compõe a categoria, na base de cartão escolhida; "Demais categorias" leva à lista do mês', async () => {
     mock.despesasPorCategoria.mockResolvedValue(sete)
     montar('analises')
     const lista = await screen.findByRole('list', { name: /Despesas por categoria/ })

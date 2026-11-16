@@ -5,7 +5,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { chaveVisaoGeral, invalidarDadosHome } from '../lib/consultas'
 import { LinhaAcumulada } from '../components/graficos/LinhaAcumulada'
 import { BarrasCategorias } from '../components/graficos/BarrasCategorias'
-import { RoscaCategorias } from '../components/graficos/RoscaCategorias'
 import { DetalheCategoria } from '../components/DetalheCategoria'
 import { BalancoMensal } from '../components/graficos/BalancoMensal'
 import type { MesBalanco } from '../components/graficos/BalancoMensal'
@@ -272,7 +271,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             // "posso gastar?": o mesmo saldo projetado do Calendário, até o último dia do mês
             opcional('saldosProjetados', saldosProjetados(familiaId, ate, true)),
             opcional('resumoPorMoeda', resumoPorMoeda(familiaId, de, ate)),
-            // maiores gastos: as 4 maiores categorias + "Outros" (somado no banco), na base de cartão escolhida em Análises
+            // maiores gastos: as 4 maiores categorias + "Demais categorias" (somado no banco), na base de cartão escolhida em Análises
             opcional('despesasPorCategoria', despesasPorCategoria(familiaId, de, ate, 4, baseCartaoRef.current)),
           ]).then(([c, entradas, cats, cartoes, faturasDoMes, indicadores, decisao, resumo, projetado, mesPorMoeda, maioresGastos]): Dados => ({
             patrimonio: null, investimentos: null, mes: resumo, anterior: null, comparacao: null, indicadores, decisao,
@@ -288,7 +287,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
             // Análises: cada consulta é opcional; um bloco que falha some, o resto segue
             opcional('carregarPatrimonio', carregarPatrimonio(familiaId, hoje)), opcional('carregarResumoInvestimentos', carregarResumoInvestimentos(familiaId, hoje)),
             opcional('resumoDoMes', resumoDoMes(familiaId, mes)), opcional('resumoDoMes', resumoDoMes(familiaId, somarMeses(mes, -1))),
-            // as 6 maiores categorias + "Outros" (somado no banco)
+            // as 6 maiores categorias + "Demais categorias" (somado no banco)
             opcional('despesasPorCategoria', despesasPorCategoria(familiaId, de, ate, 6, baseCartaoRef.current)), opcional('despesasPorDia', despesasPorDia(familiaId, de, ate)),
             opcional('regularidadeRenda', Promise.all([
               regularidadeRenda(familiaId, de, ate),
@@ -520,7 +519,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               ) : (
                 <>
                   <p className="mb-2 text-xs text-slate-500">{primeiraMaiuscula(formatMonth(mes))} · {baseCartao === 'invoice' ? 'só o que já foi pago, em reais' : 'em reais, com as compras no cartão pela base escolhida em Análises'}.</p>
-                  <RoscaCategorias fatias={dados.categorias} mes={mes} aoAbrir={(f) => f.categoriaId && setDetalheAberto({ categoriaId: f.categoriaId, nome: f.nome })} />
+                  <BarrasCategorias barras={dados.categorias} mes={mes} aoAbrir={(b) => b.categoriaId && setDetalheAberto({ categoriaId: b.categoriaId, nome: b.nome })} />
                 </>
               )}
             </Card>

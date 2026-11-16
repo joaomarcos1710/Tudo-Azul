@@ -5,7 +5,7 @@ import type { Cents } from '../../lib/format'
 import { COR_LINHA } from './cores'
 
 export interface BarraCategoria {
-  /** null = "Outros" (o resto, somado no banco). */
+  /** null = "Demais categorias" (o resto, somado no banco). */
   categoriaId: string | null
   nome: string
   valor: Cents
@@ -23,14 +23,14 @@ function Entrada({ abrir, destino, rotulo, children }: { abrir?: () => void; des
 const pct = (v: number) => `${v.toLocaleString('pt-BR')}%`
 
 /**
- * Despesas por categoria em barras horizontais: uma série só (uma cor), nome e valor ao lado de cada barra.
- * Valores, "Outros" e % vêm prontos do banco (expenses_by_category com p_top); a largura da barra é só a razão
+ * Despesas por categoria em barras horizontais (Início e Análises): uma série só (uma cor), nome e valor ao lado de cada barra.
+ * Valores, "Demais categorias" e % vêm prontos do banco (expenses_by_category com p_top); a largura da barra é só a razão
  * entre o valor e o maior valor da lista (apresentação, nenhum dinheiro é somado aqui).
  * Cada linha leva aos lançamentos de despesa do mês.
  */
 export function BarrasCategorias({ barras, mes, aoAbrir }: {
   barras: BarraCategoria[]; mes: string
-  /** Com ela, tocar numa categoria (não no "Outros") abre o detalhe dela em vez de ir para a lista do mês. */
+  /** Com ela, tocar numa categoria (não em "Demais categorias") abre o detalhe dela em vez de ir para a lista do mês. */
   aoAbrir?: (b: BarraCategoria) => void
 }) {
   const maior = Math.max(...barras.map((b) => b.valor as number), 0)
