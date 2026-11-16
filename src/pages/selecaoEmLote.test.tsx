@@ -277,7 +277,7 @@ describe('Lançamentos: seleção em lote na lista por dia', () => {
     try {
       await abrir()
       expect(screen.queryByRole('table')).toBeNull()
-      expect(screen.getByRole('region', { name: '15/10/2026' })).toBeTruthy()
+      expect(screen.getByRole('region', { name: /, 15\/10/ })).toBeTruthy()
       const linhaFatura = screen.getByText('Fatura Nubank').closest('li') as HTMLElement
       expect(within(linhaFatura).queryByRole('checkbox')).toBeNull()
     } finally {

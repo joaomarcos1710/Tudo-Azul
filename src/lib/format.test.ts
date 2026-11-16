@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  asCents, centsFromDb, centsToDecimal, currentMonth, formatBRL, formatBRLSinal, formatDate, formatMonth,
+  asCents, centsFromDb, centsToDecimal, currentMonth, formatBRL, formatBRLSinal, formatDate, formatMonth, rotuloDoDia,
   MAX_CENTS, primeiraMaiuscula, parseBRL, simboloMoeda, type Cents,
 } from './format'
 
@@ -125,6 +125,21 @@ describe('asCents', () => {
 })
 
 describe('datas', () => {
+  it('rotuloDoDia: dia da semana, "Hoje" e "Ontem", sem deslocar o dia pelo fuso; o ano só aparece quando é outro', () => {
+    // 16/11/2026 é segunda-feira
+    expect(rotuloDoDia('2026-11-16', '2026-11-16')).toBe('Hoje · segunda, 16/11')
+    expect(rotuloDoDia('2026-11-15', '2026-11-16')).toBe('Ontem · domingo, 15/11')
+    expect(rotuloDoDia('2026-11-28', '2026-11-16')).toBe('Sábado, 28/11')
+    expect(rotuloDoDia('2026-11-14', '2026-11-16')).toBe('Sábado, 14/11') // anteontem não ganha apelido
+    expect(rotuloDoDia('2026-11-17', '2026-11-16')).toBe('Terça, 17/11') // amanhã também não
+    // virada de mês e de ano: "ontem" continua certo e o ano aparece quando não é o de hoje
+    expect(rotuloDoDia('2026-10-31', '2026-11-01')).toBe('Ontem · sábado, 31/10')
+    expect(rotuloDoDia('2025-12-31', '2026-01-01')).toBe('Ontem · quarta, 31/12/2025')
+    expect(rotuloDoDia('2025-03-05', '2026-11-16')).toBe('Quarta, 05/03/2025')
+    // ano bissexto
+    expect(rotuloDoDia('2028-02-29', '2028-03-01')).toBe('Ontem · terça, 29/02')
+  })
+
   it('formatDate não desloca o dia', () => {
     expect(formatDate('2026-10-13')).toBe('13/10/2026')
     expect(formatDate('2026-01-01T00:00:00Z')).toBe('01/01/2026')

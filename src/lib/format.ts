@@ -117,6 +117,25 @@ export function formatDate(iso: string): string {
   return `${d}/${m}/${a}`
 }
 
+const DIAS_DA_SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'] as const
+
+/**
+ * Cabeçalho de um dia numa lista: "Hoje · segunda, 16/11", "Ontem · domingo, 15/11" ou "Sábado, 28/11".
+ * O ano só aparece quando não é o de `hoje` ("Quarta, 31/12/2025"). O dia da semana é calculado em UTC a partir do
+ * próprio AAAA-MM-DD, nunca com `new Date(iso)` no fuso do aparelho (que pode cair no dia anterior).
+ */
+export function rotuloDoDia(iso: string, hoje: string): string {
+  const [a, m, d] = iso.slice(0, 10).split('-').map(Number)
+  const utc = Date.UTC(a, m - 1, d)
+  const semana = DIAS_DA_SEMANA[new Date(utc).getUTCDay()]
+  const data = `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}${iso.slice(0, 4) === hoje.slice(0, 4) ? '' : `/${a}`}`
+  const [ha, hm, hd] = hoje.slice(0, 10).split('-').map(Number)
+  const distancia = Math.round((Date.UTC(ha, hm - 1, hd) - utc) / 86_400_000)
+  if (distancia === 0) return `Hoje · ${semana}, ${data}`
+  if (distancia === 1) return `Ontem · ${semana}, ${data}`
+  return `${semana[0].toUpperCase()}${semana.slice(1)}, ${data}`
+}
+
 /** "2026-10" -> "outubro de 2026" */
 export function formatMonth(ym: string): string {
   const [a, m] = ym.split('-').map(Number)

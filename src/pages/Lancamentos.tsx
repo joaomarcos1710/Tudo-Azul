@@ -27,7 +27,7 @@ import { OperacaoRapida } from '../components/investimentos/FormOperacao'
 import { aceitaLancamento, hojeSP, listarContas, listarSaldosDiarios, mesmaMoeda } from '../lib/contas'
 import type { Conta, ContaInterna, SaldoDiario } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, simboloMoeda } from '../lib/format'
+import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, rotuloDoDia, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
   criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
@@ -469,8 +469,8 @@ export default function Lancamentos() {
 
       <div className="flex flex-col gap-4">
         {porDia.map(([data, itens]) => (
-          <section key={data} aria-label={formatDate(data)}>
-            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-sm font-semibold text-slate-500">{formatDate(data)}</h2>{mostrarSaldoDiario && rotuloSaldoDoDia(data) && <span className="text-xs font-medium tabular-nums text-slate-600">Saldo final: {rotuloSaldoDoDia(data)}</span>}</div>
+          <section key={data} aria-label={rotuloDoDia(data, hoje)}>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-sm font-semibold text-slate-500">{rotuloDoDia(data, hoje)}</h2>{mostrarSaldoDiario && rotuloSaldoDoDia(data) && <span className="text-xs font-medium tabular-nums text-slate-600">Saldo final: {rotuloSaldoDoDia(data)}</span>}</div>
             <Card semPadding>
               <ul className="divide-y divide-slate-100">
                 {itens.map((item) => {
