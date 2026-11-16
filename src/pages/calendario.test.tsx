@@ -427,10 +427,11 @@ describe('Calendário financeiro: valores no dia, filtros, resumo do dia e Hoje'
     expect(within(dia5).getByText('−187,40')).toBeTruthy()
     expect(within(dia5).queryByText('+8.000,00')).toBeNull()
     expect(mock.totaisDoDia).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31')
-    // no celular os valores somem (hidden sm:flex) e ficam os tracinhos de entrada e saída (sm:hidden)
-    expect(valores.closest('[data-valores-do-dia]')!.className).toMatch(/(^| )hidden( |$)/)
-    expect(valores.closest('[data-valores-do-dia]')!.className).toContain('sm:flex')
-    expect(dia5.querySelector('.bg-lucro-marca')!.className).toContain('sm:hidden')
+    // valores só onde a célula comporta (celular deitado e computador ≥ 1280 px); no celular em pé e no iPad (menu lateral
+    // aperta a grade) ficam os tracinhos de entrada e saída
+    const classes = valores.closest('[data-valores-do-dia]')!.className.split(' ')
+    expect(classes).toEqual(expect.arrayContaining(['hidden', 'sm:flex', 'md:hidden', 'xl:flex']))
+    expect(dia5.querySelector('.bg-lucro-marca')!.className.split(' ')).toEqual(expect.arrayContaining(['sm:hidden', 'md:block', 'xl:hidden']))
   })
 
   it('dia só com outra moeda: sem valor em reais na grade, os tracinhos continuam também no computador', async () => {
@@ -540,13 +541,13 @@ describe('Calendário financeiro: valores no dia, filtros, resumo do dia e Hoje'
     expect(screen.getByText('16/10/2026 · hoje')).toBeTruthy()
   })
 
-  it('no computador, a grade e o detalhamento do dia ficam lado a lado (8 + 4 colunas)', async () => {
+  it('no computador (≥ 1280 px), a grade e o detalhamento do dia ficam lado a lado (8 + 4 colunas)', async () => {
     montar()
     const grade = await screen.findByRole('group', { name: 'Dias de Outubro de 2026' })
-    const cardGrade = grade.closest('.lg\\:col-span-8')
+    const cardGrade = grade.closest('.xl\\:col-span-8')
     expect(cardGrade).not.toBeNull()
-    expect(cardGrade!.parentElement!.className).toContain('lg:grid-cols-12')
-    expect(screen.getByText('16/10/2026 · hoje').closest('.lg\\:col-span-4')).not.toBeNull()
+    expect(cardGrade!.parentElement!.className).toContain('xl:grid-cols-12')
+    expect(screen.getByText('16/10/2026 · hoje').closest('.xl\\:col-span-4')).not.toBeNull()
   })
 })
 

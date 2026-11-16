@@ -49,6 +49,10 @@ const FILTROS: { id: Filtro; rotulo: string }[] = [
   { id: 'todos', rotulo: 'Todos' }, { id: 'entradas', rotulo: 'Entradas' }, { id: 'saidas', rotulo: 'Saídas' },
   { id: 'faturas', rotulo: 'Faturas e Parcelas' },
 ]
+// Onde a célula comporta o valor (≥ 68 px por dia): celular deitado (640–767 px, sem o menu lateral) e computador a partir de
+// 1280 px. Entre 768 e 1279 px o menu lateral de 256 px aperta a grade (célula de ~44 px no iPad em pé) e o valor saía cortado
+// ("+14.…"): ali ficam os tracinhos. Conferido em prévia com o menu aberto em 390, 768, 820, 1280 e 1440 px (16/11/2026).
+const TRACO_COM_VALOR = 'sm:hidden md:block xl:hidden'
 const passaNoFiltro = (x: ItemDoDia, f: Filtro) =>
   f === 'todos' || (f === 'entradas' && x.sentido === 'entrada') || (f === 'saidas' && x.sentido === 'saida') || (f === 'faturas' && x.faturaOuParcela)
 
@@ -267,8 +271,8 @@ export default function Calendario() {
         <p className="text-sm text-slate-600" role="status">Carregando…</p>
       ) : itens && (
         <>
-          <div className="lg:grid lg:grid-cols-12 lg:items-start lg:gap-6">
-          <Card className="mb-4 !p-2 sm:!p-3 lg:col-span-8 lg:mb-0">
+          <div className="xl:grid xl:grid-cols-12 xl:items-start xl:gap-6">
+          <Card className="mb-4 !p-2 sm:!p-3 xl:col-span-8 xl:mb-0">
             <div className="mb-2 flex flex-wrap gap-1" role="group" aria-label="Mostrar no calendário">
               {FILTROS.map((f) => (
                 <button key={f.id} type="button" aria-pressed={filtro === f.id} onClick={() => setFiltro(f.id)}
@@ -305,14 +309,14 @@ export default function Calendario() {
                     }`}>
                     <span className={`text-xs tabular-nums sm:text-sm ${ehHoje ? 'font-bold text-azul' : 'text-slate-700'}`}>{n}</span>
                     {temValor && (
-                      <span className="mt-auto hidden w-full flex-col items-end gap-0.5 sm:flex" aria-hidden="true" data-valores-do-dia>
+                      <span className="mt-auto hidden w-full flex-col items-end gap-0.5 sm:flex md:hidden xl:flex" aria-hidden="true" data-valores-do-dia>
                         {entra !== 0 && <span className="max-w-full truncate rounded bg-lucro-fundo px-1 text-[10px] font-semibold tabular-nums text-lucro">+{formatBRLCampo(entra)}</span>}
                         {sai !== 0 && <span className="max-w-full truncate rounded bg-prejuizo-fundo px-1 text-[10px] font-semibold tabular-nums text-prejuizo">−{formatBRLCampo(sai)}</span>}
                       </span>
                     )}
-                    <span className={`${temValor ? '' : 'mt-auto'} flex w-full flex-col gap-0.5 ${temValor ? 'sm:mt-0.5' : ''}`} aria-hidden="true">
-                      {entrada && <span className={`h-1 rounded-full bg-lucro-marca ${temValor ? 'sm:hidden' : ''}`} />}
-                      {saida && <span className={`h-1 rounded-full bg-prejuizo-marca ${temValor ? 'sm:hidden' : ''}`} />}
+                    <span className={`flex w-full flex-col gap-0.5 ${temValor ? 'mt-auto sm:mt-0.5 md:mt-auto xl:mt-0.5' : 'mt-auto'}`} aria-hidden="true">
+                      {entrada && <span className={`h-1 rounded-full bg-lucro-marca ${temValor ? TRACO_COM_VALOR : ''}`} />}
+                      {saida && <span className={`h-1 rounded-full bg-prejuizo-marca ${temValor ? TRACO_COM_VALOR : ''}`} />}
                       {planejados > 0 && <span className="h-1 rounded-full bg-agendado-marca" />}
                       {vencidos > 0 && <span data-traco="vencido" className="h-1 rounded-full border border-prejuizo-marca bg-prejuizo-fundo" />}
                     </span>
@@ -328,7 +332,7 @@ export default function Calendario() {
             </p>
           </Card>
 
-          <Card className="lg:sticky lg:top-4 lg:col-span-4">
+          <Card className="xl:sticky xl:top-4 xl:col-span-4">
             {dia === null ? (
               <p className="text-sm text-slate-500">Toque num dia para ver o que entra e sai.</p>
             ) : (
@@ -345,10 +349,10 @@ export default function Calendario() {
                 </div>
                 {totais !== null && resumoDoDia && (
                   <section aria-label="Resumo do dia" className="mb-3 grid grid-cols-2 gap-2 rounded-lg bg-fundo p-2 text-sm">
-                    <div><p className="text-[11px] uppercase text-slate-500">{filtro === 'faturas' ? 'Faturas e parcelas' : 'Saídas'}</p>
-                      <p className="tabular-nums font-semibold text-prejuizo">−{formatBRL(resumoDoDia.sai)}</p></div>
                     <div><p className="text-[11px] uppercase text-slate-500">Entradas</p>
                       <p className="tabular-nums font-semibold text-lucro">+{formatBRL(resumoDoDia.entra)}</p></div>
+                    <div><p className="text-[11px] uppercase text-slate-500">{filtro === 'faturas' ? 'Faturas e parcelas' : 'Saídas'}</p>
+                      <p className="tabular-nums font-semibold text-prejuizo">−{formatBRL(resumoDoDia.sai)}</p></div>
                   </section>
                 )}
                 {doDia.length === 0 ? (
