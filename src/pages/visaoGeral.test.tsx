@@ -174,7 +174,17 @@ describe('Visão geral', () => {
     const cabecalho = screen.getByRole('heading', { name: 'Minha Carteira' }).closest('header')!
     expect(within(cabecalho).getByText('Receita mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
     expect(within(cabecalho).getByText('Despesa mensal').nextElementSibling?.textContent).toMatch(/^R\$ /)
-    expect(within(cabecalho).getByRole('link', { name: 'Ver análises do mês' }).getAttribute('href')).toBe('/analises')
+    // mudança 1 do handoff: o caminho para Análises é um link com TEXTO visível (não só ícone), a despesa não é vermelha
+    // e o contorno dos atalhos é visível (slate-500)
+    const analises = within(cabecalho).getByRole('link', { name: 'Ver análises do mês' })
+    expect(analises.getAttribute('href')).toBe('/analises')
+    expect(analises.textContent).toBe('Ver análises do mês')
+    expect(analises.hasAttribute('aria-label')).toBe(false)
+    expect(within(cabecalho).getByTestId('despesa-mensal').className).not.toMatch(/text-prejuizo/)
+    for (const link of within(cabecalho).getAllByRole('link')) {
+      expect(link.className).toContain('border-slate-500')
+      expect(link.className).toContain('min-h-11')
+    }
     expect(screen.getByText('Dinheiro Livre')).toBeTruthy()
     expect(screen.getByText('R$ 8.050,00')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Gerenciar reservas' }).getAttribute('href')).toBe('/reservas')

@@ -12,20 +12,23 @@ export function saudacao(agora = new Date()): string {
 /**
  * Cabeçalho do Início (inspirado no Organizze): saudação, receita e despesa do mês (do banco, period_summary) e
  * atalhos que abrem o formulário de lançamento já com o tipo escolhido (?novo= em Lançamentos).
+ * Mudança 1 do handoff do Início (16/11/2026): despesa em tinta normal (o rótulo já diz o que é; vermelho fica para
+ * o que está negativo), contorno dos atalhos em slate-500 (o slate-200 quase não aparecia) e o caminho para Análises
+ * como link com texto, não só um ícone.
  */
 export function CabecalhoInicio({ nome, receitas, despesas, aReceber = null, aPagar = null }: {
   nome: string; receitas: Cents | null; despesas: Cents | null
   /** Ainda planejado no mês (do banco): evita o susto de "receita R$ 0,00" antes do salário cair. */
   aReceber?: Cents | null; aPagar?: Cents | null
 }) {
-  const atalho = 'inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-marinho shadow-sm hover:bg-slate-50'
+  const atalho = 'inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-500 bg-white px-4 text-sm font-semibold text-marinho shadow-sm hover:bg-slate-50'
   return (
     <header className="mb-6 flex flex-col gap-4 rounded-card bg-white p-5 shadow-card md:flex-row md:items-end md:justify-between">
       <div>
         <p className="text-sm text-slate-500">{saudacao()}{nome ? `, ${nome}` : ''}</p>
         <h1 className="text-xl font-bold text-marinho">Minha Carteira</h1>
         <p className="mt-1 text-sm text-slate-500">A visão financeira da sua família, em um só lugar.</p>
-        <div className="mt-3 flex items-start gap-6">
+        <div className="mt-3 flex flex-wrap items-start gap-x-6 gap-y-2">
           <div>
             <p className="text-xs text-slate-500">Receita mensal</p>
             <p className="tabular-nums text-lg font-bold text-lucro">{receitas === null ? '—' : formatBRL(receitas)}</p>
@@ -33,12 +36,13 @@ export function CabecalhoInicio({ nome, receitas, despesas, aReceber = null, aPa
           </div>
           <div>
             <p className="text-xs text-slate-500">Despesa mensal</p>
-            <p className="tabular-nums text-lg font-bold text-prejuizo">{despesas === null ? '—' : formatBRL(despesas)}</p>
+            <p data-testid="despesa-mensal" className="tabular-nums text-lg font-bold text-marinho">{despesas === null ? '—' : formatBRL(despesas)}</p>
             {aPagar !== null && aPagar > 0 && <p className="tabular-nums text-xs text-slate-500">a pagar {formatBRL(aPagar)}</p>}
           </div>
-          <Link to="/analises" aria-label="Ver análises do mês"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-marinho hover:bg-slate-50">
+          {/* o texto visível é o nome do link (requisito do dono: o caminho para Análises continua no cabeçalho) */}
+          <Link to="/analises" className={atalho}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 20V10M12 20V4M18 20v-6" /></svg>
+            Ver análises do mês
           </Link>
         </div>
       </div>
