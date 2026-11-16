@@ -331,6 +331,52 @@ describe('Lançamentos', () => {
     expect(await screen.findByText(/Totais indisponíveis agora/)).toBeTruthy()
   })
 
+  describe('estado vazio (handoff de Lançamentos, item d)', () => {
+    const mesAtual = () => hojeSP().slice(0, 7)
+    const faturaAberta = () => ({ cartaoId: 'k1', cartaoNome: 'Nubank', mes: mesAtual(), fechamento: `${mesAtual()}-20`, vencimento: `${mesAtual()}-28`,
+      total: c(45678), pago: c(0), itens: 2, creditos: c(0), situacao: 'fechada', contaPagamentoId: 'a1' })
+    const filtrar = async (u: ReturnType<typeof userEvent.setup>, chip: string) => {
+      await u.click(screen.getByRole('button', { name: /^Filtrar/ }))
+      const tela = screen.getByRole('dialog', { name: 'Filtrar lançamentos' })
+      await u.click(within(tela).getByRole('button', { name: chip }))
+      await u.click(within(tela).getByRole('button', { name: 'Filtrar: ver os lançamentos' }))
+    }
+
+    it('filtro que esconde tudo NÃO deixa a tela em branco: diz que nada combina com os filtros e oferece "Limpar filtros"', async () => {
+      const u = userEvent.setup()
+      // há uma fatura no mês, mas o filtro de situação vale só para lançamentos (a fatura some com ele) e nenhum lançamento combina
+      mock.listarFaturasDoMes.mockResolvedValue([faturaAberta()])
+      mock.listarLancamentos.mockImplementation(async (_f: string, _de: string, _ate: string, filtros?: { situacao?: string }) => (filtros?.situacao ? [] : lancs))
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      await screen.findByText('Supermercado')
+      await filtrar(u, 'Pendente')
+      expect(await screen.findByRole('heading', { name: 'Nenhum lançamento com esses filtros' })).toBeTruthy()
+      expect(screen.getByText(/Há 1 filtro ligado: Pendente\. Neste mês nada combina com ele\./)).toBeTruthy()
+      expect(screen.queryByText('Nenhum lançamento neste mês')).toBeNull()
+      expect(screen.queryByText('Supermercado')).toBeNull()
+      // "Limpar filtros" tira todos e a lista volta
+      await u.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+      expect(await screen.findByText('Supermercado')).toBeTruthy()
+      expect(screen.queryByRole('heading', { name: 'Nenhum lançamento com esses filtros' })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Filtrar' })).toBeTruthy()
+    })
+
+    it('sem filtro e sem nada no mês: o texto de sempre, com "Novo lançamento"', async () => {
+      mock.listarLancamentos.mockResolvedValue([])
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      expect(await screen.findByRole('heading', { name: 'Nenhum lançamento neste mês' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Limpar filtros' })).toBeNull()
+    })
+
+    it('se uma consulta falhou, quem fala é o aviso de erro: a tela não diz "nenhum lançamento"', async () => {
+      mock.listarLancamentos.mockResolvedValue([])
+      mock.listarFaturasDoMes.mockRejectedValue(new Error('boom'))
+      render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+      expect(await screen.findByText(/Não foi possível carregar as faturas dos cartões agora/)).toBeTruthy()
+      expect(screen.queryByRole('heading', { name: /^Nenhum lançamento/ })).toBeNull()
+    })
+  })
+
   it('filtros numa folha (pedido do dono, 10/11/2026): o botão Filtrar mostra quantos estão ligados e cada selo tira o seu', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)

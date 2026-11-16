@@ -806,7 +806,7 @@ Nenhum código copiado. Descartados: FinQuant, DenizSungurtekin/Investment-Portf
 Design: artefato "Lançamentos — Extrato e Gastos" (4 telas, dados fictícios). O dono pediu para ir por partes; a "PR 1" do handoff virou uma PR por item.
 - [x] **(f)** Trocar entre Despesa e Cartão não apaga a categoria.
 - [x] **(b)** Cabeçalho do dia com dia da semana e "Hoje"/"Ontem" (`rotuloDoDia`). Só em Lançamentos; outras listas por dia (Calendário, fatura do cartão) seguem com a data simples.
-- [ ] **(d)** Estado vazio conforme filtro e período, com "Limpar filtros". **Defeito a corrigir junto:** com filtro de cartão, situação, fixos ou parcelados a tela pode ficar em branco (a condição olha os vetores crus, não a lista filtrada).
+- [x] **(d)** Estado vazio conforme filtro e período, com "Limpar filtros"; corrigida a tela em branco com filtro e o "nenhum lançamento" quando a consulta das faturas falhava. Falta: indicador de "carregando" ao trocar de filtro (a lista antiga fica na tela até a resposta chegar).
 - [ ] **(a)** Conta na linha de despesa e receita (conferir corte em 390 px e no iPad em pé).
 - [ ] **(e)** Excluir sem `window.confirm`, com Desfazer fixo embaixo. "Parar de repetir" mantém a confirmação (é irreversível). Conferir antes: tela de Lixeira e se recorrente excluído é regerado.
 - [ ] **(g)** Filtros e período na URL; fecha também `?categoria=`. Nove lugares linkam para Lançamentos com `?mes`, `?tipo` ou `?novo`.
