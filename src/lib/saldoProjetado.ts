@@ -83,3 +83,23 @@ export async function faturasQueVencem(familiaId: string, de: string, ate: strin
     total: dinheiro(f.total), pago: dinheiro(f.paid), falta: dinheiro(f.remaining), contaPagamentoId: (f.pay_account_id as string | null) ?? null,
   }))
 }
+
+/** Totais de um dia do Calendário numa moeda, somados no banco (calendar_day_totals, migration 130). */
+export interface TotalDoDia {
+  data: string
+  moeda: string
+  entradas: Cents
+  saidas: Cents
+  /** A parte das saídas que é fatura ou parcela (filtro "Faturas e Parcelas"). */
+  faturasEParcelas: Cents
+}
+
+/** Totais de cada dia entre as duas datas (no máximo 62 dias), por moeda; só os dias com algo. */
+export async function totaisDoDia(familiaId: string, de: string, ate: string): Promise<TotalDoDia[]> {
+  const { data, error } = await cliente().rpc('calendar_day_totals', { p_household: familiaId, p_from: de, p_to: ate })
+  if (error) throw error
+  return ((data ?? []) as Linha[]).map((d) => ({
+    data: d.day as string, moeda: d.currency as string,
+    entradas: dinheiro(d.income), saidas: dinheiro(d.expense), faturasEParcelas: dinheiro(d.bills),
+  }))
+}

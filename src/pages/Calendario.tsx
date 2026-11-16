@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
-import { Card, CardTitle } from '../components/ui/Card'
+import { Card } from '../components/ui/Card'
 import { useFamilia } from '../lib/FamiliaContext'
 import { atualizarAutomaticos } from '../lib/automaticos'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatDate, formatMoeda, formatMonth, primeiraMaiuscula } from '../lib/format'
+import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, formatMonth, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
-import { saldosProjetados, faturasQueVencem } from '../lib/saldoProjetado'
-import type { SaldoTotal } from '../lib/saldoProjetado'
+import { saldosProjetados, faturasQueVencem, totaisDoDia } from '../lib/saldoProjetado'
+import type { SaldoTotal, TotalDoDia } from '../lib/saldoProjetado'
+import { useValoresOcultos } from '../lib/privacidade'
 import { limitesDoMes, listarLancamentos, listarMovimentosDeDivida, resumoDoMes, resumoPorMoeda, situacaoDoLancamento, somarMeses } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ResumoMes, ResumoPorMoeda } from '../lib/lancamentos'
@@ -22,6 +23,8 @@ import { corDoValor } from '../lib/cores'
  * Calendário do mês: o que entra e sai das contas em cada dia (pago e planejado).
  * Mostra cada lançamento com o seu valor, na moeda da conta; não soma nada aqui. Os totais do mês vêm do banco
  * (period_summary, só em reais) e, à parte, o resultado das contas em outras moedas (period_summary_by_currency).
+ * Os totais de cada dia (dentro da grade e no resumo do dia) também vêm do banco: calendar_day_totals (migration 130),
+ * que soma os mesmos blocos desta lista. Na grade só aparecem os de reais; outras moedas ficam na lista do dia.
  * Compra no cartão não aparece no dia da compra: entra na fatura, e o pagamento da fatura aparece no dia em que sai da conta.
  */
 
@@ -37,7 +40,21 @@ interface ItemDoDia {
   moeda: string
   sentido: Sentido
   planejado: boolean
+  /** Fatura de cartão ou parcela de dívida: o filtro "Faturas e Parcelas" (mesma regra do banco, `bills`). */
+  faturaOuParcela: boolean
 }
+
+type Filtro = 'todos' | 'entradas' | 'saidas' | 'faturas'
+const FILTROS: { id: Filtro; rotulo: string }[] = [
+  { id: 'todos', rotulo: 'Todos' }, { id: 'entradas', rotulo: 'Entradas' }, { id: 'saidas', rotulo: 'Saídas' },
+  { id: 'faturas', rotulo: 'Faturas e Parcelas' },
+]
+// Onde a célula comporta o valor (≥ 68 px por dia): celular deitado (640–767 px, sem o menu lateral) e computador a partir de
+// 1280 px. Entre 768 e 1279 px o menu lateral de 256 px aperta a grade (célula de ~44 px no iPad em pé) e o valor saía cortado
+// ("+14.…"): ali ficam os tracinhos. Conferido em prévia com o menu aberto em 390, 768, 820, 1280 e 1440 px (16/11/2026).
+const TRACO_COM_VALOR = 'sm:hidden md:block xl:hidden'
+const passaNoFiltro = (x: ItemDoDia, f: Filtro) =>
+  f === 'todos' || (f === 'entradas' && x.sentido === 'entrada') || (f === 'saidas' && x.sentido === 'saida') || (f === 'faturas' && x.faturaOuParcela)
 
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 const mesValido = (m: string | null) => (m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : null)
@@ -52,6 +69,10 @@ export default function Calendario() {
   const [itens, setItens] = useState<ItemDoDia[] | null>(null)
   const [resumo, setResumo] = useState<ResumoMes | null>(null)
   const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
+  // totais de cada dia, do banco; null = não carregou (a grade fica só com os tracinhos, como antes)
+  const [totais, setTotais] = useState<TotalDoDia[] | null>(null)
+  const [filtro, setFiltro] = useState<Filtro>('todos')
+  const ocultos = useValoresOcultos()
   const [erro, setErro] = useState('')
   const [automaticosFalharam, setAutomaticosFalharam] = useState(false)
   // consultas de apoio que falharam: sem isto o calendário parecia completo (sem faturas, parcelas ou totais) e não estava
@@ -71,6 +92,7 @@ export default function Calendario() {
       setItens(null)
       setResumo(null)
       setPorMoeda([])
+      setTotais(null)
     }
     setBlocosFalharam([])
     setErro('')
@@ -86,8 +108,9 @@ export default function Calendario() {
         faturasQueVencem(familiaId, ...limitesDoMes(mes)).catch(falhou('faturas', [])),
         listarParcelasDivida(familiaId, ...limitesDoMes(mes)).catch(falhou('parcelas de dívida', [])),
         resumoPorMoeda(familiaId, ...limitesDoMes(mes)).catch(falhou('resumo em outras moedas', [] as ResumoPorMoeda[])),
+        totaisDoDia(familiaId, ...limitesDoMes(mes)).catch(falhou('totais de cada dia', null)),
       ])
-      .then(([lancs, movs, contas, cats, res, faturas, parcelasDivida, pm]) => {
+      .then(([lancs, movs, contas, cats, res, faturas, parcelasDivida, pm, tdd]) => {
         if (!vivo()) return
         setBlocosFalharam([...falhas])
         // a conta interna da carteira (aporte e resgate) também tem nome nas transferências
@@ -106,6 +129,7 @@ export default function Calendario() {
             moeda: moedaConta.get(l.contaId) ?? 'BRL',
             sentido: l.tipo === 'income' ? 'entrada' : l.tipo === 'expense' ? 'saida' : 'transferencia',
             planejado: l.status === 'planned',
+            faturaOuParcela: false,
           })),
           ...movs.map((m): ItemDoDia => ({
             id: `d-${m.id}`,
@@ -117,6 +141,7 @@ export default function Calendario() {
             moeda: 'BRL',
             sentido: m.valor >= 0 ? 'entrada' : 'saida',
             planejado: false,
+            faturaOuParcela: m.parcela,
           })),
           ...parcelasDivida.map((p): ItemDoDia => ({
             id: `dp-${p.id}`,
@@ -131,6 +156,7 @@ export default function Calendario() {
             moeda: 'BRL',
             sentido: 'saida',
             planejado: true,
+            faturaOuParcela: true,
           })),
           // a fatura que vence no dia aparece como planejada, pelo que ainda falta pagar (paga por inteiro, o pagamento já aparece acima)
           ...faturas.filter((f) => f.falta > 0).map((f): ItemDoDia => ({
@@ -144,11 +170,13 @@ export default function Calendario() {
             moeda: 'BRL',
             sentido: 'saida',
             planejado: true,
+            faturaOuParcela: true,
           })),
         ]
         setItens(doMes)
         setResumo(res)
         setPorMoeda(pm)
+        setTotais(tdd)
       })
       .catch((err) => { if (vivo()) setErro(mensagemErroBanco(err)) })
   }, [familiaId, mes, hoje, recarga])
@@ -179,9 +207,22 @@ export default function Calendario() {
   const diasNoMes = Number(fimDoMes.slice(8, 10))
   const deslocamento = (new Date(Date.UTC(a, m - 1, 1)).getUTCDay() + 6) % 7 // segunda-feira primeiro
   const porDia = new Map<string, ItemDoDia[]>()
-  for (const item of itens ?? []) porDia.set(item.data, [...(porDia.get(item.data) ?? []), item])
+  for (const item of itens ?? []) if (passaNoFiltro(item, filtro)) porDia.set(item.data, [...(porDia.get(item.data) ?? []), item])
   const doDia = dia ? porDia.get(dia) ?? [] : []
   const titulo = primeiraMaiuscula(formatMonth(mes))
+  // só reais na grade e no resumo do dia; outras moedas ficam na lista, na moeda da conta (sem conversão)
+  const totalBRL = new Map((totais ?? []).filter((t) => t.moeda === 'BRL').map((t) => [t.data, t]))
+  // valores dentro do dia: com os totais do banco carregados e "ocultar valores" desligado; senão, só os tracinhos
+  const mostrarValores = totais !== null && !ocultos
+  const valoresDoDia = (t: TotalDoDia | undefined): { entra: Cents; sai: Cents } => {
+    const zero = 0 as Cents
+    if (!t) return { entra: zero, sai: zero }
+    if (filtro === 'entradas') return { entra: t.entradas, sai: zero }
+    if (filtro === 'saidas') return { entra: zero, sai: t.saidas }
+    if (filtro === 'faturas') return { entra: zero, sai: t.faturasEParcelas }
+    return { entra: t.entradas, sai: t.saidas }
+  }
+  const resumoDoDia = dia ? valoresDoDia(totalBRL.get(dia)) : null
 
   return (
     <>
@@ -203,8 +244,13 @@ export default function Calendario() {
         <button type="button" onClick={() => irPara(somarMeses(mes, -1))} aria-label="Mês anterior"
           className="min-h-11 min-w-11 rounded-lg text-xl text-marinho hover:bg-azul-claro">‹</button>
         <h2 className="text-base font-semibold" aria-live="polite">{titulo}</h2>
-        <button type="button" onClick={() => irPara(somarMeses(mes, 1))} aria-label="Próximo mês"
-          className="min-h-11 min-w-11 rounded-lg text-xl text-marinho hover:bg-azul-claro">›</button>
+        <span className="flex items-center gap-1">
+          <button type="button" onClick={() => { irPara(hoje.slice(0, 7)); setDia(hoje) }}
+            disabled={mes === hoje.slice(0, 7) && dia === hoje}
+            className="min-h-11 rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro disabled:text-slate-400 disabled:hover:bg-transparent">Hoje</button>
+          <button type="button" onClick={() => irPara(somarMeses(mes, 1))} aria-label="Próximo mês"
+            className="min-h-11 min-w-11 rounded-lg text-xl text-marinho hover:bg-azul-claro">›</button>
+        </span>
       </div>
 
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
@@ -225,7 +271,16 @@ export default function Calendario() {
         <p className="text-sm text-slate-600" role="status">Carregando…</p>
       ) : itens && (
         <>
-          <Card className="mb-4 !p-2 sm:!p-3">
+          <div className="xl:grid xl:grid-cols-12 xl:items-start xl:gap-6">
+          <Card className="mb-4 !p-2 sm:!p-3 xl:col-span-8 xl:mb-0">
+            <div className="mb-2 flex flex-wrap gap-1" role="group" aria-label="Mostrar no calendário">
+              {FILTROS.map((f) => (
+                <button key={f.id} type="button" aria-pressed={filtro === f.id} onClick={() => setFiltro(f.id)}
+                  className={`min-h-11 rounded-lg px-3 text-xs font-semibold ${filtro === f.id ? 'bg-azul text-white' : 'bg-fundo text-slate-600 hover:bg-azul-claro'}`}>
+                  {f.rotulo}
+                </button>
+              ))}
+            </div>
             <div className="grid grid-cols-7 gap-1" role="group" aria-label={`Dias de ${titulo}`}>
               {DIAS_SEMANA.map((d) => <div key={d} className="py-1 text-center text-[11px] font-semibold uppercase text-slate-500" aria-hidden="true">{d}</div>)}
               {Array.from({ length: deslocamento }, (_, i) => <div key={`v${i}`} aria-hidden="true" />)}
@@ -240,19 +295,28 @@ export default function Calendario() {
                 const planejados = itensDoDia.filter((x) => x.planejado).length - vencidos
                 const ehHoje = data === hoje
                 const selecionado = data === dia
+                // valores em reais do banco; o dia que só tem outra moeda continua com os tracinhos também no computador
+                const { entra, sai } = valoresDoDia(totalBRL.get(data))
+                const temValor = mostrarValores && (entra !== 0 || sai !== 0)
                 const rotulo = `${n} de ${formatMonth(mes)}${ehHoje ? ', hoje' : ''}: ${
                   itensDoDia.length === 0 ? 'nada' : `${itensDoDia.length} ${itensDoDia.length === 1 ? 'lançamento' : 'lançamentos'}`
                 }${planejados > 0 ? `, ${planejados} ${planejados === 1 ? 'planejado' : 'planejados'}` : ''}${
                   vencidos > 0 ? `, ${vencidos} ${vencidos === 1 ? 'vencido' : 'vencidos'}` : ''}`
                 return (
                   <button key={data} type="button" onClick={() => setDia(data)} aria-label={rotulo} aria-pressed={selecionado}
-                    className={`flex min-h-11 flex-col items-start rounded-lg p-1 text-left sm:min-h-16 sm:p-1.5 ${
+                    className={`flex min-h-11 min-w-0 flex-col items-start rounded-lg p-1 text-left sm:min-h-20 sm:p-1.5 ${
                       selecionado ? 'bg-azul-claro ring-2 ring-azul' : ehHoje ? 'ring-2 ring-azul/60' : itensDoDia.length ? 'bg-fundo hover:bg-azul-claro' : 'hover:bg-fundo'
                     }`}>
                     <span className={`text-xs tabular-nums sm:text-sm ${ehHoje ? 'font-bold text-azul' : 'text-slate-700'}`}>{n}</span>
-                    <span className="mt-auto flex w-full flex-col gap-0.5" aria-hidden="true">
-                      {entrada && <span className="h-1 rounded-full bg-lucro-marca" />}
-                      {saida && <span className="h-1 rounded-full bg-prejuizo-marca" />}
+                    {temValor && (
+                      <span className="mt-auto hidden w-full flex-col items-end gap-0.5 sm:flex md:hidden xl:flex" aria-hidden="true" data-valores-do-dia>
+                        {entra !== 0 && <span className="max-w-full truncate rounded bg-lucro-fundo px-1 text-[10px] font-semibold tabular-nums text-lucro">+{formatBRLCampo(entra)}</span>}
+                        {sai !== 0 && <span className="max-w-full truncate rounded bg-prejuizo-fundo px-1 text-[10px] font-semibold tabular-nums text-prejuizo">−{formatBRLCampo(sai)}</span>}
+                      </span>
+                    )}
+                    <span className={`flex w-full flex-col gap-0.5 ${temValor ? 'mt-auto sm:mt-0.5 md:mt-auto xl:mt-0.5' : 'mt-auto'}`} aria-hidden="true">
+                      {entrada && <span className={`h-1 rounded-full bg-lucro-marca ${temValor ? TRACO_COM_VALOR : ''}`} />}
+                      {saida && <span className={`h-1 rounded-full bg-prejuizo-marca ${temValor ? TRACO_COM_VALOR : ''}`} />}
                       {planejados > 0 && <span className="h-1 rounded-full bg-agendado-marca" />}
                       {vencidos > 0 && <span data-traco="vencido" className="h-1 rounded-full border border-prejuizo-marca bg-prejuizo-fundo" />}
                     </span>
@@ -268,19 +332,33 @@ export default function Calendario() {
             </p>
           </Card>
 
-          <Card>
+          <Card className="xl:sticky xl:top-4 xl:col-span-4">
             {dia === null ? (
               <p className="text-sm text-slate-500">Toque num dia para ver o que entra e sai.</p>
             ) : (
               <>
-                <div className="flex items-center justify-between">
-                  <CardTitle>{formatDate(dia)}{dia === hoje ? ' · hoje' : ''}</CardTitle>
-                  <Link to={`/lancamentos?mes=${mes}`} className="mb-3 inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-azul hover:bg-azul-claro hover:underline">Ver em Lançamentos</Link>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="mb-3 min-w-0">
+                    <h2 className="text-sm font-semibold text-slate-500">{formatDate(dia)}{dia === hoje ? ' · hoje' : ''}</h2>
+                    <p className="text-xs text-slate-500" data-testid="dia-contagem">
+                      {doDia.length === 0 ? 'nada' : `${doDia.length} ${doDia.length === 1 ? 'item' : 'itens'}`}
+                      {filtro !== 'todos' ? ` · ${FILTROS.find((f) => f.id === filtro)?.rotulo}` : ''}
+                    </p>
+                  </div>
+                  <Link to={`/lancamentos?mes=${mes}`} className="mb-3 inline-flex min-h-11 shrink-0 items-center rounded-lg px-2 text-sm font-semibold text-azul hover:bg-azul-claro hover:underline">Ver em Lançamentos</Link>
                 </div>
+                {totais !== null && resumoDoDia && (
+                  <section aria-label="Resumo do dia" className="mb-3 grid grid-cols-2 gap-2 rounded-lg bg-fundo p-2 text-sm">
+                    <div><p className="text-[11px] uppercase text-slate-500">Entradas</p>
+                      <p className="tabular-nums font-semibold text-lucro">+{formatBRL(resumoDoDia.entra)}</p></div>
+                    <div><p className="text-[11px] uppercase text-slate-500">{filtro === 'faturas' ? 'Faturas e parcelas' : 'Saídas'}</p>
+                      <p className="tabular-nums font-semibold text-prejuizo">−{formatBRL(resumoDoDia.sai)}</p></div>
+                  </section>
+                )}
                 {doDia.length === 0 ? (
-                  <p className="text-sm text-slate-500">Nada neste dia.</p>
+                  <p className="text-sm text-slate-500">{filtro === 'todos' ? 'Nada neste dia.' : 'Nada deste tipo neste dia.'}</p>
                 ) : (
-                  <ul className="divide-y divide-slate-100">
+                  <ul className="divide-y divide-slate-100" aria-label="O que entra e sai no dia">
                     {doDia.map((x) => (
                       <li key={x.id} className="flex items-center justify-between gap-3 py-2 text-sm">
                         <span className="min-w-0">
@@ -310,8 +388,9 @@ export default function Calendario() {
               </>
             )}
           </Card>
+          </div>
           <p className="mt-3 text-xs text-slate-500">
-            Os totais do mês vêm do banco, como em Análises (compra no cartão conta na data de fechamento da fatura).
+            Os totais do mês e os de cada dia vêm do banco (os do mês como em Análises: compra no cartão conta na data de fechamento da fatura).
             No calendário, a compra no cartão não aparece no dia da compra: o pagamento da fatura aparece no dia em que sai da conta.
           </p>
         </>

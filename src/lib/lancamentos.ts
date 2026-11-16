@@ -148,6 +148,12 @@ export interface MovimentoDivida {
   valor: Cents
   /** Juros e tarifa: já contam em Despesas pagas. */
   jaEmDespesas: boolean
+  /**
+   * Fatura ou parcela (filtro "Faturas e Parcelas" do Calendário): o pagamento de cartão/dívida, e os juros e a tarifa da
+   * MESMA operação (op_id) de um pagamento. Amortização avulsa e juros ou tarifa sozinhos não são. Mesma regra de
+   * `calendar_day_totals` (migration 130).
+   */
+  parcela: boolean
 }
 
 const eventosDeConta = ['payment', 'extra_principal', 'disbursement', 'refund_cash', 'interest', 'fee'] as const
@@ -170,10 +176,10 @@ export async function listarMovimentosDeDividaNoPeriodo(familiaId: string, de: s
   const soDespesa = Boolean(f.categoriaId) || f.tipo === 'expense'
   const tipos = soDespesa ? ['interest', 'fee', 'payment', 'extra_principal'] : [...eventosDeConta]
   const db = cliente()
-  const eventos: { id: string; debt_id: string; date: string; kind: string; amount: number | string; account_id: string; category_id?: string | null }[] = []
+  const eventos: { id: string; debt_id: string; date: string; kind: string; amount: number | string; account_id: string; category_id?: string | null; op_id?: string | null }[] = []
   const pagina = 1000
   for (let inicio = 0; ; inicio += pagina) {
-    let q = db.from('debt_events').select('id, debt_id, date, kind, amount, account_id, category_id')
+    let q = db.from('debt_events').select('id, debt_id, date, kind, amount, account_id, category_id, op_id')
       .eq('household_id', familiaId).is('voided_at', null).in('kind', tipos).not('account_id', 'is', null)
       .gte('date', de).lte('date', ate)
     if (f.contaId) q = q.eq('account_id', f.contaId)
@@ -192,6 +198,8 @@ export async function listarMovimentosDeDividaNoPeriodo(familiaId: string, de: s
   const porId = new Map(((dividas.data ?? []) as { id: string; name: string; kind: string; principal_category_id?: string | null }[]).map((d) => [d.id, d]))
   const ehEmprestimo = (kind?: string) => kind === 'loan' || kind === 'financing'
   const principal = (kind: string) => kind === 'payment' || kind === 'extra_principal'
+  // operações que têm um pagamento: os juros e a tarifa delas são da parcela (todos os eventos de uma operação têm a mesma data)
+  const opsComPagamento = new Set(eventos.filter((e) => e.kind === 'payment' && e.op_id).map((e) => e.op_id as string))
   return eventos.filter((e) => {
     if (!soDespesa) return true
     const d = porId.get(e.debt_id)
@@ -210,6 +218,7 @@ export async function listarMovimentosDeDividaNoPeriodo(familiaId: string, de: s
       descricao: e.kind === 'payment' && d?.kind === 'card' ? `Pagamento da fatura · ${nome}` : `${rotuloEventoConta[e.kind]} ${nome}`,
       valor: (entra ? cents : -cents) as Cents,
       jaEmDespesas: e.kind === 'interest' || e.kind === 'fee' || (principal(e.kind) && ehEmprestimo(d?.kind)),
+      parcela: e.kind === 'payment' || ((e.kind === 'interest' || e.kind === 'fee') && Boolean(e.op_id) && opsComPagamento.has(e.op_id as string)),
     }
   })
 }

@@ -47,6 +47,19 @@ describe('listarMovimentosDeDivida', () => {
     ])
   })
 
+  it('Calendário (migration 130): pagamento é parcela; juros e tarifa só da mesma operação de um pagamento; amortização e juros sozinhos não', async () => {
+    fake.estado.eventos = [
+      ev({ id: '1', kind: 'payment', debt_id: 'd2', op_id: 'op1' }), ev({ id: '2', kind: 'interest', debt_id: 'd2', amount: '10.00', op_id: 'op1' }),
+      ev({ id: '3', kind: 'extra_principal', debt_id: 'd2', op_id: 'op2' }), ev({ id: '4', kind: 'fee', debt_id: 'd2', amount: '20.00', op_id: 'op2' }),
+      ev({ id: '5', kind: 'interest', debt_id: 'd2', amount: '15.00', op_id: 'op3' }), ev({ id: '6', kind: 'fee', debt_id: 'd2', amount: '1.00', op_id: null }),
+      ev({ id: '7', kind: 'payment', op_id: 'op4' }), ev({ id: '8', kind: 'disbursement', debt_id: 'd2', amount: '1000.00', op_id: 'op5' }),
+    ]
+    const r = await listarMovimentosDeDivida('h1', '2026-10')
+    expect(r.map((m) => [m.id, m.parcela])).toEqual([
+      ['1', true], ['2', true], ['3', false], ['4', false], ['5', false], ['6', false], ['7', true], ['8', false],
+    ])
+  })
+
   it('só lê eventos não anulados do mês, com a conta pedida', async () => {
     await listarMovimentosDeDivida('h1', '2026-10', { contaId: 'a9' })
     const f = fake.estado.chamadas[0].filtros

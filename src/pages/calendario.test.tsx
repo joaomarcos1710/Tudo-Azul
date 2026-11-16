@@ -16,11 +16,12 @@ const mock = vi.hoisted(() => ({
   saldosProjetados: vi.fn(),
   faturasQueVencem: vi.fn(),
   listarParcelasDivida: vi.fn(),
+  totaisDoDia: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados, faturasQueVencem: mock.faturasQueVencem }))
+vi.mock('../lib/saldoProjetado', () => ({ saldosProjetados: mock.saldosProjetados, faturasQueVencem: mock.faturasQueVencem, totaisDoDia: mock.totaisDoDia }))
 vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarParcelasDivida: mock.listarParcelasDivida }))
 vi.mock('../lib/automaticos', () => ({ atualizarAutomaticos: mock.atualizarAutomaticos }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
@@ -32,8 +33,10 @@ vi.mock('../lib/lancamentos', async (o) => ({
 }))
 
 import Calendario from './Calendario'
+import { definirValoresOcultos } from '../lib/privacidade'
 
 const c = (n: number) => n as Cents
+const listaDoDia = () => screen.getByRole('list', { name: 'O que entra e sai no dia' })
 const montar = (url = '/calendario') => render(<MemoryRouter initialEntries={[url]}><Calendario /></MemoryRouter>)
 const lanc = (id: string, data: string, tipo: 'income' | 'expense' | 'transfer', valor: number, status: 'paid' | 'planned', descricao: string) => ({
   id, tipo, contaId: 'a1', destinoId: tipo === 'transfer' ? 'a2' : null, categoriaId: tipo === 'transfer' ? null : 'g1',
@@ -46,6 +49,12 @@ beforeEach(() => {
   mock.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: true, faturasOk: true })
   mock.faturasQueVencem.mockResolvedValue([])
   mock.listarParcelasDivida.mockResolvedValue([])
+  // totais de cada dia como o banco devolveria para os lançamentos abaixo (a tela não soma: só mostra)
+  mock.totaisDoDia.mockResolvedValue([
+    { data: '2026-10-05', moeda: 'BRL', entradas: c(800000), saidas: c(18740), faturasEParcelas: c(0) },
+    { data: '2026-10-10', moeda: 'BRL', entradas: c(0), saidas: c(133334), faturasEParcelas: c(133334) },
+    { data: '2026-10-25', moeda: 'BRL', entradas: c(0), saidas: c(12000), faturasEParcelas: c(0) },
+  ])
   mock.saldosProjetados.mockResolvedValue({
     contas: [
       { id: 'a1', nome: 'Itaú', ativa: true, efetuado: c(100000), planejado: c(-5000), faturas: c(20000), saldo: c(75000) },
@@ -60,7 +69,7 @@ beforeEach(() => {
     lanc('l4', '2026-10-12', 'transfer', 50000, 'paid', 'Guardar'),
   ])
   mock.listarMovimentosDeDivida.mockResolvedValue([
-    { id: 'e1', data: '2026-10-10', contaId: 'a1', descricao: 'Pagamento de Nubank', valor: c(-133334), jaEmDespesas: false },
+    { id: 'e1', data: '2026-10-10', contaId: 'a1', descricao: 'Pagamento de Nubank', valor: c(-133334), jaEmDespesas: false, parcela: true },
   ])
   mock.listarContas.mockResolvedValue({
     contas: [
@@ -123,8 +132,7 @@ describe('Calendário', () => {
     montar()
     await u.click(await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' }))
     expect(screen.getByText('05/10/2026')).toBeTruthy()
-    // a lista do dia (a outra lista da tela é a dos saldos por conta)
-    const lista = screen.getByText('05/10/2026').closest('div')!.parentElement!.querySelector('ul')!
+    const lista = listaDoDia()
     expect(within(lista).getAllByRole('listitem')).toHaveLength(2)
     expect(within(lista).getByText('Salário')).toBeTruthy()
     expect(within(lista).getByText('+R$ 8.000,00')).toBeTruthy()
@@ -136,7 +144,7 @@ describe('Calendário', () => {
     expect(within(lista).getByText('−R$ 187,40').className).toContain('text-prejuizo')
     for (const pago of within(lista).getAllByText('Pago')) expect(pago.className).toContain('text-lucro')
     await u.click(screen.getByRole('button', { name: '25 de outubro de 2026: 1 lançamento, 1 planejado' }))
-    const lista25 = screen.getByText('25/10/2026').closest('div')!.parentElement!.querySelector('ul')!
+    const lista25 = listaDoDia()
     expect(within(lista25).getByText('Internet')).toBeTruthy()
     expect(within(lista25).getByText('Planejado')).toBeTruthy()
     expect(within(lista25).queryByText('Pago')).toBeNull()
@@ -172,7 +180,7 @@ describe('Calendário', () => {
     expect(screen.getByRole('button', { name: '25 de outubro de 2026: 1 lançamento, 1 planejado' }).querySelector('[data-traco="vencido"]')).toBeNull()
     expect(screen.getByText('Vencido (planejado que passou da data)')).toBeTruthy()
     await u.click(dia8)
-    const lista = screen.getByText('08/10/2026').closest('div')!.parentElement!.querySelector('ul')!
+    const lista = listaDoDia()
     expect(within(lista).getByText('Vencido').className).toContain('text-prejuizo')
     expect(within(lista).queryByText('Planejado')).toBeNull()
   })
@@ -188,8 +196,8 @@ describe('Calendário', () => {
     const u = userEvent.setup()
     montar()
     await u.click(await screen.findByRole('button', { name: '10 de outubro de 2026: 1 lançamento' }))
-    expect(screen.getByText('Pagamento de Nubank')).toBeTruthy()
-    expect(screen.getByText('−R$ 1.333,34')).toBeTruthy()
+    expect(within(listaDoDia()).getByText('Pagamento de Nubank')).toBeTruthy()
+    expect(within(listaDoDia()).getByText('−R$ 1.333,34')).toBeTruthy()
     await u.click(screen.getByRole('button', { name: '12 de outubro de 2026: 1 lançamento' }))
     expect(screen.getByText('Itaú → Poupança')).toBeTruthy()
     expect(screen.getByText('⇄ R$ 500,00')).toBeTruthy()
@@ -405,3 +413,141 @@ describe('Calendário: faturas e saldo projetado', () => {
     expect(screen.queryByTestId('saldo-total')).toBeNull()
   })
 })
+
+describe('Calendário financeiro: valores no dia, filtros, resumo do dia e Hoje', () => {
+  afterEach(() => definirValoresOcultos(false))
+
+  it('os valores dentro do dia vêm do banco (calendar_day_totals), não da soma da lista', async () => {
+    // o banco diz 9.999,00 de entrada no dia 5; a lista tem 8.000,00: a grade mostra o do banco (a tela não soma)
+    mock.totaisDoDia.mockResolvedValue([{ data: '2026-10-05', moeda: 'BRL', entradas: c(999900), saidas: c(18740), faturasEParcelas: c(0) }])
+    montar()
+    const dia5 = await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' })
+    const valores = await within(dia5).findByText('+9.999,00')
+    expect(valores.closest('[data-valores-do-dia]')).not.toBeNull()
+    expect(within(dia5).getByText('−187,40')).toBeTruthy()
+    expect(within(dia5).queryByText('+8.000,00')).toBeNull()
+    expect(mock.totaisDoDia).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31')
+    // valores só onde a célula comporta (celular deitado e computador ≥ 1280 px); no celular em pé e no iPad (menu lateral
+    // aperta a grade) ficam os tracinhos de entrada e saída
+    const classes = valores.closest('[data-valores-do-dia]')!.className.split(' ')
+    expect(classes).toEqual(expect.arrayContaining(['hidden', 'sm:flex', 'md:hidden', 'xl:flex']))
+    expect(dia5.querySelector('.bg-lucro-marca')!.className.split(' ')).toEqual(expect.arrayContaining(['sm:hidden', 'md:block', 'xl:hidden']))
+  })
+
+  it('dia só com outra moeda: sem valor em reais na grade, os tracinhos continuam também no computador', async () => {
+    mock.totaisDoDia.mockResolvedValue([{ data: '2026-10-05', moeda: 'USD', entradas: c(0), saidas: c(5000), faturasEParcelas: c(0) }])
+    montar()
+    const dia5 = await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' })
+    await screen.findByRole('region', { name: 'Totais do mês' })
+    expect(dia5.querySelector('[data-valores-do-dia]')).toBeNull()
+    expect(dia5.querySelector('.bg-lucro-marca')!.className).not.toContain('sm:hidden')
+  })
+
+  it('com "ocultar valores" ligado a grade não mostra números (só os tracinhos) e o resumo do dia fica mascarado', async () => {
+    definirValoresOcultos(true)
+    const u = userEvent.setup()
+    montar()
+    const dia5 = await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' })
+    await u.click(dia5)
+    const resumo = await screen.findByRole('region', { name: 'Resumo do dia' })
+    expect(dia5.querySelector('[data-valores-do-dia]')).toBeNull()
+    expect(dia5.querySelector('.bg-lucro-marca')).not.toBeNull()
+    expect(within(resumo).getAllByText(/R\$ ••••/)).toHaveLength(2)
+    expect(document.body.textContent).not.toContain('8.000,00')
+  })
+
+  it('se os totais de cada dia falham: aviso dizendo o que faltou, a grade fica com os tracinhos e sem resumo do dia', async () => {
+    mock.totaisDoDia.mockRejectedValue(new Error('rede'))
+    montar()
+    expect((await screen.findByTestId('calendario-blocos-falharam')).textContent).toContain('totais de cada dia')
+    const dia5 = screen.getByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' })
+    expect(dia5.querySelector('[data-valores-do-dia]')).toBeNull()
+    expect(dia5.querySelector('.bg-lucro-marca')).not.toBeNull()
+    expect(screen.queryByRole('region', { name: 'Resumo do dia' })).toBeNull()
+  })
+
+  it('resumo do dia: entradas e saídas em reais, do banco', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(await screen.findByRole('button', { name: '5 de outubro de 2026: 2 lançamentos' }))
+    const resumo = screen.getByRole('region', { name: 'Resumo do dia' })
+    expect(within(resumo).getByText('+R$ 8.000,00')).toBeTruthy()
+    expect(within(resumo).getByText('−R$ 187,40')).toBeTruthy()
+    expect(screen.getByTestId('dia-contagem').textContent).toBe('2 itens')
+  })
+
+  it('filtros: Entradas, Saídas e Faturas e Parcelas filtram a grade, a lista e o resumo do dia; transferência só em Todos', async () => {
+    const u = userEvent.setup()
+    montar()
+    const grupo = await screen.findByRole('group', { name: 'Mostrar no calendário' })
+    expect(within(grupo).getByRole('button', { name: 'Todos' }).getAttribute('aria-pressed')).toBe('true')
+    for (const b of within(grupo).getAllByRole('button')) expect(b.className).toContain('min-h-11')
+
+    await u.click(within(grupo).getByRole('button', { name: 'Entradas' }))
+    expect(within(grupo).getByRole('button', { name: 'Entradas' }).getAttribute('aria-pressed')).toBe('true')
+    const dia5 = screen.getByRole('button', { name: '5 de outubro de 2026: 1 lançamento' })
+    expect(within(dia5).getByText('+8.000,00')).toBeTruthy()
+    expect(within(dia5).queryByText('−187,40')).toBeNull()
+    expect(screen.getByRole('button', { name: '10 de outubro de 2026: nada' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '12 de outubro de 2026: nada' })).toBeTruthy() // transferência
+    await u.click(dia5)
+    expect(within(listaDoDia()).getByText('Salário')).toBeTruthy()
+    expect(within(listaDoDia()).queryByText('Conta de luz')).toBeNull()
+
+    await u.click(within(grupo).getByRole('button', { name: 'Saídas' }))
+    expect(within(screen.getByRole('button', { name: '5 de outubro de 2026: 1 lançamento' })).getByText('−187,40')).toBeTruthy()
+    expect(within(listaDoDia()).getByText('Conta de luz')).toBeTruthy()
+
+    await u.click(within(grupo).getByRole('button', { name: 'Faturas e Parcelas' }))
+    expect(screen.getByRole('button', { name: '5 de outubro de 2026: nada' })).toBeTruthy()
+    expect(screen.getByText('Nada deste tipo neste dia.')).toBeTruthy()
+    const dia10 = screen.getByRole('button', { name: '10 de outubro de 2026: 1 lançamento' })
+    expect(within(dia10).getByText('−1.333,34')).toBeTruthy()
+    await u.click(dia10)
+    expect(within(listaDoDia()).getByText('Pagamento de Nubank')).toBeTruthy()
+    const resumo = screen.getByRole('region', { name: 'Resumo do dia' })
+    expect(within(resumo).getByText('Faturas e parcelas')).toBeTruthy()
+    expect(within(resumo).getByText('−R$ 1.333,34')).toBeTruthy()
+    expect(screen.getByTestId('dia-contagem').textContent).toBe('1 item · Faturas e Parcelas')
+  })
+
+  it('fatura que vence e parcela de dívida entram em Faturas e Parcelas; despesa comum planejada não', async () => {
+    mock.faturasQueVencem.mockResolvedValue([
+      { cartaoId: 'k1', cartao: 'Nubank', vencimento: '2026-10-20', total: c(50000), pago: c(0), falta: c(50000), contaPagamentoId: 'a1' },
+    ])
+    mock.listarParcelasDivida.mockResolvedValue([
+      { id: 'p1', dividaId: 'd1', nomeDivida: 'Financiamento', numero: 3, vencimento: '2026-10-22', valor: c(70000), formaPagamento: 'boleto', contaPagamentoId: null },
+    ])
+    const u = userEvent.setup()
+    montar()
+    await u.click(within(await screen.findByRole('group', { name: 'Mostrar no calendário' })).getByRole('button', { name: 'Faturas e Parcelas' }))
+    expect(screen.getByRole('button', { name: '20 de outubro de 2026: 1 lançamento, 1 planejado' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '22 de outubro de 2026: 1 lançamento, 1 planejado' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '25 de outubro de 2026: nada' })).toBeTruthy() // Internet, despesa comum
+  })
+
+  it('botão Hoje: volta ao mês de hoje e escolhe o dia; desligado quando já está nele', async () => {
+    const u = userEvent.setup()
+    montar()
+    const hojeBtn = await screen.findByRole('button', { name: 'Hoje' })
+    expect((hojeBtn as HTMLButtonElement).disabled).toBe(true)
+    expect(hojeBtn.className).toContain('min-h-11')
+    await u.click(screen.getByRole('button', { name: 'Próximo mês' }))
+    await screen.findByRole('heading', { name: 'Novembro de 2026' })
+    expect((screen.getByRole('button', { name: 'Hoje' }) as HTMLButtonElement).disabled).toBe(false)
+    await u.click(screen.getByRole('button', { name: 'Hoje' }))
+    await screen.findByRole('heading', { name: 'Outubro de 2026' })
+    expect(screen.getByRole('button', { name: /^16 de outubro de 2026, hoje/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('16/10/2026 · hoje')).toBeTruthy()
+  })
+
+  it('no computador (≥ 1280 px), a grade e o detalhamento do dia ficam lado a lado (8 + 4 colunas)', async () => {
+    montar()
+    const grade = await screen.findByRole('group', { name: 'Dias de Outubro de 2026' })
+    const cardGrade = grade.closest('.xl\\:col-span-8')
+    expect(cardGrade).not.toBeNull()
+    expect(cardGrade!.parentElement!.className).toContain('xl:grid-cols-12')
+    expect(screen.getByText('16/10/2026 · hoje').closest('.xl\\:col-span-4')).not.toBeNull()
+  })
+})
+
