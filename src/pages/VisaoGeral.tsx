@@ -34,7 +34,6 @@ import { SeletorBaseCartao } from '../components/SeletorBaseCartao'
 import { guardarBaseGastosCartao, lerBaseGastosCartao } from '../lib/baseGastosCartao'
 import type { BaseGastosCartao } from '../lib/baseGastosCartao'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
-import { NavegacaoCarteira } from '../components/ui/NavegacaoCarteira'
 import { EmOutrasMoedas, ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { LinhaMensal } from '../components/graficos/LinhaMensal'
 import { saldosProjetados } from '../lib/saldoProjetado'
@@ -404,8 +403,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       )}
       {noInicio && <>
         <ResumoDecisao dados={dados.decisao} />
-        <NavegacaoCarteira />
-        <section id="visao-geral" aria-label="Resumo geral" className="mb-4 scroll-mt-24">
+        <section aria-label="Resumo geral" className="mb-4">
           <FaixaIndicadores dados={dados.indicadores} semDisponivel={dados.decisao !== null} />
         </section>
       </>}
@@ -458,12 +456,11 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
         </Card>
       )}
 
-      {noInicio && <div id="cartoes" className="scroll-mt-24" />}
       {/* Cada cartão é filho direto da grade, na ordem pedida pelo dono (10/11/2026: contas, cartões, maiores gastos, a receber).
           No celular é uma coluna nessa ordem; no computador, pares lado a lado (Contas | Cartões, Maiores gastos | Receitas a receber)
           e a grade estica os dois cartões da mesma linha para a mesma altura (mudança 5 do handoff do Início, 16/11/2026). */}
       {noInicio && <div data-testid="pares-inicio" className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card id="contas" className="scroll-mt-24">
+          <Card>
             <div className="flex items-start justify-between gap-3">
               <CardTitle>Minhas contas</CardTitle>
               {dados.saldoGeral !== null && dados.contas.length > 0 && (

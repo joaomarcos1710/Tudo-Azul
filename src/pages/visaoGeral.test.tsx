@@ -1679,16 +1679,17 @@ describe('Análises: base dos gastos de cartão no gráfico por categoria (PR #1
 
 
 describe('Minha Carteira — estrutura da Fase 1', () => {
-  it('mostra o título, a navegação horizontal e mantém as três âncoras disponíveis', async () => {
+  it('mostra o título e não tem mais os chips "Visão geral · Contas · Cartões" (mudança 10 do handoff: não ficava claro o que filtravam)', async () => {
     mock.resumoDosCartoes.mockResolvedValue([])
     montar()
     expect(await screen.findByRole('heading', { level: 1, name: 'Minha Carteira' })).toBeTruthy()
-    const nav = screen.getByRole('navigation', { name: 'Seções da Minha Carteira' })
-    expect(within(nav).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
-      '#visao-geral', '#contas', '#cartoes',
-    ])
-    for (const id of ['visao-geral', 'contas', 'cartoes']) {
-      expect(document.getElementById(id)).not.toBeNull()
-    }
+    await screen.findByText('Minhas contas')
+    expect(screen.queryByRole('navigation', { name: 'Seções da Minha Carteira' })).toBeNull()
+    // nenhum link de âncora sobrou na página, nem os destinos deles
+    expect(Array.from(document.querySelectorAll('a')).filter((a) => a.getAttribute('href')?.startsWith('#'))).toEqual([])
+    for (const id of ['visao-geral', 'contas', 'cartoes']) expect(document.getElementById(id)).toBeNull()
+    // os blocos continuam lá
+    expect(screen.getByRole('region', { name: 'Indicadores do mês' })).toBeTruthy()
+    expect(screen.getByText('Cartões')).toBeTruthy()
   })
 })
