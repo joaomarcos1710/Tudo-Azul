@@ -525,16 +525,48 @@ describe('Lançamentos', () => {
     expect(screen.getByRole('button', { name: 'Confirmar pagamento' })).toBeTruthy() // continua aberta para corrigir a data
   })
 
-  it('exclui para a lixeira com confirmação e permite desfazer', async () => {
+  it('item e: exclui sem perguntar; a barra "Desfazer" fica fixa embaixo até ser fechada e restaura', async () => {
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const u = userEvent.setup()
     const item = (await screen.findByText('Supermercado')).closest('li')!
     await u.click(within(item).getByRole('button', { name: 'Ações de Supermercado' }))
     await u.click(within(item).getByRole('menuitem', { name: 'Excluir' }))
-    expect(window.confirm).toHaveBeenCalled()
+    expect(window.confirm).not.toHaveBeenCalled()
     expect(mock.moverParaLixeira).toHaveBeenCalledWith('t1')
-    await u.click(await screen.findByRole('button', { name: 'Desfazer' }))
+    const barra = await screen.findByTestId('barra-desfazer')
+    expect(barra.className.split(' ')).toEqual(expect.arrayContaining(['fixed', 'bottom-20', 'md:bottom-6']))
+    expect(barra.getAttribute('role')).toBe('status')
+    expect(barra.textContent).toContain('"Supermercado" foi para a lixeira.')
+    for (const b of within(barra).getAllByRole('button')) expect(b.className).toContain('min-h-11')
+    await u.click(within(barra).getByRole('button', { name: 'Desfazer' }))
     expect(mock.restaurarDaLixeira).toHaveBeenCalledWith('t1')
+    await waitFor(() => expect(screen.queryByTestId('barra-desfazer')).toBeNull())
+  })
+
+  it('item e: duas exclusões seguidas ficam na mesma barra; Desfazer restaura as duas; fechar só esconde', async () => {
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const u = userEvent.setup()
+    const linhas = (await screen.findAllByRole('button', { name: /^Ações de / })).slice(0, 2)
+    const nomes = linhas.map((b) => b.getAttribute('aria-label')!.replace('Ações de ', ''))
+    for (const nome of nomes) {
+      const item = screen.getByRole('button', { name: `Ações de ${nome}` }).closest('li')!
+      await u.click(within(item).getByRole('button', { name: `Ações de ${nome}` }))
+      await u.click(within(item).getByRole('menuitem', { name: 'Excluir' }))
+    }
+    expect(window.confirm).not.toHaveBeenCalled()
+    expect(mock.moverParaLixeira).toHaveBeenCalledTimes(2)
+    const barra = await screen.findByTestId('barra-desfazer')
+    expect(barra.textContent).toContain('2 lançamentos foram para a lixeira.')
+    await u.click(within(barra).getByRole('button', { name: 'Desfazer' }))
+    expect(mock.restaurarDaLixeira).toHaveBeenCalledTimes(2)
+    // fechar sem desfazer: a barra some e nada é restaurado
+    mock.restaurarDaLixeira.mockClear()
+    const item = screen.getByRole('button', { name: `Ações de ${nomes[0]}` }).closest('li')!
+    await u.click(within(item).getByRole('button', { name: `Ações de ${nomes[0]}` }))
+    await u.click(within(item).getByRole('menuitem', { name: 'Excluir' }))
+    await u.click(within(await screen.findByTestId('barra-desfazer')).getByRole('button', { name: 'Fechar aviso de exclusão' }))
+    expect(screen.queryByTestId('barra-desfazer')).toBeNull()
+    expect(mock.restaurarDaLixeira).not.toHaveBeenCalled()
   })
 
   it('regra do banco aparece em português', async () => {

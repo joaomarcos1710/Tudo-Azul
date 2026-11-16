@@ -914,3 +914,7 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 ## 16/11/2026 — Consignado não é saída do dia no Calendário (o salário entra líquido)
 - **O quê:** a parcela de consignado (desconto em folha) aparece na lista do dia, sem sinal e com um aviso, mas não entra nas saídas nem em "Faturas e Parcelas" dos totais (migration 131).
 - **Por quê:** o dono lança o salário líquido; a parcela já foi descontada antes de o dinheiro chegar. Contar de novo seria dupla contagem. Os relatórios já tratavam assim.
+
+## 16/11/2026 — Excluir lançamento sem perguntar, com Desfazer que não some sozinho
+- **O quê:** "Excluir" em Lançamentos não pede confirmação; a barra "Desfazer" fica fixa embaixo até ser fechada. "Parar de repetir" continua com confirmação.
+- **Por quê:** handoff de Lançamentos (item e), aprovado pelo dono. A barra não some sozinha porque não há tela de Lixeira: depois de fechada, só dá para recuperar pelo banco. "Parar de repetir" encerra a regra e não tem desfazer simples.

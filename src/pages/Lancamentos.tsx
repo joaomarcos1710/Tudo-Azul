@@ -151,7 +151,8 @@ export default function Lancamentos() {
     ...(filtros.soFixos ? [{ chave: 'fixos', rotulo: 'Fixos', tirar: () => setFiltros((f) => ({ ...f, soFixos: undefined })) }] : []),
     ...(filtros.soParcelados ? [{ chave: 'parcelados', rotulo: 'Parcelados', tirar: () => setFiltros((f) => ({ ...f, soParcelados: undefined })) }] : []),
   ]
-  const [naLixeira, setNaLixeira] = useState<Lancamento | null>(null)
+  // excluídos nesta visita, para o "Desfazer" (handoff, item e): não há tela de lixeira, então a barra fica até ser fechada
+  const [naLixeira, setNaLixeira] = useState<Lancamento[]>([])
   const [pagando, setPagando] = useState<Lancamento | null>(null)
   // aporte ou resgate de investimento pelo "Novo lançamento" (pedido do dono, 10/11/2026): abre a folha de Investimentos
   const [operacaoInv, setOperacaoInv] = useState<'buy' | 'sell' | null>(null)
@@ -283,9 +284,19 @@ export default function Lancamentos() {
     }
   }
 
+  // Excluir sem perguntar (handoff de Lançamentos, item e): vai para a lixeira e a barra "Desfazer" fica fixa embaixo até
+  // ser fechada (não some sozinha: não há tela de lixeira para recuperar depois). Ocorrência de recorrente excluída não é
+  // gerada de novo (teste RC5 do banco); "Parar de repetir" continua perguntando, porque encerra a regra.
   async function excluir(l: Lancamento) {
-    if (!window.confirm(`Enviar "${l.descricao || rotuloTipo[l.tipo]}" de ${formatMoeda(l.valor, moedaConta.get(l.contaId) ?? 'BRL')} para a lixeira?`)) return
-    await agir(async () => { await moverParaLixeira(l.id); setNaLixeira(l) })
+    await agir(async () => { await moverParaLixeira(l.id); setNaLixeira((atual) => [...atual.filter((x) => x.id !== l.id), l]) })
+  }
+
+  async function desfazerExclusao() {
+    const ids = naLixeira.map((x) => x.id)
+    await agir(async () => {
+      for (const id of ids) await restaurarDaLixeira(id)
+      setNaLixeira([])
+    })
   }
 
   async function pararDeRepetir(l: Lancamento) {
@@ -399,10 +410,19 @@ export default function Lancamentos() {
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {avisoAutomaticos && !erro && <div className="mb-4"><Aviso tipo="erro">{avisoAutomaticos}</Aviso></div>}
 
-      {naLixeira && (
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <Aviso tipo="info">Lançamento enviado para a lixeira.</Aviso>
-          <Button variante="fantasma" onClick={() => agir(async () => { await restaurarDaLixeira(naLixeira.id); setNaLixeira(null) })}>Desfazer</Button>
+      {naLixeira.length > 0 && (
+        // fixa embaixo, acima da barra de navegação do celular; no computador, no canto
+        <div role="status" aria-live="polite" data-testid="barra-desfazer"
+          className="fixed inset-x-4 bottom-20 z-20 flex items-center gap-2 rounded-card bg-marinho px-4 py-2 text-sm text-white shadow-card md:inset-x-auto md:bottom-6 md:right-8">
+          <span className="min-w-0 flex-1 truncate">
+            {naLixeira.length === 1
+              ? `"${naLixeira[0].descricao || rotuloTipo[naLixeira[0].tipo]}" foi para a lixeira.`
+              : `${naLixeira.length} lançamentos foram para a lixeira.`}
+          </span>
+          <button type="button" onClick={() => void desfazerExclusao()}
+            className="min-h-11 shrink-0 rounded-lg px-3 font-semibold text-white underline hover:bg-white/10">Desfazer</button>
+          <button type="button" aria-label="Fechar aviso de exclusão" onClick={() => setNaLixeira([])}
+            className="min-h-11 min-w-11 shrink-0 rounded-lg text-lg leading-none hover:bg-white/10">×</button>
         </div>
       )}
 
