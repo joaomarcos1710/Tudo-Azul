@@ -801,3 +801,22 @@ Nenhum código copiado. Descartados: FinQuant, DenizSungurtekin/Investment-Portf
 - [ ] **Cota de fundo pela CVM** (fonte que o fundspy usa; o código dele está abandonado): só quando houver fundo com CNPJ na carteira. Os dados vêm em ZIP mensal, que o banco não abre; exigiria uma Edge Function.
 - [ ] **Quantidade e valor típico de lançamentos por categoria** (ideia do Analise_Financeira): só se o dono sentir falta; conferir antes se Análises já mostra.
 - Não fazer por enquanto: estimar cofrinho ou CDB por % do CDI (valor estimado que diverge do extrato).
+
+## 16/11/2026 — Handoff de Lançamentos (Extrato e Gastos; levantamento do agente `melhorias`)
+Design: artefato "Lançamentos — Extrato e Gastos" (4 telas, dados fictícios). O dono pediu para ir por partes; a "PR 1" do handoff virou uma PR por item.
+- [x] **(f)** Trocar entre Despesa e Cartão não apaga a categoria.
+- [ ] **(b)** Cabeçalho do dia com dia da semana e "Hoje"/"Ontem" (dois testes procuram a região pela data).
+- [ ] **(d)** Estado vazio conforme filtro e período, com "Limpar filtros". **Defeito a corrigir junto:** com filtro de cartão, situação, fixos ou parcelados a tela pode ficar em branco (a condição olha os vetores crus, não a lista filtrada).
+- [ ] **(a)** Conta na linha de despesa e receita (conferir corte em 390 px e no iPad em pé).
+- [ ] **(e)** Excluir sem `window.confirm`, com Desfazer fixo embaixo. "Parar de repetir" mantém a confirmação (é irreversível). Conferir antes: tela de Lixeira e se recorrente excluído é regerado.
+- [ ] **(g)** Filtros e período na URL; fecha também `?categoria=`. Nove lugares linkam para Lançamentos com `?mes`, `?tipo` ou `?novo`.
+- [ ] **(c)** Faixa de pendências. **Não é só front:** "vencidos" existe em `home_alerts`; "a pagar até o fim do mês" não existe e "a receber" só com outra regra. **Decisões do dono:** fatura entra (aberta ou só fechada)? parcela de empréstimo entra? "a receber" até o fim do mês ou todo o futuro? vencidos a pagar e a receber juntos? o que mostrar fora do mês atual?
+- [ ] **PR 2 (busca):** precisa de função nova no banco (compras de cartão não são `transactions`; o total é dinheiro); índice só depois de medir; a consulta atual não pagina.
+- [ ] **PR 3 (totais com filtros):** precisa de banco (`cash_flow_series` só filtra conta). Só front e cabe já: esconder o total com filtro e trocar os três rótulos "previsto".
+- [ ] **PR 4 (Extrato / Gastos):** não começar sem decisão do dono; depende da pendência da #164.
+- [ ] **Decisões do dono (design):** despesa vermelha ou neutra (regra escrita diz vermelho, a lista usa cinza, o rodapé usa vermelho); "Pagar" com um toque ou a folha; tabela no computador (saiu na #269) ou lista.
+
+## 16/11/2026 — Rentabilidade por tempo (TWR): plano pronto, esperando o dono
+Plano do agente de arquitetura: migration 129 com `investment_return_history` (passe próprio por ativo, incluindo zerados; `investment_contribution_history` não serve porque muda de conjunto quando um ativo zera), teste 123, "sem base" em vez de 0% quando a parcela sem valor atualizado passa do limite. Esforço: 3 a 4 dias.
+- [ ] **Decisões do dono:** proventos entram? limite de 10% para "aproximado"? fórmula simples agora e Modified Dietz depois, ou Dietz já? acumulado desde o primeiro mês com base?
+- Limite conhecido: com a previdência sem avaliação mensal, o resultado será "sem base" quase sempre.

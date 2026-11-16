@@ -1056,8 +1056,11 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
           {abas.map(([a, rotulo, nome]) => (
             <button key={a} type="button" role="radio" aria-checked={aba === a} aria-label={nome}
               onClick={() => {
+                // Despesa e Cartão usam as mesmas categorias (de despesa): trocar entre as duas mantém a escolhida.
+                // Só limpa quando o tipo de categoria muda (para ou de Receita e Transferência).
+                const novoTipo = a === 'cartao' ? 'expense' : a
                 if (a === 'cartao') { setOnde('cartao'); setTipo('expense') } else { setOnde('conta'); setTipo(a) }
-                setCategoriaId('')
+                if (novoTipo !== tipo) setCategoriaId('')
               }}
               className={`min-h-11 min-w-0 flex-1 whitespace-nowrap rounded-lg px-1 text-sm font-semibold transition-colors sm:px-3 ${aba === a ? corAba[a] : 'text-slate-600 hover:bg-white'}`}>
               {a === 'transfer' ? <><span aria-hidden="true" className="sm:hidden">Transf.</span><span className="hidden sm:inline">{rotulo}</span></> : rotulo}
