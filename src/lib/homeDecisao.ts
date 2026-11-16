@@ -43,6 +43,8 @@ export interface HomeDecisao {
   saldoCirculante: Cents
   dinheiroLivre: Cents
   limiteDiarioSeguro: Cents
+  /** Última data (AAAA-MM-DD) que o limite diário cobre: a véspera do próximo dia em que o mês de quem pergunta começa; '' se o banco não mandou. */
+  limiteDiarioAte: string
   ritmoDiarioAtual: Cents
   receitasPagas: Cents
   receitasPlanejadas: Cents
@@ -111,6 +113,7 @@ export async function carregarHomeDecisao(familiaId: string, mes: string): Promi
     saldoCirculante: dinheiro(r.circulatingBalance),
     dinheiroLivre: dinheiro(r.moneyFree),
     limiteDiarioSeguro: dinheiro(r.dailySafeLimit),
+    limiteDiarioAte: texto((r.calculation && typeof r.calculation === 'object' ? (r.calculation as Registro).dailyLimitUntil : '') ?? ''),
     ritmoDiarioAtual: dinheiro(r.currentDailyPace),
     receitasPagas: dinheiro(r.incomePaid),
     receitasPlanejadas: dinheiro(r.incomePlanned),

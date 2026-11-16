@@ -824,6 +824,12 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 16/11/2026 — Mês financeiro por pessoa; Limite diário seguro até o próximo salário (dono, #370)
+- **Pedido:** o dono recebe no dia 20, então o mês dele é de 20 a 19, e "deveria poder escolher a data" (cada pessoa a sua). Pergunta que levou a isso: por quantos dias dividir o Dinheiro Livre no Limite diário seguro (hoje até o fim do mês-calendário, enquanto o livre já desconta o mês seguinte).
+- **Decidido (dono):** **etapa 1** = preferência por pessoa "dia em que o mês começa" (1 a 28) e Limite diário seguro dividindo pelos dias até a véspera do próximo dia D; o **Dinheiro Livre não muda**. **Etapa 2** (trocar o horizonte do livre para "até o dia D−1", sem o mês seguinte inteiro) o dono respondeu "ok" **só como direção**: precisa de decisão e revisão de valor antes (muda o número principal da Home).
+- **Por que por pessoa e não por família:** o salário é de cada um; a preferência fica em `user_preferences` e a função lê a de quem pergunta.
+- **Limites aceitos:** dia máximo 28 (todo mês tem o dia D). Duas pessoas da mesma família podem ver limites diários diferentes para o mesmo Dinheiro Livre. Enquanto a etapa 2 não vem, o livre guarda compromissos além do dia D−1 e o limite fica conservador (menos dias, o mesmo livre).
+
 ## 16/11/2026 — Parcelado: valor informado e despesa nasce "Toda a família" (dono, #369)
 - **Pedido:** ao lançar um parcelado, o dono listou o que a tela precisa deixar claro (fixo × parcelado; parcelas + período; "Serão lançadas X parcelas de R$ Y" com a regra da sobra; **o que é o valor informado**) e que **o app sempre presumia a dívida do João, e deveria ser da família**. Os três primeiros itens já existiam; faltavam o quarto e o quinto.
 - **Decidido (dono):** (1) o parcelado ganha **"O total" × "O de cada parcela"**; (2) a despesa nova nasce **"Toda a família"**.
