@@ -979,6 +979,10 @@ export interface ResumoCartao {
   /** Vencimento da fatura fechada mais antiga ainda não paga; null sem fatura a pagar. */
   vencimento: string | null
   vencida: boolean
+  /** Limite informado pelo dono; null = não informado. */
+  limite: Cents | null
+  /** Dívida + parcelas futuras − crédito, do banco (card_limits): é mais que a fatura atual. null sem limite. */
+  limiteComprometido: Cents | null
   limiteDisponivel: Cents | null
   /** Crédito no cartão (pagamento adiantado ou estorno maior que a dívida). */
   credito: Cents
@@ -1006,7 +1010,8 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
     return {
       id: c.id, nome: c.nome, emissor: c.emissor, bandeira: c.bandeira, divida: c.divida, vencimento,
       // mesma regra de faturaVencida (a tela de Cartões usa aquela)
-      vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel, credito: c.credito, proxima,
+      vencida: vencimento !== null && vencimento < hoje, limite: c.limite, limiteComprometido: c.limiteComprometido,
+      limiteDisponivel: c.limiteDisponivel, credito: c.credito, proxima,
     }
   }))
 }

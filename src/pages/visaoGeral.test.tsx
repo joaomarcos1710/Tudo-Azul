@@ -590,11 +590,14 @@ describe('Visão geral', () => {
         proxima: { mes: '2026-11', vencimento: '2026-11-28', total: c(43897) } },
     ])
     montar('inicio')
-    // como no Organizze: limite disponível ao lado da fatura atual (aberta), com o vencimento
+    // uma linha por cartão: nome, fatura atual com o vencimento, valor e "Ver fatura"
     const cartao = (await screen.findByText('Caixa')).closest('li') as HTMLElement
     expect(within(cartao).getByText('Fatura atual · vence 28/11')).toBeTruthy()
     expect(within(cartao).getByText('R$ 438,97')).toBeTruthy()
-    expect(within(cartao).getByText('Limite disponível')).toBeTruthy()
+    expect(within(cartao).getByRole('link', { name: 'Ver fatura Caixa' })).toBeTruthy()
+    // sem limite cadastrado: diz isso e não desenha barra (nunca uma barra vazia que pareça "0% usado")
+    expect(within(cartao).getByText('Sem limite informado')).toBeTruthy()
+    expect(within(cartao).queryByTestId('barra-limite')).toBeNull()
     expect(within(cartao).queryByText(/Fatura fechada a pagar/)).toBeNull()
   })
 
@@ -628,18 +631,85 @@ describe('Visão geral', () => {
     ])
     mock.totalFaturasDoMes.mockResolvedValue({ faturas: 0, total: c(0), pago: c(0), falta: c(0) })
     const { unmount } = montar('inicio')
-    expect(await screen.findByText('Limite disponível')).toBeTruthy()
+    expect(await screen.findByText('Sem limite informado')).toBeTruthy()
     expect(screen.queryByTestId('faturas-do-mes')).toBeNull()
     unmount()
     mock.totalFaturasDoMes.mockRejectedValue({ code: '42883', message: 'function does not exist' })
     montar('inicio')
-    expect(await screen.findByText('Limite disponível')).toBeTruthy()
+    expect(await screen.findByText('Sem limite informado')).toBeTruthy()
     expect(screen.queryByTestId('faturas-do-mes')).toBeNull()
+  })
+
+  describe('cartões: barra do limite (mudança 7 do handoff)', () => {
+    const cartao = (extra: object) => ({ id: 'k1', nome: 'Nubank', divida: c(0), vencimento: null, vencida: false, credito: c(0),
+      proxima: { mes: '2026-11', vencimento: '2026-11-28', total: c(43897) }, ...extra })
+    const barraDe = async () => within((await screen.findByText('Nubank')).closest('li') as HTMLElement)
+
+    it('a largura é comprometido ÷ limite, os dois do banco; azul até 70%, e o texto diz o disponível e que conta as parcelas futuras', async () => {
+      mock.resumoDosCartoes.mockResolvedValue([cartao({ limite: c(1000000), limiteComprometido: c(250000), limiteDisponivel: c(750000) })])
+      montar()
+      const li = await barraDe()
+      const barra = li.getByTestId('barra-limite')
+      expect(barra.style.width).toBe('25%')
+      expect(barra.className).toContain('bg-azul')
+      expect(li.getByText('R$ 7.500,00')).toBeTruthy() // limite disponível, do banco
+      expect(li.getByRole('img', { name: 'Limite comprometido R$ 2.500,00 de R$ 10.000,00, com as parcelas futuras' })).toBeTruthy()
+      // o comprometido (R$ 2.500,00) é mais que a fatura atual (R$ 438,97): o texto explica, para a barra não parecer errada
+      expect(li.getByText(/com as parcelas futuras$/).textContent).toBe('Comprometido R$ 2.500,00 de R$ 10.000,00, com as parcelas futuras')
+    })
+    it('acima de 70% fica âmbar, com o disponível escrito ao lado (a cor não é a única pista); exatamente 70% ainda é azul', async () => {
+      mock.resumoDosCartoes.mockResolvedValue([cartao({ limite: c(1000000), limiteComprometido: c(710000), limiteDisponivel: c(290000) })])
+      const { unmount } = montar()
+      let li = await barraDe()
+      expect(li.getByTestId('barra-limite').className).toContain('bg-atencao-marca')
+      expect(li.getByText('R$ 2.900,00')).toBeTruthy()
+      unmount()
+      recarregarPagina()
+      mock.resumoDosCartoes.mockResolvedValue([cartao({ limite: c(1000000), limiteComprometido: c(700000), limiteDisponivel: c(300000) })])
+      montar()
+      li = await barraDe()
+      expect(li.getByTestId('barra-limite').className).toContain('bg-azul')
+    })
+    it('passou do limite: barra cheia (não estoura o card), vermelha, e o texto diz em quanto passou', async () => {
+      mock.resumoDosCartoes.mockResolvedValue([cartao({ limite: c(1000000), limiteComprometido: c(1250000), limiteDisponivel: c(-250000) })])
+      montar()
+      const li = await barraDe()
+      const barra = li.getByTestId('barra-limite')
+      expect(barra.style.width).toBe('100%')
+      expect(barra.className).toContain('bg-prejuizo-marca')
+      expect(li.getByText(/Passou do limite em/).textContent).toBe('Passou do limite em R$ 2.500,00')
+    })
+    it('cartão sem nada a mostrar hoje fica atrás de "Ver todos os cartões (N sem fatura)"; fatura fechada a pagar e crédito nunca ficam escondidos', async () => {
+      const base = { vencimento: null, vencida: false, limite: null, limiteComprometido: null, limiteDisponivel: null, proxima: null }
+      mock.resumoDosCartoes.mockResolvedValue([
+        { ...base, id: 'k1', nome: 'Nubank', divida: c(0), credito: c(0), proxima: { mes: '2026-11', vencimento: '2026-11-28', total: c(43897) } },
+        { ...base, id: 'k2', nome: 'Parado', divida: c(0), credito: c(0) },
+        { ...base, id: 'k3', nome: 'Devendo', divida: c(50000), credito: c(0), vencimento: '2020-01-10', vencida: true },
+        { ...base, id: 'k4', nome: 'Com crédito', divida: c(0), credito: c(10000) },
+      ])
+      montar()
+      await screen.findByText('Nubank')
+      expect(screen.queryByText('Parado')).toBeNull()
+      expect(screen.getByText('Devendo')).toBeTruthy()
+      expect(screen.getByText('Com crédito')).toBeTruthy()
+      await userEvent.click(screen.getByRole('button', { name: 'Ver todos os cartões (1 sem fatura)' }))
+      expect(screen.getByText('Parado')).toBeTruthy()
+      expect(within(screen.getByText('Parado').closest('li') as HTMLElement).getByText('Sem fatura aberta')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /Ver todos os cartões/ })).toBeNull()
+    })
+    it('se nenhum cartão tem fatura, todos aparecem (o bloco nunca fica só com o botão)', async () => {
+      const base = { divida: c(0), vencimento: null, vencida: false, limite: null, limiteComprometido: null, limiteDisponivel: null, credito: c(0), proxima: null }
+      mock.resumoDosCartoes.mockResolvedValue([{ ...base, id: 'k1', nome: 'Nubank' }, { ...base, id: 'k2', nome: 'Inter' }])
+      montar()
+      expect(await screen.findByText('Nubank')).toBeTruthy()
+      expect(screen.getByText('Inter')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: /Ver todos os cartões/ })).toBeNull()
+    })
   })
 
   it('cartões: fatura a pagar com vencimento, fatura vencida em vermelho e limite disponível', async () => {
     mock.resumoDosCartoes.mockResolvedValue([
-      { id: 'k1', nome: 'Nubank', divida: c(133334), vencimento: '2099-12-25', vencida: false, limiteDisponivel: c(527000), credito: c(0) },
+      { id: 'k1', nome: 'Nubank', divida: c(133334), vencimento: '2099-12-25', vencida: false, limite: c(580000), limiteComprometido: c(53000), limiteDisponivel: c(527000), credito: c(0) },
       { id: 'k2', nome: 'Inter', divida: c(50000), vencimento: '2020-01-10', vencida: true, limiteDisponivel: null, credito: c(0) },
       { id: 'k3', nome: 'Azul Card', divida: c(0), vencimento: null, vencida: false, limiteDisponivel: null, credito: c(10000) },
     ])

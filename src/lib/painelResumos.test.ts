@@ -133,8 +133,9 @@ describe('resumoDosCartoes', () => {
     ], error: null }
     const r = await resumoDosCartoes('h1', '2026-10-24')
     expect(r.map((c) => c.nome)).toEqual(['Nubank', 'Inter']) // o inativo some
-    expect(r[0]).toMatchObject({ id: 'k1', divida: 133334, vencimento: '2026-10-25', vencida: false, limiteDisponivel: 527000 })
-    expect(r[1]).toMatchObject({ divida: 0, vencimento: null, vencida: false, limiteDisponivel: null })
+    // o limite e o comprometido vêm do banco (card_limits) e são repassados como estão: a barra do Início usa os dois
+    expect(r[0]).toMatchObject({ id: 'k1', divida: 133334, vencimento: '2026-10-25', vencida: false, limite: 580000, limiteComprometido: 53000, limiteDisponivel: 527000 })
+    expect(r[1]).toMatchObject({ divida: 0, vencimento: null, vencida: false, limite: null, limiteComprometido: null, limiteDisponivel: null })
     // depois do vencimento, a mesma fatura passa a vencida
     const depois = await resumoDosCartoes('h1', '2026-10-26')
     expect(depois[0]).toMatchObject({ vencimento: '2026-10-25', vencida: true })
