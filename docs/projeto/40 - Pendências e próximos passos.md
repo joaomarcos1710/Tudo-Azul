@@ -862,3 +862,8 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - [ ] **Média — teste de integração** confere que a API é local, mas não o `SUPABASE_DB_URL` (`tests/integration/helpers.ts`).
 - [ ] **Baixa:** recorrência que começa além de hoje + 800 dias fica sem "próxima data"; teste de concorrência de reservas com `sleep` em vez de barreira; `scripts/local-db/run-tests.sh` apaga qualquer banco indicado em `TUDO_AZUL_TEST_DB`; `Bens.tsx` calcula a parte familiar com `Math.round` em ponto flutuante (1 centavo de diferença em caso de borda; fere a regra "o front não calcula dinheiro").
 - [ ] Também citados: Edge Function `delete-account` sem teste; `APP_ORIGIN` ausente libera CORS para qualquer origem (configuração de produção não verificada); "lint" é só typecheck; Dependabot não cobre npm.
+
+## 16/11/2026 — Calendário financeiro (pedido do dono, a partir do modelo do Gemini)
+- [x] **PR 1 (banco):** `calendar_day_totals` (migration 130, teste 123) com entradas, saídas e "faturas e parcelas" de cada dia, somados no banco. Falta aplicar em produção (com o "pode" do dono).
+- [ ] **PR 2 (tela):** grade e "Detalhamento do Dia" lado a lado no computador (`lg`); valores de entrada e saída dentro do dia a partir de `sm` (no celular continuam os tracinhos); botão "Hoje"; filtro Todos · Entradas · Saídas · Faturas e Parcelas (filtra a grade e a lista do dia); mini resumo do dia; valores escondidos quando "esconder valores" estiver ligado; testes em `calendario.test.tsx`. Conferir em 390 px e no iPad em pé.
+- **atalho:** os totais do dia repetem no banco os filtros da lista do dia (ver `21 - Banco de dados`, migration 130); se a lista mudar, conferir a função.
