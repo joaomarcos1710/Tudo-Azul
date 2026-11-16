@@ -137,8 +137,10 @@ function Indicador({ item }: { item: Item }) {
   )
 }
 
-export function FaixaIndicadores({ dados, semDisponivel = false }: {
+export function FaixaIndicadores({ dados, semDisponivel = false, carregando = false }: {
   dados: Indicadores | null
+  /** A decisão do mês (que traz os indicadores) ainda está chegando: "Calculando…" no lugar de "indisponíveis". */
+  carregando?: boolean
   /**
    * Mudança 9 do handoff do Início (decisão do dono, 16/11/2026): o Disponível sai da faixa quando o card Dinheiro Livre
    * já o mostra ("Saldo disponível", o mesmo número: os dois vêm de home_indicators). Quem chama só liga isto quando
@@ -148,8 +150,10 @@ export function FaixaIndicadores({ dados, semDisponivel = false }: {
 }) {
   const itens = dados === null ? [] : itensDaFaixa(dados).filter((item) => !(semDisponivel && item.id === 'disponivel'))
   return (
-    <section aria-label="Indicadores do mês" className="mb-5">
-      {dados === null ? (
+    <section aria-label="Indicadores do mês" className="mb-5" aria-busy={carregando}>
+      {carregando ? (
+        <p className="rounded-card bg-white p-4 text-sm text-slate-500 shadow-card" role="status">Calculando os indicadores…</p>
+      ) : dados === null ? (
         <p className="rounded-card bg-white p-4 text-sm text-slate-500 shadow-card" role="status">Indicadores indisponíveis agora. O resto do Início continua.</p>
       ) : (
         // 6 indicadores: 3 + 3; 7 (com o Disponível): 4 + 3. Nunca uma linha de 4 e outra de 2.
