@@ -824,6 +824,12 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 16/11/2026 — Investimentos: resumo num card só (dono, #375)
+- **Pedido:** "Pode seguir com a mudança" (a 1 do handoff, a próxima na ordem). A decisão em aberto era se a linha de EUR/USD mantém Aportado e Rendimento.
+- **Decidido por mim (para o dono rever na PR):** **manter tudo** em cada moeda (valor de mercado, "≈ R$ · PTAX", Aportado, Rendimento, "estimado" e a nota de resgate): o parecer do agente `melhorias` avisou que cortar tiraria o rendimento em EUR/USD da tela (só ficaria na linha Total da tabela, que some com filtro). O ganho é de **forma**: um card único "Em outras moedas" ao lado dos reais, em vez de cartões soltos embaixo.
+- **Não feito:** a linha "Parado na corretora" na coluna da direita (é saldo de conta, não carteira: o parecer pediu para não colocá-la junto das posições). Segue com os botões Investir e Resgatar, à esquerda.
+- **Largura:** lado a lado só de `lg` em diante.
+
 ## 16/11/2026 — Investimentos: composição em barras, uma por item (dono, #374)
 - **Pedido:** "Pode seguir com a mudança 4" do handoff. A pergunta aberta era se, em Classe, a linha é a macroclasse ou a subclasse; o dono não escolheu.
 - **Decidido por mim (para o dono rever na PR):** em Classe, **uma linha por macroclasse com as subclasses embaixo**, cada uma com a sua barra: guarda a hierarquia e todos os números que a barra empilhada mostrava. Alternativa descartada: só subclasses (perderia o total por macroclasse) ou só macroclasses (esconderia a previdência de 99,4%).

@@ -404,6 +404,9 @@ export default function Investimentos() {
         {!carregando && totais.length === 0 && (
           <EmptyState titulo="Sua carteira ainda está vazia" descricao="Cadastre um ativo e registre uma compra para começar a acompanhar sua posição." acao={<Button onClick={() => setNovoAtivo(true)}>Cadastrar primeiro ativo</Button>} />
         )}
+        {/* resumo num card só (mudança 1 do handoff): com moeda estrangeira, os reais ficam à esquerda e as outras moedas à direita, lado a lado
+            só de lg em diante (com a barra lateral o conteúdo no iPad em pé tem ~500 px: sm: e md: olham a janela e apertariam os valores) */}
+        <div className={totais.some((t) => t.moeda !== 'BRL') ? 'grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-start' : undefined}>
         {totais.filter((t) => t.moeda === 'BRL').map((t) => (
           <div key="BRL">
             <ResumoCarteira total={t} aportes={aportesNaTela?.totais.find((x) => x.moeda === 'BRL') ?? null} proventos={proventosBRL} formatar={(c) => moeda(c, 'BRL')} estimado={semAvaliacao.some((p) => p.moeda === 'BRL')} />
@@ -417,13 +420,15 @@ export default function Investimentos() {
           </div>
         ))}
         {totais.some((t) => t.moeda !== 'BRL') && (
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <Card className="mt-3 lg:mt-0">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Em outras moedas</p>
+            <div className="divide-y divide-slate-100">
             {totais.filter((t) => t.moeda !== 'BRL').map((t) => {
               // mesmo critério dos cartões em reais: com a migration 107, aportado líquido e rendimento total
               const ap = aportesNaTela?.totais.find((x) => x.moeda === t.moeda)
               const rendimento = ap ? ap.ganho : t.resultado
               return (
-                <Card key={t.moeda}>
+                <div key={t.moeda} className="py-3 first:pt-0 last:pb-0">
                   <p className="text-sm font-medium text-slate-500">Valor de mercado em {t.moeda}</p>
                   <p className="mt-1 text-2xl font-bold tabular-nums">{moeda(ap ? ap.valorAtual : t.valorAtual, t.moeda)}</p>
                   {emReais.get(t.moeda)?.valor === t.valorAtual && emReais.get(t.moeda)!.reais !== null && (
@@ -445,11 +450,13 @@ export default function Investimentos() {
                     <p className="mt-2 text-xs text-slate-500">Pôs {moeda(ap.aportado, t.moeda)} · tirou {moeda(ap.resgatado, t.moeda)}; o rendimento conta o que já foi resgatado</p>
                   )}
                   {!ap && <p className="mt-2 text-xs text-slate-500">Do que ainda está investido: o que já foi resgatado não entra.</p>}
-                </Card>
+                </div>
               )
             })}
-          </div>
+            </div>
+          </Card>
         )}
+        </div>
       </section>
 
       <section className="mt-8" aria-labelledby="titulo-evolucao-investimentos">
