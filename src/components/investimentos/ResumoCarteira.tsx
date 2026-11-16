@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Card } from '../ui/Card'
 import type { Cents } from '../../lib/format'
 import type { Aportes, TotalInvestimento, TotalProventos } from '../../lib/investimentos'
+import { SELO } from '../../lib/cores'
 import { comSinal, corDoResultado, sobreOAportado } from './TabelaPosicoes'
 
 /**
@@ -20,7 +21,9 @@ import { comSinal, corDoResultado, sobreOAportado } from './TabelaPosicoes'
  *  - sem `aportes` (banco ainda sem a 107): Aportado = custo do que AINDA está investido e Rendimento só dessa parte
  *    (pôs 1.000, valia 1.100, tirou 550: aportado 500, rendimento 50), com a frase embaixo dizendo isso.
  */
-export function ResumoCarteira({ total, aportes, proventos, formatar }: {
+export function ResumoCarteira({ total, aportes, proventos, formatar, estimado = false }: {
+  /** há posição em reais sem avaliação: o Rendimento usa o preço de compra (ou o aportado) para ela, então é uma estimativa */
+  estimado?: boolean
   total: TotalInvestimento
   /** aportes e resgates da moeda (migration 107); null = banco sem a função: vale o custo do que está investido */
   aportes: Aportes | null
@@ -43,7 +46,7 @@ export function ResumoCarteira({ total, aportes, proventos, formatar }: {
     <ul className={`grid gap-3 ${colunas}`} aria-label="Resumo da carteira em reais">
       <Destaque rotulo="Valor atual da carteira" valor={formatar(aportes ? aportes.valorAtual : total.valorAtual)} nota="Quanto vale hoje" className={larguraDestaque} />
       <Numero rotulo="Aportado" valor={formatar(aportado)} nota={notaAportado} />
-      <Numero rotulo="Rendimento" valor={comSinal(formatar(rendimento), rendimento)} cor={corDoResultado(rendimento)} nota={notaRendimento} />
+      <Numero rotulo="Rendimento" valor={comSinal(formatar(rendimento), rendimento)} cor={corDoResultado(rendimento)} nota={notaRendimento} selo={estimado ? 'estimado' : undefined} />
       {comProventos && (
         <Numero rotulo="Proventos no mês" valor={formatar(proventos.recebido)}
           nota={proventos.previsto > 0 ? `Recebidos · ${formatar(proventos.previsto)} previstos` : 'Dividendos e juros recebidos'} />
@@ -68,12 +71,14 @@ function Destaque({ rotulo, valor, nota, className }: { rotulo: string; valor: s
 }
 
 /** Indicador auxiliar (Aportado, Rendimento, Proventos): menor que o destaque; no celular, rótulo e nota à esquerda e o valor à direita. */
-function Numero({ rotulo, valor, nota, cor = 'text-marinho' }: { rotulo: string; valor: string; nota: ReactNode; cor?: string }) {
+function Numero({ rotulo, valor, nota, cor = 'text-marinho', selo }: { rotulo: string; valor: string; nota: ReactNode; cor?: string; selo?: string }) {
   return (
     <li>
       <Card semPadding className="flex h-full items-center justify-between gap-3 p-4 sm:block">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{rotulo}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{rotulo}
+            {selo && <span data-testid="selo-estimado" className={`ml-2 rounded px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal ${SELO.atencao}`}>{selo}</span>}
+          </p>
           <p className="text-xs text-slate-500 sm:hidden">{nota}</p>
         </div>
         <p className={`shrink-0 whitespace-nowrap text-lg font-bold tabular-nums sm:mt-1 sm:text-xl ${cor}`}>{valor}</p>

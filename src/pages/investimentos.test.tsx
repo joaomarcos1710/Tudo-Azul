@@ -606,7 +606,8 @@ describe('Investimentos × macroclasse e subclasse', () => {
 
       const acao = within(tabela).getByRole('rowheader', { name: /Ação Y · ACAO3/ })
       expect(acao.textContent).toMatch(/20 un · preço/)
-      expect(acao.textContent).toMatch(/Sem avaliação: vale o aportado/) // modo custo: o texto de produção não muda
+      expect(within(acao).getByTestId('selo-sem-avaliacao').textContent).toBe('sem avaliação') // selo curto ao lado do nome
+      expect(acao.textContent).toMatch(/Vale o aportado/) // modo custo: o porquê continua na linha
       const celulasAcao = within(acao.closest('tr') as HTMLElement).getAllByRole('cell')
       expect(celulasAcao[2].textContent).toMatch(/-R\$\s10,00-10,0% sobre o aportadoproventos R\$\s12,84 no mês$/)
       expect(celulasAcao[2].querySelector('p')?.className).toMatch(/text-prejuizo/)
@@ -2014,6 +2015,44 @@ describe('Investimentos: ordem dos blocos e período da evolução', () => {
     render(<Investimentos />)
     await screen.findByRole('heading', { name: 'Evolução em BRL' })
     expect(screen.queryByRole('tablist', { name: 'Moeda da evolução' })).toBeNull()
+  })
+
+  it('aviso único de "sem avaliação": conta as posições, abre o registro, e o Rendimento ganha o selo "estimado"', async () => {
+    const u = userEvent.setup()
+    render(<Investimentos />)
+    const aviso = await screen.findByTestId('aviso-sem-avaliacao')
+    expect(aviso.textContent).toMatch(/^3 ativos sem avaliação\. Eles valem o que foi aportado/) // padrão do teste: banco sem a migration 107
+    expect(screen.getByTestId('selo-estimado').textContent).toBe('estimado')
+    expect(screen.getAllByTestId('selo-sem-avaliacao')).toHaveLength(3)
+    await u.click(within(aviso).getByRole('button', { name: 'Registrar avaliação' }))
+    expect(screen.getByRole('dialog', { name: 'Registrar avaliação' })).toBeTruthy()
+  })
+
+  it('com a migration 107 o aviso diz que o rendimento usa o preço de compra', async () => {
+    const ap = (valorAtual: number) => ({ moeda: 'BRL', aportado: c(valorAtual), resgatado: c(0), liquido: c(valorAtual), valorAtual: c(valorAtual), ganho: c(0) })
+    mock.listarAportesInvestimentos.mockResolvedValue({
+      porAtivo: new Map([['a1', ap(60000)], ['a2', ap(10000)], ['a3', ap(5000)]]),
+      totais: [ap(75000)],
+    })
+    render(<Investimentos />)
+    expect((await screen.findByTestId('aviso-sem-avaliacao')).textContent).toMatch(/O rendimento usa o preço de compra\./)
+  })
+
+  it('sem posição pendente, não há aviso nem selo; o botão solto do título saiu', async () => {
+    mock.listarCarteiraInvestimentos.mockResolvedValue({
+      posicoes: [
+        { ...posicao('a1', 'Tesouro Selic', 'fixed_income', 60000), dataAvaliacao: '2026-11-10' },
+        { ...posicao('a2', 'Ação Y', 'equity', 10000), dataAvaliacao: '2026-11-10' },
+      ],
+      totais: [{ moeda: 'BRL', custoTotal: c(70000), valorAtual: c(70000), resultado: c(0) }],
+    })
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Resumo da carteira', level: 2 })
+    await waitFor(() => expect(screen.getAllByRole('rowheader').length).toBeGreaterThan(1))
+    expect(screen.queryByTestId('aviso-sem-avaliacao')).toBeNull()
+    expect(screen.queryByTestId('selo-estimado')).toBeNull()
+    expect(screen.queryByTestId('selo-sem-avaliacao')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Registrar avaliação' })).toBeNull()
   })
 
   it('começa em 12 meses, com a leitura de sempre e sem pedir os 24', async () => {

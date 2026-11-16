@@ -334,6 +334,8 @@ export default function Investimentos() {
   // 6 meses = os 6 últimos da leitura de 12; 24 meses = a leitura própria (enquanto ela não chega, o gráfico fica nos 12)
   const corte6Meses = inicioHistorico(hojeSP(), 6)
   // ativo ativo que não tem posição aberta (zerado ou nunca comprado): vira uma linha de aviso ao lado do botão
+  // posição aberta sem nenhuma avaliação registrada (vale o preço de compra ou o aportado): é o que o aviso do resumo conta
+  const semAvaliacao = posicoes.filter((p) => !p.dataAvaliacao)
   const semPosicao = ativos.filter((a) => a.ativo && !posicoes.some((p) => p.assetId === a.id))
   const moedasEvolucao = ([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[])
   const moedaDaEvolucao = moedasEvolucao.includes(moedaEvolucao) ? moedaEvolucao : (moedasEvolucao[0] ?? 'BRL')
@@ -384,15 +386,26 @@ export default function Investimentos() {
             <h2 id="titulo-totais-investimentos" className="text-lg font-semibold">Resumo da carteira</h2>
             <p className="text-sm text-slate-500">Consolidado calculado no banco, sem conversão entre moedas.</p>
           </div>
-          <Button compacto variante="secundario" onClick={() => setNovaAvaliacao(true)} disabled={ativosAtivos.length === 0}>Registrar avaliação</Button>
         </div>
+        {/* um aviso só, em vez de repetir em cada linha: o botão "Registrar avaliação" mora aqui (sem pendência, a ação continua em
+            "Atualizar valor" de cada posição). A contagem é das posições abertas de todas as moedas; o selo "estimado" do Rendimento
+            em reais só vale quando a pendência é em reais. */}
+        {semAvaliacao.length > 0 && (
+          <div data-testid="aviso-sem-avaliacao" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-atencao-fundo px-4 py-3 text-sm text-atencao">
+            <p>
+              {semAvaliacao.length === 1 ? '1 ativo sem avaliação.' : `${semAvaliacao.length} ativos sem avaliação.`}
+              {' '}{aportesNaTela ? 'O rendimento usa o preço de compra.' : 'Eles valem o que foi aportado, então o rendimento não conta o ganho deles.'}
+            </p>
+            <Button compacto variante="secundario" onClick={() => setNovaAvaliacao(true)} disabled={ativosAtivos.length === 0}>Registrar avaliação</Button>
+          </div>
+        )}
         {carregando && <p role="status" className="text-sm text-slate-500">Atualizando carteira…</p>}
         {!carregando && totais.length === 0 && (
           <EmptyState titulo="Sua carteira ainda está vazia" descricao="Cadastre um ativo e registre uma compra para começar a acompanhar sua posição." acao={<Button onClick={() => setNovoAtivo(true)}>Cadastrar primeiro ativo</Button>} />
         )}
         {totais.filter((t) => t.moeda === 'BRL').map((t) => (
           <div key="BRL">
-            <ResumoCarteira total={t} aportes={aportesNaTela?.totais.find((x) => x.moeda === 'BRL') ?? null} proventos={proventosBRL} formatar={(c) => moeda(c, 'BRL')} />
+            <ResumoCarteira total={t} aportes={aportesNaTela?.totais.find((x) => x.moeda === 'BRL') ?? null} proventos={proventosBRL} formatar={(c) => moeda(c, 'BRL')} estimado={semAvaliacao.some((p) => p.moeda === 'BRL')} />
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
               <Button onClick={() => setNovaOperacao('buy')} disabled={ativosAtivos.length === 0}>Investir</Button>
               <Button variante="secundario" onClick={() => setNovaOperacao('sell')} disabled={ativosAtivos.length === 0}>Resgatar</Button>

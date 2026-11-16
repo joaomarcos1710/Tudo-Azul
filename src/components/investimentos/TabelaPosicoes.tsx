@@ -5,7 +5,7 @@ import type { Cents } from '../../lib/format'
 import { formatDate } from '../../lib/format'
 import { hojeSP } from '../../lib/contas'
 import { valoresOcultos } from '../../lib/privacidade'
-import { corDoValor } from '../../lib/cores'
+import { SELO, corDoValor } from '../../lib/cores'
 
 const pct = (v: number) => `${v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
 
@@ -132,13 +132,15 @@ export function TabelaPosicoes({ posicoes, ativos, totais, aportes, proventosDoM
                     <tr className={i > 0 ? 'border-t border-slate-100' : ''}>
                       <th scope="row" className="px-3 py-3 text-left align-top font-normal">
                         <p className="break-words font-semibold text-marinho">{p.nome}{p.ticker ? ` · ${p.ticker}` : ''}</p>
+                        {/* o porquê (preço de compra ou aportado) mora no aviso do resumo; aqui só o selo curto */}
+                        {!p.dataAvaliacao && <span data-testid="selo-sem-avaliacao" className={`mt-1 inline-block rounded px-2 py-0.5 text-xs font-medium ${SELO.atencao}`}>sem avaliação</span>}
                         <p className="text-xs text-slate-500">{[...new Set([classe, a?.subclasse, a?.instituicao].filter(Boolean))].join(' · ')}</p>
                         {/* unidade e preço só fazem sentido em ativo com cota (migration 104) */}
                         {p.ticker && <p className="text-xs text-slate-500">{formatarQuantidade(p.quantidade)} un · preço {formatarPreco(p.precoAtual, p.moeda)}</p>}
                         <p className="text-xs text-slate-500 lg:hidden">Aportado {formatar(aportado, p.moeda)}</p>
                         {comResgate && <p className="text-xs text-slate-500">Pôs {formatar(ap.aportado, p.moeda)} · tirou {formatar(ap.resgatado, p.moeda)}</p>}
                         <p className="text-xs text-slate-500">
-                          {p.dataAvaliacao ? `Valor de ${formatDate(p.dataAvaliacao)}${p.fonteAvaliacao ? ` · ${p.fonteAvaliacao}` : ''}` : ap ? 'Sem avaliação: pelo preço de compra' : 'Sem avaliação: vale o aportado'}
+                          {p.dataAvaliacao ? `Valor de ${formatDate(p.dataAvaliacao)}${p.fonteAvaliacao ? ` · ${p.fonteAvaliacao}` : ''}` : ap ? 'Pelo preço de compra' : 'Vale o aportado'}
                         </p>
                         {/* ativo que acompanha a bolsa e está sem preço novo: a busca diária pode ter falhado ou o código estar errado */}
                         {parada === 'sem-preco' && <p className="text-xs font-medium text-atencao">Ainda sem cotação da bolsa: a próxima busca é no fim do pregão.</p>}
