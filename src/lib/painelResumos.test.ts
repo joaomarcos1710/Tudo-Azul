@@ -133,8 +133,9 @@ describe('resumoDosCartoes', () => {
     ], error: null }
     const r = await resumoDosCartoes('h1', '2026-10-24')
     expect(r.map((c) => c.nome)).toEqual(['Nubank', 'Inter']) // o inativo some
-    expect(r[0]).toMatchObject({ id: 'k1', divida: 133334, vencimento: '2026-10-25', vencida: false, limiteDisponivel: 527000 })
-    expect(r[1]).toMatchObject({ divida: 0, vencimento: null, vencida: false, limiteDisponivel: null })
+    // o limite e o comprometido vêm do banco (card_limits) e são repassados como estão: a barra do Início usa os dois
+    expect(r[0]).toMatchObject({ id: 'k1', divida: 133334, vencimento: '2026-10-25', vencida: false, limite: 580000, limiteComprometido: 53000, limiteDisponivel: 527000 })
+    expect(r[1]).toMatchObject({ divida: 0, vencimento: null, vencida: false, limite: null, limiteComprometido: null, limiteDisponivel: null })
     // depois do vencimento, a mesma fatura passa a vencida
     const depois = await resumoDosCartoes('h1', '2026-10-26')
     expect(depois[0]).toMatchObject({ vencimento: '2026-10-25', vencida: true })
@@ -151,6 +152,18 @@ describe('resumoDosCartoes', () => {
       : { data: [{ label: '2026-10', closing_date: '2026-10-17', due_date: '2026-10-25', charged: '200.00', total: '200.00', paid: '0', items: 1, invoice_id: 'i2' }], error: null }
     const r = await resumoDosCartoes('h1', '2026-10-24')
     expect(r.map((c) => [c.nome, c.divida, c.vencimento])).toEqual([['Nubank', 10000, null], ['Inter', 20000, '2026-10-25']])
+    // a falha fica marcada: a tela não pode dizer "sem fatura" nem esconder o cartão por causa dela
+    expect(r.map((c) => c.faturasIndisponiveis)).toEqual([true, false])
+    // aqui a consulta dos limites respondeu (sem linhas): é "sem limite informado", não "indisponível"
+    expect(r.map((c) => c.limiteIndisponivel)).toEqual([false, false])
+  })
+
+  it('se a consulta dos limites falhar, o cartão segue sem limite mas MARCADO como indisponível (não é "sem limite informado")', async () => {
+    fake.e.tabelas.debts = { data: [cartao('k1', 'Nubank')] }
+    fake.e.rpc.debt_balances = { data: [{ debt_id: 'k1', debt: '0', credit_receivable: '0', planned_remaining: '0' }], error: null }
+    fake.e.rpc.card_limits = { data: null, error: { message: 'timeout' } }
+    const r = await resumoDosCartoes('h1', '2026-10-24')
+    expect(r[0]).toMatchObject({ limite: null, limiteComprometido: null, limiteDisponivel: null, limiteIndisponivel: true })
   })
 
   it('pagamento parcial continua fatura fechada: o vencimento aparece', async () => {

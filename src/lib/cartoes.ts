@@ -34,6 +34,8 @@ export interface Cartao {
   limiteComprometido: Cents | null
   /** Limite − comprometido; negativo = passou do limite. null sem limite. */
   limiteDisponivel: Cents | null
+  /** A consulta dos limites (card_limits) falhou: os três campos acima vêm null, mas isso NÃO quer dizer "sem limite". */
+  limiteIndisponivel?: boolean
 }
 
 export interface CicloAnterior {
@@ -214,6 +216,7 @@ export async function listarCartoes(familiaId: string, dataRef: string = hojeSP(
       limite: l ? centsFromDb(l.credit_limit) : null,
       limiteComprometido: l ? centsFromDb(l.committed) : null,
       limiteDisponivel: l ? centsFromDb(l.available) : null,
+      limiteIndisponivel: Boolean(limites.error),
     }
   })
 }
@@ -979,7 +982,15 @@ export interface ResumoCartao {
   /** Vencimento da fatura fechada mais antiga ainda não paga; null sem fatura a pagar. */
   vencimento: string | null
   vencida: boolean
+  /** Limite informado pelo dono; null = não informado. */
+  limite: Cents | null
+  /** Dívida + parcelas futuras − crédito, do banco (card_limits): é mais que a fatura atual. null sem limite. */
+  limiteComprometido: Cents | null
   limiteDisponivel: Cents | null
+  /** A consulta dos limites falhou: a tela diz "indisponível", não "sem limite informado". */
+  limiteIndisponivel: boolean
+  /** A leitura das faturas deste cartão falhou: `proxima` nula NÃO quer dizer "sem fatura". */
+  faturasIndisponiveis: boolean
   /** Crédito no cartão (pagamento adiantado ou estorno maior que a dívida). */
   credito: Cents
   /** A fatura aberta que fecha primeiro (a "próxima"); null sem fatura aberta ou se não carregou. */
@@ -992,6 +1003,7 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
   return Promise.all(cartoes.map(async (c) => {
     let vencimento: string | null = null
     let proxima: ProximaFatura | null = null
+    let faturasIndisponiveis = false
     // falha ao ler as faturas de UM cartão não derruba o bloco: ele aparece com a dívida e sem data
     if (c.ativo || c.divida > 0) {
       try {
@@ -1001,12 +1013,15 @@ export async function resumoDosCartoes(familiaId: string, hoje: string = hojeSP(
       } catch {
         vencimento = null
         proxima = null
+        faturasIndisponiveis = true
       }
     }
     return {
       id: c.id, nome: c.nome, emissor: c.emissor, bandeira: c.bandeira, divida: c.divida, vencimento,
       // mesma regra de faturaVencida (a tela de Cartões usa aquela)
-      vencida: vencimento !== null && vencimento < hoje, limiteDisponivel: c.limiteDisponivel, credito: c.credito, proxima,
+      vencida: vencimento !== null && vencimento < hoje, limite: c.limite, limiteComprometido: c.limiteComprometido,
+      limiteDisponivel: c.limiteDisponivel, limiteIndisponivel: c.limiteIndisponivel === true, faturasIndisponiveis,
+      credito: c.credito, proxima,
     }
   }))
 }

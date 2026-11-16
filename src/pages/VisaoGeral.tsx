@@ -515,38 +515,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               <FaturasDoMes mes={mes} dados={dados.faturasDoMes} className="mb-3" />
               {dados.cartoes.length === 0 ? (
                 <p className="text-sm text-slate-500">Nenhum cartão cadastrado. <Link to="/cartoes" className="font-semibold text-azul hover:underline">Adicionar cartão</Link></p>
-              ) : <ul className="space-y-3">
-                {dados.cartoes.map((c) => (
-                  <li key={c.id} className="rounded-lg border border-slate-100 p-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="flex min-w-0 items-center gap-2 font-medium">
-                        <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />{c.nome}<BandeiraCartao bandeira={c.bandeira} />
-                      </span>
-                      {/* #203: direto na página da fatura atual do cartão (sem fatura aberta, na página do cartão) */}
-                      <Link to={c.proxima ? rotaFatura(c.id, c.proxima.mes) : rotaCartao(c.id)} aria-label={`Ver fatura ${c.nome}`}
-                        className="inline-flex min-h-11 items-center text-xs font-semibold text-azul hover:underline">Ver fatura</Link>
-                    </div>
-                    {/* como no Organizze: limite disponível ao lado da fatura atual (aberta) */}
-                    <dl className="mt-1 grid grid-cols-2 gap-3 rounded-lg bg-fundo p-2">
-                      <div className="min-w-0">
-                        <dt className="text-xs text-slate-500">Limite disponível</dt>
-                        <dd className="tabular-nums font-semibold">{c.limiteDisponivel === null ? '—' : formatBRL(c.limiteDisponivel)}</dd>
-                      </div>
-                      <div className="min-w-0">
-                        <dt className="text-xs text-slate-500">Fatura atual{c.proxima?.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}</dt>
-                        <dd className="tabular-nums font-semibold">{c.proxima ? formatBRL(c.proxima.total) : '—'}</dd>
-                      </div>
-                    </dl>
-                    {c.divida > 0 && (
-                      <p className={`mt-2 text-xs ${c.vencida ? 'font-semibold text-prejuizo' : 'text-atencao'}`}>
-                        Fatura fechada a pagar <strong className="tabular-nums">{formatBRL(c.divida)}</strong>
-                        {c.vencimento && (c.vencida ? ` · venceu em ${formatDate(c.vencimento)}` : ` · vence em ${formatDate(c.vencimento).slice(0, 5)}`)}
-                      </p>
-                    )}
-                    {c.divida === 0 && c.credito > 0 && <p className="mt-2 text-xs text-slate-500">Crédito no cartão de {formatBRL(c.credito)}</p>}
-                  </li>
-                ))}
-              </ul>}
+              ) : <CartoesDoInicio cartoes={dados.cartoes} />}
             </Card>
           )}
           {dados.categorias && (
@@ -937,6 +906,90 @@ function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense'
   return tipo === 'transfer'
     ? <IconeCategoria fixo="transferencia" tamanho="pequeno" />
     : <IconeCategoria visual={visualPorId(categoriaId, porId, tipo)} tamanho="pequeno" />
+}
+
+/**
+ * Cartões do Início, um por linha (mudança 7 do handoff, 16/11/2026): nome, fatura atual com vencimento, valor,
+ * "Ver fatura" e a barra do limite. Cartão sem nada a mostrar hoje (sem fatura aberta ou com a fatura atual em R$ 0,00,
+ * sem fatura fechada a pagar e sem crédito) fica atrás de "Ver todos os cartões"; fatura fechada a pagar ou vencida
+ * nunca fica escondida, nem o cartão cujas faturas não puderam ser lidas (falha não é "sem fatura").
+ */
+function CartoesDoInicio({ cartoes }: { cartoes: ResumoCartao[] }) {
+  const [todos, setTodos] = useState(false)
+  // cartão com fechamento e vencimento cadastrados sempre tem a fatura do ciclo, com total R$ 0,00 quando não há compra
+  const semFatura = (c: ResumoCartao) => !c.faturasIndisponiveis && (!c.proxima || c.proxima.total === 0) && c.divida === 0 && c.credito === 0
+  const recolhidos = cartoes.filter(semFatura).length
+  // se nenhum tem fatura, mostra todos: o bloco nunca fica só com o botão
+  const tudoAVista = todos || recolhidos === 0 || recolhidos === cartoes.length
+  const visiveis = tudoAVista ? cartoes : cartoes.filter((c) => !semFatura(c))
+  return (
+    <>
+      <ul className="divide-y divide-slate-100">
+        {visiveis.map((c) => (
+          <li key={c.id} className="py-3 text-sm first:pt-0 last:pb-0">
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex min-w-0 items-center gap-2">
+                <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1 font-medium"><span className="truncate">{c.nome}</span><BandeiraCartao bandeira={c.bandeira} /></span>
+                  <span className="block text-xs text-slate-500">{c.proxima ? `Fatura atual${c.proxima.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}` : c.faturasIndisponiveis ? 'Fatura indisponível agora' : 'Sem fatura aberta'}</span>
+                </span>
+              </span>
+              <span className="flex shrink-0 items-center gap-3">
+                <span className="whitespace-nowrap tabular-nums font-semibold">{c.proxima ? formatBRL(c.proxima.total) : '—'}</span>
+                {/* #203: direto na página da fatura atual do cartão (sem fatura aberta, na página do cartão) */}
+                <Link to={c.proxima ? rotaFatura(c.id, c.proxima.mes) : rotaCartao(c.id)} aria-label={`Ver fatura ${c.nome}`}
+                  className="inline-flex min-h-11 items-center text-xs font-semibold text-azul hover:underline">Ver fatura</Link>
+              </span>
+            </div>
+            <LimiteDoCartao cartao={c} />
+            {c.divida > 0 && (
+              <p className={`mt-2 text-xs ${c.vencida ? 'font-semibold text-prejuizo' : 'text-atencao'}`}>
+                Fatura fechada a pagar <strong className="tabular-nums">{formatBRL(c.divida)}</strong>
+                {c.vencimento && (c.vencida ? ` · venceu em ${formatDate(c.vencimento)}` : ` · vence em ${formatDate(c.vencimento).slice(0, 5)}`)}
+              </p>
+            )}
+            {c.divida === 0 && c.credito > 0 && <p className="mt-2 text-xs text-slate-500">Crédito no cartão de {formatBRL(c.credito)}</p>}
+          </li>
+        ))}
+      </ul>
+      {!tudoAVista && (
+        <button type="button" onClick={() => setTodos(true)}
+          className="mt-1 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">
+          Ver todos os cartões ({recolhidos} sem fatura)
+        </button>
+      )}
+    </>
+  )
+}
+
+/**
+ * Barra do limite de um cartão. Limite, comprometido e disponível vêm do banco (card_limits); aqui só a largura da barra
+ * (razão entre dois números do banco, apresentação). "Comprometido" é a dívida mais as parcelas futuras menos o crédito:
+ * é mais que a fatura atual, e o texto diz isso para a barra não parecer errada ao lado do valor da fatura.
+ * Âmbar acima de 70% (o mesmo corte dos orçamentos), vermelho quando passou; o texto ao lado diz o mesmo sem depender da cor.
+ */
+function LimiteDoCartao({ cartao: c }: { cartao: ResumoCartao }) {
+  if (c.limite === null || c.limiteComprometido === null || c.limiteDisponivel === null || c.limite <= 0) {
+    return <p className="mt-1 text-xs text-slate-500">{c.limiteIndisponivel ? 'Limite indisponível agora' : 'Sem limite informado'}</p>
+  }
+  const passou = c.limiteDisponivel < 0
+  const largura = Math.max(0, Math.min(100, (c.limiteComprometido / c.limite) * 100))
+  const cor = passou ? 'bg-prejuizo-marca' : c.limiteComprometido * 10 > c.limite * 7 ? 'bg-atencao-marca' : 'bg-azul'
+  return (
+    <div className="mt-2">
+      <div className="h-2 overflow-hidden rounded-full bg-slate-100" role="img"
+        aria-label={`Limite comprometido ${formatBRL(c.limiteComprometido)} de ${formatBRL(c.limite)}, com as parcelas futuras`}>
+        <div data-testid="barra-limite" className={`h-full rounded-full ${cor}`} style={{ width: `${largura}%` }} />
+      </div>
+      <p className="mt-1 flex flex-wrap justify-between gap-x-3 text-xs text-slate-500">
+        {passou
+          ? <span className="font-semibold text-prejuizo">Passou do limite em <span className="tabular-nums">{formatBRL(-c.limiteDisponivel as Cents)}</span></span>
+          : <span>Limite disponível <span className="tabular-nums font-semibold text-slate-700">{formatBRL(c.limiteDisponivel)}</span></span>}
+        <span>Comprometido <span className="tabular-nums">{formatBRL(c.limiteComprometido)}</span> de <span className="tabular-nums">{formatBRL(c.limite)}</span>, com as parcelas futuras</span>
+      </p>
+    </div>
+  )
 }
 
 /** Até 4 orçamentos, os mais perto de estourar primeiro (pela fração do limite já gasta; nenhum valor em reais é somado aqui). */
