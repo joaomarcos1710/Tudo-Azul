@@ -1926,6 +1926,29 @@ describe('Investimentos: ordem dos blocos e período da evolução', () => {
     }
   })
 
+  it('com BRL e EUR há UM gráfico com abas de moeda; com uma moeda só, sem abas; a escolha troca o gráfico', async () => {
+    const u = userEvent.setup()
+    mock.listarHistoricoInvestimentos.mockImplementation(async (_f: string, de: string, ate: string) => [
+      ...serieHistorico(de, ate),
+      ...serieHistorico(de, ate).map((p) => ({ ...p, moeda: 'EUR' as const })),
+    ])
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Evolução em BRL' })
+    const abas = screen.getByRole('tablist', { name: 'Moeda da evolução' })
+    expect(within(abas).getAllByRole('tab').map((t) => t.textContent)).toEqual(['BRL', 'EUR'])
+    expect(screen.queryByRole('heading', { name: 'Evolução em EUR' })).toBeNull()
+    await u.click(within(abas).getByRole('tab', { name: 'EUR' }))
+    expect(await screen.findByRole('heading', { name: 'Evolução em EUR' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Evolução em BRL' })).toBeNull()
+    expect(screen.getByRole('tabpanel', { name: 'Evolução em EUR' })).toBeTruthy()
+  })
+
+  it('com uma moeda só não há abas de moeda na evolução', async () => {
+    render(<Investimentos />)
+    await screen.findByRole('heading', { name: 'Evolução em BRL' })
+    expect(screen.queryByRole('tablist', { name: 'Moeda da evolução' })).toBeNull()
+  })
+
   it('começa em 12 meses, com a leitura de sempre e sem pedir os 24', async () => {
     render(<Investimentos />)
     await screen.findByRole('heading', { name: 'Evolução em BRL' })

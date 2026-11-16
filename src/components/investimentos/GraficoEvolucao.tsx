@@ -11,17 +11,28 @@ const mesCurto = (mes: string) => new Intl.DateTimeFormat('pt-BR', { month: 'sho
 const mesLongo = (mes: string) => new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${mes}T12:00:00Z`))
 
 /**
+ * Tira do COMEÇO da série os meses em que valor atual e aportado são zero (antes do primeiro aporte): a linha nunca sai de zero e
+ * "salta" para o primeiro valor, o que parecia um ganho que não houve. Só o início: zero no meio ou no fim (ativo vendido) fica.
+ * É seleção de pontos que vieram do banco; nada é somado.
+ */
+export function cortarInicioVazio(pontos: PontoEvolucao[]): PontoEvolucao[] {
+  const i = pontos.findIndex((p) => p.valorAtual !== 0 || p.aportado !== 0)
+  return i < 0 ? [] : pontos.slice(i)
+}
+
+/**
  * Evolução da carteira numa moeda (etapa 3 do redesenho de Investimentos): duas linhas, o valor atual (azul, cheia) e o
  * aportado (cinza, tracejada), mês a mês. O aportado é o aporte líquido (o que o dono pôs menos o que tirou, igual ao resumo; migration 114);
  * em banco sem ela, é o custo do que ainda está investido, e uma nota avisa. A diferença entre as duas é o rendimento, que o leitor vê no espaço entre as linhas;
  * a tela NÃO subtrai nem soma nada (os dois números vêm de investment_history, no banco). Legenda sempre visível (a cor não é a
  * única pista: o aportado é tracejado), cursor com tooltip no toque e no mouse, e a tabela dos mesmos pontos logo abaixo.
  */
-export function GraficoEvolucao({ moedaCodigo, pontos, formatar }: {
+export function GraficoEvolucao({ moedaCodigo, pontos: pontosDoBanco, formatar }: {
   moedaCodigo: MoedaInvestimento
   pontos: PontoEvolucao[]
   formatar: (c: Cents, moeda: MoedaInvestimento) => string
 }) {
+  const pontos = cortarInicioVazio(pontosDoBanco)
   const [ativo, setAtivo] = useState<number | null>(null)
   // desenha na largura real da caixa (1:1), como os outros gráficos: com a largura fixa de 640 o texto encolhia para ~6px no celular
   const [caixa, L] = useLargura<HTMLDivElement>()
@@ -43,6 +54,20 @@ export function GraficoEvolucao({ moedaCodigo, pontos, formatar }: {
     setAtivo(Math.min(pontos.length - 1, Math.max(0, i)))
   }
   const p = ativo !== null ? pontos[ativo] : null
+
+  // menos de dois fechamentos desde o primeiro aporte: uma linha de um ponto só não mostra nada, então diz desde quando há histórico
+  if (pontos.length < 2) {
+    return (
+      <Card>
+        <h3 className="mb-2 font-semibold">Evolução em {moedaCodigo}</h3>
+        <p data-testid="evolucao-sem-historico" className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-500">
+          {pontos.length === 1
+            ? <>Histórico a partir de {mesLongo(pontos[0].mes)}. O gráfico aparece quando houver dois fechamentos mensais desde o primeiro aporte.</>
+            : 'Sem histórico ainda.'}
+        </p>
+      </Card>
+    )
+  }
 
   return (
     <Card>

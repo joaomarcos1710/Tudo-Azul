@@ -21,7 +21,7 @@ const EM_MOEDA: Record<MoedaInvestimento, string> = { BRL: 'reais', EUR: 'euros'
  * Abas com o teclado do padrão ARIA: só a aba ativa entra na ordem do Tab; setas esquerda/direita, Home e End trocam e
  * levam o foco. Cada aba aponta para o painel (`aria-controls`) e o painel leva o nome da visão (aria-label, e não aria-labelledby, para a aba "Classe" não virar rótulo do campo "Classe" dos formulários).
  */
-function Abas<T extends string>({ rotulo, itens, ativa, aoEscolher, idBase, painelId, estilo }: {
+export function Abas<T extends string>({ rotulo, itens, ativa, aoEscolher, idBase, painelId, estilo }: {
   rotulo: string; itens: [T, string][]; ativa: T; aoEscolher: (c: T) => void; idBase: string; painelId: string; estilo: 'moeda' | 'visao'
 }) {
   function teclas(e: KeyboardEvent<HTMLDivElement>) {

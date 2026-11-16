@@ -824,6 +824,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 16/11/2026 — Investimentos: o handoff de design vira PRs, uma mudança por vez (dono, #371)
+- **Pedido:** o dono mandou o handoff v2 da tela de Investimentos (seis mudanças de apresentação, sem migration) e disse "fazer", depois do parecer do agente `melhorias`.
+- **Decidido (ordem do parecer, uma mudança por PR):** 3 (gráfico de evolução, #371) → 2 (aviso "sem avaliação") → 4 (composição em barras) → 1 (resumo num card) → 5 (tabela única, só se incomodar) → 6 ("Ativos cadastrados" sai, só com "pode" explícito). A 3 foi primeiro por ser defeito real de leitura (a linha saía de zero) e sem dinheiro novo.
+- **Pontos abertos que as próximas mudanças precisam de decisão do dono:** texto do aviso nos dois modos (mudança 2); linha de composição por macroclasse ou subclasse (4); se a linha em EUR/USD do resumo mantém Aportado e Rendimento (1); "Gerenciar ativos" sempre visível (6).
+
 ## 16/11/2026 — Mês financeiro por pessoa; Limite diário seguro até o próximo salário (dono, #370)
 - **Pedido:** o dono recebe no dia 20, então o mês dele é de 20 a 19, e "deveria poder escolher a data" (cada pessoa a sua). Pergunta que levou a isso: por quantos dias dividir o Dinheiro Livre no Limite diário seguro (hoje até o fim do mês-calendário, enquanto o livre já desconta o mês seguinte).
 - **Decidido (dono):** **etapa 1** = preferência por pessoa "dia em que o mês começa" (1 a 28) e Limite diário seguro dividindo pelos dias até a véspera do próximo dia D; o **Dinheiro Livre não muda**. **Etapa 2** (trocar o horizonte do livre para "até o dia D−1", sem o mês seguinte inteiro) o dono respondeu "ok" **só como direção**: precisa de decisão e revisão de valor antes (muda o número principal da Home).
