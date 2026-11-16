@@ -15,6 +15,7 @@ import type { DadosOperacao } from '../components/investimentos/FormOperacao'
 import { Selecao } from '../components/ui/Selecao'
 import { Chip } from '../components/ui/TelaFiltros'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
+import { SELO } from '../lib/cores'
 import { useFamilia } from '../lib/FamiliaContext'
 import { converterParaReais, textoCotacao } from '../lib/cambio'
 import type { EmReais } from '../lib/cambio'
@@ -435,7 +436,9 @@ export default function Investimentos() {
                   <dl className="mt-3 grid max-w-md grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-1 text-sm">
                     <dt className="text-slate-500">Aportado</dt>
                     <dd className="m-0 text-right font-bold tabular-nums">{moeda(ap ? ap.liquido : t.custoTotal, t.moeda)}</dd>
-                    <dt className="text-slate-500">Rendimento</dt>
+                    <dt className="text-slate-500">Rendimento
+                      {semAvaliacao.some((p) => p.moeda === t.moeda) && <span data-testid="selo-estimado" className={`ml-2 rounded px-1.5 py-0.5 text-xs font-medium ${SELO.atencao}`}>estimado</span>}
+                    </dt>
                     <dd className={`m-0 text-right font-bold tabular-nums ${corDoResultado(rendimento)}`}>{moeda(rendimento, t.moeda)}</dd>
                   </dl>
                   {ap && ap.resgatado > 0 && (

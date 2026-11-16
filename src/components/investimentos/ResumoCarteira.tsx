@@ -77,7 +77,7 @@ function Numero({ rotulo, valor, nota, cor = 'text-marinho', selo }: { rotulo: s
       <Card semPadding className="flex h-full items-center justify-between gap-3 p-4 sm:block">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{rotulo}
-            {selo && <span data-testid="selo-estimado" className={`ml-2 rounded px-1.5 py-0.5 text-[11px] font-medium normal-case tracking-normal ${SELO.atencao}`}>{selo}</span>}
+            {selo && <span data-testid="selo-estimado" className={`ml-2 rounded px-1.5 py-0.5 text-xs font-medium normal-case tracking-normal ${SELO.atencao}`}>{selo}</span>}
           </p>
           <p className="text-xs text-slate-500 sm:hidden">{nota}</p>
         </div>

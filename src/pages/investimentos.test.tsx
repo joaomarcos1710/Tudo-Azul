@@ -806,7 +806,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
           const c1 = await cartaoUsd()
           await waitFor(() => expect(mock.listarAportesInvestimentos).toHaveBeenCalled())
           expect(c1.textContent).toMatch(/AportadoUS\$\s2,50/)
-          expect(c1.textContent).toMatch(/RendimentoUS\$\s0,50/)
+          expect(c1.textContent).toMatch(/Rendimento(estimado)?US\$\s0,50/)
           expect(c1.textContent).toMatch(/Do que ainda está investido: o que já foi resgatado não entra\./)
         })
 
@@ -820,7 +820,7 @@ describe('Investimentos × macroclasse e subclasse', () => {
           const c1 = await cartaoUsd()
           await waitFor(() => expect(c1.textContent).toMatch(/Pôs US\$\s5,00 · tirou US\$\s8,00/))
           expect(c1.textContent).toMatch(/Aportado-US\$\s3,00/)
-          expect(c1.textContent).toMatch(/RendimentoUS\$\s6,00/)
+          expect(c1.textContent).toMatch(/Rendimento(estimado)?US\$\s6,00/)
           expect(c1.textContent).not.toMatch(/ainda está investido/)
         })
       })
@@ -2028,6 +2028,25 @@ describe('Investimentos: ordem dos blocos e período da evolução', () => {
     expect(screen.getByRole('dialog', { name: 'Registrar avaliação' })).toBeTruthy()
   })
 
+  it('pendência só em moeda estrangeira: o aviso aparece, o selo "estimado" fica no cartão daquela moeda e não no Rendimento em reais', async () => {
+    mock.listarCarteiraInvestimentos.mockResolvedValue({
+      posicoes: [
+        { ...posicao('a1', 'Tesouro Selic', 'fixed_income', 60000), dataAvaliacao: '2026-11-10' },
+        { ...posicao('u1', 'REIT de teste', 'equity', 30000), moeda: 'USD' },
+      ],
+      totais: [
+        { moeda: 'BRL', custoTotal: c(60000), valorAtual: c(60000), resultado: c(0) },
+        { moeda: 'USD', custoTotal: c(30000), valorAtual: c(30000), resultado: c(0) },
+      ],
+    })
+    render(<Investimentos />)
+    expect((await screen.findByTestId('aviso-sem-avaliacao')).textContent).toMatch(/^1 ativo sem avaliação\./)
+    const resumoEmReais = screen.getByRole('list', { name: 'Resumo da carteira em reais' })
+    expect(within(resumoEmReais).queryByTestId('selo-estimado')).toBeNull()
+    const cartaoUsd = (await screen.findByText('Valor de mercado em USD')).closest('div') as HTMLElement
+    expect(within(cartaoUsd).getByTestId('selo-estimado').textContent).toBe('estimado')
+  })
+
   it('com a migration 107 o aviso diz que o rendimento usa o preço de compra', async () => {
     const ap = (valorAtual: number) => ({ moeda: 'BRL', aportado: c(valorAtual), resgatado: c(0), liquido: c(valorAtual), valorAtual: c(valorAtual), ganho: c(0) })
     mock.listarAportesInvestimentos.mockResolvedValue({
@@ -2036,6 +2055,7 @@ describe('Investimentos: ordem dos blocos e período da evolução', () => {
     })
     render(<Investimentos />)
     expect((await screen.findByTestId('aviso-sem-avaliacao')).textContent).toMatch(/O rendimento usa o preço de compra\./)
+    expect(screen.getByTestId('selo-estimado').textContent).toBe('estimado') // também com a 107: a posição vale o preço de compra
   })
 
   it('sem posição pendente, não há aviso nem selo; o botão solto do título saiu', async () => {
