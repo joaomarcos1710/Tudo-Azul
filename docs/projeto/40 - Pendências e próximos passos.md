@@ -856,7 +856,7 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - [x] **Alta — Zerar tudo apagava reservas sem mostrá-las nem exportá-las.** Conferido e corrigido: prévia, total e lista mostram as reservas; o aviso diz que a exportação não as inclui.
 - [x] **Média — clicar em "baixar" contava como backup feito.** Corrigido: a frase só libera depois de marcar "conferi que os arquivos estão salvos".
 - [ ] Incluir as reservas na exportação completa (hoje só o aviso).
-- [x] **Média — convite aceito sem e-mail confirmado:** corrigido no banco (migration 129, `accept_invitation` recusa conta sem `email_confirmed_at`). Falta: aplicar em produção (com o "pode" do dono) e conferir a configuração do Auth hospedado.
+- [x] **Média — convite aceito sem e-mail confirmado:** corrigido no banco (migration 129, `accept_invitation` recusa conta sem `email_confirmed_at`). Aplicada em produção em 16/11/2026 (execução 43954640016), conferida no banco. Falta: conferir a configuração do Auth hospedado (se "Confirm email" está ligado).
 - [ ] **Média — itens agendados de cartão** (`card_scheduled_items`): `recurrence_id` e `installment_id` sem a família na chave estrangeira. Sem caminho de exploração hoje; migration com chaves compostas e teste de outra família.
 - [ ] **Média — menu do celular** anuncia diálogo modal mas não prende o foco do Tab (`AppShell.tsx`).
 - [ ] **Média — teste de integração** confere que a API é local, mas não o `SUPABASE_DB_URL` (`tests/integration/helpers.ts`).
