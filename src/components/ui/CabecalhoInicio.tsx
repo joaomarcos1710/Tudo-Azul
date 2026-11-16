@@ -21,9 +21,12 @@ export function CabecalhoInicio({ nome, receitas, despesas, aReceber = null, aPa
   /** Ainda planejado no mês (do banco): evita o susto de "receita R$ 0,00" antes do salário cair. */
   aReceber?: Cents | null; aPagar?: Cents | null
 }) {
-  const atalho = 'inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-500 bg-white px-4 text-sm font-semibold text-marinho shadow-sm hover:bg-slate-50'
+  const atalho = 'inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-500 bg-white px-3 text-sm font-semibold text-marinho shadow-sm hover:bg-slate-50'
+  // Sempre em coluna (16/11/2026): com `md:flex-row`, no iPad em pé (~444 px úteis, por causa da barra lateral) os atalhos
+  // caíam para 4 linhas e a receita e a despesa ficavam espremidas. Os atalhos vão em grade: 2 por linha, 4 de `lg` em
+  // diante (`sm:` e `md:` olham a janela, não o conteúdo, e dariam colunas estreitas demais para "Transferência").
   return (
-    <header className="mb-6 flex flex-col gap-4 rounded-card bg-white p-5 shadow-card md:flex-row md:items-end md:justify-between">
+    <header className="mb-6 flex flex-col gap-4 rounded-card bg-white p-5 shadow-card">
       <div>
         <p className="text-sm text-slate-500">{saudacao()}{nome ? `, ${nome}` : ''}</p>
         <h1 className="text-xl font-bold text-marinho">Minha Carteira</h1>
@@ -46,7 +49,7 @@ export function CabecalhoInicio({ nome, receitas, despesas, aReceber = null, aPa
           </Link>
         </div>
       </div>
-      <nav aria-label="Ações rápidas" className="flex flex-wrap gap-2">
+      <nav aria-label="Ações rápidas" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <Link to="/lancamentos?novo=despesa" className={atalho}><span className="text-prejuizo"><IconeSubtrair /></span>Despesa</Link>
         <Link to="/lancamentos?novo=receita" className={atalho}><span className="text-lucro"><IconeSomar /></span>Receita</Link>
         <Link to="/lancamentos?novo=transferencia" className={atalho}><span className="text-slate-600"><IconeTransferir /></span>Transferência</Link>

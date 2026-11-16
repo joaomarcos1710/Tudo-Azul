@@ -984,7 +984,7 @@ export interface ResumoCartao {
   vencida: boolean
   /** Limite informado pelo dono; null = não informado. */
   limite: Cents | null
-  /** Dívida + parcelas futuras − crédito, do banco (card_limits): é mais que a fatura atual. null sem limite. */
+  /** Dívida + parcelas futuras − crédito, do banco (card_limits): em geral mais que a fatura atual (com crédito alto pode ser menos). null sem limite. */
   limiteComprometido: Cents | null
   limiteDisponivel: Cents | null
   /** A consulta dos limites falhou: a tela diz "indisponível", não "sem limite informado". */
