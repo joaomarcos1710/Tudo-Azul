@@ -26,23 +26,32 @@ describe('ComposicaoCarteira', () => {
     expect(screen.queryByText(/USD/)).toBeNull()
   })
 
-  it('legenda por classe: duas colunas até lg e o valor nunca quebra entre "R$" e o número (iPad em pé, ~500px de conteúdo)', () => {
+  it('linha por classe: uma coluna só (nada lado a lado) e o valor nunca quebra entre "R$" e o número (iPad em pé, ~500px de conteúdo)', () => {
     render(<ComposicaoCarteira totais={[{ moeda: 'BRL', valorAtual: c(19821907) }]} alocacao={[macro('BRL', 19821907)]} liquidez={[]} instituicoes={[]} posicoes={[]} formatar={formatar} />)
     const lista = screen.getByRole('list', { name: 'Lista da carteira por classe' })
-    expect(lista.className).toContain('sm:grid-cols-2')
-    expect(lista.className).toContain('lg:grid-cols-3')
-    expect(lista.className).not.toContain('sm:grid-cols-3')
-    expect(within(lista).getByText(/BRL 198219\.07/).className).toContain('whitespace-nowrap')
+    expect(lista.className).not.toMatch(/grid-cols/)
+    expect(within(lista).getAllByText(/BRL 198219\.07/)[0].parentElement?.className).toContain('whitespace-nowrap')
   })
 
-  it('legenda por subclasse: uma coluna até lg e o nome nunca é cortado com "…" (iPad em pé e janela de 1024px: "Renda fi…", "Fun…")', () => {
+  it('o nome da classe e da subclasse nunca é cortado com "…" e quebra linha (iPad em pé e janela de 1024px: "Renda fi…", "Fun…")', () => {
     render(<ComposicaoCarteira totais={[{ moeda: 'BRL', valorAtual: c(19821907) }]} alocacao={[macro('BRL', 19821907)]} liquidez={[]} instituicoes={[]} posicoes={[]} formatar={formatar} />)
-    const lista = screen.getByRole('list', { name: 'Subclasses' })
-    expect(lista.className).toContain('grid-cols-1')
-    expect(lista.className).toContain('lg:grid-cols-2')
-    expect(lista.className).toContain('xl:grid-cols-3')
-    expect(lista.className).not.toMatch(/(^|\s)sm:grid-cols-2|(^|\s)lg:grid-cols-3/)
-    for (const nome of within(lista).getAllByText(/Renda variável/)) expect(nome.className).not.toContain('truncate')
+    const lista = screen.getByRole('list', { name: 'Lista da carteira por classe' })
+    const nomes = within(lista).getAllByText(/Renda variável|Renda fixa|Fundos e outros|Ações|FIIs/)
+    expect(nomes.length).toBeGreaterThan(0)
+    for (const nome of nomes) {
+      expect(nome.className).not.toContain('truncate')
+      expect(nome.className).toContain('break-words')
+    }
+  })
+
+  it('uma barra por item, de uma cor só, com largura mínima de 1% (o item de 0,2% continua visível) e máxima de 100%', () => {
+    const alocacao = [{ ...macro('BRL', 19821907), percentual: 99.8 }, { ...macro('BRL', 40000), macro: 'fixed_income' as const, percentual: 0.2 }]
+    render(<ComposicaoCarteira totais={[{ moeda: 'BRL', valorAtual: c(19861907) }]} alocacao={alocacao} liquidez={[]} instituicoes={[]} posicoes={[]} formatar={formatar} />)
+    const larguras = [...document.querySelectorAll<HTMLElement>('[data-barra]')].map((b) => b.style.width)
+    expect(larguras).toContain('99.8%')
+    expect(larguras).toContain('1%') // 0,2% do banco aparece com 1% de largura; o % exato continua em texto
+    expect(larguras.every((w) => parseFloat(w) <= 100)).toBe(true)
+    expect(document.querySelector('svg[role="img"]')).toBeNull()
   })
 
   it('sem nenhuma moeda com posição não desenha nada', () => {

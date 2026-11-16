@@ -824,6 +824,12 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 16/11/2026 — Investimentos: composição em barras, uma por item (dono, #374)
+- **Pedido:** "Pode seguir com a mudança 4" do handoff. A pergunta aberta era se, em Classe, a linha é a macroclasse ou a subclasse; o dono não escolheu.
+- **Decidido por mim (para o dono rever na PR):** em Classe, **uma linha por macroclasse com as subclasses embaixo**, cada uma com a sua barra: guarda a hierarquia e todos os números que a barra empilhada mostrava. Alternativa descartada: só subclasses (perderia o total por macroclasse) ou só macroclasses (esconderia a previdência de 99,4%).
+- **Limite aceito:** a barra tem **mínimo de 1%** (um item de 0,2% aparece ~5× maior que o real; o % exato está em texto ao lado); a cor deixa de distinguir a macroclasse.
+- **Não feito:** "disponível para resgate" na nota do rodapé (não vem do banco; somar na tela não vale). Fica o atalho "Ver por liquidez".
+
 ## 16/11/2026 — Investimentos: aviso único de "sem avaliação" e Rendimento "estimado" (#373)
 - **O que o dono pediu:** "Continuar" o handoff na ordem do parecer; a mudança 2 vinha com a decisão do texto em aberto.
 - **Decidido por mim (para o dono rever na PR):** a contagem do aviso é das posições abertas de **todas as moedas**; o selo "estimado" aparece no Rendimento **da moeda da pendência** (resumo em reais ou cartão da moeda estrangeira; revisão do `revisor-dinheiro` apontou que, só em reais, o aviso aparecia sem selo no cartão de USD); o texto do aviso muda conforme a migration 107 (aportes) ou o modo custo (sem ela, onde o ativo sem avaliação "vale o aportado" e o rendimento dele é zero); o botão solto do título sai e a ação continua em "Atualizar valor" de cada posição.
