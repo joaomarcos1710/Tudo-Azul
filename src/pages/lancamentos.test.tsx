@@ -529,6 +529,30 @@ describe('Lançamentos', () => {
     expect(mock.criarLancamento).not.toHaveBeenCalled()
   })
 
+  it('trocar entre Despesa e Cartão de crédito mantém a categoria escolhida (as duas usam categorias de despesa)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    // escolhe a categoria ainda em Despesa e só depois percebe que foi no cartão
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    await u.type(screen.getByLabelText('Valor (R$)'), '80,00')
+    await u.type(screen.getByLabelText('Descrição'), 'Feira')
+    await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
+    await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', expect.objectContaining({ descricao: 'Feira', categoriaId: 'mer' }), expect.any(String))
+  })
+
+  it('trocar de Despesa para Receita limpa a categoria (categoria de despesa não vale para receita)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
+    const escolhida = screen.getByLabelText('Categoria').textContent
+    await u.click(screen.getByRole('radio', { name: 'Receita' }))
+    expect(screen.getByLabelText('Categoria').textContent).not.toBe(escolhida)
+  })
+
   it('Repetir no cartão cria a assinatura (regra de recorrente de cartão) e não uma compra solta', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
