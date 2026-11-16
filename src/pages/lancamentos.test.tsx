@@ -1051,6 +1051,17 @@ describe('Lançamentos', () => {
     expect(await screen.findByText(/Não foi possível lançar os recorrentes agora/)).toBeTruthy()
   })
 
+  it('a lista carrega sem esperar as rotinas automáticas; se elas gravaram algo, a lista é lida de novo', async () => {
+    let terminar: (v: unknown) => void = () => {}
+    automaticos.atualizarAutomaticos.mockReset()
+    automaticos.atualizarAutomaticos.mockReturnValue(new Promise((r) => { terminar = r }))
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Supermercado')).toBeTruthy()
+    const antes = mock.listarLancamentos.mock.calls.length
+    terminar({ recorrentesOk: true, faturasOk: true, mudou: true })
+    await waitFor(() => expect(mock.listarLancamentos.mock.calls.length).toBeGreaterThan(antes))
+  })
+
   it('trocar de mês rápido: a lista do mês antigo, se chegar depois, não sobrescreve a do mês da tela', async () => {
     let soltar: (v: unknown) => void = () => {}
     const lenta = new Promise((r) => { soltar = r })
