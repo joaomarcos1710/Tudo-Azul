@@ -360,7 +360,7 @@ describe('Lançamentos', () => {
     await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', {
       tipo: 'expense', contaId: 'a1', destinoId: null, categoriaId: 'mer', descricao: 'Feira',
-      valor: 123456, data: hojeSP(), status: 'paid', notas: '', personId: null, isSharedExpense: false,
+      valor: 123456, data: hojeSP(), status: 'paid', notas: '', personId: null, isSharedExpense: true, // despesa nova nasce "Toda a família" (16/11/2026)
     })
   })
 
@@ -1376,6 +1376,78 @@ describe('lançamento parcelado fora do cartão', () => {
     })
     expect(mock.criarLancamento).not.toHaveBeenCalled()
     expect(mock.criarRecorrencia).not.toHaveBeenCalled()
+  })
+
+  afterEach(() => { pessoasMock.listarPessoasFamilia.mockImplementation(() => Promise.resolve([])) })
+
+  it('o valor informado é o total por padrão e diz isso; a sobra é explicada', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const painel = await preencher(u, '10,00')
+    const parcelas = within(painel).getByRole('spinbutton', { name: 'Parcelas' })
+    await u.clear(parcelas)
+    await u.type(parcelas, '3')
+    expect((within(painel).getByRole('radio', { name: /O total/ }) as HTMLInputElement).checked).toBe(true)
+    expect(within(painel).getByText(/cada parcela recebe a divisão/)).toBeTruthy()
+    expect(within(painel).getByText('Em caso de divisão não exata, a sobra é somada à primeira parcela.')).toBeTruthy()
+  })
+
+  it('"O de cada parcela": o total enviado é o valor × as parcelas, sem sobra', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const painel = await preencher(u, '198,39')
+    const parcelas = within(painel).getByRole('spinbutton', { name: 'Parcelas' })
+    await u.clear(parcelas)
+    await u.type(parcelas, '3')
+    await u.click(within(painel).getByRole('radio', { name: /O de cada parcela/ }))
+    const previa = within(painel).getByTestId('previa-parcelas')
+    expect(previa.textContent).toMatch(/3 parcelas de R\$ 198,39, total de R\$ 595,17/)
+    expect(previa.textContent).not.toMatch(/a primeira de/)
+    await u.click(within(painel).getByRole('button', { name: 'Lançar parcelas' }))
+    await waitFor(() => expect(mock.criarParcelado).toHaveBeenCalled())
+    expect(mock.criarParcelado.mock.calls[0][0]).toMatchObject({ total: 59517, parcelas: 3 })
+  })
+
+  it('"O de cada parcela" aceita valor pequeno (a regra do centavo por parcela vale só para dividir)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const painel = await preencher(u, '0,02')
+    const parcelas = within(painel).getByRole('spinbutton', { name: 'Parcelas' })
+    await u.clear(parcelas)
+    await u.type(parcelas, '3')
+    await u.click(within(painel).getByRole('radio', { name: /O de cada parcela/ }))
+    await u.click(within(painel).getByRole('button', { name: 'Lançar parcelas' }))
+    await waitFor(() => expect(mock.criarParcelado).toHaveBeenCalled())
+    expect(mock.criarParcelado.mock.calls[0][0]).toMatchObject({ total: 6, parcelas: 3 })
+  })
+
+  it('a despesa parcelada nasce "Toda a família", mesmo com a pessoa do usuário cadastrada; escolher outra pessoa continua valendo', async () => {
+    pessoasMock.listarPessoasFamilia.mockImplementation(() => Promise.resolve([
+      { id: 'p-joao', nome: 'João', ativo: true, userId: 'u1' },
+    ]))
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const painel = await preencher(u, '10,00')
+    await u.click(within(painel).getByText('Opções avançadas · Pessoa responsável'))
+    const quem = await within(painel).findByLabelText('Despesa de quem?') as HTMLSelectElement
+    expect(quem.value).toBe('shared')
+    await u.click(within(painel).getByRole('button', { name: 'Lançar parcelas' }))
+    await waitFor(() => expect(mock.criarParcelado).toHaveBeenCalled())
+    expect(mock.criarParcelado.mock.calls[0][0]).toMatchObject({ personId: null, isSharedExpense: true })
+  })
+
+  it('escolher uma pessoa no parcelado continua valendo (o padrão "Toda a família" não trava a escolha)', async () => {
+    pessoasMock.listarPessoasFamilia.mockImplementation(() => Promise.resolve([
+      { id: 'p-joao', nome: 'João', ativo: true, userId: 'u1' },
+    ]))
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const painel = await preencher(u, '10,00')
+    await u.click(within(painel).getByText('Opções avançadas · Pessoa responsável'))
+    await u.selectOptions(await within(painel).findByLabelText('Despesa de quem?'), 'p-joao')
+    await u.click(within(painel).getByRole('button', { name: 'Lançar parcelas' }))
+    await waitFor(() => expect(mock.criarParcelado).toHaveBeenCalled())
+    expect(mock.criarParcelado.mock.calls[0][0]).toMatchObject({ personId: 'p-joao', isSharedExpense: false })
   })
 
   it('valida 2 a 360 parcelas e valor que caiba', async () => {

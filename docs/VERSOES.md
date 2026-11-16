@@ -281,4 +281,5 @@ continuam abaixo como histórico.
 | 2026.366 | **Detalhe de uma categoria do gráfico.** Tocar numa barra ou fatia abre o que a compõe (por dia e categoria, com o total do banco, igual à barra). Migration 127. |
 | 2026.367 | **Diário: migration 127 aplicada em produção.** Só notas e versão; o app não muda. |
 | 2026.368 | **"Reservas" em vez de "envelopes".** O card Dinheiro Livre diz "Reservas comprometidas" e a tela Reservas, o menu e a ajuda usam só "reserva". Só texto. |
+| 2026.369 | **Parcelado: o valor informado e de quem é a despesa.** Escolha "O total" ou "O de cada parcela" (total = valor × parcelas) e a despesa nova nasce "Toda a família", não a pessoa logada. Nenhum cálculo do banco muda. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
