@@ -410,12 +410,6 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
       {/* receitas e despesas do mês em outras moedas: à parte, nunca somadas aos totais em reais acima */}
       <ResultadoEmOutrasMoedas porMoeda={dados.mesPorMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
 
-      {noInicio && dados.cartoes === null && (
-        // card que falhou não pode simplesmente sumir: sem aviso, "Cartões" ausente parece "nenhum cartão"
-        <div className="mb-4">
-          <Aviso tipo="erro">Não foi possível verificar agora os cartões. Recarregue a página em instantes.</Aviso>
-        </div>
-      )}
       {!noInicio && dados.vencidos === null && (
         // sem aviso, "Vencidos" ausente parece "nada vencido"
         <div className="mb-4">
@@ -506,6 +500,14 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               </div>
             )}
           </Card>
+          {dados.cartoes === null && (
+            // card que falhou não pode simplesmente sumir: sem aviso, "Cartões" ausente parece "nenhum cartão".
+            // O aviso fica no lugar do card (antes ficava solto no topo), para o par da grade não se desfazer.
+            <Card>
+              <CardTitle>Cartões</CardTitle>
+              <Aviso tipo="erro">Não foi possível verificar agora os cartões. Recarregue a página em instantes.</Aviso>
+            </Card>
+          )}
           {dados.cartoes && (
             <Card>
               <div className="flex items-center justify-between">
@@ -516,6 +518,16 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               {dados.cartoes.length === 0 ? (
                 <p className="text-sm text-slate-500">Nenhum cartão cadastrado. <Link to="/cartoes" className="font-semibold text-azul hover:underline">Adicionar cartão</Link></p>
               ) : <CartoesDoInicio cartoes={dados.cartoes} />}
+            </Card>
+          )}
+          {dados.categorias === null && (
+            // o mesmo para os maiores gastos: card ausente parecia "nenhum gasto no mês"
+            <Card>
+              <div className="flex items-center justify-between">
+                <CardTitle>Maiores gastos</CardTitle>
+                <Link to="/analises" className="mb-3 inline-flex min-h-11 items-center text-sm font-semibold text-azul hover:underline">Ver análises</Link>
+              </div>
+              <p className="text-sm text-slate-500" role="status">Maiores gastos indisponíveis agora. O resto do Início continua.</p>
             </Card>
           )}
           {dados.categorias && (
@@ -912,12 +924,16 @@ function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense'
  * Cartões do Início, um por linha (mudança 7 do handoff, 16/11/2026): nome, fatura atual com vencimento, valor,
  * "Ver fatura" e a barra do limite. Cartão sem nada a mostrar hoje (sem fatura aberta ou com a fatura atual em R$ 0,00,
  * sem fatura fechada a pagar e sem crédito) fica atrás de "Ver todos os cartões"; fatura fechada a pagar ou vencida
- * nunca fica escondida, nem o cartão cujas faturas não puderam ser lidas (falha não é "sem fatura").
+ * nunca fica escondida, nem o cartão cujas faturas não puderam ser lidas (falha não é "sem fatura"), nem o que está
+ * com o limite acima de 70% ou estourado.
  */
 function CartoesDoInicio({ cartoes }: { cartoes: ResumoCartao[] }) {
   const [todos, setTodos] = useState(false)
   // cartão com fechamento e vencimento cadastrados sempre tem a fatura do ciclo, com total R$ 0,00 quando não há compra
-  const semFatura = (c: ResumoCartao) => !c.faturasIndisponiveis && (!c.proxima || c.proxima.total === 0) && c.divida === 0 && c.credito === 0
+  // limite acima de 70% (ou estourado) é um alerta: esse cartão nunca fica escondido, mesmo com a fatura atual zerada
+  // (as parcelas futuras contam no comprometido). A comparação usa os dois números do banco, sem somar nada.
+  const limiteEmAlerta = (c: ResumoCartao) => c.limite !== null && c.limiteComprometido !== null && c.limiteComprometido * 10 > c.limite * 7
+  const semFatura = (c: ResumoCartao) => !c.faturasIndisponiveis && !limiteEmAlerta(c) && (!c.proxima || c.proxima.total === 0) && c.divida === 0 && c.credito === 0
   const recolhidos = cartoes.filter(semFatura).length
   // se nenhum tem fatura, mostra todos: o bloco nunca fica só com o botão
   const tudoAVista = todos || recolhidos === 0 || recolhidos === cartoes.length
@@ -931,7 +947,8 @@ function CartoesDoInicio({ cartoes }: { cartoes: ResumoCartao[] }) {
               <span className="flex min-w-0 items-center gap-2">
                 <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />
                 <span className="min-w-0">
-                  <span className="flex items-center gap-1 font-medium"><span className="truncate">{c.nome}</span><BandeiraCartao bandeira={c.bandeira} /></span>
+                  {/* o nome quebra em duas linhas em vez de ser cortado ("Nubank Pl…"): em 390 px e entre 1024 e 1132 px sobram ~100 px */}
+                  <span className="flex items-center gap-1 font-medium"><span data-testid="nome-cartao" className="min-w-0 break-words">{c.nome}</span><BandeiraCartao bandeira={c.bandeira} /></span>
                   <span className="block text-xs text-slate-500">{c.proxima ? `Fatura atual${c.proxima.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}` : c.faturasIndisponiveis ? 'Fatura indisponível agora' : 'Sem fatura aberta'}</span>
                 </span>
               </span>
