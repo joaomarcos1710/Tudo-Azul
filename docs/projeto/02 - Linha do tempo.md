@@ -382,7 +382,8 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#390** (16/11/2026): **Lançamentos: a conta volta à linha** de despesa e receita, depois da categoria, cortando com reticências se não couber (handoff de Lançamentos, item a). A decisão de 03/11 (só a categoria) foi revogada pelo dono. O banco não muda.
 - **#391** (16/11/2026): **Calendário: totais de cada dia somados no banco** (migration 130, `calendar_day_totals`, teste 123): entradas, saídas e "faturas e parcelas" de cada dia, a partir dos mesmos blocos da lista do dia. Primeira parte do Calendário financeiro; a tela vem na próxima PR. Aplicada em produção em 16/11/2026 (execução 43958244365).
 - **#392** (16/11/2026): **Calendário financeiro, a tela**: valores de entrada e saída dentro de cada dia (do banco, a partir de `sm`), filtro Todos · Entradas · Saídas · Faturas e Parcelas, resumo do dia, botão Hoje e, no computador, a grade e o detalhamento do dia lado a lado. Diário da migration 130 aplicada.
-- **#393** (16/11/2026): **Calendário: consignado não é saída do dia** (migration 131): o salário entra líquido (dono), então a parcela de desconto em folha aparece no dia sem sinal e fica fora dos totais. Ainda não aplicada em produção.
+- **#393** (16/11/2026): **Calendário: consignado não é saída do dia** (migration 131): o salário entra líquido (dono), então a parcela de desconto em folha aparece no dia sem sinal e fica fora dos totais. Aplicada em produção em 16/11/2026 (execução 43963380137).
+- **#394** (16/11/2026): diário: migration 131 aplicada em produção (execução 43963380137) e consulta de leitura sem dupla contagem de empréstimo. Só documentação.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

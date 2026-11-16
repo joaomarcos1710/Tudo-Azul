@@ -306,4 +306,5 @@ continuam abaixo como histórico.
 | 2026.391 | **Preparação do novo Calendário.** O banco passa a somar o que entra e sai em cada dia (ainda sem mudança na tela). |
 | 2026.392 | **Novo Calendário.** Cada dia mostra quanto entra e quanto sai; dá para filtrar só entradas, só saídas ou só faturas e parcelas; botão "Hoje"; no computador, o detalhe do dia fica ao lado da grade. |
 | 2026.393 | **Consignado no Calendário.** A parcela descontada no salário aparece no dia, mas não conta como saída (o salário já entra líquido). |
+| 2026.394 | Só documentação (registro da atualização do banco). |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
