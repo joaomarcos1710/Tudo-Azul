@@ -8,7 +8,9 @@ import type { Faixa, Indicadores } from '../../lib/indicadores'
  * Faixa de indicadores do topo do Início (#188): quanto tenho, quanto entra e sai, quanto devo e se estou avançando.
  * Todo número vem do banco (home_indicators, migration 071), inclusive as razões e as faixas de cor; aqui só se
  * formata. A cor nunca é a única pista: cada indicador tem um rótulo curto e um (i) com a conta em uma linha.
- * 2 colunas no celular, 4 no iPad (duas linhas) e 7 numa linha no computador.
+ * 2 colunas no celular e no iPad em pé, 4 por linha de `lg` em diante (mudança 4 do handoff do Início, 16/11/2026).
+ * A barra lateral de 256 px aparece de `md` em diante e `md:` olha a janela, não o conteúdo: com 4 colunas em `md` cada
+ * card ficava com ~120 px no iPad em pé, e com 7 em `xl` ficava com ~137 px no computador. Nunca mais de 4 por linha.
  */
 
 type Tom = 'lucro' | 'atencao' | 'prejuizo' | 'neutro'
@@ -105,7 +107,7 @@ function Indicador({ item }: { item: Item }) {
     return () => document.removeEventListener('keydown', esc)
   }, [aberto])
   // A fonte do valor acompanha a largura do card (unidade cqi do container), para caber numa linha nos três layouts
-  // (2, 4 e 7 colunas) sem quebrar nem vazar; valor longo (milhões, com sinal) usa uma fração menor.
+  // (2 e 4 colunas) sem quebrar nem vazar; valor longo (milhões, com sinal) usa uma fração menor.
   const longo = item.valor.length > 13
   return (
     <li data-indicador={item.id} className="min-w-0 rounded-card bg-white p-3 shadow-card [container-type:inline-size]">
@@ -139,7 +141,7 @@ export function FaixaIndicadores({ dados }: { dados: Indicadores | null }) {
       {dados === null ? (
         <p className="rounded-card bg-white p-4 text-sm text-slate-500 shadow-card" role="status">Indicadores indisponíveis agora. O resto do Início continua.</p>
       ) : (
-        <ul className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
+        <ul className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           {itensDaFaixa(dados).map((item) => <Indicador key={item.id} item={item} />)}
         </ul>
       )}

@@ -1201,10 +1201,13 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
     }
   })
 
-  it('grade: 2 colunas no celular, 4 no iPad e 7 numa linha no computador', async () => {
+  it('grade: 2 colunas no celular e no iPad em pé, 4 por linha só de lg em diante (a barra lateral come 256 px a partir de md) e nunca 7', async () => {
     montar()
     const lista = (await screen.findByRole('region', { name: 'Indicadores do mês' })).querySelector('ul')!
-    expect(lista.className.split(/\s+/)).toEqual(expect.arrayContaining(['grid', 'grid-cols-2', 'md:grid-cols-4', 'xl:grid-cols-7']))
+    const classes = lista.className.split(/\s+/)
+    expect(classes).toEqual(expect.arrayContaining(['grid', 'grid-cols-2', 'lg:grid-cols-4']))
+    // nada de 4 colunas em md (card de ~120 px no iPad em pé) nem de 7 em xl (~137 px no computador)
+    expect(classes.filter((c) => /^(sm|md|xl|2xl):grid-cols-/.test(c))).toEqual([])
   })
 
   it('cores pela regra do app e sempre com rótulo: âmbar, vermelho, azul e neutro', async () => {
