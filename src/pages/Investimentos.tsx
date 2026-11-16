@@ -6,7 +6,7 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Folha } from '../components/ui/Folha'
-import { ComposicaoCarteira } from '../components/investimentos/ComposicaoCarteira'
+import { Abas, ComposicaoCarteira } from '../components/investimentos/ComposicaoCarteira'
 import { TabelaPosicoes, corDoResultado } from '../components/investimentos/TabelaPosicoes'
 import { NotaCarteira } from '../components/investimentos/NotaCarteira'
 import { ResumoCarteira } from '../components/investimentos/ResumoCarteira'
@@ -67,6 +67,8 @@ export default function Investimentos() {
   // período do gráfico de evolução (proposta de 12/11/2026): 6 e 12 meses saem da mesma leitura de 12; 24 meses só é lido
   // quando o dono escolhe (a leitura do histórico é a mais cara da tela: não dobrar o custo de quem nunca pede 24)
   const [periodoMeses, setPeriodoMeses] = useState<6 | 12 | 24>(12)
+  // um gráfico só, com abas de moeda (só as que têm valor); a escolhida que deixa de existir cai para a primeira
+  const [moedaEvolucao, setMoedaEvolucao] = useState<MoedaInvestimento>('BRL')
   const [historico24, setHistorico24] = useState<PontoEvolucao[] | null>(null)
   const [carregando24, setCarregando24] = useState(false)
   const [excluindoId, setExcluindoId] = useState<string | null>(null)
@@ -330,6 +332,8 @@ export default function Investimentos() {
   const instituicoesExistentes = [...new Set(ativos.map((a) => a.instituicao).filter((x): x is string => !!x))].sort((a, b) => a.localeCompare(b, 'pt-BR'))
   // 6 meses = os 6 últimos da leitura de 12; 24 meses = a leitura própria (enquanto ela não chega, o gráfico fica nos 12)
   const corte6Meses = inicioHistorico(hojeSP(), 6)
+  const moedasEvolucao = ([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[])
+  const moedaDaEvolucao = moedasEvolucao.includes(moedaEvolucao) ? moedaEvolucao : (moedasEvolucao[0] ?? 'BRL')
   const mesesMostrados = periodoMeses === 24 && historico24 === null ? 12 : periodoMeses
   const historicoDoPeriodo = periodoMeses === 24 ? (historico24 ?? historico)
     : periodoMeses === 6 ? historico.filter((p) => p.mes >= corte6Meses) : historico
@@ -441,11 +445,17 @@ export default function Investimentos() {
           </div>
         )}
         {historico.some((p) => p.valorAtual > 0) ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {([...new Set(historico.filter((p) => p.valorAtual > 0).map((p) => p.moeda))] as MoedaInvestimento[]).map((codigo) => (
-              <GraficoEvolucao key={codigo} moedaCodigo={codigo} pontos={historicoDoPeriodo.filter((p) => p.moeda === codigo)} formatar={moeda} />
-            ))}
-          </div>
+          <>
+            {moedasEvolucao.length > 1 && (
+              <div className="mb-3">
+                <Abas rotulo="Moeda da evolução" itens={moedasEvolucao.map((m): [MoedaInvestimento, string] => [m, m])} ativa={moedaDaEvolucao}
+                  aoEscolher={setMoedaEvolucao} idBase="evolucao-moeda" painelId="painel-evolucao" estilo="moeda" />
+              </div>
+            )}
+            <div id="painel-evolucao" role={moedasEvolucao.length > 1 ? 'tabpanel' : undefined} aria-label={moedasEvolucao.length > 1 ? `Evolução em ${moedaDaEvolucao}` : undefined}>
+              <GraficoEvolucao key={moedaDaEvolucao} moedaCodigo={moedaDaEvolucao} pontos={historicoDoPeriodo.filter((p) => p.moeda === moedaDaEvolucao)} formatar={moeda} />
+            </div>
+          </>
         ) : <p className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-500">
           O gráfico aparecerá depois da primeira compra registrada. Para acompanhar a valorização, registre avaliações periódicas do ativo.
         </p>}

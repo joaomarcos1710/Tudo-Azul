@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { Cents } from '../../lib/format'
 import type { PontoEvolucao } from '../../lib/investimentos'
-import { GraficoEvolucao } from './GraficoEvolucao'
+import { GraficoEvolucao, cortarInicioVazio } from './GraficoEvolucao'
 
 afterEach(cleanup)
 
@@ -80,9 +80,29 @@ describe('GraficoEvolucao', () => {
     expect(screen.getByText(/custo do que ainda está investido: ele cai a cada resgate/)).toBeTruthy()
   })
 
-  it('um único mês não quebra (sem divisão por zero)', () => {
+  it('um único mês não desenha linha: diz desde quando há histórico (sem divisão por zero)', () => {
     const { container } = montar([pontos[0]])
-    expect(container.querySelectorAll('svg[role="img"] path')).toHaveLength(2)
+    expect(container.querySelector('svg[role="img"]')).toBeNull()
+    expect(screen.getByTestId('evolucao-sem-historico').textContent).toBe(
+      'Histórico a partir de agosto de 2026. O gráfico aparece quando houver dois fechamentos mensais desde o primeiro aporte.')
+    expect(screen.getByRole('heading', { name: 'Evolução em BRL' })).toBeTruthy()
     expect(container.innerHTML).not.toContain('NaN')
+  })
+
+  it('sem nenhum ponto com valor, diz que ainda não há histórico', () => {
+    montar([{ ...pontos[0], valorAtual: c(0), aportado: c(0) }])
+    expect(screen.getByTestId('evolucao-sem-historico').textContent).toBe('Sem histórico ainda.')
+  })
+
+  it('o gráfico começa no mês do primeiro aporte: os zeros do começo ficam de fora, os do meio e do fim ficam', () => {
+    const zero = (mes: string): PontoEvolucao => ({ mes, moeda: 'BRL', valorAtual: c(0), aportado: c(0), aportadoLiquido: true })
+    const serie = [zero('2026-05-01'), zero('2026-06-01'), ...pontos, zero('2026-11-01')]
+    expect(cortarInicioVazio(serie).map((p) => p.mes)).toEqual(['2026-08-01', '2026-09-01', '2026-10-01', '2026-11-01'])
+    expect(cortarInicioVazio([zero('2026-05-01')])).toEqual([])
+    const { container } = montar(serie)
+    const linhas = Array.from(container.querySelectorAll('tbody tr')).map((tr) => tr.textContent ?? '')
+    expect(linhas).toHaveLength(4)
+    expect(linhas.some((t) => /mai|jun/i.test(t))).toBe(false)
+    expect(screen.getByRole('img').getAttribute('aria-label')).toContain('valor atual R$ 0,00') // o último mês (zero no fim) continua lá
   })
 })
