@@ -962,21 +962,20 @@ describe('Visão geral', () => {
     })
   })
 
-  it('Início enxuto, em duas colunas: contas e maiores gastos à esquerda; cartões e receitas a receber à direita', async () => {
+  it('Início em pares de mesma altura (mudança 5 do handoff): Contas | Cartões e Maiores gastos | Receitas a receber, cada um filho direto da grade', async () => {
     montar()
-    await screen.findByText('Minhas contas')
-    const esquerda = document.querySelector('[data-coluna="esquerda"]') as HTMLElement
-    const direita = document.querySelector('[data-coluna="direita"]') as HTMLElement
-    expect(esquerda).toBeTruthy()
-    expect(direita).toBeTruthy()
-    expect(within(esquerda).getByText('Minhas contas')).toBeTruthy()
-    expect(within(esquerda).getByText('Maiores gastos')).toBeTruthy()
-    expect(within(direita).getByText('Cartões')).toBeTruthy()
-    expect(within(direita).getByText('Receitas a receber')).toBeTruthy()
-    expect(within(direita).queryByText('Despesas a pagar')).toBeNull() // saiu do Início (pedido do dono, 10/11/2026)
+    await screen.findByText('Maiores gastos')
+    const grade = screen.getByTestId('pares-inicio')
+    // duas colunas só no computador; sem "items-start", a grade estica os dois cartões da mesma linha para a mesma altura
+    expect(grade.className).toContain('lg:grid-cols-2')
+    expect(grade.className).not.toMatch(/items-(start|center|end)/)
+    // cada cartão é filho direto (sem colunas soltas, que deixavam as alturas diferentes), na ordem dos pares
+    const titulos = Array.from(grade.children).map((filho) => filho.querySelector('h2')?.textContent)
+    expect(titulos).toEqual(['Minhas contas', 'Cartões', 'Maiores gastos', 'Receitas a receber'])
+    expect(within(grade).queryByText('Despesas a pagar')).toBeNull() // saiu do Início (pedido do dono, 10/11/2026)
     // nada trocou de lugar para baixo da faixa de indicadores
     const faixa = screen.getByRole('region', { name: 'Indicadores do mês' })
-    expect(faixa.compareDocumentPosition(esquerda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(faixa.compareDocumentPosition(grade) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('Início enxuto (pedido do dono, 10/11/2026): só Minha Carteira, contas, cartões, maiores gastos e a receber; o resto foi para Análises (vencidos e orçamentos) ou saiu', async () => {
@@ -989,9 +988,9 @@ describe('Visão geral', () => {
     }
     // e o Início nem pergunta ao banco o que não mostra
     for (const m of [mock.vencidosPlanejados, mock.listarOrcamentos, mock.listarLancamentos]) expect(m).not.toHaveBeenCalled()
-    // no celular, a ordem é a pedida: contas, cartões, maiores gastos, a receber
-    const ordem = (t: string) => Number(/order-(\d)/.exec(screen.getAllByText(t).map((e) => e.closest('.order-1, .order-2, .order-3, .order-4, .order-5')).find(Boolean)!.className)?.[1])
-    expect(['Minhas contas', 'Cartões', 'Maiores gastos', 'Receitas a receber'].map(ordem)).toEqual([1, 2, 3, 4])
+    // no celular, a ordem é a pedida (contas, cartões, maiores gastos, a receber): é a própria ordem dos cartões na página
+    const titulos = Array.from(screen.getByTestId('pares-inicio').children).map((filho) => filho.querySelector('h2')?.textContent)
+    expect(titulos).toEqual(['Minhas contas', 'Cartões', 'Maiores gastos', 'Receitas a receber'])
     // Análises recebe os blocos
     recarregarPagina()
     montar('analises')
