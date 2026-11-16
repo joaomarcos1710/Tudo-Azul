@@ -384,6 +384,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#392** (16/11/2026): **Calendário financeiro, a tela**: valores de entrada e saída dentro de cada dia (do banco, a partir de `sm`), filtro Todos · Entradas · Saídas · Faturas e Parcelas, resumo do dia, botão Hoje e, no computador, a grade e o detalhamento do dia lado a lado. Diário da migration 130 aplicada.
 - **#393** (16/11/2026): **Calendário: consignado não é saída do dia** (migration 131): o salário entra líquido (dono), então a parcela de desconto em folha aparece no dia sem sinal e fica fora dos totais. Aplicada em produção em 16/11/2026 (execução 43963380137).
 - **#394** (16/11/2026): diário: migration 131 aplicada em produção (execução 43963380137) e consulta de leitura sem dupla contagem de empréstimo. Só documentação.
+- **#395** (16/11/2026): **Calendário: totais do mês numa linha cada no celular** (em 390 px o valor quebrava em duas linhas); três colunas a partir de `sm`.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

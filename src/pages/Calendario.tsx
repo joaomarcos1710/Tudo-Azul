@@ -258,10 +258,12 @@ export default function Calendario() {
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
 
       {resumo && (
-        <section aria-label="Totais do mês" className="mb-4 grid grid-cols-3 gap-2 text-sm">
-          <Card className="!p-3"><p className="text-xs text-slate-500">Receitas pagas</p><p className="tabular-nums font-semibold text-lucro">+{formatBRL(resumo.receitas)}</p></Card>
-          <Card className="!p-3"><p className="text-xs text-slate-500">Despesas pagas</p><p className="tabular-nums font-semibold text-prejuizo">−{formatBRL(resumo.despesas)}</p></Card>
-          <Card className="!p-3"><p className="text-xs text-slate-500">Resultado</p><p className={`tabular-nums font-semibold ${corDoValor(resumo.resultado)}`}>{formatBRL(resumo.resultado)}</p></Card>
+        // no celular, uma linha por total (rótulo à esquerda, valor à direita): em três colunas de ~110 px o valor quebrava em
+        // duas linhas ("+R$" / "15.145,50"); a partir de sm, as três colunas de sempre
+        <section aria-label="Totais do mês" className="mb-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+          <Card className="flex items-baseline justify-between gap-3 !p-3 sm:block"><p className="text-xs text-slate-500">Receitas pagas</p><p className="whitespace-nowrap tabular-nums font-semibold text-lucro">+{formatBRL(resumo.receitas)}</p></Card>
+          <Card className="flex items-baseline justify-between gap-3 !p-3 sm:block"><p className="text-xs text-slate-500">Despesas pagas</p><p className="whitespace-nowrap tabular-nums font-semibold text-prejuizo">−{formatBRL(resumo.despesas)}</p></Card>
+          <Card className="flex items-baseline justify-between gap-3 !p-3 sm:block"><p className="text-xs text-slate-500">Resultado</p><p className={`whitespace-nowrap tabular-nums font-semibold ${corDoValor(resumo.resultado)}`}>{formatBRL(resumo.resultado)}</p></Card>
         </section>
       )}
       {/* resultado das contas em outras moedas: à parte, sem conversão, fora dos totais em reais acima */}

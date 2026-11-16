@@ -568,4 +568,14 @@ describe('Calendário financeiro: valores no dia, filtros, resumo do dia e Hoje'
     await u.click(within(grupo).getByRole('button', { name: 'Faturas e Parcelas' }))
     expect(within(listaDoDia()).getByText('Parcela 4 · Consignado')).toBeTruthy()
   })
+
+  it('totais do mês no celular: uma linha por total, sem quebrar o valor; três colunas a partir de sm', async () => {
+    montar()
+    const totais = await screen.findByRole('region', { name: 'Totais do mês' })
+    expect(totais.className.split(' ')).toEqual(expect.arrayContaining(['grid-cols-1', 'sm:grid-cols-3']))
+    const valor = within(totais).getByText('+R$ 8.000,00')
+    expect(valor.className).toContain('whitespace-nowrap')
+    expect(valor.parentElement!.className.split(' ')).toEqual(expect.arrayContaining(['flex', 'justify-between', 'sm:block']))
+  })
 })
+
