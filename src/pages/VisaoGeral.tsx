@@ -910,12 +910,14 @@ function IconeDaLinha({ tipo, categoriaId, porId }: { tipo: 'income' | 'expense'
 
 /**
  * Cartões do Início, um por linha (mudança 7 do handoff, 16/11/2026): nome, fatura atual com vencimento, valor,
- * "Ver fatura" e a barra do limite. Cartão sem nada a mostrar hoje (sem fatura aberta, sem fatura fechada a pagar e
- * sem crédito) fica atrás de "Ver todos os cartões"; fatura fechada a pagar ou vencida nunca fica escondida.
+ * "Ver fatura" e a barra do limite. Cartão sem nada a mostrar hoje (sem fatura aberta ou com a fatura atual em R$ 0,00,
+ * sem fatura fechada a pagar e sem crédito) fica atrás de "Ver todos os cartões"; fatura fechada a pagar ou vencida
+ * nunca fica escondida, nem o cartão cujas faturas não puderam ser lidas (falha não é "sem fatura").
  */
 function CartoesDoInicio({ cartoes }: { cartoes: ResumoCartao[] }) {
   const [todos, setTodos] = useState(false)
-  const semFatura = (c: ResumoCartao) => !c.proxima && c.divida === 0 && c.credito === 0
+  // cartão com fechamento e vencimento cadastrados sempre tem a fatura do ciclo, com total R$ 0,00 quando não há compra
+  const semFatura = (c: ResumoCartao) => !c.faturasIndisponiveis && (!c.proxima || c.proxima.total === 0) && c.divida === 0 && c.credito === 0
   const recolhidos = cartoes.filter(semFatura).length
   // se nenhum tem fatura, mostra todos: o bloco nunca fica só com o botão
   const tudoAVista = todos || recolhidos === 0 || recolhidos === cartoes.length
@@ -930,7 +932,7 @@ function CartoesDoInicio({ cartoes }: { cartoes: ResumoCartao[] }) {
                 <IconeEmissor nome={c.nome} emissor={c.emissor} tamanho="pequeno" />
                 <span className="min-w-0">
                   <span className="flex items-center gap-1 font-medium"><span className="truncate">{c.nome}</span><BandeiraCartao bandeira={c.bandeira} /></span>
-                  <span className="block text-xs text-slate-500">{c.proxima ? `Fatura atual${c.proxima.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}` : 'Sem fatura aberta'}</span>
+                  <span className="block text-xs text-slate-500">{c.proxima ? `Fatura atual${c.proxima.vencimento ? ` · vence ${formatDate(c.proxima.vencimento).slice(0, 5)}` : ''}` : c.faturasIndisponiveis ? 'Fatura indisponível agora' : 'Sem fatura aberta'}</span>
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-3">
@@ -969,7 +971,7 @@ function CartoesDoInicio({ cartoes }: { cartoes: ResumoCartao[] }) {
  */
 function LimiteDoCartao({ cartao: c }: { cartao: ResumoCartao }) {
   if (c.limite === null || c.limiteComprometido === null || c.limiteDisponivel === null || c.limite <= 0) {
-    return <p className="mt-1 text-xs text-slate-500">Sem limite informado</p>
+    return <p className="mt-1 text-xs text-slate-500">{c.limiteIndisponivel ? 'Limite indisponível agora' : 'Sem limite informado'}</p>
   }
   const passou = c.limiteDisponivel < 0
   const largura = Math.max(0, Math.min(100, (c.limiteComprometido / c.limite) * 100))

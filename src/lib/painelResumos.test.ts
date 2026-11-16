@@ -152,6 +152,18 @@ describe('resumoDosCartoes', () => {
       : { data: [{ label: '2026-10', closing_date: '2026-10-17', due_date: '2026-10-25', charged: '200.00', total: '200.00', paid: '0', items: 1, invoice_id: 'i2' }], error: null }
     const r = await resumoDosCartoes('h1', '2026-10-24')
     expect(r.map((c) => [c.nome, c.divida, c.vencimento])).toEqual([['Nubank', 10000, null], ['Inter', 20000, '2026-10-25']])
+    // a falha fica marcada: a tela não pode dizer "sem fatura" nem esconder o cartão por causa dela
+    expect(r.map((c) => c.faturasIndisponiveis)).toEqual([true, false])
+    // aqui a consulta dos limites respondeu (sem linhas): é "sem limite informado", não "indisponível"
+    expect(r.map((c) => c.limiteIndisponivel)).toEqual([false, false])
+  })
+
+  it('se a consulta dos limites falhar, o cartão segue sem limite mas MARCADO como indisponível (não é "sem limite informado")', async () => {
+    fake.e.tabelas.debts = { data: [cartao('k1', 'Nubank')] }
+    fake.e.rpc.debt_balances = { data: [{ debt_id: 'k1', debt: '0', credit_receivable: '0', planned_remaining: '0' }], error: null }
+    fake.e.rpc.card_limits = { data: null, error: { message: 'timeout' } }
+    const r = await resumoDosCartoes('h1', '2026-10-24')
+    expect(r[0]).toMatchObject({ limite: null, limiteComprometido: null, limiteDisponivel: null, limiteIndisponivel: true })
   })
 
   it('pagamento parcial continua fatura fechada: o vencimento aparece', async () => {
