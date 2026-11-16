@@ -807,7 +807,7 @@ Design: artefato "Lançamentos — Extrato e Gastos" (4 telas, dados fictícios)
 - [x] **(f)** Trocar entre Despesa e Cartão não apaga a categoria.
 - [x] **(b)** Cabeçalho do dia com dia da semana e "Hoje"/"Ontem" (`rotuloDoDia`). Só em Lançamentos; outras listas por dia (Calendário, fatura do cartão) seguem com a data simples.
 - [x] **(d)** Estado vazio conforme filtro e período, com "Limpar filtros"; corrigida a tela em branco com filtro e o "nenhum lançamento" quando a consulta das faturas falhava. Falta: indicador de "carregando" ao trocar de filtro (a lista antiga fica na tela até a resposta chegar).
-- [ ] **(a)** Conta na linha de despesa e receita (conferir corte em 390 px e no iPad em pé).
+- [x] **(a)** Conta na linha de despesa e receita (decisão de 03/11 revogada pelo dono em 16/11). Falta conferir o corte em 390 px e no iPad em pé.
 - [ ] **(e)** Excluir sem `window.confirm`, com Desfazer fixo embaixo. "Parar de repetir" mantém a confirmação (é irreversível). Conferir antes: tela de Lixeira e se recorrente excluído é regerado.
 - [ ] **(g)** Filtros e período na URL; fecha também `?categoria=`. Nove lugares linkam para Lançamentos com `?mes`, `?tipo` ou `?novo`.
 - [ ] **(c)** Faixa de pendências. **Não é só front:** "vencidos" existe em `home_alerts`; "a pagar até o fim do mês" não existe e "a receber" só com outra regra. **Decisões do dono:** fatura entra (aberta ou só fechada)? parcela de empréstimo entra? "a receber" até o fim do mês ou todo o futuro? vencidos a pagar e a receber juntos? o que mostrar fora do mês atual?
