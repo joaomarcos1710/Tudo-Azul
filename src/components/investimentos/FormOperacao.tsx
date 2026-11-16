@@ -143,8 +143,8 @@ export function FormOperacao({ ativos, contas, tipoInicial = 'buy', ativoInicial
                 <input id={`${idForm}-valor`} inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} className={grande} />
               </div>
               <p className="mt-1 text-sm text-slate-600">
-                {primeiraPosicao ? 'Quanto você tem hoje neste investimento. Para atualizar depois, use "Registrar avaliação" com o valor novo.'
-                  : tipo === 'buy' ? 'Quanto você está colocando agora. O rendimento não entra aqui: use "Registrar avaliação". Se você já atualizou o valor de hoje e ele incluía este depósito, registre a avaliação de novo depois.'
+                {primeiraPosicao ? 'Quanto você tem hoje neste investimento. Para atualizar depois, use "Atualizar valor" na linha do ativo, em Posições.'
+                  : tipo === 'buy' ? 'Quanto você está colocando agora. O rendimento não entra aqui: use "Atualizar valor" na linha do ativo, em Posições. Se você já atualizou o valor de hoje e ele incluía este depósito, atualize o valor de novo depois.'
                   : 'Quanto você está tirando. Se o saldo rendeu, registre a avaliação antes; para resgatar tudo, informe o valor total de hoje.'}
               </p>
             </>

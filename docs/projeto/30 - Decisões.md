@@ -824,6 +824,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O que não entrou de propósito:** os agentes inexistentes da especificação (Arquiteto Financeiro, Guardião de Segurança, UX Mobile, QA Financeiro, Documentador): o dinheiro vai para o `revisor-dinheiro` e o banco para o `testador-banco`, que já existem; e o formato fixo de 17 seções.
 - **Risco conhecido:** um agente de melhorias pode virar gerador de ideias; a trava é exigir evidência medida.
 
+## 16/11/2026 — Investimentos: aviso único de "sem avaliação" e Rendimento "estimado" (#373)
+- **O que o dono pediu:** "Continuar" o handoff na ordem do parecer; a mudança 2 vinha com a decisão do texto em aberto.
+- **Decidido por mim (para o dono rever na PR):** a contagem do aviso é das posições abertas de **todas as moedas**; o selo "estimado" aparece no Rendimento **da moeda da pendência** (resumo em reais ou cartão da moeda estrangeira; revisão do `revisor-dinheiro` apontou que, só em reais, o aviso aparecia sem selo no cartão de USD); o texto do aviso muda conforme a migration 107 (aportes) ou o modo custo (sem ela, onde o ativo sem avaliação "vale o aportado" e o rendimento dele é zero); o botão solto do título sai e a ação continua em "Atualizar valor" de cada posição.
+- **Risco:** o selo "estimado" muda a leitura do Rendimento (não o número). **Revisão de valor:** o `revisor-dinheiro` olha o diff antes do merge.
+
 ## 16/11/2026 — Investimentos: "Ativos cadastrados" sai da página (dono, #372)
 - **Pedido:** "eu queria tirar Ativos cadastrados… isso tá tão feio na página, como resolver?". Era a mudança 6 do handoff, que o agente `melhorias` marcou como P2 e "só com o pode do dono".
 - **Decidido (dono):** tirar a lista da página. **Solução:** botão "Gerenciar ativos (N)" que abre uma folha com a mesma lista e as mesmas ações. O botão fica **sempre visível quando há ativo** (e não só quando há ativo sem posição, como o README do handoff sugeria): sem isso o dono perderia o único caminho de editar um ativo com posição e de reativar um arquivado.

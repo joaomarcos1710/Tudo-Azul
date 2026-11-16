@@ -86,7 +86,7 @@ export function MoverParaCarteira({ conta, aoConcluir, aoCancelar }: { conta: Co
           <button type="button" role="radio" aria-checked={liquidez === 'liquid'} onClick={() => setLiquidez('liquid')} className={aba(liquidez === 'liquid')}>Líquido</button>
           <button type="button" role="radio" aria-checked={liquidez === 'restricted'} onClick={() => setLiquidez('restricted')} className={aba(liquidez === 'restricted')}>Restrito</button>
         </div>
-        <p className="text-sm text-slate-600">Depois, atualize o valor em Investimentos, por "Registrar avaliação".</p>
+        <p className="text-sm text-slate-600">Depois, atualize o valor em Investimentos, por "Atualizar valor", na linha do ativo em Posições.</p>
       </form>
     </Folha>
   )
