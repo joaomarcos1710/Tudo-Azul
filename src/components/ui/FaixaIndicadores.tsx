@@ -109,8 +109,10 @@ function Indicador({ item }: { item: Item }) {
   // A fonte do valor acompanha a largura do card (unidade cqi do container), para caber numa linha nos três layouts
   // (2 e 4 colunas) sem quebrar nem vazar; valor longo (milhões, com sinal) usa uma fração menor.
   const longo = item.valor.length > 13
+  // com o (i) aberto o card ocupa a linha inteira (col-span-full): numa coluna de ~150 px (celular) a explicação dava umas
+  // 15 linhas e esticava o card vizinho junto
   return (
-    <li data-indicador={item.id} className="min-w-0 rounded-card bg-white p-3 shadow-card [container-type:inline-size]">
+    <li data-indicador={item.id} className={`min-w-0 rounded-card bg-white p-3 shadow-card [container-type:inline-size] ${aberto ? 'col-span-full' : ''}`}>
       {/* o rótulo tem a largura toda ("Comprometimento" não cabe ao lado do botão no card estreito); o (i) fica na linha do selo */}
       {/* hífen opcional (U+00AD): no card estreito do iPad "Comprometimento" quebra como "Comprometi-mento", nunca no meio sem hífen */}
       <p className="text-xs font-medium leading-tight text-slate-500">

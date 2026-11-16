@@ -185,6 +185,12 @@ describe('Visão geral', () => {
       expect(link.className).toContain('border-slate-500')
       expect(link.className).toContain('min-h-11')
     }
+    // sempre em coluna, com os atalhos em grade de 2 (4 de lg em diante): com md:flex-row, no iPad em pé os atalhos
+    // caíam para 4 linhas; e nada de sm:/md: na grade, que olham a janela e não o conteúdo
+    expect(cabecalho.className).not.toMatch(/(^| )(sm|md):flex-row( |$)/)
+    const atalhos = within(cabecalho).getByRole('navigation', { name: 'Ações rápidas' }).className.split(/\s+/)
+    expect(atalhos).toEqual(expect.arrayContaining(['grid', 'grid-cols-2', 'lg:grid-cols-4']))
+    expect(atalhos.filter((k) => /^(sm|md):grid-cols-/.test(k))).toEqual([])
     expect(screen.getByText('Dinheiro Livre')).toBeTruthy()
     expect(screen.getByText('R$ 8.050,00')).toBeTruthy()
     expect(screen.getByRole('link', { name: 'Gerenciar reservas' }).getAttribute('href')).toBe('/reservas')
@@ -714,6 +720,31 @@ describe('Visão geral', () => {
       expect(li.queryByText('Sem limite informado')).toBeNull()
       expect(li.queryByTestId('barra-limite')).toBeNull()
     })
+    it('cartão com o limite estourado ou acima de 70% nunca fica escondido, mesmo com a fatura atual zerada (as parcelas futuras contam)', async () => {
+      const base = { divida: c(0), vencimento: null, vencida: false, credito: c(0), proxima: { mes: '2026-11', vencimento: '2026-11-20', total: c(0) } }
+      mock.resumoDosCartoes.mockResolvedValue([
+        { ...base, id: 'k1', nome: 'Nubank', limite: null, limiteComprometido: null, limiteDisponivel: null, proxima: { mes: '2026-11', vencimento: '2026-11-28', total: c(43897) } },
+        { ...base, id: 'k2', nome: 'Estourado', limite: c(500000), limiteComprometido: c(540000), limiteDisponivel: c(-40000) },
+        { ...base, id: 'k3', nome: 'Quase cheio', limite: c(500000), limiteComprometido: c(400000), limiteDisponivel: c(100000) },
+        { ...base, id: 'k4', nome: 'Folgado', limite: c(500000), limiteComprometido: c(100000), limiteDisponivel: c(400000) },
+      ])
+      montar()
+      await screen.findByText('Nubank')
+      const estourado = screen.getByText('Estourado').closest('li') as HTMLElement
+      expect(within(estourado).getByText(/Passou do limite em/).textContent).toBe('Passou do limite em R$ 400,00')
+      expect(screen.getByText('Quase cheio')).toBeTruthy()
+      // só o que não tem fatura nem alerta de limite fica recolhido
+      expect(screen.queryByText('Folgado')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Ver todos os cartões (1 sem fatura)' })).toBeTruthy()
+    })
+    it('o nome do cartão quebra de linha em vez de ser cortado', async () => {
+      mock.resumoDosCartoes.mockResolvedValue([cartao({ nome: 'Nubank Ultravioleta Black', limite: null, limiteComprometido: null, limiteDisponivel: null })])
+      montar()
+      const nome = await screen.findByTestId('nome-cartao')
+      expect(nome.textContent).toBe('Nubank Ultravioleta Black')
+      expect(nome.className).not.toMatch(/truncate/)
+      expect(nome.className).toContain('break-words')
+    })
     it('se nenhum cartão tem fatura, todos aparecem (o bloco nunca fica só com o botão)', async () => {
       const base = { divida: c(0), vencimento: null, vencida: false, limite: null, limiteComprometido: null, limiteDisponivel: null, credito: c(0), proxima: null }
       mock.resumoDosCartoes.mockResolvedValue([{ ...base, id: 'k1', nome: 'Nubank' }, { ...base, id: 'k2', nome: 'Inter' }])
@@ -1047,7 +1078,7 @@ describe('Visão geral', () => {
       expect(within(within(card).getByRole('list', { name: /Despesas por categoria/ })).getByText('Demais categorias').className).toContain('text-slate-500')
     })
 
-    it('sem despesa paga no mês, o card diz isso; se a consulta falhar, o card some e o resto segue', async () => {
+    it('sem despesa paga no mês, o card diz isso; se a consulta falhar, o card fica no lugar dizendo "indisponíveis agora" (não some, nem vira "nenhuma despesa")', async () => {
       mock.despesasPorCategoria.mockResolvedValue([])
       montar()
       expect(await screen.findByText('Nenhuma despesa paga neste mês ainda.')).toBeTruthy()
@@ -1055,7 +1086,25 @@ describe('Visão geral', () => {
       mock.despesasPorCategoria.mockRejectedValue(new Error('boom'))
       montar()
       await screen.findByText('Receitas a receber')
-      expect(screen.queryByText('Maiores gastos')).toBeNull()
+      const card = screen.getByText('Maiores gastos').closest('div[class*="rounded"]') as HTMLElement
+      expect(within(card).getByRole('status').textContent).toMatch(/^Maiores gastos indisponíveis agora/)
+      expect(within(card).queryByText('Nenhuma despesa paga neste mês ainda.')).toBeNull()
+      // o caminho para Análises continua no card, e o par da grade não se desfaz
+      expect(within(card).getByRole('link', { name: 'Ver análises' }).getAttribute('href')).toBe('/analises')
+      const titulos = Array.from(screen.getByTestId('pares-inicio').children).map((filho) => filho.querySelector('h2')?.textContent)
+      expect(titulos).toEqual(['Minhas contas', 'Cartões', 'Maiores gastos', 'Receitas a receber'])
+    })
+
+    it('se a consulta dos cartões falhar, o card Cartões fica no lugar com o aviso (não some: ausente parecia "nenhum cartão")', async () => {
+      mock.resumoDosCartoes.mockRejectedValue(new Error('boom'))
+      montar()
+      await screen.findByText('Receitas a receber')
+      const card = screen.getByText('Cartões').closest('div[class*="rounded"]') as HTMLElement
+      expect(within(card).getByRole('alert').textContent).toMatch(/Não foi possível verificar agora os cartões/)
+      expect(within(card).queryByText(/Nenhum cartão cadastrado/)).toBeNull()
+      expect(screen.getAllByRole('alert').filter((a) => /os cartões/.test(a.textContent ?? ''))).toHaveLength(1) // um aviso só, dentro do card
+      const titulos = Array.from(screen.getByTestId('pares-inicio').children).map((filho) => filho.querySelector('h2')?.textContent)
+      expect(titulos).toEqual(['Minhas contas', 'Cartões', 'Maiores gastos', 'Receitas a receber'])
     })
   })
 
@@ -1360,9 +1409,12 @@ describe('Faixa de indicadores do Início (#188, migration 071)', () => {
     const painel = document.getElementById(botao.getAttribute('aria-controls')!)!
     expect(botao.getAttribute('aria-expanded')).toBe('false')
     expect(painel.hidden).toBe(true)
+    expect(x.className).not.toContain('col-span-full')
     fireEvent.click(botao)
     expect(botao.getAttribute('aria-expanded')).toBe('true')
     expect(painel.hidden).toBe(false)
+    // aberto, o card ocupa a linha inteira (no celular a explicação numa coluna de ~150 px dava umas 15 linhas)
+    expect(x.className).toContain('col-span-full')
     expect(painel.textContent).toBe('Conta corrente, reserva, carteira e saldo na corretora (ativas, em reais) R$ 12.250,00 − faturas de cartão fechadas a pagar R$ 300,00. Renda fixa, renda variável e cripto ficam no Patrimônio: precisam de resgate ou venda. A fatura aberta só entra quando fechar.')
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(botao.getAttribute('aria-expanded')).toBe('false')

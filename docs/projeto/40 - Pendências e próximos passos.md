@@ -823,3 +823,17 @@ Plano do agente de arquitetura: migration 129 com `investment_return_history` (p
 
 ## 16/11/2026 — Teste de Cartões que falhava com o CI carregado (achado na #384)
 - [x] `cartoes.test.tsx`, helper `acaoDaLinha`: procurava o menu de ações na mesma volta do clique (`getByRole`); com a máquina carregada o menu ainda não estava na tela ("6. a mensagem do banco aparece se o estorno for recusado" falhou no CI). Reproduzido aqui com 4 execuções em paralelo (2 de 4 falhavam); com `findByRole`, 8 de 8 passam. Não é defeito do app: é do teste.
+
+## 16/11/2026 — Rodada dos cinco agentes (pedido do dono) e o que saiu dela
+- [x] **`testador-banco`:** suíte pgTAP inteira num Postgres local descartável, sobre o main da #383: 134 migrations do zero, 128 arquivos, 5.015 asserções, nenhuma falha; 2 min 23 s. O script não mede tempo por arquivo.
+- [x] **`revisor-dinheiro` (o dia inteiro, #376 a #383):** nenhum valor errado. Achados corrigidos na PR de consertos: cartão com limite estourado escondido atrás de "Ver todos os cartões" (defeito da #382) e cards Cartões e Maiores gastos que sumiam sem aviso.
+- [x] **`melhorias` (larguras, por leitura e medição de texto, sem renderizar):** cabeçalho do Início espremido no iPad em pé, nome do cartão cortado, "(i)" dos indicadores numa coluna de ~150 px. Corrigidos na mesma PR.
+- [ ] Do `melhorias`, não feitos: último indicador sozinho na linha com 7 indicadores em 2 colunas; "Comprometido … com as parcelas futuras" quebra em 2 linhas no celular; nome longo de categoria cortado em Maiores gastos (o nome inteiro só está no rótulo de acessibilidade); "Previsto em dd/mm" empurra o valor para a linha de baixo no celular.
+- [ ] `FaturasDoMes` devolve nada quando a consulta falha (o total das faturas do mês some sem aviso dentro do card Cartões).
+- [x] **Fatura do INTER igual em novembro e dezembro (R$ 2.940,67): é parcelamento.** O dono confirmou e a consulta de leitura em produção (16/11/2026, `card_months` + `card_items`) mostrou as mesmas três compras parceladas nas duas faturas, cada uma com a parcela seguinte (3 e 4); em janeiro o total cai porque um dos planos termina. Não há contagem em dobro.
+- [ ] Do `conferente-saldos`: a tela de Cartões mostra o total do mês por **vencimento** (bloco do topo) e a lista de cartões por **fechamento**; nenhum teste cruza os dois critérios. Não causou o caso do INTER; fica como melhoria de clareza.
+- [x] **PTAX conferida em produção (16/11/2026, leitura):** os agendamentos `ptax-usd` e `ptax-eur` estão ativos e a última rodada (sexta, 13/11) terminou com sucesso; há cotação de dólar e de euro até 13/11.
+- [ ] **Cotação da bolsa:** os agendamentos rodam e terminam com sucesso, mas sem a chave `brapi_token` e sem ativo ligado não buscam nada.
+- [ ] **Cripto (o dono quer):** candidata CoinGecko (plano Demo gratuito, com chave). Antes de qualquer migration: teste de rede real da consulta em reais. Precisa de migration nova (o símbolo hoje só aceita o formato da B3 e a classe cripto não entra em `investment_quote_symbol`), chave no cofre e função de busca no molde de `market_quotes_fetch`. Na brapi, cripto é dos planos pagos.
+- Tesouro Direto (CSV oficial de 14 MiB, sem JSON gratuito) e previdência fechada (sem cota pública): continuam manuais.
+- [ ] **Decisão do dono:** despesa em vermelho ou neutra no app inteiro. A regra escrita (#183) diz vermelho; o cabeçalho do Início ficou neutro pelo handoff (#378) e a lista de Lançamentos usa cinza.
