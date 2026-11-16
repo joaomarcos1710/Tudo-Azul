@@ -56,22 +56,27 @@ export default function Calendario() {
   const [automaticosFalharam, setAutomaticosFalharam] = useState(false)
   // consultas de apoio que falharam: sem isto o calendário parecia completo (sem faturas, parcelas ou totais) e não estava
   const [blocosFalharam, setBlocosFalharam] = useState<string[]>([])
+  const [recarga, setRecarga] = useState(0)
   const pedido = useRef(0)
+  const mesCarregado = useRef('')
 
   useEffect(() => {
     if (!familiaId) return
     const meu = ++pedido.current
     const vivo = () => meu === pedido.current
-    setItens(null)
-    setResumo(null)
-    setPorMoeda([])
+    // recarga (as tarefas automáticas gravaram algo) refaz a leitura sem apagar o mês da tela; trocar de mês apaga
+    const chaveMes = `${familiaId}|${mes}`
+    if (mesCarregado.current !== chaveMes) {
+      mesCarregado.current = chaveMes
+      setItens(null)
+      setResumo(null)
+      setPorMoeda([])
+    }
     setBlocosFalharam([])
     setErro('')
     const falhas = new Set<string>()
     const falhou = <T,>(bloco: string, vazio: T) => (): T => { falhas.add(bloco); return vazio }
-    atualizarAutomaticos()
-      .then((r) => { if (vivo()) setAutomaticosFalharam(!r.faturasOk || !r.recorrentesOk) })
-      .then(() => Promise.all([
+    Promise.all([
         listarLancamentos(familiaId, mes),
         listarMovimentosDeDivida(familiaId, mes),
         listarContas(familiaId, hoje).catch(falhou('nomes das contas', null)),
@@ -81,7 +86,7 @@ export default function Calendario() {
         faturasQueVencem(familiaId, ...limitesDoMes(mes)).catch(falhou('faturas', [])),
         listarParcelasDivida(familiaId, ...limitesDoMes(mes)).catch(falhou('parcelas de dívida', [])),
         resumoPorMoeda(familiaId, ...limitesDoMes(mes)).catch(falhou('resumo em outras moedas', [] as ResumoPorMoeda[])),
-      ]))
+      ])
       .then(([lancs, movs, contas, cats, res, faturas, parcelasDivida, pm]) => {
         if (!vivo()) return
         setBlocosFalharam([...falhas])
@@ -146,7 +151,20 @@ export default function Calendario() {
         setPorMoeda(pm)
       })
       .catch((err) => { if (vivo()) setErro(mensagemErroBanco(err)) })
-  }, [familiaId, mes, hoje])
+  }, [familiaId, mes, hoje, recarga])
+
+  // Tarefas automáticas (recorrentes, faturas): uma vez por abertura, ao mesmo tempo que o mês carrega, e não a cada troca de
+  // mês (não dependem do mês). Se gravaram algo, o mês atual recarrega.
+  useEffect(() => {
+    if (!familiaId) return
+    let ativo = true
+    atualizarAutomaticos().then((r) => {
+      if (!ativo) return
+      setAutomaticosFalharam(!r.faturasOk || !r.recorrentesOk)
+      if (r.mudou) setRecarga((n) => n + 1)
+    })
+    return () => { ativo = false }
+  }, [familiaId, hoje])
 
   function irPara(novo: string) {
     setMes(novo)
