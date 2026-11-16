@@ -12,10 +12,11 @@
 --
 -- public.calendar_day_totals(p_household, p_from, p_to)
 --   retorno: day, currency, income (entradas do dia), expense (saídas do dia) e bills (a parte das saídas que é fatura ou
---   parcela: blocos 3 e 4 e, do bloco 2, o pagamento de cartão/dívida com os juros e a tarifa que vêm junto da parcela;
---   a amortização avulsa não é parcela e fica fora; para o filtro "Faturas e Parcelas"). Só dias com algo.
+--   parcela: blocos 3 e 4 e, do bloco 2, o pagamento de cartão/dívida com os juros e a tarifa da MESMA operação (op_id);
+--   amortização avulsa e juros ou tarifa sozinhos saem, mas não são parcela; para o filtro "Faturas e Parcelas").
+--   Só dias com algo.
 --   Valores em reais decimais (numeric), como as demais funções; o front converte para centavos.
---   p_from/p_to nulos ou p_to < p_from: 22023. Intervalo maior que 62 dias: 22023 (a tela pede um mês).
+--   p_from/p_to nulos ou p_to < p_from: 22023. Mais de 62 dias contando as duas pontas: 22023 (a tela pede um mês).
 --   Quem não é da família recebe zero linhas.
 -- Teste: 123_calendar_day_totals (falha sem esta migration).
 
@@ -27,7 +28,7 @@ begin
   if p_from is null or p_to is null or p_to < p_from then
     raise exception 'período inválido' using errcode = '22023';
   end if;
-  if p_to - p_from > 62 then
+  if p_to - p_from >= 62 then
     raise exception 'período longo demais: use no máximo 62 dias' using errcode = '22023';
   end if;
   return query
@@ -46,7 +47,14 @@ begin
     select e.date, 'BRL',
            case when e.kind in ('disbursement', 'refund_cash') then e.amount else 0 end,
            case when e.kind in ('disbursement', 'refund_cash') then 0 else e.amount end,
-           case when e.kind in ('payment', 'interest', 'fee') then e.amount else 0 end
+           case when e.kind = 'payment'
+                  -- juros e tarifa só são "da parcela" quando vêm na MESMA operação de um pagamento (debt_schedule_record_payment,
+                  -- debt_pay com juros); sozinhos ou junto de uma amortização avulsa não são fatura nem parcela
+                  or (e.kind in ('interest', 'fee') and e.op_id is not null and exists (
+                        select 1 from public.debt_events p
+                         where p.household_id = e.household_id and p.op_id = e.op_id
+                           and p.kind = 'payment' and p.voided_at is null))
+                then e.amount else 0 end
       from public.debt_events e
      where e.household_id = p_household and e.voided_at is null and e.account_id is not null
        and e.kind in ('payment', 'extra_principal', 'disbursement', 'refund_cash', 'interest', 'fee')

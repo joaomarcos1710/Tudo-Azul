@@ -94,7 +94,45 @@ select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-08', '2026-10-11'), array['2026
           'P1 parcela paga no dia 9 (90,00 + 10,00 de juros): o dia 10 some e o dia 9 mostra 100,00 em faturas e parcelas');
 
 -- ---------------------------------------------------------------------------
--- 3. Período inválido, privilégios e isolamento
+-- 3. O que sai mas não é parcela; o que entra pela dívida; o que é anulado, cancelado ou de dívida inativa
+-- ---------------------------------------------------------------------------
+-- amortização avulsa de 500,00 com 20,00 de tarifa no dia 3: sai 520,00, nada em faturas e parcelas
+select public.debt_extra_amortize(pg_temp.fx('loan'), '2026-10-03', pg_temp.fx('brl'), 500, 'term', 6, null, 0, 20, pg_temp.fx('cat'));
+-- juros sozinhos no dia 4: saem, mas não são parcela
+select public.debt_loan_event(pg_temp.fx('loan'), '2026-10-04', 'interest', pg_temp.fx('brl'), 15, pg_temp.fx('cat'));
+-- crédito de um novo empréstimo no dia 2: entra
+insert into fixture select 'loan2', public.create_debt('Empréstimo 2', 'loan', '2026-09-01', 0);
+select public.debt_loan_event(pg_temp.fx('loan2'), '2026-10-02', 'disbursement', pg_temp.fx('brl'), 700);
+-- juros anulados no dia 11: não aparecem
+select public.debt_void(public.debt_loan_event(pg_temp.fx('loan2'), '2026-10-11', 'interest', pg_temp.fx('brl'), 9, pg_temp.fx('cat')), 'teste');
+select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-01', '2026-10-04'), array[
+          '2026-10-02|BRL|700.00|0.00|0.00',
+          '2026-10-03|BRL|0.00|520.00|0.00',
+          '2026-10-04|BRL|0.00|15.00|0.00'],
+          'X1 crédito do empréstimo entra (dia 2); amortização avulsa com tarifa (dia 3) e juros sozinhos (dia 4) saem sem ser parcela');
+select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-11', '2026-10-11'), '{}'::text[], 'X2 evento anulado não aparece');
+-- dívida em boleto com parcela em 15/10 que é arquivada (inativa): a parcela some
+insert into fixture select 'loan3', public.create_debt('Empréstimo 3', 'loan', '2026-09-01', 300);
+select public.debt_contract_set(pg_temp.fx('loan3'), 'Banco', null, 3, 3, 100, 15, 'boleto', null, '2026-10-15');
+select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-15', '2026-10-15'), array['2026-10-15|BRL|0.00|100.00|100.00'],
+          'X3 parcela planejada de dívida ativa aparece');
+reset role;
+update public.debts set active = false where id = pg_temp.fx('loan3');
+select pg_temp.login('00000000-0000-0000-0000-0000000123a1');
+select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-15', '2026-10-15'), '{}'::text[], 'X4 dívida inativa: a parcela some');
+-- parcela cancelada some
+reset role;
+update public.debts set active = true where id = pg_temp.fx('loan3');
+update public.debt_payment_schedule set status = 'cancelled' where debt_id = pg_temp.fx('loan3') and installment_number = 1;
+select pg_temp.login('00000000-0000-0000-0000-0000000123a1');
+select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-15', '2026-10-15'), '{}'::text[], 'X5 parcela cancelada some');
+-- fatura paga por inteiro: o dia do vencimento some (sobra só o dia do pagamento)
+select public.debt_pay(pg_temp.fx('card'), '2026-10-24', pg_temp.fx('brl'), 200.00);
+select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-24', '2026-10-25'), array['2026-10-24|BRL|0.00|200.00|200.00'],
+          'X6 fatura quitada: 25/10 some; o pagamento aparece no dia 24');
+
+-- ---------------------------------------------------------------------------
+-- 4. Período inválido, privilégios e isolamento
 -- ---------------------------------------------------------------------------
 select is(pg_temp.sqlstate_of(format($$select * from public.calendar_day_totals(%L, '2026-10-31', '2026-10-01')$$, pg_temp.fx('h'))),
           '22023', 'V1 fim antes do início: recusado (22023)');
@@ -102,13 +140,24 @@ select is(pg_temp.sqlstate_of(format($$select * from public.calendar_day_totals(
           '22023', 'V2 início nulo: recusado (22023)');
 select is(pg_temp.sqlstate_of(format($$select * from public.calendar_day_totals(%L, '2026-01-01', '2026-12-31')$$, pg_temp.fx('h'))),
           '22023', 'V3 período de um ano: recusado (22023, a tela pede um mês)');
+select is(pg_temp.sqlstate_of(format($$select * from public.calendar_day_totals(%L, '2026-10-01', '2026-12-01')$$, pg_temp.fx('h'))),
+          null, 'V3b 62 dias contando as duas pontas: aceito');
+select is(pg_temp.sqlstate_of(format($$select * from public.calendar_day_totals(%L, '2026-10-01', '2026-12-02')$$, pg_temp.fx('h'))),
+          '22023', 'V3c 63 dias: recusado');
 select ok(not has_function_privilege('anon', 'public.calendar_day_totals(uuid, date, date)', 'EXECUTE'), 'V4 anon sem EXECUTE');
 select ok(has_function_privilege('authenticated', 'public.calendar_day_totals(uuid, date, date)', 'EXECUTE'), 'V5 authenticated com EXECUTE');
 select ok(not (select prosecdef from pg_proc where oid = 'public.calendar_day_totals(uuid, date, date)'::regprocedure), 'V6 SECURITY INVOKER');
 
 select pg_temp.login('00000000-0000-0000-0000-0000000123a2');
-select public.create_household('Outra casa');
+insert into fixture select 'h2', public.create_household('Outra casa');
+insert into fixture select 'rec2', id from public.categories where household_id = pg_temp.fx('h2') and type = 'income' order by name limit 1;
+with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
+           values (pg_temp.fx('h2'), 'Banco 2', 'checking', 0, '2026-01-01') returning id)
+  insert into public.transactions (household_id, type, status, date, amount, description, account_id, category_id)
+  select pg_temp.fx('h2'), 'income', 'paid', '2026-10-05', 5.00, 'Da outra casa', id, pg_temp.fx('rec2') from i;
 select is(pg_temp.dias(pg_temp.fx('h'), '2026-10-01', '2026-10-31'), '{}'::text[], 'S1 outra família recebe zero linhas');
+select is(pg_temp.dias(pg_temp.fx('h2'), '2026-10-01', '2026-10-31'), array['2026-10-05|BRL|5.00|0.00|0.00'],
+          'S2 cada um vê só a própria casa, sem mistura (os 1.000,00 da outra família não entram no dia 5)');
 
 select * from finish();
 rollback;
