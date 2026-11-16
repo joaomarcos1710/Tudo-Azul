@@ -381,6 +381,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#389** (16/11/2026): **Convite exige e-mail confirmado** (migration 129, revisão externa de 16/11): `accept_invitation` recusa a conta cujo e-mail não foi confirmado, antes de olhar o convite. Usuários de teste nascem confirmados; o shim local ganhou `email_confirmed_at`. Aplicada em produção em 16/11/2026 (execução 43954640016).
 - **#390** (16/11/2026): **Lançamentos: a conta volta à linha** de despesa e receita, depois da categoria, cortando com reticências se não couber (handoff de Lançamentos, item a). A decisão de 03/11 (só a categoria) foi revogada pelo dono. O banco não muda.
 - **#391** (16/11/2026): **Calendário: totais de cada dia somados no banco** (migration 130, `calendar_day_totals`, teste 123): entradas, saídas e "faturas e parcelas" de cada dia, a partir dos mesmos blocos da lista do dia. Primeira parte do Calendário financeiro; a tela vem na próxima PR. Aplicada em produção em 16/11/2026 (execução 43958244365).
+- **#392** (16/11/2026): **Calendário financeiro, a tela**: valores de entrada e saída dentro de cada dia (do banco, a partir de `sm`), filtro Todos · Entradas · Saídas · Faturas e Parcelas, resumo do dia, botão Hoje e, no computador, a grade e o detalhamento do dia lado a lado. Diário da migration 130 aplicada.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
