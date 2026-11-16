@@ -386,6 +386,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#394** (16/11/2026): diário: migration 131 aplicada em produção (execução 43963380137) e consulta de leitura sem dupla contagem de empréstimo. Só documentação.
 - **#395** (16/11/2026): **Calendário: totais do mês numa linha cada no celular** (em 390 px o valor quebrava em duas linhas); três colunas a partir de `sm`.
 - **#396** (16/11/2026): **Início mais rápido** (melhorias de 13/11 refeitas): Dinheiro Livre e indicadores carregam à parte (contas, cartões e gastos aparecem sem esperar) e o saldo total previsto vem numa chamada só, também no Calendário. Nenhum valor muda.
+- **#397** (16/11/2026): **Lançamentos: período e filtros no endereço** (handoff, item g): recarregar, voltar ou mandar o link abre a mesma lista; `?categoria=` passa a valer.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
