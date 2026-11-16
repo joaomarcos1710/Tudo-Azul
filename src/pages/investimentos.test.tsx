@@ -1790,6 +1790,31 @@ describe('Composição da carteira: uma área, um seletor de moeda (etapa 2 do r
   const secao = async () => (await screen.findByRole('heading', { name: 'Composição da carteira' })).closest('section') as HTMLElement
   const moedaTab = (s: HTMLElement, nome: string) => within(within(s).getByRole('tablist', { name: 'Moeda da composição' })).getByRole('tab', { name: nome })
 
+  it('resumo num card só: com moeda estrangeira, os reais ficam à esquerda e as outras moedas num card único à direita (lado a lado só de lg)', async () => {
+    comTresMoedas()
+    render(<Investimentos />)
+    const titulo = await screen.findByText('Em outras moedas')
+    const card = titulo.parentElement as HTMLElement
+    // os dois cartões de moeda (USD e EUR) estão no MESMO card, não soltos
+    expect(within(card).getByText('Valor de mercado em USD')).toBeTruthy()
+    expect(within(card).getByText('Valor de mercado em EUR')).toBeTruthy()
+    for (const moedaCodigo of ['USD', 'EUR']) {
+      const bloco = within(card).getByText(`Valor de mercado em ${moedaCodigo}`).closest('div') as HTMLElement
+      expect(within(bloco).getByText('Aportado')).toBeTruthy() // nada se perde: Aportado e Rendimento seguem em cada moeda
+      expect(within(bloco).getByText(/^Rendimento/)).toBeTruthy()
+    }
+    const grade = card.parentElement as HTMLElement
+    expect(grade.className).toContain('lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]')
+    expect(grade.className).not.toMatch(/(^|\s)(sm|md):grid-cols/) // sm: e md: olham a janela, não os ~500 px do iPad em pé
+    expect(within(grade).getByRole('list', { name: 'Resumo da carteira em reais' })).toBeTruthy() // os reais ficam na mesma grade
+  })
+
+  it('só em reais: nada de card "Em outras moedas" nem de grade de duas colunas', async () => {
+    render(<Investimentos />)
+    await screen.findByRole('list', { name: 'Resumo da carteira em reais' })
+    expect(screen.queryByText('Em outras moedas')).toBeNull()
+  })
+
   it('seletor BRL, EUR e USD (só as moedas com posição); começa em BRL e cada moeda mostra os seus valores, sem somar', async () => {
     comTresMoedas()
     const u = userEvent.setup()
