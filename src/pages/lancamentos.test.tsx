@@ -224,9 +224,14 @@ describe('Lançamentos', () => {
     expect(screen.getAllByText('+R$ 8.000,00').length).toBe(1) // só o item planejado da lista
     expect(screen.getByText('⇄ R$ 100,00')).toBeTruthy()
     expect(screen.getByText('Itaú → Nubank')).toBeTruthy()
-    // a linha mostra só a categoria: sem o nome da conta/banco depois dela
+    // handoff de Lançamentos, item a (a decisão de 03/11 de mostrar só a categoria foi revogada em 16/11): despesa e receita
+    // mostram a categoria e, logo depois, a conta; a transferência continua com "origem → destino", sem conta repetida
     expect(screen.getByText('Mercado')).toBeTruthy()
-    expect(screen.queryByText('Mercado · Itaú')).toBeNull()
+    const linhaDe = (titulo: string) => screen.getByText(titulo).closest('li') as HTMLElement
+    expect(linhaDe('Supermercado').querySelector('[data-conta]')!.textContent).toBe('Itaú')
+    expect(linhaDe('Supermercado').querySelector('[data-metadados]')!.textContent).toMatch(/^Mercado·Itaú/)
+    expect(within(linhaDe('Itaú → Nubank')).queryAllByText('Itaú')).toHaveLength(0)
+    expect(linhaDe('Itaú → Nubank').querySelector('[data-conta]')).toBeNull()
     expect(screen.getByText('Planejado')).toBeTruthy()
     // #208: selo "Planejado" verde (agendado), receita azul (lucro), valor de despesa neutro
     expect(screen.getByText('Planejado').className).toContain('bg-agendado-fundo text-agendado')

@@ -807,7 +807,7 @@ Design: artefato "Lançamentos — Extrato e Gastos" (4 telas, dados fictícios)
 - [x] **(f)** Trocar entre Despesa e Cartão não apaga a categoria.
 - [x] **(b)** Cabeçalho do dia com dia da semana e "Hoje"/"Ontem" (`rotuloDoDia`). Só em Lançamentos; outras listas por dia (Calendário, fatura do cartão) seguem com a data simples.
 - [x] **(d)** Estado vazio conforme filtro e período, com "Limpar filtros"; corrigida a tela em branco com filtro e o "nenhum lançamento" quando a consulta das faturas falhava. Falta: indicador de "carregando" ao trocar de filtro (a lista antiga fica na tela até a resposta chegar).
-- [ ] **(a)** Conta na linha de despesa e receita (conferir corte em 390 px e no iPad em pé).
+- [x] **(a)** Conta na linha de despesa e receita (decisão de 03/11 revogada pelo dono em 16/11). Falta conferir o corte em 390 px e no iPad em pé.
 - [ ] **(e)** Excluir sem `window.confirm`, com Desfazer fixo embaixo. "Parar de repetir" mantém a confirmação (é irreversível). Conferir antes: tela de Lixeira e se recorrente excluído é regerado.
 - [ ] **(g)** Filtros e período na URL; fecha também `?categoria=`. Nove lugares linkam para Lançamentos com `?mes`, `?tipo` ou `?novo`.
 - [ ] **(c)** Faixa de pendências. **Não é só front:** "vencidos" existe em `home_alerts`; "a pagar até o fim do mês" não existe e "a receber" só com outra regra. **Decisões do dono:** fatura entra (aberta ou só fechada)? parcela de empréstimo entra? "a receber" até o fim do mês ou todo o futuro? vencidos a pagar e a receber juntos? o que mostrar fora do mês atual?
@@ -856,7 +856,7 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - [x] **Alta — Zerar tudo apagava reservas sem mostrá-las nem exportá-las.** Conferido e corrigido: prévia, total e lista mostram as reservas; o aviso diz que a exportação não as inclui.
 - [x] **Média — clicar em "baixar" contava como backup feito.** Corrigido: a frase só libera depois de marcar "conferi que os arquivos estão salvos".
 - [ ] Incluir as reservas na exportação completa (hoje só o aviso).
-- [x] **Média — convite aceito sem e-mail confirmado:** corrigido no banco (migration 129, `accept_invitation` recusa conta sem `email_confirmed_at`). Falta: aplicar em produção (com o "pode" do dono) e conferir a configuração do Auth hospedado.
+- [x] **Média — convite aceito sem e-mail confirmado:** corrigido no banco (migration 129, `accept_invitation` recusa conta sem `email_confirmed_at`). Aplicada em produção em 16/11/2026 (execução 43954640016), conferida no banco. Falta: conferir a configuração do Auth hospedado (se "Confirm email" está ligado).
 - [ ] **Média — itens agendados de cartão** (`card_scheduled_items`): `recurrence_id` e `installment_id` sem a família na chave estrangeira. Sem caminho de exploração hoje; migration com chaves compostas e teste de outra família.
 - [ ] **Média — menu do celular** anuncia diálogo modal mas não prende o foco do Tab (`AppShell.tsx`).
 - [ ] **Média — teste de integração** confere que a API é local, mas não o `SUPABASE_DB_URL` (`tests/integration/helpers.ts`).

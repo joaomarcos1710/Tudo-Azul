@@ -569,6 +569,7 @@ export default function Lancamentos() {
                       categoria={l.tipo === 'transfer'
                         ? <span>{`${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`}</span>
                         : <NomeCategoria id={l.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
+                      conta={l.tipo === 'transfer' ? undefined : nomeConta.get(l.contaId)}
                       etiquetas={[
                         // planejado com a data já passada é vencido (vermelho), como na tabela do computador e no Início
                         ...(l.status === 'planned' ? [situacaoDoLancamento(false, l.data, hoje) === 'vencido'
@@ -650,14 +651,17 @@ function Explicacao({ resumo, children }: { resumo: string; children: ReactNode 
  * reticências) e metadados numa linha só (categoria · etiquetas · detalhe, cortando o que não couber; o detalhe inteiro
  * fica no `title`). O valor tem coluna própria à direita (nowrap, tabular), nunca por cima do texto; as ações, embaixo dele.
  */
-function LinhaLista({ icone, titulo, categoria, etiquetas = [], detalhe, valor, corValor, acoes }: {
-  icone: ReactNode; titulo: ReactNode; categoria?: ReactNode; etiquetas?: ReactNode[]; detalhe?: string
+function LinhaLista({ icone, titulo, categoria, conta, etiquetas = [], detalhe, valor, corValor, acoes }: {
+  icone: ReactNode; titulo: ReactNode; categoria?: ReactNode
+  /** De qual conta saiu ou entrou (despesa e receita; a transferência mostra "origem → destino" na categoria). */
+  conta?: string
+  etiquetas?: ReactNode[]; detalhe?: string
   valor: string; corValor: string; acoes?: ReactNode
 }) {
   return (
     <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-3 sm:px-5">
       {icone}
-      <Corpo titulo={titulo} categoria={categoria} etiquetas={etiquetas} detalhe={detalhe} />
+      <Corpo titulo={titulo} categoria={categoria} conta={conta} etiquetas={etiquetas} detalhe={detalhe} />
       <div className="flex shrink-0 flex-col items-end">
         <span data-valor className={`whitespace-nowrap tabular-nums font-semibold ${corValor}`}>{valor}</span>
         {acoes && <div className="-mr-2 flex items-center">{acoes}</div>}
@@ -666,11 +670,15 @@ function LinhaLista({ icone, titulo, categoria, etiquetas = [], detalhe, valor, 
   )
 }
 
-function Corpo({ titulo, categoria, etiquetas = [], detalhe }: { titulo: ReactNode; categoria?: ReactNode; etiquetas?: ReactNode[]; detalhe?: string }) {
+function Corpo({ titulo, categoria, conta, etiquetas = [], detalhe }: {
+  titulo: ReactNode; categoria?: ReactNode; conta?: string; etiquetas?: ReactNode[]; detalhe?: string
+}) {
   const partes: ReactNode[] = [
     // os selos nunca encolhem (shrink-0 na Etiqueta); a categoria (até 65%) corta com reticências antes deles; o detalhe
-    // (flex-1, base 0) é o primeiro a sumir
+    // (flex-1, base 0) é o primeiro a sumir. A conta (handoff de Lançamentos, item a; a decisão de 03/11 de mostrar só a
+    // categoria foi revogada pelo dono em 16/11) vem logo depois da categoria, também cortando com reticências, até 40%.
     ...(categoria ? [<span key="cat" className="min-w-0 max-w-[65%] truncate">{categoria}</span>] : []),
+    ...(conta ? [<span key="conta" data-conta className="min-w-0 max-w-[40%] truncate" title={conta}>{conta}</span>] : []),
     ...etiquetas,
     ...(detalhe ? [<span key="det" className="min-w-0 flex-1 truncate" title={detalhe}>{detalhe}</span>] : []),
   ]
