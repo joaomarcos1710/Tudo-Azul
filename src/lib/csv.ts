@@ -290,6 +290,7 @@ const rotuloEvento: Record<string, string> = {
   extra_principal: 'Amortização extra', interest: 'Juros', fee: 'Tarifa', disbursement: 'Liberação de crédito',
   refund_cash: 'Devolução em dinheiro', payroll_payment: 'Consignado (amortização)',
   income_credit: 'Crédito no cartão (receita)',
+  adjust_up: 'Ajuste de saldo (aumenta)', adjust_down: 'Ajuste de saldo (diminui)',
 }
 
 /**
@@ -298,7 +299,7 @@ const rotuloEvento: Record<string, string> = {
  * Com isso, valor de referência + soma da coluna "Efeito na dívida" (até a data) = dívida do arquivo de cadastros.
  */
 export const efeitoNaDivida: Record<string, 1 | -1 | 0> = {
-  disbursement: 1, charge: 1, refund_cash: 1, payment: -1, extra_principal: -1, credit: -1, payroll_payment: -1, income_credit: -1, interest: 0, fee: 0, cancel: 0,
+  disbursement: 1, charge: 1, refund_cash: 1, payment: -1, extra_principal: -1, credit: -1, payroll_payment: -1, income_credit: -1, adjust_up: 1, adjust_down: -1, interest: 0, fee: 0, cancel: 0,
 }
 
 const texto = (v: unknown) => (v === null || v === undefined ? '' : String(v))

@@ -15,11 +15,12 @@ const mock = vi.hoisted(() => ({
   excluirDivida: vi.fn(),
   definirCategoriaPrincipal: vi.fn(),
   registrarPagamentoDivida: vi.fn(),
+  corrigirSaldoDivida: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal, corrigirSaldoDivida: mock.corrigirSaldoDivida }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -220,6 +221,45 @@ describe('Dívidas', () => {
     await u.click(await screen.findByRole('button', { name: 'Ações de Financiamento do imóvel' }))
     expect(screen.queryByRole('menuitem', { name: 'Registrar pagamento' })).toBeNull()
     expect(screen.getByRole('menuitem', { name: 'Amortização extra' })).toBeTruthy()
+  })
+
+  it('corrigir saldo pelo extrato: manda data e saldo ao banco, mostra o saldo do app e avisa o resultado', async () => {
+    mock.corrigirSaldoDivida.mockResolvedValue(true)
+    render(<Dividas />)
+    const u = userEvent.setup()
+    await acao('Financiamento do imóvel', 'Corrigir saldo pelo extrato', u)
+    const folha = screen.getByRole('dialog', { name: /Corrigir saldo: Financiamento do imóvel/ })
+    expect(within(folha).getByText('R$ 250.000,00')).toBeTruthy() // saldo do app hoje
+    expect(within(folha).getByText(/não entra como despesa nem receita/)).toBeTruthy()
+    await u.clear(within(folha).getByLabelText('Data do extrato'))
+    await u.type(within(folha).getByLabelText('Data do extrato'), '2026-11-10')
+    await u.type(within(folha).getByLabelText('Saldo devedor no banco (R$)'), '136.540,78')
+    await u.click(within(folha).getByRole('button', { name: 'Corrigir saldo' }))
+    expect(mock.corrigirSaldoDivida).toHaveBeenCalledWith('d1', '2026-11-10', 13654078)
+    expect(await screen.findByText('Saldo de Financiamento do imóvel corrigido para R$ 136.540,78 em 10/11/2026.')).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: /Corrigir saldo/ })).toBeNull()
+  })
+
+  it('corrigir saldo: saldo vazio ou negativo é recusado na tela; saldo que já bate avisa que nada mudou; erro do banco aparece', async () => {
+    render(<Dividas />)
+    const u = userEvent.setup()
+    await acao('Financiamento do imóvel', 'Corrigir saldo pelo extrato', u)
+    let folha = screen.getByRole('dialog', { name: /Corrigir saldo/ })
+    await u.click(within(folha).getByRole('button', { name: 'Corrigir saldo' }))
+    expect(within(folha).getByText(/Informe o saldo devedor/)).toBeTruthy()
+    expect(mock.corrigirSaldoDivida).not.toHaveBeenCalled()
+    // o saldo já era esse
+    mock.corrigirSaldoDivida.mockResolvedValue(false)
+    await u.type(within(folha).getByLabelText('Saldo devedor no banco (R$)'), '250.000,00')
+    await u.click(within(folha).getByRole('button', { name: 'Corrigir saldo' }))
+    expect(await screen.findByText(/já era R\$ 250\.000,00 nessa data: nada foi alterado/)).toBeTruthy()
+    // erro do banco (ex.: data antes do cadastro)
+    mock.corrigirSaldoDivida.mockRejectedValue({ code: '22023', message: 'a data precisa ser depois de 09/11/2026 (data do saldo informado no cadastro)' })
+    await acao('Financiamento do imóvel', 'Corrigir saldo pelo extrato', u)
+    folha = screen.getByRole('dialog', { name: /Corrigir saldo/ })
+    await u.type(within(folha).getByLabelText('Saldo devedor no banco (R$)'), '1,00')
+    await u.click(within(folha).getByRole('button', { name: 'Corrigir saldo' }))
+    expect(await screen.findByText(/depois de 09\/11\/2026/)).toBeTruthy()
   })
 
   it('não oferece o simulador de quitação (removido a pedido do dono)', async () => {
