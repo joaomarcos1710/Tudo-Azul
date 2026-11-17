@@ -4,6 +4,8 @@
 -- a saída tem de ser idêntica linha a linha. Cenários: compra parcelada, parcela editada (cancelamento parcial), compra
 -- excluída, crédito avulso (e maior que a fatura), estorno da parcela, pagamento parcial de fatura, adiantamento sem fatura,
 -- devolução em dinheiro, evento anulado, saldo de referência e cartão sem parcelas. Datas fixas no passado (hoje >= 10/11/2026).
+-- Migration 136 (17/11/2026): a regra da sobra mudou de propósito (quita primeiro as faturas anteriores em aberto); a cópia
+-- antiga recebeu a mesma regra, marcada "136", para o teste continuar conferindo só a otimização dos eventos.
 begin;
 create extension if not exists pgtap with schema extensions;
 select * from no_plan();
@@ -28,6 +30,10 @@ language plpgsql stable security invoker set search_path = '' as $$
 declare
   v_d record; r record; v_credit numeric; v_ref numeric; v_s0 numeric; v_link numeric; v_total numeric;
   v_use numeric; v_surplus numeric; v_paid numeric; v_due date; v_b date; v_first boolean := true;
+  -- 136: linhas guardadas até o fim, para a sobra quitar as faturas anteriores
+  a_label text[] := '{}'; a_due date[] := '{}'; a_charged numeric[] := '{}'; a_pending numeric[] := '{}';
+  a_total numeric[] := '{}'; a_paid numeric[] := '{}'; a_inv uuid[] := '{}';
+  n integer := 0; k integer; v_take numeric; v_back numeric;
 begin
   if p_as_of is null then raise exception 'data de corte obrigatória' using errcode = '22023'; end if;
   select d.id, d.household_id, d.closing_day, d.due_day, greatest(0, d.reference_balance) as reference_balance into v_d from public.debts d
@@ -117,12 +123,24 @@ begin
     v_surplus := greatest(0, v_link - v_total) + greatest(0, -(r.charged + r.pending));
     v_paid    := least(v_total, v_link) + v_use;
 
-    label := r.label; due_date := v_due; invoice_id := r.inv_id;
-    charged := r.charged; pending := r.pending; total := v_total; paid := v_paid;
-    
+    n := n + 1;
+    a_label[n] := r.label; a_due[n] := v_due; a_inv[n] := r.inv_id;
+    a_charged[n] := r.charged; a_pending[n] := r.pending; a_total[n] := v_total; a_paid[n] := v_paid;
     v_s0 := least(v_surplus, v_ref);
     v_ref := v_ref - v_s0;
-    v_credit := v_credit - v_use + (v_surplus - v_s0);
+    v_surplus := v_surplus - v_s0;
+    -- 136: só a sobra de pagamento, e a de crédito com a fatura já fechada na data de corte, volta para as anteriores
+    v_back := least(v_surplus, greatest(0, greatest(0, v_link - v_total)
+                    + case when r.closing_date <= p_as_of then greatest(0, -(r.charged + r.pending)) else 0 end - v_s0));
+    v_surplus := v_surplus - v_back;
+    k := 1;
+    while v_back > 0 and k < n loop
+      v_take := least(v_back, greatest(0, a_total[k] - a_paid[k]));
+      if v_take > 0 then a_paid[k] := a_paid[k] + v_take; v_back := v_back - v_take; end if;
+      k := k + 1;
+    end loop;
+    v_surplus := v_surplus + v_back;
+    v_credit := v_credit - v_use + v_surplus;
     -- devoluções feitas depois deste fechamento (inclusive) e antes do próximo: levam o crédito que existia então
     -- (inclui a sobra desta fatura); greatest(0, …) só protege a tela, debt_chk já garante a ordem
     v_credit := v_credit - coalesce((
@@ -131,6 +149,10 @@ begin
          and e.kind = 'refund_cash' and e.date >= r.closing_date and e.date <= p_as_of
          and (r.next_closing is null or e.date < r.next_closing)), 0);
     if v_credit < 0 then v_credit := 0; end if;
+  end loop;
+  for k in 1 .. n loop  -- 136
+    label := a_label[k]; due_date := a_due[k]; invoice_id := a_inv[k];
+    charged := a_charged[k]; pending := a_pending[k]; total := a_total[k]; paid := a_paid[k];
     return next;
   end loop;
 end $$;
