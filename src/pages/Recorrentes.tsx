@@ -29,6 +29,7 @@ import { ParcelasAtivas } from '../components/recorrentes/ParcelasAtivas'
 import { resumoParcelasDoMes } from '../lib/parcelasAtivas'
 import type { ResumoParcelasDoMes } from '../lib/parcelasAtivas'
 import { FolhaNatureza } from '../components/recorrentes/FolhaNatureza'
+import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
 
 const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 
@@ -188,6 +189,7 @@ export default function Recorrentes() {
   const nomeCategoria = useMemo(() => nomesCompletos(categorias), [categorias])
   // só a subcategoria (o próprio nome) na linha; o caminho completo vai no title e para o leitor de tela
   const nomeCurtoCategoria = useMemo(() => new Map(categorias.map((c) => [c.id, c.nome])), [categorias])
+  const categoriaPorId = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias])
 
   if (!familiaId) return null
   const hoje = hojeSP()
@@ -258,7 +260,8 @@ export default function Recorrentes() {
     const corpo = (
       <>
         <span className="flex items-baseline gap-2">
-          <span className="min-w-0 flex-1 truncate font-medium" title={r.descricao}>{r.descricao}</span>
+          {/* até 2 linhas (antes 1, com reticências): "Google One 100 GB" e "Google Drive 2 TB" só se distinguem no fim do nome */}
+          <span className="line-clamp-2 min-w-0 flex-1 break-words font-medium" title={r.descricao}>{r.descricao}</span>
           {r.nature && (
             <span data-testid="selo-natureza" title={rotuloNatureza[r.nature]}
               className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-medium ${SELO.neutro}`}>
@@ -269,7 +272,8 @@ export default function Recorrentes() {
         {/* relative: o texto sr-only (absolute) fica preso ao corte da linha; sem isso ele vazava e alargava a página no celular */}
         <span className="relative block truncate text-xs text-slate-500" title={completo} data-testid="meta-recorrente">
           {/* a próxima data abre a linha: no fim ela era a primeira a sumir nas reticências do celular (auditoria 5h) */}
-          {prox && <><span className="text-agendado">próxima {dataCurta(prox, hoje)}</span> · </>}
+          {/* selo verde com a palavra "próxima" (regra #183: verde = agendado, nunca sozinho) */}
+          {prox && <><span data-testid="selo-proxima" className={`rounded px-1 py-0.5 font-medium ${SELO.planejado}`}>próxima {dataCurta(prox, hoje)}</span> · </>}
           {quando(r)} · {onde(r)}
           {curta && <> · <span aria-hidden="true">{curta}</span><span className="sr-only">{caminho}</span></>}
           {fimTexto && <> · {fimTexto}</>}
@@ -278,6 +282,11 @@ export default function Recorrentes() {
     )
     return (
       <li key={r.id} className="flex items-center gap-2 pl-4 pr-1 sm:pl-5">
+        {/* ícone da categoria, o mesmo de Lançamentos (transferência: setas) */}
+        <span className="shrink-0" aria-hidden="true">
+          {r.tipo === 'transfer' ? <IconeCategoria fixo="transferencia" />
+            : <IconeCategoria visual={visualPorId(r.categoriaId, categoriaPorId, r.tipo === 'income' ? 'income' : 'expense')} />}
+        </span>
         {/* a linha é o botão da natureza (transferência não tem): toque para corrigir; o › leva ao lugar onde se muda o resto */}
         {r.tipo === 'transfer' ? (
           <div className="min-w-0 flex-1 py-2">{corpo}</div>
@@ -288,13 +297,20 @@ export default function Recorrentes() {
             {corpo}
           </button>
         )}
-        <span className={`shrink-0 whitespace-nowrap text-right text-sm font-semibold tabular-nums ${corDoTipo(r.tipo === 'card' ? 'expense' : r.tipo)}`}>{valorTexto}</span>
-        <Link to={r.tipo === 'card' && r.cartaoId ? (faturaDe.get(r.id) ? rotaFatura(r.cartaoId, faturaDe.get(r.id)!) : rotaCartao(r.cartaoId)) : '/lancamentos'}
-          aria-label={`Abrir ${r.descricao} em ${r.tipo === 'card' ? 'Cartões' : 'Lançamentos'}`}
-          title={r.tipo === 'card' ? 'Ver a fatura da próxima cobrança (mudar o dia ou encerrar: ⋯ → Editar)' : 'Ver em Lançamentos (editar ou parar de repetir)'}
-          className="inline-flex min-h-11 min-w-9 shrink-0 items-center justify-center rounded-lg text-lg font-semibold text-azul hover:bg-azul-claro">
-          <span aria-hidden="true">›</span>
+        {/* valor em cima e "Gerenciar" embaixo, numa coluna só: lado a lado eles comiam o nome no celular (prévia de 17/11) */}
+        <span className="flex shrink-0 flex-col items-end">
+        <span className={`whitespace-nowrap text-right text-sm font-semibold tabular-nums ${corDoTipo(r.tipo === 'card' ? 'expense' : r.tipo)}`}>{valorTexto}</span>
+        {/* "Gerenciar" escrito (antes era só "›" e o dono não achou onde encerrar o Google Drive anual, 17/11/2026):
+            assinatura de cartão → a fatura da próxima cobrança; conta → Lançamentos no mês da próxima ocorrência */}
+        <Link to={r.tipo === 'card' && r.cartaoId ? (faturaDe.get(r.id) ? rotaFatura(r.cartaoId, faturaDe.get(r.id)!) : rotaCartao(r.cartaoId))
+                  : prox ? `/lancamentos?mes=${prox.slice(0, 7)}` : '/lancamentos'}
+          aria-label={`Gerenciar ${r.descricao} em ${r.tipo === 'card' ? 'Cartões' : 'Lançamentos'}`}
+          title={r.tipo === 'card' ? 'Abre a fatura da próxima cobrança: ⋯ → Editar (valor ou dia) ou Cancelar cobrança (esta e as próximas)'
+            : 'Abre Lançamentos no mês da próxima: ⋯ → Editar ou Parar de repetir a partir daqui'}
+          className="-mr-1 inline-flex min-h-8 items-center gap-0.5 rounded-lg px-1 text-xs font-semibold text-azul hover:bg-azul-claro">
+          Gerenciar<span aria-hidden="true" className="text-base leading-none">›</span>
         </Link>
+        </span>
       </li>
     )
   }
@@ -511,6 +527,13 @@ export default function Recorrentes() {
                     <span key={l.tipo}> · <span className={`font-semibold tabular-nums ${corDoTipo(l.tipo)}`}>{formatBRL(l.porMes)}/mês</span>{' '}
                       em {l.tipo === 'income' ? 'entradas' : 'saídas'} ({l.qtde})</span>
                   ))}
+            </p>
+          )}
+          {cards.length > 0 && (
+            <p className="mb-3 text-xs text-slate-500" data-testid="ajuda-gerenciar">
+              Para mudar o valor ou o dia, ou encerrar, toque em <strong className="font-semibold text-azul">Gerenciar</strong>: no cartão
+              abre a fatura da próxima cobrança (⋯ → Cancelar cobrança → esta e as próximas); na conta, Lançamentos no mês da
+              próxima (⋯ → Parar de repetir a partir daqui).
             </p>
           )}
           <div className="space-y-4">

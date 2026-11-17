@@ -368,7 +368,7 @@ describe('Recorrentes', () => {
     it('item compacto: título, valor numa coluna própria, uma linha de metadados e um link para o lugar de mudar', async () => {
       montar()
       const titulo = await screen.findByText('Condomínio do prédio com nome bem comprido')
-      expect(titulo.className).toContain('truncate')
+      expect(titulo.className).toContain('line-clamp-2') // até 2 linhas (17/11: os dois Googles só se distinguem no fim do nome)
       const li = titulo.closest('li')!
       const valor = li.querySelector('span.tabular-nums')!
       expect(valor.textContent).toBe('−R$ 180,00')
@@ -380,7 +380,21 @@ describe('Recorrentes', () => {
       expect(screen.queryByRole('button', { name: 'Excluir' })).toBeNull()
       expect(screen.queryByRole('button', { name: /^Ações de/ })).toBeNull()
       expect(within(li).getByRole('button', { name: /^Natureza de Condomínio do prédio com nome bem comprido: sugerida pelo app\. Corrigir/ })).toBeTruthy()
-      expect(within(li).getByRole('link', { name: 'Abrir Condomínio do prédio com nome bem comprido em Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
+      // "Gerenciar" escrito (antes só "›"); conta abre Lançamentos no mês da próxima ocorrência
+      const gerenciar = within(li).getByRole('link', { name: 'Gerenciar Condomínio do prédio com nome bem comprido em Lançamentos' })
+      expect(gerenciar.textContent).toContain('Gerenciar')
+      expect(gerenciar.getAttribute('href')).toMatch(/^\/lancamentos\?mes=\d{4}-\d{2}$/)
+    })
+
+    it('visual (17/11/2026): ícone da categoria, próxima data num selo verde e a ajuda de onde editar ou encerrar', async () => {
+      montar()
+      const titulo = await screen.findByText('Condomínio do prédio com nome bem comprido')
+      const li = titulo.closest('li')!
+      expect(li.querySelector('[data-icone]')).not.toBeNull()
+      const selo = within(li).getByTestId('selo-proxima')
+      expect(selo.textContent).toMatch(/^próxima /)
+      expect(selo.className).toContain('bg-agendado-fundo')
+      expect(screen.getByTestId('ajuda-gerenciar').textContent).toMatch(/Cancelar cobrança → esta e as próximas.*Parar de repetir a partir daqui/)
     })
 
     it('mostra só a subcategoria; o caminho completo fica no title e para o leitor de tela', async () => {
@@ -659,10 +673,11 @@ describe('Recorrentes: só informativa, separada em Saídas e Entradas', () => {
     mock.listarRecorrencias.mockResolvedValue([luz, netflix])
     montar()
     await screen.findByText('Netflix')
-    const cartao = screen.getByRole('link', { name: 'Abrir Netflix em Cartões' }).getAttribute('href')!
+    const cartao = screen.getByRole('link', { name: 'Gerenciar Netflix em Cartões' }).getAttribute('href')!
     expect(cartao).toContain('/cartoes')
     expect(cartao).toContain('k1')
-    expect(screen.getByRole('link', { name: 'Abrir Luz em Lançamentos' }).getAttribute('href')).toBe('/lancamentos')
+    // conta: o mês da próxima ocorrência (a Luz vence todo dia 10)
+    expect(screen.getByRole('link', { name: 'Gerenciar Luz em Lançamentos' }).getAttribute('href')).toMatch(/^\/lancamentos\?mes=\d{4}-\d{2}$/)
   })
 
   it('sem nenhum recorrente, aponta para Lançamentos em vez de oferecer um formulário', async () => {

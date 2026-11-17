@@ -889,3 +889,8 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - [x] Saldo de referência do cartão (fatura de antes do cadastro) não entra na faixa: **decisão do dono (opção a): só avisar na tela** (#410). **atalho:** não entra; melhorar se o dono pedir.
 - [ ] **Não reproduzido:** `debt_set_balance` (migration 132) leva o saldo do empréstimo a 0 sem cancelar as parcelas `planned` da agenda; quitar "pelo extrato" deixaria as próximas parcelas como "a pagar" (faixa e relatórios). Conferir com teste antes de mexer.
 
+## 17/11/2026 — Recorrentes (#414)
+- [x] Visual e "Gerenciar ›" com a dica de onde editar ou encerrar (só tela).
+- [ ] **Etapa 2, se o dono ainda tropeçar:** botão Encerrar direto em Recorrentes (cartão: "esta e as próximas"; conta: "parar de repetir"), reaproveitando as funções que já existem. Antes, conferir o caso da assinatura **anual sem cobrança gerada** (os caminhos de hoje partem de uma cobrança ou lançamento existente; talvez precise de função no banco) e o que "Excluir assinatura" faz com o histórico.
+- [ ] Opcional: faixa "Próximos 30 dias" no topo de Recorrentes.
+
