@@ -940,6 +940,12 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** no mês atual, quatro números do banco: vencidos a pagar, vencidos a receber, a pagar até o fim do mês e a receber até o fim do mês. Fatura de cartão entra só **fechada**; parcela de empréstimo/financiamento entra, **menos o consignado** (desconto em folha); a faixa **some** em outros meses e quando não há pendência; ignora os filtros da lista (é "o que está pendente hoje").
 - **Por quê:** decisões do dono nas quatro perguntas de 17/11/2026 (todas na opção recomendada). Fatura aberta ainda muda a cada compra; o consignado nunca sai da conta (o salário entra líquido, decisão de 16/11); "até o fim do mês" fica coerente com o saldo previsto; em mês passado ou futuro, "pendências de hoje" confundiria. Vencidos a pagar e a receber ficam separados porque somar o que sai com o que entra não diz nada.
 
+## 17/11/2026 — Projeção e Parcelas viram a tela "Compromissos", fora de Recorrentes (#425)
+- **O quê:** a Projeção de compromissos (matriz dos próximos meses) e as Parcelas ativas, que eram abas de Recorrentes, passam para uma tela própria, "Compromissos", no menu Planejamento. Recorrentes fica com a lista, os totais e a sobra.
+- **Por quê:** o dono estranhou o lugar ("lá tem projeção de tudo"). Conferido: a projeção tem blocos de parcelamentos, financiamentos e lançamentos avulsos, que não se repetem; Parcelas também não é recorrente. Duas abas de "o que já está comprometido" ao lado de "o que se repete" misturavam dois assuntos. Das três opções (tela nova, dentro do Calendário, só renomear), o dono escolheu a tela nova.
+- **Custo:** o menu ganha um item (de 14 para 15 telas). Aceito: é a divisão mais clara.
+- **Não mudou:** nenhum cálculo nem consulta; as duas abas continuam carregando só quando abrem.
+
 ## 17/11/2026 — Recorrentes: sobra por mês só dos recorrentes, feita no banco (#423)
 - **O quê:** o topo de Recorrentes ganha "Sobra ≈ R$ X por mês · R$ Y por ano" (ou "Falta"), entra menos sai. Conta só recorrentes vigentes em reais, a mesma base do "Sai ≈" e do "Entra ≈". Parcelas, proventos previstos e gastos avulsos ficam fora, e a tela diz isso ao lado do número.
 - **Por quê:** pendência da #416 (pedido do dono). A subtração é do banco (`recurrence_net`, sobre `recurrence_overview`) porque a tela não soma nem subtrai dinheiro de relatório, e assim o número fecha com os dois de cima por construção.

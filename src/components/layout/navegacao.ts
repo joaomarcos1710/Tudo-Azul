@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import {
   IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeFamilia, IconeLancamentos,
-  IconeAnalises, IconeExportar, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens, IconePreferencias,
+  IconeAnalises, IconeCompromissos, IconeExportar, IconeOrcamentos, IconeRecorrentes, IconeRelatorios, IconeVisaoGeral, IconeDividas, IconeInvestimentos, IconeBens, IconePreferencias,
 } from './icons'
 
 export interface ItemNavegacao {
@@ -51,6 +51,7 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     titulo: 'Planejamento',
     itens: [
       { caminho: '/orcamentos', rotulo: 'Orçamentos', curto: 'Orçam.', Icone: IconeOrcamentos, descricao: 'Quanto gastar por categoria no mês.', atalho: true },
+      { caminho: '/compromissos', rotulo: 'Compromissos', curto: 'Compr.', Icone: IconeCompromissos, descricao: 'O que já está comprometido nos próximos meses.' },
       { caminho: '/reservas', rotulo: 'Reservas', curto: 'Reservas', Icone: IconeOrcamentos, descricao: 'Reservas virtuais, aportes e resgates.' },
       { caminho: '/categorias', rotulo: 'Categorias', curto: 'Categ.', Icone: IconeCategorias, descricao: 'Como receitas e despesas são agrupadas.' },
     ],
@@ -81,7 +82,7 @@ export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) =>
  * antes eram 14 links soltos; Recorrentes e outras estavam escondidas no menu do perfil e ele não achava). São os mesmos
  * grupos do menu "Mais" do celular, sem o grupo "Conta" (família, exportar e preferências ficam no menu do perfil).
  */
-const caminhosAcessoRapido = ['/', '/lancamentos', '/recorrentes', '/cartoes', '/contas', '/orcamentos', '/reservas', '/categorias',
+const caminhosAcessoRapido = ['/', '/lancamentos', '/recorrentes', '/cartoes', '/contas', '/orcamentos', '/compromissos', '/reservas', '/categorias',
   '/investimentos', '/dividas', '/bens', '/analises', '/relatorios', '/calendario']
 export const gruposSidebar: GrupoNavegacao[] = gruposNavegacao
   .map((g) => ({ ...g, itens: g.itens.filter((i) => caminhosAcessoRapido.includes(i.caminho)) }))

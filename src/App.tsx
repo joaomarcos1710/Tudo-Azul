@@ -13,6 +13,7 @@ const Lancamentos = carregarTela(() => import('./pages/Lancamentos'))
 const Calendario = carregarTela(() => import('./pages/Calendario'))
 const Lixeira = carregarTela(() => import('./pages/Lixeira'))
 const Recorrentes = carregarTela(() => import('./pages/Recorrentes'))
+const Compromissos = carregarTela(() => import('./pages/Compromissos'))
 const Contas = carregarTela(() => import('./pages/Contas'))
 const Cartoes = carregarTela(() => import('./pages/Cartoes'))
 const Dividas = carregarTela(() => import('./pages/Dividas'))
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="lancamentos/lixeira" element={<Lixeira />} />
           <Route path="calendario" element={<Calendario />} />
           <Route path="recorrentes" element={<Recorrentes />} />
+          <Route path="compromissos" element={<Compromissos />} />
           <Route path="contas" element={<Contas />} />
           {/* #203: lista, página do cartão e página da fatura (o mesmo componente escolhe pelo endereço) */}
           <Route path="cartoes" element={<Cartoes />} />

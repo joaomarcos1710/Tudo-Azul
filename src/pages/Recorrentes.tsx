@@ -24,8 +24,6 @@ import {
 import type { SobraRecorrentes, FrequenciaResumo, LinhaNatureza, LinhaVisao, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia } from '../lib/recorrencias'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo, corDoValor, NATUREZA, SELO } from '../lib/cores'
-import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
-import { ParcelasAtivas } from '../components/recorrentes/ParcelasAtivas'
 import { resumoParcelasDoMes } from '../lib/parcelasAtivas'
 import type { ResumoParcelasDoMes } from '../lib/parcelasAtivas'
 import { FolhaNatureza } from '../components/recorrentes/FolhaNatureza'
@@ -36,8 +34,6 @@ const MESES_CURTOS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 's
 /** As três seções da página (abas de cima): a lista de recorrentes, a projeção dos próximos meses e as parcelas em andamento. */
 /** As duas visões da página: o que sai e o que entra (pedido do dono, 14/11/2026). Vai na URL (?v=entradas) para dar para linkar. */
 type Lado = 'saidas' | 'entradas'
-type Secao = 'lista' | 'projecao' | 'parcelas'
-const SECOES: [Secao, string][] = [['lista', 'Recorrentes'], ['projecao', 'Projeção'], ['parcelas', 'Parcelas']]
 
 /**
  * As naturezas de cada lado, na ordem da legenda e da lista (pedido do dono, 17/11/2026: "o que eu pago mensalmente, fixo e variável").
@@ -138,7 +134,6 @@ export default function Recorrentes() {
   // bloco secundário que falha NÃO pode parecer "sem dados" (some o card, a linha cai na data da regra): fica num aviso
   const [blocosFalharam, setBlocosFalharam] = useState<string[]>([])
   const [aba, setAba] = useState<Aba>('todos')
-  const [secao, setSecao] = useState<Secao>('lista')
   const [verAntigas, setVerAntigas] = useState(false)
   const [params, setParams] = useSearchParams()
   const lado: Lado = params.get('v') === 'entradas' ? 'entradas' : 'saidas'
@@ -146,7 +141,6 @@ export default function Recorrentes() {
     setParams(novo === 'saidas' ? {} : { v: 'entradas' }, { replace: true })
     setNatureza('todas')
     setAba('todos')
-    setSecao('lista')
   }
   // corrigir a natureza (a única edição que esta página aceita: só classifica)
   const [corrigindo, setCorrigindo] = useState<Recorrencia | null>(null)
@@ -483,10 +477,10 @@ export default function Recorrentes() {
           visao={visao !== null && visao.length > 0 ? visao : null} sobra={sobra} lado={lado} aoMudarLado={mudarLado}
           naturezas={naturezasPresentes.map((n) => ({ chave: n, rotulo: rotuloGrupoNatureza[n], cor: COR_NATUREZA[n], porMes: totalNatureza(n) }))}
           escolhida={natureza}
-          aoEscolher={(n) => { setNatureza(n); setSecao('lista') }}
+          aoEscolher={(n) => setNatureza(n)}
           noCartao={lado === 'saidas' ? linha('card', 'expense')?.porMes ?? null : null}
           naConta={lado === 'saidas' ? linha('account', 'expense')?.porMes ?? null : null}
-          parcelas={lado === 'saidas' ? parcelasMes : []} aoAbrirParcelas={() => setSecao('parcelas')}
+          parcelas={lado === 'saidas' ? parcelasMes : []}
           rodape={emOutraMoeda > 0 && (
             <p className="mt-2 text-xs text-slate-600">
               {emOutraMoeda === 1 ? '1 recorrente em outra moeda fica' : `${emOutraMoeda} recorrentes em outra moeda ficam`} fora dos totais (que são em reais).
@@ -494,29 +488,8 @@ export default function Recorrentes() {
           )} />
       )}
 
-      {recorrencias !== null && lado === 'saidas' && (
-        <div role="tablist" aria-label="Seções de Recorrentes" className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200"
-          onKeyDown={(e) => {
-            // setas movem entre as abas (padrão de abas): a aba nova recebe o foco e abre
-            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
-            const i = SECOES.findIndex(([chave]) => chave === secao)
-            const novo = SECOES[(i + (e.key === 'ArrowRight' ? 1 : SECOES.length - 1)) % SECOES.length][0]
-            setSecao(novo)
-            document.getElementById(`aba-${novo}`)?.focus()
-          }}>
-          {SECOES.map(([chave, rotulo]) => (
-            <button key={chave} id={`aba-${chave}`} type="button" role="tab" aria-selected={secao === chave} aria-controls={`painel-${chave}`}
-              tabIndex={secao === chave ? 0 : -1} onClick={() => setSecao(chave)}
-              className={`min-h-11 shrink-0 whitespace-nowrap border-b-2 px-4 text-sm font-semibold transition-colors ${secao === chave
-                ? 'border-azul text-azul' : 'border-transparent text-slate-600 hover:text-marinho'}`}>
-              {rotulo}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {(lado === 'entradas' || secao === 'lista') && (ativas.length > 0 || proventos.length > 0) && (
-        <div role="tabpanel" id="painel-lista" aria-labelledby="aba-lista">
+      {(ativas.length > 0 || proventos.length > 0) && (
+        <div id="painel-lista">
           {lado === 'saidas' && (
             <div role="group" aria-label="Mostrar recorrentes" className="mb-3 flex gap-2">
               {abas.map(([chave, rotulo]) => (
@@ -579,17 +552,6 @@ export default function Recorrentes() {
         </div>
       )}
 
-      {/* a projeção e as parcelas só carregam quando a aba é aberta (menos consulta ao banco ao abrir a página) */}
-      {lado === 'saidas' && secao === 'projecao' && recorrencias !== null && (
-        <div role="tabpanel" id="painel-projecao" aria-labelledby="aba-projecao">
-          <ProjecaoCompromissos familiaId={familiaId} hoje={hojeSP()} />
-        </div>
-      )}
-      {lado === 'saidas' && secao === 'parcelas' && recorrencias !== null && (
-        <div role="tabpanel" id="painel-parcelas" aria-labelledby="aba-parcelas">
-          <ParcelasAtivas familiaId={familiaId} />
-        </div>
-      )}
     </>
   )
 }
@@ -603,7 +565,7 @@ export default function Recorrentes() {
  * cada parte cresce na proporção do seu valor, só desenho), a legenda que filtra a lista, "No cartão · Na conta"
  * (recurrence_summary, nível medium) e a linha das parcelas (installment_month_summary). A tela não soma dinheiro.
  */
-function ResumoDoMes({ visao, sobra, lado, aoMudarLado, naturezas, escolhida, aoEscolher, noCartao, naConta, parcelas, aoAbrirParcelas, rodape }: {
+function ResumoDoMes({ visao, sobra, lado, aoMudarLado, naturezas, escolhida, aoEscolher, noCartao, naConta, parcelas, rodape }: {
   visao: LinhaVisao[] | null
   /** Entra − sai por mês e por ano (do banco); null = sem a linha. */
   sobra: SobraRecorrentes | null
@@ -614,9 +576,8 @@ function ResumoDoMes({ visao, sobra, lado, aoMudarLado, naturezas, escolhida, ao
   aoEscolher: (n: FiltroNatureza) => void
   noCartao: Cents | null
   naConta: Cents | null
-  /** "Parcelas e carnês" (uma linha por moeda): não é natureza nem entra no "Sai"; tocar abre a aba Parcelas. */
+  /** "Parcelas e carnês" (uma linha por moeda): não é natureza nem entra no "Sai"; tocar leva a Compromissos › Parcelas. */
   parcelas: ResumoParcelasDoMes[]
-  aoAbrirParcelas: () => void
   rodape?: ReactNode
 }) {
   const achar = (tipo: LinhaVisao['tipo']) => visao?.find((l) => l.tipo === tipo && l.recorte === 'all')
@@ -715,8 +676,8 @@ function ResumoDoMes({ visao, sobra, lado, aoMudarLado, naturezas, escolhida, ao
           </p>
         )}
         {parcelas.map((c) => (
-          <button key={c.moeda} type="button" onClick={aoAbrirParcelas} data-testid={`card-parcelas-${c.moeda}`}
-            aria-label={`Parcelas e carnês${parcelas.length > 1 ? ` (${c.moeda})` : ''}: ${formatMoeda(c.totalMes, c.moeda)} por mês. Ver na aba Parcelas`}
+          <Link key={c.moeda} to="/compromissos?aba=parcelas" data-testid={`card-parcelas-${c.moeda}`}
+            aria-label={`Parcelas e carnês${parcelas.length > 1 ? ` (${c.moeda})` : ''}: ${formatMoeda(c.totalMes, c.moeda)} por mês. Ver em Compromissos, Parcelas`}
             className="mt-2 flex min-h-11 w-full items-center gap-2 rounded-lg border-t border-slate-100 px-2 pt-2 text-left text-sm hover:bg-slate-50">
             <span className="min-w-0 flex-1">
               <span className="block text-slate-700">Parcelas e carnês{parcelas.length > 1 ? ` (${c.moeda})` : ''}</span>
@@ -728,8 +689,15 @@ function ResumoDoMes({ visao, sobra, lado, aoMudarLado, naturezas, escolhida, ao
               {formatMoeda(c.totalMes, c.moeda)}<span className="text-xs font-normal">/mês</span>
             </span>
             <span aria-hidden="true" className="whitespace-nowrap text-xs font-semibold text-azul">Ver ›</span>
-          </button>
+          </Link>
         ))}
+        {lado === 'saidas' && (
+          // a projeção dos próximos meses e as parcelas saíram de Recorrentes (17/11/2026): não são só o que se repete
+          <p className="mt-2 text-xs text-slate-600" data-testid="link-compromissos">
+            Quanto já está comprometido nos próximos meses (parcelas, financiamentos e o que se repete):{' '}
+            <Link to="/compromissos" className="font-semibold text-azul hover:underline">ver Compromissos</Link>.
+          </p>
+        )}
         <p className="mt-3 text-xs text-slate-500" data-testid="nota-aproximado">
           ≈ por mês: anuais divididos por 12; variáveis pelo valor cadastrado (a conta de verdade pode mudar).
         </p>
