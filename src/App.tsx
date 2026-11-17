@@ -11,6 +11,7 @@ import { carregarTela } from './lib/carregarTela'
 // Início e Entrar vêm no arquivo principal (primeira tela); as demais, sob demanda.
 const Lancamentos = carregarTela(() => import('./pages/Lancamentos'))
 const Calendario = carregarTela(() => import('./pages/Calendario'))
+const Lixeira = carregarTela(() => import('./pages/Lixeira'))
 const Recorrentes = carregarTela(() => import('./pages/Recorrentes'))
 const Contas = carregarTela(() => import('./pages/Contas'))
 const Cartoes = carregarTela(() => import('./pages/Cartoes'))
@@ -47,6 +48,7 @@ export default function App() {
           <Route index element={<VisaoGeral />} />
           <Route path="analises" element={<VisaoGeral secao="analises" />} />
           <Route path="lancamentos" element={<Lancamentos />} />
+          <Route path="lancamentos/lixeira" element={<Lixeira />} />
           <Route path="calendario" element={<Calendario />} />
           <Route path="recorrentes" element={<Recorrentes />} />
           <Route path="contas" element={<Contas />} />
