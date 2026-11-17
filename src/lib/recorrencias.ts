@@ -404,6 +404,28 @@ export async function sobraDosRecorrentes(familiaId: string): Promise<SobraRecor
 }
 
 /**
+ * A sobra DESTE mês depois das parcelas (public.recurrence_net_after_installments, migration 141): a sobra dos recorrentes menos as
+ * parcelas que vencem no mês (compras parceladas no cartão e carnês, em reais; a mesma base do card "Parcelas e carnês"), somada
+ * no banco. Muda de mês para mês. Empréstimos e financiamentos ficam de fora. null = sem recorrente, ou banco sem a migration 141.
+ */
+export interface SobraDepoisDasParcelas {
+  /** Parcelas que vencem neste mês, em centavos (pagas e não pagas). */
+  parcelasMes: Cents
+  /** Sobra dos recorrentes menos as parcelas do mês, em centavos; negativa quando passa. */
+  depois: Cents
+}
+
+export async function sobraDepoisDasParcelas(familiaId: string): Promise<SobraDepoisDasParcelas | null> {
+  const { data, error } = await cliente().rpc('recurrence_net_after_installments', { p_household: familiaId })
+  if (error) {
+    if (['PGRST202', '42883'].includes(error.code ?? '')) return null
+    throw error
+  }
+  const l = ((data ?? []) as { installments_month: number | string; net_after: number | string }[])[0]
+  return l ? { parcelasMes: centsFromDb(l.installments_month), depois: centsFromDb(l.net_after) } : null
+}
+
+/**
  * Corrige só a NATUREZA de um recorrente (recurrence_set_nature, migration 20261112120000): classificação analítica que alimenta o
  * fixo × variável e o filtro de Recorrentes; não muda valor, data nem lançamento. `null` tira a marcação (o app volta a sugerir pelo
  * histórico). O banco recusa natureza que não combina com o tipo (ressarcimento só em receita; as outras só em despesa e cartão).

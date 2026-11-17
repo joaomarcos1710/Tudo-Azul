@@ -18,10 +18,10 @@ import { formatBRL, formatDate, formatMoeda } from '../lib/format'
 import { somarDias } from '../lib/periodoRelatorio'
 import type { Cents } from '../lib/format'
 import {
-  diaDaSemana, frequenciaResumo, listarRecorrencias, proximasDatasDasContas, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias, resumoVisaoGeral, sobraDosRecorrentes,
+  diaDaSemana, frequenciaResumo, listarRecorrencias, proximasDatasDasContas, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias, resumoVisaoGeral, sobraDepoisDasParcelas, sobraDosRecorrentes,
   rotuloFrequencia, rotuloNatureza, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
-import type { SobraRecorrentes, FrequenciaResumo, LinhaNatureza, LinhaVisao, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia } from '../lib/recorrencias'
+import type { SobraDepoisDasParcelas, SobraRecorrentes, FrequenciaResumo, LinhaNatureza, LinhaVisao, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia } from '../lib/recorrencias'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { corDoTipo, corDoValor, NATUREZA, SELO } from '../lib/cores'
 import { resumoParcelasDoMes } from '../lib/parcelasAtivas'
@@ -150,6 +150,8 @@ export default function Recorrentes() {
   const [visao, setVisao] = useState<LinhaVisao[] | null>(null)
   // a sobra por mês (entra − sai) vem do banco; sem ela (falha ou banco sem a migration 140) a linha some
   const [sobra, setSobra] = useState<SobraRecorrentes | null>(null)
+  // e a sobra DESTE mês depois das parcelas (migration 141); sem ela (falha, banco sem a migration) só essa linha some
+  const [depoisParcelas, setDepoisParcelas] = useState<SobraDepoisDasParcelas | null>(null)
   // proventos de investimento previstos (planejados) de hoje a 12 meses: só informação, fora do total "Vai entrar" (migration 117)
   const [proventos, setProventos] = useState<ProventoPrevisto[]>([])
   // ativos cuja previsão de proventos acaba em até 60 dias (migration 122): só um aviso, opcional (banco sem a função ou falha: some)
@@ -179,6 +181,7 @@ export default function Recorrentes() {
       void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => { setPorNatureza([]); marcar('resumo por natureza') })
       void resumoVisaoGeral(familiaId).then(setVisao).catch(() => { setVisao(null); marcar('visão por mês e por ano') })
       void sobraDosRecorrentes(familiaId).then(setSobra).catch(() => { setSobra(null); marcar('sobra por mês') })
+      void sobraDepoisDasParcelas(familiaId).then(setDepoisParcelas).catch(() => { setDepoisParcelas(null); marcar('sobra depois das parcelas') })
       void listarProventosPrevistos(familiaId).then(setProventos).catch(() => { setProventos([]); marcar('proventos previstos') })
       void listarProventosAcabando(familiaId, 60).then(setProventosAcabando).catch(() => { setProventosAcabando([]); marcar('aviso de proventos acabando') })
       // se a consulta falhar a linha mostra a data da regra (que pode estar defasada) e o aviso diz isso
@@ -474,7 +477,7 @@ export default function Recorrentes() {
 
       {(vigentes.length > 0 || proventos.length > 0) && (
         <ResumoDoMes
-          visao={visao !== null && visao.length > 0 ? visao : null} sobra={sobra} lado={lado} aoMudarLado={mudarLado}
+          visao={visao !== null && visao.length > 0 ? visao : null} sobra={sobra} depoisParcelas={depoisParcelas} lado={lado} aoMudarLado={mudarLado}
           naturezas={naturezasPresentes.map((n) => ({ chave: n, rotulo: rotuloGrupoNatureza[n], cor: COR_NATUREZA[n], porMes: totalNatureza(n) }))}
           escolhida={natureza}
           aoEscolher={(n) => setNatureza(n)}
@@ -565,10 +568,12 @@ export default function Recorrentes() {
  * cada parte cresce na proporção do seu valor, só desenho), a legenda que filtra a lista, "No cartão · Na conta"
  * (recurrence_summary, nível medium) e a linha das parcelas (installment_month_summary). A tela não soma dinheiro.
  */
-function ResumoDoMes({ visao, sobra, lado, aoMudarLado, naturezas, escolhida, aoEscolher, noCartao, naConta, parcelas, rodape }: {
+function ResumoDoMes({ visao, sobra, depoisParcelas, lado, aoMudarLado, naturezas, escolhida, aoEscolher, noCartao, naConta, parcelas, rodape }: {
   visao: LinhaVisao[] | null
   /** Entra − sai por mês e por ano (do banco); null = sem a linha. */
   sobra: SobraRecorrentes | null
+  /** A sobra deste mês depois das parcelas (do banco); só aparece quando há parcela no mês. */
+  depoisParcelas: SobraDepoisDasParcelas | null
   lado: Lado
   aoMudarLado: (l: Lado) => void
   naturezas: { chave: ChaveNatureza; rotulo: string; cor: string; porMes: Cents | null }[]
@@ -652,6 +657,20 @@ function ResumoDoMes({ visao, sobra, lado, aoMudarLado, naturezas, escolhida, ao
             <strong className={`whitespace-nowrap tabular-nums ${corDoValor(sobra.porMes)}`} data-testid="sobra-mes">{formatBRL(sobra.porMes < 0 ? (-sobra.porMes as Cents) : sobra.porMes)}</strong>
             <span className="text-xs text-slate-600"> por mês · <span className="whitespace-nowrap"><span className="tabular-nums" data-testid="sobra-ano">{formatBRL(sobra.porAno < 0 ? (-sobra.porAno as Cents) : sobra.porAno)}</span> por ano</span></span>
             <span className="mt-0.5 block text-xs text-slate-500">Entra menos sai, só do que se repete: parcelas, proventos previstos e gastos avulsos ficam de fora.</span>
+            {depoisParcelas !== null && depoisParcelas.parcelasMes > 0 && (
+              // o dono pediu (17/11/2026) um segundo número com as parcelas; elas mudam de mês para mês, então é "deste mês".
+              // A conta é do banco (recurrence_net_after_installments); aqui só se mostra, com o sinal tirado de um valor já pronto.
+              <span className="mt-2 block border-t border-slate-200 pt-2" data-testid="sobra-depois-parcelas">
+                <span className="font-semibold text-marinho">Este mês, depois das parcelas: {depoisParcelas.depois < 0 ? 'Falta' : 'Sobra'} ≈ </span>
+                <strong className={`whitespace-nowrap tabular-nums ${corDoValor(depoisParcelas.depois)}`} data-testid="sobra-depois-valor">
+                  {formatBRL(depoisParcelas.depois < 0 ? (-depoisParcelas.depois as Cents) : depoisParcelas.depois)}
+                </strong>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  Desconta <span className="whitespace-nowrap tabular-nums" data-testid="sobra-parcelas-mes">{formatBRL(depoisParcelas.parcelasMes)}</span> em
+                  parcelas de compras e carnês que vencem este mês (pagas ou não). Muda de mês para mês; empréstimos e financiamentos ficam de fora.
+                </span>
+              </span>
+            )}
           </p>
         )}
         {naBarra.length > 0 && (
