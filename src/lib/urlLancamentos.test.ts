@@ -44,6 +44,18 @@ describe('período e filtros de Lançamentos no endereço (handoff, item g)', ()
     expect(urlComListagem(u(''), { tipo: 'mes', de: '2026-03-01', ate: '2026-03-31' }, {}).toString()).toBe('mes=2026-03')
   })
 
+  it('?busca= (PR 2 do handoff): texto sem os espaços das pontas; vazio ou com mais de 100 letras é ignorado; ida e volta', () => {
+    expect(filtrosDaUrl(u('busca=%20flora%20energia%20'))).toEqual({ busca: 'flora energia' })
+    expect(filtrosDaUrl(u('busca=%20%20'))).toEqual({})
+    expect(filtrosDaUrl(u(`busca=${'a'.repeat(101)}`))).toEqual({})
+    expect(filtrosDaUrl(u(`busca=${'a'.repeat(100)}`)).busca).toHaveLength(100)
+    const ida = urlComListagem(u(''), periodoDaUrl(u('mes=2026-10'), '2026-11'), { busca: '  100% Flóra  ', tipo: 'expense' })
+    expect(ida.get('busca')).toBe('100% Flóra')
+    expect(filtrosDaUrl(ida)).toEqual({ busca: '100% Flóra', tipo: 'expense' })
+    expect(urlComListagem(ida, periodoDaUrl(ida), { tipo: 'expense' }).has('busca')).toBe(false)
+    expect(assinaturaDaListagem(u('busca=a'))).not.toBe(assinaturaDaListagem(u('busca=b')))
+  })
+
   it('a assinatura só muda com período ou filtro (não com ?novo=)', () => {
     expect(assinaturaDaListagem(u('mes=2026-10&novo=despesa'))).toBe(assinaturaDaListagem(u('mes=2026-10')))
     expect(assinaturaDaListagem(u('mes=2026-10'))).not.toBe(assinaturaDaListagem(u('mes=2026-10&tipo=receita')))

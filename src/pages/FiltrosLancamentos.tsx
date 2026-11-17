@@ -33,7 +33,9 @@ export function FiltrosLancamentos({ filtros, aoMudar, contas, cartoes, categori
   return (
     <TelaFiltros titulo="Filtrar lançamentos" aoFechar={aoFechar}
       acaoPrincipal={{ rotulo: 'Filtrar', nomeAcessivel: 'Filtrar: ver os lançamentos', aoAcionar: aoFechar }}
-      rodape={<button type="button" onClick={() => aoMudar({})} disabled={!Object.values(filtros).some((v) => v !== undefined)}
+      // a busca mora na caixa de texto da lista, não aqui: "Limpar filtros" da folha não apaga o que foi digitado
+      rodape={<button type="button" onClick={() => aoMudar({ busca: filtros.busca })}
+        disabled={!Object.entries(filtros).some(([k, v]) => k !== 'busca' && v !== undefined)}
         className="min-h-11 text-sm font-semibold text-azul hover:underline disabled:text-slate-400 disabled:no-underline">
         Limpar filtros
       </button>}>

@@ -30,15 +30,15 @@ import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, rotuloDoDia, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, faixaDePendencias, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
+  buscarNoPeriodo, criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, faixaDePendencias, listarComprasDaFatura, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
   listarMovimentosDeDividaNoPeriodo, marcarComoPago,
-  moverParaLixeira, pararDeRepetirAPartirDe, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, valoresDasParcelas,
+  moverParaLixeira, pararDeRepetirAPartirDe, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, textoDaBusca, totaisDaBusca, valoresDasParcelas,
 } from '../lib/lancamentos'
 // import à parte para não conflitar com outras branches que mexem na lista acima
 import { situacaoDoLancamento } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
-import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, Pendencia, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, Pendencia, ResumoPorMoeda, StatusLancamento, TipoLancamento, TotalBusca } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { ComprasDaFatura, NomeCategoria, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, valorComSinal } from './LancamentosItens'
@@ -135,6 +135,23 @@ export default function Lancamentos() {
   // rodapé (regime de caixa, do banco): undefined = carregando, null = não carregou (a lista segue)
   const [totais, setTotais] = useState<{ realizado: TotaisCaixa; previsto: TotaisCaixa } | null | undefined>(undefined)
   const [filtrosAbertos, setFiltrosAbertos] = useState(false)
+  // busca (handoff, PR 2): o texto da caixa muda na hora; o filtro (endereço e consulta) só depois de uma pausa na digitação.
+  // totaisBusca: undefined = carregando, null = não carregou; buscaIndisponivel = banco ainda sem a migration 138
+  const [textoBusca, setTextoBusca] = useState(filtros.busca ?? '')
+  const [totaisBusca, setTotaisBusca] = useState<TotalBusca[] | null | undefined>(undefined)
+  const [buscaIndisponivel, setBuscaIndisponivel] = useState(false)
+  // a lista e o total da busca não têm o mesmo número de itens (consulta cortada pelo servidor em período longo)
+  const [buscaCortada, setBuscaCortada] = useState(false)
+  useEffect(() => {
+    // o endereço mudou por fora (Limpar filtros, voltar do navegador): a caixa acompanha
+    setTextoBusca((atual) => ((textoDaBusca(atual) ?? '') === (filtros.busca ?? '') ? atual : filtros.busca ?? ''))
+  }, [filtros.busca])
+  useEffect(() => {
+    const novo = textoDaBusca(textoBusca)
+    if (novo === filtros.busca) return
+    const espera = setTimeout(() => setFiltros((f) => ({ ...f, busca: novo })), 350)
+    return () => clearTimeout(espera)
+  }, [textoBusca, filtros.busca, setFiltros])
   // receitas e despesas pagas em outras moedas (multimoeda F2): à parte, nunca somadas ao resumo em reais
   const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
   // faixa de pendências (item c do handoff): só no mês atual; vazia = não aparece
@@ -147,7 +164,7 @@ export default function Lancamentos() {
   const [editando, setEditando] = useState<Lancamento | 'novo' | null>(null)
   // Renderização progressiva: mantém o mês completo no estado, mas limita o DOM a 50 linhas por etapa.
   const [limiteVisivel, setLimiteVisivel] = useState(50)
-  useEffect(() => { setLimiteVisivel(50) }, [periodo, filtros.contaId, filtros.tipo, filtros.categoriaId])
+  useEffect(() => { setLimiteVisivel(50) }, [periodo, filtros.contaId, filtros.tipo, filtros.categoriaId, filtros.busca])
 
   /** Categorias oferecidas no filtro: só as do tipo escolhido; transferência não tem categoria. */
   /** O que está ligado, para os selos de cima (cada um sai sozinho). Tirar o tipo não mexe na categoria: ela já combinava. */
@@ -225,11 +242,15 @@ export default function Lancamentos() {
       // faturas do cartão carregam à parte: se falharem, a lista de conta continua e só este bloco avisa.
       // Com filtro de categoria, as compras e os créditos daquela categoria saem um a um (o total da fatura mistura categorias).
       const categoria = filtros.categoriaId
+      const busca = filtros.busca
       const hoje = hojeSP()
       const falhas = new Set<string>()
       const falhou = <T,>(bloco: string, vazio: T) => (): T => { falhas.add(bloco); return vazio }
+      // com busca, as compras saem uma a uma, como com categoria; quem escolhe quais é o banco (ledger_search, abaixo)
       const cartao = listarFaturasNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje)
-        .then(async (fs) => (categoria
+        .then(async (fs) => (busca
+          ? { faturas: [], compras: (await Promise.all(fs.map(listarComprasDaFatura))).flat(), creditos: [] as CreditoDeCartao[] }
+          : categoria
           ? {
               faturas: [], compras: await listarComprasDasFaturas(fs, categoria),
               // falha nos créditos não tira as compras da tela
@@ -239,14 +260,15 @@ export default function Lancamentos() {
         .catch(() => null)
       // parcela de contrato não tem categoria nem é receita/transferência; com filtro de conta, só as debitadas nela
       const [deMes, ateMes] = [periodo.de, periodo.ate]
-      const parcelas = filtros.categoriaId || (filtros.tipo && filtros.tipo !== 'expense')
+      // a busca não procura em parcelas de contrato, créditos do cartão nem movimentos de dívida (decisão do dono, 17/11/2026)
+      const parcelas = busca || filtros.categoriaId || (filtros.tipo && filtros.tipo !== 'expense')
         ? Promise.resolve([] as ParcelaDivida[])
         : listarParcelasDivida(familiaId, deMes, ateMes).catch(falhou('parcelas de empréstimos e financiamentos', [] as ParcelaDivida[]))
             .then((ps) => (filtros.contaId ? ps.filter((p) => p.contaPagamentoId === filtros.contaId) : ps))
       // créditos do cartão (decisão do dono, 05/11/2026): sem filtro ficam DENTRO da fatura; soltos só com filtro de Receita
       // (no fechamento, o dia em que contam; a fatura não aparece em Receita, então não duplica) ou de categoria (acima).
       // Falha nos créditos não derruba a lista.
-      const creditos = filtros.tipo === 'income'
+      const creditos = !busca && filtros.tipo === 'income'
         ? listarCreditosDeCartaoNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje).catch(falhou('créditos do cartão', [] as CreditoDeCartao[]))
         : Promise.resolve([] as CreditoDeCartao[])
       // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
@@ -262,17 +284,33 @@ export default function Lancamentos() {
         serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: false }),
         serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: true }),
       ]).then(([pago, comPlanejado]) => ({ realizado: totaisDe(pago), previsto: totaisDe(comPlanejado) })).catch(() => null)
-      const [l, r, md, cc, pc, cr, pm, pd] = await Promise.all([
-        listarLancamentosNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), totaisDoMes, listarMovimentosDeDividaNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), cartao, parcelas,
-        creditos, porMoedaDoMes, pendenciasDoMes,
+      const movimentos = busca ? Promise.resolve([] as MovimentoDivida[]) : listarMovimentosDeDividaNoPeriodo(familiaId, periodo.de, periodo.ate, filtros)
+      // o que a busca achou (ids) e o total (somado no banco); falha no total não derruba a lista, só o rodapé avisa
+      const achados = busca ? buscarNoPeriodo(familiaId, periodo.de, periodo.ate, busca, filtros) : Promise.resolve(null)
+      const totalBusca = busca ? totaisDaBusca(familiaId, periodo.de, periodo.ate, busca, filtros).catch(() => null) : Promise.resolve(null)
+      const [l, r, md, cc, pc, cr, pm, pd, ach, tb] = await Promise.all([
+        listarLancamentosNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), totaisDoMes, movimentos, cartao, parcelas,
+        creditos, porMoedaDoMes, pendenciasDoMes, achados, totalBusca,
       ])
       if (meu !== pedido.current) return
-      setLancamentos(l)
+      // banco sem a migration 138: nada é mostrado como "encontrado" e a tela avisa
+      const indisponivel = Boolean(busca) && ach === null
+      setBuscaIndisponivel(indisponivel)
+      const achadosNaLista = busca ? l.filter((x) => ach?.lancamentos.has(x.id)) : l
+      const comprasAchadas = busca ? (cc?.compras ?? []).filter((c) => ach?.cartao.has(c.id)) : cc?.compras ?? []
+      // O total vem do banco (todos os achados do período); a lista vem de consultas que o servidor corta em 1000 linhas.
+      // Se o número de itens da lista não é o do total, o total soma o que a lista não mostra: os valores somem e a tela
+      // avisa (achado do revisor-dinheiro na #418). Sem as faturas (falharam), o total também não vale.
+      const contados = tb ? tb.reduce((n, t) => n + t.quantidade, 0) : null
+      const cortada = Boolean(busca) && !indisponivel && cc !== null && contados !== null && contados !== achadosNaLista.length + comprasAchadas.length
+      setBuscaCortada(cortada)
+      setTotaisBusca(cc === null ? null : tb)
+      setLancamentos(achadosNaLista)
       setMovimentosDivida(md)
       setParcelasContrato(pc)
       setCreditosCartao([...cr, ...(cc?.creditos ?? [])])
       setFaturas(cc?.faturas ?? [])
-      setComprasCategoria(cc?.compras ?? [])
+      setComprasCategoria(comprasAchadas)
       setComprasFalharam(cc === null)
       setTotais(r)
       setPorMoeda(pm)
@@ -331,11 +369,13 @@ export default function Lancamentos() {
   const soLancamento = Boolean(filtros.situacao || filtros.soFixos || filtros.soParcelados)
   const mostraLancamentos = !soCartao
   const mostraOutrosMovimentos = !soCartao && !soLancamento
+  // com busca, as compras do cartão achadas aparecem também com o filtro de cartão (o banco já filtrou pelo cartão)
+  const mostraCompras = filtros.busca ? !soLancamento : mostraOutrosMovimentos
   const itens: ItemLista[] = [
     ...(mostraLancamentos ? lancamentos ?? [] : []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
     ...(mostraOutrosMovimentos ? movimentosDivida : []).map((m) => ({ origem: 'divida' as const, m, data: m.data })),
     ...(soLancamento ? [] : faturas.filter((f) => !soCartao || f.cartaoId === filtros.cartaoId)).map((f) => ({ origem: 'fatura' as const, f, data: f.vencimento })),
-    ...(mostraOutrosMovimentos ? comprasCategoria : []).map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
+    ...(mostraCompras ? comprasCategoria : []).map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
     ...(mostraOutrosMovimentos ? parcelasContrato : []).map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
     ...(mostraOutrosMovimentos ? creditosCartao : []).map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
   ].sort((x, y) => ordemPreferida === 'asc'
@@ -355,7 +395,7 @@ export default function Lancamentos() {
   const lote = useSelecaoLote({
     // aporte e resgate da carteira ficam fora do lote: só se alteram pela operação em Investimentos
     lancamentos: itensVisiveis.flatMap((it) => (it.origem === 'lancamento' && !idsInternas.has(it.l.contaId) && !idsInternas.has(it.l.destinoId ?? '') ? [it.l] : [])), hoje, categorias, aoAlterar: carregar,
-    chave: `${periodo.de}|${periodo.ate}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}`,
+    chave: `${periodo.de}|${periodo.ate}|${filtros.contaId ?? ''}|${filtros.tipo ?? ''}|${filtros.categoriaId ?? ''}|${filtros.busca ?? ''}`,
   })
 
   if (!familiaId) return null
@@ -395,6 +435,23 @@ export default function Lancamentos() {
                 { rotulo: 'Selecionar lançamentos', aoEscolher: lote.ligar, desabilitado: !itensVisiveis.some((it) => it.origem === 'lancamento') },
                 { rotulo: 'Lixeira', aoEscolher: () => navegar('/lancamentos/lixeira') },
               ]} />
+          )}
+        </div>
+        {/* busca (handoff, PR 2; decisões do dono de 17/11/2026): no período e com os filtros acima, na descrição e na
+            observação, sem maiúscula nem acento; quem procura e soma é o banco (migration 138) */}
+        <div className="relative mt-2">
+          <label htmlFor="busca-lancamentos" className="sr-only">Buscar na descrição ou na observação</label>
+          <input id="busca-lancamentos" type="search" value={textoBusca} maxLength={100} autoComplete="off" enterKeyHint="search"
+            onChange={(e) => setTextoBusca(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape' && textoBusca) { e.preventDefault(); setTextoBusca('') } }}
+            placeholder={`Buscar ${periodo.tipo === 'mes' ? 'neste mês' : 'neste período'} (descrição ou observação)`}
+            className="block min-h-10 w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-9 text-sm placeholder:text-slate-400 focus:border-azul focus:outline-none focus:ring-1 focus:ring-azul [&::-webkit-search-cancel-button]:hidden" />
+          <span aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><IconeLupa /></span>
+          {textoBusca && (
+            <button type="button" onClick={() => setTextoBusca('')} aria-label="Limpar o texto da busca"
+              className="absolute right-1 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100">
+              <span aria-hidden="true">×</span>
+            </button>
           )}
         </div>
         {lote.barra}
@@ -501,7 +558,22 @@ export default function Lancamentos() {
       {comprasFalharam && (
         <div className="mb-4"><Aviso tipo="info">Não foi possível carregar as faturas dos cartões agora. Elas continuam em Cartões.</Aviso></div>
       )}
-      {(faturas.length > 0 || comprasCategoria.length > 0) && (
+      {filtros.busca && buscaIndisponivel && (
+        <div className="mb-4"><Aviso tipo="info">A busca ainda não está disponível. Apague o texto para ver a lista.</Aviso></div>
+      )}
+      {filtros.busca && buscaCortada && (
+        <div className="mb-4" data-testid="busca-cortada">
+          <Aviso tipo="erro">A busca achou mais itens do que a lista consegue trazer neste período, então a lista está incompleta. Escolha um período menor.</Aviso>
+        </div>
+      )}
+      {filtros.busca && !buscaIndisponivel && (
+        <p className="mb-3 text-xs text-slate-500" data-testid="nota-busca">
+          A busca olha a descrição e a observação dos lançamentos e das compras do cartão {periodo.tipo === 'mes' ? 'deste mês' : 'deste período'}
+          {' '}(a compra aparece no vencimento da fatura). Pagamento de fatura, parcelas de empréstimo e créditos do cartão não entram.
+          {' '}O total embaixo soma pagos e previstos; transferência conta como encontrada, não como entrada nem saída.
+        </p>
+      )}
+      {!filtros.busca && (faturas.length > 0 || comprasCategoria.length > 0) && (
         <Explicacao resumo="Fatura no vencimento, com compras e créditos dentro.">
           A <strong>fatura</strong> do cartão aparece no dia do vencimento, com o total calculado pelo banco (já descontados os
           créditos); toque nela para ver as compras e os <strong>créditos e reembolsos</strong>.
@@ -514,8 +586,12 @@ export default function Lancamentos() {
           parcelados a lista pode ficar vazia mesmo havendo lançamentos no período, e a tela ficava em branco, sem lista
           nem mensagem. Se alguma consulta falhou, quem fala é o aviso de erro: falha não é "nenhum lançamento". */}
       {lancamentos !== null && itens.length === 0 && editando === null && contas.length > 0
-        && !erro && blocosFalharam.length === 0 && !comprasFalharam && (
-        filtrosLigados.length > 0 ? (
+        && !erro && blocosFalharam.length === 0 && !comprasFalharam && !buscaIndisponivel && (
+        filtros.busca ? (
+          <EmptyState titulo={`Nada encontrado para "${filtros.busca}"`}
+            descricao={`${periodo.tipo === 'mes' ? 'Neste mês' : 'Neste período'}${filtrosLigados.length > 0 ? ', com os filtros ligados,' : ''} nenhum lançamento nem compra do cartão tem esse texto na descrição ou na observação. Para procurar mais longe, troque o período.`}
+            acao={<Button variante="secundario" onClick={() => setTextoBusca('')}>Apagar a busca</Button>} />
+        ) : filtrosLigados.length > 0 ? (
           <EmptyState titulo="Nenhum lançamento com esses filtros"
             descricao={`${filtrosLigados.length === 1 ? 'Há 1 filtro ligado' : `Há ${filtrosLigados.length} filtros ligados`}: ${filtrosLigados.map((f) => f.rotulo).join(', ')}. ${periodo.tipo === 'mes' ? 'Neste mês' : 'Neste período'} nada combina com ${filtrosLigados.length === 1 ? 'ele' : 'eles'}.`}
             acao={<Button variante="secundario" onClick={() => setFiltros({})}>Limpar filtros</Button>} />
@@ -657,6 +733,7 @@ export default function Lancamentos() {
 
       <RodapeLancamentos realizado={totais === undefined ? undefined : totais?.realizado ?? null}
         previsto={totais === undefined ? undefined : totais?.previsto ?? null}
+        busca={filtros.busca && !buscaIndisponivel ? { texto: filtros.busca, totais: atualizando ? undefined : totaisBusca, cortada: buscaCortada } : undefined}
         semTotais={filtros.tipo || filtros.categoriaId || filtros.situacao || filtros.cartaoId || filtros.soFixos || filtros.soParcelados
           ? 'Sem total com este filtro: o total só segue o filtro de conta.' : undefined}
         // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
@@ -668,6 +745,15 @@ export default function Lancamentos() {
 /** O período na tela é o mês-calendário de hoje (a faixa de pendências só aparece nele). */
 function ehMesAtual(p: PeriodoLista, hoje: string): boolean {
   return p.tipo === 'mes' && p.de <= hoje && hoje <= p.ate
+}
+
+/** Lupa da caixa de busca, no traço dos ícones do menu. */
+function IconeLupa() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+    </svg>
+  )
 }
 
 /** Ícone do botão Filtrar (dois controles deslizantes), no traço dos ícones do menu. */

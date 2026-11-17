@@ -1,19 +1,22 @@
 import { currentMonth } from './format'
 import { erroPeriodoLivre, periodoDoMes } from './periodoRelatorio'
 import type { Periodo, TipoPeriodo } from './periodoRelatorio'
+import { textoDaBusca } from './lancamentos'
 import type { Filtros, StatusLancamento, TipoLancamento } from './lancamentos'
 
 /**
  * Período e filtros de Lançamentos no endereço (handoff de Lançamentos, item g): recarregar a página, voltar do
- * navegador ou mandar o link para alguém da família abre a mesma lista. Só datas e ids; nenhum dinheiro.
+ * navegador ou mandar o link para alguém da família abre a mesma lista.
  *
  *   ?mes=AAAA-MM                                   o mês (o padrão, sem nada, é o mês atual)
  *   ?periodo=livre&de=AAAA-MM-DD&ate=AAAA-MM-DD    qualquer outro período (dia, semana, meses, ano, livre)
  *   ?conta=<id>&categoria=<id>&cartao=<id>         filtros por id
  *   ?tipo=receita|despesa|transferencia            tipo (os links do Início e de Análises já usam receita/despesa)
  *   ?situacao=pago|pendente&fixos=1&parcelados=1   o resto dos filtros
+ *   ?busca=<texto>                                 busca na descrição e na observação (1 a 100 letras)
  *
- * Valor inválido é ignorado (cai no padrão), nunca vira erro na tela. `?novo=` continua sendo tratado pela tela.
+ * Só datas, ids e o texto da busca; nenhum dinheiro. Valor inválido é ignorado (cai no padrão), nunca vira erro na
+ * tela. `?novo=` continua sendo tratado pela tela.
  */
 
 const TIPOS: Record<string, TipoLancamento> = { receita: 'income', despesa: 'expense', transferencia: 'transfer' }
@@ -30,7 +33,7 @@ const dataReal = (d: string | null): d is string =>
     && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d
 
 /** Chaves que este módulo lê e escreve (as outras, como `novo`, ficam como estão). */
-export const CHAVES_URL_LANCAMENTOS = ['mes', 'periodo', 'de', 'ate', 'conta', 'categoria', 'cartao', 'tipo', 'situacao', 'fixos', 'parcelados'] as const
+export const CHAVES_URL_LANCAMENTOS = ['mes', 'periodo', 'de', 'ate', 'conta', 'categoria', 'cartao', 'tipo', 'situacao', 'fixos', 'parcelados', 'busca'] as const
 
 export function periodoDaUrl(p: URLSearchParams, mesAtual: string = currentMonth()): Periodo {
   const de = p.get('de')
@@ -53,6 +56,7 @@ export function filtrosDaUrl(p: URLSearchParams): Filtros {
   const situacao = SITUACOES[p.get('situacao') ?? '']; if (situacao) f.situacao = situacao
   if (p.get('fixos') === '1') f.soFixos = true
   if (p.get('parcelados') === '1') f.soParcelados = true
+  const busca = textoDaBusca(p.get('busca')); if (busca) f.busca = busca
   return f
 }
 
@@ -69,6 +73,7 @@ export function urlComListagem(atual: URLSearchParams, periodo: Periodo, filtros
   if (filtros.situacao) n.set('situacao', SITUACOES_URL[filtros.situacao])
   if (filtros.soFixos) n.set('fixos', '1')
   if (filtros.soParcelados) n.set('parcelados', '1')
+  const busca = textoDaBusca(filtros.busca); if (busca) n.set('busca', busca)
   return n
 }
 
