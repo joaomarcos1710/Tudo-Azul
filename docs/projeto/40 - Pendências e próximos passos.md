@@ -875,6 +875,6 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - **Opção A (contas XP ligadas aos ativos), consulta de leitura de 16/11/2026 (com o "pode" do dono):** as contas XP têm só saldos pequenos (dinheiro de proventos parado), não o valor dos ativos: **não há contagem em dobro** no patrimônio. A ligação conta ↔ ativos continua sendo só para exibir; o plano (migration nova, função `account_investment_values`) e as perguntas 2 a 5 seguem esperando o dono.
 
 ## 17/11/2026 — Saldo do consignado diferente do banco
-- [x] "Corrigir saldo pelo extrato" em Dívidas (migration 132, teste 124). Falta aplicar em produção (com o "pode" do dono) e o dono corrigir o consignado para o saldo do extrato.
+- [x] "Corrigir saldo pelo extrato" em Dívidas (migration 132, teste 124). Aplicada em produção em 17/11/2026 (execução 44000571239). Falta o dono corrigir o consignado para o saldo do extrato.
 - [ ] Mostrar na tela de Dívidas o histórico de movimentos (com os ajustes) e um botão para anular um ajuste: hoje anular só pelo banco (`debt_void`). Surgiu desta mudança. Importa porque, depois de uma correção, pagamento com data anterior a ela é recusado: para lançar um pagamento atrasado é preciso anular a correção.
 - **atalho (migration 132):** movimento na MESMA data da correção pelo extrato passa (o extrato do dia pode ou não trazê-lo); melhorar se aparecer o caso.
