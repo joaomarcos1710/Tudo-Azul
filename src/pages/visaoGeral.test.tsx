@@ -1337,6 +1337,22 @@ describe('Visão geral', () => {
     expect(screen.queryByText(/Dívida atual/)).toBeNull()
     expect(screen.queryByText(/· bens/)).toBeNull()
   })
+
+  it('Análises no iPad deitado (print do dono, 17/11/2026): valor do card de patrimônio nunca quebra "R$" do número', async () => {
+    mock.carregarPatrimonio.mockResolvedValue({ disponivel: c(60109), creditoAReceber: c(0), divida: c(41811959), bens: c(42000000), patrimonio: c(20097015), compromissos: c(0), investimentos: c(19848865) })
+    montar('analises')
+    const patrimonio = (await screen.findAllByText('Patrimônio líquido')).map((el) => el.closest('div[class*="rounded"]') as HTMLElement).find((el) => el?.querySelector('dl'))!
+    // cada linha: valor inteiro (nowrap) que, sem espaço ao lado do rótulo, desce para a linha de baixo à direita
+    for (const dd of Array.from(patrimonio.querySelectorAll('dd'))) {
+      expect(dd.className).toContain('whitespace-nowrap')
+      expect(dd.className).toContain('ml-auto')
+      expect((dd.parentElement as HTMLElement).className).toContain('flex-wrap')
+    }
+    // 4 cards por linha só a partir de xl: com o menu ao lado, entre 1024 e 1279 px o card não tinha largura para o valor
+    const resumo = screen.getByRole('region', { name: 'Resumo do mês' }).className.split(/\s+/)
+    expect(resumo).toEqual(expect.arrayContaining(['grid', 'grid-cols-2', 'xl:grid-cols-4']))
+    expect(resumo).not.toContain('lg:grid-cols-4')
+  })
 })
 
 describe('Faixa de indicadores do Início (#188, migration 071)', () => {

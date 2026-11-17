@@ -401,6 +401,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#409** (17/11/2026): **Lançamentos: faixa de pendências** (item c do handoff), migration 134 (`pending_strip`): no mês atual, vencidos a pagar, vencidos a receber, a pagar e a receber até o fim do mês. Decisões do dono: fatura só fechada, parcela sem consignado, até o fim do mês, só no mês atual. **Migration 134 aplicada em 17/11/2026** (execução 44012103142).
 - **#410** (17/11/2026): **faixa de pendências sem cartão arquivado** (migration 135, achado do `revisor-dinheiro` na #409): fatura de cartão arquivado sai da faixa; a tela avisa que a fatura de antes do cadastro do cartão não entra (decisão do dono, opção a); teste 127 com pagamento parcial, sem fatura, crédito avulso e o vencido fantasma registrado para a PR B. **Migration 135 aplicada em 17/11/2026** (execução 44090362937).
 - **#411** (17/11/2026): diário: migration 135 aplicada.
+- **#412** (17/11/2026): **Análises: card de patrimônio no iPad deitado** (print do dono): os valores do detalhe quebravam "R$" do número e encostavam na borda; agora o valor fica inteiro e desce para baixo do rótulo se não couber. O resumo do mês tem 4 cards por linha só a partir de 1280 px (com o menu, entre 1024 e 1279 px o número grande não cabia: 175 px de texto para 127 a 166 px de card). Só tela.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
