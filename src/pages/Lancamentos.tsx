@@ -212,9 +212,12 @@ export default function Lancamentos() {
 
   // só a resposta do último pedido vale: trocar de mês ou de filtro rápido não pode deixar a lista de um mês sob o título de outro
   const pedido = useRef(0)
+  // período e filtro da lista que está na tela: diferente do endereço = a lista nova ainda está vindo (handoff, item d)
+  const [assinaturaExibida, setAssinaturaExibida] = useState<string | null>(null)
   const carregar = useCallback(async () => {
     if (!familiaId) return
     const meu = ++pedido.current
+    const desta = assinatura
     try {
       // faturas do cartão carregam à parte: se falharem, a lista de conta continua e só este bloco avisa.
       // Com filtro de categoria, as compras e os créditos daquela categoria saem um a um (o total da fatura mistura categorias).
@@ -267,11 +270,12 @@ export default function Lancamentos() {
       setTotais(r)
       setPorMoeda(pm)
       setBlocosFalharam([...falhas])
+      setAssinaturaExibida(desta)
       setErro('')
     } catch (err) {
       if (meu === pedido.current) setErro(mensagemErroBanco(err))
     }
-  }, [familiaId, periodo, filtros, recarga])
+  }, [familiaId, periodo, filtros, recarga, assinatura])
 
   useEffect(() => { void carregar() }, [carregar])
 
@@ -331,6 +335,7 @@ export default function Lancamentos() {
     : (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
   const hoje = hojeSP()
   const itensVisiveis = itens.slice(0, limiteVisivel)
+  const atualizando = lancamentos !== null && assinaturaExibida !== assinatura && !erro
   const porDia: [string, Item[]][] = []
   for (const it of itensVisiveis) {
     const ultimo = porDia[porDia.length - 1]
@@ -471,6 +476,9 @@ export default function Lancamentos() {
       )}
 
       {lancamentos === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
+      {/* trocou mês ou filtro: a lista antiga fica esmaecida até a nova chegar (antes parecia já ser a do filtro novo).
+          Recarregar depois de pagar ou excluir não mostra isto: período e filtro são os mesmos. */}
+      {atualizando && <p className="mb-2 text-sm text-slate-600" role="status" data-testid="lista-atualizando">Atualizando a lista…</p>}
 
       {(blocosFalharam.length > 0 || cartoesFalharam || saldosFalharam) && (
         <div className="mb-4" data-testid="lancamentos-blocos-falharam">
@@ -511,7 +519,7 @@ export default function Lancamentos() {
       {lote.confirmacao}
       {lote.desfazer}
 
-      <div className="flex flex-col gap-4">
+      <div className={`flex flex-col gap-4 transition-opacity ${atualizando ? 'opacity-50' : ''}`} aria-busy={atualizando}>
         {porDia.map(([data, itens]) => (
           <section key={data} aria-label={rotuloDoDia(data, hoje)}>
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-sm font-semibold text-slate-500">{rotuloDoDia(data, hoje)}</h2>{mostrarSaldoDiario && rotuloSaldoDoDia(data) && <span className="text-xs font-medium tabular-nums text-slate-600">Saldo final: {rotuloSaldoDoDia(data)}</span>}</div>

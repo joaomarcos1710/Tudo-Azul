@@ -365,6 +365,24 @@ describe('Lançamentos', () => {
     expect(within(rodape).getByRole('button', { name: 'Novo lançamento' })).toBeTruthy() // o + continua
   })
 
+  it('trocar de filtro esmaece a lista antiga e diz "Atualizando a lista…" até a nova chegar (handoff, item d)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    expect(screen.queryByTestId('lista-atualizando')).toBeNull()
+    let responder: (l: typeof lancs) => void = () => {}
+    mock.listarLancamentos.mockImplementationOnce(() => new Promise((r) => { responder = r }))
+    await escolherTipo(u, 'expense')
+    // a resposta do filtro novo ainda não veio: a lista que está na tela é a antiga, e a tela diz isso
+    expect(await screen.findByTestId('lista-atualizando')).toBeTruthy()
+    const lista = screen.getByText('Supermercado').closest('[aria-busy]') as HTMLElement
+    expect(lista.getAttribute('aria-busy')).toBe('true')
+    expect(lista.className).toContain('opacity-50')
+    responder(lancs.filter((l) => l.tipo === 'expense'))
+    await vi.waitFor(() => expect(screen.queryByTestId('lista-atualizando')).toBeNull())
+    expect((screen.getByText('Supermercado').closest('[aria-busy]') as HTMLElement).getAttribute('aria-busy')).toBe('false')
+  })
+
   it('rodapé que falha não derruba a lista', async () => {
     mock.serieFluxo.mockRejectedValue(new Error('rede'))
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
