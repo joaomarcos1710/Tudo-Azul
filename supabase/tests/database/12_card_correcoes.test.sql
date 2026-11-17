@@ -250,7 +250,7 @@ select is((select array[total, paid, previous_open, advance_in, advance_out] fro
 -- C2: pagamento maior que a fatura de abril (100 sobre 80): o excedente vira adiantamento
 select public.debt_pay(pg_temp.fx('ccard'), '2026-04-25', pg_temp.fx('cbank'), 100.00, pg_temp.fat('c', '2026-04'));
 select is((select array[total, paid, previous_open, advance_in, advance_out] from public.card_months(pg_temp.fx('ccard')) where label = '2026-04'),
-          array[80, 80, 40, 0, 20]::numeric[], 'C2 abril: paga 80, saldo anterior 40, adiantamento de 20 sobra');
+          array[80, 80, 40, 0, 0]::numeric[], 'C2 abril: paga 80, saldo anterior 40; a sobra de 20 quita parte de março (migration 136), sem adiantamento');
 -- Regra mudou em 24/10/2026 (migration 010): pagamento COMUM de cartão acima da dívida agora vira crédito no cartão
 -- (ver 17_card_prepayment). A amortização extra continua sem poder passar do saldo devedor, e é o que se confere aqui.
 select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('ccard'), '2026-04-26', pg_temp.fx('cbank'), 30.00, null, true)$$),
@@ -259,9 +259,9 @@ select is(pg_temp.sqlstate_of($$select public.debt_pay(pg_temp.fx('ccard'), '202
 -- C3: pagamento sem fatura (p_invoice nulo) abate as faturas mais antigas em aberto
 select public.debt_pay(pg_temp.fx('ccard'), '2026-04-26', pg_temp.fx('cbank'), 20.00);
 select is((select array[total, paid, previous_open, advance_in, advance_out] from public.card_months(pg_temp.fx('ccard')) where label = '2026-03'),
-          array[100, 80, 0, 20, 0]::numeric[], 'C3 março: o pagamento avulso de 20 abate a fatura mais antiga (pago 80)');
+          array[100, 100, 0, 20, 0]::numeric[], 'C3 março: o avulso de 20 abate março (80) e a sobra de abril quita o resto (100, migration 136)');
 select is((select array[total, paid, previous_open, advance_in, advance_out] from public.card_months(pg_temp.fx('ccard')) where label = '2026-04'),
-          array[80, 80, 20, 0, 20]::numeric[], 'C3 abril: saldo anterior 20 (março), adiantamento 20');
+          array[80, 80, 20, 0, 0]::numeric[], 'C3 abril: saldo anterior 20 (março, antes dos pagamentos de abril), sem adiantamento (a sobra foi para março, 136)');
 select is((select debt from public.debt_balances(pg_temp.fx('ch'), '2099-12-31') where name = 'Cartão'),
           0::numeric, 'C3 dívida total do cartão = saldos anteriores 20 − adiantamento 20 = 0');
 

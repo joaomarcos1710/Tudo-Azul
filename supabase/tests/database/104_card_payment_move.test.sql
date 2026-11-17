@@ -269,7 +269,8 @@ create temp table fut_e as select pg_temp.futura(pg_temp.fx('e'), 0) as label;
 grant all on fut_e to public;
 select is(pg_temp.move('pe1', (select label from fut_e)), null, 'R3 pagamento de outubro vai para a fatura aberta');
 insert into fixture select 'pe2', public.debt_pay(pg_temp.fx('e'), '2026-10-26', pg_temp.fx('bank'), 20.00, pg_temp.fat(pg_temp.fx('e'), '2026-10'));
-select is(pg_temp.sit(pg_temp.fx('e'), '2026-10'), '80.00|20.00', 'R3.1 outubro: 80 com 20 pagos, ainda não paga');
+-- migration 136: os 60 movidos para a fatura aberta (50) sobram 10, que quitam parte de outubro antes de virar adiantamento
+select is(pg_temp.sit(pg_temp.fx('e'), '2026-10'), '80.00|30.00', 'R3.1 outubro: 80 com 20 pagos + 10 da sobra da fatura aberta (136), ainda não paga');
 select lives_ok(format($$select public.debt_refund(%L, %L::date, 50.00)$$,
           (select id from public.debt_installments where debt_id = pg_temp.fx('e') and description = 'Futura E'), pg_temp.hoje()),
           'R3.2 a fatura aberta perde a compra (estorno inteiro) e some');
