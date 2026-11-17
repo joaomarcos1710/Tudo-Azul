@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { BARRA_ORCAMENTO, CORES, FUNDOS, MARCA, SELO, SELO_FATURA, corDoTipo, corDoValor, faixaOrcamento } from './cores'
+import { BARRA_ORCAMENTO, CORES, FUNDOS, MARCA, NATUREZA, SELO, SELO_FATURA, corDoTipo, corDoValor, faixaOrcamento } from './cores'
 import config from '../../tailwind.config.js'
 
 /** Contraste WCAG 2.x entre duas cores #RRGGBB. */
@@ -45,6 +45,17 @@ describe('sistema de cores (#183)', () => {
       expect(contraste(CORES[p].marca, FUNDOS.branco), `${p} marca no branco`).toBeGreaterThanOrEqual(3)
       expect(contraste(CORES[p].marca, FUNDOS.app), `${p} marca no fundo`).toBeGreaterThanOrEqual(3)
     }
+  })
+
+  it('naturezas dos recorrentes (#416): passam de 3:1 como marca, são diferentes entre si em cada lado e não usam cor de status', () => {
+    for (const [n, hex] of Object.entries(NATUREZA)) {
+      expect(contraste(hex, FUNDOS.branco), `${n} no branco`).toBeGreaterThanOrEqual(3)
+      expect(contraste(hex, FUNDOS.app), `${n} no fundo`).toBeGreaterThanOrEqual(3)
+    }
+    expect(new Set([NATUREZA.fixed, NATUREZA.subscription, NATUREZA.variable, NATUREZA.none]).size).toBe(4)
+    expect(NATUREZA.reimbursement).not.toBe(NATUREZA.none)
+    const status = (['lucro', 'prejuizo', 'atencao', 'agendado'] as const).flatMap((p) => Object.values(CORES[p]).map((h) => h.toUpperCase()))
+    for (const hex of Object.values(NATUREZA)) expect(status).not.toContain(hex.toUpperCase())
   })
 
   it('o Tailwind lê a mesma fonte: text-lucro, bg-agendado-fundo… são estes hex, e o laranja/verde antigos saíram', () => {

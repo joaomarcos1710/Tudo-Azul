@@ -58,6 +58,10 @@ atualizado: 2026-11-15
 - ~~**atalho:** sem tela para marcar a **natureza** de um recorrente~~ **Resolvido na #331** (14/11/2026): tocar na linha em Recorrentes abre "Natureza" e corrige (só classifica).
 - ~~**atalho:** recorrente encerrado fora do prazo continua em "Já terminaram" e não dá para excluí-lo pela tela.~~ **Resolvido na #349** sem apagar: o bloco mostra só os últimos 90 dias e esconde o mais antigo atrás de um botão. Excluir de verdade seria outra decisão (ver 30 - Decisões).
 - Visual novo de Recorrentes não visto no iPhone: conferir 390 px.
+- [x] **Recorrentes, "o que eu pago por mês" (#416):** card do topo com Sai/Entra, barra e legenda por natureza (filtra), No cartão · Na conta, parcelas numa linha; lista por natureza, do maior para o menor, frequência em selo; sem contadores. Visto na bancada com dados fictícios (390 px e 820 px com menu), **falta conferir no app real** com os dados do dono.
+- **Pendente (precisa de função no banco):** "sobra por mês" (entra − sai) no card do topo de Recorrentes. A tela não subtrai: o número tem de vir do banco (ex.: uma linha a mais em `recurrence_overview`).
+- **Pendente (banco):** total por natureza **e** por meio (cartão/conta). Hoje, com a aba Conta ou Cartão, o título de cada grupo fica sem total, porque `recurrence_nature_summary` junta conta e cartão. Também **não conferido:** se a soma das naturezas (`recurrence_nature_summary`) bate com o "Sai" (`recurrence_overview`) e com "No cartão + Na conta" (`recurrence_summary`) na família real; as três funções têm a mesma base, mas são consultas diferentes.
+- Recorrentes (#416): o **"sugerido"** (fixo × variável pelo histórico, `recurrence_overview` recortes `fixed`/`variable`) saiu da tela junto com o bloco fixo × variável; a regra sem natureza marcada aparece em "Sem natureza". Se o dono sentir falta, a sugestão pode virar o grupo da regra.
 - Conferir no app real: "Repetir" no cartão numa assinatura de valor baixo; com data passada, os meses desde então entram como compras no cartão (a tela avisa).
 ## Próximos PRs sugeridos
 ### Categorias da fatura (#315, migration 112, 12/11/2026)
@@ -903,6 +907,6 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - [ ] Opcional: faixa "Próximos 30 dias" no topo de Recorrentes.
 
 ## 17/11/2026 — Cartões: "Por dia" (#415)
-- [x] Barras do gasto por dia e ritmo da fatura (migration 137). **Falta:** aplicar a 137 em produção.
+- [x] Barras do gasto por dia e ritmo da fatura (migration 137, **aplicada em 17/11/2026**, execução 44143830149).
 - [ ] **atalho:** projeção linear; se incomodar, usar a média das últimas faturas no mesmo ponto do ciclo.
 

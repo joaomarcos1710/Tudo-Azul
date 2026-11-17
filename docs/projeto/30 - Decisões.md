@@ -919,6 +919,11 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** "Excluir" em Lançamentos não pede confirmação; a barra "Desfazer" fica fixa embaixo até ser fechada. "Parar de repetir" continua com confirmação.
 - **Por quê:** handoff de Lançamentos (item e), aprovado pelo dono. A barra não some sozinha porque não há tela de Lixeira: depois de fechada, só dá para recuperar pelo banco. "Parar de repetir" encerra a regra e não tem desfazer simples.
 
+## 17/11/2026 — Recorrentes agrupado por natureza, com "Sai ≈ / Entra ≈" no topo (#416)
+- **O quê:** a lista de Recorrentes passa a ser agrupada por natureza (custos fixos, assinaturas, gastos variáveis, sem natureza; entradas: a ressarcir, sem natureza), do maior valor para o menor, sem as faixas por frequência e sem contadores; a frequência vira selo só fora do mensal. O topo é um card com "Sai ≈" e "Entra ≈" (as abas), a barra e a legenda por natureza (que filtra), "No cartão · Na conta" e as parcelas. Saíram o fixo × variável sugerido, a grade de naturezas e o "Por cartão e por conta".
+- **Por quê:** pedido do dono, com a prévia aprovada: "o mais importante é saber o que eu pago mensalmente, fixo e variável, no cartão, na conta… esses 'mensais' com a numeração é que tá me incomodando".
+- **Regras que ficaram:** todo total vem do banco (a largura da barra é só desenho, proporcional ao valor); o valor da linha é o de cada vez (sem ≈/mês por item, que seria conta na tela); com a aba Conta ou Cartão o título do grupo fica **sem** total, porque `recurrence_nature_summary` junta conta e cartão; com uma natureza só a legenda não filtra (daria a mesma lista); cores das naturezas em `lib/cores` (`NATUREZA`), fora das cores de status e com ≥ 3:1.
+
 ## 17/11/2026 — "Por dia" na fatura: ritmo + barras, compras do ciclo à parte das parcelas antigas (#415)
 - **O quê:** a folha mostra as barras do gasto de cada dia do ciclo e o ritmo (média por dia, projeção do fechamento, fatura anterior no mesmo ponto). Parcelas de compras de antes do ciclo (o "3/10") ficam à parte, como "já vinha".
 - **Por quê:** o dono escolheu as duas leituras. Barras sozinhas no cartão são irregulares (um dia com compra grande, os outros quase nada); o ritmo responde "estou gastando demais neste mês?". As parcelas antigas no dia da compra original virariam um pico falso fora do ciclo.
