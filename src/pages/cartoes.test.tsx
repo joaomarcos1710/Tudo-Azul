@@ -123,9 +123,10 @@ async function novoLancamento(u: ReturnType<typeof userEvent.setup>, item: 'Nova
 }
 /** Ações de uma compra ou crédito da fatura (#183): ficam no ⋯ da linha ("Ações de TV", "Ações do crédito Cashback"). */
 async function acaoDaLinha(u: ReturnType<typeof userEvent.setup>, menu: string, acao: string) {
-  await u.click(await screen.findByRole('button', { name: menu }))
-  // findByRole: o menu abre depois do clique; com a máquina carregada (CI) ele ainda não está na tela na mesma volta
-  await u.click(within(await screen.findByRole('menu', { name: menu })).getByRole('menuitem', { name: acao }))
+  await u.click(await screen.findByRole('button', { name: menu }, { timeout: 3000 }))
+  // findByRole: o menu abre depois do clique; com a máquina carregada (CI) ele ainda não está na tela na mesma volta.
+  // 3 s em vez do 1 s padrão: no CI da #404 o menu levou 1,085 s para aparecer e o teste falhou sem bug nenhum
+  await u.click(within(await screen.findByRole('menu', { name: menu }, { timeout: 3000 })).getByRole('menuitem', { name: acao }))
 }
 /** O "Abrir fatura" do cartão (#203: link para a página da fatura em foco; na lista há um por cartão). */
 async function botaoVerFatura(cartao = 'Nubank') {
