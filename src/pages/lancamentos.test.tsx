@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { Cents } from '../lib/format'
@@ -2286,5 +2286,98 @@ describe('Lançamentos: busca (handoff, PR 2; decisões do dono de 17/11/2026)',
     await abrirFiltros()
     await u.click(screen.getByRole('button', { name: 'Limpar filtros' }))
     await vi.waitFor(() => expect(mock.buscarNoPeriodo).toHaveBeenLastCalledWith('h1', '2026-10-01', '2026-10-31', 'super', { busca: 'super' }))
+  })
+})
+
+
+describe('Lançamentos: observação, logo do banco e carregar sozinho (pedido do dono, 17/11/2026)', () => {
+  const linha = (titulo: string) => screen.getByText(titulo).closest('li') as HTMLElement
+  const montar = () => render(<MemoryRouter initialEntries={['/?mes=2026-10']}><Lancamentos /></MemoryRouter>)
+
+  it('observação: uma linha com o ícone e o texto (espaços e quebras viram um espaço); sem observação, nada', async () => {
+    mock.listarLancamentos.mockResolvedValue([
+      { ...lancs[0], notas: 'cobrança em dobro\n  conferir com o banco' },
+      { ...lancs[0], id: 't8', descricao: 'Padaria', notas: '' },
+    ])
+    montar()
+    await screen.findByText('Supermercado')
+    const nota = linha('Supermercado').querySelector('[data-nota]') as HTMLElement
+    expect(nota.textContent).toBe('Observação: cobrança em dobro conferir com o banco')
+    expect(nota.getAttribute('title')).toBe('cobrança em dobro conferir com o banco')
+    expect(nota.querySelector('.truncate')).not.toBeNull() // uma linha só, cortada com reticências
+    expect(linha('Padaria').querySelector('[data-nota]')).toBeNull()
+  })
+
+  it('logo no lugar do nome quando a conta é a única do banco; o nome fica para o leitor de tela e no title', async () => {
+    montar()
+    await screen.findByText('Supermercado')
+    const conta = linha('Supermercado').querySelector('[data-conta]') as HTMLElement
+    expect(conta.querySelector('[data-banco="itau"]')).not.toBeNull()
+    expect(conta.querySelector('.sr-only')!.textContent).toBe('Itaú')
+    expect(conta.querySelector('[title="Itaú"]')).not.toBeNull()
+    expect(conta.querySelector('.truncate')).toBeNull() // sem o nome escrito
+  })
+
+  it('duas contas do mesmo banco: logo e nome (o logo sozinho não diz qual é); conta sem banco reconhecido: só o nome', async () => {
+    mock.listarContas.mockResolvedValue({
+      contas: [
+        { ...contas[0], nome: 'Itaú corrente', banco: 'itau' },
+        { ...contas[1], nome: 'Itaú poupança', banco: 'itau' },
+        { id: 'a3', nome: 'Reserva da casa', tipo: 'checking', saldoInicial: c(0), abertura: '2026-10-01', ativa: true, saldo: c(0), banco: null, moeda: 'BRL' },
+      ],
+      total: c(0),
+    })
+    mock.listarLancamentos.mockResolvedValue([
+      { ...lancs[0], contaId: 'a1' },
+      { ...lancs[0], id: 't9', descricao: 'Farmácia', contaId: 'a2' },
+      { ...lancs[0], id: 't10', descricao: 'Cinema', contaId: 'a3' },
+    ])
+    montar()
+    await screen.findByText('Supermercado')
+    const a1 = linha('Supermercado').querySelector('[data-conta]') as HTMLElement
+    expect(a1.querySelector('[data-banco="itau"]')).not.toBeNull()
+    expect(a1.textContent).toBe('Itaú corrente')
+    expect(a1.querySelector('.sr-only')).toBeNull() // o nome já está escrito
+    expect((linha('Farmácia').querySelector('[data-conta]') as HTMLElement).textContent).toBe('Itaú poupança')
+    const a3 = linha('Cinema').querySelector('[data-conta]') as HTMLElement
+    expect(a3.textContent).toBe('Reserva da casa')
+    expect(a3.querySelector('[data-logo], [data-sigla]')).toBeNull()
+  })
+
+  describe('carregar os próximos 50 sozinho', () => {
+    const muitos = Array.from({ length: 53 }, (_, i) => ({
+      ...lancs[0], id: `m${i}`, descricao: `Item ${String(i).padStart(2, '0')}`, data: '2026-10-15',
+    }))
+    afterEach(() => { vi.unstubAllGlobals() })
+
+    it('com IntersectionObserver: sem botão nem "Mostrando X de Y"; o fim da lista chegando à tela traz o resto', async () => {
+      let aoVer: ((e: { isIntersecting: boolean }[]) => void) | null = null
+      vi.stubGlobal('IntersectionObserver', class {
+        constructor(cb: (e: { isIntersecting: boolean }[]) => void) { aoVer = cb }
+        observe() {}
+        disconnect() {}
+      })
+      mock.listarLancamentos.mockResolvedValue(muitos)
+      montar()
+      await screen.findByText('Item 00')
+      expect(screen.queryByText('Item 50')).toBeNull() // só 50 no começo
+      expect(screen.queryByRole('button', { name: 'Carregar mais 50' })).toBeNull()
+      expect(screen.queryByText(/Mostrando 50 de/)).toBeNull()
+      expect(screen.getByTestId('carrega-mais-sozinho')).toBeTruthy()
+      await vi.waitFor(() => expect(aoVer).not.toBeNull())
+      act(() => aoVer!([{ isIntersecting: true }]))
+      expect(await screen.findByText('Item 52')).toBeTruthy()
+      expect(screen.queryByTestId('carrega-mais-sozinho')).toBeNull()
+    })
+
+    it('sem IntersectionObserver, o botão continua (e o texto de quantos aparecem)', async () => {
+      vi.stubGlobal('IntersectionObserver', undefined)
+      mock.listarLancamentos.mockResolvedValue(muitos)
+      montar()
+      await screen.findByText('Item 00')
+      expect(screen.getByText(/Mostrando 50 de 53/)).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Carregar mais 50' }))
+      expect(await screen.findByText('Item 52')).toBeTruthy()
+    })
   })
 })
