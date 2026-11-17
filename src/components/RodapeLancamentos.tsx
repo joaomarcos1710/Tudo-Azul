@@ -17,19 +17,17 @@ export interface TotaisCaixa {
  * Rodapé de Lançamentos (pedido do dono, 10/11/2026, como no Organizze): entradas, saídas e saldo do que já foi pago e,
  * na seta, o previsto (pagos e não pagos). Regime de caixa: a fatura do cartão conta no vencimento, como na lista e no
  * Relatório Entradas x Saídas com "Pagos e não pagos". undefined = carregando; null = não carregou.
- * Com `semTotais` (filtro que o banco não sabe somar), os números somem e fica só a frase: um total que não bate com a
- * lista filtrada engana mais do que não mostrar nada (handoff de Lançamentos, PR 3, parte só de tela).
+ * Com busca ou com filtro que o rodapé normal não segue (tipo, categoria, situação, cartão, fixos, parcelados), o total é o
+ * do que a lista filtrada traz, somado no banco (`busca`): handoff de Lançamentos, PR 2 e PR 3.
  */
-export function RodapeLancamentos({ realizado, previsto, semTotais, busca, acao }: {
+export function RodapeLancamentos({ realizado, previsto, busca, acao }: {
   realizado: TotaisCaixa | null | undefined
   previsto: TotaisCaixa | null | undefined
-  /** Frase no lugar dos totais quando eles não seguiriam algum filtro da lista (os números não aparecem). */
-  semTotais?: string
   /**
-   * Com busca (handoff, PR 2): no lugar dos totais do período, o que a busca achou, somado no banco
-   * (ledger_search_totals) e por moeda. totais: undefined = carregando; null = não carregou.
+   * No lugar dos totais do período, o que a busca ou o filtro achou, somado no banco (ledger_search_totals) e por moeda.
+   * texto nulo = só filtros, sem busca. totais: undefined = carregando; null = não carregou.
    */
-  busca?: { texto: string; totais: TotalBusca[] | null | undefined; cortada?: boolean }
+  busca?: { texto: string | null; totais: TotalBusca[] | null | undefined; cortada?: boolean }
   /** O botão flutuante de novo lançamento, preso acima do rodapé. */
   acao?: ReactNode
 }) {
@@ -40,7 +38,7 @@ export function RodapeLancamentos({ realizado, previsto, semTotais, busca, acao 
     <section aria-label="Totais do mês"
       className="sticky bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-20 -mx-4 mt-4 border-t border-slate-200 bg-white/95 px-4 pb-2 pt-1 backdrop-blur md:bottom-0 md:-mx-8 md:px-8">
       {acao && <div className="absolute -top-16 right-4 md:right-8">{acao}</div>}
-      {busca ? <TotaisDaBusca {...busca} /> : semTotais ? <p className="py-3 text-center text-sm text-slate-600" role="status">{semTotais}</p> : <>
+      {busca ? <TotaisDaBusca {...busca} /> : <>
         <button type="button" onClick={() => setAberto((v) => !v)} aria-expanded={aberto} aria-controls={idPrevisto}
           aria-label={aberto ? 'Esconder o previsto' : 'Mostrar o previsto'}
           className="mx-auto flex min-h-8 w-16 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100">
@@ -86,12 +84,12 @@ function Linha({ totais, rotulos, titulo }: { totais: TotaisCaixa | undefined; r
  * "Encontrados", entradas e saídas do que a busca achou (pagos e previstos; transferência só na quantidade, como diz a nota
  * acima da lista); outras moedas numa linha à parte.
  */
-function TotaisDaBusca({ texto, totais, cortada }: { texto: string; totais: TotalBusca[] | null | undefined; cortada?: boolean }) {
+function TotaisDaBusca({ texto, totais, cortada }: { texto: string | null; totais: TotalBusca[] | null | undefined; cortada?: boolean }) {
   if (cortada) {
     return <p className="py-3 text-center text-sm text-slate-600" role="status">Sem total: a lista ficou incompleta neste período. Escolha um período menor.</p>
   }
   if (totais === null) {
-    return <p className="py-3 text-center text-sm text-slate-500" role="status">Total da busca indisponível agora. A lista continua certa.</p>
+    return <p className="py-3 text-center text-sm text-slate-500" role="status">{texto === null ? 'Total do filtro indisponível agora. A lista continua certa.' : 'Total da busca indisponível agora. A lista continua certa.'}</p>
   }
   const reais = totais?.find((t) => t.moeda === 'BRL')
   const outras = (totais ?? []).filter((t) => t.moeda !== 'BRL')
@@ -100,9 +98,9 @@ function TotaisDaBusca({ texto, totais, cortada }: { texto: string; totais: Tota
   const n = totais ? totais.reduce((soma, t) => soma + t.quantidade, 0) : null
   return (
     <div className="pt-1" data-testid="totais-busca">
-      <dl className="grid grid-cols-3 gap-2 py-1 text-center" aria-label={`Total do que a busca "${texto}" encontrou, pagos e previstos`}>
+      <dl className="grid grid-cols-3 gap-2 py-1 text-center" aria-label={texto === null ? 'Total do que os filtros trouxeram, pagos e previstos' : `Total do que a busca "${texto}" encontrou, pagos e previstos`}>
         <div className="flex min-w-0 flex-col-reverse">
-          <dt className="text-xs text-slate-500">{n === 1 ? 'encontrado' : 'encontrados'}</dt>
+          <dt className="text-xs text-slate-500">{n === 1 ? 'item' : 'itens'}</dt>
           <dd className={`${valor} text-marinho`}>{n === null ? '…' : n}</dd>
         </div>
         <div className="flex min-w-0 flex-col-reverse">

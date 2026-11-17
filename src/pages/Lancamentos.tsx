@@ -32,7 +32,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, rotuloDoDia, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  buscarNoPeriodo, criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, faixaDePendencias, listarComprasDaFatura, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
+  buscarNoPeriodo, LIMITE_LINHAS_SERVIDOR, criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, faixaDePendencias, listarComprasDaFatura, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
   listarMovimentosDeDividaNoPeriodo, marcarComoPago,
   moverParaLixeira, pararDeRepetirAPartirDe, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, textoDaBusca, totaisDaBusca, valoresDasParcelas,
 } from '../lib/lancamentos'
@@ -289,7 +289,10 @@ export default function Lancamentos() {
       const movimentos = busca ? Promise.resolve([] as MovimentoDivida[]) : listarMovimentosDeDividaNoPeriodo(familiaId, periodo.de, periodo.ate, filtros)
       // o que a busca achou (ids) e o total (somado no banco); falha no total não derruba a lista, só o rodapé avisa
       const achados = busca ? buscarNoPeriodo(familiaId, periodo.de, periodo.ate, busca, filtros) : Promise.resolve(null)
-      const totalBusca = busca ? totaisDaBusca(familiaId, periodo.de, periodo.ate, busca, filtros).catch(() => null) : Promise.resolve(null)
+      // Com filtro ligado e sem busca, o rodapé mostra o total do filtro (decisões do dono, 17/11/2026; migration 139): o mesmo
+      // banco da busca, sem texto. Conta sozinha não conta: o rodapé normal já segue a conta.
+      const comFiltro = !busca && temFiltroDeTotal(filtros)
+      const totalBusca = busca || comFiltro ? totaisDaBusca(familiaId, periodo.de, periodo.ate, busca ?? null, filtros).catch(() => null) : Promise.resolve(null)
       const [l, r, md, cc, pc, cr, pm, pd, ach, tb] = await Promise.all([
         listarLancamentosNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), totaisDoMes, movimentos, cartao, parcelas,
         creditos, porMoedaDoMes, pendenciasDoMes, achados, totalBusca,
@@ -304,9 +307,14 @@ export default function Lancamentos() {
       // Se o número de itens da lista não é o do total, o total soma o que a lista não mostra: os valores somem e a tela
       // avisa (achado do revisor-dinheiro na #418). Sem as faturas (falharam), o total também não vale.
       const contados = tb ? tb.reduce((n, t) => n + t.quantidade, 0) : null
-      const cortada = Boolean(busca) && !indisponivel && cc !== null && contados !== null && contados !== achadosNaLista.length + comprasAchadas.length
+      // sem busca, a lista já vem filtrada pelo servidor; com 1000 linhas ela pode estar cortada, e o total do banco não é
+      const cortada = busca
+        ? !indisponivel && cc !== null && contados !== null && contados !== achadosNaLista.length + comprasAchadas.length
+        : comFiltro && l.length >= LIMITE_LINHAS_SERVIDOR
       setBuscaCortada(cortada)
-      setTotaisBusca(cc === null ? null : tb)
+      // sem as faturas, o total só some quando o filtro usa o cartão (situação, fixos e parcelados são só de lançamento)
+      const usaCartao = !(filtros.situacao || filtros.soFixos || filtros.soParcelados) && filtros.tipo !== 'income' && filtros.tipo !== 'transfer'
+      setTotaisBusca(cc === null && usaCartao ? null : tb)
       setLancamentos(achadosNaLista)
       setMovimentosDivida(md)
       setParcelasContrato(pc)
@@ -372,12 +380,14 @@ export default function Lancamentos() {
   const mostraLancamentos = !soCartao
   const mostraOutrosMovimentos = !soCartao && !soLancamento
   // com busca, as compras do cartão achadas aparecem também com o filtro de cartão (o banco já filtrou pelo cartão)
-  const mostraCompras = filtros.busca ? !soLancamento : mostraOutrosMovimentos
+  // Cartão + categoria sem busca: as compras da categoria, só desse cartão (achado do revisor-dinheiro na #420: a lista ficava
+  // vazia com o total do filtro embaixo).
+  const mostraCompras = filtros.busca ? !soLancamento : mostraOutrosMovimentos || (soCartao && !soLancamento && Boolean(filtros.categoriaId))
   const itens: ItemLista[] = [
     ...(mostraLancamentos ? lancamentos ?? [] : []).map((l) => ({ origem: 'lancamento' as const, l, data: l.data })),
     ...(mostraOutrosMovimentos ? movimentosDivida : []).map((m) => ({ origem: 'divida' as const, m, data: m.data })),
     ...(soLancamento ? [] : faturas.filter((f) => !soCartao || f.cartaoId === filtros.cartaoId)).map((f) => ({ origem: 'fatura' as const, f, data: f.vencimento })),
-    ...(mostraCompras ? comprasCategoria : []).map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
+    ...(mostraCompras ? comprasCategoria.filter((c) => !soCartao || c.cartaoId === filtros.cartaoId) : []).map((c) => ({ origem: 'cartao' as const, c, data: c.vencimento })),
     ...(mostraOutrosMovimentos ? parcelasContrato : []).map((p) => ({ origem: 'contrato' as const, p, data: p.vencimento })),
     ...(mostraOutrosMovimentos ? creditosCartao : []).map((k) => ({ origem: 'credito' as const, k, data: k.vencimento ?? k.data })),
   ].sort((x, y) => ordemPreferida === 'asc'
@@ -597,10 +607,19 @@ export default function Lancamentos() {
       {filtros.busca && buscaIndisponivel && (
         <div className="mb-4"><Aviso tipo="info">A busca ainda não está disponível. Apague o texto para ver a lista.</Aviso></div>
       )}
-      {filtros.busca && buscaCortada && (
+      {buscaCortada && (
         <div className="mb-4" data-testid="busca-cortada">
-          <Aviso tipo="erro">A busca achou mais itens do que a lista consegue trazer neste período, então a lista está incompleta. Escolha um período menor.</Aviso>
+          <Aviso tipo="erro">{filtros.busca
+            ? 'A busca achou mais itens do que a lista consegue trazer neste período, então a lista está incompleta. Escolha um período menor.'
+            : 'Este filtro tem mais lançamentos do que a lista consegue trazer neste período, então ela está incompleta. Escolha um período menor.'}</Aviso>
         </div>
+      )}
+      {!filtros.busca && temFiltroDeTotal(filtros) && (
+        <p className="mb-3 text-xs text-slate-500" data-testid="nota-filtro">
+          O total embaixo soma os lançamentos e as compras do cartão {periodo.tipo === 'mes' ? 'deste mês' : 'deste período'} que passam pelos filtros, pagos e previstos juntos.
+          {' '}O cartão entra compra por compra, no vencimento da fatura (a lista pode mostrar a fatura inteira numa linha só). Juros, tarifa, parcelas de empréstimo,
+          {' '}pagamento de fatura e créditos do cartão aparecem na lista, mas não entram no total; transferência conta como item, não como entrada nem saída.
+        </p>
       )}
       {filtros.busca && !buscaIndisponivel && (
         <p className="mb-3 text-xs text-slate-500" data-testid="nota-busca">
@@ -774,13 +793,17 @@ export default function Lancamentos() {
 
       <RodapeLancamentos realizado={totais === undefined ? undefined : totais?.realizado ?? null}
         previsto={totais === undefined ? undefined : totais?.previsto ?? null}
-        busca={filtros.busca && !buscaIndisponivel ? { texto: filtros.busca, totais: atualizando ? undefined : totaisBusca, cortada: buscaCortada } : undefined}
-        semTotais={filtros.tipo || filtros.categoriaId || filtros.situacao || filtros.cartaoId || filtros.soFixos || filtros.soParcelados
-          ? 'Sem total com este filtro: o total só segue o filtro de conta.' : undefined}
+        busca={filtros.busca || temFiltroDeTotal(filtros)
+          ? { texto: filtros.busca ?? null, totais: buscaIndisponivel ? null : atualizando ? undefined : totaisBusca, cortada: buscaCortada } : undefined}
         // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
         acao={<MenuNovo itens={ITENS_NOVO} desabilitado={contas.length === 0} aoEscolher={abrirNovo} />} />
     </>
   )
+}
+
+/** Filtro que o rodapé normal (cash_flow_series, só por conta) não segue: com um deles, o total vem do total do filtro. */
+function temFiltroDeTotal(f: Filtros): boolean {
+  return Boolean(f.tipo || f.categoriaId || f.situacao || f.cartaoId || f.soFixos || f.soParcelados)
 }
 
 /** O período na tela é o mês-calendário de hoje (a faixa de pendências só aparece nele). */

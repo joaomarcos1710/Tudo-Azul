@@ -492,6 +492,8 @@ export async function faixaDePendencias(familiaId: string, hoje: string, ate: st
     .map((r) => ({ tipo: r.kind, quantidade: r.item_count, total: centsFromDb(r.total), primeira: r.first_date }))
 }
 
+/** O servidor (PostgREST) devolve no máximo isto por consulta: uma lista com este tanto de linhas pode estar cortada. */
+export const LIMITE_LINHAS_SERVIDOR = 1000
 /** Texto da busca: 1 a 100 letras depois de tirar os espaços das pontas (o mesmo limite do banco, migration 138). */
 export const BUSCA_MAX = 100
 export function textoDaBusca(bruto: string | null | undefined): string | undefined {
@@ -514,7 +516,7 @@ export interface TotalBusca {
   saidas: Cents
 }
 
-function argumentosDaBusca(familiaId: string, de: string, ate: string, texto: string, f: Filtros) {
+function argumentosDaBusca(familiaId: string, de: string, ate: string, texto: string | null, f: Filtros) {
   return {
     p_household: familiaId, p_from: de, p_to: ate, p_query: texto,
     p_account: f.contaId ?? null, p_category: f.categoriaId ?? null, p_type: f.tipo ?? null, p_status: f.situacao ?? null,
@@ -540,8 +542,12 @@ export async function buscarNoPeriodo(familiaId: string, de: string, ate: string
   return r
 }
 
-/** Quantidade, entradas e saídas do que a busca achou, por moeda (reais primeiro); transferência só na quantidade. */
-export async function totaisDaBusca(familiaId: string, de: string, ate: string, texto: string, f: Filtros): Promise<TotalBusca[] | null> {
+/**
+ * Quantidade, entradas e saídas do que a busca achou, por moeda (reais primeiro); transferência só na quantidade.
+ * `texto` nulo = sem busca, só os filtros: o total do rodapé com filtro ligado (migration 139; decisões do dono, 17/11/2026:
+ * lançamentos e compras do cartão, pagos e previstos juntos). null no retorno = banco sem a função.
+ */
+export async function totaisDaBusca(familiaId: string, de: string, ate: string, texto: string | null, f: Filtros): Promise<TotalBusca[] | null> {
   const { data, error } = await cliente().rpc('ledger_search_totals', argumentosDaBusca(familiaId, de, ate, texto, f))
   if (error) {
     if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return null
