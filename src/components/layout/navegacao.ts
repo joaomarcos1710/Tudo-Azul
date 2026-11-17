@@ -78,19 +78,25 @@ export const itensNavegacao: ItemNavegacao[] = [...gruposNavegacao.flatMap((g) =
 export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) => i.fixoNoCelular)
 
 /**
- * Barra lateral do computador: todas as telas de uso frequente, agrupadas por categoria (pedido do dono, 10/11/2026:
- * antes eram 14 links soltos; Recorrentes e outras estavam escondidas no menu do perfil e ele não achava). São os mesmos
- * grupos do menu "Mais" do celular, sem o grupo "Conta" (família, exportar e preferências ficam no menu do perfil).
+ * Barra lateral do computador, enxuta (pedido do dono, 17/11/2026: "hoje tem muitas coisas; só os mais importantes, e nos 3 pontos
+ * do nome aparece o resto"). Só as nove telas do dia a dia, numa lista só e nesta ordem. Todas as outras telas ficam no menu do
+ * nome (o ⋮), em "Mais telas", e a tela atual aparece na barra mesmo quando é uma delas, para não perder o rumo.
+ * O menu "Mais" do celular (gruposNavegacao) não muda.
  */
-const caminhosAcessoRapido = ['/', '/lancamentos', '/recorrentes', '/cartoes', '/contas', '/orcamentos', '/compromissos', '/reservas', '/categorias',
-  '/investimentos', '/dividas', '/bens', '/analises', '/relatorios', '/calendario']
-export const gruposSidebar: GrupoNavegacao[] = gruposNavegacao
-  .map((g) => ({ ...g, itens: g.itens.filter((i) => caminhosAcessoRapido.includes(i.caminho)) }))
-  .filter((g) => g.itens.length > 0)
+const caminhosBarraLateral = ['/', '/lancamentos', '/calendario', '/cartoes', '/contas', '/recorrentes', '/orcamentos', '/investimentos', '/analises']
+export const itensBarraLateral: ItemNavegacao[] = caminhosBarraLateral
+  .map((c) => itensNavegacao.find((i) => i.caminho === c))
+  .filter((i): i is ItemNavegacao => i !== undefined)
 
-/** Menu do perfil: só o que é raro (família, exportação e preferências); Sair e a versão ficam no próprio menu. */
+const caminhosConta = ['/familia', '/exportar', '/preferencias']
+/** As telas que não estão na barra lateral: ficam no menu do nome, em "Mais telas", na ordem do menu do celular. */
+export const itensMaisTelas: ItemNavegacao[] = itensNavegacao
+  .filter((i) => !caminhosBarraLateral.includes(i.caminho) && !caminhosConta.includes(i.caminho))
+
+/** Menu do nome (⋮): "Mais telas" e "Conta" (família, exportação e preferências); Sair e a versão ficam no próprio menu. */
 export const gruposMenuPerfil: GrupoNavegacao[] = [
-  { titulo: 'Conta', itens: itensNavegacao.filter((i) => ['/familia', '/exportar', '/preferencias'].includes(i.caminho)) },
+  { titulo: 'Mais telas', itens: itensMaisTelas },
+  { titulo: 'Conta', itens: itensNavegacao.filter((i) => caminhosConta.includes(i.caminho)) },
 ]
 
 /** Item ativo para um caminho (uma subtela como `/contas/abc` conta como "Contas"). */
