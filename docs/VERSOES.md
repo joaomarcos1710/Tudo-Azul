@@ -315,4 +315,5 @@ continuam abaixo como histórico.
 | 2026.400 | **Corrigir saldo de empréstimo.** Em Dívidas, informe o saldo que o banco mostra e o app acerta a diferença (juros dos dias), sem contar como gasto. |
 | 2026.401 | Só documentação (registro da atualização do banco). |
 | 2026.402 | **Dívidas × Investimentos.** Em Análises, um gráfico compara mês a mês o total das dívidas (sem cartão) com o total investido. |
+| 2026.403 | **Evolução das dívidas.** Na tela de Dívidas, um gráfico mostra o saldo de cada empréstimo e financiamento mês a mês. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
