@@ -919,6 +919,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** "Excluir" em Lançamentos não pede confirmação; a barra "Desfazer" fica fixa embaixo até ser fechada. "Parar de repetir" continua com confirmação.
 - **Por quê:** handoff de Lançamentos (item e), aprovado pelo dono. A barra não some sozinha porque não há tela de Lixeira: depois de fechada, só dá para recuperar pelo banco. "Parar de repetir" encerra a regra e não tem desfazer simples.
 
+## 17/11/2026 — Faixa de pendências de Lançamentos (#409)
+- **O quê:** no mês atual, quatro números do banco: vencidos a pagar, vencidos a receber, a pagar até o fim do mês e a receber até o fim do mês. Fatura de cartão entra só **fechada**; parcela de empréstimo/financiamento entra, **menos o consignado** (desconto em folha); a faixa **some** em outros meses e quando não há pendência; ignora os filtros da lista (é "o que está pendente hoje").
+- **Por quê:** decisões do dono nas quatro perguntas de 17/11/2026 (todas na opção recomendada). Fatura aberta ainda muda a cada compra; o consignado nunca sai da conta (o salário entra líquido, decisão de 16/11); "até o fim do mês" fica coerente com o saldo previsto; em mês passado ou futuro, "pendências de hoje" confundiria. Vencidos a pagar e a receber ficam separados porque somar o que sai com o que entra não diz nada.
+
 ## 17/11/2026 — Rodapé de Lançamentos não mostra total com filtro que ele não segue (#406)
 - **O quê:** com filtro de tipo, categoria, situação, cartão, fixos ou parcelados, o rodapé troca os números pela frase "Sem total com este filtro: o total só segue o filtro de conta." Com filtro só de conta, os totais continuam (e o saldo vira "—").
 - **Por quê:** handoff de Lançamentos (PR 3). Antes o rodapé mostrava o total do mês inteiro com um aviso pequeno embaixo; com "Despesa" ligado, "entradas R$ 8.000" ao lado de uma lista só de despesas engana. O total certo do filtro precisa de função nova no banco (o front não soma dinheiro de relatório).

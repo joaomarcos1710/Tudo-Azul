@@ -30,7 +30,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, rotuloDoDia, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
+  criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, faixaDePendencias, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
   listarMovimentosDeDividaNoPeriodo, marcarComoPago,
   moverParaLixeira, pararDeRepetirAPartirDe, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, valoresDasParcelas,
 } from '../lib/lancamentos'
@@ -38,7 +38,7 @@ import {
 import { situacaoDoLancamento } from '../lib/lancamentos'
 import { listarParcelasDivida } from '../lib/dividas'
 import type { ParcelaDivida } from '../lib/dividas'
-import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
+import type { CompraDaFatura, CreditoDeCartao, DadosLancamento, FaturaDoMes, Filtros, Lancamento, MovimentoDivida, Pendencia, ResumoPorMoeda, StatusLancamento, TipoLancamento } from '../lib/lancamentos'
 import { ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { ComprasDaFatura, NomeCategoria, resumoDaFatura, rotuloSituacaoFatura, rotuloTipo, useComprasDaFatura, valorComSinal } from './LancamentosItens'
@@ -48,6 +48,7 @@ import { criarRecorrencia, definirPessoaRecorrencia, frequencias } from '../lib/
 import { SELO } from '../lib/cores'
 import { PessoaSelectField } from '../components/PessoaSelectField'
 import { RodapeLancamentos } from '../components/RodapeLancamentos'
+import { FaixaPendencias } from '../components/FaixaPendencias'
 import type { TotaisCaixa } from '../components/RodapeLancamentos'
 import { serieFluxo } from '../lib/fluxoCaixa'
 import { SeletorPeriodo } from '../components/ui/SeletorPeriodo'
@@ -136,6 +137,8 @@ export default function Lancamentos() {
   const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   // receitas e despesas pagas em outras moedas (multimoeda F2): à parte, nunca somadas ao resumo em reais
   const [porMoeda, setPorMoeda] = useState<ResumoPorMoeda[]>([])
+  // faixa de pendências (item c do handoff): só no mês atual; vazia = não aparece
+  const [pendencias, setPendencias] = useState<Pendencia[]>([])
   const [contas, setContas] = useState<Conta[]>([])
   // contas internas (carteira de investimentos): só para dar nome às transferências de aporte e resgate
   const [internas, setInternas] = useState<ContaInterna[]>([])
@@ -248,6 +251,10 @@ export default function Lancamentos() {
         : Promise.resolve([] as CreditoDeCartao[])
       // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
       const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(falhou('totais em outras moedas', [] as ResumoPorMoeda[]))
+      // faixa de pendências: só no mês atual (decisão do dono, 17/11/2026), de hoje até o fim do mês; falha não derruba a lista
+      const pendenciasDoMes = ehMesAtual(periodo, hoje)
+        ? faixaDePendencias(familiaId, hoje, periodo.ate).catch(falhou('pendências do mês', [] as Pendencia[]))
+        : Promise.resolve([] as Pendencia[])
       // rodapé: o mesmo número do Relatório Entradas x Saídas (pagos / pagos e não pagos), seguindo só o filtro de conta;
       // se falhar, a lista continua e só o rodapé avisa
       const doFluxo = { contas: filtros.contaId ? [filtros.contaId] : undefined }
@@ -255,9 +262,9 @@ export default function Lancamentos() {
         serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: false }),
         serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: true }),
       ]).then(([pago, comPlanejado]) => ({ realizado: totaisDe(pago), previsto: totaisDe(comPlanejado) })).catch(() => null)
-      const [l, r, md, cc, pc, cr, pm] = await Promise.all([
+      const [l, r, md, cc, pc, cr, pm, pd] = await Promise.all([
         listarLancamentosNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), totaisDoMes, listarMovimentosDeDividaNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), cartao, parcelas,
-        creditos, porMoedaDoMes,
+        creditos, porMoedaDoMes, pendenciasDoMes,
       ])
       if (meu !== pedido.current) return
       setLancamentos(l)
@@ -269,6 +276,7 @@ export default function Lancamentos() {
       setComprasFalharam(cc === null)
       setTotais(r)
       setPorMoeda(pm)
+      setPendencias(pd)
       setBlocosFalharam([...falhas])
       setAssinaturaExibida(desta)
       setErro('')
@@ -479,6 +487,7 @@ export default function Lancamentos() {
       {lancamentos === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
       {/* trocou mês ou filtro: a lista antiga fica esmaecida até a nova chegar (antes parecia já ser a do filtro novo).
           Recarregar depois de pagar ou excluir não mostra isto: período e filtro são os mesmos. */}
+      {ehMesAtual(periodo, hoje) && <FaixaPendencias pendencias={pendencias} ate={periodo.ate} />}
       {atualizando && <p className="mb-2 text-sm text-slate-600" role="status" data-testid="lista-atualizando">Atualizando a lista…</p>}
 
       {(blocosFalharam.length > 0 || cartoesFalharam || saldosFalharam) && (
@@ -654,6 +663,11 @@ export default function Lancamentos() {
         acao={<MenuNovo itens={ITENS_NOVO} desabilitado={contas.length === 0} aoEscolher={abrirNovo} />} />
     </>
   )
+}
+
+/** O período na tela é o mês-calendário de hoje (a faixa de pendências só aparece nele). */
+function ehMesAtual(p: PeriodoLista, hoje: string): boolean {
+  return p.tipo === 'mes' && p.de <= hoje && hoje <= p.ate
 }
 
 /** Ícone do botão Filtrar (dois controles deslizantes), no traço dos ícones do menu. */

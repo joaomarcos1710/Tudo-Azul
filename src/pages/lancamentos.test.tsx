@@ -16,6 +16,7 @@ const mock = vi.hoisted(() => ({
   registrarCompra: vi.fn(),
   resumoDoMes: vi.fn(),
   resumoPorMoeda: vi.fn(),
+  faixaDePendencias: vi.fn(),
   criarLancamento: vi.fn(),
   criarRecorrencia: vi.fn(),
   criarParcelado: vi.fn(),
@@ -64,6 +65,7 @@ vi.mock('../lib/lancamentos', async (original) => ({
   listarCreditosDeCartaoNoPeriodo: mock.listarCreditosDeCartao,
   resumoDoMes: mock.resumoDoMes,
   resumoPorMoeda: mock.resumoPorMoeda,
+  faixaDePendencias: mock.faixaDePendencias,
   criarLancamento: mock.criarLancamento,
   editarLancamento: mock.editarLancamento,
   editarEsteEProximos: mock.editarEsteEProximos,
@@ -147,6 +149,7 @@ beforeEach(() => {
   mock.registrarCompra.mockResolvedValue(undefined)
   mock.resumoDoMes.mockResolvedValue({ receitas: c(0), despesas: c(25050), resultado: c(-25050), receitasPrevistas: c(800000), despesasPrevistas: c(0) })
   mock.resumoPorMoeda.mockResolvedValue([])
+  mock.faixaDePendencias.mockResolvedValue([])
   // rodapé: pagos (300,00 / 250,50 / saldo 12.000,00) e com os não pagos (8.300,00 / 1.250,50 / saldo 19.050,00), do banco
   mock.serieFluxo.mockImplementation(async (_f: string, de: string, ate: string, _d: string, filtros: { incluirNaoPagos?: boolean }) => (filtros.incluirNaoPagos
     ? { linhas: [{ inicio: de, fim: ate, entradas: c(830000), saidas: c(125050), resultado: c(704950), saldo: c(1905000) }], totalEntradas: c(830000), totalSaidas: c(125050), totalResultado: c(704950) }
@@ -381,6 +384,47 @@ describe('Lançamentos', () => {
     responder(lancs.filter((l) => l.tipo === 'expense'))
     await vi.waitFor(() => expect(screen.queryByTestId('lista-atualizando')).toBeNull())
     expect((screen.getByText('Supermercado').closest('[aria-busy]') as HTMLElement).getAttribute('aria-busy')).toBe('false')
+  })
+
+  it('faixa de pendências (item c): no mês atual, vencidos e o que falta até o fim do mês, com os totais do banco', async () => {
+    mock.faixaDePendencias.mockResolvedValue([
+      { tipo: 'receivable', quantidade: 1, total: c(100000), primeira: '2099-12-28' },
+      { tipo: 'overdue_payable', quantidade: 3, total: c(33000), primeira: '2026-09-25' },
+      { tipo: 'payable', quantidade: 2, total: c(35000), primeira: '2099-12-25' },
+      { tipo: 'overdue_receivable', quantidade: 1, total: c(30000), primeira: '2026-10-10' },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const faixa = await screen.findByRole('region', { name: 'Pendências do mês' })
+    const [, fim] = limitesDoMes(hojeSP().slice(0, 7))
+    expect(mock.faixaDePendencias).toHaveBeenCalledWith('h1', hojeSP(), fim)
+    // ordem fixa (vencidos primeiro), cada valor do banco, sem somar pagar com receber
+    const cartoes = within(faixa).getAllByRole('listitem')
+    expect(cartoes.map((li) => li.getAttribute('data-pendencia'))).toEqual(['overdue_payable', 'overdue_receivable', 'payable', 'receivable'])
+    expect(cartoes[0].textContent).toContain('Vencidos a pagar')
+    expect(within(cartoes[0]).getByText('R$ 330,00').className).toContain('text-prejuizo')
+    expect(cartoes[0].textContent).toContain('3 itens · desde 25/09')
+    expect(within(cartoes[1]).getByText('R$ 300,00').className).toContain('text-atencao')
+    expect(cartoes[1].textContent).toContain('1 item · desde 10/10')
+    expect(cartoes[2].textContent).toContain(`A pagar até ${fim.slice(8, 10)}/${fim.slice(5, 7)}`)
+    expect(within(cartoes[2]).getByText('R$ 350,00').className).toContain('text-atencao')
+    expect(cartoes[3].textContent).toContain('A receber até')
+    expect(within(cartoes[3]).getByText('R$ 1.000,00').className).toContain('text-agendado')
+    expect(within(faixa).getByText(/Fatura entra só fechada; desconto em folha não entra/)).toBeTruthy()
+  })
+
+  it('faixa de pendências: sem pendência não aparece; em outro mês não é pedida nem aparece', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    expect(mock.faixaDePendencias).toHaveBeenCalled()
+    expect(screen.queryByTestId('faixa-pendencias')).toBeNull()
+    mock.faixaDePendencias.mockClear()
+    mock.faixaDePendencias.mockResolvedValue([{ tipo: 'payable', quantidade: 1, total: c(100), primeira: '2099-01-01' }])
+    await u.click(screen.getByRole('button', { name: 'Próximo período' }))
+    await vi.waitFor(() => expect(mock.listarLancamentos.mock.calls.length).toBeGreaterThan(1))
+    await vi.waitFor(() => expect(screen.queryByTestId('lista-atualizando')).toBeNull())
+    expect(mock.faixaDePendencias).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('faixa-pendencias')).toBeNull()
   })
 
   it('rodapé que falha não derruba a lista', async () => {
