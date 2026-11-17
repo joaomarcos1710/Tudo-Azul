@@ -451,7 +451,7 @@ describe('Recorrentes', () => {
       const selo = within(li).getByTestId('selo-proxima')
       expect(selo.textContent).toMatch(/^próxima /)
       expect(selo.className).toContain('bg-agendado-fundo')
-      expect(screen.getByTestId('ajuda-gerenciar').textContent).toMatch(/Cancelar cobrança → esta e as próximas.*Parar de repetir a partir daqui/)
+      expect(screen.getByTestId('ajuda-gerenciar').textContent).toMatch(/Cancelar cobrança → esta e as próximas.*Parar de repetir a partir daqui.*toque em Natureza/)
     })
 
     it('mostra só a subcategoria; o caminho completo fica no title e para o leitor de tela', async () => {
@@ -999,6 +999,24 @@ describe('Recorrentes: corrigir a natureza (a única edição da página)', () =
     await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
     expect(mock.listarRecorrencias).toHaveBeenCalledTimes(2)
     expect(mock.resumoVisaoGeral).toHaveBeenCalledTimes(2)
+  })
+
+  it('botão "Natureza" visível em cada linha (o dono não achou o toque no nome, 17/11/2026): abre o mesmo card e salva', async () => {
+    mock.listarRecorrencias.mockResolvedValue([streaming, luz, guardar])
+    const u = userEvent.setup()
+    montar()
+    const botao = await screen.findByRole('button', { name: 'Mudar a natureza de Luz' })
+    expect(botao.textContent).toBe('Natureza') // escrito, não só um ícone
+    // fica ao lado do "Gerenciar", fora do botão da linha (botão dentro de botão não vale)
+    expect(botao.closest('button')).toBe(botao)
+    expect(within(botao.closest('li')!).getByRole('link', { name: /^Gerenciar Luz/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Mudar a natureza de Streaming' })).toBeTruthy() // cartão também
+    expect(screen.queryByRole('button', { name: 'Mudar a natureza de Guardar' })).toBeNull() // transferência não tem
+    await u.click(botao)
+    const card = await screen.findByRole('dialog', { name: 'Natureza · Luz' })
+    await u.click(within(card).getByRole('radio', { name: 'Gasto variável' }))
+    await u.click(within(card).getByRole('button', { name: 'Salvar' }))
+    expect(mock.definirNaturezaRecorrencia).toHaveBeenCalledWith('r1', 'variable')
   })
 
   it('"Deixar o app sugerir" tira a marcação (null)', async () => {

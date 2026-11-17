@@ -62,6 +62,7 @@ atualizado: 2026-11-15
 - **Pendente (precisa de função no banco):** "sobra por mês" (entra − sai) no card do topo de Recorrentes. A tela não subtrai: o número tem de vir do banco (ex.: uma linha a mais em `recurrence_overview`).
 - **Pendente (banco):** total por natureza **e** por meio (cartão/conta). Hoje, com a aba Conta ou Cartão, o título de cada grupo fica sem total, porque `recurrence_nature_summary` junta conta e cartão. Também **não conferido:** se a soma das naturezas (`recurrence_nature_summary`) bate com o "Sai" (`recurrence_overview`) e com "No cartão + Na conta" (`recurrence_summary`) na família real; as três funções têm a mesma base, mas são consultas diferentes.
 - Recorrentes (#416): o **"sugerido"** (fixo × variável pelo histórico, `recurrence_overview` recortes `fixed`/`variable`) saiu da tela junto com o bloco fixo × variável; a regra sem natureza marcada aparece em "Sem natureza". Se o dono sentir falta, a sugestão pode virar o grupo da regra.
+- [x] **Recorrentes, botão "Natureza" (#417):** o toque no nome não era descoberto (o dono foi pelo "Gerenciar" e não achou). Visto na bancada a 390 px e 820 px; **falta conferir no app real**. A linha ficou um pouco mais alta (valor, Gerenciar e Natureza empilhados).
 - Conferir no app real: "Repetir" no cartão numa assinatura de valor baixo; com data passada, os meses desde então entram como compras no cartão (a tela avisa).
 ## Próximos PRs sugeridos
 ### Categorias da fatura (#315, migration 112, 12/11/2026)
