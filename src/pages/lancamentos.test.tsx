@@ -104,7 +104,7 @@ vi.mock('../lib/categorias', async (original) => ({
 }))
 
 import Lancamentos from './Lancamentos'
-import { limitesDoMes, somarMeses } from '../lib/lancamentos'
+import { limitesDoMes, somarMeses, TETO_LINHAS_LISTA } from '../lib/lancamentos'
 import { hojeSP } from '../lib/contas'
 
 /** Categoria agora é um seletor em folha (como no Organizze): abre pelo botão e toca na categoria. */
@@ -2211,9 +2211,9 @@ describe('Lançamentos: filtros em tela cheia (situação, cartão, fixos e parc
     expect(screen.queryByTestId('nota-filtro')).toBeNull()
   })
 
-  it('filtro com a lista no limite de 1000 linhas: o total some e a tela avisa (a lista pode estar cortada)', async () => {
+  it('filtro com a lista no teto de linhas lidas por página (50 mil): o total some e a tela avisa (a lista está incompleta)', async () => {
     const u = userEvent.setup()
-    mock.listarLancamentos.mockResolvedValue(Array.from({ length: 1000 }, (_, i) => ({ ...lancs[0], id: `x${i}`, descricao: `Linha ${i}` })))
+    mock.listarLancamentos.mockResolvedValue(Array.from({ length: TETO_LINHAS_LISTA }, (_, i) => ({ ...lancs[0], id: `x${i}`, descricao: `Linha ${i}` })))
     mock.totaisDaBusca.mockResolvedValue([{ moeda: 'BRL', quantidade: 1500, entradas: c(0), saidas: c(99999999) }])
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Linha 0')

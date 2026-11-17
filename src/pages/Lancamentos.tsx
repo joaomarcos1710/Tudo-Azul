@@ -32,7 +32,7 @@ import { mensagemErroBanco } from '../lib/erros'
 import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, rotuloDoDia, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
-  buscarNoPeriodo, LIMITE_LINHAS_SERVIDOR, criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, faixaDePendencias, listarComprasDaFatura, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
+  buscarNoPeriodo, TETO_LINHAS_LISTA, criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, faixaDePendencias, listarComprasDaFatura, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
   listarMovimentosDeDividaNoPeriodo, marcarComoPago,
   moverParaLixeira, pararDeRepetirAPartirDe, perguntaSeRepete, restaurarDaLixeira, resumoPorMoeda, textoDaBusca, totaisDaBusca, valoresDasParcelas,
 } from '../lib/lancamentos'
@@ -307,10 +307,11 @@ export default function Lancamentos() {
       // Se o número de itens da lista não é o do total, o total soma o que a lista não mostra: os valores somem e a tela
       // avisa (achado do revisor-dinheiro na #418). Sem as faturas (falharam), o total também não vale.
       const contados = tb ? tb.reduce((n, t) => n + t.quantidade, 0) : null
-      // sem busca, a lista já vem filtrada pelo servidor; com 1000 linhas ela pode estar cortada, e o total do banco não é
+      // A lista é lida por páginas até o teto de 50 mil linhas. Sem busca, só o teto a deixa incompleta; com busca, o número de
+      // itens da lista tem de ser o do total (se a busca passou do teto, o resto fica de fora).
       const cortada = busca
         ? !indisponivel && cc !== null && contados !== null && contados !== achadosNaLista.length + comprasAchadas.length
-        : comFiltro && l.length >= LIMITE_LINHAS_SERVIDOR
+        : comFiltro && l.length >= TETO_LINHAS_LISTA
       setBuscaCortada(cortada)
       // sem as faturas, o total só some quando o filtro usa o cartão (situação, fixos e parcelados são só de lançamento)
       const usaCartao = !(filtros.situacao || filtros.soFixos || filtros.soParcelados) && filtros.tipo !== 'income' && filtros.tipo !== 'transfer'
