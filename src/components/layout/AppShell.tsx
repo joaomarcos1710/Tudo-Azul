@@ -4,7 +4,7 @@ import { definirValoresOcultos, useValoresOcultos } from '../../lib/privacidade'
 import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
 import { IconeMais, IconeOlho, IconeOlhoFechado } from './icons'
-import { gruposMenuPerfil, gruposNavegacao, gruposSidebar, itemAtivo, itensFixosNoCelular, itensNavegacao } from './navegacao'
+import { gruposMenuPerfil, gruposNavegacao, itemAtivo, itensBarraLateral, itensFixosNoCelular, itensMaisTelas, itensNavegacao } from './navegacao'
 import { Marca } from './Marca'
 import { Versao } from './Versao'
 import { Autoria } from './Autoria'
@@ -140,8 +140,8 @@ function PerfilSidebar({ pathname }: { pathname: string }) {
   return (
     <div ref={area} className="relative mt-auto pt-4">
       {aberto && (
-        <div role="menu" aria-label="Configurações da conta"
-          className="absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-50 overflow-hidden rounded-xl border border-white/10 bg-[#102b4b] p-2 shadow-2xl shadow-black/40">
+        <div role="menu" aria-label="Mais telas e configurações da conta"
+          className="absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-50 max-h-[calc(100vh-6.5rem)] overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-[#102b4b] p-2 shadow-2xl shadow-black/40">
           {gruposMenuPerfil.map((grupo) => (
             <section key={grupo.titulo} aria-label={grupo.titulo} className="py-1">
               <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-200/60">{grupo.titulo}</p>
@@ -196,6 +196,7 @@ export function AppShell() {
   useEffect(() => { if (!modoFatura) setMenuColapsado(false) }, [modoFatura])
 
   const ativo = itemAtivo(pathname)
+  const telaDeFora = ativo && itensMaisTelas.some((i) => i.caminho === ativo.caminho) ? ativo : undefined
   const maisAtivo = maisAberto || (ativo !== undefined && !ativo.fixoNoCelular)
 
   return (
@@ -205,22 +206,25 @@ export function AppShell() {
           <Marca claro />
           <BotaoOcultarValores claro />
         </div>
-        <nav aria-label="Principal" className="flex flex-col gap-4">
-          {gruposSidebar.map((grupo, i) => (
-            <div key={grupo.titulo} role="group" aria-labelledby={`nav-grupo-${i}`}>
-              <p id={`nav-grupo-${i}`} className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-blue-200">{grupo.titulo}</p>
-              <ul className="flex flex-col gap-1">
-                {grupo.itens.map(({ caminho, rotulo, Icone }) => (
-                  <li key={caminho}>
-                    <NavLink to={caminho} end={caminho === '/'}
-                      className={({ isActive }) => `${base} ${isActive ? 'bg-azul text-white shadow-sm' : 'text-blue-100 hover:bg-white/10'}`}>
-                      <Icone />{rotulo}
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+        <nav aria-label="Principal">
+          <ul className="flex flex-col gap-1">
+            {itensBarraLateral.map(({ caminho, rotulo, Icone }) => (
+              <li key={caminho}>
+                <NavLink to={caminho} end={caminho === '/'}
+                  className={({ isActive }) => `${base} ${isActive ? 'bg-azul text-white shadow-sm' : 'text-blue-100 hover:bg-white/10'}`}>
+                  <Icone />{rotulo}
+                </NavLink>
+              </li>
+            ))}
+            {/* a tela atual é uma das "Mais telas": aparece aqui, marcada, para a pessoa saber onde está */}
+            {telaDeFora && (
+              <li className="mt-1 border-t border-white/10 pt-2" data-testid="tela-atual-fora-da-barra">
+                <NavLink to={telaDeFora.caminho} className={`${base} bg-azul text-white shadow-sm`} aria-current="page">
+                  <telaDeFora.Icone />{telaDeFora.rotulo}
+                </NavLink>
+              </li>
+            )}
+          </ul>
         </nav>
         <PerfilSidebar pathname={pathname} />
       </aside>
