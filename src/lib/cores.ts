@@ -45,7 +45,7 @@ export const GRAFICO = {
 } as const
 
 /**
- * Natureza dos recorrentes (barra e bolinhas do topo de Recorrentes, #415): cores CATEGÓRICAS, fixas por natureza e fora
+ * Natureza dos recorrentes (barra e bolinhas do topo de Recorrentes, #416): cores CATEGÓRICAS, fixas por natureza e fora
  * das cores de status (azul, vermelho, âmbar e verde já dizem outra coisa). Marinho, ciano, lilás e cinza (o lilás e o cinza
  * um pouco mais escuros que os da prévia para passar de 3:1, como toda `marca`). A natureza de entrada (a ressarcir) nunca
  * aparece junto com custo fixo, então repete o marinho. O nome ao lado sempre diz o que é: a cor não é a única informação.

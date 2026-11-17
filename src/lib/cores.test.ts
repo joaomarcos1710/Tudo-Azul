@@ -47,7 +47,7 @@ describe('sistema de cores (#183)', () => {
     }
   })
 
-  it('naturezas dos recorrentes (#415): passam de 3:1 como marca, são diferentes entre si em cada lado e não usam cor de status', () => {
+  it('naturezas dos recorrentes (#416): passam de 3:1 como marca, são diferentes entre si em cada lado e não usam cor de status', () => {
     for (const [n, hex] of Object.entries(NATUREZA)) {
       expect(contraste(hex, FUNDOS.branco), `${n} no branco`).toBeGreaterThanOrEqual(3)
       expect(contraste(hex, FUNDOS.app), `${n} no fundo`).toBeGreaterThanOrEqual(3)
