@@ -326,4 +326,5 @@ continuam abaixo como histórico.
 | 2026.411 | **Diário.** Registro da aplicação da migration 135 (faixa de pendências sem cartão arquivado). |
 | 2026.412 | **Análises no iPad deitado.** O card de patrimônio não quebra mais "R$" do número; os 4 cards do resumo ficam lado a lado só a partir de 1280 px (antes, com o menu, o valor não cabia). |
 | 2026.413 | **Fatura anterior quitada pela sobra.** Quando um pagamento (ou crédito) passa da fatura, a sobra paga primeiro o que ficou em aberto nas faturas anteriores; acaba o "vencido" fantasma com a dívida zerada. Precisa da migration 136. |
+| 2026.414 | **Recorrentes mais prático.** Ícone da categoria em cada linha, a próxima data num selo verde, nome em até 2 linhas e o botão "Gerenciar ›" (cartão: a fatura da próxima cobrança; conta: Lançamentos no mês da próxima), com a dica de onde editar ou encerrar. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

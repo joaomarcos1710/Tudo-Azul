@@ -897,3 +897,8 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - [ ] **Devolução em dinheiro antes do fechamento da fatura do pagamento se perde** (bug pré-existente, reproduzido pelo revisor; a 136 reduziu o erro de 450 para 80): a devolução é descontada na iteração anterior, quando o crédito ainda é 0. Correção: aplicar a devolução por data, depois da sobra da fatura cujo pagamento a gerou. Bug de valor em aberto para o corte do Organizze.
 - [ ] Menor: com a 136, o "Saldo anterior" da fatura que gerou a sobra continua mostrando o valor de antes (vermelho) enquanto a anterior aparece paga; vale uma linha na tela. A sugestão do #306 em `FormPagar` quase não vai mais aparecer (não é bug).
 
+## 17/11/2026 — Recorrentes (#414)
+- [x] Visual e "Gerenciar ›" com a dica de onde editar ou encerrar (só tela).
+- [ ] **Etapa 2, se o dono ainda tropeçar:** botão Encerrar direto em Recorrentes (cartão: "esta e as próximas"; conta: "parar de repetir"), reaproveitando as funções que já existem. Antes, conferir o caso da assinatura **anual sem cobrança gerada** (os caminhos de hoje partem de uma cobrança ou lançamento existente; talvez precise de função no banco) e o que "Excluir assinatura" faz com o histórico.
+- [ ] Opcional: faixa "Próximos 30 dias" no topo de Recorrentes.
+
