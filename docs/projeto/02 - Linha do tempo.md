@@ -391,7 +391,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#399** (17/11/2026): **Lançamentos: tela de Lixeira** (`/lancamentos/lixeira`): lista o que foi excluído e restaura um por um; entra pelo ⋯ e pelo "Ver lixeira" da barra do Desfazer. Nunca apaga de vez. O banco não muda.
 - **#400** (17/11/2026): **Dívidas: corrigir saldo de empréstimo pelo extrato** (migration 132, `debt_set_balance`, teste 124): grava só a diferença como ajuste, que não é despesa nem receita e não mexe em conta. Aplicada em produção em 17/11/2026 (execução 44000571239).
 - **#401** (17/11/2026): diário: migration 132 aplicada em produção (execução 44000571239). Só documentação.
-- **#402** (17/11/2026): **Análises: Dívidas × Investimentos mês a mês** (migration 133, `debt_history_monthly`, teste 125): duas linhas nos últimos 12 meses, sem cartão, os dois do banco; componente `LinhasMensais`. Ainda não aplicada em produção.
+- **#402** (17/11/2026): **Análises: Dívidas × Investimentos mês a mês** (migration 133, `debt_history_monthly`, teste 125): duas linhas nos últimos 12 meses, sem cartão, os dois do banco; componente `LinhasMensais`. Aplicada em produção em 17/11/2026 (execução 44003289249).
 - **#403** (17/11/2026): **Dívidas: evolução das dívidas** mês a mês, uma linha por empréstimo/financiamento, sem cartão (mesma função da #402); com mais de 4 dívidas, só o total.
 
 ## Ainda abertos
