@@ -463,6 +463,33 @@ export async function resumoPorMoeda(familiaId: string, de: string, ate: string)
     .map((m) => ({ moeda: m.currency_code, receitas: centsFromDb(m.income), despesas: centsFromDb(m.expense), resultado: centsFromDb(m.result) }))
 }
 
+/** Tipo de pendência da faixa do topo de Lançamentos (migration 134, `pending_strip`). */
+export type TipoPendencia = 'overdue_payable' | 'overdue_receivable' | 'payable' | 'receivable'
+
+export interface Pendencia {
+  tipo: TipoPendencia
+  quantidade: number
+  /** Somado no banco: a tela só mostra. */
+  total: Cents
+  /** O mais antigo (vencidos) ou o próximo (a pagar, a receber). */
+  primeira: string
+}
+
+/**
+ * Faixa de pendências (handoff de Lançamentos, item c; decisões do dono de 17/11/2026): vencidos a pagar e a receber e,
+ * de hoje até `ate`, a pagar e a receber. Fatura só fechada; parcela de contrato sem o consignado. Só tipos com algo.
+ * Banco ainda sem a migration 134: devolve vazio (a faixa não aparece) em vez de erro.
+ */
+export async function faixaDePendencias(familiaId: string, hoje: string, ate: string): Promise<Pendencia[]> {
+  const { data, error } = await cliente().rpc('pending_strip', { p_household: familiaId, p_today: hoje, p_until: ate })
+  if (error) {
+    if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return []
+    throw error
+  }
+  return ((data ?? []) as { kind: TipoPendencia; item_count: number; total: number | string; first_date: string }[])
+    .map((r) => ({ tipo: r.kind, quantidade: r.item_count, total: centsFromDb(r.total), primeira: r.first_date }))
+}
+
 function linha(d: DadosLancamento) {
   const transferencia = d.tipo === 'transfer'
   return {
