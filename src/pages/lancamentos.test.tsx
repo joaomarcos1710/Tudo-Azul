@@ -2201,6 +2201,14 @@ describe('Lançamentos: filtros em tela cheia (situação, cartão, fixos e parc
     expect(await screen.findByTestId('totais-busca')).toBeTruthy()
   })
 
+  it('sem filtro nenhum, a lista no teto de linhas também avisa (o teto não é silencioso)', async () => {
+    mock.listarLancamentos.mockResolvedValue(Array.from({ length: TETO_LINHAS_LISTA }, (_, i) => ({ ...lancs[0], id: `y${i}`, descricao: `Linha ${i}` })))
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Linha 0')).toBeTruthy()
+    expect((await screen.findByTestId('busca-cortada')).textContent).toMatch(/Este período tem mais lançamentos do que a lista consegue trazer/)
+    expect(mock.totaisDaBusca).not.toHaveBeenCalled() // sem filtro, o rodapé normal (do banco) segue como era
+  })
+
   it('só conta como filtro: o rodapé normal continua (o banco já segue a conta)', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)

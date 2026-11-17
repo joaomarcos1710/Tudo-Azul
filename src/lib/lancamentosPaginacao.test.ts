@@ -11,6 +11,8 @@ const fake = vi.hoisted(() => {
     achados: [] as { source: string; id: string }[],
     /** código de erro da primeira consulta de transações (colunas novas ausentes no banco), ou null */
     erroNaPrimeira: null as string | null,
+    /** chamado depois de servir cada página de transações, com o número de consultas já feitas (simula escrita no meio da leitura) */
+    depoisDaPagina: null as ((consultas: number) => void) | null,
     consultas: [] as { colunas: string; ordens: string[]; faixa: [number, number] }[],
     chamadasRpc: [] as { nome: string; ordens: string[]; faixa: [number, number] }[],
   }
@@ -33,7 +35,9 @@ const fake = vi.hoisted(() => {
       const b = builder(
         (faixa) => {
           if (estado.erroNaPrimeira && estado.consultas.length === 1) return { data: null, error: { code: estado.erroNaPrimeira, message: 'coluna' } }
-          return { data: estado.transacoes.slice(faixa[0], faixa[1] + 1), error: null }
+          const pagina = estado.transacoes.slice(faixa[0], faixa[1] + 1)
+          estado.depoisDaPagina?.(estado.consultas.length)
+          return { data: pagina, error: null }
         },
         (ordens, faixa) => { estado.consultas.push({ colunas, ordens, faixa }) },
       )
@@ -61,6 +65,7 @@ beforeEach(() => {
   fake.estado.transacoes = []
   fake.estado.achados = []
   fake.estado.erroNaPrimeira = null
+  fake.estado.depoisDaPagina = null
   fake.estado.consultas.length = 0
   fake.estado.chamadasRpc.length = 0
 })
@@ -91,6 +96,17 @@ describe('listarLancamentosNoPeriodo lê página por página', () => {
     fake.estado.transacoes = []
     expect(await listarLancamentosNoPeriodo('h1', '2026-10-01', '2026-10-31')).toEqual([])
     expect(fake.estado.consultas).toHaveLength(1)
+  })
+
+  it('lançamento novo entre duas páginas empurra tudo uma posição: a linha repetida entra uma vez só (sem id duplicado na tela)', async () => {
+    fake.estado.transacoes = Array.from({ length: 1500 }, (_, i) => linha(i))
+    // depois de servir a página 1, alguém cria um lançamento mais recente: a última linha da página 1 vira a primeira da 2
+    fake.estado.depoisDaPagina = (n) => { if (n === 1) fake.estado.transacoes.unshift(linha(9999)) }
+    const r = await listarLancamentosNoPeriodo('h1', '2026-01-01', '2026-12-31')
+    const ids = r.map((l) => l.id)
+    expect(new Set(ids).size).toBe(ids.length) // nenhum id repetido
+    expect(ids).toHaveLength(1500) // as 1500 de antes; o lançamento novo (9999) aparece na próxima leitura
+    expect(ids).not.toContain('t9999')
   })
 
   it('banco sem as colunas novas: refaz com as colunas antigas e continua paginando', async () => {

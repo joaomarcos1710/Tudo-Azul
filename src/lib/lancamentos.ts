@@ -111,11 +111,16 @@ export async function listarLancamentosNoPeriodo(familiaId: string, de: string, 
   }
   const lerPaginas = async (colunas: string[]) => {
     const todas: LinhaLancamentoDb[] = []
+    const vistos = new Set<string>()
     for (let inicio = 0; todas.length < TETO_LINHAS_LISTA; inicio += LIMITE_LINHAS_SERVIDOR) {
       const r = await consultar(colunas, inicio)
       if (r.error) return { data: null, error: r.error }
       const pagina = (r.data ?? []) as unknown as LinhaLancamentoDb[]
-      todas.push(...pagina)
+      // Cada página é uma consulta à parte: um lançamento novo entre duas páginas empurra tudo uma posição e a última linha
+      // da anterior reaparece. Repetida por id não entra duas vezes (achado do revisor-dinheiro na #422).
+      // atalho: uma linha apagada entre duas páginas faz a vizinha ser pulada e isso não dá para ver aqui; melhorar com
+      // paginação por chave (keyset) ou recarregando quando a contagem final não bater.
+      for (const linha of pagina) if (!vistos.has(linha.id)) { vistos.add(linha.id); todas.push(linha) }
       if (pagina.length < LIMITE_LINHAS_SERVIDOR) break
     }
     return { data: todas, error: null }
