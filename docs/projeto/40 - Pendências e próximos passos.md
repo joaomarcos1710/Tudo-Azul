@@ -809,7 +809,7 @@ Design: artefato "Lançamentos — Extrato e Gastos" (4 telas, dados fictícios)
 - [x] **(d)** Estado vazio conforme filtro e período, com "Limpar filtros"; corrigida a tela em branco com filtro e o "nenhum lançamento" quando a consulta das faturas falhava. Falta: indicador de "carregando" ao trocar de filtro (a lista antiga fica na tela até a resposta chegar).
 - [x] **(a)** Conta na linha de despesa e receita (decisão de 03/11 revogada pelo dono em 16/11). Falta conferir o corte em 390 px e no iPad em pé.
 - [ ] **(e)** Excluir sem `window.confirm`, com Desfazer fixo embaixo. "Parar de repetir" mantém a confirmação (é irreversível). Conferir antes: tela de Lixeira e se recorrente excluído é regerado.
-- [ ] **(g)** Filtros e período na URL; fecha também `?categoria=`. Nove lugares linkam para Lançamentos com `?mes`, `?tipo` ou `?novo`.
+- [x] **(g)** Filtros e período na URL (16/11/2026, `lib/urlLancamentos.ts`): `?mes=`, ou `?periodo=&de=&ate=`, e `?conta= &categoria= &cartao= &tipo= &situacao= &fixos=1 &parcelados=1`; trocar na tela atualiza o endereço sem encher o histórico; valor inválido é ignorado. Os links que já existiam (`?mes`, `?tipo`, `?novo`) continuam iguais. **Não feito:** o "Ver todos os lançamentos" de uma categoria (Análises) não manda `?categoria=` porque a barra soma as subcategorias e o filtro de Lançamentos é pela categoria exata (a lista não bateria com a barra).
 - [ ] **(c)** Faixa de pendências. **Não é só front:** "vencidos" existe em `home_alerts`; "a pagar até o fim do mês" não existe e "a receber" só com outra regra. **Decisões do dono:** fatura entra (aberta ou só fechada)? parcela de empréstimo entra? "a receber" até o fim do mês ou todo o futuro? vencidos a pagar e a receber juntos? o que mostrar fora do mês atual?
 - [ ] **PR 2 (busca):** precisa de função nova no banco (compras de cartão não são `transactions`; o total é dinheiro); índice só depois de medir; a consulta atual não pagina.
 - [ ] **PR 3 (totais com filtros):** precisa de banco (`cash_flow_series` só filtra conta). Só front e cabe já: esconder o total com filtro e trocar os três rótulos "previsto".
@@ -843,7 +843,7 @@ Três commits de 13/11 ficaram numa área de trabalho isolada (`.claude/worktree
 - [x] Lançamentos e Calendário: a lista carrega junto com as tarefas automáticas.
 - [x] (16/11/2026, refeito à mão sobre o Início de hoje) Início: contas, cartões e gastos aparecem sem esperar a consulta do Dinheiro Livre (commit `ed8c1a0` da cópia; resolve o item "o Início ainda espera TODAS as consultas").
 - [x] (16/11/2026) Início **e Calendário**: ler só o saldo total previsto, sem o saldo de cada conta (commit `c12bc74` da cópia; o Calendário também só usava o total). `saldosProjetados` saiu: ninguém mais lia o saldo de cada conta projetado.
-- [ ] Depois das três: apagar a branch de cópia e a pasta `.claude/worktrees/` local.
+- [x] Depois das três (16/11/2026): pasta `.claude/worktrees/` apagada. **A branch de cópia `claude/backup-desempenho-13-11` não pôde ser apagada daqui** (o GitHub recusou: este ambiente não apaga branches); o dono pode apagar em Code → Branches; tudo dela já está no main.
 - [x] `npm test` ignora `.claude/` (`vite.config.ts`). Os totais de "2.7xx testes" citados nas PRs #376 a #386 contavam em dobro por causa dessa pasta; a suíte do projeto tem cerca de 1.460 testes. O CI nunca foi afetado.
 
 ## 16/11/2026 — Decisões do dono no fim do dia
