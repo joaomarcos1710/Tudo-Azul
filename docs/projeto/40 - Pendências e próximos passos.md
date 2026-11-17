@@ -878,3 +878,7 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - [x] "Corrigir saldo pelo extrato" em Dívidas (migration 132, teste 124). Aplicada em produção em 17/11/2026 (execução 44000571239). Falta o dono corrigir o consignado para o saldo do extrato.
 - [ ] Mostrar na tela de Dívidas o histórico de movimentos (com os ajustes) e um botão para anular um ajuste: hoje anular só pelo banco (`debt_void`). Surgiu desta mudança. Importa porque, depois de uma correção, pagamento com data anterior a ela é recusado: para lançar um pagamento atrasado é preciso anular a correção.
 - **atalho (migration 132):** movimento na MESMA data da correção pelo extrato passa (o extrato do dia pode ou não trazê-lo); melhorar se aparecer o caso.
+
+## 17/11/2026 — Gráficos de dívidas (pedido do dono: sem cartão, 12 meses)
+- [x] **Dívidas × Investimentos** em Análises (migration 133, teste 125). Falta aplicar em produção (com o "pode" do dono). Hoje o histórico é curto: o consignado só existe a partir do cadastro (09/11/2026), então a linha de dívidas começa em novembro.
+- [ ] **Evolução das dívidas** (uma linha por dívida) na tela de Dívidas: próxima PR, usando a mesma função.

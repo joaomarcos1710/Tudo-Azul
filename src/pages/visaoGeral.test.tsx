@@ -29,6 +29,7 @@ const mock = vi.hoisted(() => ({
   listarCategorias: vi.fn(),
   saldosProjetados: vi.fn(),
   evolucaoPatrimonio: vi.fn(),
+  historicoDividas: vi.fn(),
   listarOrcamentos: vi.fn(),
   fluxoDeCaixa: vi.fn(),
   carregarIndicadores: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock('../lib/painel', () => ({
   projecaoDoMes: mock.projecaoDoMes,
   vencidosPlanejados: mock.vencidosPlanejados,
   evolucaoPatrimonio: mock.evolucaoPatrimonio,
+  historicoDividas: mock.historicoDividas,
 }))
 const sentry = vi.hoisted(() => ({ captureException: vi.fn() }))
 vi.mock('@sentry/react', () => sentry)
@@ -139,6 +141,7 @@ beforeEach(() => {
   mock.listarOrcamentos.mockResolvedValue([])
   mock.fluxoDeCaixa.mockResolvedValue({ linhas: [], totalEntradas: c(0), totalSaidas: c(0) })
   mock.evolucaoPatrimonio.mockResolvedValue({ pontos: [], falhas: [] })
+  mock.historicoDividas.mockResolvedValue({ meses: [], total: new Map(), dividas: [] })
   sentry.captureException.mockClear()
   mock.resumoDosCartoes.mockResolvedValue([])
   mock.totalFaturasDoMes.mockResolvedValue(null)
@@ -1214,6 +1217,46 @@ describe('Visão geral', () => {
     expect(negativo.className).toMatch(/text-prejuizo/)
     expect(within(secao).getAllByRole('img')[0].getAttribute('aria-label')).toMatch(/R\$ 140\.563,37 em novembro de 2026/)
     expect(mock.evolucaoPatrimonio).toHaveBeenCalledWith('h1', hojeSP())
+  })
+
+  it('Análises: Dívidas × Investimentos mês a mês, os dois do banco; mês sem dívida fica vazio, não zero; o Início nem consulta', async () => {
+    mock.evolucaoPatrimonio.mockResolvedValue({ pontos: [
+      { mes: '2026-09', data: '2026-09-30', patrimonio: c(13000000), disponivel: c(100000), investimentos: c(5000000) },
+      { mes: '2026-10', data: '2026-10-31', patrimonio: c(13500000), disponivel: c(120000), investimentos: c(5200000) },
+      { mes: '2026-11', data: '2026-11-04', patrimonio: c(14056337), disponivel: c(249449), investimentos: c(5300000) },
+    ], falhas: [] })
+    mock.historicoDividas.mockResolvedValue({
+      meses: ['2026-09', '2026-10', '2026-11'],
+      total: new Map([['2026-10', c(13599225)], ['2026-11', c(13654078)]]),
+      dividas: [],
+    })
+    montar('analises')
+    const card = await screen.findByTestId('dividas-x-investimentos')
+    expect(within(card).getByText('Dívidas × Investimentos mês a mês')).toBeTruthy()
+    expect(within(card).getByText(/sem cartão/)).toBeTruthy()
+    expect(mock.historicoDividas).toHaveBeenCalledWith('h1', hojeSP())
+    // legenda com os dois nomes (identidade não só pela cor)
+    const legenda = within(card).getByRole('list', { name: 'Legenda: Dívidas × Investimentos' })
+    expect(within(legenda).getByText('Investimentos')).toBeTruthy()
+    expect(within(legenda).getByText('Dívidas')).toBeTruthy()
+    // tabela: os valores do banco; setembro sem dívida fica "—", nunca R$ 0,00
+    const linhas = Array.from(within(card).getByRole('table').querySelectorAll('tbody tr')).map((r) => r.textContent)
+    expect(linhas).toEqual([
+      'setembro de 2026R$ 50.000,00—', 'outubro de 2026R$ 52.000,00R$ 135.992,25', 'novembro de 2026R$ 53.000,00R$ 136.540,78',
+    ])
+    expect(within(card).getByRole('img').getAttribute('aria-label')).toMatch(/Dívidas: R\$ 136\.540,78 em novembro de 2026/)
+  })
+
+  it('Análises: se o histórico de dívidas falhar, o resto da evolução segue e um aviso discreto aparece', async () => {
+    mock.evolucaoPatrimonio.mockResolvedValue({ pontos: [
+      { mes: '2026-10', data: '2026-10-31', patrimonio: c(13500000), disponivel: c(120000), investimentos: c(5200000) },
+      { mes: '2026-11', data: '2026-11-04', patrimonio: c(14056337), disponivel: c(249449), investimentos: c(5300000) },
+    ], falhas: [] })
+    mock.historicoDividas.mockRejectedValue(new Error('rede'))
+    montar('analises')
+    expect(await screen.findByText(/dívidas × investimentos não carregou agora/)).toBeTruthy()
+    expect(screen.getByText('Patrimônio líquido mês a mês')).toBeTruthy()
+    expect(screen.queryByTestId('dividas-x-investimentos')).toBeNull()
   })
 
   it('Análises: se a evolução falhar, o resto segue, o bloco avisa e tenta de novo; o Início nem consulta', async () => {
