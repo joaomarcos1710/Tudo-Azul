@@ -2186,7 +2186,7 @@ describe('Lançamentos: busca (handoff, PR 2; decisões do dono de 17/11/2026)',
     mock.buscarNoPeriodo.mockResolvedValue({ lancamentos: new Set(['t1']), cartao: new Set(['p1']) })
     // sentinelas: não batem com nenhuma soma da lista (a tela não soma dinheiro)
     mock.totaisDaBusca.mockResolvedValue([
-      { moeda: 'BRL', quantidade: 2, entradas: c(1234), saidas: c(99999) },
+      { moeda: 'BRL', quantidade: 1, entradas: c(1234), saidas: c(99999) },
       { moeda: 'USD', quantidade: 1, entradas: c(0), saidas: c(1000) },
     ])
     montar()
@@ -2203,10 +2203,10 @@ describe('Lançamentos: busca (handoff, PR 2; decisões do dono de 17/11/2026)',
     expect(screen.queryByText('Fatura Nubank')).toBeNull()
     expect(screen.getByTestId('nota-busca').textContent).toMatch(/Pagamento de fatura, parcelas de empréstimo e créditos do cartão não entram/)
     const totais = await screen.findByTestId('totais-busca')
-    expect(within(totais).getByText('encontrados').nextSibling?.textContent).toBe('2')
+    expect(within(totais).getByText('encontrados').nextSibling?.textContent).toBe('2') // todos os itens da lista (1 em reais, 1 em dólar), não só os de reais
     expect(within(totais).getByText('R$ 12,34')).toBeTruthy()
     expect(within(totais).getByText('−R$ 999,99')).toBeTruthy()
-    expect(within(totais).getByTestId('totais-busca-outras-moedas').textContent).toMatch(/^Em USD, à parte: 1 encontrado · saídas −US\$\s10,00$/)
+    expect(within(totais).getByTestId('totais-busca-outras-moedas').textContent).toMatch(/^Em USD, à parte dos valores acima: 1 item · saídas −US\$\s10,00$/)
   })
 
   it('a busca vai com os outros filtros (aqui, o tipo) e fica no endereço: abrir com ?busca= já procura e preenche a caixa', async () => {
@@ -2245,6 +2245,38 @@ describe('Lançamentos: busca (handoff, PR 2; decisões do dono de 17/11/2026)',
     montar('/?mes=2026-10&busca=super')
     expect(await screen.findByText('Supermercado')).toBeTruthy()
     expect(await screen.findByText('Total da busca indisponível agora. A lista continua certa.')).toBeTruthy()
+  })
+
+  it('lista cortada pelo servidor (menos itens na tela do que no total do banco): os valores somem e a tela avisa (revisor-dinheiro, #418)', async () => {
+    mock.buscarNoPeriodo.mockResolvedValue({ lancamentos: new Set(['t1']), cartao: new Set() })
+    // o banco achou 5 itens, mas a lista do período só trouxe 1 deles (corte de 1000 linhas em período longo)
+    mock.totaisDaBusca.mockResolvedValue([{ moeda: 'BRL', quantidade: 5, entradas: c(0), saidas: c(96102) }])
+    montar('/?mes=2026-10&busca=super')
+    expect(await screen.findByText('Supermercado')).toBeTruthy()
+    expect(await screen.findByTestId('busca-cortada')).toBeTruthy()
+    const rodape = screen.getByRole('region', { name: 'Totais do mês' })
+    expect(within(rodape).getByText(/Sem total: a lista ficou incompleta neste período/)).toBeTruthy()
+    expect(screen.queryByTestId('totais-busca')).toBeNull()
+    expect(within(rodape).queryByText(/961,02/)).toBeNull()
+  })
+
+  it('contagem da lista igual à do banco: sem aviso e com o total', async () => {
+    mock.buscarNoPeriodo.mockResolvedValue({ lancamentos: new Set(['t1']), cartao: new Set() })
+    mock.totaisDaBusca.mockResolvedValue([{ moeda: 'BRL', quantidade: 1, entradas: c(0), saidas: c(25050) }])
+    montar('/?mes=2026-10&busca=super')
+    expect(await screen.findByTestId('totais-busca')).toBeTruthy()
+    expect(screen.queryByTestId('busca-cortada')).toBeNull()
+  })
+
+  it('faturas do cartão que falham: o total da busca não aparece (ele soma compras que a lista não mostra)', async () => {
+    mock.listarFaturasDoMes.mockRejectedValue(new Error('timeout'))
+    mock.buscarNoPeriodo.mockResolvedValue({ lancamentos: new Set(['t1']), cartao: new Set(['p1']) })
+    mock.totaisDaBusca.mockResolvedValue([{ moeda: 'BRL', quantidade: 2, entradas: c(0), saidas: c(34734) }])
+    montar('/?mes=2026-10&busca=flora')
+    expect(await screen.findByText('Supermercado')).toBeTruthy()
+    expect(await screen.findByText('Total da busca indisponível agora. A lista continua certa.')).toBeTruthy()
+    expect(screen.queryByTestId('totais-busca')).toBeNull()
+    expect(screen.queryByTestId('busca-cortada')).toBeNull()
   })
 
   it('"Limpar filtros" da folha tira os filtros e mantém o texto da busca', async () => {

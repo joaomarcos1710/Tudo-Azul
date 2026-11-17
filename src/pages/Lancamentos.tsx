@@ -140,6 +140,8 @@ export default function Lancamentos() {
   const [textoBusca, setTextoBusca] = useState(filtros.busca ?? '')
   const [totaisBusca, setTotaisBusca] = useState<TotalBusca[] | null | undefined>(undefined)
   const [buscaIndisponivel, setBuscaIndisponivel] = useState(false)
+  // a lista e o total da busca não têm o mesmo número de itens (consulta cortada pelo servidor em período longo)
+  const [buscaCortada, setBuscaCortada] = useState(false)
   useEffect(() => {
     // o endereço mudou por fora (Limpar filtros, voltar do navegador): a caixa acompanha
     setTextoBusca((atual) => ((textoDaBusca(atual) ?? '') === (filtros.busca ?? '') ? atual : filtros.busca ?? ''))
@@ -294,13 +296,21 @@ export default function Lancamentos() {
       // banco sem a migration 138: nada é mostrado como "encontrado" e a tela avisa
       const indisponivel = Boolean(busca) && ach === null
       setBuscaIndisponivel(indisponivel)
-      setTotaisBusca(tb)
-      setLancamentos(busca ? l.filter((x) => ach?.lancamentos.has(x.id)) : l)
+      const achadosNaLista = busca ? l.filter((x) => ach?.lancamentos.has(x.id)) : l
+      const comprasAchadas = busca ? (cc?.compras ?? []).filter((c) => ach?.cartao.has(c.id)) : cc?.compras ?? []
+      // O total vem do banco (todos os achados do período); a lista vem de consultas que o servidor corta em 1000 linhas.
+      // Se o número de itens da lista não é o do total, o total soma o que a lista não mostra: os valores somem e a tela
+      // avisa (achado do revisor-dinheiro na #418). Sem as faturas (falharam), o total também não vale.
+      const contados = tb ? tb.reduce((n, t) => n + t.quantidade, 0) : null
+      const cortada = Boolean(busca) && !indisponivel && cc !== null && contados !== null && contados !== achadosNaLista.length + comprasAchadas.length
+      setBuscaCortada(cortada)
+      setTotaisBusca(cc === null ? null : tb)
+      setLancamentos(achadosNaLista)
       setMovimentosDivida(md)
       setParcelasContrato(pc)
       setCreditosCartao([...cr, ...(cc?.creditos ?? [])])
       setFaturas(cc?.faturas ?? [])
-      setComprasCategoria(busca ? (cc?.compras ?? []).filter((c) => ach?.cartao.has(c.id)) : cc?.compras ?? [])
+      setComprasCategoria(comprasAchadas)
       setComprasFalharam(cc === null)
       setTotais(r)
       setPorMoeda(pm)
@@ -551,6 +561,11 @@ export default function Lancamentos() {
       {filtros.busca && buscaIndisponivel && (
         <div className="mb-4"><Aviso tipo="info">A busca ainda não está disponível. Apague o texto para ver a lista.</Aviso></div>
       )}
+      {filtros.busca && buscaCortada && (
+        <div className="mb-4" data-testid="busca-cortada">
+          <Aviso tipo="erro">A busca achou mais itens do que a lista consegue trazer neste período, então a lista está incompleta. Escolha um período menor.</Aviso>
+        </div>
+      )}
       {filtros.busca && !buscaIndisponivel && (
         <p className="mb-3 text-xs text-slate-500" data-testid="nota-busca">
           A busca olha a descrição e a observação dos lançamentos e das compras do cartão {periodo.tipo === 'mes' ? 'deste mês' : 'deste período'}
@@ -718,7 +733,7 @@ export default function Lancamentos() {
 
       <RodapeLancamentos realizado={totais === undefined ? undefined : totais?.realizado ?? null}
         previsto={totais === undefined ? undefined : totais?.previsto ?? null}
-        busca={filtros.busca && !buscaIndisponivel ? { texto: filtros.busca, totais: atualizando ? undefined : totaisBusca } : undefined}
+        busca={filtros.busca && !buscaIndisponivel ? { texto: filtros.busca, totais: atualizando ? undefined : totaisBusca, cortada: buscaCortada } : undefined}
         semTotais={filtros.tipo || filtros.categoriaId || filtros.situacao || filtros.cartaoId || filtros.soFixos || filtros.soParcelados
           ? 'Sem total com este filtro: o total só segue o filtro de conta.' : undefined}
         // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha

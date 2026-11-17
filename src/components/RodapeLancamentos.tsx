@@ -29,7 +29,7 @@ export function RodapeLancamentos({ realizado, previsto, semTotais, busca, acao 
    * Com busca (handoff, PR 2): no lugar dos totais do período, o que a busca achou, somado no banco
    * (ledger_search_totals) e por moeda. totais: undefined = carregando; null = não carregou.
    */
-  busca?: { texto: string; totais: TotalBusca[] | null | undefined }
+  busca?: { texto: string; totais: TotalBusca[] | null | undefined; cortada?: boolean }
   /** O botão flutuante de novo lançamento, preso acima do rodapé. */
   acao?: ReactNode
 }) {
@@ -86,14 +86,18 @@ function Linha({ totais, rotulos, titulo }: { totais: TotaisCaixa | undefined; r
  * "Encontrados", entradas e saídas do que a busca achou (pagos e previstos; transferência só na quantidade, como diz a nota
  * acima da lista); outras moedas numa linha à parte.
  */
-function TotaisDaBusca({ texto, totais }: { texto: string; totais: TotalBusca[] | null | undefined }) {
+function TotaisDaBusca({ texto, totais, cortada }: { texto: string; totais: TotalBusca[] | null | undefined; cortada?: boolean }) {
+  if (cortada) {
+    return <p className="py-3 text-center text-sm text-slate-600" role="status">Sem total: a lista ficou incompleta neste período. Escolha um período menor.</p>
+  }
   if (totais === null) {
     return <p className="py-3 text-center text-sm text-slate-500" role="status">Total da busca indisponível agora. A lista continua certa.</p>
   }
   const reais = totais?.find((t) => t.moeda === 'BRL')
   const outras = (totais ?? []).filter((t) => t.moeda !== 'BRL')
   const valor = 'tabular-nums text-sm font-semibold whitespace-nowrap sm:text-lg'
-  const n = totais ? reais?.quantidade ?? 0 : null
+  // quantidade = itens da lista em qualquer moeda (é o que se confere linha por linha); os valores abaixo são só em reais
+  const n = totais ? totais.reduce((soma, t) => soma + t.quantidade, 0) : null
   return (
     <div className="pt-1" data-testid="totais-busca">
       <dl className="grid grid-cols-3 gap-2 py-1 text-center" aria-label={`Total do que a busca "${texto}" encontrou, pagos e previstos`}>
@@ -113,7 +117,7 @@ function TotaisDaBusca({ texto, totais }: { texto: string; totais: TotalBusca[] 
       {outras.length > 0 && (
         <p className="pb-1 text-center text-xs text-slate-600" data-testid="totais-busca-outras-moedas">
           {/* nunca somado aos reais; valor zerado não aparece, para a linha caber no celular */}
-          {outras.map((t) => [`Em ${t.moeda}, à parte: ${t.quantidade} ${t.quantidade === 1 ? 'encontrado' : 'encontrados'}`,
+          {outras.map((t) => [`Em ${t.moeda}, à parte dos valores acima: ${t.quantidade} ${t.quantidade === 1 ? 'item' : 'itens'}`,
             ...(t.entradas !== 0 ? [`entradas ${formatMoeda(t.entradas, t.moeda)}`] : []),
             ...(t.saidas !== 0 ? [`saídas −${formatMoeda(t.saidas, t.moeda)}`] : [])].join(' · ')).join('; ')}
         </p>
