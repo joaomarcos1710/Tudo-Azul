@@ -153,9 +153,11 @@ begin
     -- só volta para as anteriores a sobra que já reduziu a dívida: a de PAGAMENTO (o dinheiro saiu na data dele) e a de
     -- CRÉDITO só se a fatura do crédito já fechou (antes disso o crédito não abateu a dívida; um crédito lançado numa
     -- fatura futura não pode quitar hoje uma fatura vencida). O resto segue para as próximas, como antes.
-    v_back := least(v_surplus, greatest(0, v_link - v_total)
+    -- a parte da sobra que já reduziu a dívida, menos o que o saldo de referência levou (ele sai dela primeiro: um
+    -- crédito de fatura futura não pode, via saldo de referência, liberar pagamento para quitar o passado; 2ª revisão #413)
+    v_back := least(v_surplus, greatest(0, greatest(0, v_link - v_total)
                     + case when r.closing_date <= (now() at time zone 'America/Sao_Paulo')::date
-                           then greatest(0, -(r.charged + r.pending)) else 0 end);
+                           then greatest(0, -(r.charged + r.pending)) else 0 end - v_s0));
     v_surplus := v_surplus - v_back;
     k := 1;
     while v_back > 0 and k < n loop
@@ -320,8 +322,10 @@ begin
     v_ref := v_ref - v_s0;
     v_surplus := v_surplus - v_s0;
     -- mesma regra de card_months: a sobra de crédito só volta se a fatura do crédito já fechou na data de corte
-    v_back := least(v_surplus, greatest(0, v_link - v_total)
-                    + case when r.closing_date <= p_as_of then greatest(0, -(r.charged + r.pending)) else 0 end);
+    -- a parte da sobra que já reduziu a dívida, menos o que o saldo de referência levou (ele sai dela primeiro: um
+    -- crédito de fatura futura não pode, via saldo de referência, liberar pagamento para quitar o passado; 2ª revisão #413)
+    v_back := least(v_surplus, greatest(0, greatest(0, v_link - v_total)
+                    + case when r.closing_date <= p_as_of then greatest(0, -(r.charged + r.pending)) else 0 end - v_s0));
     v_surplus := v_surplus - v_back;
     k := 1;
     while v_back > 0 and k < n loop
@@ -391,7 +395,7 @@ begin
   if v_except is null then
     perform private.card_paid_lock_check(v_d.id, v_lock);
   else
-    -- 136: na exceção, só um evento (o pagamento) saiu; o "pago" que cai numa fatura travada ANTERIOR à dele veio da
+    -- 136: na exceção, saiu o pagamento (e o que tiver o mesmo op_id); o "pago" que cai numa fatura travada ANTERIOR à dele veio da
     -- sobra dele (a regra nova da card_months). Essas podem perder o pago; o total delas continua conferido, e a que
     -- sumir é recusada. As faturas POSTERIORES (quitadas pelo adiantamento) continuam conferidas por inteiro, como na
     -- 064 (teste 64 E4).

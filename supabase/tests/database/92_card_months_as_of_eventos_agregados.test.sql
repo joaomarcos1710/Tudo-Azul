@@ -130,8 +130,8 @@ begin
     v_ref := v_ref - v_s0;
     v_surplus := v_surplus - v_s0;
     -- 136: só a sobra de pagamento, e a de crédito com a fatura já fechada na data de corte, volta para as anteriores
-    v_back := least(v_surplus, greatest(0, v_link - v_total)
-                    + case when r.closing_date <= p_as_of then greatest(0, -(r.charged + r.pending)) else 0 end);
+    v_back := least(v_surplus, greatest(0, greatest(0, v_link - v_total)
+                    + case when r.closing_date <= p_as_of then greatest(0, -(r.charged + r.pending)) else 0 end - v_s0));
     v_surplus := v_surplus - v_back;
     k := 1;
     while v_back > 0 and k < n loop

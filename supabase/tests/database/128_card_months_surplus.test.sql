@@ -110,6 +110,29 @@ select is((select paid::numeric(14,2) from public.card_months(pg_temp.fx('s6:car
 select is((select advance_out::numeric(14,2) from public.card_months(pg_temp.fx('s6:card')) where label = '2099-12'), 200.00::numeric(14,2),
   'S6 a sobra do crédito futuro segue para a frente, como antes da 136');
 
+-- 8. Com saldo de referência (150): crédito de 200 numa fatura futura e pagamento de 100 na MESMA fatura. Só os 100
+-- reduziram a dívida e vão para o saldo de referência (150 -> 50); nada volta para setembro (2ª revisão da #413)
+reset role;
+insert into auth.users (id, email, email_confirmed_at) values ('00000000-0000-0000-0000-0000000128a8', 's8@teste128.com', now());
+select pg_temp.login('00000000-0000-0000-0000-0000000128a8');
+insert into fixture select 's8:h', public.create_household('Casa s8');
+with i as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
+           values (pg_temp.fx('s8:h'), 'Banco', 'checking', 5000.00, '2026-01-01') returning id)
+  insert into fixture select 's8:conta', id from i;
+insert into fixture select 's8:card', public.create_debt('Cartão R', 'card', '2026-08-01', 150);
+select public.set_card_cycle(pg_temp.fx('s8:card'), 18, 25);
+select public.card_purchase(pg_temp.fx('s8:card'), '2026-09-05', 150.00, 1, (select id from public.categories where household_id = pg_temp.fx('s8:h') and name = 'Mercado'), 'Setembro');
+select public.card_purchase(pg_temp.fx('s8:card'), '2026-10-05', 300.00, 1, (select id from public.categories where household_id = pg_temp.fx('s8:h') and name = 'Mercado'), 'Outubro');
+select public.card_purchase(pg_temp.fx('s8:card'), '2026-10-20', 80.00, 1, (select id from public.categories where household_id = pg_temp.fx('s8:h') and name = 'Mercado'), 'Novembro');
+select public.card_bill_due('2026-10-31');
+select public.card_credit_income(pg_temp.fx('s8:card'), '2099-11-10', 200.00,
+  (select id from public.categories where household_id = pg_temp.fx('s8:h') and type = 'income' order by name limit 1), 'Crédito futuro', null, null);
+-- pagamento de 100 que acaba na MESMA fatura futura do crédito (pagou outubro e foi movido para 2099-11)
+insert into fixture select 's8:pag', public.debt_pay(pg_temp.fx('s8:card'), '2026-10-26', pg_temp.fx('s8:conta'), 100.00, pg_temp.fatura(pg_temp.fx('s8:card'), '2026-10'), false);
+select public.card_payment_move(pg_temp.fx('s8:pag'), '2099-11');
+select is((select paid::numeric(14,2) from public.card_months(pg_temp.fx('s8:card')) where label = '2026-09'), 0.00::numeric(14,2),
+  'S8 com saldo de referência: o pagamento cobre o saldo de referência e o crédito futuro não libera nada para setembro');
+
 -- 7. Duas faturas anteriores em aberto: a sobra quita da mais antiga para a mais nova
 reset role;
 select pg_temp.cenario('s7', '00000000-0000-0000-0000-0000000128a7');
