@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { Cents } from '../lib/format'
 
 const mock = vi.hoisted(() => ({
@@ -289,6 +289,34 @@ describe('Lançamentos', () => {
     // valor desconhecido não filtra nada
     render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=xyz']}><Lancamentos /></MemoryRouter>)
     await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31', {}))
+  })
+
+  it('item g: o endereço abre período e filtros (link, recarregar); mudar o filtro na tela muda o endereço', async () => {
+    const u = userEvent.setup()
+    let endereco = ''
+    const Endereco = () => { endereco = useLocation().search; return null }
+    render(<MemoryRouter initialEntries={['/lancamentos?periodo=livre&de=2026-10-05&ate=2026-11-20&conta=a1&situacao=pendente']}>
+      <Lancamentos /><Endereco />
+    </MemoryRouter>)
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10-05', '2026-11-20', { contaId: 'a1', situacao: 'planned' }))
+    // tirar um filtro na tela atualiza o endereço (o período e o outro filtro ficam)
+    await u.click(await screen.findByRole('button', { name: /^Filtrar/ }))
+    const tela = screen.getByRole('dialog', { name: 'Filtrar lançamentos' })
+    await u.click(within(tela).getByRole('button', { name: 'Pendente' }))
+    await u.click(within(tela).getByRole('button', { name: 'Filtrar: ver os lançamentos' }))
+    await waitFor(() => expect(new URLSearchParams(endereco).get('situacao')).toBeNull())
+    const q = new URLSearchParams(endereco)
+    expect([q.get('periodo'), q.get('de'), q.get('ate'), q.get('conta')]).toEqual(['livre', '2026-10-05', '2026-11-20', 'a1'])
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenLastCalledWith('h1', '2026-10-05', '2026-11-20', { contaId: 'a1' }))
+    // trocar o período pela seta também vai para o endereço
+    await u.click(screen.getByRole('button', { name: 'Período anterior' }))
+    await waitFor(() => expect(new URLSearchParams(endereco).get('de')).not.toBe('2026-10-05'))
+    expect(new URLSearchParams(endereco).get('conta')).toBe('a1')
+  })
+
+  it('item g: ?categoria= abre já filtrado pela categoria', async () => {
+    render(<MemoryRouter initialEntries={['/lancamentos?mes=2026-10&tipo=despesa&categoria=g1']}><Lancamentos /></MemoryRouter>)
+    await waitFor(() => expect(mock.listarLancamentos).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31', { tipo: 'expense', categoriaId: 'g1' }))
   })
 
   it('rodapé como no Organizze (pedido do dono, 10/11/2026): pagos à vista; a seta abre o previsto, tudo do banco (cash_flow_series)', async () => {

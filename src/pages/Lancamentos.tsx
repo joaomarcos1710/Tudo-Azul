@@ -27,7 +27,7 @@ import { OperacaoRapida } from '../components/investimentos/FormOperacao'
 import { aceitaLancamento, hojeSP, listarContas, listarSaldosDiarios, mesmaMoeda } from '../lib/contas'
 import type { Conta, ContaInterna, SaldoDiario } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { currentMonth, formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, rotuloDoDia, simboloMoeda } from '../lib/format'
+import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, rotuloDoDia, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
   criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
@@ -53,7 +53,7 @@ import { serieFluxo } from '../lib/fluxoCaixa'
 import { SeletorPeriodo } from '../components/ui/SeletorPeriodo'
 import { FiltrosLancamentos } from './FiltrosLancamentos'
 import { SeletorCategoria } from '../components/SeletorCategoria'
-import { periodoDoMes } from '../lib/periodoRelatorio'
+import { assinaturaDaListagem, filtrosDaUrl, periodoDaUrl, urlComListagem } from '../lib/urlLancamentos'
 import type { Periodo as PeriodoLista } from '../lib/periodoRelatorio'
 import type { SerieFluxo } from '../lib/fluxoCaixa'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
@@ -90,12 +90,22 @@ export default function Lancamentos() {
   }, [sessao?.user.id])
 
   const [params, setParams] = useSearchParams()
-  // links do painel: ?mes=AAAA-MM abre o mês; ?novo=despesa|receita|transferencia|cartao abre o formulário já preenchido com o tipo
-  // o período da lista (etapa 3 do Organizze): começa no mês do link ou no atual; "Escolher período" pode ser livre
-  const [periodo, setPeriodo] = useState<PeriodoLista>(() => {
-    const m = params.get('mes')
-    return periodoDoMes(m && /^20\d\d-(0[1-9]|1[0-2])$/.test(m) ? m : currentMonth())
-  })
+  // Período e filtros moram no endereço (handoff, item g; lib/urlLancamentos.ts): recarregar, voltar ou mandar o link abre a
+  // mesma lista. ?novo=despesa|receita|transferencia|cartao continua abrindo o formulário já preenchido com o tipo.
+  // A assinatura só muda com período ou filtro: o objeto fica o mesmo entre renders e não refaz as consultas à toa.
+  const assinatura = assinaturaDaListagem(params)
+  const periodo = useMemo(() => periodoDaUrl(params), [assinatura])
+  const filtros = useMemo(() => filtrosDaUrl(params), [assinatura])
+  // trocar período ou filtro troca o endereço sem criar uma entrada nova no histórico a cada toque
+  const setPeriodo = useCallback((p: PeriodoLista) => {
+    setParams((atual) => urlComListagem(atual, p, filtrosDaUrl(atual)), { replace: true })
+  }, [setParams])
+  const setFiltros = useCallback((f: Filtros | ((atual: Filtros) => Filtros)) => {
+    setParams((atual) => {
+      const antes = filtrosDaUrl(atual)
+      return urlComListagem(atual, periodoDaUrl(atual), typeof f === 'function' ? f(antes) : f)
+    }, { replace: true })
+  }, [setParams])
   useEffect(() => {
     let ativo = true
     if (!familiaId || !mostrarSaldoDiario) {
@@ -109,11 +119,6 @@ export default function Lancamentos() {
     return () => { ativo = false }
   }, [familiaId, periodo, mostrarSaldoDiario])
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
-  // ?tipo=receita|despesa (avisos do Início): abre já filtrado pelo tipo; o filtro continua editável na tela
-  const [filtros, setFiltros] = useState<Filtros>(() => {
-    const tipo = ({ receita: 'income', despesa: 'expense' } as Record<string, TipoLancamento>)[params.get('tipo') ?? '']
-    return tipo ? { tipo } : {}
-  })
   const [lancamentos, setLancamentos] = useState<Lancamento[] | null>(null)
   const [movimentosDivida, setMovimentosDivida] = useState<MovimentoDivida[]>([])
   // parcelas do contrato (empréstimo/financiamento) ainda planejadas no mês: só mostram, não entram em total nenhum
