@@ -388,6 +388,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#396** (16/11/2026): **Início mais rápido** (melhorias de 13/11 refeitas): Dinheiro Livre e indicadores carregam à parte (contas, cartões e gastos aparecem sem esperar) e o saldo total previsto vem numa chamada só, também no Calendário. Nenhum valor muda.
 - **#397** (16/11/2026): **Lançamentos: período e filtros no endereço** (handoff, item g): recarregar, voltar ou mandar o link abre a mesma lista; `?categoria=` passa a valer.
 - **#398** (16/11/2026): **Lançamentos: excluir sem perguntar, com Desfazer fixo embaixo** (handoff, item e). A barra fica até ser fechada (não há tela de Lixeira) e junta exclusões seguidas; "Parar de repetir" continua perguntando.
+- **#399** (17/11/2026): **Lançamentos: tela de Lixeira** (`/lancamentos/lixeira`): lista o que foi excluído e restaura um por um; entra pelo ⋯ e pelo "Ver lixeira" da barra do Desfazer. Nunca apaga de vez. O banco não muda.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
