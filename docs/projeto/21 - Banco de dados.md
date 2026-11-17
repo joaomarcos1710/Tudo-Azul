@@ -612,3 +612,9 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - **Fora da conta:** empréstimos e financiamentos (parcelas de contrato de dívida; o consignado já sai do salário líquido). A tela diz isso.
 - **Teste:** `133_recurrence_net_after_installments` (14 asserções, data de corte explícita; falha sem a migration). Entrou em `00_audit`.
 
+## Parcelamento quitado volta a contar no mês (migration 142, PR #427, **ainda não aplicada**)
+- **Arquivo:** `20261117120000_installment_month_summary_paid.sql`. Recria `public.installment_month_summary` (mesma assinatura e colunas; a 121 não é editada). **Achado do `revisor-dinheiro` na #427:** o resumo descartava o parcelamento inteiro quando todas as parcelas estavam pagas, inclusive a que vence no mês. Resultado: ao pagar a ÚLTIMA parcela de uma compra parcelada ou carnê, o valor dela sumia do "parcelas do mês" (no card "Parcelas e carnês" e na sobra depois das parcelas) e, se era o único, a linha da moeda deixava de existir.
+- **O que muda:** `month_total`, `paid_total`, `pending_total` e `month_count` vêm de todos os parcelamentos de 2 ou mais parcelas, pagos ou não; `active_count` e `examples` continuam só dos ativos (com parcela por pagar); uma moeda que só tem parcelamento quitado no mês ganha a linha (`active_count` 0). Parcelamento quitado em mês anterior continua fora.
+- **Não muda:** `active_installment_plans` e `installment_plan_schedule` (a aba Parcelas continua listando só os ativos); permissões e `SECURITY INVOKER`.
+- **Teste:** `134_installment_month_paid` (11 asserções, com carnê, dólar e cartão; falha sem a migration, em Q3 e Q4); `116`, `115`, `100` e `133` continuam passando.
+
