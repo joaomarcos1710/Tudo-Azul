@@ -880,5 +880,5 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - **atalho (migration 132):** movimento na MESMA data da correção pelo extrato passa (o extrato do dia pode ou não trazê-lo); melhorar se aparecer o caso.
 
 ## 17/11/2026 — Gráficos de dívidas (pedido do dono: sem cartão, 12 meses)
-- [x] **Dívidas × Investimentos** em Análises (migration 133, teste 125). Falta aplicar em produção (com o "pode" do dono). Hoje o histórico é curto: o consignado só existe a partir do cadastro (09/11/2026), então a linha de dívidas começa em novembro.
-- [ ] **Evolução das dívidas** (uma linha por dívida) na tela de Dívidas: próxima PR, usando a mesma função.
+- [x] **Dívidas × Investimentos** em Análises (migration 133, teste 125). Aplicada em produção em 17/11/2026 (execução 44003289249). Hoje o histórico é curto: o consignado só existe a partir do cadastro (09/11/2026), então a linha de dívidas começa em novembro.
+- [x] **Evolução das dívidas** (uma linha por dívida) na tela de Dívidas (17/11/2026), usando a mesma função. Com mais de 4 dívidas, mostra só o total (do banco); com um mês só de saldo, explica que o gráfico aparece a partir de dois.

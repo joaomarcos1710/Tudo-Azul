@@ -17,6 +17,10 @@ import type { Categoria } from '../lib/categorias'
 import { asCents, formatBRL, formatBRLCampo, parseBRL } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { Folha } from '../components/ui/Folha'
+import { LinhasMensais } from '../components/graficos/LinhasMensais'
+import { GRAFICO } from '../lib/cores'
+import { historicoDividas } from '../lib/painel'
+import type { HistoricoDividas } from '../lib/painel'
 import { mensagemErroBanco } from '../lib/erros'
 import {
   criarDivida, definirTermosDivida, definirContratoDivida, listarDividas, listarParcelasDivida,
@@ -50,6 +54,8 @@ export default function Dividas() {
   const [corrigindo, setCorrigindo] = useState<Divida | null>(null)
   const [avisoSaldo, setAvisoSaldo] = useState('')
   const [arquivadas, setArquivadas] = useState<Divida[]>([])
+  // evolução das dívidas (sem cartão, 12 meses; migration 133): opcional, a tela segue sem ela
+  const [evolucao, setEvolucao] = useState<HistoricoDividas | 'erro' | null>(null)
   // confirmação de arquivar/excluir, aberta dentro do card da própria dívida
   const [confirmando, setConfirmando] = useState<{ tipo: 'arquivar' | 'excluir'; divida: Divida } | null>(null)
 
@@ -68,6 +74,7 @@ export default function Dividas() {
       ])
       setDividas(lista)
       setArquivadas(listaArquivadas)
+      historicoDividas(familia.id, hoje).then(setEvolucao).catch(() => setEvolucao('erro'))
       // todas as parcelas, até a última: a tela agrupa por dívida (antes, as 12 primeiras de todas juntas escondiam dívidas)
       setParcelas(agenda)
       // vindo de Lançamentos ("Baixar parcela"): abre a baixa daquela parcela e limpa o endereço
@@ -299,6 +306,8 @@ export default function Dividas() {
               })}
             </ul>
           </section>
+          {evolucao && evolucao !== 'erro' && <EvolucaoDasDividas historico={evolucao} />}
+          {evolucao === 'erro' && <p className="mb-8 text-xs text-slate-600">A evolução das dívidas não carregou agora.</p>}
           {agendaFalhou && (
             <div className="mb-4"><Aviso tipo="erro">Não foi possível carregar as próximas parcelas agora. Recarregue a página em instantes.</Aviso></div>
           )}
@@ -672,6 +681,40 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
         </div>
       </form>
     </Folha>
+  )
+}
+
+/** Até 4 dívidas, cada uma com a sua cor (ordem fixa por nome; a cor segue a dívida, nunca o ranking). Mais que isso: só o total. */
+const MAX_LINHAS_DIVIDA = 4
+
+/**
+ * Evolução das dívidas (pedido do dono, 17/11/2026): uma linha por empréstimo/financiamento nos últimos 12 meses, sem
+ * cartão. Saldos do banco (debt_history_monthly); mês antes do cadastro fica vazio. Com mais de 4 dívidas, só o total
+ * (também do banco), para não inventar cor nem somar na tela.
+ */
+function EvolucaoDasDividas({ historico }: { historico: HistoricoDividas }) {
+  const ordenadas = [...historico.dividas].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  const series = ordenadas.length > 0 && ordenadas.length <= MAX_LINHAS_DIVIDA
+    ? ordenadas.map((d, i) => ({ id: d.id, nome: d.nome, cor: GRAFICO.rosca[i], valores: historico.meses.map((m) => d.porMes.get(m) ?? null) }))
+    : [{ id: 'total', nome: 'Total das dívidas', cor: GRAFICO.rosca[0], valores: historico.meses.map((m) => historico.total.get(m) ?? null) }]
+  const pontos = Math.max(0, ...series.map((x) => x.valores.filter((v) => v !== null).length))
+  if (pontos === 0) return null
+  return (
+    <section className="mb-8" aria-labelledby="titulo-evolucao-dividas" data-testid="evolucao-dividas">
+      <h2 id="titulo-evolucao-dividas" className="mb-3 text-lg font-semibold">Evolução das dívidas</h2>
+      <Card>
+        {pontos < 2 ? (
+          <p className="text-sm text-slate-600">O gráfico aparece quando houver pelo menos dois meses de saldo. Por enquanto só há o mês atual.</p>
+        ) : (
+          <LinhasMensais titulo="Evolução das dívidas" meses={historico.meses} series={series} />
+        )}
+        <p className="mt-1 text-xs text-slate-500">
+          Saldo devedor no último dia de cada mês, nos últimos 12 meses, sem cartão. O app não calcula juros: o saldo muda com
+          os pagamentos e com a correção pelo extrato. Mês antes do cadastro da dívida fica vazio.
+          {ordenadas.length > MAX_LINHAS_DIVIDA && ` São ${ordenadas.length} dívidas: o gráfico mostra o total.`}
+        </p>
+      </Card>
+    </section>
   )
 }
 

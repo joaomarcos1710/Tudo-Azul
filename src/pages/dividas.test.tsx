@@ -16,11 +16,13 @@ const mock = vi.hoisted(() => ({
   definirCategoriaPrincipal: vi.fn(),
   registrarPagamentoDivida: vi.fn(),
   corrigirSaldoDivida: vi.fn(),
+  historicoDividas: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
 vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal, corrigirSaldoDivida: mock.corrigirSaldoDivida }))
+vi.mock('../lib/painel', async (o) => ({ ...(await o<typeof import('../lib/painel')>()), historicoDividas: mock.historicoDividas }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -44,6 +46,7 @@ const porSituacao = (lista: unknown[], arquivadas: unknown[] = []) =>
   (_f: string, _d: string, situacao = 'ativas') => Promise.resolve(situacao === 'arquivadas' ? arquivadas : lista)
 
 beforeEach(() => {
+  mock.historicoDividas.mockResolvedValue({ meses: [], total: new Map(), dividas: [] })
   mock.listarDividas.mockImplementation(porSituacao(ativas()))
   mock.arquivarDivida.mockResolvedValue(undefined)
   mock.reativarDivida.mockResolvedValue(undefined)
@@ -427,4 +430,50 @@ describe('Dívidas', () => {
     render(<Dividas />)
     expect(await screen.findByText(/Não foi possível carregar as próximas parcelas/)).toBeTruthy()
   })
+
+  describe('Evolução das dívidas (sem cartão, 12 meses)', () => {
+    const meses = ['2026-09', '2026-10', '2026-11']
+    const divida = (id: string, nome: string, valores: [string, number][]) => ({ id, nome, porMes: new Map(valores.map(([m, v]) => [m, c(v)])) })
+
+    it('uma linha por dívida, com legenda e tabela dos valores do banco; mês antes do cadastro fica vazio', async () => {
+      mock.historicoDividas.mockResolvedValue({ meses, total: new Map(), dividas: [
+        divida('d2', 'Consignado', [['2026-10', 13599225], ['2026-11', 13654078]]),
+        divida('d1', 'Financiamento', [['2026-09', 9000000], ['2026-10', 8900000], ['2026-11', 8800000]]),
+      ] })
+      render(<Dividas />)
+      const secao = await screen.findByTestId('evolucao-dividas')
+      const legenda = within(secao).getByRole('list', { name: 'Legenda: Evolução das dívidas' })
+      expect(within(legenda).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Consignado', 'Financiamento']) // ordem fixa por nome
+      const linhas = Array.from(within(secao).getByRole('table').querySelectorAll('tbody tr')).map((r) => r.textContent)
+      expect(linhas).toEqual([
+        'setembro de 2026—R$ 90.000,00', 'outubro de 2026R$ 135.992,25R$ 89.000,00', 'novembro de 2026R$ 136.540,78R$ 88.000,00',
+      ])
+      expect(within(secao).getByText(/sem cartão/)).toBeTruthy()
+    })
+
+    it('com um mês só de saldo, explica que o gráfico aparece a partir de dois meses', async () => {
+      mock.historicoDividas.mockResolvedValue({ meses, total: new Map(), dividas: [divida('d2', 'Consignado', [['2026-11', 13654078]])] })
+      render(<Dividas />)
+      const secao = await screen.findByTestId('evolucao-dividas')
+      expect(within(secao).getByText(/pelo menos dois meses/)).toBeTruthy()
+      expect(within(secao).queryByRole('img')).toBeNull()
+    })
+
+    it('com mais de 4 dívidas, mostra só o total (do banco), sem inventar cor', async () => {
+      mock.historicoDividas.mockResolvedValue({ meses, total: new Map([['2026-10', c(1000000)], ['2026-11', c(900000)]]), dividas: [
+        'A', 'B', 'C', 'D', 'E'].map((n, i) => divida(`x${i}`, n, [['2026-10', 200000], ['2026-11', 180000]])) })
+      render(<Dividas />)
+      const secao = await screen.findByTestId('evolucao-dividas')
+      expect(within(within(secao).getByRole('list', { name: /Legenda/ })).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['Total das dívidas'])
+      expect(within(secao).getByText(/São 5 dívidas: o gráfico mostra o total/)).toBeTruthy()
+    })
+
+    it('se a evolução falhar, o resto da tela segue com um aviso discreto', async () => {
+      mock.historicoDividas.mockRejectedValue(new Error('rede'))
+      render(<Dividas />)
+      expect(await screen.findByText('A evolução das dívidas não carregou agora.')).toBeTruthy()
+      expect(screen.getByText('Financiamento do imóvel')).toBeTruthy()
+    })
+  })
 })
+
