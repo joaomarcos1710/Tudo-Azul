@@ -565,7 +565,8 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - **Teste:** `126_pending_strip` (9 asserções: dois períodos, dia do fechamento, fatura aberta fora, consignado fora, paga/transferência/apagada/dólar fora, período inválido, privilégios, isolamento). Falha sem a migration (conferido). Entrou em `00_audit`.
 - **Antes da aplicação:** a tela chama a função e, sem ela (`PGRST202`/`42883`), a faixa simplesmente não aparece.
 
-## Faixa de pendências sem cartão arquivado (migration 135, PR #410, **ainda não aplicada**)
+## Faixa de pendências sem cartão arquivado (migration 135, PR #410, **aplicada em 17/11/2026**)
+- **Aplicada em 17/11/2026** pelo workflow (simulação 44090252562, só ela pendente; aplicação 44090362937).
 - **Arquivo:** `20261117050000_pending_strip_active.sql`. `create or replace` de `public.pending_strip` (mesma assinatura, `SECURITY INVOKER` e grants; `00_audit` não muda) com `and d.active` na parte das faturas: cartão arquivado tem saldo 0 (exigência de `debt_archive`), então o que aparecia dele era fantasma. Achado do `revisor-dinheiro` na #409.
 - **Limites anotados (`atalho:`):** (1) **vencido fantasma de cartão ativo**: pagamento vinculado a uma fatura mais nova que cobre também a anterior deixa a anterior com saldo, porque `card_months` manda a sobra só para as faturas seguintes; aparece também em `home_alerts`, Calendário e saldo previsto. Correção na causa (`card_months`) é a PR B. (2) saldo de referência do cartão (fatura de antes do cadastro) não entra, como em `card_invoices_due`; a tela avisa (decisão do dono, opção a).
 - **Teste:** `127_pending_strip_active` (7 asserções: sem pagamento, pagamento parcial, pagamento sem fatura, crédito avulso maior que a fatura, saldo zerado, o fantasma registrado como limite conhecido e cartão arquivado). O caso do cartão arquivado **falha sem a 135** (conferido).
