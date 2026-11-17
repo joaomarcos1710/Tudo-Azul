@@ -815,7 +815,7 @@ Design: artefato "Lançamentos — Extrato e Gastos" (4 telas, dados fictícios)
 - [ ] **PR 2 (busca):** precisa de função nova no banco (compras de cartão não são `transactions`; o total é dinheiro); índice só depois de medir; a consulta atual não pagina.
 - [ ] **PR 3 (totais com filtros):** precisa de banco (`cash_flow_series` só filtra conta). Só front e cabe já: esconder o total com filtro e trocar os três rótulos "previsto".
 - [ ] **PR 4 (Extrato / Gastos):** não começar sem decisão do dono; depende da pendência da #164.
-- [ ] **Decisões do dono (design):** despesa vermelha ou neutra (regra escrita diz vermelho, a lista usa cinza, o rodapé usa vermelho); "Pagar" com um toque ou a folha; tabela no computador (saiu na #269) ou lista.
+- [ ] **Decisões do dono (design):** ~~despesa vermelha ou neutra~~ (decidido em 16/11: vermelha na lista; feito na #405); "Pagar" com um toque ou a folha; tabela no computador (saiu na #269) ou lista.
 
 ## 16/11/2026 — Rentabilidade por tempo (TWR): plano pronto, esperando o dono
 Plano do agente de arquitetura: migration 129 com `investment_return_history` (passe próprio por ativo, incluindo zerados; `investment_contribution_history` não serve porque muda de conjunto quando um ativo zera), teste 123, "sem base" em vez de 0% quando a parcela sem valor atualizado passa do limite. Esforço: 3 a 4 dias.
@@ -848,7 +848,7 @@ Três commits de 13/11 ficaram numa área de trabalho isolada (`.claude/worktree
 - [x] `npm test` ignora `.claude/` (`vite.config.ts`). Os totais de "2.7xx testes" citados nas PRs #376 a #386 contavam em dobro por causa dessa pasta; a suíte do projeto tem cerca de 1.460 testes. O CI nunca foi afetado.
 
 ## 16/11/2026 — Decisões do dono no fim do dia
-- **Cor da despesa:** seguir cada design aprovado: neutra no cabeçalho do Início (como está) e vermelha na lista de Lançamentos (design "Extrato"). A lista ainda usa cinza: falta aplicar.
+- [x] **Cor da despesa:** seguir cada design aprovado: neutra no cabeçalho do Início (como está) e vermelha na lista de Lançamentos (design "Extrato"). Aplicado na #405 (17/11/2026), também em compra no cartão, fatura, parcela de contrato e saída de cartão/dívida. **Para o dono conferir:** a regra #183 deixava compra no cartão e parcela de contrato em cinza ("não mexe no saldo agora"); se preferir assim, é trocar duas linhas.
 - **Contas de investimento ligadas aos ativos (opção A):** a conta ("XP Ações", "XP Fundo Imobiliário") passa a mostrar o valor dos ativos ligados a ela, em vez de um saldo digitado, contado uma vez só no patrimônio. Precisa de migration nova (hoje conta e ativo não têm vínculo). Plano em desenho.
 - **Cripto:** o dono quer. Primeiro passo: teste de rede da consulta em reais.
 

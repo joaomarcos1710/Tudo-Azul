@@ -919,6 +919,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** "Excluir" em Lançamentos não pede confirmação; a barra "Desfazer" fica fixa embaixo até ser fechada. "Parar de repetir" continua com confirmação.
 - **Por quê:** handoff de Lançamentos (item e), aprovado pelo dono. A barra não some sozinha porque não há tela de Lixeira: depois de fechada, só dá para recuperar pelo banco. "Parar de repetir" encerra a regra e não tem desfazer simples.
 
+## 17/11/2026 — Despesa vermelha na lista de Lançamentos (#405)
+- **O quê:** na lista de Lançamentos, todo valor de saída fica vermelho (`text-prejuizo`): despesa, compra no cartão (solta e dentro da fatura), total da fatura, parcela planejada de contrato e saída de cartão/dívida. Receita azul, transferência marinho e crédito de cartão azul não mudam. O cabeçalho do Início continua neutro.
+- **Por quê:** decisão do dono de 16/11/2026 (seguir o design "Extrato"), que é a regra #183 (vermelho = despesa, saída). Substitui o trecho da #183 que deixava compra no cartão e parcela de contrato em cinza: na mesma lista, duas cores para saída confundiam. Custo: a parcela planejada e a compra no cartão parecem tão "pesadas" quanto uma despesa paga; o selo (Planejado, No cartão) é que diferencia.
+
 ## 17/11/2026 — Corrigir saldo de empréstimo pelo extrato: só o saldo, não é gasto
 - **O quê:** em Dívidas, "Corrigir saldo pelo extrato" grava a diferença entre o saldo do app e o do banco como ajuste (migration 132). Não entra como despesa nem receita e não mexe em conta.
 - **Por quê:** o app não calcula juros diários, então os dois saldos se afastam. Contar os juros como gasto no consignado seria contar duas vezes, porque eles já saem do salário líquido.

@@ -233,10 +233,10 @@ describe('Lançamentos', () => {
     expect(within(linhaDe('Itaú → Nubank')).queryAllByText('Itaú')).toHaveLength(0)
     expect(linhaDe('Itaú → Nubank').querySelector('[data-conta]')).toBeNull()
     expect(screen.getByText('Planejado')).toBeTruthy()
-    // #208: selo "Planejado" verde (agendado), receita azul (lucro), valor de despesa neutro
+    // #208: selo "Planejado" verde (agendado), receita azul (lucro); despesa vermelha (design "Extrato", decisão do dono 16/11/2026)
     expect(screen.getByText('Planejado').className).toContain('bg-agendado-fundo text-agendado')
     const linha = (texto: string) => screen.getByText(texto).closest('li') as HTMLElement
-    expect(within(linha('Supermercado')).getByText('−R$ 250,50').className).toContain('text-neutro')
+    expect(within(linha('Supermercado')).getByText('−R$ 250,50').className).toContain('text-prejuizo')
     expect(within(linha('Planejado')).getByText('+R$ 8.000,00').className).toContain('text-lucro')
     expect(within(linha('Itaú → Nubank')).getByText('⇄ R$ 100,00').className).toContain('text-transferencia')
     // os totais saíram do topo e moram no rodapé (entradas azul, saídas vermelho, saldo pela cor do sinal)
@@ -437,7 +437,7 @@ describe('Lançamentos', () => {
     expect(linha('Supermercado').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
     expect(linha('Itaú → Nubank').querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('transferencia')
     const valor = within(linha('Supermercado')).getByText('−R$ 250,50')
-    expect(valor.className).toContain('text-neutro')
+    expect(valor.className).toContain('text-prejuizo')
     expect(valor.getAttribute('style')).toBeNull()
   })
 
@@ -642,7 +642,7 @@ describe('Lançamentos', () => {
     const item = (await screen.findByText('Pagamento da fatura · Nubank')).closest('li') as HTMLElement
     expect(within(item).getByText('Cartão/dívida')).toBeTruthy()
     expect(within(item).getByText('Itaú')).toBeTruthy()
-    expect(within(item).getByText('−R$ 300,00')).toBeTruthy()
+    expect(within(item).getByText('−R$ 300,00').className).toContain('text-prejuizo') // saída: vermelha como a despesa
     expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
     expect(within(item).getByRole('link', { name: 'Ver em Cartões' })).toBeTruthy()
     expect(screen.getByText(/Pagamento de fatura e amortização não são despesa/)).toBeTruthy()
@@ -780,7 +780,7 @@ describe('Lançamentos', () => {
       const dia = item.closest('section') as HTMLElement
       // o cabeçalho do dia traz o dia da semana (e "Hoje"/"Ontem" quando for o caso); o ano some por ser o corrente
       expect(dia.getAttribute('aria-label')).toMatch(new RegExp(`, 28/${mesAtual().slice(5, 7)}$`))
-      expect(within(item).getByText('R$ 456,78')).toBeTruthy()
+      expect(within(item).getByText('R$ 456,78').className).toContain('text-prejuizo') // o total da fatura é saída
       expect(within(item).getByText('Fechada')).toBeTruthy()
       // metadados curtos (pedido do dono): situação + a data que importa, sem o ano e sem "N compras"
       expect(within(item).getByText(`vence 28/${mesAtual().slice(5, 7)}`)).toBeTruthy()
@@ -793,6 +793,7 @@ describe('Lançamentos', () => {
       expect(within(item).queryByRole('link', { name: 'Ver fatura Nubank em Cartões' })).toBeNull()
       await userEvent.setup().click(within(item).getByRole('button', { name: /Ver compras/ }))
       expect(within(item).getByRole('link', { name: 'Ver fatura Nubank em Cartões' }).getAttribute('href')).toBe(`/cartoes/k1/fatura/${mesAtual()}`)
+      expect((await within(item).findByText('R$ 100,00')).className).toContain('text-prejuizo') // cada compra da fatura aberta
       expect(within(item).queryByRole('button', { name: 'Excluir' })).toBeNull()
       expect(within(item).queryByRole('button', { name: 'Editar' })).toBeNull()
       expect(mock.listarFaturasDoMes).toHaveBeenCalledWith('h1', ...limitesDoMes(mesAtual()), {}, hojeSP())
@@ -816,7 +817,7 @@ describe('Lançamentos', () => {
       const fone = within(lista).getByText('Fone').closest('li') as HTMLElement
       expect(within(fone).getByText(/parcela 2\/3/)).toBeTruthy()
       expect(within(fone).getByText(/· compra de 02\/01\/2026/).textContent).toBe('Mercado · compra de 02/01/2026')
-      expect(within(fone).getByText('R$ 100,00')).toBeTruthy()
+      expect(within(fone).getByText('R$ 100,00').className).toContain('text-prejuizo')
       expect(fone.querySelector('[data-icone]')!.getAttribute('data-icone')).toBe('carrinho')
       expect(within(lista).getByText('Livro')).toBeTruthy()
       // a soma das compras seria R$ 300,00: a linha mostra o total do banco
@@ -864,7 +865,7 @@ describe('Lançamentos', () => {
       expect(within(fone).getByText('No cartão')).toBeTruthy()
       expect(within(fone).getByText('Mercado')).toBeTruthy()
       expect(within(fone).getByText(/fatura Nubank · compra de 02\/01\/2026 · a despesa conta em 20\/.* \(fechamento da fatura\)/)).toBeTruthy()
-      expect(within(fone).getByText('R$ 100,00')).toBeTruthy()
+      expect(within(fone).getByText('R$ 100,00').className).toContain('text-prejuizo')
       expect((fone.closest('section') as HTMLElement).getAttribute('aria-label')).toMatch(/, 28\//)
       expect(mock.listarFaturasDoMes).toHaveBeenLastCalledWith('h1', ...limitesDoMes(mesAtual()), { categoriaId: 'mer' }, hojeSP())
     })
@@ -1364,7 +1365,7 @@ describe('Subcategoria na ordem e no nome', () => {
     const linha = (await screen.findByText(/Financiamento do imóvel · parcela 3/)).closest('li')!
     expect(within(linha).getByText('Planejado · contrato')).toBeTruthy()
     expect(within(linha).getByText(/Débito em Itaú/)).toBeTruthy()
-    expect(within(linha).getByText('−R$ 1.500,00')).toBeTruthy()
+    expect(within(linha).getByText('−R$ 1.500,00').className).toContain('text-prejuizo')
     expect(within(linha).getByRole('link', { name: 'Baixar parcela 3 de Financiamento do imóvel' }).getAttribute('href')).toBe('/dividas?baixar=s3')
     expect(screen.getAllByText('−R$ 1.500,00')).toHaveLength(1) // só na linha: os totais continuam os do banco
     const [, de, ate] = mock.listarLancamentos.mock.calls[0]

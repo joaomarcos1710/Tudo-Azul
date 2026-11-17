@@ -530,7 +530,7 @@ export default function Lancamentos() {
                         categoria={<NomeCategoria id={c.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
                         etiquetas={[<Etiqueta key="c" estilo="bg-azul-claro text-marinho">No cartão</Etiqueta>]}
                         detalhe={`fatura ${c.cartaoNome}${c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''} · a despesa conta em ${formatDate(c.fechamento)} (fechamento da fatura)`}
-                        valor={formatBRL(c.valor)} corValor="text-neutro"
+                        valor={formatBRL(c.valor)} corValor="text-prejuizo"
                         acoes={<Link to={rotaFatura(c.cartaoId, c.fechamento.slice(0, 7))} aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
@@ -559,7 +559,7 @@ export default function Lancamentos() {
                           ? <Etiqueta key="p" estilo={SELO.vencido}>Vencido · contrato</Etiqueta>
                           : <Etiqueta key="p" estilo={SELO.planejado}>Planejado · contrato</Etiqueta>]}
                         detalhe={`${p.formaPagamento === 'account_debit' ? `Débito em ${nomeConta.get(p.contaPagamentoId ?? '') ?? 'conta'}` : p.formaPagamento === 'payroll' ? 'Desconto em folha' : p.formaPagamento === 'boleto' ? 'Boleto' : 'Pagamento manual'} · só entra no saldo e nas despesas quando você der baixa`}
-                        valor={`−${formatBRL(p.valor)}`} corValor="text-neutro"
+                        valor={`−${formatBRL(p.valor)}`} corValor="text-prejuizo"
                         acoes={<Link to={`/dividas?baixar=${p.id}`} aria-label={`Baixar parcela ${p.numero} de ${p.nomeDivida}`} className={linkCompacto}>Baixar</Link>} />
                     )
                   }
@@ -569,7 +569,7 @@ export default function Lancamentos() {
                       <LinhaLista key={`divida-${m.id}`} icone={<IconeCategoria fixo="cartao" />} titulo={m.descricao}
                         categoria={<span>{nomeConta.get(m.contaId) ?? '?'}</span>}
                         etiquetas={[<Etiqueta key="d" estilo="bg-slate-100 text-slate-600">{m.jaEmDespesas ? 'Cartão/dívida · já em despesas' : 'Cartão/dívida'}</Etiqueta>]}
-                        valor={`${m.valor < 0 ? '−' : '+'}${formatBRL(Math.abs(m.valor) as Cents)}`} corValor={m.valor < 0 ? 'text-neutro' : 'text-lucro'}
+                        valor={`${m.valor < 0 ? '−' : '+'}${formatBRL(Math.abs(m.valor) as Cents)}`} corValor={m.valor < 0 ? 'text-prejuizo' : 'text-lucro'}
                         acoes={<Link to="/cartoes" aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
@@ -743,7 +743,7 @@ function LinhaFatura({ fatura: f, categoriaPorId, nomeCategoria }: {
         <IconeCategoria fixo="cartao" />
         <Corpo titulo={`Fatura ${f.cartaoNome}`} etiquetas={[<Etiqueta key="s" estilo={s.estilo}>{s.texto}</Etiqueta>]} detalhe={resumoDaFatura(f)} />
         <span className="flex shrink-0 items-start gap-1">
-          <span data-valor className="whitespace-nowrap tabular-nums font-semibold text-neutro">{formatBRL(f.total)}</span>
+          <span data-valor className="whitespace-nowrap tabular-nums font-semibold text-prejuizo">{formatBRL(f.total)}</span>
           <span aria-hidden="true" className="w-4 text-center text-slate-500">{aberto ? '▾' : '▸'}</span>
           <span className="sr-only">{aberto ? 'Esconder compras' : 'Ver compras'}</span>
         </span>

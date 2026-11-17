@@ -10,10 +10,10 @@ import { SELO, SELO_FATURA, corDoTipo } from '../lib/cores'
 
 export const rotuloTipo: Record<TipoLancamento, string> = { expense: 'Despesa', income: 'Receita', transfer: 'Transferência' }
 
-/** Sinal e cor por tipo: receita "+", despesa "−", transferência "⇄" sem sinal (design system). Valor na moeda da conta. */
+/** Sinal e cor por tipo: receita "+" azul, despesa "−" vermelha (design "Extrato", decisão do dono 16/11/2026), transferência "⇄" sem sinal. Valor na moeda da conta. */
 export function valorComSinal(l: Lancamento, moeda: string) {
   if (l.tipo === 'income') return { texto: `+${formatMoeda(l.valor, moeda)}`, cor: corDoTipo('income') }
-  if (l.tipo === 'expense') return { texto: `−${formatMoeda(l.valor, moeda)}`, cor: 'text-neutro' }
+  if (l.tipo === 'expense') return { texto: `−${formatMoeda(l.valor, moeda)}`, cor: corDoTipo('expense') }
   return { texto: `⇄ ${formatMoeda(l.valor, moeda)}`, cor: corDoTipo('transfer') }
 }
 
@@ -94,7 +94,7 @@ export function ComprasDaFatura({ f, compras, creditos = [], erro, idLista, cate
                   {c.dataCompra ? ` · compra de ${formatDate(c.dataCompra)}` : ''}
                 </p>
               </div>
-              <span className="shrink-0 whitespace-nowrap tabular-nums text-sm font-semibold text-neutro">{formatBRL(c.valor)}</span>
+              <span className="shrink-0 whitespace-nowrap tabular-nums text-sm font-semibold text-prejuizo">{formatBRL(c.valor)}</span>
             </li>
           ))}
         </ul>
