@@ -843,6 +843,14 @@ describe('Recorrentes: visão geral por mês e por ano, fixo × variável sugeri
     expect(screen.queryByTestId('sobra-recorrentes')).toBeNull()
   })
 
+  it('sem os números de cima (a visão geral falhou), a sobra também não aparece: ela só vale junto do Sai e do Entra', async () => {
+    mock.resumoVisaoGeral.mockRejectedValue(new Error('rede'))
+    mock.sobraDosRecorrentes.mockResolvedValue({ porMes: c(123456), porAno: c(7654321) })
+    montar()
+    expect((await screen.findAllByText(/visão por mês e por ano/)).length).toBeGreaterThan(0)
+    expect(screen.queryByTestId('sobra-recorrentes')).toBeNull()
+  })
+
   it('a sobra que falha ao carregar: some e o aviso de blocos diz o que ficou de fora', async () => {
     mock.resumoVisaoGeral.mockResolvedValue(visao)
     mock.sobraDosRecorrentes.mockRejectedValue(new Error('rede'))

@@ -44,7 +44,8 @@ grant execute on function pg_temp.fx(text), pg_temp.login(uuid), pg_temp.anon(),
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000132001', 'n1@teste132.com'),
   ('00000000-0000-0000-0000-000000132002', 'n2@teste132.com'),
-  ('00000000-0000-0000-0000-000000132003', 'n3@teste132.com');
+  ('00000000-0000-0000-0000-000000132003', 'n3@teste132.com'),
+  ('00000000-0000-0000-0000-000000132004', 'n4@teste132.com');
 
 -- Família 1: receitas 5000,00/mês e PLR de 3000,00 a cada 6 meses; despesas 1500,00/mês e 29,90/mês no cartão; USD e transferência fora
 select pg_temp.login('00000000-0000-0000-0000-000000132001');
@@ -91,6 +92,16 @@ with a as (insert into public.accounts (household_id, name, type, initial_balanc
 insert into fixture select 'cexp_b', id from public.categories where household_id = pg_temp.fx('h2') and type = 'expense' order by name limit 1;
 insert into fixture select 'luz', public.recurrence_create('expense', 'Luz', 100.00, 5, pg_temp.hoje(), pg_temp.fx('bank_b'), null, null, pg_temp.fx('cexp_b'), null, 'month', 1);
 select is(pg_temp.sobra(pg_temp.fx('h2')), '0.00/100.00/-100.00/-1200.00', 'N5 só despesa: sobra negativa (−100,00 por mês, −1200,00 por ano)');
+
+-- Família 4: só receita, então a sobra é a própria receita (despesa zerada)
+select pg_temp.login('00000000-0000-0000-0000-000000132004');
+insert into fixture select 'h4', public.create_household('Casa da folga');
+with a as (insert into public.accounts (household_id, name, type, initial_balance, opening_date)
+           values (pg_temp.fx('h4'), 'Banco', 'checking', 0, '2020-01-01') returning id)
+  insert into fixture select 'bank_d', id from a;
+insert into fixture select 'cinc_d', id from public.categories where household_id = pg_temp.fx('h4') and type = 'income' order by name limit 1;
+insert into fixture select 'sal_d', public.recurrence_create('income', 'Salário', 1000.00, 5, pg_temp.hoje(), pg_temp.fx('bank_d'), null, null, pg_temp.fx('cinc_d'), null, 'month', 1);
+select is(pg_temp.sobra(pg_temp.fx('h4')), '1000.00/0.00/1000.00/12000.00', 'N6 só receita: a sobra é a própria receita (1000,00 por mês, 12000,00 por ano)');
 
 -- Isolamento: outra família não vê nada de nenhuma
 select pg_temp.login('00000000-0000-0000-0000-000000132003');

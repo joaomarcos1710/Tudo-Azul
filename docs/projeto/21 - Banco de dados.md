@@ -604,4 +604,4 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 ## Sobra por mês dos recorrentes (migration 140, PR #423, **ainda não aplicada**)
 - **Arquivo:** `20261117100000_recurrence_net.sql`. `public.recurrence_net(p_household)`: uma linha (ou nenhuma, sem recorrente vigente em reais) com `income_monthly`, `expense_monthly`, `net_monthly` (entra − sai) e `net_yearly` (a diferença no ano: valor × ocorrências por ano, exato por regra). Soma sobre `recurrence_overview` (migration 116, recorte `all`): os números fecham com o "Sai ≈" e o "Entra ≈" do topo por construção. `SECURITY INVOKER`, só leitura, `anon` sem EXECUTE.
 - **Fora da conta:** parcelas, proventos previstos de investimento e o que varia fora de um recorrente. A tela diz isso.
-- **Teste:** `132_recurrence_net` (10 asserções; 6 falham sem a migration). Entrou em `00_audit`.
+- **Teste:** `132_recurrence_net` (11 asserções; 6 falham sem a migration). Entrou em `00_audit`.

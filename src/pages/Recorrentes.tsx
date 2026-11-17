@@ -683,8 +683,9 @@ function ResumoDoMes({ visao, sobra, lado, aoMudarLado, naturezas, escolhida, ao
           {aba('saidas', 'Sai', 'Saídas', 'expense')}
           {aba('entradas', 'Entra', 'Entradas', 'income')}
         </div>
-        {sobra !== null && (
-          // a diferença é do banco (recurrence_net); a cor e o sinal seguem o valor, sempre com a palavra "sobra" ou "falta" ao lado
+        {sobra !== null && visao !== null && (
+          // a diferença é do banco (recurrence_net); só aparece junto dos dois números que a explicam (se a visão geral falhou, some);
+          // a cor e o sinal seguem o valor, sempre com a palavra "sobra" ou "falta" ao lado
           <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700" data-testid="sobra-recorrentes">
             <span className="font-semibold text-marinho">{sobra.porMes < 0 ? 'Falta' : 'Sobra'} ≈ </span>
             <strong className={`whitespace-nowrap tabular-nums ${corDoValor(sobra.porMes)}`} data-testid="sobra-mes">{formatBRL(sobra.porMes < 0 ? (-sobra.porMes as Cents) : sobra.porMes)}</strong>
