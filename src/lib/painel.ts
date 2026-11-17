@@ -308,6 +308,8 @@ export interface PontoPatrimonio {
   data: string
   patrimonio: Cents
   disponivel: Cents
+  /** Total investido na data (net_worth_with_assets.investments_brl); null se o banco não devolveu. */
+  investimentos: Cents | null
 }
 
 /** Evolução: os meses que vieram do banco e os que falharam (estes ficam de fora, nunca viram zero). */
@@ -358,8 +360,50 @@ export async function evolucaoPatrimonio(familiaId: string, hoje: string, meses 
   const pontos: PontoPatrimonio[] = []
   const falhas: EvolucaoPatrimonio['falhas'] = []
   resultados.forEach((r, i) => {
-    if (r.status === 'fulfilled') pontos.push({ ...datas[i], patrimonio: r.value.patrimonio, disponivel: r.value.disponivel })
+    if (r.status === 'fulfilled') pontos.push({ ...datas[i], patrimonio: r.value.patrimonio, disponivel: r.value.disponivel, investimentos: r.value.investimentos ?? null })
     else falhas.push({ mes: datas[i].mes, erro: r.reason })
   })
   return { pontos, falhas }
 }
+
+/** Uma dívida (empréstimo ou financiamento) mês a mês: só os meses em que ela já existia. */
+export interface DividaNoTempo {
+  id: string
+  nome: string
+  /** AAAA-MM → saldo devedor no fim do mês (no mês atual, hoje). */
+  porMes: Map<string, Cents>
+}
+
+export interface HistoricoDividas {
+  /** Os meses pedidos, do mais antigo ao atual (AAAA-MM), com ou sem dívida. */
+  meses: string[]
+  /** AAAA-MM → total das dívidas do mês, somado no banco (só nos meses com alguma dívida). */
+  total: Map<string, Cents>
+  dividas: DividaNoTempo[]
+}
+
+/**
+ * Saldo das dívidas mês a mês, sem cartão (debt_history_monthly, migration 133): uma chamada só. O total vem do banco;
+ * mês em que a dívida ainda não existia não aparece (o gráfico deixa vazio, nunca zero).
+ */
+export async function historicoDividas(familiaId: string, hoje: string, meses = 12): Promise<HistoricoDividas> {
+  const { data, error } = await cliente().rpc('debt_history_monthly', { p_household: familiaId, p_until: hoje, p_months: meses })
+  if (error) throw error
+  const [a, m] = hoje.slice(0, 7).split('-').map(Number)
+  const lista = Array.from({ length: meses }, (_, i) => {
+    const d = new Date(Date.UTC(a, m - 1 - (meses - 1 - i), 1))
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+  })
+  const total = new Map<string, Cents>()
+  const porId = new Map<string, DividaNoTempo>()
+  for (const r of (data ?? []) as Record<string, unknown>[]) {
+    const mes = r.month as string
+    const valor = centsFromDb(r.debt as string | number)
+    if (r.debt_id === null || r.debt_id === undefined) { total.set(mes, valor); continue }
+    const id = r.debt_id as string
+    if (!porId.has(id)) porId.set(id, { id, nome: r.name as string, porMes: new Map() })
+    porId.get(id)!.porMes.set(mes, valor)
+  }
+  return { meses: lista, total, dividas: [...porId.values()] }
+}
+

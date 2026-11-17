@@ -27,7 +27,7 @@ import { currentMonth, formatBRL, formatMoeda, formatDate, formatMonth, primeira
 import type { Cents } from '../lib/format'
 import { limitesDoMes, mesmoDiaAnoPassado, mesmoDiaMesAnterior, resumoDoMes, resumoDoPeriodo, resumoPorMoeda, somarMeses } from '../lib/lancamentos'
 import type { ResumoMes, ResumoPorMoeda } from '../lib/lancamentos'
-import { carregarPatrimonio, carregarResumoInvestimentos, evolucaoPatrimonio, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
+import { carregarPatrimonio, carregarResumoInvestimentos, evolucaoPatrimonio, historicoDividas, despesasPorCategoria, despesasPorDia, proximosPlanejados, projecaoDoMes, regularidadeRenda, vencidosPlanejados } from '../lib/painel'
 import type { DespesaCategoria, DespesaDia, Patrimonio, PontoPatrimonio, ProjecaoMes, ProximoPlanejado, RegularidadeRenda, ResumoInvestimento, Vencidos } from '../lib/painel'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { SeletorBaseCartao } from '../components/SeletorBaseCartao'
@@ -36,6 +36,9 @@ import type { BaseGastosCartao } from '../lib/baseGastosCartao'
 import { CabecalhoInicio } from '../components/ui/CabecalhoInicio'
 import { EmOutrasMoedas, ResultadoEmOutrasMoedas } from '../components/ui/EmOutrasMoedas'
 import { LinhaMensal } from '../components/graficos/LinhaMensal'
+import { LinhasMensais } from '../components/graficos/LinhasMensais'
+import { COR_DESPESA, COR_LINHA } from '../components/graficos/cores'
+import type { HistoricoDividas } from '../lib/painel'
 import { saldoTotalProjetado } from '../lib/saldoProjetado'
 import { fluxoDeCaixa } from '../lib/fluxoCaixa'
 import type { SaldoTotal } from '../lib/saldoProjetado'
@@ -358,6 +361,19 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
     return () => { ativo = false }
   }, [familiaId, hoje, mes, noInicio, clienteConsultas])
 
+  // Análises: dívidas mês a mês (sem cartão), uma chamada só, depois da evolução (não disputa o banco com ela)
+  const [dividasNoTempo, setDividasNoTempo] = useState<HistoricoDividas | 'erro' | null>(null)
+  const evolucaoPronta = evolucao?.estado === 'pronto'
+  useEffect(() => {
+    if (!familiaId || noInicio || !evolucaoPronta) return
+    let vivo = true
+    setDividasNoTempo(null)
+    historicoDividas(familiaId, hoje)
+      .then((h) => { if (vivo) setDividasNoTempo(h) })
+      .catch((erro: unknown) => { void registrarFalhaConsulta('historicoDividas', erro); if (vivo) setDividasNoTempo('erro') })
+    return () => { vivo = false }
+  }, [familiaId, hoje, noInicio, evolucaoPronta])
+
   // Análises: só depois das cargas da tela, para as 12 chamadas da evolução não disputarem o banco com as outras (#193)
   const temDados = dados !== null
   useEffect(() => {
@@ -640,6 +656,28 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
               <LinhaMensal titulo="Saldo das contas" pontos={evolucao.pontos.map((x) => ({ mes: x.mes, valor: x.disponivel }))} />
             </Card>
             <p className="text-xs text-slate-500 lg:col-span-2">Cada ponto é o valor no último dia do mês (no mês atual, hoje), com saldo, dívidas e bens como estavam naquela data.</p>
+            {dividasNoTempo && dividasNoTempo !== 'erro' && (() => {
+              // Dívidas × Investimentos (pedido do dono, 17/11/2026): os dois em reais, num eixo só; os valores vêm do banco
+              const investido = new Map(evolucao.pontos.map((x) => [x.mes, x.investimentos]))
+              const series = [
+                { id: 'investimentos', nome: 'Investimentos', cor: COR_LINHA, valores: dividasNoTempo.meses.map((m) => investido.get(m) ?? null) },
+                { id: 'dividas', nome: 'Dívidas', cor: COR_DESPESA, valores: dividasNoTempo.meses.map((m) => dividasNoTempo.total.get(m) ?? null) },
+              ]
+              if (!series.some((x) => x.valores.filter((v) => v !== null).length > 1)) return null
+              return (
+                <Card className="lg:col-span-2" data-testid="dividas-x-investimentos">
+                  <CardTitle>Dívidas × Investimentos mês a mês</CardTitle>
+                  <LinhasMensais titulo="Dívidas × Investimentos" meses={dividasNoTempo.meses} series={series} />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Dívidas: empréstimos e financiamentos, sem cartão, no último dia do mês. O app não calcula juros: o saldo muda
+                    com os pagamentos e com a correção pelo extrato. Mês antes do cadastro da dívida fica vazio.
+                  </p>
+                </Card>
+              )
+            })()}
+            {dividasNoTempo === 'erro' && (
+              <p className="text-xs text-slate-600 lg:col-span-2">O gráfico de dívidas × investimentos não carregou agora.</p>
+            )}
           </>}
           {evolucao.estado === 'pronto' && evolucao.mesesFalhos.length > 0 && (
             // o mês que falhou fica de fora (nunca vira zero nem é estimado); o aviso diz quais
