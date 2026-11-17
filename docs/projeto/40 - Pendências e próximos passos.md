@@ -906,3 +906,7 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 - [ ] **Etapa 2, se o dono ainda tropeçar:** botão Encerrar direto em Recorrentes (cartão: "esta e as próximas"; conta: "parar de repetir"), reaproveitando as funções que já existem. Antes, conferir o caso da assinatura **anual sem cobrança gerada** (os caminhos de hoje partem de uma cobrança ou lançamento existente; talvez precise de função no banco) e o que "Excluir assinatura" faz com o histórico.
 - [ ] Opcional: faixa "Próximos 30 dias" no topo de Recorrentes.
 
+## 17/11/2026 — Cartões: "Por dia" (#415)
+- [x] Barras do gasto por dia e ritmo da fatura (migration 137, **aplicada em 17/11/2026**, execução 44143830149).
+- [ ] **atalho:** projeção linear; se incomodar, usar a média das últimas faturas no mesmo ponto do ciclo.
+

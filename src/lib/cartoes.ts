@@ -476,6 +476,66 @@ export async function listarCategoriasDaFatura(cartaoId: string, mes: string): P
     }))
 }
 
+/** Um dia do ciclo da fatura (migration 137, card_invoice_daily): o gasto das compras do ciclo nesse dia e o acumulado. */
+export interface DiaDaFatura {
+  dia: string
+  valor: Cents
+  acumulado: Cents
+  /** Parcelas de compras de antes do ciclo ("já vinham"), repetido em cada linha: o front só mostra. */
+  jaVinha: Cents
+}
+
+/**
+ * Gasto por dia da fatura `mes` (AAAA-MM): um dia por linha, do dia seguinte ao fechamento anterior ao fechamento desta.
+ * Tudo do banco. Banco ainda sem a migration 137: lista vazia (a folha avisa), em vez de erro.
+ */
+export async function gastoPorDiaDaFatura(cartaoId: string, mes: string): Promise<DiaDaFatura[]> {
+  const { data, error } = await cliente().rpc('card_invoice_daily', { p_debt: cartaoId, p_label: mes })
+  if (error) {
+    if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return []
+    throw error
+  }
+  return ((data ?? []) as { day: string; amount: number | string; cumulative: number | string; carried: number | string }[])
+    .map((l) => ({ dia: l.day, valor: centsFromDb(l.amount), acumulado: centsFromDb(l.cumulative), jaVinha: centsFromDb(l.carried) }))
+}
+
+/** O ritmo da fatura (migration 137, card_invoice_pace): média por dia, projeção do fechamento e a anterior no mesmo ponto. */
+export interface RitmoDaFatura {
+  inicio: string
+  fechamento: string
+  dias: number
+  passados: number
+  /** Compras do ciclo até hoje. */
+  gasto: Cents
+  jaVinha: Cents
+  /** Nulos antes de o ciclo começar. */
+  mediaPorDia: Cents | null
+  /** No ritmo atual, quanto a fatura fecha (já vinha + compras do ciclo projetadas); ciclo encerrado: o que ela teve. */
+  projecao: Cents | null
+  faturaAnterior: string | null
+  /** Compras do ciclo da fatura anterior até o mesmo número de dias. */
+  anteriorNoMesmoPonto: Cents | null
+}
+
+export async function ritmoDaFatura(cartaoId: string, mes: string, hoje: string): Promise<RitmoDaFatura | null> {
+  const { data, error } = await cliente().rpc('card_invoice_pace', { p_debt: cartaoId, p_label: mes, p_today: hoje })
+  if (error) {
+    if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return null
+    throw error
+  }
+  const l = ((data ?? []) as {
+    cycle_start: string; closing_date: string; days_total: number; days_elapsed: number; spent: number | string; carried: number | string
+    per_day: number | string | null; projected: number | string | null; previous_label: string | null; previous_spent: number | string | null
+  }[])[0]
+  if (!l) return null
+  return {
+    inicio: l.cycle_start, fechamento: l.closing_date, dias: l.days_total, passados: l.days_elapsed,
+    gasto: centsFromDb(l.spent), jaVinha: centsFromDb(l.carried),
+    mediaPorDia: centsOuNull(l.per_day), projecao: centsOuNull(l.projected),
+    faturaAnterior: l.previous_label, anteriorNoMesmoPonto: centsOuNull(l.previous_spent),
+  }
+}
+
 /**
  * Corrige a DATA DA COMPRA de uma compra inteira (todas as parcelas; migration 20261113100000). A fatura em que cada parcela
  * cai NÃO muda (para isso há "Enviar para a fatura anterior/próxima"), e nenhum valor de fatura, saldo ou limite muda: a data só
