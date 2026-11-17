@@ -18,12 +18,12 @@ import { formatBRL, formatDate, formatMoeda } from '../lib/format'
 import { somarDias } from '../lib/periodoRelatorio'
 import type { Cents } from '../lib/format'
 import {
-  diaDaSemana, frequenciaResumo, listarRecorrencias, proximasDatasDasContas, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias, resumoVisaoGeral,
+  diaDaSemana, frequenciaResumo, listarRecorrencias, proximasDatasDasContas, proximasOcorrencias, resumoPorNatureza, resumoRecorrencias, resumoVisaoGeral, sobraDosRecorrentes,
   rotuloFrequencia, rotuloNatureza, rotuloTipoRecorrencia,
 } from '../lib/recorrencias'
-import type { FrequenciaResumo, LinhaNatureza, LinhaVisao, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia } from '../lib/recorrencias'
+import type { SobraRecorrentes, FrequenciaResumo, LinhaNatureza, LinhaVisao, LinhaResumoRecorrencia, NaturezaRecorrencia, Recorrencia } from '../lib/recorrencias'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
-import { corDoTipo, NATUREZA, SELO } from '../lib/cores'
+import { corDoTipo, corDoValor, NATUREZA, SELO } from '../lib/cores'
 import { ProjecaoCompromissos } from '../components/ui/ProjecaoCompromissos'
 import { ParcelasAtivas } from '../components/recorrentes/ParcelasAtivas'
 import { resumoParcelasDoMes } from '../lib/parcelasAtivas'
@@ -154,6 +154,8 @@ export default function Recorrentes() {
   const [porNatureza, setPorNatureza] = useState<LinhaNatureza[]>([])
   // visão por mês e por ano (migration 116): null = banco ainda sem a função (a tela mostra o resumo de antes)
   const [visao, setVisao] = useState<LinhaVisao[] | null>(null)
+  // a sobra por mês (entra − sai) vem do banco; sem ela (falha ou banco sem a migration 140) a linha some
+  const [sobra, setSobra] = useState<SobraRecorrentes | null>(null)
   // proventos de investimento previstos (planejados) de hoje a 12 meses: só informação, fora do total "Vai entrar" (migration 117)
   const [proventos, setProventos] = useState<ProventoPrevisto[]>([])
   // ativos cuja previsão de proventos acaba em até 60 dias (migration 122): só um aviso, opcional (banco sem a função ou falha: some)
@@ -182,6 +184,7 @@ export default function Recorrentes() {
       const marcar = (bloco: string) => setBlocosFalharam((a) => (a.includes(bloco) ? a : [...a, bloco]))
       void resumoPorNatureza(familiaId).then(setPorNatureza).catch(() => { setPorNatureza([]); marcar('resumo por natureza') })
       void resumoVisaoGeral(familiaId).then(setVisao).catch(() => { setVisao(null); marcar('visão por mês e por ano') })
+      void sobraDosRecorrentes(familiaId).then(setSobra).catch(() => { setSobra(null); marcar('sobra por mês') })
       void listarProventosPrevistos(familiaId).then(setProventos).catch(() => { setProventos([]); marcar('proventos previstos') })
       void listarProventosAcabando(familiaId, 60).then(setProventosAcabando).catch(() => { setProventosAcabando([]); marcar('aviso de proventos acabando') })
       // se a consulta falhar a linha mostra a data da regra (que pode estar defasada) e o aviso diz isso
@@ -477,7 +480,7 @@ export default function Recorrentes() {
 
       {(vigentes.length > 0 || proventos.length > 0) && (
         <ResumoDoMes
-          visao={visao !== null && visao.length > 0 ? visao : null} lado={lado} aoMudarLado={mudarLado}
+          visao={visao !== null && visao.length > 0 ? visao : null} sobra={sobra} lado={lado} aoMudarLado={mudarLado}
           naturezas={naturezasPresentes.map((n) => ({ chave: n, rotulo: rotuloGrupoNatureza[n], cor: COR_NATUREZA[n], porMes: totalNatureza(n) }))}
           escolhida={natureza}
           aoEscolher={(n) => { setNatureza(n); setSecao('lista') }}
@@ -600,8 +603,10 @@ export default function Recorrentes() {
  * cada parte cresce na proporção do seu valor, só desenho), a legenda que filtra a lista, "No cartão · Na conta"
  * (recurrence_summary, nível medium) e a linha das parcelas (installment_month_summary). A tela não soma dinheiro.
  */
-function ResumoDoMes({ visao, lado, aoMudarLado, naturezas, escolhida, aoEscolher, noCartao, naConta, parcelas, aoAbrirParcelas, rodape }: {
+function ResumoDoMes({ visao, sobra, lado, aoMudarLado, naturezas, escolhida, aoEscolher, noCartao, naConta, parcelas, aoAbrirParcelas, rodape }: {
   visao: LinhaVisao[] | null
+  /** Entra − sai por mês e por ano (do banco); null = sem a linha. */
+  sobra: SobraRecorrentes | null
   lado: Lado
   aoMudarLado: (l: Lado) => void
   naturezas: { chave: ChaveNatureza; rotulo: string; cor: string; porMes: Cents | null }[]
@@ -678,6 +683,15 @@ function ResumoDoMes({ visao, lado, aoMudarLado, naturezas, escolhida, aoEscolhe
           {aba('saidas', 'Sai', 'Saídas', 'expense')}
           {aba('entradas', 'Entra', 'Entradas', 'income')}
         </div>
+        {sobra !== null && (
+          // a diferença é do banco (recurrence_net); a cor e o sinal seguem o valor, sempre com a palavra "sobra" ou "falta" ao lado
+          <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700" data-testid="sobra-recorrentes">
+            <span className="font-semibold text-marinho">{sobra.porMes < 0 ? 'Falta' : 'Sobra'} ≈ </span>
+            <strong className={`whitespace-nowrap tabular-nums ${corDoValor(sobra.porMes)}`} data-testid="sobra-mes">{formatBRL(sobra.porMes < 0 ? (-sobra.porMes as Cents) : sobra.porMes)}</strong>
+            <span className="text-xs text-slate-600"> por mês · <span className="whitespace-nowrap"><span className="tabular-nums" data-testid="sobra-ano">{formatBRL(sobra.porAno < 0 ? (-sobra.porAno as Cents) : sobra.porAno)}</span> por ano</span></span>
+            <span className="mt-0.5 block text-xs text-slate-500">Entra menos sai, só do que se repete: parcelas, proventos previstos e gastos avulsos ficam de fora.</span>
+          </p>
+        )}
         {naBarra.length > 0 && (
           // só desenho (a legenda diz os valores): cada parte cresce na proporção do seu valor, com 2 px entre elas
           <div aria-hidden="true" className="mt-4 flex h-3 w-full gap-[2px] overflow-hidden rounded-full" data-testid="barra-naturezas">

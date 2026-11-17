@@ -13,6 +13,7 @@ const mock = vi.hoisted(() => ({
   resumoRecorrencias: vi.fn(),
   resumoPorNatureza: vi.fn(),
   resumoVisaoGeral: vi.fn(),
+  sobraDosRecorrentes: vi.fn(),
   listarProventosPrevistos: vi.fn(),
   listarProventosAcabando: vi.fn(),
   faturaDaProximaCobranca: vi.fn(),
@@ -31,7 +32,7 @@ vi.mock('../lib/recorrencias', async (o) => ({
   ...(await o<typeof import('../lib/recorrencias')>()),
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
   editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
-  resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza, resumoVisaoGeral: mock.resumoVisaoGeral,
+  resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza, resumoVisaoGeral: mock.resumoVisaoGeral, sobraDosRecorrentes: mock.sobraDosRecorrentes,
   definirNaturezaRecorrencia: mock.definirNaturezaRecorrencia, proximasDatasDasContas: mock.proximasDatasDasContas,
 }))
 vi.mock('../lib/investimentos', async (o) => ({
@@ -68,6 +69,7 @@ beforeEach(() => {
   mock.resumoRecorrencias.mockResolvedValue([])
   mock.resumoPorNatureza.mockResolvedValue([])
   mock.resumoVisaoGeral.mockResolvedValue([])
+  mock.sobraDosRecorrentes.mockResolvedValue(null)
   mock.listarProventosPrevistos.mockResolvedValue([])
   mock.listarProventosAcabando.mockResolvedValue([])
   mock.faturaDaProximaCobranca.mockResolvedValue(new Map())
@@ -806,6 +808,49 @@ describe('Recorrentes: visão geral por mês e por ano, fixo × variável sugeri
     linha('income', 'all', 2, 0, 550000, 6600000),
   ]
   beforeEach(() => { mock.listarRecorrencias.mockResolvedValue([luz]) })
+
+  it('sobra por mês (migration 140): entra − sai do banco, com a palavra "Sobra" e o aviso do que fica de fora; a tela não subtrai', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    // sentinelas: não batem com 550000 − 241752 (a tela não subtrai os dois números do topo)
+    mock.sobraDosRecorrentes.mockResolvedValue({ porMes: c(123456), porAno: c(7654321) })
+    montar()
+    const caixa = await screen.findByTestId('sobra-recorrentes')
+    expect(within(caixa).getByText(/^Sobra ≈/)).toBeTruthy()
+    expect(within(caixa).getByTestId('sobra-mes').textContent).toBe('R$ 1.234,56')
+    expect(within(caixa).getByTestId('sobra-mes').className).toContain('text-lucro')
+    expect(within(caixa).getByTestId('sobra-ano').textContent).toBe('R$ 76.543,21')
+    expect(caixa.textContent).toMatch(/Entra menos sai, só do que se repete: parcelas, proventos previstos e gastos avulsos ficam de fora/)
+    expect(mock.sobraDosRecorrentes).toHaveBeenCalledWith('h1')
+  })
+
+  it('quando sai mais do que entra: "Falta" com o valor em vermelho (sem sinal de menos solto)', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    mock.sobraDosRecorrentes.mockResolvedValue({ porMes: c(-20000), porAno: c(-240000) })
+    montar()
+    const caixa = await screen.findByTestId('sobra-recorrentes')
+    expect(within(caixa).getByText(/^Falta ≈/)).toBeTruthy()
+    expect(within(caixa).queryByText(/^Sobra/)).toBeNull()
+    expect(within(caixa).getByTestId('sobra-mes').textContent).toBe('R$ 200,00')
+    expect(within(caixa).getByTestId('sobra-mes').className).toContain('text-prejuizo')
+    expect(within(caixa).getByTestId('sobra-ano').textContent).toBe('R$ 2.400,00')
+  })
+
+  it('sem a sobra (banco sem a migration ou sem recorrentes), a linha não aparece e o resto do topo segue', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    mock.sobraDosRecorrentes.mockResolvedValue(null)
+    montar()
+    expect(await screen.findByTestId('visao-saidas-mes')).toBeTruthy()
+    expect(screen.queryByTestId('sobra-recorrentes')).toBeNull()
+  })
+
+  it('a sobra que falha ao carregar: some e o aviso de blocos diz o que ficou de fora', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    mock.sobraDosRecorrentes.mockRejectedValue(new Error('rede'))
+    montar()
+    expect(await screen.findByTestId('visao-saidas-mes')).toBeTruthy()
+    expect(screen.queryByTestId('sobra-recorrentes')).toBeNull()
+    expect((await screen.findByText(/sobra por mês/)).textContent).toMatch(/sobra por mês/)
+  })
 
   it('mostra quanto gasta e quanto entra, por mês e por ano, com os números do banco', async () => {
     mock.resumoVisaoGeral.mockResolvedValue(visao)
