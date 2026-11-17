@@ -592,7 +592,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
 
       {!noInicio && <>
       {(m || p) ? (
-        <section aria-label="Resumo do mês" className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section aria-label="Resumo do mês" className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
           {m && <>
             <Indicador rotulo="Despesas do mês" valor={m.despesas} sinal="−" icone={<SetaBaixo />} corIcone="bg-prejuizo-fundo text-prejuizo"
               var={cmp ? variacao(cmp.atual.despesas, cmp.anterior.despesas) : null} subirEhBom={false} comparado={comparadoAteHoje} />
@@ -883,11 +883,13 @@ function Indicador({ rotulo, valor, sinal, icone, corIcone, var: v, subirEhBom, 
       )}
       {rodape && <p className={`mt-1 text-xs ${destaque ? 'text-blue-100' : 'text-slate-500'}`}>{rodape}</p>}
       {detalhes && (
-        <dl className={`mt-3 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 border-t pt-3 text-sm ${destaque ? 'border-white/15 text-blue-100' : 'border-slate-100 text-slate-500'}`}>
+        // cada linha: rótulo à esquerda e valor inteiro à direita; se não couberem lado a lado (card estreito, como 4 colunas
+        // com o menu no iPad deitado), o valor desce para a linha de baixo, ainda à direita, em vez de quebrar "R$" do número
+        <dl className={`mt-3 space-y-1 border-t pt-3 text-sm ${destaque ? 'border-white/15 text-blue-100' : 'border-slate-100 text-slate-500'}`}>
           {detalhes.map(([r, c]) => (
-            <div key={r} className="contents">
-              <dt>{r}</dt>
-              <dd className={`text-right tabular-nums font-semibold ${destaque ? 'text-white' : 'text-marinho'}`}>{formatBRL(c)}</dd>
+            <div key={r} data-detalhe className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <dt className="min-w-0">{r}</dt>
+              <dd className={`ml-auto whitespace-nowrap text-right tabular-nums font-semibold ${destaque ? 'text-white' : 'text-marinho'}`}>{formatBRL(c)}</dd>
             </div>
           ))}
         </dl>
