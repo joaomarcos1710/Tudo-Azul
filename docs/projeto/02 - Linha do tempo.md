@@ -394,6 +394,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#402** (17/11/2026): **Análises: Dívidas × Investimentos mês a mês** (migration 133, `debt_history_monthly`, teste 125): duas linhas nos últimos 12 meses, sem cartão, os dois do banco; componente `LinhasMensais`. Aplicada em produção em 17/11/2026 (execução 44003289249).
 - **#403** (17/11/2026): **Dívidas: evolução das dívidas** mês a mês, uma linha por empréstimo/financiamento, sem cartão (mesma função da #402); com mais de 4 dívidas, só o total.
 - **#404** (17/11/2026): **Dívidas: histórico de movimentos** (⋯ → Histórico), com **Anular** nas correções pelo extrato. O banco não muda.
+- **#405** (17/11/2026): **Lançamentos: despesa em vermelho na lista** (decisão do dono de 16/11, design "Extrato"): despesa, compra no cartão (solta e dentro da fatura), total da fatura, parcela de contrato e saída de cartão/dívida passam de cinza a vermelho. O cabeçalho do Início continua neutro. Só tela.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

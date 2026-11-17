@@ -317,4 +317,5 @@ continuam abaixo como histórico.
 | 2026.402 | **Dívidas × Investimentos.** Em Análises, um gráfico compara mês a mês o total das dívidas (sem cartão) com o total investido. |
 | 2026.403 | **Evolução das dívidas.** Na tela de Dívidas, um gráfico mostra o saldo de cada empréstimo e financiamento mês a mês. |
 | 2026.404 | **Histórico da dívida.** Veja os movimentos de cada empréstimo e anule uma correção de saldo feita por engano. |
+| 2026.405 | **Despesa em vermelho na lista de Lançamentos.** O valor de cada saída (despesa, compra no cartão, fatura, parcela de contrato, pagamento de cartão/dívida) aparece em vermelho, como no design aprovado. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
