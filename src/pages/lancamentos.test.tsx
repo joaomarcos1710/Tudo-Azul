@@ -367,8 +367,8 @@ describe('Lançamentos', () => {
     expect(within(rodape).queryByText(/não o de tipo/)).toBeNull()
     expect(within(rodape).getAllByText('R$ 1,00').length).toBeGreaterThan(0)
     await escolherTipo(u, 'expense')
-    // um total que não segue o filtro de tipo não bate com a lista: não aparece
-    expect(await within(rodape).findByText(/Sem total com este filtro/)).toBeTruthy()
+    // o total normal não segue o filtro de tipo: some e dá lugar ao total do filtro, que vem do banco (migration 139)
+    expect(await within(rodape).findByTestId('totais-busca')).toBeTruthy()
     expect(within(rodape).queryByText('R$ 1,00')).toBeNull()
     expect(within(rodape).queryByRole('button', { name: 'Mostrar o previsto' })).toBeNull()
     expect(within(rodape).getByRole('button', { name: 'Novo lançamento' })).toBeTruthy() // o + continua
@@ -2154,16 +2154,76 @@ describe('Lançamentos: filtros em tela cheia (situação, cartão, fixos e parc
     expect(screen.queryByText('Luz')).toBeNull()
   })
 
-  it('situação, cartão, fixos e parcelados avisam que os totais do rodapé não seguem esses filtros', async () => {
+  it('com situação, cartão, fixos ou parcelados o rodapé mostra o total do filtro (do banco) e a nota diz o que entra', async () => {
     const u = userEvent.setup()
+    // sentinelas: não batem com nenhuma soma da lista (a tela não soma dinheiro)
+    mock.totaisDaBusca.mockResolvedValue([{ moeda: 'BRL', quantidade: 1, entradas: c(0), saidas: c(77777) }])
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
     await abrirFiltros()
     await u.click(screen.getByRole('button', { name: 'Pendente' }))
     await u.click(screen.getByRole('button', { name: 'Filtrar: ver os lançamentos' }))
     const rodape = screen.getByRole('region', { name: 'Totais do mês' })
-    expect(await within(rodape).findByText(/Sem total com este filtro: o total só segue o filtro de conta/)).toBeTruthy()
-    expect(within(rodape).queryByText('entradas')).toBeNull()
+    expect(await within(rodape).findByText('−R$ 777,77')).toBeTruthy()
+    // sem texto: o banco recebe nulo e só os filtros
+    await vi.waitFor(() => expect(mock.totaisDaBusca).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), null, { situacao: 'planned' }))
+    expect(mock.buscarNoPeriodo).not.toHaveBeenCalled() // sem busca, a lista segue a consulta normal
+    expect(within(rodape).queryByText('entradas previstas')).toBeNull()
+    expect(screen.getByTestId('nota-filtro').textContent).toMatch(/Juros, tarifa, parcelas de empréstimo,\s+pagamento de fatura e créditos do cartão aparecem na lista, mas não entram no total/)
+  })
+
+  it('cartão + categoria: a lista mostra as compras da categoria só desse cartão (antes ficava vazia com o total embaixo)', async () => {
+    const fat = (cartaoId: string) => ({ cartaoId, cartaoNome: cartaoId === 'k1' ? 'Nubank' : 'Outro', mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', total: c(45000), pago: c(0), itens: 1, creditos: c(0), situacao: 'fechada', contaPagamentoId: 'a1' })
+    mock.listarFaturasDoMes.mockResolvedValue([fat('k1'), fat('k2')])
+    mock.listarItens.mockImplementation(async (cartaoId: string) => [{ parcelaId: `p-${cartaoId}`, compra: 'c', parcela: 1, deParcelas: 1, descricao: cartaoId === 'k1' ? 'Mercado do Nubank' : 'Mercado do outro', dataCompra: '2026-10-02', valor: c(5000), falta: c(0), categoriaId: 'mer' }])
+    mock.totaisDaBusca.mockResolvedValue([{ moeda: 'BRL', quantidade: 1, entradas: c(0), saidas: c(5000) }])
+    render(<MemoryRouter initialEntries={['/?mes=2026-10&cartao=k1&categoria=mer']}><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Mercado do Nubank')).toBeTruthy()
+    expect(screen.queryByText('Mercado do outro')).toBeNull() // só as compras do cartão escolhido
+    expect(screen.queryByText(/Nenhum lançamento com esses filtros/)).toBeNull()
+    expect(await screen.findByTestId('totais-busca')).toBeTruthy()
+  })
+
+  it('nota do total do filtro: cartão por compra, e juros, tarifa, empréstimo, pagamento de fatura e créditos do cartão fora do total', async () => {
+    render(<MemoryRouter initialEntries={['/?mes=2026-10&tipo=receita']}><Lancamentos /></MemoryRouter>)
+    const nota = await screen.findByTestId('nota-filtro')
+    expect(nota.textContent).toMatch(/compra por compra, no vencimento da fatura/)
+    expect(nota.textContent).toMatch(/créditos do cartão aparecem na lista, mas não entram no total/)
+  })
+
+  it('faturas que falham: o total some só quando o filtro usa o cartão (situação é só de lançamento)', async () => {
+    mock.listarFaturasDoMes.mockRejectedValue(new Error('timeout'))
+    mock.totaisDaBusca.mockResolvedValue([{ moeda: 'BRL', quantidade: 1, entradas: c(0), saidas: c(1234) }])
+    const { unmount } = render(<MemoryRouter initialEntries={['/?mes=2026-10&tipo=despesa']}><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Total do filtro indisponível agora. A lista continua certa.')).toBeTruthy()
+    unmount()
+    render(<MemoryRouter initialEntries={['/?mes=2026-10&situacao=pendente']}><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByTestId('totais-busca')).toBeTruthy()
+  })
+
+  it('só conta como filtro: o rodapé normal continua (o banco já segue a conta)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await escolherConta(u, 'Itaú')
+    await vi.waitFor(() => expect(mock.serieFluxo).toHaveBeenLastCalledWith('h1', expect.any(String), expect.any(String), 'total', expect.objectContaining({ contas: ['a1'] })))
+    expect(mock.totaisDaBusca).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('nota-filtro')).toBeNull()
+  })
+
+  it('filtro com a lista no limite de 1000 linhas: o total some e a tela avisa (a lista pode estar cortada)', async () => {
+    const u = userEvent.setup()
+    mock.listarLancamentos.mockResolvedValue(Array.from({ length: 1000 }, (_, i) => ({ ...lancs[0], id: `x${i}`, descricao: `Linha ${i}` })))
+    mock.totaisDaBusca.mockResolvedValue([{ moeda: 'BRL', quantidade: 1500, entradas: c(0), saidas: c(99999999) }])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Linha 0')
+    await abrirFiltros()
+    await u.click(screen.getByRole('button', { name: 'Pendente' }))
+    await u.click(screen.getByRole('button', { name: 'Filtrar: ver os lançamentos' }))
+    const rodape = screen.getByRole('region', { name: 'Totais do mês' })
+    expect(await within(rodape).findByText(/Sem total: a lista ficou incompleta neste período/)).toBeTruthy()
+    expect(screen.getByTestId('busca-cortada').textContent).toMatch(/Este filtro tem mais lançamentos/)
+    expect(within(rodape).queryByText(/999\.999,99/)).toBeNull()
   })
 })
 
@@ -2203,7 +2263,7 @@ describe('Lançamentos: busca (handoff, PR 2; decisões do dono de 17/11/2026)',
     expect(screen.queryByText('Fatura Nubank')).toBeNull()
     expect(screen.getByTestId('nota-busca').textContent).toMatch(/Pagamento de fatura, parcelas de empréstimo e créditos do cartão não entram/)
     const totais = await screen.findByTestId('totais-busca')
-    expect(within(totais).getByText('encontrados').nextSibling?.textContent).toBe('2') // todos os itens da lista (1 em reais, 1 em dólar), não só os de reais
+    expect(within(totais).getByText('itens').nextSibling?.textContent).toBe('2') // todos os itens da lista (1 em reais, 1 em dólar), não só os de reais
     expect(within(totais).getByText('R$ 12,34')).toBeTruthy()
     expect(within(totais).getByText('−R$ 999,99')).toBeTruthy()
     expect(within(totais).getByTestId('totais-busca-outras-moedas').textContent).toMatch(/^Em USD, à parte dos valores acima: 1 item · saídas −US\$\s10,00$/)

@@ -587,9 +587,15 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - Não entram: crédito avulso (receita) e assinatura prevista ainda não lançada. **atalho:** a projeção é linear (supõe o mesmo ritmo até o fechamento); compra grande no começo infla a projeção.
 - **Teste:** `129_card_invoice_daily` (16 asserções; falha sem a migration). Entrou em `00_audit`.
 
-## Busca em Lançamentos (migration 138, PR #418, **ainda não aplicada**)
+## Busca em Lançamentos (migration 138, PR #418, **aplicada em 17/11/2026**)
+- **Aplicada em 17/11/2026** pelo workflow (simulação 44152978842, só ela pendente; aplicação 44154500032). Conferido no catálogo: as duas funções existem, `SECURITY INVOKER`, `anon` sem EXECUTE e `authenticated` com.
 - **Arquivo:** `20261117080000_ledger_search.sql`. Duas funções novas, só leitura, `SECURITY INVOKER`:
   - `public.ledger_search(p_household, p_from, p_to, p_query, p_account, p_category, p_type, p_status, p_card, p_fixed, p_installments)`: o que a busca acha no período, uma linha por item (`source` = `transaction` ou `card`, `id`, `kind`, `amount`, `currency_code`). Procura o texto na **descrição e na observação** do lançamento e na descrição da **parcela do cartão** (as mesmas linhas de `card_items`, das faturas que **vencem** no período), sem maiúscula nem acento (`translate` + `lower`, sem extensão nova); `%`, `_` e `\` digitados valem como texto. Os filtros repetem os da lista de Lançamentos (conta = origem ou destino; cartão pela conta de pagamento; situação, fixos e parcelados só para lançamento; com filtro de cartão, nenhum lançamento). Texto vazio ou com mais de 100 letras e período invertido: erro 22023.
   - `public.ledger_search_totals(mesmos parâmetros)`: quantidade, entradas e saídas **por moeda**, somadas sobre `ledger_search` (a mesma lista da tela; transferência só na quantidade).
 - Fora da busca (decisão do dono): pagamento de fatura, parcelas de empréstimo e créditos avulsos do cartão. **atalho:** "contém" sem índice; medir antes de pôr `pg_trgm` se ficar lenta com períodos longos.
 - **Teste:** `130_ledger_search` (24 asserções; 19 falham sem a migration). Entrou em `00_audit`.
+
+## Total do filtro em Lançamentos (migration 139, PR #420, **ainda não aplicada**)
+- **Arquivo:** `20261117090000_ledger_search_optional_text.sql`. Recria `public.ledger_search` (`create or replace`, mesma assinatura da 138, sem editá-la): `p_query` nulo = sem texto, só os outros filtros. Texto em branco (`''` ou só espaços) e com mais de 100 letras continuam recusados (22023): nulo é "não busquei", branco é engano. `ledger_search_totals` não muda (soma sobre `ledger_search`).
+- **Decisões do dono (17/11/2026):** o total com filtro ligado soma lançamentos e compras do cartão (a regra da busca), pagos e previstos juntos; juros, tarifa, parcelas de empréstimo e pagamento de fatura ficam fora do total e a tela diz isso.
+- **Teste:** `131_ledger_filter_totals` (19 asserções; 13 falham sem a migration).
