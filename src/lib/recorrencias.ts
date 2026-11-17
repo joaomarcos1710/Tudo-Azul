@@ -381,6 +381,28 @@ export async function resumoVisaoGeral(familiaId: string): Promise<LinhaVisao[]>
   }))
 }
 
+/** A "sobra por mês" dos recorrentes (public.recurrence_net, migration 140): entra − sai, somada no banco (a tela não subtrai). */
+export interface SobraRecorrentes {
+  /** Entra − sai por mês, em centavos; negativo quando sai mais do que entra. */
+  porMes: Cents
+  /** A mesma diferença no ano (valor × ocorrências por ano, exato por regra: não é 12 × o mensal). */
+  porAno: Cents
+}
+
+/**
+ * Só recorrentes vigentes em reais (a mesma base do "Sai ≈" e do "Entra ≈" do topo): parcelas, proventos previstos e gastos
+ * que não se repetem ficam fora. null = sem recorrente nenhum, ou banco ainda sem a migration 140 (a tela não mostra a linha).
+ */
+export async function sobraDosRecorrentes(familiaId: string): Promise<SobraRecorrentes | null> {
+  const { data, error } = await cliente().rpc('recurrence_net', { p_household: familiaId })
+  if (error) {
+    if (['PGRST202', '42883'].includes(error.code ?? '')) return null
+    throw error
+  }
+  const l = ((data ?? []) as { net_monthly: number | string; net_yearly: number | string }[])[0]
+  return l ? { porMes: centsFromDb(l.net_monthly), porAno: centsFromDb(l.net_yearly) } : null
+}
+
 /**
  * Corrige só a NATUREZA de um recorrente (recurrence_set_nature, migration 20261112120000): classificação analítica que alimenta o
  * fixo × variável e o filtro de Recorrentes; não muda valor, data nem lançamento. `null` tira a marcação (o app volta a sugerir pelo

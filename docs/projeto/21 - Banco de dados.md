@@ -600,3 +600,8 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - **Arquivo:** `20261117090000_ledger_search_optional_text.sql`. Recria `public.ledger_search` (`create or replace`, mesma assinatura da 138, sem editá-la): `p_query` nulo = sem texto, só os outros filtros. Texto em branco (`''` ou só espaços) e com mais de 100 letras continuam recusados (22023): nulo é "não busquei", branco é engano. `ledger_search_totals` não muda (soma sobre `ledger_search`).
 - **Decisões do dono (17/11/2026):** o total com filtro ligado soma lançamentos e compras do cartão (a regra da busca), pagos e previstos juntos; juros, tarifa, parcelas de empréstimo e pagamento de fatura ficam fora do total e a tela diz isso.
 - **Teste:** `131_ledger_filter_totals` (19 asserções; 13 falham sem a migration).
+
+## Sobra por mês dos recorrentes (migration 140, PR #423, **ainda não aplicada**)
+- **Arquivo:** `20261117100000_recurrence_net.sql`. `public.recurrence_net(p_household)`: uma linha (ou nenhuma, sem recorrente vigente em reais) com `income_monthly`, `expense_monthly`, `net_monthly` (entra − sai) e `net_yearly` (a diferença no ano: valor × ocorrências por ano, exato por regra). Soma sobre `recurrence_overview` (migration 116, recorte `all`): os números fecham com o "Sai ≈" e o "Entra ≈" do topo por construção. `SECURITY INVOKER`, só leitura, `anon` sem EXECUTE.
+- **Fora da conta:** parcelas, proventos previstos de investimento e o que varia fora de um recorrente. A tela diz isso.
+- **Teste:** `132_recurrence_net` (11 asserções; 6 falham sem a migration). Entrou em `00_audit`.
