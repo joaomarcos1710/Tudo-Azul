@@ -1,7 +1,7 @@
 -- 127_pending_strip_active: migration 135 e os cenários de fatura que a 126 não cobria (achado do revisor-dinheiro na #409):
 -- pagamento parcial, pagamento sem fatura, crédito avulso maior que a fatura e cartão arquivado. O cartão arquivado falha
--- sem a 135. O "vencido fantasma" de cartão ativo (pagamento numa fatura mais nova cobrindo a anterior) é limite conhecido
--- da card_months: a asserção P5 registra o comportamento de hoje até a PR B.
+-- sem a 135. O "vencido fantasma" de cartão ativo (pagamento numa fatura mais nova cobrindo a anterior) era da card_months:
+-- corrigido na migration 136 (P5).
 -- A função vai por SQL dinâmico: sem ela as asserções falham sem abortar o arquivo.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -70,8 +70,8 @@ select is(pg_temp.faixa(pg_temp.fx('p2:h'), '2026-11-17', '2026-11-30'), array['
 reset role;
 select pg_temp.cenario('p3', '00000000-0000-0000-0000-0000000127b3');
 select public.card_credit_income(pg_temp.fx('p3:card'), '2026-10-10', 500.00, pg_temp.fx('p3:rec'), 'Reembolso', null, null);
-select is(pg_temp.faixa(pg_temp.fx('p3:h'), '2026-11-17', '2026-11-30'), array['overdue_payable|1|150.00|2026-09-25'],
-  'P3 crédito avulso de 500,00 em outubro: outubro zera (fica fora); setembro continua');
+select is(pg_temp.faixa(pg_temp.fx('p3:h'), '2026-11-17', '2026-11-30'), '{}'::text[],
+  'P3 crédito avulso de 500,00 em outubro: outubro zera e os 200,00 a mais quitam setembro (migration 136)');
 
 -- pagamento de 450,00 vinculado a OUTUBRO (cobre setembro também): a dívida zera
 reset role;
@@ -79,10 +79,10 @@ select pg_temp.cenario('p4', '00000000-0000-0000-0000-0000000127b4');
 select public.debt_pay(pg_temp.fx('p4:card'), '2026-10-26', pg_temp.fx('p4:conta'), 450.00, pg_temp.fatura(pg_temp.fx('p4:card'), '2026-10'), false);
 select is((select balance::numeric(14,2) from public.debt_balances(pg_temp.fx('p4:h'), '2026-11-17') where debt_id = pg_temp.fx('p4:card')), 0.00::numeric(14,2),
   'P4 pagamento de 450,00 em outubro: saldo do cartão zera');
--- LIMITE CONHECIDO (PR B): card_months manda a sobra só para as faturas seguintes, então setembro continua com 150,00
--- "vencidos" com a dívida zerada. Esta asserção registra o comportamento de hoje; a PR B troca o esperado por '{}'.
-select is(pg_temp.faixa(pg_temp.fx('p4:h'), '2026-11-17', '2026-11-30'), array['overdue_payable|1|150.00|2026-09-25'],
-  'P5 limite conhecido (PR B): dívida zerada mas setembro aparece como vencido (sobra foi para as faturas seguintes)');
+-- até a migration 136 (PR B), card_months mandava a sobra só para as faturas seguintes e setembro ficava com 150,00
+-- "vencidos" com a dívida zerada; agora a sobra quita setembro
+select is(pg_temp.faixa(pg_temp.fx('p4:h'), '2026-11-17', '2026-11-30'), '{}'::text[],
+  'P5 dívida zerada: nada vencido (a sobra de outubro quitou setembro, migration 136)');
 -- cartão arquivado (saldo 0): nada dele na faixa
 select public.debt_archive(pg_temp.fx('p4:card'));
 select is(pg_temp.faixa(pg_temp.fx('p4:h'), '2026-11-17', '2026-11-30'), '{}'::text[],

@@ -919,6 +919,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** "Excluir" em Lançamentos não pede confirmação; a barra "Desfazer" fica fixa embaixo até ser fechada. "Parar de repetir" continua com confirmação.
 - **Por quê:** handoff de Lançamentos (item e), aprovado pelo dono. A barra não some sozinha porque não há tela de Lixeira: depois de fechada, só dá para recuperar pelo banco. "Parar de repetir" encerra a regra e não tem desfazer simples.
 
+## 17/11/2026 — A sobra de uma fatura quita primeiro as faturas anteriores em aberto (#413)
+- **O quê:** pagamento ou crédito avulso acima de uma fatura paga, nesta ordem: o saldo de referência do cartão, o que está em aberto nas faturas anteriores (da mais antiga para a mais nova) e, só então, as faturas seguintes (adiantamento). O "saldo anterior" mostrado em cada fatura continua sendo o que estava em aberto antes dos pagamentos dela.
+- **Por quê:** o dono pagou "o total a pagar" (fatura + saldo anterior) na fatura mais nova e a anterior continuava vencida com a dívida zerada (achado do `revisor-dinheiro`, reproduzido). Quitar a dívida mais antiga primeiro é como o banco faz; a regra antiga só olhava para frente. "Pode seguir com a PR B" (dono, 17/11/2026). Ajustes depois da revisão: a sobra de crédito avulso só volta para trás se a fatura do crédito já fechou (antes disso o crédito não abateu a dívida); e, por escolha do dono, a exceção das 24 h para anular o último pagamento libera também as faturas anteriores que ele quitou pela sobra (as posteriores continuam como na 064).
+
 ## 17/11/2026 — Fatura de antes do cadastro do cartão fica fora da faixa, com aviso (#410)
 - **O quê:** o saldo de referência do cartão (a fatura que já existia quando o cartão foi cadastrado no app) não entra na faixa de pendências; a tela diz isso. O vencido fantasma de cartão ativo será corrigido na causa (`card_months`), numa PR própria (PR B).
 - **Por quê:** escolha do dono (opção a) depois da revisão do `revisor-dinheiro`: esse saldo é cada vez mais raro e incluí-lo exigiria outra regra de vencimento; avisar custa uma frase.
