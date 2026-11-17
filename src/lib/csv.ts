@@ -285,7 +285,7 @@ async function buscarAgendaDividasExportacao(db: NonNullable<typeof supabase>, f
 
 const rotuloOrigem: Record<string, string> = { opening: 'Saldo inicial', transaction: 'Lançamento', debt: 'Cartão/dívida' }
 const rotuloDivida: Record<string, string> = { card: 'Cartão', loan: 'Empréstimo', financing: 'Financiamento' }
-const rotuloEvento: Record<string, string> = {
+export const rotuloEvento: Record<string, string> = {
   charge: 'Cobrança de parcela', credit: 'Estorno', cancel: 'Cancelamento de parcela', payment: 'Pagamento',
   extra_principal: 'Amortização extra', interest: 'Juros', fee: 'Tarifa', disbursement: 'Liberação de crédito',
   refund_cash: 'Devolução em dinheiro', payroll_payment: 'Consignado (amortização)',

@@ -24,9 +24,11 @@ import type { HistoricoDividas } from '../lib/painel'
 import { mensagemErroBanco } from '../lib/erros'
 import {
   criarDivida, definirTermosDivida, definirContratoDivida, listarDividas, listarParcelasDivida,
-  arquivarDivida, corrigirSaldoDivida, definirCategoriaPrincipal, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
+  anularCorrecaoDeSaldo, arquivarDivida, corrigirSaldoDivida, listarMovimentosDaDivida, definirCategoriaPrincipal, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
 } from '../lib/dividas'
-import type { DadosContratoDivida, Divida, ParcelaDivida, TipoDivida } from '../lib/dividas'
+import type { DadosContratoDivida, Divida, MovimentoDaDivida, ParcelaDivida, TipoDivida } from '../lib/dividas'
+import { LIMITE_HISTORICO_DIVIDA } from '../lib/dividas'
+import { efeitoNaDivida, rotuloEvento } from '../lib/csv'
 
 function taxaBps(texto: string): number | null {
   const valor = texto.trim().replace(',', '.')
@@ -52,6 +54,7 @@ export default function Dividas() {
   const [renomeando, setRenomeando] = useState<Divida | null>(null)
   // corrigir saldo pelo extrato (migration 132) e o aviso do resultado
   const [corrigindo, setCorrigindo] = useState<Divida | null>(null)
+  const [historicoDe, setHistoricoDe] = useState<Divida | null>(null)
   const [avisoSaldo, setAvisoSaldo] = useState('')
   const [arquivadas, setArquivadas] = useState<Divida[]>([])
   // evolução das dívidas (sem cartão, 12 meses; migration 133): opcional, a tela segue sem ela
@@ -213,6 +216,10 @@ export default function Dividas() {
 
       {avisoSaldo && <div className="mb-4" role="status"><Aviso tipo="info">{avisoSaldo}</Aviso></div>}
 
+      {historicoDe && familia?.id && (
+        <FolhaHistorico familiaId={familia.id} divida={historicoDe} aoFechar={() => setHistoricoDe(null)} aoMudar={carregar} />
+      )}
+
       {corrigindo && (
         <FormCorrigirSaldo divida={corrigindo} aoSalvar={salvarSaldo} aoCancelar={() => setCorrigindo(null)} />
       )}
@@ -249,6 +256,7 @@ export default function Dividas() {
                     : { rotulo: 'Amortização extra', aoEscolher: () => { setAmortizacaoExtra(true); setPagando(d) } },
                   { rotulo: 'Contrato e parcelas', aoEscolher: () => setContrato(d) },
                   { rotulo: 'Corrigir saldo pelo extrato', aoEscolher: () => { setAvisoSaldo(''); setCorrigindo(d) } },
+                  { rotulo: 'Histórico', aoEscolher: () => setHistoricoDe(d) },
                   { rotulo: 'Parâmetros da dívida', aoEscolher: () => setTermos(d) },
                   { rotulo: 'Renomear', aoEscolher: () => setRenomeando(d) },
                   { rotulo: 'Arquivar', aoEscolher: () => setConfirmando({ tipo: 'arquivar', divida: d }), desabilitado: confirmando !== null },
@@ -680,6 +688,100 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
+    </Folha>
+  )
+}
+
+/**
+ * Histórico da dívida (pedido do dono, 17/11/2026): os movimentos, do mais recente ao mais antigo, com o efeito no saldo.
+ * "Anular" só nas correções pelo extrato (migration 132): anular um pagamento mexe em conta e em despesa, e fica fora daqui.
+ * Valores de cada movimento como vêm do banco; nada é somado.
+ */
+function FolhaHistorico({ familiaId, divida, aoFechar, aoMudar }: {
+  familiaId: string; divida: Divida; aoFechar: () => void; aoMudar: () => Promise<void> | void
+}) {
+  const [itens, setItens] = useState<MovimentoDaDivida[] | null>(null)
+  const [erro, setErro] = useState('')
+  const [confirmando, setConfirmando] = useState<string | null>(null)
+  const [anulando, setAnulando] = useState(false)
+  const [aviso, setAviso] = useState('')
+
+  const ler = useCallback(() => {
+    listarMovimentosDaDivida(familiaId, divida.id).then(setItens).catch((e) => setErro(mensagemErroBanco(e)))
+  }, [familiaId, divida.id])
+  useEffect(() => { ler() }, [ler])
+
+  async function anular(id: string) {
+    setAnulando(true); setErro('')
+    try {
+      await anularCorrecaoDeSaldo(id)
+      setConfirmando(null)
+      setAviso('Correção anulada. O saldo voltou ao que era antes dela.')
+      ler()
+      await aoMudar()
+    } catch (e) {
+      setErro(mensagemErroBanco(e))
+    } finally {
+      setAnulando(false)
+    }
+  }
+
+  const ehCorrecao = (tipo: string) => tipo === 'adjust_up' || tipo === 'adjust_down'
+  return (
+    <Folha titulo={`Histórico: ${divida.nome}`} aoFechar={aoFechar}>
+      {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
+      {aviso && <div className="mb-3" role="status"><Aviso tipo="info">{aviso}</Aviso></div>}
+      {itens === null && !erro ? (
+        <p className="text-sm text-slate-600" role="status">Carregando…</p>
+      ) : itens && itens.length === 0 ? (
+        <p className="text-sm text-slate-600">Nenhum movimento desde o cadastro. O saldo é o informado no cadastro.</p>
+      ) : itens && (
+        <>
+          <ul className="divide-y divide-slate-100" aria-label={`Movimentos de ${divida.nome}`}>
+            {itens.map((m) => {
+              const efeito = efeitoNaDivida[m.tipo] ?? 0
+              return (
+                <li key={m.id} className={`py-3 text-sm ${m.anulado ? 'opacity-60' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="min-w-0 flex-1">
+                      <span className={`block font-medium ${m.anulado ? 'line-through' : ''}`}>
+                        {ehCorrecao(m.tipo) ? (m.tipo === 'adjust_up' ? 'Correção pelo extrato (aumentou)' : 'Correção pelo extrato (diminuiu)') : (rotuloEvento[m.tipo] ?? m.tipo)}
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        {m.data.split('-').reverse().join('/')}
+                        {efeito === 0 ? ' · não muda o saldo' : ''}
+                        {m.comConta ? ' · com conta' : ''}
+                        {m.anulado ? ' · anulado' : ''}
+                      </span>
+                    </span>
+                    <span className={`shrink-0 tabular-nums font-semibold ${efeito > 0 ? 'text-prejuizo' : efeito < 0 ? 'text-lucro' : 'text-slate-600'}`}>
+                      {efeito > 0 ? '+' : efeito < 0 ? '−' : ''}{formatBRL(m.valor)}
+                    </span>
+                    {ehCorrecao(m.tipo) && !m.anulado && confirmando !== m.id && (
+                      <button type="button" onClick={() => { setAviso(''); setConfirmando(m.id) }}
+                        aria-label={`Anular correção de ${m.data.split('-').reverse().join('/')}`}
+                        className="min-h-11 shrink-0 rounded-lg px-3 font-semibold text-prejuizo hover:bg-prejuizo-fundo">Anular</button>
+                    )}
+                  </div>
+                  {confirmando === m.id && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-fundo p-2" role="group" aria-label="Confirmar anulação">
+                      <p className="w-full text-xs text-slate-600">O saldo volta ao que era sem esta correção. Depois, dá para lançar pagamentos com data anterior a ela.</p>
+                      <Button variante="perigo" carregando={anulando} onClick={() => void anular(m.id)}>Anular correção</Button>
+                      <Button variante="secundario" onClick={() => setConfirmando(null)}>Cancelar</Button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          {itens.length >= LIMITE_HISTORICO_DIVIDA && (
+            <p className="mt-2 text-xs text-slate-500">Mostrando os {LIMITE_HISTORICO_DIVIDA} movimentos mais recentes.</p>
+          )}
+          <p className="mt-2 text-xs text-slate-500">
+            "+" aumenta a dívida e "−" diminui. Juros e tarifa já pagos não mudam o saldo (saem da conta). Só a correção pelo extrato pode ser anulada aqui.
+          </p>
+        </>
+      )}
     </Folha>
   )
 }

@@ -312,3 +312,47 @@ export async function definirCategoriaPrincipal(dividaId: string, categoriaId: s
   const { error } = await cliente().rpc('debt_set_principal_category', { p_debt: dividaId, p_category: categoriaId })
   if (error) throw error
 }
+
+/** Um movimento da dívida, para o Histórico da tela de Dívidas. */
+export interface MovimentoDaDivida {
+  id: string
+  data: string
+  /** Tipo do banco (payment, interest, adjust_up...). */
+  tipo: string
+  valor: Cents
+  /** Tem conta (saiu ou entrou dinheiro de uma conta). */
+  comConta: boolean
+  nota: string | null
+  anulado: boolean
+}
+
+/** Quantos movimentos o Histórico mostra (os mais recentes). */
+export const LIMITE_HISTORICO_DIVIDA = 100
+
+/**
+ * Movimentos de uma dívida, do mais recente ao mais antigo (inclusive os anulados, marcados). Só leitura.
+ * atalho: mostra só os LIMITE_HISTORICO_DIVIDA mais recentes, sem paginar.
+ */
+export async function listarMovimentosDaDivida(familiaId: string, dividaId: string): Promise<MovimentoDaDivida[]> {
+  const { data, error } = await cliente().from('debt_events')
+    .select('id, date, kind, amount, account_id, note, voided_at, created_at')
+    .eq('household_id', familiaId).eq('debt_id', dividaId)
+    .order('date', { ascending: false }).order('created_at', { ascending: false }).limit(LIMITE_HISTORICO_DIVIDA)
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((e) => ({
+    id: e.id as string,
+    data: e.date as string,
+    tipo: e.kind as string,
+    valor: centsFromDb(e.amount as string | number),
+    comConta: e.account_id != null,
+    nota: (e.note as string | null) ?? null,
+    anulado: e.voided_at != null,
+  }))
+}
+
+/** Anula uma correção de saldo pelo extrato (debt_void). As regras do banco valem (ex.: pagamento depois que ficaria negativo). */
+export async function anularCorrecaoDeSaldo(eventoId: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_void', { p_event: eventoId, p_reason: 'correção de saldo anulada na tela de Dívidas' })
+  if (error) throw error
+}
+
