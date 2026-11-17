@@ -33,7 +33,7 @@ declare
   -- 136: linhas guardadas até o fim, para a sobra quitar as faturas anteriores
   a_label text[] := '{}'; a_due date[] := '{}'; a_charged numeric[] := '{}'; a_pending numeric[] := '{}';
   a_total numeric[] := '{}'; a_paid numeric[] := '{}'; a_inv uuid[] := '{}';
-  n integer := 0; k integer; v_take numeric;
+  n integer := 0; k integer; v_take numeric; v_back numeric;
 begin
   if p_as_of is null then raise exception 'data de corte obrigatória' using errcode = '22023'; end if;
   select d.id, d.household_id, d.closing_day, d.due_day, greatest(0, d.reference_balance) as reference_balance into v_d from public.debts d
@@ -129,12 +129,17 @@ begin
     v_s0 := least(v_surplus, v_ref);
     v_ref := v_ref - v_s0;
     v_surplus := v_surplus - v_s0;
-    k := 1;  -- 136
-    while v_surplus > 0 and k < n loop
-      v_take := least(v_surplus, greatest(0, a_total[k] - a_paid[k]));
-      if v_take > 0 then a_paid[k] := a_paid[k] + v_take; v_surplus := v_surplus - v_take; end if;
+    -- 136: só a sobra de pagamento, e a de crédito com a fatura já fechada na data de corte, volta para as anteriores
+    v_back := least(v_surplus, greatest(0, v_link - v_total)
+                    + case when r.closing_date <= p_as_of then greatest(0, -(r.charged + r.pending)) else 0 end);
+    v_surplus := v_surplus - v_back;
+    k := 1;
+    while v_back > 0 and k < n loop
+      v_take := least(v_back, greatest(0, a_total[k] - a_paid[k]));
+      if v_take > 0 then a_paid[k] := a_paid[k] + v_take; v_back := v_back - v_take; end if;
       k := k + 1;
     end loop;
+    v_surplus := v_surplus + v_back;
     v_credit := v_credit - v_use + v_surplus;
     -- devoluções feitas depois deste fechamento (inclusive) e antes do próximo: levam o crédito que existia então
     -- (inclui a sobra desta fatura); greatest(0, …) só protege a tela, debt_chk já garante a ordem

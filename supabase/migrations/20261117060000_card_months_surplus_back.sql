@@ -11,8 +11,15 @@
 -- colunas e grants; 00_audit não muda). Corpos em vigor: 20261111130000_card_payment_move.sql (110), com só esta mudança,
 -- marcada "migration 136": as linhas ficam guardadas até o fim do laço; a sobra (pagamento ou crédito avulso acima da
 -- fatura) quita primeiro o saldo de referência (como antes), depois o que está em aberto nas faturas anteriores, da mais
--- antiga para a mais nova, e só o resto vira adiantamento. O "saldo anterior" (previous_open) mantém o significado de
+-- antiga para a mais nova, e só o resto vira adiantamento. Só volta para trás a sobra que já reduziu a dívida: a de
+-- pagamento, e a de crédito avulso só se a fatura do crédito já fechou (achado do revisor-dinheiro: um crédito lançado
+-- numa fatura futura quitava hoje uma fatura vencida). O "saldo anterior" (previous_open) mantém o significado de
 -- antes: o que estava em aberto antes dos pagamentos daquela fatura.
+--
+-- Trava de fatura paga (064), decisão do dono (17/11/2026): a exceção de anular o último pagamento lançado há menos de
+-- 24 h passa a liberar também as faturas ANTERIORES que ficaram pagas só por causa dele (a sobra que as quitou). Os
+-- TOTAIS de toda fatura travada continuam conferidos; as POSTERIORES (quitadas pelo adiantamento) seguem como na 064. public.debt_void recriada a partir
+-- da 064 com essa mudança (mesma assinatura, SECURITY DEFINER e grants).
 -- Não muda: o saldo da dívida (debt_balances não lê card_months), o pagamento sem fatura (já seguia a ordem certa) e o
 -- caso sem sobra. Efeito visível: a fatura anterior passa a "paga" (e travada, como toda fatura paga, 064); o adiantamento
 -- e o "saldo anterior" das seguintes caem pelo valor quitado.
@@ -32,7 +39,7 @@ declare
   a_label text[] := '{}'; a_closing date[] := '{}'; a_due date[] := '{}'; a_charged numeric[] := '{}'; a_pending numeric[] := '{}';
   a_total numeric[] := '{}'; a_paid numeric[] := '{}'; a_items integer[] := '{}'; a_inv uuid[] := '{}'; a_prev numeric[] := '{}';
   a_adv_in numeric[] := '{}'; a_adv_out numeric[] := '{}'; a_credits numeric[] := '{}';
-  n integer := 0; k integer; v_take numeric;
+  n integer := 0; k integer; v_take numeric; v_back numeric;
 begin
   select d.id, d.household_id, d.closing_day, d.due_day, greatest(0, d.reference_balance) as reference_balance into v_d from public.debts d
    where d.id = p_debt and d.kind = 'card' and (select private.is_member(d.household_id));
@@ -143,16 +150,24 @@ begin
     v_s0 := least(v_surplus, v_ref);
     v_ref := v_ref - v_s0;
     v_surplus := v_surplus - v_s0;
+    -- só volta para as anteriores a sobra que já reduziu a dívida: a de PAGAMENTO (o dinheiro saiu na data dele) e a de
+    -- CRÉDITO só se a fatura do crédito já fechou (antes disso o crédito não abateu a dívida; um crédito lançado numa
+    -- fatura futura não pode quitar hoje uma fatura vencida). O resto segue para as próximas, como antes.
+    v_back := least(v_surplus, greatest(0, v_link - v_total)
+                    + case when r.closing_date <= (now() at time zone 'America/Sao_Paulo')::date
+                           then greatest(0, -(r.charged + r.pending)) else 0 end);
+    v_surplus := v_surplus - v_back;
     k := 1;
-    while v_surplus > 0 and k < n loop
-      v_take := least(v_surplus, greatest(0, a_total[k] - a_paid[k]));
+    while v_back > 0 and k < n loop
+      v_take := least(v_back, greatest(0, a_total[k] - a_paid[k]));
       if v_take > 0 then
         a_paid[k] := a_paid[k] + v_take;
         v_prev := v_prev - v_take;
-        v_surplus := v_surplus - v_take;
+        v_back := v_back - v_take;
       end if;
       k := k + 1;
     end loop;
+    v_surplus := v_surplus + v_back;
     v_credit := v_credit - v_use + v_surplus;
     -- devoluções feitas depois deste fechamento (inclusive) e antes do próximo: levam o crédito que existia então
     -- (inclui a sobra desta fatura); greatest(0, …) só protege a tela, debt_chk já garante a ordem
@@ -187,7 +202,7 @@ declare
   -- migration 136: linhas guardadas até o fim; a sobra de uma fatura pode quitar o que ficou em aberto nas ANTERIORES
   a_label text[] := '{}'; a_due date[] := '{}'; a_charged numeric[] := '{}'; a_pending numeric[] := '{}';
   a_total numeric[] := '{}'; a_paid numeric[] := '{}'; a_inv uuid[] := '{}';
-  n integer := 0; k integer; v_take numeric;
+  n integer := 0; k integer; v_take numeric; v_back numeric;
 begin
   if p_as_of is null then raise exception 'data de corte obrigatória' using errcode = '22023'; end if;
   select d.id, d.household_id, d.closing_day, d.due_day, greatest(0, d.reference_balance) as reference_balance into v_d from public.debts d
@@ -304,15 +319,20 @@ begin
     v_s0 := least(v_surplus, v_ref);
     v_ref := v_ref - v_s0;
     v_surplus := v_surplus - v_s0;
+    -- mesma regra de card_months: a sobra de crédito só volta se a fatura do crédito já fechou na data de corte
+    v_back := least(v_surplus, greatest(0, v_link - v_total)
+                    + case when r.closing_date <= p_as_of then greatest(0, -(r.charged + r.pending)) else 0 end);
+    v_surplus := v_surplus - v_back;
     k := 1;
-    while v_surplus > 0 and k < n loop
-      v_take := least(v_surplus, greatest(0, a_total[k] - a_paid[k]));
+    while v_back > 0 and k < n loop
+      v_take := least(v_back, greatest(0, a_total[k] - a_paid[k]));
       if v_take > 0 then
         a_paid[k] := a_paid[k] + v_take;
-        v_surplus := v_surplus - v_take;
+        v_back := v_back - v_take;
       end if;
       k := k + 1;
     end loop;
+    v_surplus := v_surplus + v_back;
     v_credit := v_credit - v_use + v_surplus;
     -- devoluções feitas depois deste fechamento (inclusive) e antes do próximo: levam o crédito que existia então
     -- (inclui a sobra desta fatura); greatest(0, …) só protege a tela, debt_chk já garante a ordem
@@ -330,3 +350,62 @@ begin
     return next;
   end loop;
 end $function$;
+
+-- ---------------------------------------------------------------------------
+-- debt_void (versão 20261105090100_card_paid_invoice_lock, 064) + exceção das 24 h também para as faturas quitadas pela
+-- sobra do pagamento anulado (migration 136)
+-- ---------------------------------------------------------------------------
+create or replace function public.debt_void(p_event uuid, p_reason text) returns integer
+language plpgsql security definer set search_path = '' as $$
+declare v_e public.debt_events%rowtype; v_d public.debts%rowtype; v_n integer; v_lock jsonb; v_except text;
+  v_now jsonb; r record;
+begin
+  select * into v_e from public.debt_events where id = p_event;
+  if not found then raise exception 'registro não encontrado' using errcode = '42501'; end if;
+  v_d := private.debt_lock(v_e.debt_id);
+  -- relê depois do lock: uma anulação concorrente pode ter acontecido enquanto esperávamos
+  select * into v_e from public.debt_events where id = p_event;
+  if v_e.voided_at is not null then
+    raise exception 'evento já anulado' using errcode = '55000';
+  end if;
+  if v_e.kind = 'charge' and v_e.installment_id is not null and v_e.op_id is null then
+    raise exception 'cobrança de parcela de cartão não se anula avulsa: exclua a compra ou edite a parcela'
+      using errcode = '55000';
+  end if;
+  v_lock := private.card_paid_snapshot(v_d.id);
+  -- exceção: o último pagamento do cartão, lançado há menos de 24 h, pode ser anulado (pagamento lançado errado);
+  -- libera a fatura dele e, desde a 136, o "pago" das faturas anteriores que a sobra dele tinha quitado
+  if v_e.kind in ('payment', 'extra_principal') and v_e.invoice_id is not null
+     and v_e.created_at > now() - interval '24 hours'
+     and not exists (select 1 from public.debt_events o
+                      where o.household_id = v_d.household_id and o.debt_id = v_d.id and o.voided_at is null
+                        and o.kind in ('payment', 'extra_principal') and o.created_at > v_e.created_at) then
+    select inv.label into v_except from public.debt_invoices inv where inv.id = v_e.invoice_id;
+  end if;
+  update public.debt_events
+     set voided_at = now(), voided_by = (select auth.uid()), void_reason = btrim(p_reason)
+   where household_id = v_d.household_id and debt_id = v_d.id and voided_at is null
+     and (id = v_e.id or (v_e.op_id is not null and op_id = v_e.op_id));
+  get diagnostics v_n = row_count;
+  perform private.debt_chk(v_d.id);
+  if v_except is null then
+    perform private.card_paid_lock_check(v_d.id, v_lock);
+  else
+    -- 136: na exceção, só um evento (o pagamento) saiu; o "pago" que cai numa fatura travada ANTERIOR à dele veio da
+    -- sobra dele (a regra nova da card_months). Essas podem perder o pago; o total delas continua conferido, e a que
+    -- sumir é recusada. As faturas POSTERIORES (quitadas pelo adiantamento) continuam conferidas por inteiro, como na
+    -- 064 (teste 64 E4).
+    select coalesce(jsonb_object_agg(m.label, jsonb_build_array(m.total, m.paid)), '{}'::jsonb) into v_now
+      from public.card_months(v_d.id) m;
+    for r in select key, value from jsonb_each(v_lock) order by key loop
+      if r.key = v_except then continue; end if;
+      if (v_now -> r.key) is null
+         or (r.key > v_except and (v_now -> r.key) is distinct from r.value)
+         or (r.key < v_except and (v_now -> r.key -> 0) is distinct from (r.value -> 0)) then
+        perform private.card_paid_lock_raise(r.key);
+      end if;
+    end loop;
+  end if;
+  return v_n;
+end $$;
+

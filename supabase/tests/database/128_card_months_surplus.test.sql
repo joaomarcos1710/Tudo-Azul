@@ -100,5 +100,45 @@ select is(pg_temp.meses(pg_temp.fx('s5:card')), array[
   'S5 sem sobra, o resultado é o de sempre');
 
 
+-- 6. Crédito avulso numa fatura FUTURA (ainda não fechou) não quita hoje a fatura vencida (achado do revisor-dinheiro)
+reset role;
+select pg_temp.cenario('s6', '00000000-0000-0000-0000-0000000128a6');
+select public.debt_pay(pg_temp.fx('s6:card'), '2026-10-26', pg_temp.fx('s6:conta'), 300.00, pg_temp.fatura(pg_temp.fx('s6:card'), '2026-10'), false);
+select public.card_credit_income(pg_temp.fx('s6:card'), '2099-12-01', 200.00, pg_temp.fx('s6:rec'), 'Reembolso futuro', null, null);
+select is((select paid::numeric(14,2) from public.card_months(pg_temp.fx('s6:card')) where label = '2026-09'), 0.00::numeric(14,2),
+  'S6 crédito com data futura (fatura ainda aberta): setembro continua em aberto (a dívida ainda não caiu)');
+select is((select advance_out::numeric(14,2) from public.card_months(pg_temp.fx('s6:card')) where label = '2099-12'), 200.00::numeric(14,2),
+  'S6 a sobra do crédito futuro segue para a frente, como antes da 136');
+
+-- 7. Duas faturas anteriores em aberto: a sobra quita da mais antiga para a mais nova
+reset role;
+select pg_temp.cenario('s7', '00000000-0000-0000-0000-0000000128a7');
+select public.card_purchase(pg_temp.fx('s7:card'), '2026-08-05', 50.00, 1, (select id from public.categories where household_id = pg_temp.fx('s7:h') and name = 'Mercado'), 'Agosto');
+select public.card_bill_due('2026-10-31');
+select public.debt_pay(pg_temp.fx('s7:card'), '2026-10-26', pg_temp.fx('s7:conta'), 420.00, pg_temp.fatura(pg_temp.fx('s7:card'), '2026-10'), false);
+select is((select array_agg(label || '|' || paid::numeric(14,2) order by label) from public.card_months(pg_temp.fx('s7:card')) where label < '2026-11'),
+  array['2026-08|50.00', '2026-09|70.00', '2026-10|300.00'],
+  'S7 sobra de 120,00: agosto (50) primeiro, depois 70 de setembro');
+
+-- 8. Exceção das 24 h (decisão do dono, 17/11/2026): anular o pagamento recém-lançado que quitou setembro pela sobra
+select pg_temp.login('00000000-0000-0000-0000-0000000128a1');
+select lives_ok(format($$select public.debt_void(%L, 'digitei errado')$$,
+  (select id from public.debt_events where debt_id = pg_temp.fx('s1:card') and kind = 'payment' and voided_at is null)),
+  'V1 o último pagamento, recém-lançado, pode ser anulado mesmo tendo quitado setembro pela sobra');
+select is(pg_temp.meses(pg_temp.fx('s1:card')), array[
+  '2026-09|150.00|0.00|0.00|0.00',
+  '2026-10|300.00|0.00|150.00|0.00',
+  '2026-11|80.00|0.00|450.00|0.00'],
+  'V2 depois de anular, tudo volta a como estava antes do pagamento');
+
+-- 9. card_months_as_of (a mesma conta numa data de corte) tem a mesma regra (privada: roda como dono, com o usuário da
+-- família s2 nos claims, para private.is_member enxergar o cartão)
+select pg_temp.login('00000000-0000-0000-0000-0000000128a2');
+reset role;
+select is((select array_agg(label || '|' || paid::numeric(14,2) order by label) from private.card_months_as_of(pg_temp.fx('s2:card'), '2026-11-17') where label < '2026-11'),
+  array['2026-09|100.00', '2026-10|300.00'], 'A1 as_of em 17/11: a sobra de 100 de outubro quita parte de setembro');
+select is((select array_agg(label || '|' || paid::numeric(14,2) order by label) from private.card_months_as_of(pg_temp.fx('s2:card'), '2026-10-25') where label < '2026-11'),
+  array['2026-09|0.00', '2026-10|0.00'], 'A2 as_of em 25/10 (antes do pagamento): nada pago');
+
 select * from finish();
 rollback;
