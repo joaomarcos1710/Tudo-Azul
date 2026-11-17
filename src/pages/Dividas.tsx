@@ -20,7 +20,7 @@ import { Folha } from '../components/ui/Folha'
 import { mensagemErroBanco } from '../lib/erros'
 import {
   criarDivida, definirTermosDivida, definirContratoDivida, listarDividas, listarParcelasDivida,
-  arquivarDivida, definirCategoriaPrincipal, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
+  arquivarDivida, corrigirSaldoDivida, definirCategoriaPrincipal, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
 } from '../lib/dividas'
 import type { DadosContratoDivida, Divida, ParcelaDivida, TipoDivida } from '../lib/dividas'
 
@@ -46,6 +46,9 @@ export default function Dividas() {
   const [parcelas, setParcelas] = useState<ParcelaDivida[]>([])
   const [agendaFalhou, setAgendaFalhou] = useState(false)
   const [renomeando, setRenomeando] = useState<Divida | null>(null)
+  // corrigir saldo pelo extrato (migration 132) e o aviso do resultado
+  const [corrigindo, setCorrigindo] = useState<Divida | null>(null)
+  const [avisoSaldo, setAvisoSaldo] = useState('')
   const [arquivadas, setArquivadas] = useState<Divida[]>([])
   // confirmação de arquivar/excluir, aberta dentro do card da própria dívida
   const [confirmando, setConfirmando] = useState<{ tipo: 'arquivar' | 'excluir'; divida: Divida } | null>(null)
@@ -106,6 +109,17 @@ export default function Dividas() {
   async function reativar(d: Divida) {
     try {
       await reativarDivida(d.id)
+      await carregar()
+    } catch (e) { setErro(mensagemErroBanco(e)) }
+  }
+
+  async function salvarSaldo(d: Divida, data: string, saldo: Cents) {
+    try {
+      const gravou = await corrigirSaldoDivida(d.id, data, saldo)
+      setCorrigindo(null)
+      setAvisoSaldo(gravou
+        ? `Saldo de ${d.nome} corrigido para ${formatBRL(saldo)} em ${data.split('-').reverse().join('/')}.`
+        : `O saldo de ${d.nome} já era ${formatBRL(saldo)} nessa data: nada foi alterado.`)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
@@ -190,6 +204,12 @@ export default function Dividas() {
         /> : null
       })()}
 
+      {avisoSaldo && <div className="mb-4" role="status"><Aviso tipo="info">{avisoSaldo}</Aviso></div>}
+
+      {corrigindo && (
+        <FormCorrigirSaldo divida={corrigindo} aoSalvar={salvarSaldo} aoCancelar={() => setCorrigindo(null)} />
+      )}
+
       {renomeando && (
         <FormRenomear divida={renomeando} aoSalvar={salvarNome} aoCancelar={() => setRenomeando(null)} />
       )}
@@ -221,6 +241,7 @@ export default function Dividas() {
                     ? { rotulo: 'Registrar pagamento', aoEscolher: () => { setAmortizacaoExtra(false); setPagando(d) } }
                     : { rotulo: 'Amortização extra', aoEscolher: () => { setAmortizacaoExtra(true); setPagando(d) } },
                   { rotulo: 'Contrato e parcelas', aoEscolher: () => setContrato(d) },
+                  { rotulo: 'Corrigir saldo pelo extrato', aoEscolher: () => { setAvisoSaldo(''); setCorrigindo(d) } },
                   { rotulo: 'Parâmetros da dívida', aoEscolher: () => setTermos(d) },
                   { rotulo: 'Renomear', aoEscolher: () => setRenomeando(d) },
                   { rotulo: 'Arquivar', aoEscolher: () => setConfirmando({ tipo: 'arquivar', divida: d }), desabilitado: confirmando !== null },
@@ -647,6 +668,52 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
         )}
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando} disabled={!consignado && contas.length === 0}>Confirmar baixa</Button>
+          <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
+        </div>
+      </form>
+    </Folha>
+  )
+}
+
+/**
+ * Corrigir saldo pelo extrato (pedido do dono, 17/11/2026): o app não calcula os juros do dia a dia, então o saldo do banco
+ * e o do app se afastam. Aqui o dono informa o saldo que o banco mostra numa data; o banco grava só a diferença, como
+ * ajuste (não é despesa nem receita, não mexe em conta). Errou o valor? Corrija de novo na mesma data: vale o último.
+ */
+function FormCorrigirSaldo({ divida, aoSalvar, aoCancelar }: {
+  divida: Divida
+  aoSalvar: (d: Divida, data: string, saldo: Cents) => Promise<void>
+  aoCancelar: () => void
+}) {
+  const [data, setData] = useState(hojeSP())
+  const [saldoTexto, setSaldoTexto] = useState('')
+  const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  async function enviar(e: FormEvent) {
+    e.preventDefault()
+    const saldo = parseBRL(saldoTexto)
+    if (!data || data > hojeSP()) { setErro('Escolha a data do extrato (hoje ou antes).'); return }
+    if (saldo === null || saldo < 0) { setErro('Informe o saldo devedor que o banco mostra, igual ou maior que zero.'); return }
+    setErro(''); setEnviando(true)
+    try { await aoSalvar(divida, data, saldo) } finally { setEnviando(false) }
+  }
+  return (
+    <Folha titulo={`Corrigir saldo: ${divida.nome}`} aoFechar={aoCancelar}>
+      <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
+        {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+        <p className="text-sm text-slate-600 md:col-span-2">
+          Saldo no app hoje: <strong className="tabular-nums">{formatBRL(divida.saldo)}</strong>. Os juros dos dias corridos não entram
+          sozinhos; informe o saldo devedor que o banco mostra na data do extrato e o app grava só a diferença para essa data.
+        </p>
+        <Field rotulo="Data do extrato" type="date" value={data} max={hojeSP()} onChange={(e) => setData(e.target.value)} />
+        <Field rotulo="Saldo devedor no banco (R$)" inputMode="decimal" placeholder="Ex.: 136.540,78" value={saldoTexto}
+          onChange={(e) => setSaldoTexto(e.target.value)} />
+        <p className="text-xs text-slate-500 md:col-span-2">
+          É só uma correção do saldo: não entra como despesa nem receita e não mexe em conta. Errou o valor? Corrija de novo na
+          mesma data. Depois de corrigir, pagamentos desta dívida só podem ser lançados a partir da data do extrato.
+        </p>
+        <div className="flex gap-2 md:col-span-2">
+          <Button type="submit" carregando={enviando}>Corrigir saldo</Button>
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>

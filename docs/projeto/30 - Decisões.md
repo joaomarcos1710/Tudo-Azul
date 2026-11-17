@@ -918,3 +918,7 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 ## 16/11/2026 — Excluir lançamento sem perguntar, com Desfazer que não some sozinho
 - **O quê:** "Excluir" em Lançamentos não pede confirmação; a barra "Desfazer" fica fixa embaixo até ser fechada. "Parar de repetir" continua com confirmação.
 - **Por quê:** handoff de Lançamentos (item e), aprovado pelo dono. A barra não some sozinha porque não há tela de Lixeira: depois de fechada, só dá para recuperar pelo banco. "Parar de repetir" encerra a regra e não tem desfazer simples.
+
+## 17/11/2026 — Corrigir saldo de empréstimo pelo extrato: só o saldo, não é gasto
+- **O quê:** em Dívidas, "Corrigir saldo pelo extrato" grava a diferença entre o saldo do app e o do banco como ajuste (migration 132). Não entra como despesa nem receita e não mexe em conta.
+- **Por quê:** o app não calcula juros diários, então os dois saldos se afastam. Contar os juros como gasto no consignado seria contar duas vezes, porque eles já saem do salário líquido.

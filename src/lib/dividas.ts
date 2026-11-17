@@ -137,6 +137,16 @@ export async function criarDivida(d: DadosDivida): Promise<string> {
   return data as string
 }
 
+/**
+ * Corrigir saldo pelo extrato (migration 132): grava no banco só a diferença entre o saldo do app na data e o informado
+ * (ajuste sem conta, que não é despesa nem receita). Devolve false quando o saldo já era esse (nada gravado).
+ */
+export async function corrigirSaldoDivida(id: string, data: string, saldo: Cents): Promise<boolean> {
+  const { data: r, error } = await cliente().rpc('debt_set_balance', { p_debt: id, p_date: data, p_balance: centsToDecimal(saldo) })
+  if (error) throw error
+  return r !== null
+}
+
 export async function definirTermosDivida(id: string, taxaMensalBps: number, pagamentoMinimo: Cents): Promise<void> {
   const { error } = await cliente().rpc('debt_set_terms', {
     p_debt: id,
