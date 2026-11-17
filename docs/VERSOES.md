@@ -336,4 +336,5 @@ continuam abaixo como histórico.
 | 2026.421 | **Só o diário do projeto.** Registra as decisões sobre Lançamentos (marcar como pago continua pela folha; no computador continua a lista) e que o total do rodapé com filtro já está ativo no banco. Nada muda na tela. |
 | 2026.422 | **Lançamentos sem corte em período longo.** Ao olhar um ano inteiro (ou um período livre grande), a lista agora traz todos os lançamentos, e não só os 1000 mais recentes. A busca também acha tudo. Pode demorar um pouco mais para abrir períodos muito grandes, porque a lista vem em várias partes. |
 | 2026.423 | **Sobra por mês em Recorrentes.** No topo, abaixo de quanto sai e quanto entra todo mês, aparece quanto sobra (ou falta) por mês e por ano. Conta só o que se repete: parcelas, proventos previstos e gastos que não se repetem ficam de fora, e a tela avisa. |
+| 2026.424 | **Só o diário do projeto.** Registra que a "sobra por mês" de Recorrentes já está ativa no banco. Nada muda na tela. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
