@@ -99,42 +99,6 @@ afterEach(() => {
 })
 
 describe('Recorrentes', () => {
-  it('mostra a seção "Parcelas ativas" com os parcelamentos do banco', async () => {
-    mock.listarParcelasAtivas.mockResolvedValue({
-      parcelamentos: [{
-        chave: 'card:k1:p1', origem: 'card', moeda: 'BRL', descricao: 'Geladeira', origemId: 'k1', origemNome: 'Nubank',
-        valorParcela: c(10000), parcelaAtual: 5, totalParcelas: 10, parcelasPagas: 4, percentualPago: 40,
-        total: c(100000), pago: c(40000), saldoRestante: c(60000), futuro: c(50000), situacaoMes: 'pending',
-        proximoVencimento: '2026-11-15', emAtraso: 0,
-      }],
-      totais: [{ moeda: 'BRL', qtde: 1, saldoRestante: c(60000), futuro: c(50000) }],
-    })
-    montar()
-    // as parcelas ficam na aba "Parcelas ativas" e só carregam quando ela abre
-    await screen.findByRole('tab', { name: 'Parcelas' })
-    expect(mock.listarParcelasAtivas).not.toHaveBeenCalled()
-    await userEvent.setup().click(screen.getByRole('tab', { name: 'Parcelas' }))
-    expect(await screen.findByRole('heading', { name: 'Parcelas ativas' })).toBeTruthy()
-    expect(await screen.findByText('Parcela 5 de 10')).toBeTruthy()
-  })
-
-  it('se as parcelas ativas falharem, só esse bloco avisa: os recorrentes continuam na tela', async () => {
-    mock.listarParcelasAtivas.mockRejectedValue({ code: '57014' })
-    mock.listarRecorrencias.mockResolvedValue([luz])
-    mock.resumoRecorrencias.mockResolvedValue([
-      { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'expense', frequencia: null, qtde: 1, porOcorrencia: c(18000), porMes: c(18000) },
-    ])
-    const u = userEvent.setup()
-    montar()
-    expect(await screen.findByText('Luz')).toBeTruthy()
-    await u.click(screen.getByRole('tab', { name: 'Parcelas' }))
-    expect(await screen.findByText(/Não foi possível carregar as parcelas ativas/)).toBeTruthy()
-    // a falha é só do bloco: voltar para a lista mostra os recorrentes de sempre
-    await u.click(screen.getByRole('tab', { name: 'Recorrentes' }))
-    expect(await screen.findByText('Luz')).toBeTruthy()
-    expect(screen.queryByText('Nenhum recorrente ainda')).toBeNull()
-  })
-
   it('sem regras, convida a cadastrar', async () => {
     montar()
     expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
@@ -608,20 +572,6 @@ describe('Recorrentes: resumo e filtro por natureza', () => {
     expect(screen.getByTestId('natureza-none').getAttribute('aria-pressed')).toBe('false')
   })
 
-  it('tocar na legenda estando em Projeção volta para a lista já filtrada', async () => {
-    const u = userEvent.setup()
-    mock.listarRecorrencias.mockResolvedValue(regras)
-    mock.resumoPorNatureza.mockResolvedValue(porNatureza)
-    montar()
-    await screen.findByText('Internet')
-    await u.click(screen.getByRole('tab', { name: 'Projeção' }))
-    expect(screen.queryByTitle('Luz')).toBeNull()
-    await u.click(screen.getByTestId('natureza-fixed'))
-    expect(screen.getByRole('tab', { name: 'Recorrentes' }).getAttribute('aria-selected')).toBe('true')
-    expect(screen.getByTitle('Luz')).toBeTruthy()
-    expect(nomesNaLista()).toBe(1)
-  })
-
   it('transferência não tem natureza: sai da lista com qualquer filtro (inclusive "Sem natureza")', async () => {
     const u = userEvent.setup()
     const transf = { ...luz, id: 'r5', tipo: 'transfer' as const, descricao: 'Reserva', destinoId: 'a2', categoriaId: null }
@@ -727,7 +677,6 @@ describe('Recorrentes: só informativa, separada em Saídas e Entradas', () => {
     expect(await screen.findByTitle('Salário')).toBeTruthy()
     expect(screen.queryByText('Netflix')).toBeNull()
     expect(screen.queryByText('Guardar')).toBeNull()
-    expect(screen.queryByRole('tablist', { name: 'Seções de Recorrentes' })).toBeNull() // projeção e parcelas são das saídas
   })
 
   it('a visão vai na URL (?v=entradas): abre direto em Entradas, com só as entradas', async () => {
@@ -971,51 +920,32 @@ describe('Recorrentes: proventos previstos de investimentos (migration 117)', ()
 })
 
 
-describe('Recorrentes: abas (assinaturas e contas, projeção, parcelas ativas)', () => {
+describe('Recorrentes: projeção e parcelas saíram para Compromissos (pedido do dono, 17/11/2026)', () => {
   beforeEach(() => { mock.listarRecorrencias.mockResolvedValue([luz]) })
 
-  it('abre em "Recorrentes"; projeção e parcelas não carregam até a aba abrir', async () => {
+  it('não há mais abas: a página é só a lista dos recorrentes, e nada de projeção ou parcelas carrega aqui', async () => {
     montar()
     expect(await screen.findByText('Luz')).toBeTruthy()
-    const abas = within(screen.getByRole('tablist', { name: 'Seções de Recorrentes' })).getAllByRole('tab').map((a) => a.textContent)
-    expect(abas).toEqual(['Recorrentes', 'Projeção', 'Parcelas'])
-    expect(screen.getByRole('tab', { name: 'Recorrentes' }).getAttribute('aria-selected')).toBe('true')
-    expect(screen.getByRole('tabpanel').id).toBe('painel-lista')
+    expect(screen.queryByRole('tablist', { name: 'Seções de Recorrentes' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Projeção' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Parcelas' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Parcelas ativas' })).toBeNull()
     expect(screen.queryByText('Projeção de compromissos')).toBeNull()
     expect(mock.listarParcelasAtivas).not.toHaveBeenCalled()
   })
 
-  it('clicar troca o painel: só o da aba escolhida aparece', async () => {
-    const u = userEvent.setup()
+  it('um link leva a Compromissos (só em Saídas): é o caminho para a projeção dos próximos meses', async () => {
     montar()
-    await screen.findByText('Luz')
-    await u.click(screen.getByRole('tab', { name: 'Projeção' }))
-    expect(screen.getByRole('tab', { name: 'Projeção' }).getAttribute('aria-selected')).toBe('true')
-    expect(await screen.findByText('Projeção de compromissos')).toBeTruthy()
-    expect(screen.queryByText('Luz')).toBeNull()
-    await u.click(screen.getByRole('tab', { name: 'Parcelas' }))
-    expect(await screen.findByRole('heading', { name: 'Parcelas ativas' })).toBeTruthy()
-    expect(screen.queryByText('Projeção de compromissos')).toBeNull()
+    const nota = await screen.findByTestId('link-compromissos')
+    expect(within(nota).getByRole('link', { name: 'ver Compromissos' }).getAttribute('href')).toBe('/compromissos')
+    expect(nota.textContent).toMatch(/Quanto já está comprometido nos próximos meses/)
   })
 
-  it('setas movem entre as abas e o foco acompanha', async () => {
-    const u = userEvent.setup()
-    montar()
-    await screen.findByText('Luz')
-    screen.getByRole('tab', { name: 'Recorrentes' }).focus()
-    await u.keyboard('{ArrowRight}')
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Projeção' }))
-    expect(screen.getByRole('tab', { name: 'Projeção' }).getAttribute('aria-selected')).toBe('true')
-    await u.keyboard('{ArrowLeft}{ArrowLeft}')
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Parcelas' })) // volta dando a volta
-  })
-
-  it('sem nenhum recorrente, as abas de projeção e parcelas continuam úteis (a tela não esconde tudo)', async () => {
-    mock.listarRecorrencias.mockResolvedValue([])
-    montar()
-    expect(await screen.findByText('Nenhum recorrente ainda')).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'Parcelas' })).toBeTruthy()
+  it('em Entradas o link não aparece (projeção e parcelas são de despesa)', async () => {
+    mock.listarRecorrencias.mockResolvedValue([{ ...luz, id: 'r9', tipo: 'income' as const, descricao: 'Contracheque', categoriaId: 'g2' }])
+    montar(ENTRADAS)
+    expect(await screen.findByText('Contracheque')).toBeTruthy()
+    expect(screen.queryByTestId('link-compromissos')).toBeNull()
   })
 })
 
@@ -1149,7 +1079,7 @@ describe('Recorrentes: layout (lado a lado no computador, sem estourar no celula
 describe('Recorrentes: card "Parcelas & carnês" (Saídas)', () => {
   const brl = { moeda: 'BRL', ativos: 6, comParcelaNoMes: 5, totalMes: c(43333), pagoMes: c(10000), faltaMes: c(33333), exemplos: ['Notebook', 'Sofá', 'Curso'] }
 
-  it('virou uma linha dentro do card do topo: o valor do mês (do banco), quanto falta e "Ver ›", sem contador; tocar abre a aba Parcelas', async () => {
+  it('virou uma linha dentro do card do topo: o valor do mês (do banco), quanto falta e "Ver ›", sem contador; tocar leva a Compromissos › Parcelas', async () => {
     mock.listarRecorrencias.mockResolvedValue([luz])
     mock.resumoParcelasDoMes.mockResolvedValue([brl])
     montar()
@@ -1161,8 +1091,10 @@ describe('Recorrentes: card "Parcelas & carnês" (Saídas)', () => {
     expect(within(card).getByTestId('parcelas-falta-BRL').textContent).toBe('fora do "Sai" · faltam R$ 333,33 neste mês')
     expect(card.textContent).not.toContain('· 6')
     expect(card.textContent).not.toContain('Notebook')
-    await userEvent.click(card)
-    expect(screen.getByRole('tab', { name: 'Parcelas', selected: true })).toBeTruthy()
+    // é um link para a tela nova (as parcelas saíram de Recorrentes)
+    expect(card.tagName).toBe('A')
+    expect(card.getAttribute('href')).toBe('/compromissos?aba=parcelas')
+    expect(card.getAttribute('aria-label')).toMatch(/Ver em Compromissos, Parcelas/)
   })
 
   it('o "faltam…" quebra linha em vez de virar "…" (celular de 390 px)', async () => {

@@ -24,7 +24,7 @@ describe('menu em grupos', () => {
   it('toda tela do app está no menu (inclui Recorrentes, que antes não aparecia) e sem caminhos repetidos', () => {
     const caminhos = itensNavegacao.map((i) => i.caminho)
     expect(new Set(caminhos).size).toBe(caminhos.length)
-    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/reservas', '/relatorios', '/familia', '/exportar']) {
+    for (const c of ['/', '/analises', '/lancamentos', '/calendario', '/recorrentes', '/cartoes', '/contas', '/dividas', '/investimentos', '/categorias', '/orcamentos', '/compromissos', '/reservas', '/relatorios', '/familia', '/exportar']) {
       expect(caminhos).toContain(c)
     }
   })
@@ -39,11 +39,11 @@ describe('menu em grupos', () => {
     expect(grupos).toEqual([
       { titulo: 'Visão geral', links: ['Início', 'Análises', 'Relatórios'] },
       { titulo: 'Movimentações', links: ['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas'] },
-      { titulo: 'Planejamento', links: ['Orçamentos', 'Reservas', 'Categorias'] },
+      { titulo: 'Planejamento', links: ['Orçamentos', 'Compromissos', 'Reservas', 'Categorias'] },
       { titulo: 'Patrimônio', links: ['Dívidas e empréstimos', 'Investimentos', 'Bens e patrimônio'] },
     ])
-    // nenhuma tela some: continuam as 14 de antes
-    expect(within(lateral).getAllByRole('link')).toHaveLength(14)
+    // nenhuma tela some: as 14 de antes e Compromissos (a projeção e as parcelas, que saíram de Recorrentes)
+    expect(within(lateral).getAllByRole('link')).toHaveLength(15)
     // o que é raro continua só no menu do perfil
     expect(within(lateral).queryByRole('link', { name: 'Família' })).toBeNull()
     expect(within(lateral).queryByRole('link', { name: 'Exportar dados' })).toBeNull()
