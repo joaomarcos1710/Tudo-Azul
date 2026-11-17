@@ -2001,10 +2001,38 @@ describe('auditoria de design e acessibilidade (5h)', () => {
     const linha = (await screen.findByText('Salário', { selector: '.line-clamp-2' })).closest('li') as HTMLElement
     const meta = linha.querySelector('[data-metadados]') as HTMLElement
     expect(within(meta).getByText('Planejado').className).toContain('shrink-0')
-    const categoria = within(meta).getByText('Salário').closest('[data-metadados] > span') as HTMLElement
+    const categoria = within(meta).getByText('Salário').closest('[data-categoria]') as HTMLElement
     expect(categoria.className).toContain('min-w-0')
     expect(categoria.className).toContain('truncate')
     expect(categoria.className).not.toContain('shrink-0')
+  })
+
+  it('celular e iPad em pé (conferência de 17/11): categoria e conta numa linha, os selos na de baixo; do lg em diante, uma linha só', async () => {
+    mock.listarLancamentos.mockResolvedValue(lancsComPlanejadoFuturo())
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const linha = (await screen.findByText('Salário', { selector: '.line-clamp-2' })).closest('li') as HTMLElement
+    const meta = linha.querySelector('[data-metadados]') as HTMLElement
+    expect(meta.className).toContain('flex-col')
+    expect(meta.className).toContain('lg:flex-row')
+    const categoria = meta.querySelector('[data-categoria]') as HTMLElement
+    const conta = meta.querySelector('[data-conta]') as HTMLElement
+    const selo = within(meta).getByText('Planejado')
+    // categoria e conta dividem a mesma linha; o selo mora em outra (antes os três disputavam ~60 px a 390 px)
+    expect(categoria.parentElement).toBe(conta.parentElement)
+    expect(selo.parentElement).not.toBe(categoria.parentElement)
+    // a conta guarda até metade da linha no celular (não vira "Caix…") e, do lg em diante, sem limite
+    expect(conta.className).toContain('max-w-[50%]')
+    expect(conta.className).toContain('lg:max-w-none')
+    // a leitura continua "categoria · conta · selo"
+    expect(meta.textContent).toMatch(/Salário.*·Itaú·Planejado/)
+  })
+
+  it('no celular o botão Filtrar mostra só o ícone (o ⋯ da lista saía da tela a 390 px)', async () => {
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    const filtrar = screen.getByRole('button', { name: 'Filtrar' })
+    expect(within(filtrar).getByText('Filtrar').className).toContain('hidden sm:inline')
+    expect(screen.getByRole('button', { name: 'Mais ações da lista' })).toBeTruthy()
   })
 })
 

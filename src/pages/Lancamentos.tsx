@@ -377,7 +377,8 @@ export default function Lancamentos() {
           <button type="button" onClick={() => setFiltrosAbertos(true)} disabled={editando !== null} aria-haspopup="dialog" aria-expanded={filtrosAbertos}
             aria-label={filtrosLigados.length > 0 ? `Filtrar (${filtrosLigados.length} ligado${filtrosLigados.length > 1 ? 's' : ''})` : 'Filtrar'}
             className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-azul hover:bg-azul-claro disabled:opacity-50">
-            <IconeFiltro />Filtrar{filtrosLigados.length > 0 && <span className="rounded-full bg-azul px-1.5 text-xs text-white">{filtrosLigados.length}</span>}
+            {/* no celular só o ícone (o nome vem do aria-label): com "Filtrar" escrito, o ⋯ saía da tela a 390 px */}
+            <IconeFiltro /><span className="hidden sm:inline">Filtrar</span>{filtrosLigados.length > 0 && <span className="rounded-full bg-azul px-1.5 text-xs text-white">{filtrosLigados.length}</span>}
           </button>
           {/* ⋯ do topo (como no Organizze): por ora só "Selecionar lançamentos"; ali entram as próximas ações da lista */}
           {!lote.ligada && (
@@ -711,23 +712,35 @@ function LinhaLista({ icone, titulo, categoria, conta, etiquetas = [], detalhe, 
 function Corpo({ titulo, categoria, conta, etiquetas = [], detalhe }: {
   titulo: ReactNode; categoria?: ReactNode; conta?: string; etiquetas?: ReactNode[]; detalhe?: string
 }) {
-  const partes: ReactNode[] = [
-    // os selos nunca encolhem (shrink-0 na Etiqueta); a categoria (até 65%) corta com reticências antes deles; o detalhe
-    // (flex-1, base 0) é o primeiro a sumir. A conta (handoff de Lançamentos, item a; a decisão de 03/11 de mostrar só a
-    // categoria foi revogada pelo dono em 16/11) vem logo depois da categoria, também cortando com reticências, até 40%.
-    ...(categoria ? [<span key="cat" className="min-w-0 max-w-[65%] truncate">{categoria}</span>] : []),
-    ...(conta ? [<span key="conta" data-conta className="min-w-0 max-w-[40%] truncate" title={conta}>{conta}</span>] : []),
+  // Duas partes: "onde" (categoria e conta, cortando com reticências; a conta até 50%) e "como" (os selos, que nunca
+  // encolhem, e o detalhe, o primeiro a sumir). A conta veio do handoff de Lançamentos, item a (dono, 16/11/2026).
+  // Abaixo de lg (celular e iPad em pé, com o menu ao lado) o "como" desce para uma linha própria: com "Planejado" e o ↻ na
+  // mesma linha sobravam ~60 px para categoria e conta a 390 px e as duas viravam "C." e "Caix…" (conferência de 17/11/2026).
+  // Do lg em diante, uma linha só.
+  const onde: ReactNode[] = [
+    ...(categoria ? [<span key="cat" data-categoria className="min-w-0 truncate">{categoria}</span>] : []),
+    ...(conta ? [<span key="conta" data-conta className="min-w-0 max-w-[50%] shrink-0 truncate lg:max-w-none lg:shrink" title={conta}>{conta}</span>] : []),
+  ]
+  const como: ReactNode[] = [
     ...etiquetas,
     ...(detalhe ? [<span key="det" className="min-w-0 flex-1 truncate" title={detalhe}>{detalhe}</span>] : []),
   ]
+  const comPontos = (partes: ReactNode[]) => partes.map((p, i) => (
+    <Fragment key={i}>{i > 0 && <span aria-hidden="true" className="shrink-0">·</span>}{p}</Fragment>
+  ))
+  const linha = 'flex min-w-0 items-center gap-1 overflow-hidden sm:gap-1.5'
   return (
     <span className="block min-w-0">
       <span className="line-clamp-2 break-words font-medium">{titulo}</span>
-      {partes.length > 0 && (
-        <span data-metadados className="mt-0.5 flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap text-xs text-slate-500 sm:gap-1.5 sm:text-sm">
-          {partes.map((p, i) => (
-            <Fragment key={i}>{i > 0 && <span aria-hidden="true" className="shrink-0">·</span>}{p}</Fragment>
-          ))}
+      {onde.length + como.length > 0 && (
+        <span data-metadados className="mt-0.5 flex min-w-0 flex-col whitespace-nowrap text-xs text-slate-500 sm:text-sm lg:flex-row lg:items-center lg:gap-1.5">
+          {onde.length > 0 && <span className={`${linha} lg:shrink`}>{comPontos(onde)}</span>}
+          {como.length > 0 && (
+            <span className={`${linha} lg:flex-1`}>
+              {onde.length > 0 && <span aria-hidden="true" className="hidden shrink-0 lg:inline">·</span>}
+              {comPontos(como)}
+            </span>
+          )}
         </span>
       )}
     </span>
