@@ -21,6 +21,8 @@ import { listarCartoes, novaChave, registrarCompra, rotaFatura } from '../lib/ca
 import type { Cartao } from '../lib/cartoes'
 import type { Categoria } from '../lib/categorias'
 import { IconeCategoria, visualPorId } from '../lib/visualCategoria'
+import { IconeConta } from '../components/ui/IconeConta'
+import { bancoEscolhidoOuDoNome } from '../lib/bancos'
 import { IconeCalendario, IconeCartoes, IconeCategorias, IconeContas, IconeTransferir } from '../components/layout/icons'
 import { lembrarEscolha, ultimaEscolha } from '../lib/ultimaEscolha'
 import { OperacaoRapida } from '../components/investimentos/FormOperacao'
@@ -383,6 +385,40 @@ export default function Lancamentos() {
     : (x.data < y.data ? 1 : x.data > y.data ? -1 : 0))
   const hoje = hojeSP()
   const itensVisiveis = itens.slice(0, limiteVisivel)
+  // Os próximos 50 carregam sozinhos quando o fim da lista chega perto da tela (pedido do dono, 17/11/2026: com 53 itens
+  // o "Carregar mais 50" e o "Mostrando 50 de 53" só atrapalhavam). Sem IntersectionObserver o botão continua.
+  const sentinela = useRef<HTMLDivElement>(null)
+  const temObservador = typeof IntersectionObserver !== 'undefined'
+  const totalItens = itens.length
+  useEffect(() => {
+    const fim = sentinela.current
+    if (!fim || !temObservador || totalItens <= limiteVisivel) return
+    const o = new IntersectionObserver((es) => {
+      if (es.some((e) => e.isIntersecting)) setLimiteVisivel((a) => Math.min(a + 50, totalItens))
+    }, { rootMargin: '400px' })
+    o.observe(fim)
+    return () => o.disconnect()
+  }, [totalItens, limiteVisivel, temObservador])
+  // Conta na linha (pedido do dono, 17/11/2026): o logo do banco no lugar do nome. Com duas contas do mesmo banco o logo
+  // não diz qual é, então fica logo e nome; conta sem banco reconhecido continua com o nome escrito. O nome inteiro
+  // fica no title e no leitor de tela.
+  const bancoDeCada = new Map(contas.map((c) => [c.id, bancoEscolhidoOuDoNome(c.banco, c.nome, c.tipo)]))
+  const contasPorBanco = new Map<string, number>()
+  for (const b of bancoDeCada.values()) if (b) contasPorBanco.set(b.chave, (contasPorBanco.get(b.chave) ?? 0) + 1)
+  const contaNaLinha = (id: string): ReactNode => {
+    const nome = nomeConta.get(id)
+    if (!nome) return undefined
+    const conta = contas.find((c) => c.id === id)
+    const banco = bancoDeCada.get(id) ?? null
+    if (!conta || !banco) return <span title={nome}>{nome}</span>
+    const repetido = (contasPorBanco.get(banco.chave) ?? 0) > 1
+    return (
+      <span className="relative inline-flex min-w-0 items-center gap-1" title={nome}>
+        <IconeConta nome={conta.nome} tipo={conta.tipo} banco={conta.banco} tamanho="mini" />
+        {repetido ? <span className="min-w-0 truncate">{nome}</span> : <span className="sr-only">{nome}</span>}
+      </span>
+    )
+  }
   const atualizando = lancamentos !== null && assinaturaExibida !== assinatura && !erro
   const porDia: [string, Item[]][] = []
   for (const it of itensVisiveis) {
@@ -693,7 +729,8 @@ export default function Lancamentos() {
                       categoria={l.tipo === 'transfer'
                         ? <span>{`${nomeConta.get(l.contaId) ?? '?'} → ${nomeConta.get(l.destinoId ?? '') ?? '?'}`}</span>
                         : <NomeCategoria id={l.categoriaId} categoriaPorId={categoriaPorId} nomeCategoria={nomeCategoria} />}
-                      conta={l.tipo === 'transfer' ? undefined : nomeConta.get(l.contaId)}
+                      conta={l.tipo === 'transfer' ? undefined : contaNaLinha(l.contaId)}
+                      nota={l.notas.replace(/\s+/g, ' ').trim() || undefined}
                       etiquetas={[
                         // planejado com a data já passada é vencido (vermelho), como na tabela do computador e no Início
                         ...(l.status === 'planned' ? [situacaoDoLancamento(false, l.data, hoje) === 'vencido'
@@ -722,7 +759,11 @@ export default function Lancamentos() {
           </section>
         ))}
       </div>
-      {itens.length > limiteVisivel && (
+      {itens.length > limiteVisivel && temObservador && (
+        // o fim da lista: ao chegar perto da tela, carrega os próximos 50 (sem botão nem "Mostrando X de Y")
+        <div ref={sentinela} data-testid="carrega-mais-sozinho" className="py-4 text-center text-xs text-slate-500">Carregando mais…</div>
+      )}
+      {itens.length > limiteVisivel && !temObservador && (
         <div className="flex flex-col items-center gap-2 py-4">
           <p className="text-xs text-slate-500">Mostrando {itensVisiveis.length} de {itens.length} lançamentos e movimentos</p>
           <Button variante="secundario" onClick={() => setLimiteVisivel((atual) => Math.min(atual + 50, itens.length))}>
@@ -790,17 +831,19 @@ function Explicacao({ resumo, children }: { resumo: string; children: ReactNode 
  * reticências) e metadados numa linha só (categoria · etiquetas · detalhe, cortando o que não couber; o detalhe inteiro
  * fica no `title`). O valor tem coluna própria à direita (nowrap, tabular), nunca por cima do texto; as ações, embaixo dele.
  */
-function LinhaLista({ icone, titulo, categoria, conta, etiquetas = [], detalhe, valor, corValor, acoes }: {
+function LinhaLista({ icone, titulo, categoria, conta, nota, etiquetas = [], detalhe, valor, corValor, acoes }: {
   icone: ReactNode; titulo: ReactNode; categoria?: ReactNode
   /** De qual conta saiu ou entrou (despesa e receita; a transferência mostra "origem → destino" na categoria). */
-  conta?: string
+  conta?: ReactNode
+  /** Observação do lançamento, numa linha só (o texto inteiro está ao abrir o lançamento). */
+  nota?: string
   etiquetas?: ReactNode[]; detalhe?: string
   valor: string; corValor: string; acoes?: ReactNode
 }) {
   return (
     <li className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 px-4 py-3 sm:px-5">
       {icone}
-      <Corpo titulo={titulo} categoria={categoria} conta={conta} etiquetas={etiquetas} detalhe={detalhe} />
+      <Corpo titulo={titulo} categoria={categoria} conta={conta} nota={nota} etiquetas={etiquetas} detalhe={detalhe} />
       <div className="flex shrink-0 flex-col items-end">
         <span data-valor className={`whitespace-nowrap tabular-nums font-semibold ${corValor}`}>{valor}</span>
         {acoes && <div className="-mr-2 flex items-center">{acoes}</div>}
@@ -809,8 +852,8 @@ function LinhaLista({ icone, titulo, categoria, conta, etiquetas = [], detalhe, 
   )
 }
 
-function Corpo({ titulo, categoria, conta, etiquetas = [], detalhe }: {
-  titulo: ReactNode; categoria?: ReactNode; conta?: string; etiquetas?: ReactNode[]; detalhe?: string
+function Corpo({ titulo, categoria, conta, nota, etiquetas = [], detalhe }: {
+  titulo: ReactNode; categoria?: ReactNode; conta?: ReactNode; nota?: string; etiquetas?: ReactNode[]; detalhe?: string
 }) {
   // Duas partes: "onde" (categoria e conta, cortando com reticências; a conta até 50%) e "como" (os selos, que nunca
   // encolhem, e o detalhe, o primeiro a sumir). A conta veio do handoff de Lançamentos, item a (dono, 16/11/2026).
@@ -819,7 +862,7 @@ function Corpo({ titulo, categoria, conta, etiquetas = [], detalhe }: {
   // Do lg em diante, uma linha só.
   const onde: ReactNode[] = [
     ...(categoria ? [<span key="cat" data-categoria className="min-w-0 truncate">{categoria}</span>] : []),
-    ...(conta ? [<span key="conta" data-conta className="min-w-0 max-w-[50%] shrink-0 truncate lg:max-w-none lg:shrink" title={conta}>{conta}</span>] : []),
+    ...(conta ? [<span key="conta" data-conta className="min-w-0 max-w-[50%] shrink-0 truncate lg:max-w-none lg:shrink">{conta}</span>] : []),
   ]
   const como: ReactNode[] = [
     ...etiquetas,
@@ -843,7 +886,21 @@ function Corpo({ titulo, categoria, conta, etiquetas = [], detalhe }: {
           )}
         </span>
       )}
+      {nota && (
+        <span data-nota className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-slate-500 sm:text-sm" title={nota}>
+          <IconeNota /><span className="sr-only">Observação: </span><span className="min-w-0 truncate">{nota}</span>
+        </span>
+      )}
     </span>
+  )
+}
+
+/** Papel com linhas: marca a observação do lançamento, no traço dos ícones do menu. */
+function IconeNota() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" className="shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 3h9l4 4v14H6z" /><path d="M9 12h7M9 16h7" />
+    </svg>
   )
 }
 
