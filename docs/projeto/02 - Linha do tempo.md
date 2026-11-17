@@ -397,6 +397,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#405** (17/11/2026): **Lançamentos: despesa em vermelho na lista** (decisão do dono de 16/11, design "Extrato"): despesa, compra no cartão (solta e dentro da fatura), total da fatura, parcela de contrato e saída de cartão/dívida passam de cinza a vermelho. O cabeçalho do Início continua neutro. Só tela.
 - **#406** (17/11/2026): **Lançamentos: rodapé sem total enganoso** (handoff "Extrato e Gastos", PR 3, parte só de tela): com filtro de tipo, categoria, situação, cartão, fixos ou parcelados, os números somem e fica "Sem total com este filtro"; o previsto ganha rótulos próprios. Só tela.
 - **#407** (17/11/2026): **Lançamentos: "Atualizando a lista…"** ao trocar de mês ou de filtro (sobra do item d do handoff): a lista antiga fica esmaecida (`aria-busy`) até a nova chegar. Recarregar depois de pagar ou excluir não mostra o aviso. Só tela.
+- **#408** (17/11/2026): **Lançamentos: conferência do corte da conta** (sobra do item a do handoff), medida com prévia local a 390, 768 e 820 px (com o menu) e 1280 px. Abaixo de 1024 px, categoria e conta numa linha e os selos na de baixo (a conta passou de ~40 px para ~80 px a 390 px e de ~70 para ~125 px a 768 px); o ⋯ da lista, que saía da tela a 390 px, voltou (o Filtrar fica só com o ícone no celular). Só tela.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).

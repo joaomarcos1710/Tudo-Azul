@@ -320,4 +320,5 @@ continuam abaixo como histórico.
 | 2026.405 | **Despesa em vermelho na lista de Lançamentos.** O valor de cada saída (despesa, compra no cartão, fatura, parcela de contrato, pagamento de cartão/dívida) aparece em vermelho, como no design aprovado. |
 | 2026.406 | **Rodapé de Lançamentos sem total enganoso.** Com filtro de tipo, categoria, situação, cartão, fixos ou parcelados, os números do rodapé somem (eles só seguiam o filtro de conta); o previsto diz "entradas previstas", "saídas previstas" e "saldo previsto". |
 | 2026.407 | **"Atualizando a lista…" em Lançamentos.** Ao trocar de mês ou de filtro, a lista antiga fica esmaecida com o aviso até a nova chegar. |
+| 2026.408 | **Lançamentos no celular e no iPad em pé.** Categoria e conta numa linha e os selos ("Planejado", ↻) na de baixo, para a conta não virar "Caix…"; o botão ⋯ (Selecionar, Lixeira) voltou para dentro da tela a 390 px. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
