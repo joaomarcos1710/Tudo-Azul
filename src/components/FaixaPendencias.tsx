@@ -48,7 +48,8 @@ export function FaixaPendencias({ pendencias, ate }: { pendencias: Pendencia[]; 
         ))}
       </ul>
       <p className="mt-1 text-xs text-slate-500">
-        De todas as contas em reais, sem os filtros da lista. Fatura entra só fechada; desconto em folha não entra.
+        De todas as contas em reais, sem os filtros da lista. Fatura entra só fechada; desconto em folha não entra; a
+        fatura que já existia antes de cadastrar o cartão no app também não.
       </p>
     </section>
   )

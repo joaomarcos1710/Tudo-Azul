@@ -919,6 +919,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** "Excluir" em Lançamentos não pede confirmação; a barra "Desfazer" fica fixa embaixo até ser fechada. "Parar de repetir" continua com confirmação.
 - **Por quê:** handoff de Lançamentos (item e), aprovado pelo dono. A barra não some sozinha porque não há tela de Lixeira: depois de fechada, só dá para recuperar pelo banco. "Parar de repetir" encerra a regra e não tem desfazer simples.
 
+## 17/11/2026 — Fatura de antes do cadastro do cartão fica fora da faixa, com aviso (#410)
+- **O quê:** o saldo de referência do cartão (a fatura que já existia quando o cartão foi cadastrado no app) não entra na faixa de pendências; a tela diz isso. O vencido fantasma de cartão ativo será corrigido na causa (`card_months`), numa PR própria (PR B).
+- **Por quê:** escolha do dono (opção a) depois da revisão do `revisor-dinheiro`: esse saldo é cada vez mais raro e incluí-lo exigiria outra regra de vencimento; avisar custa uma frase.
+
 ## 17/11/2026 — Faixa de pendências de Lançamentos (#409)
 - **O quê:** no mês atual, quatro números do banco: vencidos a pagar, vencidos a receber, a pagar até o fim do mês e a receber até o fim do mês. Fatura de cartão entra só **fechada**; parcela de empréstimo/financiamento entra, **menos o consignado** (desconto em folha); a faixa **some** em outros meses e quando não há pendência; ignora os filtros da lista (é "o que está pendente hoje").
 - **Por quê:** decisões do dono nas quatro perguntas de 17/11/2026 (todas na opção recomendada). Fatura aberta ainda muda a cada compra; o consignado nunca sai da conta (o salário entra líquido, decisão de 16/11); "até o fim do mês" fica coerente com o saldo previsto; em mês passado ou futuro, "pendências de hoje" confundiria. Vencidos a pagar e a receber ficam separados porque somar o que sai com o que entra não diz nada.

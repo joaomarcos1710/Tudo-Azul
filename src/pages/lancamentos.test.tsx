@@ -410,6 +410,8 @@ describe('Lançamentos', () => {
     expect(cartoes[3].textContent).toContain('A receber até')
     expect(within(cartoes[3]).getByText('R$ 1.000,00').className).toContain('text-agendado')
     expect(within(faixa).getByText(/Fatura entra só fechada; desconto em folha não entra/)).toBeTruthy()
+    // limite conhecido (revisor-dinheiro, #409): o saldo de referência do cartão não entra, e a tela diz isso
+    expect(within(faixa).getByText(/antes de cadastrar o cartão no app também não/)).toBeTruthy()
   })
 
   it('faixa de pendências: sem pendência não aparece; em outro mês não é pedida nem aparece', async () => {
