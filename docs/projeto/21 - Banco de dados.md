@@ -543,7 +543,7 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - Mesma assinatura, `SECURITY INVOKER` e grants (create or replace preserva); `00_audit` não muda.
 - **Teste:** `123_calendar_day_totals`, asserção "131" (falha sem a migration, conferido). Suíte pgTAP local inteira sem falha.
 
-## Corrigir saldo de empréstimo pelo extrato (migration 132, **ainda não aplicada**)
+## Corrigir saldo de empréstimo pelo extrato (migration 132, PR #400, **ainda não aplicada**)
 - **Arquivo:** `20261117020000_debt_balance_adjust.sql`. Dois tipos novos de movimento da dívida, `adjust_up` (aumenta o saldo) e `adjust_down` (diminui), sempre **sem conta, sem categoria, sem parcela e sem fatura** (`debt_events_adjust_shape` e a forma de sempre). Entram nas duas fórmulas do saldo (`private.debt_effect`, usada por `private.debt_balance`, e `public.debt_balances`, reescritas a partir da 048 só com os tipos novos).
 - **RPC `public.debt_set_balance(p_debt, p_date, p_balance)`** (SECURITY DEFINER, `debt_lock`): só empréstimo e financiamento; data depois da data do saldo informado no cadastro e até hoje (São Paulo); saldo ≥ 0 com 2 casas. Grava só a diferença entre o saldo do app na data e o informado (nada quando já bate; devolve nulo). Nota no evento: "ajuste pelo extrato: saldo informado …". Anula-se com `debt_void`.
 - **Por quê (dono, 17/11/2026):** o app não calcula juros dia a dia; o consignado tinha R$ 135.992,25 no cadastro (09/11) e o banco mostrava R$ 136.540,78. A âncora é imutável de propósito, e não havia como dizer "hoje o banco diz X".
