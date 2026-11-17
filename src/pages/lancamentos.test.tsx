@@ -31,6 +31,8 @@ const mock = vi.hoisted(() => ({
   listarCategorias: vi.fn(),
   listarParcelasDivida: vi.fn(),
   serieFluxo: vi.fn(),
+  buscarNoPeriodo: vi.fn(),
+  totaisDaBusca: vi.fn(),
 }))
 const automaticos = vi.hoisted(() => ({ atualizarAutomaticos: vi.fn() }))
 vi.mock('../lib/automaticos', () => automaticos)
@@ -73,6 +75,8 @@ vi.mock('../lib/lancamentos', async (original) => ({
   moverParaLixeira: mock.moverParaLixeira,
   pararDeRepetirAPartirDe: mock.pararDeRepetirAPartirDe,
   restaurarDaLixeira: mock.restaurarDaLixeira,
+  buscarNoPeriodo: mock.buscarNoPeriodo,
+  totaisDaBusca: mock.totaisDaBusca,
 }))
 vi.mock('../lib/fluxoCaixa', async (original) => ({
   ...(await original<typeof import('../lib/fluxoCaixa')>()),
@@ -150,6 +154,8 @@ beforeEach(() => {
   mock.resumoDoMes.mockResolvedValue({ receitas: c(0), despesas: c(25050), resultado: c(-25050), receitasPrevistas: c(800000), despesasPrevistas: c(0) })
   mock.resumoPorMoeda.mockResolvedValue([])
   mock.faixaDePendencias.mockResolvedValue([])
+  mock.buscarNoPeriodo.mockResolvedValue({ lancamentos: new Set(), cartao: new Set() })
+  mock.totaisDaBusca.mockResolvedValue([])
   // rodapé: pagos (300,00 / 250,50 / saldo 12.000,00) e com os não pagos (8.300,00 / 1.250,50 / saldo 19.050,00), do banco
   mock.serieFluxo.mockImplementation(async (_f: string, de: string, ate: string, _d: string, filtros: { incluirNaoPagos?: boolean }) => (filtros.incluirNaoPagos
     ? { linhas: [{ inicio: de, fim: ate, entradas: c(830000), saidas: c(125050), resultado: c(704950), saldo: c(1905000) }], totalEntradas: c(830000), totalSaidas: c(125050), totalResultado: c(704950) }
@@ -2158,5 +2164,95 @@ describe('Lançamentos: filtros em tela cheia (situação, cartão, fixos e parc
     const rodape = screen.getByRole('region', { name: 'Totais do mês' })
     expect(await within(rodape).findByText(/Sem total com este filtro: o total só segue o filtro de conta/)).toBeTruthy()
     expect(within(rodape).queryByText('entradas')).toBeNull()
+  })
+})
+
+
+describe('Lançamentos: busca (handoff, PR 2; decisões do dono de 17/11/2026)', () => {
+  const fatura = { cartaoId: 'k1', cartaoNome: 'Nubank', mes: '2026-10', fechamento: '2026-10-17', vencimento: '2026-10-25', total: c(45000), pago: c(0), itens: 2, creditos: c(0), situacao: 'fechada', contaPagamentoId: 'a1' }
+  const item = (parcelaId: string, descricao: string, valor: number) => ({
+    parcelaId, compra: `c-${parcelaId}`, parcela: 1, deParcelas: 1, descricao, dataCompra: '2026-10-02', valor: c(valor), falta: c(0), categoriaId: 'mer',
+  })
+  const caixa = () => screen.findByRole('searchbox', { name: 'Buscar na descrição ou na observação' })
+  const montar = (rota = '/?mes=2026-10') => render(<MemoryRouter initialEntries={[rota]}><Lancamentos /></MemoryRouter>)
+
+  beforeEach(() => {
+    mock.listarFaturasDoMes.mockResolvedValue([fatura])
+    mock.listarItens.mockResolvedValue([item('p1', 'Supermercado no cartão', 30000), item('p2', 'Padaria', 15000)])
+  })
+
+  it('depois de uma pausa na digitação o banco procura com o período e os filtros; a lista fica só com o achado e o rodapé com o total do banco', async () => {
+    const u = userEvent.setup()
+    mock.buscarNoPeriodo.mockResolvedValue({ lancamentos: new Set(['t1']), cartao: new Set(['p1']) })
+    // sentinelas: não batem com nenhuma soma da lista (a tela não soma dinheiro)
+    mock.totaisDaBusca.mockResolvedValue([
+      { moeda: 'BRL', quantidade: 2, entradas: c(1234), saidas: c(99999) },
+      { moeda: 'USD', quantidade: 1, entradas: c(0), saidas: c(1000) },
+    ])
+    montar()
+    expect(await screen.findByText('Fatura Nubank')).toBeTruthy()
+    await u.type(await caixa(), 'super')
+    await vi.waitFor(() => expect(mock.buscarNoPeriodo).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31', 'super', { busca: 'super' }))
+    expect(mock.buscarNoPeriodo).toHaveBeenCalledTimes(1) // uma busca só, depois da pausa (não uma por letra)
+    expect(mock.totaisDaBusca).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31', 'super', { busca: 'super' })
+    await vi.waitFor(() => expect(screen.queryByText('Salário')).toBeNull())
+    expect(screen.getByText('Supermercado')).toBeTruthy()
+    // a compra do cartão sai solta (a fatura não aparece), só a achada
+    expect(screen.getByText('Supermercado no cartão')).toBeTruthy()
+    expect(screen.queryByText('Padaria')).toBeNull()
+    expect(screen.queryByText('Fatura Nubank')).toBeNull()
+    expect(screen.getByTestId('nota-busca').textContent).toMatch(/Pagamento de fatura, parcelas de empréstimo e créditos do cartão não entram/)
+    const totais = await screen.findByTestId('totais-busca')
+    expect(within(totais).getByText('encontrados').nextSibling?.textContent).toBe('2')
+    expect(within(totais).getByText('R$ 12,34')).toBeTruthy()
+    expect(within(totais).getByText('−R$ 999,99')).toBeTruthy()
+    expect(within(totais).getByTestId('totais-busca-outras-moedas').textContent).toMatch(/^Em USD, à parte: 1 encontrado · saídas −US\$\s10,00$/)
+  })
+
+  it('a busca vai com os outros filtros (aqui, o tipo) e fica no endereço: abrir com ?busca= já procura e preenche a caixa', async () => {
+    mock.buscarNoPeriodo.mockResolvedValue({ lancamentos: new Set(['t1']), cartao: new Set() })
+    montar('/?mes=2026-10&tipo=despesa&busca=Flóra')
+    expect(((await caixa()) as HTMLInputElement).value).toBe('Flóra')
+    await vi.waitFor(() => expect(mock.buscarNoPeriodo).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31', 'Flóra', { busca: 'Flóra', tipo: 'expense' }))
+  })
+
+  it('nada encontrado: diz o texto e oferece apagar a busca, que traz a lista de volta sem procurar de novo', async () => {
+    const u = userEvent.setup()
+    montar('/?mes=2026-10&busca=xyz')
+    expect(await screen.findByText('Nada encontrado para "xyz"')).toBeTruthy()
+    expect(screen.queryByText(/Nenhum lançamento neste mês/)).toBeNull()
+    mock.buscarNoPeriodo.mockClear()
+    await u.click(screen.getByRole('button', { name: 'Apagar a busca' }))
+    expect(await screen.findByText('Supermercado')).toBeTruthy()
+    expect(screen.getByText('Fatura Nubank')).toBeTruthy()
+    expect(mock.buscarNoPeriodo).not.toHaveBeenCalled()
+    expect(((await caixa()) as HTMLInputElement).value).toBe('')
+  })
+
+  it('banco ainda sem a migration 138: avisa que a busca não está disponível (não finge "nada encontrado")', async () => {
+    mock.buscarNoPeriodo.mockResolvedValue(null)
+    mock.totaisDaBusca.mockResolvedValue(null)
+    montar('/?mes=2026-10&busca=super')
+    expect(await screen.findByText('A busca ainda não está disponível. Apague o texto para ver a lista.')).toBeTruthy()
+    expect(screen.queryByText(/Nada encontrado/)).toBeNull()
+    expect(screen.queryByText('Supermercado')).toBeNull()
+    expect(screen.queryByTestId('totais-busca')).toBeNull()
+  })
+
+  it('total da busca que falha não derruba a lista: o rodapé avisa', async () => {
+    mock.buscarNoPeriodo.mockResolvedValue({ lancamentos: new Set(['t1']), cartao: new Set() })
+    mock.totaisDaBusca.mockRejectedValue(new Error('rede'))
+    montar('/?mes=2026-10&busca=super')
+    expect(await screen.findByText('Supermercado')).toBeTruthy()
+    expect(await screen.findByText('Total da busca indisponível agora. A lista continua certa.')).toBeTruthy()
+  })
+
+  it('"Limpar filtros" da folha tira os filtros e mantém o texto da busca', async () => {
+    const u = userEvent.setup()
+    montar('/?mes=2026-10&tipo=despesa&busca=super')
+    await caixa()
+    await abrirFiltros()
+    await u.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+    await vi.waitFor(() => expect(mock.buscarNoPeriodo).toHaveBeenLastCalledWith('h1', '2026-10-01', '2026-10-31', 'super', { busca: 'super' }))
   })
 })

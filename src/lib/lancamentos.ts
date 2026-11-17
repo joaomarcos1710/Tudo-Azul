@@ -70,6 +70,8 @@ export interface Filtros {
   soFixos?: boolean
   /** Só lançamentos de uma compra parcelada (installment_group). */
   soParcelados?: boolean
+  /** Texto da busca (PR 2 do handoff): descrição e observação, no período e com os outros filtros; o banco procura. */
+  busca?: string
 }
 
 export function listarLancamentos(familiaId: string, mes: string, f: Filtros = {}): Promise<Lancamento[]> {
@@ -488,6 +490,65 @@ export async function faixaDePendencias(familiaId: string, hoje: string, ate: st
   }
   return ((data ?? []) as { kind: TipoPendencia; item_count: number; total: number | string; first_date: string }[])
     .map((r) => ({ tipo: r.kind, quantidade: r.item_count, total: centsFromDb(r.total), primeira: r.first_date }))
+}
+
+/** Texto da busca: 1 a 100 letras depois de tirar os espaços das pontas (o mesmo limite do banco, migration 138). */
+export const BUSCA_MAX = 100
+export function textoDaBusca(bruto: string | null | undefined): string | undefined {
+  const t = (bruto ?? '').trim()
+  return t.length > 0 && t.length <= BUSCA_MAX ? t : undefined
+}
+
+/** O que a busca achou (handoff de Lançamentos, PR 2): ids dos lançamentos e das parcelas de cartão. */
+export interface ResultadoBusca {
+  lancamentos: Set<string>
+  /** debt_installments.id: o `id` de CompraDaFatura. */
+  cartao: Set<string>
+}
+
+/** Total da busca numa moeda, somado no banco (ledger_search_totals): a tela só mostra. */
+export interface TotalBusca {
+  moeda: string
+  quantidade: number
+  entradas: Cents
+  saidas: Cents
+}
+
+function argumentosDaBusca(familiaId: string, de: string, ate: string, texto: string, f: Filtros) {
+  return {
+    p_household: familiaId, p_from: de, p_to: ate, p_query: texto,
+    p_account: f.contaId ?? null, p_category: f.categoriaId ?? null, p_type: f.tipo ?? null, p_status: f.situacao ?? null,
+    p_card: f.cartaoId ?? null, p_fixed: Boolean(f.soFixos), p_installments: Boolean(f.soParcelados),
+  }
+}
+
+/**
+ * Busca no período e com os filtros da tela (decisões do dono, 17/11/2026): descrição e observação, sem maiúscula nem
+ * acento, lançamentos e compras do cartão. null = banco ainda sem a migration 138 (a tela avisa que a busca não está
+ * disponível, em vez de mostrar "nada encontrado").
+ */
+export async function buscarNoPeriodo(familiaId: string, de: string, ate: string, texto: string, f: Filtros): Promise<ResultadoBusca | null> {
+  const { data, error } = await cliente().rpc('ledger_search', argumentosDaBusca(familiaId, de, ate, texto, f))
+  if (error) {
+    if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return null
+    throw error
+  }
+  const r: ResultadoBusca = { lancamentos: new Set(), cartao: new Set() }
+  for (const l of (data ?? []) as { source: 'transaction' | 'card'; id: string }[]) {
+    ;(l.source === 'card' ? r.cartao : r.lancamentos).add(l.id)
+  }
+  return r
+}
+
+/** Quantidade, entradas e saídas do que a busca achou, por moeda (reais primeiro); transferência só na quantidade. */
+export async function totaisDaBusca(familiaId: string, de: string, ate: string, texto: string, f: Filtros): Promise<TotalBusca[] | null> {
+  const { data, error } = await cliente().rpc('ledger_search_totals', argumentosDaBusca(familiaId, de, ate, texto, f))
+  if (error) {
+    if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return null
+    throw error
+  }
+  return ((data ?? []) as { currency_code: string; item_count: number; income: number | string; expense: number | string }[])
+    .map((r) => ({ moeda: r.currency_code, quantidade: r.item_count, entradas: centsFromDb(r.income), saidas: centsFromDb(r.expense) }))
 }
 
 function linha(d: DadosLancamento) {

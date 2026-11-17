@@ -587,3 +587,9 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - Não entram: crédito avulso (receita) e assinatura prevista ainda não lançada. **atalho:** a projeção é linear (supõe o mesmo ritmo até o fechamento); compra grande no começo infla a projeção.
 - **Teste:** `129_card_invoice_daily` (16 asserções; falha sem a migration). Entrou em `00_audit`.
 
+## Busca em Lançamentos (migration 138, PR #418, **ainda não aplicada**)
+- **Arquivo:** `20261117080000_ledger_search.sql`. Duas funções novas, só leitura, `SECURITY INVOKER`:
+  - `public.ledger_search(p_household, p_from, p_to, p_query, p_account, p_category, p_type, p_status, p_card, p_fixed, p_installments)`: o que a busca acha no período, uma linha por item (`source` = `transaction` ou `card`, `id`, `kind`, `amount`, `currency_code`). Procura o texto na **descrição e na observação** do lançamento e na descrição da **parcela do cartão** (as mesmas linhas de `card_items`, das faturas que **vencem** no período), sem maiúscula nem acento (`translate` + `lower`, sem extensão nova); `%`, `_` e `\` digitados valem como texto. Os filtros repetem os da lista de Lançamentos (conta = origem ou destino; cartão pela conta de pagamento; situação, fixos e parcelados só para lançamento; com filtro de cartão, nenhum lançamento). Texto vazio ou com mais de 100 letras e período invertido: erro 22023.
+  - `public.ledger_search_totals(mesmos parâmetros)`: quantidade, entradas e saídas **por moeda**, somadas sobre `ledger_search` (a mesma lista da tela; transferência só na quantidade).
+- Fora da busca (decisão do dono): pagamento de fatura, parcelas de empréstimo e créditos avulsos do cartão. **atalho:** "contém" sem índice; medir antes de pôr `pg_trgm` se ficar lenta com períodos longos.
+- **Teste:** `130_ledger_search` (24 asserções; 19 falham sem a migration). Entrou em `00_audit`.
