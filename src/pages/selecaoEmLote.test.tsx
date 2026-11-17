@@ -285,10 +285,13 @@ describe('Lançamentos: seleção em lote na lista por dia', () => {
     }
   })
 
-  it('o ⋯ do topo fica desligado sem lançamentos para selecionar', async () => {
+  it('sem lançamentos para selecionar, "Selecionar lançamentos" fica desligado (o ⋯ segue aberto por causa da Lixeira)', async () => {
     mock.listarLancamentos.mockResolvedValue([])
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Fatura Nubank')
-    expect((screen.getByRole('button', { name: 'Mais ações da lista' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Mais ações da lista' }))
+    const selecionar = screen.getByRole('menuitem', { name: 'Selecionar lançamentos' })
+    expect(selecionar.hasAttribute('disabled') || selecionar.getAttribute('aria-disabled') === 'true').toBe(true)
+    expect(screen.getByRole('menuitem', { name: 'Lixeira' })).toBeTruthy()
   })
 })

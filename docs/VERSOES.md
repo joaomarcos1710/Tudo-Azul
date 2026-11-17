@@ -311,4 +311,5 @@ continuam abaixo como histórico.
 | 2026.396 | **Início mais rápido.** Contas, cartões e gastos aparecem sem esperar o cálculo do Dinheiro Livre, que mostra "Calculando…" até chegar. |
 | 2026.397 | **Lançamentos lembra os filtros.** O período e os filtros ficam no endereço: recarregar a página ou abrir o link mostra a mesma lista. |
 | 2026.398 | **Excluir mais rápido.** Excluir um lançamento não pergunta mais: aparece "Desfazer" embaixo, que fica até você fechar. |
+| 2026.399 | **Lixeira.** Os lançamentos excluídos ficam numa tela própria, de onde dá para restaurar o que saiu por engano. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

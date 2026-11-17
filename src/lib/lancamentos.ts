@@ -560,6 +560,43 @@ export async function moverParaLixeira(id: string): Promise<void> {
   if (error) throw error
 }
 
+/** Lançamento na lixeira, com a data em que foi excluído (tela Lixeira). */
+export interface LancamentoNaLixeira extends Lancamento {
+  /** ISO do momento da exclusão (deleted_at). */
+  excluidoEm: string
+}
+
+/** Quantos a tela Lixeira mostra (os excluídos mais recentes primeiro). */
+export const LIMITE_LIXEIRA = 200
+
+/**
+ * Lançamentos na lixeira (deleted_at preenchido), dos excluídos mais recentes aos mais antigos. Só leitura; restaurar é
+ * `restaurarDaLixeira`, e as regras do banco (conta desativada, período conciliado...) valem como em qualquer gravação.
+ * atalho: mostra só os LIMITE_LIXEIRA mais recentes, sem paginar; melhorar se a lixeira da família passar disso.
+ */
+export async function listarLixeira(familiaId: string): Promise<LancamentoNaLixeira[]> {
+  const { data, error } = await cliente().from('transactions')
+    .select('id, type, account_id, destination_account_id, category_id, description, amount, date, status, notes, recurrence_id, deleted_at')
+    .eq('household_id', familiaId).not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false }).order('id').limit(LIMITE_LIXEIRA)
+  if (error) throw error
+  return ((data ?? []) as Record<string, unknown>[]).map((t) => ({
+    id: t.id as string,
+    tipo: t.type as TipoLancamento,
+    contaId: t.account_id as string,
+    destinoId: (t.destination_account_id as string | null) ?? null,
+    categoriaId: (t.category_id as string | null) ?? null,
+    descricao: (t.description as string | null) ?? '',
+    valor: centsFromDb(t.amount as string | number),
+    data: t.date as string,
+    status: t.status as StatusLancamento,
+    notas: (t.notes as string | null) ?? '',
+    recorrenciaId: (t.recurrence_id as string | null) ?? null,
+    recorrente: t.recurrence_id != null,
+    excluidoEm: t.deleted_at as string,
+  }))
+}
+
 export async function restaurarDaLixeira(id: string): Promise<void> {
   const { error } = await cliente().from('transactions').update({ deleted_at: null }).eq('id', id)
   if (error) throw error

@@ -597,6 +597,29 @@ describe('Lançamentos', () => {
     expect(mock.restaurarDaLixeira).not.toHaveBeenCalled()
   })
 
+  it('Lixeira: o ⋯ do topo leva à tela de Lixeira, mesmo num mês sem lançamentos; a barra do Desfazer também tem o link', async () => {
+    mock.listarLancamentos.mockResolvedValue([])
+    const u = userEvent.setup()
+    let caminho = ''
+    const Caminho = () => { caminho = useLocation().pathname; return null }
+    render(<MemoryRouter initialEntries={['/lancamentos']}><Lancamentos /><Caminho /></MemoryRouter>)
+    await u.click(await screen.findByRole('button', { name: 'Mais ações da lista' }))
+    expect(screen.getByRole('menuitem', { name: 'Selecionar lançamentos' }).hasAttribute('disabled')
+      || screen.getByRole('menuitem', { name: 'Selecionar lançamentos' }).getAttribute('aria-disabled') === 'true').toBe(true)
+    await u.click(screen.getByRole('menuitem', { name: 'Lixeira' }))
+    expect(caminho).toBe('/lancamentos/lixeira')
+  })
+
+  it('Lixeira: depois de excluir, a barra do Desfazer tem "Ver lixeira"', async () => {
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const u = userEvent.setup()
+    const item = (await screen.findByText('Supermercado')).closest('li')!
+    await u.click(within(item).getByRole('button', { name: 'Ações de Supermercado' }))
+    await u.click(within(item).getByRole('menuitem', { name: 'Excluir' }))
+    const barra = await screen.findByTestId('barra-desfazer')
+    expect(within(barra).getByRole('link', { name: 'Ver lixeira' }).getAttribute('href')).toBe('/lancamentos/lixeira')
+  })
+
   it('regra do banco aparece em português', async () => {
     mock.criarLancamento.mockRejectedValue({ code: '23514', message: 'conta de origem desativada' })
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)

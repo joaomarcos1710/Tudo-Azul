@@ -11,7 +11,7 @@ import { MenuAcoes } from '../components/ui/MenuAcoes'
 import { MenuNovo, useAtalhosNovo } from '../components/ui/MenuNovo'
 import type { ItemNovo } from '../components/ui/MenuNovo'
 import type { AcaoMenu } from '../components/ui/MenuAcoes'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useFamilia } from '../lib/FamiliaContext'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
@@ -90,6 +90,7 @@ export default function Lancamentos() {
   }, [sessao?.user.id])
 
   const [params, setParams] = useSearchParams()
+  const navegar = useNavigate()
   // Período e filtros moram no endereço (handoff, item g; lib/urlLancamentos.ts): recarregar, voltar ou mandar o link abre a
   // mesma lista. ?novo=despesa|receita|transferencia|cartao continua abrindo o formulário já preenchido com o tipo.
   // A assinatura só muda com período ou filtro: o objeto fica o mesmo entre renders e não refaz as consultas à toa.
@@ -375,8 +376,11 @@ export default function Lancamentos() {
           </button>
           {/* ⋯ do topo (como no Organizze): por ora só "Selecionar lançamentos"; ali entram as próximas ações da lista */}
           {!lote.ligada && (
-            <MenuAcoes rotulo="Mais ações da lista" desabilitado={editando !== null || !itensVisiveis.some((it) => it.origem === 'lancamento')}
-              acoes={[{ rotulo: 'Selecionar lançamentos', aoEscolher: lote.ligar }]} />
+            <MenuAcoes rotulo="Mais ações da lista" desabilitado={editando !== null}
+              acoes={[
+                { rotulo: 'Selecionar lançamentos', aoEscolher: lote.ligar, desabilitado: !itensVisiveis.some((it) => it.origem === 'lancamento') },
+                { rotulo: 'Lixeira', aoEscolher: () => navegar('/lancamentos/lixeira') },
+              ]} />
           )}
         </div>
         {lote.barra}
@@ -426,6 +430,7 @@ export default function Lancamentos() {
           </span>
           <button type="button" onClick={() => void desfazerExclusao()}
             className="min-h-11 shrink-0 rounded-lg px-3 font-semibold text-white underline hover:bg-white/10">Desfazer</button>
+          <Link to="/lancamentos/lixeira" className="hidden min-h-11 shrink-0 items-center rounded-lg px-2 text-white/80 underline hover:bg-white/10 sm:inline-flex">Ver lixeira</Link>
           <button type="button" aria-label="Fechar aviso de exclusão" onClick={() => setNaLixeira([])}
             className="min-h-11 min-w-11 shrink-0 rounded-lg text-lg leading-none hover:bg-white/10">×</button>
         </div>
