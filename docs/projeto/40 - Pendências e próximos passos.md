@@ -876,4 +876,5 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 
 ## 17/11/2026 — Saldo do consignado diferente do banco
 - [x] "Corrigir saldo pelo extrato" em Dívidas (migration 132, teste 124). Falta aplicar em produção (com o "pode" do dono) e o dono corrigir o consignado para o saldo do extrato.
-- [ ] Mostrar na tela de Dívidas o histórico de movimentos (com os ajustes) e um botão para anular um ajuste: hoje anular só pelo banco (`debt_void`). Surgiu desta mudança.
+- [ ] Mostrar na tela de Dívidas o histórico de movimentos (com os ajustes) e um botão para anular um ajuste: hoje anular só pelo banco (`debt_void`). Surgiu desta mudança. Importa porque, depois de uma correção, pagamento com data anterior a ela é recusado: para lançar um pagamento atrasado é preciso anular a correção.
+- **atalho (migration 132):** movimento na MESMA data da correção pelo extrato passa (o extrato do dia pode ou não trazê-lo); melhorar se aparecer o caso.

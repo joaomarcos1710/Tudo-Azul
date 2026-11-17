@@ -89,13 +89,42 @@ select isnt(pg_temp.corrigir('consig', date '2026-10-26', 0), null, 'B8 saldo ze
 select is(pg_temp.divida('consig'), 0::numeric, 'B9 saldo zero');
 
 -- ---------------------------------------------------------------------------
+-- 2b. Ordem (achado do revisor): correção anterior à última é recusada; na mesma data, acerta por cima;
+--     movimento com data anterior à última correção é recusado (o extrato já o contava)
+-- ---------------------------------------------------------------------------
+-- a última correção não anulada agora é a de 26/10 (saldo 0); antes dela, nada passa
+select is(pg_temp.corrigir('consig', date '2026-10-17', 136540.78), 'ERRO 22023', 'O1 correção ANTES da última: recusada (desmontaria o saldo da mais nova)');
+select is(pg_temp.divida('consig'), 0::numeric, 'O2 o saldo da correção mais nova continua o do extrato');
+select isnt(pg_temp.corrigir('consig', date '2026-10-26', 1000.00), null, 'O3 na MESMA data: corrige por cima (conserta valor digitado errado)');
+select is(pg_temp.divida('consig'), 1000.00::numeric, 'O4 o saldo é o último informado');
+select is(pg_temp.sqlstate_of(format($$select public.debt_record_payment(%L, date '2026-10-20', %L, 100)$$, pg_temp.fx('consig'), pg_temp.fx('conta'))),
+          '23514', 'O5 pagamento com data ANTES da última correção: recusado (contaria duas vezes)');
+select lives_ok(format($$select public.debt_record_payment(%L, date '2026-10-27', %L, 100)$$, pg_temp.fx('consig'), pg_temp.fx('conta')),
+                'O6 pagamento depois da correção: passa');
+select is(pg_temp.divida('consig'), 900.00::numeric, 'O7 e reduz o saldo corrigido');
+select is(pg_temp.sqlstate_of(format($$select public.debt_record_payment(%L, date '2026-10-28', %L, 5000)$$, pg_temp.fx('consig'), pg_temp.fx('conta'))),
+          '23514', 'O8 pagamento acima do saldo corrigido: recusado (debt_chk enxerga o ajuste)');
+
+-- financiamento também; data de hoje é aceita; arquivada é recusada
+insert into fixture select 'fin', public.create_debt('Financiamento', 'financing', date '2026-10-01', 5000);
+select isnt(pg_temp.corrigir('fin', ((now() at time zone 'America/Sao_Paulo')::date), 5100.00), null, 'O9 financiamento, com a data de hoje: aceito');
+select is(pg_temp.divida('fin', ((now() at time zone 'America/Sao_Paulo')::date)), 5100.00::numeric, 'O10 saldo do financiamento corrigido');
+insert into fixture select 'zerada', public.create_debt('Zerada', 'loan', date '2026-10-01', 0);
+select public.debt_archive(pg_temp.fx('zerada'));
+select is(pg_temp.corrigir('zerada', date '2026-10-17', 5000), 'ERRO 55000', 'O11 dívida arquivada: recusada');
+-- o patrimônio enxerga o ajuste (net_worth lê o saldo da dívida)
+select is((select debt from public.net_worth(pg_temp.fx('h'), date '2026-10-31')),
+          (select sum(debt) from public.debt_balances(pg_temp.fx('h'), date '2026-10-31')),
+          'O12 o patrimônio usa o saldo corrigido');
+
+-- ---------------------------------------------------------------------------
 -- 3. Recusas, privilégios e isolamento
 -- ---------------------------------------------------------------------------
 select is(pg_temp.corrigir('cartao', date '2026-10-17', 100), 'ERRO 23514', 'V1 cartão: recusado (o saldo do cartão é a soma das faturas)');
 select is(pg_temp.corrigir('consig', ((now() at time zone 'America/Sao_Paulo')::date + 1), 100), 'ERRO 22023', 'V2 data no futuro: recusada');
 select is(pg_temp.corrigir('consig', date '2026-10-09', 100), 'ERRO 22023', 'V3 na data do cadastro (ou antes): recusada');
 select is(pg_temp.corrigir('consig', date '2026-10-27', -1), 'ERRO 22023', 'V4 saldo negativo: recusado');
-select is(pg_temp.corrigir('consig', date '2026-10-27', 1.005), 'ERRO 22023', 'V5 mais de 2 casas: recusado');
+select is(pg_temp.corrigir('consig', date '2026-10-27', 1.005), 'ERRO 22003', 'V5 mais de 2 casas: recusado (22003, como o resto do banco)');
 select is(pg_temp.sqlstate_of(format($$insert into public.debt_events (household_id, debt_id, date, kind, amount)
             values (%L, %L, date '2026-10-28', 'adjust_up', 1)$$, pg_temp.fx('h'), pg_temp.fx('consig'))),
           '42501', 'V6a ninguém grava ajuste direto na tabela: só pela RPC');

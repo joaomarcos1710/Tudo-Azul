@@ -678,7 +678,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
 /**
  * Corrigir saldo pelo extrato (pedido do dono, 17/11/2026): o app não calcula os juros do dia a dia, então o saldo do banco
  * e o do app se afastam. Aqui o dono informa o saldo que o banco mostra numa data; o banco grava só a diferença, como
- * ajuste (não é despesa nem receita, não mexe em conta) e que pode ser anulado.
+ * ajuste (não é despesa nem receita, não mexe em conta). Errou o valor? Corrija de novo na mesma data: vale o último.
  */
 function FormCorrigirSaldo({ divida, aoSalvar, aoCancelar }: {
   divida: Divida
@@ -703,13 +703,14 @@ function FormCorrigirSaldo({ divida, aoSalvar, aoCancelar }: {
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <p className="text-sm text-slate-600 md:col-span-2">
           Saldo no app hoje: <strong className="tabular-nums">{formatBRL(divida.saldo)}</strong>. Os juros dos dias corridos não entram
-          sozinhos; informe o saldo devedor que o banco mostra e o app grava só a diferença.
+          sozinhos; informe o saldo devedor que o banco mostra na data do extrato e o app grava só a diferença para essa data.
         </p>
         <Field rotulo="Data do extrato" type="date" value={data} max={hojeSP()} onChange={(e) => setData(e.target.value)} />
         <Field rotulo="Saldo devedor no banco (R$)" inputMode="decimal" placeholder="Ex.: 136.540,78" value={saldoTexto}
           onChange={(e) => setSaldoTexto(e.target.value)} />
         <p className="text-xs text-slate-500 md:col-span-2">
-          É só uma correção do saldo: não entra como despesa nem receita e não mexe em conta. Pode ser anulada depois.
+          É só uma correção do saldo: não entra como despesa nem receita e não mexe em conta. Errou o valor? Corrija de novo na
+          mesma data. Depois de corrigir, pagamentos desta dívida só podem ser lançados a partir da data do extrato.
         </p>
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando}>Corrigir saldo</Button>

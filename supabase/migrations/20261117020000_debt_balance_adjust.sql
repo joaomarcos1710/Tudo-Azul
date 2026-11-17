@@ -20,7 +20,15 @@
 --     pago de empréstimo); os tipos novos não estão lá;
 --   * anular: public.debt_void serve para qualquer evento (não olha estes tipos).
 -- debt_chk (trigger) continua valendo: pagamento depois do ajuste não pode deixar o saldo negativo.
--- Teste: 124_debt_balance_adjust (falha sem esta migration).
+--
+-- Ordem (achado do revisor-dinheiro): o ajuste é uma DIFERENÇA gravada na data do extrato. Por isso:
+--   * a correção não pode ter data ANTERIOR à última correção não anulada da dívida (mudaria o saldo da mais nova, que já
+--     foi acertado pelo extrato). Na MESMA data pode: a nova acerta por cima (serve para consertar um valor digitado errado);
+--   * movimento novo da dívida (pagamento, amortização, crédito...) com data ANTERIOR à última correção é recusado
+--     (private.debt_adjust_order_guard): o extrato daquela data já o contava, e ele entraria duas vezes.
+--     atalho: na MESMA data da correção o movimento passa (não dá para saber se o extrato do dia já o trazia); melhorar
+--     se aparecer o caso. Para lançar algo antes da correção, anule a correção (debt_void) e corrija de novo depois.
+-- Dívida arquivada não é corrigida (55000). Teste: 124_debt_balance_adjust (falha sem esta migration).
 
 -- 1. tipos e forma ------------------------------------------------------------
 alter table public.debt_events drop constraint debt_events_kind_check;
@@ -76,7 +84,8 @@ create function public.debt_set_balance(p_debt uuid, p_date date, p_balance nume
 returns uuid language plpgsql security definer set search_path = '' as $$
 declare
   v_d public.debts%rowtype;
-  v_hoje date := (now() at time zone 'America/Sao_Paulo')::date;
+  v_hoje date := private.today_sp();
+  v_ultima date;
   v_atual numeric;
   v_dif numeric;
   v_id uuid;
@@ -85,6 +94,9 @@ begin
   if v_d.kind not in ('loan', 'financing') then
     raise exception 'corrigir saldo só vale para empréstimo e financiamento' using errcode = '23514';
   end if;
+  if not v_d.active then
+    raise exception 'dívida arquivada: reative antes de corrigir o saldo' using errcode = '55000';
+  end if;
   if p_date is null or p_date > v_hoje then
     raise exception 'escolha a data do extrato (hoje ou antes)' using errcode = '22023';
   end if;
@@ -92,8 +104,17 @@ begin
     raise exception 'a data precisa ser depois de % (data do saldo informado no cadastro)', to_char(v_d.reference_date, 'DD/MM/YYYY')
       using errcode = '22023';
   end if;
-  if p_balance is null or p_balance < 0 or p_balance <> round(p_balance, 2) or p_balance >= 1e12 then
+  if p_balance is null or p_balance < 0 or p_balance >= 1e12 then
     raise exception 'saldo inválido' using errcode = '22023';
+  end if;
+  if p_balance <> round(p_balance, 2) then
+    raise exception 'valor com mais de 2 casas decimais: %', p_balance using errcode = '22003';
+  end if;
+  select max(e.date) into v_ultima from public.debt_events e
+   where e.debt_id = p_debt and e.voided_at is null and e.kind in ('adjust_up', 'adjust_down');
+  if v_ultima is not null and p_date < v_ultima then
+    raise exception 'já há uma correção de saldo em %: corrija nessa data ou depois (ou anule a de %)',
+      to_char(v_ultima, 'DD/MM/YYYY'), to_char(v_ultima, 'DD/MM/YYYY') using errcode = '22023';
   end if;
 
   v_atual := private.debt_balance(p_debt, p_date);
@@ -111,3 +132,26 @@ end $$;
 
 revoke execute on function public.debt_set_balance(uuid, date, numeric) from public, anon;
 grant execute on function public.debt_set_balance(uuid, date, numeric) to authenticated;
+
+-- 4. movimento com data anterior à última correção ----------------------------------------------------------------------
+create function private.debt_adjust_order_guard() returns trigger
+-- invoker: os movimentos só são gravados pelas RPCs da dívida (SECURITY DEFINER), que já veem a dívida inteira
+language plpgsql security invoker set search_path = '' as $$
+declare v_ultima date;
+begin
+  if new.kind in ('adjust_up', 'adjust_down') or new.voided_at is not null then
+    return new;
+  end if;
+  select max(e.date) into v_ultima from public.debt_events e
+   where e.debt_id = new.debt_id and e.voided_at is null and e.kind in ('adjust_up', 'adjust_down');
+  if v_ultima is not null and new.date < v_ultima then
+    raise exception 'o saldo desta dívida foi corrigido pelo extrato em %: lance só a partir dessa data (ou anule a correção)',
+      to_char(v_ultima, 'DD/MM/YYYY') using errcode = '23514';
+  end if;
+  return new;
+end $$;
+
+create trigger debt_events_adjust_order before insert on public.debt_events
+  for each row execute function private.debt_adjust_order_guard();
+
+revoke execute on function private.debt_adjust_order_guard() from public, anon, authenticated;
