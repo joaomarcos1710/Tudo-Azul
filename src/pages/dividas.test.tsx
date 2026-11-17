@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 const mock = vi.hoisted(() => ({
@@ -17,11 +17,13 @@ const mock = vi.hoisted(() => ({
   registrarPagamentoDivida: vi.fn(),
   corrigirSaldoDivida: vi.fn(),
   historicoDividas: vi.fn(),
+  listarMovimentosDaDivida: vi.fn(),
+  anularCorrecaoDeSaldo: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal, corrigirSaldoDivida: mock.corrigirSaldoDivida }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal, corrigirSaldoDivida: mock.corrigirSaldoDivida, listarMovimentosDaDivida: mock.listarMovimentosDaDivida, anularCorrecaoDeSaldo: mock.anularCorrecaoDeSaldo }))
 vi.mock('../lib/painel', async (o) => ({ ...(await o<typeof import('../lib/painel')>()), historicoDividas: mock.historicoDividas }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
@@ -473,6 +475,72 @@ describe('Dívidas', () => {
       render(<Dividas />)
       expect(await screen.findByText('A evolução das dívidas não carregou agora.')).toBeTruthy()
       expect(screen.getByText('Financiamento do imóvel')).toBeTruthy()
+    })
+  })
+
+  describe('Histórico da dívida, com Anular só nas correções pelo extrato', () => {
+    const mov = (id: string, data: string, tipo: string, valor: number, extra: Record<string, unknown> = {}) =>
+      ({ id, data, tipo, valor: c(valor), comConta: false, nota: null, anulado: false, ...extra })
+
+    it('lista os movimentos com o efeito no saldo; Anular aparece só na correção não anulada', async () => {
+      mock.listarMovimentosDaDivida.mockResolvedValue([
+        mov('e3', '2026-11-17', 'adjust_up', 54853),
+        mov('e2', '2026-11-10', 'payroll_payment', 120000),
+        mov('e1', '2026-11-05', 'interest', 5000, { comConta: true }),
+        mov('e0', '2026-11-01', 'adjust_down', 1000, { anulado: true }),
+      ])
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await acao('Financiamento do imóvel', 'Histórico', u)
+      const folha = screen.getByRole('dialog', { name: /Histórico: Financiamento do imóvel/ })
+      const lista = await within(folha).findByRole('list', { name: 'Movimentos de Financiamento do imóvel' })
+      const linhas = within(lista).getAllByRole('listitem')
+      expect(linhas).toHaveLength(4)
+      expect(linhas[0].textContent).toContain('Correção pelo extrato (aumentou)')
+      expect(within(linhas[0]).getByText('+R$ 548,53')).toBeTruthy()
+      expect(within(linhas[1]).getByText('−R$ 1.200,00')).toBeTruthy()
+      expect(linhas[2].textContent).toContain('não muda o saldo')
+      expect(linhas[3].textContent).toContain('anulado')
+      expect(within(folha).getAllByRole('button', { name: /^Anular correção de/ })).toHaveLength(1)
+      expect(within(linhas[0]).getByRole('button', { name: 'Anular correção de 17/11/2026' }).className).toContain('min-h-11')
+      expect(mock.listarMovimentosDaDivida).toHaveBeenCalledWith('h1', 'd1')
+    })
+
+    it('Anular pede confirmação, chama o banco, avisa e recarrega a lista e as dívidas', async () => {
+      mock.listarMovimentosDaDivida.mockResolvedValue([mov('e3', '2026-11-17', 'adjust_up', 54853)])
+      mock.anularCorrecaoDeSaldo.mockResolvedValue(undefined)
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await acao('Financiamento do imóvel', 'Histórico', u)
+      const folha = screen.getByRole('dialog', { name: /Histórico/ })
+      await u.click(await within(folha).findByRole('button', { name: 'Anular correção de 17/11/2026' }))
+      expect(mock.anularCorrecaoDeSaldo).not.toHaveBeenCalled() // ainda só confirmando
+      const chamadasAntes = mock.listarDividas.mock.calls.length
+      await u.click(within(folha).getByRole('button', { name: 'Anular correção' }))
+      expect(mock.anularCorrecaoDeSaldo).toHaveBeenCalledWith('e3')
+      expect(await within(folha).findByText(/Correção anulada/)).toBeTruthy()
+      expect(mock.listarMovimentosDaDivida).toHaveBeenCalledTimes(2)
+      await waitFor(() => expect(mock.listarDividas.mock.calls.length).toBeGreaterThan(chamadasAntes))
+    })
+
+    it('erro do banco ao anular (ex.: pagamento depois ficaria negativo) aparece na folha', async () => {
+      mock.listarMovimentosDaDivida.mockResolvedValue([mov('e3', '2026-11-17', 'adjust_down', 54853)])
+      mock.anularCorrecaoDeSaldo.mockRejectedValue({ code: '23514', message: 'pagamento acima do saldo devedor (use a antecipação para parcelas futuras)' })
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await acao('Financiamento do imóvel', 'Histórico', u)
+      const folha = screen.getByRole('dialog', { name: /Histórico/ })
+      await u.click(await within(folha).findByRole('button', { name: /^Anular correção de/ }))
+      await u.click(within(folha).getByRole('button', { name: 'Anular correção' }))
+      expect(await within(folha).findByText(/acima do saldo devedor/)).toBeTruthy()
+    })
+
+    it('sem movimentos: diz que o saldo é o do cadastro', async () => {
+      mock.listarMovimentosDaDivida.mockResolvedValue([])
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await acao('Financiamento do imóvel', 'Histórico', u)
+      expect(await screen.findByText(/Nenhum movimento desde o cadastro/)).toBeTruthy()
     })
   })
 })
