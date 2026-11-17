@@ -78,9 +78,17 @@ export function listarLancamentos(familiaId: string, mes: string, f: Filtros = {
   return listarLancamentosNoPeriodo(familiaId, ...limitesDoMes(mes), f)
 }
 
+/**
+ * O servidor (PostgREST, `max_rows` do supabase/config.toml) devolve no máximo isto por consulta: as listas lidas por página
+ * (lançamentos, movimentos de dívida, resultado da busca) pedem de `LIMITE_LINHAS_SERVIDOR` em `LIMITE_LINHAS_SERVIDOR`.
+ */
+export const LIMITE_LINHAS_SERVIDOR = 1000
+/** Teto de linhas de uma lista lida por página (50 páginas): passar dele é um caso a avisar, não a esconder. */
+export const TETO_LINHAS_LISTA = 50 * LIMITE_LINHAS_SERVIDOR
+
 /** Lançamentos com data entre `de` e `ate` (inclusive): o período livre da tela de Lançamentos (etapa 3). */
 export async function listarLancamentosNoPeriodo(familiaId: string, de: string, ate: string, f: Filtros = {}): Promise<Lancamento[]> {
-  const consultar = async (colunas: string[]) => {
+  const consultar = async (colunas: string[], inicio: number) => {
     let consulta = cliente().from('transactions').select(colunas.join(', '))
       .eq('household_id', familiaId).is('deleted_at', null).gte('date', de).lte('date', ate)
     // conta filtra origem ou destino: a transferência aparece nas duas contas
@@ -90,7 +98,10 @@ export async function listarLancamentosNoPeriodo(familiaId: string, de: string, 
     if (f.situacao) consulta = consulta.eq('status', f.situacao)
     if (f.soFixos) consulta = consulta.not('recurrence_id', 'is', null)
     if (f.soParcelados) consulta = consulta.not('installment_group', 'is', null)
-    return consulta.order('date', { ascending: false }).order('created_at', { ascending: false })
+    // ordem total (data, criação, id) e uma página por vez: a paginação não repete nem perde linha, e período longo não é
+    // cortado em silêncio nas 1000 mais recentes (pendência registrada na #418)
+    return consulta.order('date', { ascending: false }).order('created_at', { ascending: false }).order('id')
+      .range(inicio, inicio + LIMITE_LINHAS_SERVIDOR - 1)
   }
   type LinhaLancamentoDb = {
     id: string; type: TipoLancamento; account_id: string; destination_account_id: string | null;
@@ -98,21 +109,37 @@ export async function listarLancamentosNoPeriodo(familiaId: string, de: string, 
     status: StatusLancamento; notes: string | null; recurrence_id: string | null;
     person_id?: string | null; is_shared_expense?: boolean;
   }
+  const lerPaginas = async (colunas: string[]) => {
+    const todas: LinhaLancamentoDb[] = []
+    const vistos = new Set<string>()
+    for (let inicio = 0; todas.length < TETO_LINHAS_LISTA; inicio += LIMITE_LINHAS_SERVIDOR) {
+      const r = await consultar(colunas, inicio)
+      if (r.error) return { data: null, error: r.error }
+      const pagina = (r.data ?? []) as unknown as LinhaLancamentoDb[]
+      // Cada página é uma consulta à parte: um lançamento novo entre duas páginas empurra tudo uma posição e a última linha
+      // da anterior reaparece. Repetida por id não entra duas vezes (achado do revisor-dinheiro na #422).
+      // atalho: uma linha apagada entre duas páginas faz a vizinha ser pulada e isso não dá para ver aqui; melhorar com
+      // paginação por chave (keyset) ou recarregando quando a contagem final não bater.
+      for (const linha of pagina) if (!vistos.has(linha.id)) { vistos.add(linha.id); todas.push(linha) }
+      if (pagina.length < LIMITE_LINHAS_SERVIDOR) break
+    }
+    return { data: todas, error: null }
+  }
   let data: LinhaLancamentoDb[] | null = null
   let error: { code?: string; message?: string } | null = null
-  const novo = await consultar([
+  const novo = await lerPaginas([
     'id', 'type', 'account_id', 'destination_account_id', 'category_id', 'description', 'amount', 'date',
     'status', 'notes', 'recurrence_id', 'person_id', 'is_shared_expense',
   ])
-  data = novo.data as unknown as LinhaLancamentoDb[] | null
+  data = novo.data
   error = novo.error
   if (error && ['42703', 'PGRST204'].includes(error.code ?? '')) {
     // Preview sem a migration ainda: mantém o extrato antigo funcional, sem classificação.
-    const antigo = await consultar([
+    const antigo = await lerPaginas([
       'id', 'type', 'account_id', 'destination_account_id', 'category_id', 'description', 'amount', 'date',
       'status', 'notes', 'recurrence_id',
     ])
-    data = antigo.data as unknown as LinhaLancamentoDb[] | null
+    data = antigo.data
     error = antigo.error
   }
   if (error) throw error
@@ -179,7 +206,7 @@ export async function listarMovimentosDeDividaNoPeriodo(familiaId: string, de: s
   const tipos = soDespesa ? ['interest', 'fee', 'payment', 'extra_principal'] : [...eventosDeConta]
   const db = cliente()
   const eventos: { id: string; debt_id: string; date: string; kind: string; amount: number | string; account_id: string; category_id?: string | null; op_id?: string | null }[] = []
-  const pagina = 1000
+  const pagina = LIMITE_LINHAS_SERVIDOR
   for (let inicio = 0; ; inicio += pagina) {
     let q = db.from('debt_events').select('id, debt_id, date, kind, amount, account_id, category_id, op_id')
       .eq('household_id', familiaId).is('voided_at', null).in('kind', tipos).not('account_id', 'is', null)
@@ -492,8 +519,6 @@ export async function faixaDePendencias(familiaId: string, hoje: string, ate: st
     .map((r) => ({ tipo: r.kind, quantidade: r.item_count, total: centsFromDb(r.total), primeira: r.first_date }))
 }
 
-/** O servidor (PostgREST) devolve no máximo isto por consulta: uma lista com este tanto de linhas pode estar cortada. */
-export const LIMITE_LINHAS_SERVIDOR = 1000
 /** Texto da busca: 1 a 100 letras depois de tirar os espaços das pontas (o mesmo limite do banco, migration 138). */
 export const BUSCA_MAX = 100
 export function textoDaBusca(bruto: string | null | undefined): string | undefined {
@@ -530,14 +555,19 @@ function argumentosDaBusca(familiaId: string, de: string, ate: string, texto: st
  * disponível, em vez de mostrar "nada encontrado").
  */
 export async function buscarNoPeriodo(familiaId: string, de: string, ate: string, texto: string, f: Filtros): Promise<ResultadoBusca | null> {
-  const { data, error } = await cliente().rpc('ledger_search', argumentosDaBusca(familiaId, de, ate, texto, f))
-  if (error) {
-    if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return null
-    throw error
-  }
   const r: ResultadoBusca = { lancamentos: new Set(), cartao: new Set() }
-  for (const l of (data ?? []) as { source: 'transaction' | 'card'; id: string }[]) {
-    ;(l.source === 'card' ? r.cartao : r.lancamentos).add(l.id)
+  // uma página por vez, em ordem total (id): o servidor corta cada resposta em 1000 linhas, e sem ordem as páginas
+  // repetiriam ou perderiam linhas. Passar de 50 páginas deixa o resto de fora e a tela avisa (contagem x total do banco).
+  for (let inicio = 0; r.lancamentos.size + r.cartao.size < TETO_LINHAS_LISTA; inicio += LIMITE_LINHAS_SERVIDOR) {
+    const { data, error } = await cliente().rpc('ledger_search', argumentosDaBusca(familiaId, de, ate, texto, f))
+      .order('id').range(inicio, inicio + LIMITE_LINHAS_SERVIDOR - 1)
+    if (error) {
+      if (FUNCAO_INEXISTENTE.includes(error.code ?? '')) return null
+      throw error
+    }
+    const pagina = (data ?? []) as { source: 'transaction' | 'card'; id: string }[]
+    for (const l of pagina) (l.source === 'card' ? r.cartao : r.lancamentos).add(l.id)
+    if (pagina.length < LIMITE_LINHAS_SERVIDOR) break
   }
   return r
 }

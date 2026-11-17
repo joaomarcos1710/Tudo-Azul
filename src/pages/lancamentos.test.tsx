@@ -104,7 +104,7 @@ vi.mock('../lib/categorias', async (original) => ({
 }))
 
 import Lancamentos from './Lancamentos'
-import { limitesDoMes, somarMeses } from '../lib/lancamentos'
+import { limitesDoMes, somarMeses, TETO_LINHAS_LISTA } from '../lib/lancamentos'
 import { hojeSP } from '../lib/contas'
 
 /** Categoria agora é um seletor em folha (como no Organizze): abre pelo botão e toca na categoria. */
@@ -2201,6 +2201,14 @@ describe('Lançamentos: filtros em tela cheia (situação, cartão, fixos e parc
     expect(await screen.findByTestId('totais-busca')).toBeTruthy()
   })
 
+  it('sem filtro nenhum, a lista no teto de linhas também avisa (o teto não é silencioso)', async () => {
+    mock.listarLancamentos.mockResolvedValue(Array.from({ length: TETO_LINHAS_LISTA }, (_, i) => ({ ...lancs[0], id: `y${i}`, descricao: `Linha ${i}` })))
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText('Linha 0')).toBeTruthy()
+    expect((await screen.findByTestId('busca-cortada')).textContent).toMatch(/Este período tem mais lançamentos do que a lista consegue trazer/)
+    expect(mock.totaisDaBusca).not.toHaveBeenCalled() // sem filtro, o rodapé normal (do banco) segue como era
+  })
+
   it('só conta como filtro: o rodapé normal continua (o banco já segue a conta)', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
@@ -2211,9 +2219,9 @@ describe('Lançamentos: filtros em tela cheia (situação, cartão, fixos e parc
     expect(screen.queryByTestId('nota-filtro')).toBeNull()
   })
 
-  it('filtro com a lista no limite de 1000 linhas: o total some e a tela avisa (a lista pode estar cortada)', async () => {
+  it('filtro com a lista no teto de linhas lidas por página (50 mil): o total some e a tela avisa (a lista está incompleta)', async () => {
     const u = userEvent.setup()
-    mock.listarLancamentos.mockResolvedValue(Array.from({ length: 1000 }, (_, i) => ({ ...lancs[0], id: `x${i}`, descricao: `Linha ${i}` })))
+    mock.listarLancamentos.mockResolvedValue(Array.from({ length: TETO_LINHAS_LISTA }, (_, i) => ({ ...lancs[0], id: `x${i}`, descricao: `Linha ${i}` })))
     mock.totaisDaBusca.mockResolvedValue([{ moeda: 'BRL', quantidade: 1500, entradas: c(0), saidas: c(99999999) }])
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Linha 0')
