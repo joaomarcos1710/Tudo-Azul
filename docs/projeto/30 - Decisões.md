@@ -919,6 +919,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** "Excluir" em Lançamentos não pede confirmação; a barra "Desfazer" fica fixa embaixo até ser fechada. "Parar de repetir" continua com confirmação.
 - **Por quê:** handoff de Lançamentos (item e), aprovado pelo dono. A barra não some sozinha porque não há tela de Lixeira: depois de fechada, só dá para recuperar pelo banco. "Parar de repetir" encerra a regra e não tem desfazer simples.
 
+## 17/11/2026 — Rodapé de Lançamentos não mostra total com filtro que ele não segue (#406)
+- **O quê:** com filtro de tipo, categoria, situação, cartão, fixos ou parcelados, o rodapé troca os números pela frase "Sem total com este filtro: o total só segue o filtro de conta." Com filtro só de conta, os totais continuam (e o saldo vira "—").
+- **Por quê:** handoff de Lançamentos (PR 3). Antes o rodapé mostrava o total do mês inteiro com um aviso pequeno embaixo; com "Despesa" ligado, "entradas R$ 8.000" ao lado de uma lista só de despesas engana. O total certo do filtro precisa de função nova no banco (o front não soma dinheiro de relatório).
+
 ## 17/11/2026 — Despesa vermelha na lista de Lançamentos (#405)
 - **O quê:** na lista de Lançamentos, todo valor de saída fica vermelho (`text-prejuizo`): despesa, compra no cartão (solta e dentro da fatura), total da fatura, parcela planejada de contrato e saída de cartão/dívida. Receita azul, transferência marinho e crédito de cartão azul não mudam. O cabeçalho do Início continua neutro.
 - **Por quê:** decisão do dono de 16/11/2026 (seguir o design "Extrato"), que é a regra #183 (vermelho = despesa, saída). Substitui o trecho da #183 que deixava compra no cartão e parcela de contrato em cinza: na mesma lista, duas cores para saída confundiam. Custo: a parcela planejada e a compra no cartão parecem tão "pesadas" quanto uma despesa paga; o selo (Planejado, No cartão) é que diferencia.

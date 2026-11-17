@@ -395,6 +395,7 @@ Completado em 10/11/2026 a partir do histórico do `main` (merges e squashes), n
 - **#403** (17/11/2026): **Dívidas: evolução das dívidas** mês a mês, uma linha por empréstimo/financiamento, sem cartão (mesma função da #402); com mais de 4 dívidas, só o total.
 - **#404** (17/11/2026): **Dívidas: histórico de movimentos** (⋯ → Histórico), com **Anular** nas correções pelo extrato. O banco não muda.
 - **#405** (17/11/2026): **Lançamentos: despesa em vermelho na lista** (decisão do dono de 16/11, design "Extrato"): despesa, compra no cartão (solta e dentro da fatura), total da fatura, parcela de contrato e saída de cartão/dívida passam de cinza a vermelho. O cabeçalho do Início continua neutro. Só tela.
+- **#406** (17/11/2026): **Lançamentos: rodapé sem total enganoso** (handoff "Extrato e Gastos", PR 3, parte só de tela): com filtro de tipo, categoria, situação, cartão, fixos ou parcelados, os números somem e fica "Sem total com este filtro"; o previsto ganha rótulos próprios. Só tela.
 
 ## Ainda abertos
 Em 11/11/2026 (conferido no GitHub): só os rascunhos #229 (página pública de boas-vindas, depois de 20/11) e #232 (logo nova, sem pressa, a combinar com o designer).
