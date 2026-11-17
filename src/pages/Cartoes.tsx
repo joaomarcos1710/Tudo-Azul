@@ -21,6 +21,7 @@ import { SeletorCategoria } from '../components/SeletorCategoria'
 import { useFamilia } from '../lib/FamiliaContext'
 import { PessoaSelectField } from '../components/PessoaSelectField'
 import { FolhaCategoriasFatura } from '../components/FolhaCategoriasFatura'
+import { FolhaPorDiaFatura } from '../components/FolhaPorDiaFatura'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 import {
@@ -1243,6 +1244,8 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const [avisoMover, setAvisoMover] = useState('')
   // folha "Categorias" da fatura (só leitura; o foco volta ao botão ao fechar)
   const [verCategorias, setVerCategorias] = useState(false)
+  // folha "Por dia" (gasto de cada dia e ritmo da fatura, migration 137; pedido do dono, 17/11/2026)
+  const [verPorDia, setVerPorDia] = useState(false)
   // "Editar compra": a compra cuja folha está aberta, com a opção já escolhida quando veio do ⋯ (modo) ou nenhuma quando veio do
   // clique na linha. Tudo o que se faz numa compra abre neste card no meio da tela (pedido do dono, 13/11/2026: antes o ⋯ abria um
   // painel lá em cima). O foco volta a quem abriu ao fechar (a Folha cuida disso)
@@ -1474,8 +1477,9 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                 <Button variante="fantasma" compacto onClick={() => setAcao({ tipo: 'reabrir', fatura: f })}>Reabrir fatura</Button>
               </div>
             )}
-            <div className="mt-2 print:hidden">
+            <div className="mt-2 flex flex-wrap gap-2 print:hidden">
               <Button variante="secundario" compacto onClick={() => setVerCategorias(true)} aria-haspopup="dialog">Categorias</Button>
+              <Button variante="secundario" compacto onClick={() => setVerPorDia(true)} aria-haspopup="dialog">Por dia</Button>
             </div>
           </div>
           {/* #183: o valor nunca quebra (nowrap). Três colunas só com largura de sobra; no resto, empilha: nome à esquerda, valor à direita */}
@@ -1497,6 +1501,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
           </dl>
         </div>
         {verCategorias && <FolhaCategoriasFatura cartaoId={cartaoId} mes={f.mes} categorias={categorias} aoFechar={() => setVerCategorias(false)} />}
+        {verPorDia && <FolhaPorDiaFatura cartaoId={cartaoId} mes={f.mes} hoje={hoje} aoFechar={() => setVerPorDia(false)} />}
         {formularioPagar}
         {formularioRapido}
         {acao?.tipo === 'reabrir' && acao.fatura.mes === f.mes && (
