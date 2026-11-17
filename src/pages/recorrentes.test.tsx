@@ -14,6 +14,7 @@ const mock = vi.hoisted(() => ({
   resumoPorNatureza: vi.fn(),
   resumoVisaoGeral: vi.fn(),
   sobraDosRecorrentes: vi.fn(),
+  sobraDepoisDasParcelas: vi.fn(),
   listarProventosPrevistos: vi.fn(),
   listarProventosAcabando: vi.fn(),
   faturaDaProximaCobranca: vi.fn(),
@@ -32,7 +33,7 @@ vi.mock('../lib/recorrencias', async (o) => ({
   ...(await o<typeof import('../lib/recorrencias')>()),
   listarRecorrencias: mock.listarRecorrencias, criarRecorrencia: mock.criarRecorrencia,
   editarRecorrencia: mock.editarRecorrencia, excluirRecorrencia: mock.excluirRecorrencia,
-  resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza, resumoVisaoGeral: mock.resumoVisaoGeral, sobraDosRecorrentes: mock.sobraDosRecorrentes,
+  resumoRecorrencias: mock.resumoRecorrencias, resumoPorNatureza: mock.resumoPorNatureza, resumoVisaoGeral: mock.resumoVisaoGeral, sobraDosRecorrentes: mock.sobraDosRecorrentes, sobraDepoisDasParcelas: mock.sobraDepoisDasParcelas,
   definirNaturezaRecorrencia: mock.definirNaturezaRecorrencia, proximasDatasDasContas: mock.proximasDatasDasContas,
 }))
 vi.mock('../lib/investimentos', async (o) => ({
@@ -70,6 +71,7 @@ beforeEach(() => {
   mock.resumoPorNatureza.mockResolvedValue([])
   mock.resumoVisaoGeral.mockResolvedValue([])
   mock.sobraDosRecorrentes.mockResolvedValue(null)
+  mock.sobraDepoisDasParcelas.mockResolvedValue(null)
   mock.listarProventosPrevistos.mockResolvedValue([])
   mock.listarProventosAcabando.mockResolvedValue([])
   mock.faturaDaProximaCobranca.mockResolvedValue(new Map())
@@ -790,6 +792,58 @@ describe('Recorrentes: visão geral por mês e por ano, fixo × variável sugeri
     montar()
     expect(await screen.findByTestId('visao-saidas-mes')).toBeTruthy()
     expect(screen.queryByTestId('sobra-recorrentes')).toBeNull()
+  })
+
+  it('sobra deste mês depois das parcelas (migration 141): o valor e as parcelas vêm do banco, com a palavra "Sobra" e o aviso do que fica de fora', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    mock.sobraDosRecorrentes.mockResolvedValue({ porMes: c(350000), porAno: c(4200000) })
+    // sentinelas: não batem com 350000 − 12345 (a tela não subtrai)
+    mock.sobraDepoisDasParcelas.mockResolvedValue({ parcelasMes: c(12345), depois: c(222222) })
+    montar()
+    const linha = await screen.findByTestId('sobra-depois-parcelas')
+    expect(linha.textContent).toMatch(/^Este mês, depois das parcelas: Sobra ≈/)
+    expect(within(linha).getByTestId('sobra-depois-valor').textContent).toBe('R$ 2.222,22')
+    expect(within(linha).getByTestId('sobra-depois-valor').className).toContain('text-lucro')
+    expect(within(linha).getByTestId('sobra-parcelas-mes').textContent).toBe('R$ 123,45')
+    expect(linha.textContent).toMatch(/Muda de mês para mês; empréstimos e financiamentos ficam de fora/)
+    expect(mock.sobraDepoisDasParcelas).toHaveBeenCalledWith('h1')
+    // a sobra de todo mês continua do lado, intacta
+    expect(within(screen.getByTestId('sobra-recorrentes')).getByTestId('sobra-mes').textContent).toBe('R$ 3.500,00')
+  })
+
+  it('parcelas passando da sobra: "Falta" em vermelho, sem sinal de menos solto', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    mock.sobraDosRecorrentes.mockResolvedValue({ porMes: c(100000), porAno: c(1200000) })
+    mock.sobraDepoisDasParcelas.mockResolvedValue({ parcelasMes: c(120000), depois: c(-20000) })
+    montar()
+    const linha = await screen.findByTestId('sobra-depois-parcelas')
+    expect(linha.textContent).toMatch(/depois das parcelas: Falta ≈/)
+    expect(within(linha).getByTestId('sobra-depois-valor').textContent).toBe('R$ 200,00')
+    expect(within(linha).getByTestId('sobra-depois-valor').className).toContain('text-prejuizo')
+  })
+
+  it('sem parcela no mês (ou sem a migration 141), a linha não aparece e a sobra de todo mês segue', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    mock.sobraDosRecorrentes.mockResolvedValue({ porMes: c(350000), porAno: c(4200000) })
+    mock.sobraDepoisDasParcelas.mockResolvedValue({ parcelasMes: c(0), depois: c(350000) })
+    montar()
+    expect(await screen.findByTestId('sobra-recorrentes')).toBeTruthy()
+    expect(screen.queryByTestId('sobra-depois-parcelas')).toBeNull() // seria o mesmo número: não repete
+    cleanup()
+    mock.sobraDepoisDasParcelas.mockResolvedValue(null)
+    montar()
+    expect(await screen.findByTestId('sobra-recorrentes')).toBeTruthy()
+    expect(screen.queryByTestId('sobra-depois-parcelas')).toBeNull()
+  })
+
+  it('a sobra depois das parcelas que falha ao carregar: só essa linha some, e o aviso de blocos diz o que ficou de fora', async () => {
+    mock.resumoVisaoGeral.mockResolvedValue(visao)
+    mock.sobraDosRecorrentes.mockResolvedValue({ porMes: c(350000), porAno: c(4200000) })
+    mock.sobraDepoisDasParcelas.mockRejectedValue(new Error('rede'))
+    montar()
+    expect(await screen.findByTestId('sobra-recorrentes')).toBeTruthy()
+    expect(screen.queryByTestId('sobra-depois-parcelas')).toBeNull()
+    expect((await screen.findAllByText(/sobra depois das parcelas/)).length).toBeGreaterThan(0)
   })
 
   it('sem os números de cima (a visão geral falhou), a sobra também não aparece: ela só vale junto do Sai e do Entra', async () => {

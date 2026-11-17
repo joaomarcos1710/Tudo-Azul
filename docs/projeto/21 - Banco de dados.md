@@ -606,3 +606,9 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - **Arquivo:** `20261117100000_recurrence_net.sql`. `public.recurrence_net(p_household)`: uma linha (ou nenhuma, sem recorrente vigente em reais) com `income_monthly`, `expense_monthly`, `net_monthly` (entra − sai) e `net_yearly` (a diferença no ano: valor × ocorrências por ano, exato por regra). Soma sobre `recurrence_overview` (migration 116, recorte `all`): os números fecham com o "Sai ≈" e o "Entra ≈" do topo por construção. `SECURITY INVOKER`, só leitura, `anon` sem EXECUTE.
 - **Fora da conta:** parcelas, proventos previstos de investimento e o que varia fora de um recorrente. A tela diz isso.
 - **Teste:** `132_recurrence_net` (11 asserções; 6 falham sem a migration). Entrou em `00_audit`.
+
+## Sobra deste mês depois das parcelas (migration 141, PR #427, **ainda não aplicada**)
+- **Arquivo:** `20261117110000_recurrence_net_after_installments.sql`. `public.recurrence_net_after_installments(p_household, p_as_of default null)`: uma linha (nenhuma sem recorrente vigente em reais, como `recurrence_net`) com `net_monthly` (a sobra dos recorrentes, migration 140), `installments_month` (as parcelas que **vencem no mês** de `p_as_of`, pagas e não pagas, só em reais, de `installment_month_summary`: compras parceladas no cartão e carnês em conta; a mesma base do card "Parcelas e carnês"), `net_after` (a diferença; negativa quando passa) e `ref_month`. `SECURITY INVOKER`, só leitura, `anon` sem EXECUTE.
+- **Fora da conta:** empréstimos e financiamentos (parcelas de contrato de dívida; o consignado já sai do salário líquido). A tela diz isso.
+- **Teste:** `133_recurrence_net_after_installments` (14 asserções, data de corte explícita; falha sem a migration). Entrou em `00_audit`.
+
