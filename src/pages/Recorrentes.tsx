@@ -313,7 +313,7 @@ export default function Recorrentes() {
           </button>
         )}
         {/* valor em cima e "Gerenciar" embaixo, numa coluna só: lado a lado eles comiam o nome no celular (prévia de 17/11) */}
-        <span className="flex shrink-0 flex-col items-end">
+        <span className="flex shrink-0 flex-col items-end py-1.5">
         <span className={`whitespace-nowrap text-right text-sm font-semibold tabular-nums ${corDoTipo(r.tipo === 'card' ? 'expense' : r.tipo)}`}>{valorTexto}</span>
         {/* o valor é o de cada vez (não convertido): fora do mensal, diz "por ano", "por semana"… */}
         {porVez(r) && <span className="whitespace-nowrap text-[11px] text-slate-500" data-testid="por-vez">{porVez(r)}</span>}
@@ -327,6 +327,16 @@ export default function Recorrentes() {
           className="-mr-1 inline-flex min-h-8 items-center gap-0.5 rounded-lg px-1 text-xs font-semibold text-azul hover:bg-azul-claro">
           Gerenciar<span aria-hidden="true" className="text-base leading-none">›</span>
         </Link>
+        {/* "Natureza" escrito, embaixo do "Gerenciar" (lado a lado eles alargavam a coluna e cortavam o nome no celular): tocar
+            no nome também abre a folha, mas o dono não achou (17/11/2026, Flora Energia), e o "Gerenciar" leva a Lançamentos,
+            onde não há natureza. Transferência não tem natureza. */}
+        {r.tipo !== 'transfer' && (
+          <button type="button" onClick={() => setCorrigindo(r)} data-testid="botao-natureza"
+            aria-label={`Mudar a natureza de ${r.descricao}`}
+            className="-mr-1 inline-flex min-h-7 items-center rounded-lg px-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-azul">
+            Natureza
+          </button>
+        )}
         </span>
       </li>
     )
@@ -519,7 +529,8 @@ export default function Recorrentes() {
             <p className="mb-3 text-xs text-slate-500" data-testid="ajuda-gerenciar">
               Para mudar o valor ou o dia, ou encerrar, toque em <strong className="font-semibold text-azul">Gerenciar</strong>: no cartão
               abre a fatura da próxima cobrança (⋯ → Cancelar cobrança → esta e as próximas); na conta, Lançamentos no mês da
-              próxima (⋯ → Parar de repetir a partir daqui).
+              próxima (⋯ → Parar de repetir a partir daqui). Para mudar de grupo (custo fixo, assinatura ou gasto variável),
+              toque em <strong className="font-semibold text-slate-700">Natureza</strong>.
             </p>
           )}
           <div className="space-y-4">
