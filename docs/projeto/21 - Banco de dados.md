@@ -595,7 +595,8 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - Fora da busca (decisão do dono): pagamento de fatura, parcelas de empréstimo e créditos avulsos do cartão. **atalho:** "contém" sem índice; medir antes de pôr `pg_trgm` se ficar lenta com períodos longos.
 - **Teste:** `130_ledger_search` (24 asserções; 19 falham sem a migration). Entrou em `00_audit`.
 
-## Total do filtro em Lançamentos (migration 139, PR #420, **ainda não aplicada**)
+## Total do filtro em Lançamentos (migration 139, PR #420, **aplicada em 17/11/2026**)
+- **Aplicada em 17/11/2026** pelo workflow (simulação 44157666127, só ela pendente; aplicação 44157824302). Conferido no catálogo: `ledger_search` aceita texto nulo; as duas funções seguem `SECURITY INVOKER`, `anon` sem EXECUTE e `authenticated` com.
 - **Arquivo:** `20261117090000_ledger_search_optional_text.sql`. Recria `public.ledger_search` (`create or replace`, mesma assinatura da 138, sem editá-la): `p_query` nulo = sem texto, só os outros filtros. Texto em branco (`''` ou só espaços) e com mais de 100 letras continuam recusados (22023): nulo é "não busquei", branco é engano. `ledger_search_totals` não muda (soma sobre `ledger_search`).
 - **Decisões do dono (17/11/2026):** o total com filtro ligado soma lançamentos e compras do cartão (a regra da busca), pagos e previstos juntos; juros, tarifa, parcelas de empréstimo e pagamento de fatura ficam fora do total e a tela diz isso.
 - **Teste:** `131_ledger_filter_totals` (19 asserções; 13 falham sem a migration).
