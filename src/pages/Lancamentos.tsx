@@ -639,8 +639,8 @@ export default function Lancamentos() {
 
       <RodapeLancamentos realizado={totais === undefined ? undefined : totais?.realizado ?? null}
         previsto={totais === undefined ? undefined : totais?.previsto ?? null}
-        aviso={filtros.tipo || filtros.categoriaId || filtros.situacao || filtros.cartaoId || filtros.soFixos || filtros.soParcelados
-          ? 'Os totais seguem só o filtro de conta (não os de tipo, categoria, situação, cartão, fixos ou parcelados).' : undefined}
+        semTotais={filtros.tipo || filtros.categoriaId || filtros.situacao || filtros.cartaoId || filtros.soFixos || filtros.soParcelados
+          ? 'Sem total com este filtro: o total só segue o filtro de conta.' : undefined}
         // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
         acao={<MenuNovo itens={ITENS_NOVO} desabilitado={contas.length === 0} aoEscolher={abrirNovo} />} />
     </>

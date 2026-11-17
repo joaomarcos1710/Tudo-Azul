@@ -337,13 +337,16 @@ describe('Lançamentos', () => {
     expect(within(rodape).getByText('R$ 8.300,00')).toBeTruthy()
     expect(within(rodape).getByText('−R$ 1.250,50')).toBeTruthy()
     expect(within(rodape).getByText('R$ 19.050,00')).toBeTruthy()
+    // cada número do previsto diz o que é (antes eram três "previsto" iguais)
+    for (const rotulo of ['entradas previstas', 'saídas previstas', 'saldo previsto']) expect(within(rodape).getByText(rotulo)).toBeTruthy()
+    expect(within(rodape).queryByText('previsto')).toBeNull()
     // o mês inteiro, numa linha só, com e sem os não pagos: o front não soma nada
     const [de, ate] = limitesDoMes(hojeSP().slice(0, 7))
     expect(mock.serieFluxo).toHaveBeenCalledWith('h1', de, ate, 'total', { contas: undefined, incluirNaoPagos: false })
     expect(mock.serieFluxo).toHaveBeenCalledWith('h1', de, ate, 'total', { contas: undefined, incluirNaoPagos: true })
   })
 
-  it('rodapé: com filtro de conta, os totais seguem a conta e o saldo some; com tipo ou categoria, avisa que não segue', async () => {
+  it('rodapé: com filtro de conta, os totais seguem a conta e o saldo some; com tipo ou categoria, os números somem e fica a frase', async () => {
     const u = userEvent.setup()
     mock.serieFluxo.mockResolvedValue({ linhas: [{ inicio: '', fim: '', entradas: c(100), saidas: c(200), resultado: c(-100), saldo: null }], totalEntradas: c(100), totalSaidas: c(200), totalResultado: c(-100) })
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
@@ -353,8 +356,13 @@ describe('Lançamentos', () => {
     const rodape = screen.getByRole('region', { name: 'Totais do mês' })
     expect(within(rodape).getAllByText('—')[0].getAttribute('title')).toMatch(/sem filtro de conta/)
     expect(within(rodape).queryByText(/não o de tipo/)).toBeNull()
+    expect(within(rodape).getAllByText('R$ 1,00').length).toBeGreaterThan(0)
     await escolherTipo(u, 'expense')
-    expect(await within(rodape).findByText(/seguem só o filtro de conta/)).toBeTruthy()
+    // um total que não segue o filtro de tipo não bate com a lista: não aparece
+    expect(await within(rodape).findByText(/Sem total com este filtro/)).toBeTruthy()
+    expect(within(rodape).queryByText('R$ 1,00')).toBeNull()
+    expect(within(rodape).queryByRole('button', { name: 'Mostrar o previsto' })).toBeNull()
+    expect(within(rodape).getByRole('button', { name: 'Novo lançamento' })).toBeTruthy() // o + continua
   })
 
   it('rodapé que falha não derruba a lista', async () => {
@@ -2056,6 +2064,7 @@ describe('Lançamentos: filtros em tela cheia (situação, cartão, fixos e parc
     await u.click(screen.getByRole('button', { name: 'Pendente' }))
     await u.click(screen.getByRole('button', { name: 'Filtrar: ver os lançamentos' }))
     const rodape = screen.getByRole('region', { name: 'Totais do mês' })
-    expect(await within(rodape).findByText(/não os de tipo, categoria, situação, cartão, fixos ou parcelados/)).toBeTruthy()
+    expect(await within(rodape).findByText(/Sem total com este filtro: o total só segue o filtro de conta/)).toBeTruthy()
+    expect(within(rodape).queryByText('entradas')).toBeNull()
   })
 })

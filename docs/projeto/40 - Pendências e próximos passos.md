@@ -813,7 +813,7 @@ Design: artefato "Lançamentos — Extrato e Gastos" (4 telas, dados fictícios)
 - [x] **Surgiu do item (e), feito em 17/11/2026:** tela de Lixeira (`/lancamentos/lixeira`): lista o que foi excluído e restaura um por um; entra pelo ⋯ de Lançamentos e pelo "Ver lixeira" da barra do Desfazer. Nunca apaga de vez. **atalho:** mostra só os 200 excluídos mais recentes, sem paginar; melhorar se a lixeira passar disso. **Não feito:** restaurar vários de uma vez.
 - [ ] **(c)** Faixa de pendências. **Não é só front:** "vencidos" existe em `home_alerts`; "a pagar até o fim do mês" não existe e "a receber" só com outra regra. **Decisões do dono:** fatura entra (aberta ou só fechada)? parcela de empréstimo entra? "a receber" até o fim do mês ou todo o futuro? vencidos a pagar e a receber juntos? o que mostrar fora do mês atual?
 - [ ] **PR 2 (busca):** precisa de função nova no banco (compras de cartão não são `transactions`; o total é dinheiro); índice só depois de medir; a consulta atual não pagina.
-- [ ] **PR 3 (totais com filtros):** precisa de banco (`cash_flow_series` só filtra conta). Só front e cabe já: esconder o total com filtro e trocar os três rótulos "previsto".
+- [ ] **PR 3 (totais com filtros):** precisa de banco (`cash_flow_series` só filtra conta) para mostrar o total **do filtro**. Feito na #406 (só tela): com filtro que não seja de conta, o rodapé esconde os números ("Sem total com este filtro") em vez de mostrar um total que não bate com a lista; o previsto diz "entradas previstas", "saídas previstas" e "saldo previsto". Falta: a função do banco que soma com tipo, categoria, situação, cartão, fixos e parcelados.
 - [ ] **PR 4 (Extrato / Gastos):** não começar sem decisão do dono; depende da pendência da #164.
 - [ ] **Decisões do dono (design):** ~~despesa vermelha ou neutra~~ (decidido em 16/11: vermelha na lista; feito na #405); "Pagar" com um toque ou a folha; tabela no computador (saiu na #269) ou lista.
 
@@ -837,7 +837,7 @@ Plano do agente de arquitetura: migration 129 com `investment_return_history` (p
 - [ ] **Cotação da bolsa:** os agendamentos rodam e terminam com sucesso, mas sem a chave `brapi_token` e sem ativo ligado não buscam nada.
 - [ ] **Cripto (o dono quer):** candidata CoinGecko (plano Demo gratuito, com chave). Antes de qualquer migration: teste de rede real da consulta em reais. Precisa de migration nova (o símbolo hoje só aceita o formato da B3 e a classe cripto não entra em `investment_quote_symbol`), chave no cofre e função de busca no molde de `market_quotes_fetch`. Na brapi, cripto é dos planos pagos.
 - Tesouro Direto (CSV oficial de 14 MiB, sem JSON gratuito) e previdência fechada (sem cota pública): continuam manuais.
-- [ ] **Decisão do dono:** despesa em vermelho ou neutra no app inteiro. A regra escrita (#183) diz vermelho; o cabeçalho do Início ficou neutro pelo handoff (#378) e a lista de Lançamentos usa cinza.
+- [x] **Decisão do dono:** despesa em vermelho ou neutra no app inteiro. Decidido em 16/11 (vermelha na lista, neutra no cabeçalho do Início); feito na #405.
 
 ## 16/11/2026 — Trabalho de desempenho de 13/11 que tinha ficado para trás
 Três commits de 13/11 ficaram numa área de trabalho isolada (`.claude/worktrees/`) e nunca chegaram ao main nem ao GitHub. Achados em 16/11 porque os testes locais entravam nessa pasta. Cópia de segurança no GitHub: branch `claude/backup-desempenho-13-11` (sem PR). O dono mandou refazer sobre o main atual, uma PR por vez.
