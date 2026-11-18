@@ -1,10 +1,20 @@
 ---
 tags: [tudo-azul, pendencias]
-atualizado: 2026-11-15
+atualizado: 2026-11-18
 ---
 # Pendências e próximos passos
 
+> **Resumo (limpeza de 18/11/2026, #435):** 346 itens abertos e 304 feitos. **O que espera por você** está em "Decisões suas" e "Conferências suas (no app)" (as telas novas de 17 e 18/11 ainda não foram vistas no app real). **O resto é backlog técnico, ideia ou medição de desempenho**: nenhum item aberto bloqueia o uso do app. Nesta limpeza foram **fechados 7 itens com evidência** (cada um traz a prova na própria linha). Os demais **não foram revalidados um a um**: alguns podem já estar feitos sem o `[x]`; quando você ou eu tocarmos numa área, conferir o item antes de refazer.
+
 ## Decisões suas
+**Índice das decisões que estão espalhadas pelo arquivo** (só ponteiros; o item de verdade fica na seção citada, e o `[ ]` vale lá):
+- **Meli+ e assinaturas que cobram a cada ~30 dias:** frequência "a cada 30 dias" ou reajustar o dia (seção "Seletor de categoria em folha", item #433).
+- **Preferências:** o período padrão e o dia em que o mês começa valerem além de Relatórios e do Limite diário seguro (seção "Recorrentes só informativa", item "Preferências, decidir com o dono").
+- **Compra nova numa fatura já paga e travada:** recusar ou só avisar (seção "17/11/2026 — Revisão da PR B", #413).
+- **Crédito de empréstimo em Entradas x Saídas** e **Relatório › Contas sem as arquivadas** (seção "Auditoria de dinheiro", #191).
+- **Cripto por CoinGecko** e **chave da brapi** no cofre do Supabase (seções "16/11/2026 — Cotação" e "Cotação da bolsa pela brapi").
+- **PR 4 (Extrato / Gastos):** adiada por você em 17/11/2026 (seção "Handoff de Lançamentos").
+
 - [x] **Produção: lançamentos bloqueados (42501)** — migration 079 aplicada em 09/11/2026 junto com as pendentes 020000–060000 (histórico reparado pelo modo `reparar` do workflow).
 - [x] **Produção: salvar Preferências e ligar o Aviso diário nunca funcionaram (42501 no upsert).** Migration 080 pronta (PR da revisão geral); aplicar pelo workflow com `APLICAR` depois do merge. — **feito:** migration 080 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026); o privilégio `UPDATE(user_id)` existe. Falta só exercitar de verdade (as tabelas `user_preferences` e `daily_digest_settings` ainda têm 0 linhas): salvar uma preferência no app.
 - [x] Versão **2026.2** (feito).
@@ -98,7 +108,7 @@ atualizado: 2026-11-15
 - [ ] Depois de mover, conferir no Início que a Taxa de poupança e o Comprometimento (último mês fechado) deixaram de contar esses créditos (categoria "não conta como consumo").
 ### Segurança dos GitHub Actions (#195, 06/11/2026)
 - [x] Segredos de produção só nos passos que usam (workflow de migrations), checkout com `persist-credentials: false`, actions por SHA com a tag no comentário, `setup-cli@v1` (branch) + `latest` trocados por v3.2.0 + CLI 2.122.1 nos testes do banco, Dependabot semanal para as actions.
-- [ ] **Rodar "simular" no workflow de produção depois do merge** (com o "pode" do dono): é a única prova real de que os segredos chegam aos passos certos e de que a setup-cli fixada por SHA funciona ali (o CI do PR não roda esse workflow).
+- [x] **Rodar "simular" no workflow de produção depois do merge** (com o "pode" do dono): é a única prova real de que os segredos chegam aos passos certos e de que a setup-cli fixada por SHA funciona ali (o CI do PR não roda esse workflow). — **fechado em 18/11/2026 (limpeza, #435):** o workflow "simular" foi rodado em produção várias vezes (por exemplo, execuções 44171051718, 44209274462 e 44219466795), com os segredos e a setup-cli funcionando.
 - [ ] **Ligar Dependabot alerts / security updates** em Settings → Code security, se ainda não estiverem (o `dependabot.yml` só cobre as versões das actions).
 - [ ] **Subir a CLI do Supabase para a 3.x** (testes e produção juntos), numa PR própria: conferir antes as mudanças de padrão de alvo da 3.0.0; enquanto isso, a 2.122.1 é a `v2.stable`.
 - [ ] `concurrency` no `ci.yml` (sugestão do zizmor no modo pedante): PR com vários pushes roda o CI inteiro de cada um. Baixa prioridade.
@@ -260,7 +270,7 @@ atualizado: 2026-11-15
 - [x] **Resumo de todos os cartões** no topo de Cartões: carrossel de mês, "Faturas de <mês>" (total do banco e a fatura de cada cartão), limite total, disponível total e barra do usado com texto.
 - [x] **Aplicar a migration 065** em produção (workflow; simular → ler o log → `APLICAR`), com o "pode" do dono. — **feito:** migration 065 aplicada em produção (conferido na lista de migrations do Supabase em 10/11/2026).
 - [ ] **Atalho: caminho antigo sem a 065** (`Cartoes.tsx`, `carregar`): com o banco sem `card_overview` (ou se ela falhar), a tela lê `card_months` por cartão e `card_invoices_month`. Remover depois que a 065 estiver aplicada.
-- [ ] **Início ainda é N+1**: `resumoDosCartoes` (bloco Cartões do Início) chama `card_months` por cartão; passar a usar `card_overview` (mesmos números) numa PR própria.
+- [x] **Início ainda é N+1**: `resumoDosCartoes` (bloco Cartões do Início) chama `card_months` por cartão; passar a usar `card_overview` (mesmos números) numa PR própria. — **fechado em 18/11/2026 (limpeza, #435):** duplicado do item "Início: trocar `card_months` por cartão por `card_overview`" (linha 109), que continua aberto.
 - [ ] **Dois "meses" de fatura no app**: Cartões agrupa pelo mês do fechamento (como as abas); o Início ("Faturas que vencem em") e Lançamentos pelo do vencimento. Decidir com o dono se unifica.
 - [x] **"Cartão Cartão Roxo"** no "Próxima fatura vence em": desde a #181 não repete "Cartão" quando o nome já começa com ele.
 - [ ] **Conferir no celular e no iPad** (você): resumo no topo, carrossel e a linha das assinaturas previstas com os seus cartões.
@@ -330,7 +340,7 @@ atualizado: 2026-11-15
 - [ ] **O futuro do dinheiro (pedido do dono em 30/10/2026, três pontos)**: (1) a fatura do cartão que vence dia 28 deve aparecer no **Calendário** no dia 28 como planejada (hoje o calendário só mostra lançamentos e movimentos de dívida pagos); (2) **saldo em meses futuros**, total e por conta, com a escolha "só efetuados" ou "efetuados + planejados" (hoje `account_balances` só conta `status = 'paid'` e o Calendário só mostra receitas e despesas do mês); (3) **[em aberto]** uma **aba Relatórios** no estilo do Organizze: Categorias (rosca + lista com %), Balanço (entradas x saídas, resultado por período), Tags, com filtros Pagos/Todos, periodicidade (diário, semanal, mensal, acumulado) e contas. A tela Relatórios de hoje só exporta CSV. Atenção: o saldo **por conta** com fatura planejada depende de saber qual conta paga cada cartão (conta de pagamento padrão, migration); no total, a fatura em aberto pode ser descontada sem isso.
 - [ ] **Cartões, ideias da pesquisa pública (30/10/2026)**: (1) "Fatura atual (venc.)" separada de "A pagar" no Início e em Cartões; (2) limite opcional no cadastro e o campo de saldo explicado; (3) conta de pagamento padrão do cartão (migration); (4) documentar e testar a regra do dia do fechamento e dos dias 29 a 31. O total das faturas do mês no Início (migration 023) já está em PR. Mobills e Organizze pedem limite e conta de pagamento no cadastro.
 - [x] **Recorrentes: horizonte de geração** (migration 022): feito. Sem data final, 12 meses; com data final, até ela (máx. 360). Aplicada em 30/10/2026; falta o dono conferir no app.
-- [ ] **Tela de Empréstimos e Financiamentos** (decisão do dono em 30/10/2026: "vamos criar depois"): saldo devedor, parcelas pagas e quanto falta quitar. O banco já tem `debts`/`debt_installments`/`debt_pay`/`debt_balances`.
+- [x] **Tela de Empréstimos e Financiamentos** (decisão do dono em 30/10/2026: "vamos criar depois"): saldo devedor, parcelas pagas e quanto falta quitar. O banco já tem `debts`/`debt_installments`/`debt_pay`/`debt_balances`. — **fechado em 18/11/2026 (limpeza, #435):** a tela de Dívidas existe (#287, migration 102, `src/pages/Dividas.tsx`): saldo devedor, parcelas e contrato.
 - [x] **Arquivar/excluir cartão e conta** (migrations 020 e 021, #88 e #89): feito e aplicado em 30/10/2026. Falta o dono conferir no app: o cartão de exemplo que não deixa excluir (ler a mensagem nova, que diz o que existe) e decidir se a exclusão deve valer quando só sobram registros anulados.
 - [x] **Testes pgTAP que dependem da data de hoje** (A1 `12_card_correcoes`, A2 `22_recurrence_frequency`): corrigidos (como se fosse 02/01/2027 falhavam 4 testes). Para achar outros do mesmo tipo: `su postgres -c "scripts/local-db/simular-data.sh AAAA-MM-DD"` roda a suíte com outra data de hoje.
 1. ~~**Início × Análises**~~ — feito (#57).
@@ -467,7 +477,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] **Seletor de mês em Análises**: hoje a aba mostra só o mês atual (barras de categoria e o fim do balanço de 6 meses incluídos).
 - [ ] **Total por dia no Calendário** (ideia do Livro de contas/Mobills): precisa de função nova no banco com a regra do calendário (movimento da conta; fatura no dia do pagamento), migration à parte.
 - [ ] **Modo escuro dos gráficos**: o app não tem tema escuro; quando tiver, escolher e validar os passos escuros das cores dos gráficos (`src/components/graficos/cores.ts`).
-- [ ] **Total de todos os cartões juntos** (do banco) (pedido do dono: "precisa ter").
+- [x] **Total de todos os cartões juntos** (do banco) (pedido do dono: "precisa ter"). — **fechado em 18/11/2026 (limpeza, #435):** o resumo dos cartões (#175, migration 065, `card_overview`) mostra o total das faturas e o limite total, vindos do banco.
 - [ ] **Barra de "% quitado"** em cada dívida (pedido do dono: "precisa ter").
 - [ ] Orçamento que se repete todo mês sozinho (o dono pediu explicação).
 - [x] **Crédito avulso no cartão com categoria, contando como receita** (migration 052): Cartões → "Crédito / reembolso"; entra na fatura aberta pela data (ou numa posterior escolhida), aparece em verde com "+" e pode ser anulado. Falta aplicar a 052 em produção e o dono conferir no app.
@@ -500,9 +510,9 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 
 
 ### Cartão de crédito: recursos avançados da fatura (pendentes após #204)
-- [ ] **Categorias da fatura**: RPC agregada por categoria e gráfico/lista na página dedicada. O front não deve somar os valores.
+- [x] **Categorias da fatura**: RPC agregada por categoria e gráfico/lista na página dedicada. O front não deve somar os valores. — **fechado em 18/11/2026 (limpeza, #435):** feito na #315 (migration 112, `card_invoice_categories`).
 - [ ] **Detalhes do lançamento**: painel lateral com categoria, valor, data e descrição editáveis; tag de despesa fixa mensal; ações de excluir e estornar/reembolsar. Exige trilha de auditoria e preservação da trava de fatura paga.
-- [ ] **Mover parcela entre faturas**: ações no menu de contexto para fatura anterior/próxima; definir a regra para parcela já cobrada, fatura paga e sequência de parcelas, com operação atômica no banco.
+- [x] **Mover parcela entre faturas**: ações no menu de contexto para fatura anterior/próxima; definir a regra para parcela já cobrada, fatura paga e sequência de parcelas, com operação atômica no banco. — **fechado em 18/11/2026 (limpeza, #435):** feito (migrations `card_payment_move` de 11/11 e `card_installment_move` de 12/11/2026).
 
 
 ## Auditoria de pessoas inativas (PR #209)
@@ -574,7 +584,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Conferir no celular (você): o modo de seleção (⋯ do topo → Selecionar lançamentos), as caixas no lugar do ícone e a barra presa no topo.
 - [x] Etapa 3 (#270): período livre pelo seletor do relatório (dia, semana, mês, últimos 3/6/12 meses, ano ou período escolhido); a lista, as faturas, os créditos e o rodapé carregam pelo intervalo.
 - [x] ~~Lançamentos com período longo: a lista vem toda de uma vez; um ano inteiro pode passar do limite de linhas do Supabase.~~ **Resolvido na #422** (17/11/2026): a lista e o resultado da busca são lidos página por página (1000 por vez), até 50 mil linhas; passando disso, o total some e a tela avisa. **atalho:** as páginas vêm em fila (uma depois da outra) e a busca refaz a consulta do banco a cada página; melhorar com contagem prévia e páginas em paralelo, ou com uma função que já devolva tudo, se um ano inteiro ficar lento. **Não medido:** o tempo de abrir um ano de dados reais. **Achados do `revisor-dinheiro` na #422:** o teto de 50 mil agora avisa também sem filtro; uma linha repetida entre páginas (lançamento criado durante a leitura) entra uma vez só. **Não feito:** (a) linha apagada entre duas páginas faz a vizinha ser pulada (precisa de paginação por chave ou recarga); (b) um pedido antigo continua lendo páginas depois de trocar de mês ou filtro (sem cancelamento) e a busca refaz `ledger_search` por página; (c) erro de coluna ausente numa página depois da primeira refaz tudo com as colunas antigas (improvável: o erro vem na página 1); (d) `card_months` e `card_items` também são cortados em 1000 (uma fatura com mais de 1000 compras); (e) o `.rpc().order().range()` da busca vem da documentação do PostgREST e ainda não foi visto no servidor real.
-- [ ] Rodapé com filtro de tipo ou categoria: hoje avisa que não segue o filtro. Seguir de verdade exige uma função do banco com esses filtros.
+- [x] Rodapé com filtro de tipo ou categoria: hoje avisa que não segue o filtro. Seguir de verdade exige uma função do banco com esses filtros. — **fechado em 18/11/2026 (limpeza, #435):** feito na #420 (migration 139): o rodapé mostra o total do filtro, vindo do banco.
 - [ ] Conferir no celular (você): o "+" e o rodapé não tampam o último lançamento da lista; o rodapé fica acima da barra de baixo.
 
 
