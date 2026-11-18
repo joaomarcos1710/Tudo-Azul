@@ -25,7 +25,7 @@ import { FolhaPorDiaFatura } from '../components/FolhaPorDiaFatura'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 import {
-  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
+  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, marcarAgendadaCobrada, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
   fechamentoNoCiclo, inicioDaTroca, moverPagamentoDeFatura, moverParcelaDeFatura, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
@@ -1230,7 +1230,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   const [previstas, setPrevistas] = useState<OcorrenciaPrevista[]>([])
   const [erroPrevistas, setErroPrevistas] = useState('')
   // "só esta" / "esta e as próximas": o painel aberto numa linha das assinaturas previstas
-  const [painelPrevista, setPainelPrevista] = useState<{ tipo: 'editar' | 'cancelar'; ocorrencia: OcorrenciaPrevista } | null>(null)
+  const [painelPrevista, setPainelPrevista] = useState<{ tipo: 'editar' | 'cancelar' | 'cobrada'; ocorrencia: OcorrenciaPrevista } | null>(null)
   const [creditos, setCreditos] = useState<CreditoFatura[]>([])
   const [pagamentos, setPagamentos] = useState<PagamentoFatura[]>([])
   const [erroPagamentos, setErroPagamentos] = useState('')
@@ -1618,7 +1618,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         {previstas.length > 0 && (
           <section className="mt-4 border-t border-slate-100 pt-4" aria-label="Assinaturas previstas nesta fatura" data-testid="bloco-previstas">
             <h2 className="mb-1 text-sm font-semibold text-slate-600">Assinaturas previstas <SeloAgendado /></h2>
-            <p className="mb-1 text-xs text-slate-500">Ainda não cobradas: entram nesta fatura no dia indicado. Use ⋯ na linha para mudar o dia, o valor ou a descrição (de só esta cobrança ou desta em diante), cancelar uma cobrança ou excluir a assinatura.</p>
+            <p className="mb-1 text-xs text-slate-500">Ainda não cobradas: entram nesta fatura no dia indicado. Use ⋯ na linha para mudar o dia, o valor ou a descrição (de só esta cobrança ou desta em diante), marcar que ela já foi cobrada (vira compra no dia real), cancelar uma cobrança ou excluir a assinatura.</p>
             {erroPrevistas && <div className="mb-2"><Aviso tipo="erro">{erroPrevistas}</Aviso></div>}
             <ul className="divide-y divide-slate-100">
               {previstas.map((o) => (
@@ -1630,6 +1630,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                   acoes={(
                     <MenuAcoes rotulo={`Ações de ${o.descricao}`} desabilitado={acao !== null || painelPrevista !== null} acoes={[
                       ...(o.itemId ? [
+                        { rotulo: 'Já foi cobrada…', aoEscolher: () => setPainelPrevista({ tipo: 'cobrada', ocorrencia: o }) },
                         { rotulo: 'Editar…', aoEscolher: () => setPainelPrevista({ tipo: 'editar', ocorrencia: o }) },
                         { rotulo: 'Cancelar cobrança…', aoEscolher: () => setPainelPrevista({ tipo: 'cancelar', ocorrencia: o }) },
                       ] : []),
@@ -1638,11 +1639,13 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
                   )} />
               ))}
             </ul>
-            {painelPrevista && (
-              <PainelAgendada tipo={painelPrevista.tipo} ocorrencia={painelPrevista.ocorrencia} categorias={categorias} hoje={hoje}
-                aoFechar={() => setPainelPrevista(null)}
-                aoConcluir={async () => { setPainelPrevista(null); await carregar() }} />
-            )}
+            {painelPrevista && (painelPrevista.tipo === 'cobrada'
+              ? <PainelCobrada ocorrencia={painelPrevista.ocorrencia} hoje={hoje}
+                  aoFechar={() => setPainelPrevista(null)}
+                  aoConcluir={async () => { setPainelPrevista(null); await carregar() }} />
+              : <PainelAgendada tipo={painelPrevista.tipo} ocorrencia={painelPrevista.ocorrencia} categorias={categorias} hoje={hoje}
+                  aoFechar={() => setPainelPrevista(null)}
+                  aoConcluir={async () => { setPainelPrevista(null); await carregar() }} />)}
           </section>
         )}
       </Card>
@@ -2261,6 +2264,47 @@ function PainelEditar({ item, aoFechar, aoConcluir }: { item: ItemFatura; aoFech
       <Field rotulo="Valor da parcela (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
       <Botoes rotulo="Salvar valor" enviando={enviando} aoCancelar={aoFechar} />
     </form>
+  )
+}
+
+/**
+ * "Já foi cobrada": o cartão cobrou a assinatura antes (ou em outro dia) do que estava agendado (pedido do dono, 18/11/2026: o Meli+
+ * estava para 24/11 e cobrou em 17/11). Uma cobrança agendada só pode ter data futura; o que já aconteceu é compra. Esta folha vira
+ * a cobrança em compra na data real (hoje ou antes); o valor e a categoria são os da assinatura (para mudá-los, use Editar).
+ */
+function PainelCobrada({ ocorrencia: o, hoje, aoFechar, aoConcluir }: {
+  ocorrencia: OcorrenciaPrevista; hoje: string; aoFechar: () => void; aoConcluir: () => Promise<void>
+}) {
+  const [data, setData] = useState(hoje)
+  const [tentou, setTentou] = useState(false)
+  const { erro, enviando, enviar } = useEnvio(aoConcluir)
+  const erroData = tentou && (!data || data > hoje) ? 'A data precisa ser hoje ou antes.' : undefined
+
+  function enviarForm(e: FormEvent) {
+    e.preventDefault()
+    if (!o.itemId) return
+    const itemId = o.itemId
+    setTentou(true)
+    if (!data || data > hoje) return
+    void enviar(async () => { await marcarAgendadaCobrada(itemId, data) })
+  }
+
+  return (
+    <Folha titulo={`${o.descricao} já foi cobrada`} aoFechar={aoFechar} larga centro>
+    <form onSubmit={enviarForm} noValidate className="grid gap-3 md:grid-cols-2" aria-label={`${o.descricao} já foi cobrada`}>
+      {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
+      <p className="text-sm md:col-span-2">
+        A cobrança de <strong>{o.descricao}</strong> (−{formatBRL(o.valor)}) estava agendada para {formatDate(o.data)}. Informe o dia em que o
+        cartão cobrou de verdade: ela vira uma compra na fatura daquele dia.
+      </p>
+      <Field rotulo="Dia em que o cartão cobrou" type="date" max={hoje} value={data} onChange={(e) => setData(e.target.value)} erro={erroData} />
+      <p className="text-sm text-slate-600 md:col-span-2">
+        Só esta cobrança vira compra. As outras continuam agendadas nos dias de antes: para mudar o dia das próximas, use
+        {' '}<strong>Editar</strong> › <strong>Esta e as próximas</strong>.
+      </p>
+      <Botoes rotulo="Lançar como compra" enviando={enviando} aoCancelar={aoFechar} />
+    </form>
+    </Folha>
   )
 }
 
