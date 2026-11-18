@@ -555,7 +555,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Seletor de categoria em folha (10/11/2026)
 - [x] #276: busca, lista ou grade, subcategorias embaixo e "Criar categoria" nos formulários de lançamento, cartão e recorrente.
 - [ ] Conferir no celular (você): a folha, a grade de 4 colunas e o "Criar categoria".
-- [x] **Assinatura de cartão: "Já foi cobrada" (#433, 18/11/2026):** migration 143, ainda **não aplicada** (só com o "pode" do dono). **Não visto no app real.**
+- [x] **Assinatura de cartão: "Já foi cobrada" (#433, 18/11/2026):** migration 143 **aplicada em 18/11/2026** (execução 44219549821). **Não visto no app real**: o dono precisa abrir o card em uma assinatura prevista e conferir o valor, o dia e a fatura onde a compra entra.
 - [ ] **Assinatura que cobra a cada ~30 dias (#433):** o Meli+ cobra em 21/05, 20/06, 20/07, 19/08, 18/09, 18/10 e 17/11: um dia a menos a cada mês, e a regra mensal por dia do mês (24, 17…) volta a errar em ~2 meses. Decidir com o dono se vale uma frequência "a cada 30 dias" ou se ele reajusta o dia quando errar.
 - [x] **Lista embaixo do campo no computador (#432, 18/11/2026):** a folha só no celular. Conferido na bancada (campo no alto e embaixo, 1280 px; celular 390 px). **Não visto no app real nem no iPad.**
 - [ ] **atalho (#432):** com a lista aberta, rolar o formulário a fecha (ela é fixa na tela e não acompanha o campo); melhorar se o dono estranhar. A lista fica a partir de 1024 px, e o iPad em paisagem pode cair de um lado ou do outro.
