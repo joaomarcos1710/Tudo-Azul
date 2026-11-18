@@ -1018,3 +1018,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** a opção **A cada 30 dias** em "Repetir" (frequência em dias, `day` / 30).
 - **Por quê:** o Meli+ cobra de 30 em 30 dias (um dia a menos por mês); a regra mensal por dia do mês (24, 17…) errava de novo em ~2 meses e o dono precisava reajustar o dia. O banco já aceitava recorrência em dias (migration 048); só faltava a tela.
 - **Fica de fora:** trocar a frequência de uma assinatura existente (a frequência, o dia e o início não mudam depois de criados; é encerrar e criar outra, regra da migration 016). A opção livre "a cada N dias" também não entrou: só 30, que é o caso real.
+
+## 18/11/2026 — Meli+ fica mensal no dia 17, não a cada 30 dias (#438)
+- **O quê:** a assinatura Meli+ (R$ 39,90, cartão) continua como regra **mensal, dia 17**, a partir de 17/12/2026, que o dono criou depois de usar o "Já foi cobrada…" (cobrança de 17/11).
+- **Por quê:** o Meli+ cobra de ~30 em 30 dias (um dia a menos por mês), mas a diferença para o mensal é de 1 a 2 dias por mês e some a cada ~ano; o dono preferiu a regra simples e reajusta o dia se o Mercado Livre se afastar.
+- **Fica de fora:** a opção **A cada 30 dias** (#436) existe e serve se ele mudar de ideia (encerrar a regra e criar outra, porque a frequência não muda depois de criada). Ela ainda não foi vista no app real.

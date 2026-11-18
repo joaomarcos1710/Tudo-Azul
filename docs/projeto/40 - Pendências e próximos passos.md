@@ -8,7 +8,7 @@ atualizado: 2026-11-18
 
 ## Decisões suas
 **Índice das decisões que estão espalhadas pelo arquivo** (só ponteiros; o item de verdade fica na seção citada, e o `[ ]` vale lá):
-- **Meli+ e assinaturas que cobram a cada ~30 dias:** frequência "a cada 30 dias" ou reajustar o dia (seção "Seletor de categoria em folha", item #433).
+- ~~**Meli+ e assinaturas que cobram a cada ~30 dias**~~ — decidido em 18/11/2026: o Meli+ fica mensal no dia 17 (#438).
 - **Preferências:** o período padrão e o dia em que o mês começa valerem além de Relatórios e do Limite diário seguro (seção "Recorrentes só informativa", item "Preferências, decidir com o dono").
 - **Compra nova numa fatura já paga e travada:** recusar ou só avisar (seção "17/11/2026 — Revisão da PR B", #413).
 - **Crédito de empréstimo em Entradas x Saídas** e **Relatório › Contas sem as arquivadas** (seção "Auditoria de dinheiro", #191).
@@ -567,7 +567,7 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 - [ ] Conferir no celular (você): a folha, a grade de 4 colunas e o "Criar categoria".
 - [x] **Assinatura de cartão: "Já foi cobrada" (#433, 18/11/2026):** migration 143 **aplicada em 18/11/2026** (execução 44219549821). **Visto no app real em 18/11/2026:** o dono usou a ação no Meli+ (cobrança de 17/11) e funcionou; conferido no banco (só leitura): compra de 17/11, R$ 39,90, na fatura que fecha em 18/11, item agendado `converted`, sem duplicata.
 - [x] **Assinatura que cobra a cada ~30 dias (#433):** feito na #436 (18/11/2026): opção **A cada 30 dias** em Repetir, sem migration (o banco já tinha recorrência em dias). Para passar o Meli+ que já existe (mensal, dia 24) para 30 dias: **Cancelar cobrança › Esta e as próximas** na cobrança agendada e criar uma nova assinatura com **A cada 30 dias**.
-- [ ] **Meli+ (#436):** o dono encerrou a regra antiga (terminou em 23/12/2026) e criou a nova como **mensal, dia 17, a partir de 17/12** (as cobranças agendadas saem 17/01, 17/02, 17/03…, não de 30 em 30). Decidir se fica assim (a diferença para 30 dias é de 1 a 2 dias por mês) ou se troca para **A cada 30 dias**: cancelar "Esta e as próximas" na cobrança de 17/12 e criar de novo. A opção **A cada 30 dias** da #436 ainda não foi vista no app real.
+- [x] **Meli+ (#436):** decisão do dono em 18/11/2026 (#438): **fica mensal, no dia 17** (regra que ele criou, a partir de 17/12; a regra antiga terminou em 23/12/2026). A diferença para 30 dias é de 1 a 2 dias por mês; ele reajusta o dia se precisar. A opção **A cada 30 dias** da #436 ainda não foi vista no app real.
 - [ ] **Trocar a frequência de uma assinatura que já existe (#436):** hoje é encerrar e criar outra (a frequência não muda depois de criada, migration 016). Se incomodar, "Editar › Esta e as próximas" poderia ter a opção Repetir (muda `card_scheduled_from_here`; migration nova). Opção livre "a cada N dias" também ficou de fora (só 30).
 - [x] **Lista embaixo do campo no computador (#432, 18/11/2026):** a folha só no celular. Conferido na bancada (campo no alto e embaixo, 1280 px; celular 390 px). **Não visto no app real nem no iPad.**
 - [ ] **atalho (#432):** com a lista aberta, rolar o formulário a fecha (ela é fixa na tela e não acompanha o campo); melhorar se o dono estranhar. A lista fica a partir de 1024 px, e o iPad em paisagem pode cair de um lado ou do outro.
