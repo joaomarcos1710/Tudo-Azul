@@ -598,6 +598,15 @@ export async function cancelarAgendada(itemId: string): Promise<void> {
 }
 
 /**
+ * "Já foi cobrada": vira UMA cobrança agendada em compra, na data em que o cartão de fato cobrou (hoje ou antes). A compra entra na
+ * fatura do ciclo daquela data e a cobrança sai da lista de previstas; as outras seguem agendadas (card_scheduled_charged).
+ */
+export async function marcarAgendadaCobrada(itemId: string, data: string): Promise<void> {
+  const { error } = await cliente().rpc('card_scheduled_charged', { p_item: itemId, p_charge_date: data })
+  if (error) throw error
+}
+
+/**
  * "Esta e as próximas": encerra daqui em diante ('end') ou muda daqui em diante ('update', com os dados novos).
  * O que já virou compra fica como está. Devolve quantas cobranças agendadas saíram (card_scheduled_from_here).
  */

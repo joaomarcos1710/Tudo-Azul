@@ -33,6 +33,7 @@ const mock = vi.hoisted(() => ({
   editarAgendada: vi.fn(),
   cancelarAgendada: vi.fn(),
   aPartirDaqui: vi.fn(),
+  marcarAgendadaCobrada: vi.fn(),
   pagarFatura: vi.fn(),
   reabrirFatura: vi.fn(),
   previaExclusao: vi.fn(),
@@ -58,7 +59,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
-  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
+  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, marcarAgendadaCobrada: mock.marcarAgendadaCobrada, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura, moverPagamentoDeFatura: mock.moverPagamentoDeFatura, moverParcelaDeFatura: mock.moverParcelaDeFatura,
@@ -168,6 +169,7 @@ beforeEach(() => {
   mock.editarAgendada.mockResolvedValue(undefined)
   mock.cancelarAgendada.mockResolvedValue(undefined)
   mock.aPartirDaqui.mockResolvedValue(0)
+  mock.marcarAgendadaCobrada.mockResolvedValue(undefined)
   mock.previaExclusao.mockResolvedValue([])
   mock.listarCreditosDaFatura.mockResolvedValue([])
   mock.lancarCreditoNoCartao.mockResolvedValue('ev1')
@@ -376,6 +378,64 @@ describe('Cartões', () => {
       await u.click(within(form).getByRole('button', { name: 'Salvar' }))
       await vi.waitFor(() => expect(mock.aPartirDaqui).toHaveBeenCalledWith('i1', 'update', { data: '2099-04-20', valor: c(8999), descricao: 'Academia', categoriaId: 'g1' }))
       expect(mock.editarAgendada).not.toHaveBeenCalled()
+    })
+
+    describe('Já foi cobrada (pedido do dono, 18/11/2026: o Meli+ estava para 24/11 e cobrou em 17/11)', () => {
+      it('abre um card com o dia de hoje já preenchido (e como o máximo): a cobrança real nunca é no futuro', async () => {
+        const u = userEvent.setup()
+        await abrir(u, 'Já foi cobrada…')
+        const card = await screen.findByRole('dialog', { name: 'Academia já foi cobrada' })
+        const form = within(card).getByRole('form', { name: 'Academia já foi cobrada' })
+        const campo = within(form).getByLabelText('Dia em que o cartão cobrou') as HTMLInputElement
+        expect(campo.value).toBe(hojeSP())
+        expect(campo.max).toBe(hojeSP())
+        // diz o que acontece com as outras cobranças e como acertar o dia delas
+        expect(within(form).getByText(/As outras continuam agendadas nos dias de antes/)).toBeTruthy()
+        expect(within(form).getByText('Esta e as próximas')).toBeTruthy()
+      })
+
+      it('"Lançar como compra" chama o banco com o item e o dia de hoje, não edita nem cancela, e recarrega', async () => {
+        const u = userEvent.setup()
+        await abrir(u, 'Já foi cobrada…')
+        const form = await screen.findByRole('form', { name: 'Academia já foi cobrada' })
+        await u.click(within(form).getByRole('button', { name: 'Lançar como compra' }))
+        await vi.waitFor(() => expect(mock.marcarAgendadaCobrada).toHaveBeenCalledWith('i1', hojeSP()))
+        expect(mock.editarAgendada).not.toHaveBeenCalled()
+        expect(mock.cancelarAgendada).not.toHaveBeenCalled()
+        expect(mock.aPartirDaqui).not.toHaveBeenCalled()
+        await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Academia já foi cobrada' })).toBeNull())
+      })
+
+      it('uma data passada (a cobrança foi há alguns dias) vale', async () => {
+        const u = userEvent.setup()
+        await abrir(u, 'Já foi cobrada…')
+        const form = await screen.findByRole('form', { name: 'Academia já foi cobrada' })
+        fireEvent.change(within(form).getByLabelText('Dia em que o cartão cobrou'), { target: { value: '2026-11-10' } })
+        await u.click(within(form).getByRole('button', { name: 'Lançar como compra' }))
+        await vi.waitFor(() => expect(mock.marcarAgendadaCobrada).toHaveBeenCalledWith('i1', '2026-11-10'))
+      })
+
+      it('data futura ou vazia não envia nada e explica', async () => {
+        const u = userEvent.setup()
+        await abrir(u, 'Já foi cobrada…')
+        const form = await screen.findByRole('form', { name: 'Academia já foi cobrada' })
+        fireEvent.change(within(form).getByLabelText('Dia em que o cartão cobrou'), { target: { value: '2099-01-01' } })
+        await u.click(within(form).getByRole('button', { name: 'Lançar como compra' }))
+        expect(await within(form).findByText('A data precisa ser hoje ou antes.')).toBeTruthy()
+        fireEvent.change(within(form).getByLabelText('Dia em que o cartão cobrou'), { target: { value: '' } })
+        await u.click(within(form).getByRole('button', { name: 'Lançar como compra' }))
+        expect(mock.marcarAgendadaCobrada).not.toHaveBeenCalled()
+      })
+
+      it('erro do banco aparece e o card continua aberto (nada foi lançado)', async () => {
+        mock.marcarAgendadaCobrada.mockRejectedValue({ code: '55000', message: 'esta cobrança já virou compra' })
+        const u = userEvent.setup()
+        await abrir(u, 'Já foi cobrada…')
+        const form = await screen.findByRole('form', { name: 'Academia já foi cobrada' })
+        await u.click(within(form).getByRole('button', { name: 'Lançar como compra' }))
+        expect(await within(form).findByRole('alert')).toBeTruthy()
+        expect(screen.getByRole('dialog', { name: 'Academia já foi cobrada' })).toBeTruthy()
+      })
     })
 
     it('Cancelar cobrança continua começando em "só esta" (a opção segura)', async () => {

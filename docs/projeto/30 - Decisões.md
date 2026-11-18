@@ -1008,3 +1008,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Por quê:** o dono achou ruim o pop-up por cima do formulário do cartão ("não seria melhor usar igual o Mobills?"). Das três opções (só o cartão, todos, só computador) ele escolheu a 3. A folha do #276 (decisão de 10/11, "como no Organizze") fica no celular, onde a lista embaixo apertaria.
 - **Como:** a lista é `position: fixed` com a posição do campo na tela, porque o formulário em volta rola e cortaria uma lista presa dentro dele (visto na bancada: a lista subia e a busca ficava escondida atrás do cabeçalho). Abre para baixo se couber pelo menos 220 px; senão, sobe se houver mais espaço em cima; a altura é limitada ao espaço (mínimo 120 px).
 - **Custo:** rolar o formulário ou mudar o tamanho da janela com a lista aberta fecha a lista (ela não acompanha o campo).
+
+## 18/11/2026 — Cobrança de assinatura de cartão que já aconteceu vira compra, não edição de data (#433)
+- **O quê:** a ação **Já foi cobrada…** transforma uma cobrança agendada em compra na data real (hoje ou antes).
+- **Por quê:** caso do dono: o Meli+ estava agendado para 24/11 e o cartão cobrou em 17/11. A regra de que a cobrança AGENDADA só tem data futura está certa (o que já aconteceu é compra), mas não existia o caminho "já cobrou"; o app só recusava a data de hoje. A assinatura cobra a cada ~30 dias, não no mesmo dia do mês, então a data cadastrada (24) estava errada desde o início.
+- **Fica de fora:** acertar o dia das próximas cobranças continua sendo Editar › Esta e as próximas; o botão converte só a cobrança escolhida.
