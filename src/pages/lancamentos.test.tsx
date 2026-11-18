@@ -847,6 +847,29 @@ describe('Lançamentos', () => {
     expect(mock.criarLancamento).not.toHaveBeenCalled()
   })
 
+  it('Repetir no cartão a cada 30 dias (Meli+): cria a assinatura em dias, sem dia do mês', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    await u.type(screen.getByLabelText('Valor (R$)'), '39,90')
+    await u.type(screen.getByLabelText('Descrição'), 'Meli+')
+    await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
+    fireEvent.change(screen.getByLabelText('Data da compra'), { target: { value: '2026-12-17' } })
+    await u.click(screen.getByRole('button', { name: /Repetir/ }))
+    const repetir = screen.getByRole('combobox', { name: 'Repetir' })
+    expect(within(repetir).getByRole('option', { name: 'A cada 30 dias' })).toBeTruthy()
+    await u.selectOptions(repetir, 'A cada 30 dias')
+    await u.click(screen.getByRole('button', { name: 'Criar assinatura' }))
+    await waitFor(() => expect(mock.criarRecorrencia).toHaveBeenCalled())
+    // regra em dias: a unidade é "day", a cada 30, e não tem dia do mês (o dia 17 de hoje não vira "todo dia 17")
+    expect(mock.criarRecorrencia.mock.calls[0][0]).toMatchObject({
+      tipo: 'card', descricao: 'Meli+', valor: 3990, dia: null, unidade: 'day', cada: 30, inicio: '2026-12-17', fim: null, cartaoId: 'k1', categoriaId: 'mer',
+    })
+    expect(mock.registrarCompra).not.toHaveBeenCalled()
+  })
+
   it('Repetir no cartão: "até" antes da data é recusado, e sem Repetir a compra parcelada segue como sempre', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)

@@ -44,6 +44,8 @@ export const frequencias: { chave: string; rotulo: string; unidade: UnidadeFrequ
   { chave: 'diaria', rotulo: 'Diária', unidade: 'day', cada: 1 },
   { chave: 'semanal', rotulo: 'Semanal', unidade: 'week', cada: 1 },
   { chave: 'quinzenal', rotulo: 'Quinzenal (a cada 14 dias)', unidade: 'week', cada: 2 },
+  // pedido do dono (18/11/2026): o Meli+ cobra de 30 em 30 dias, um dia a menos por mês; uma regra mensal por dia do mês errava de novo em ~2 meses
+  { chave: 'a-cada-30-dias', rotulo: 'A cada 30 dias', unidade: 'day', cada: 30 },
   { chave: 'mensal', rotulo: 'Mensal', unidade: 'month', cada: 1 },
   { chave: 'bimestral', rotulo: 'Bimestral', unidade: 'month', cada: 2 },
   { chave: 'trimestral', rotulo: 'Trimestral', unidade: 'month', cada: 3 },
