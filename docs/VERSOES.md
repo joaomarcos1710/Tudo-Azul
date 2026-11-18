@@ -351,4 +351,5 @@ continuam abaixo como histórico.
 | 2026.436 | **Repetir "a cada 30 dias".** No formulário de nova assinatura (e de lançamento fixo), "Repetir" ganha a opção **A cada 30 dias**, entre Quinzenal e Mensal. Serve para o que cobra de 30 em 30 dias (como o Meli+), que anda um dia a menos por mês e errava a regra "todo dia X". Nada muda para as assinaturas que já existem; para passar uma para 30 dias, encerre a antiga e crie uma nova. |
 | 2026.437 | **Só diário.** O dono usou o **Já foi cobrada…** no Meli+ no app real (18/11/2026) e funcionou. Nenhuma mudança no app. |
 | 2026.438 | **Só diário.** Decisão do dono: o Meli+ fica **mensal, no dia 17** (não "a cada 30 dias"). Nenhuma mudança no app. |
+| 2026.439 | **Só diário.** Limpeza da lista de pendências, seção "Achados da análise da aba Cartões": 2 itens fechados com prova, 1 plano descartado e 15 limites conhecidos movidos para uma lista sem caixa. Nenhuma mudança no app. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

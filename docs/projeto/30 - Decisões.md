@@ -1023,3 +1023,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** a assinatura Meli+ (R$ 39,90, cartão) continua como regra **mensal, dia 17**, a partir de 17/12/2026, que o dono criou depois de usar o "Já foi cobrada…" (cobrança de 17/11).
 - **Por quê:** o Meli+ cobra de ~30 em 30 dias (um dia a menos por mês), mas a diferença para o mensal é de 1 a 2 dias por mês e some a cada ~ano; o dono preferiu a regra simples e reajusta o dia se o Mercado Livre se afastar.
 - **Fica de fora:** a opção **A cada 30 dias** (#436) existe e serve se ele mudar de ideia (encerrar a regra e criar outra, porque a frequência não muda depois de criada). Ela ainda não foi vista no app real.
+
+## 18/11/2026 — Limpeza das pendências, seção "Achados da análise da aba Cartões" (#439)
+- **O quê:** (1) 15 itens que são atalhos ou limites conhecidos saem dos pendentes e vão para uma lista "Limites conhecidos", sem caixa e com o mesmo texto; (2) o plano de **apagar a conferência do banco** (`account_reconciliations`, travas de período conciliado) é **descartado**; (3) multimoeda (F3, F4, F5, cotações históricas) e as ideias antigas (metas, importar extrato, Melhoria_2/_3, "inclui R$ X de assinaturas previstas", base do cartão em relatórios) **ficam como pendentes**.
+- **Por quê:** (1) eram "melhorar se incomodar", não tarefas, e inflavam a contagem; (2) em produção há **0 conferências** (conferido em 18/11/2026) e apagar seria uma migration grande, com risco e sem ganho; a função fica no banco, sem uso; (3) o dono quis manter.
+- **Como:** só texto, nada apagado; cada item fechado leva a prova na própria linha.
