@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Periodo } from '../lib/periodoRelatorio'
 
@@ -29,17 +29,47 @@ vi.mock('../components/RelatorioPessoas', async () => {
     ),
   }
 })
-vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: null, carregando: false }) }))
-vi.mock('../lib/supabase', () => ({ supabase: null }))
+// Preferência "Período de navegação padrão" (Conta › Preferências): sem linha, sem sessão e sem cliente, como sempre foi nesta suíte;
+// com linha, só a leitura de user_preferences existe (é a única consulta direta ao banco que a tela faz).
+const prefs = vi.hoisted(() => ({ linha: null as null | { periodo_padrao: 'daily' | 'weekly' | 'monthly' } }))
+vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: prefs.linha ? { user: { id: 'u1' } } : null, carregando: false }) }))
+vi.mock('../lib/supabase', () => ({
+  get supabase() {
+    return prefs.linha
+      ? { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: prefs.linha, error: null }) }) }) }) }
+      : null
+  },
+}))
 
 // "hoje" fixo: 05/11/2026
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), hojeSP: () => '2026-11-05' }))
 
 import Relatorios from './Relatorios'
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); prefs.linha = null })
 
 const aba = (nome: string) => within(screen.getByRole('tablist', { name: 'Relatórios' })).getByRole('tab', { name: nome })
+
+describe('Relatórios obedece ao período padrão da pessoa (Conta › Preferências)', () => {
+  // "hoje" é quinta, 05/11/2026; a semana vai de segunda 02/11 a domingo 08/11
+  it('Mensal (o padrão): abre no mês', async () => {
+    prefs.linha = { periodo_padrao: 'monthly' }
+    render(<Relatorios />)
+    await waitFor(() => expect(screen.getByRole('tabpanel').textContent).toContain('de 2026-11-01 a 2026-11-30'))
+  })
+
+  it('Semanal: abre na semana de hoje (falha se a preferência deixar de ser lida)', async () => {
+    prefs.linha = { periodo_padrao: 'weekly' }
+    render(<Relatorios />)
+    await waitFor(() => expect(screen.getByRole('tabpanel').textContent).toContain('de 2026-11-02 a 2026-11-08'))
+  })
+
+  it('Diário: abre só no dia de hoje (falha se a preferência deixar de ser lida)', async () => {
+    prefs.linha = { periodo_padrao: 'daily' }
+    render(<Relatorios />)
+    await waitFor(() => expect(screen.getByRole('tabpanel').textContent).toContain('de 2026-11-05 a 2026-11-05'))
+  })
+})
 
 describe('Relatórios', () => {
   it('só os relatórios: título "Relatórios" e nenhuma exportação (foi para Conta › Exportar dados)', () => {

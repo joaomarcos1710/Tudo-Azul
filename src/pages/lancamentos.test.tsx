@@ -49,7 +49,16 @@ vi.mock('../lib/investimentos', async (original) => ({
   registrarOperacaoPorValor: inv.registrarOperacaoPorValor,
   registrarOperacaoInvestimento: inv.registrarOperacaoInvestimento,
 }))
-vi.mock('../lib/supabase', () => ({ supabase: null }))
+// Preferências da pessoa (Conta › Preferências): sem linha, o cliente é nulo, como sempre foi nesta suíte; com linha, só a leitura de
+// user_preferences existe (é a única consulta direta ao banco que a tela faz).
+const prefs = vi.hoisted(() => ({ linha: null as null | { ordem_lancamentos: 'asc' | 'desc'; saldo_diario: boolean } }))
+vi.mock('../lib/supabase', () => ({
+  get supabase() {
+    return prefs.linha
+      ? { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: prefs.linha, error: null }) }) }) }) }
+      : null
+  },
+}))
 const pessoasMock = vi.hoisted(() => ({ listarPessoasFamilia: vi.fn((_familia: string) => Promise.resolve([] as unknown[])) }))
 vi.mock('../lib/pessoasFamilia', async (original) => ({
   ...(await original<typeof import('../lib/pessoasFamilia')>()),
@@ -135,6 +144,7 @@ const lancs = [
 const lancsComPlanejadoFuturo = () => lancs.map((l) => (l.id === 't2' ? { ...l, data: '2099-10-05' } : l))
 
 beforeEach(() => {
+  prefs.linha = null
   window.localStorage.clear() // a conta/cartão lembrados de um teste não podem vazar para o próximo
   automaticos.atualizarAutomaticos.mockResolvedValue({ recorrentesOk: true, faturasOk: true })
   mock.listarContas.mockResolvedValue({ contas, total: c(0) })
@@ -209,6 +219,42 @@ describe('datas do mês', () => {
     expect(limitesDoMes('2026-12')).toEqual(['2026-12-01', '2026-12-31'])
     expect(somarMeses('2026-12', 1)).toBe('2027-01')
     expect(somarMeses('2026-01', -1)).toBe('2025-12')
+  })
+})
+
+describe('Lançamentos obedece às preferências da pessoa (Conta › Preferências)', () => {
+  const diasNaTela = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent ?? '').filter((t) => /\d\d\/\d\d/.test(t))
+
+  it('ordem Decrescente (o padrão): o dia mais novo vem primeiro', async () => {
+    prefs.linha = { ordem_lancamentos: 'desc', saldo_diario: true }
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await waitFor(() => expect(diasNaTela().map((t) => t.slice(-5))).toEqual(['15/10', '05/10']))
+  })
+
+  it('ordem Crescente: o dia mais antigo vem primeiro (falha se a preferência deixar de ser lida)', async () => {
+    prefs.linha = { ordem_lancamentos: 'asc', saldo_diario: true }
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await waitFor(() => expect(diasNaTela().map((t) => t.slice(-5))).toEqual(['05/10', '15/10']))
+  })
+
+  it('saldo diário Sim: o "Saldo final" aparece no dia que tem saldo', async () => {
+    prefs.linha = { ordem_lancamentos: 'desc', saldo_diario: true }
+    mock.listarSaldosDiarios.mockResolvedValue([{ data: '2026-10-15', moeda: 'BRL', saldo: c(123456) }])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    expect(await screen.findByText(/Saldo final: R\$ 1\.234,56/)).toBeTruthy()
+  })
+
+  it('saldo diário Não: o "Saldo final" não aparece, mesmo o banco devolvendo o saldo (falha se a preferência deixar de ser lida)', async () => {
+    prefs.linha = { ordem_lancamentos: 'desc', saldo_diario: false }
+    mock.listarSaldosDiarios.mockResolvedValue([{ data: '2026-10-15', moeda: 'BRL', saldo: c(123456) }])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    // o saldo do banco e a preferência chegam em momentos diferentes: espera o saldo ser pedido e deixa tudo assentar antes de afirmar
+    await waitFor(() => expect(mock.listarSaldosDiarios).toHaveBeenCalled())
+    await act(async () => { await new Promise((r) => setTimeout(r, 30)) })
+    expect(screen.queryByText(/Saldo final:/)).toBeNull()
   })
 })
 

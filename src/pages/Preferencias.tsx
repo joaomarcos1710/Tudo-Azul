@@ -119,20 +119,20 @@ export default function Preferencias() {
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
       {sucesso && <div className="mb-3"><Aviso tipo="sucesso">{sucesso}</Aviso></div>}
       {carregando ? <p className="py-6 text-sm text-slate-500">Carregando preferências…</p> : <>
-        <Opcao titulo="Ordenação dos seus lançamentos" descricao="Ordem (baseada na data) em que suas transações serão listadas na tela de Lançamentos.">
+        <Opcao titulo="Ordenação dos seus lançamentos" descricao="Ordem (baseada na data) em que os dias aparecem na tela de Lançamentos. Vale só para Lançamentos.">
           <Escolha nome="ordem" valor="Crescente" selecionado={dados.ordem_lancamentos === 'asc'} aoMudar={() => setDados(d => ({...d, ordem_lancamentos:'asc'}))} />
           <Escolha nome="ordem" valor="Decrescente" selecionado={dados.ordem_lancamentos === 'desc'} aoMudar={() => setDados(d => ({...d, ordem_lancamentos:'desc'}))} />
         </Opcao>
-        <Opcao titulo="Período de navegação padrão" descricao="Escolha a frequência que deseja priorizar nas telas que oferecem navegação por período.">
+        <Opcao titulo="Período de navegação padrão" descricao="O período com que a tela de Relatórios abre: hoje, a semana ou o mês. Vale só para Relatórios; as outras telas abrem no mês.">
           <Escolha nome="periodo" valor="Diário" selecionado={dados.periodo_padrao === 'daily'} aoMudar={() => setDados(d => ({...d, periodo_padrao:'daily'}))} />
           <Escolha nome="periodo" valor="Semanal" selecionado={dados.periodo_padrao === 'weekly'} aoMudar={() => setDados(d => ({...d, periodo_padrao:'weekly'}))} />
           <Escolha nome="periodo" valor="Mensal" selecionado={dados.periodo_padrao === 'monthly'} aoMudar={() => setDados(d => ({...d, periodo_padrao:'monthly'}))} />
         </Opcao>
-        <Opcao titulo="Saldo diário" descricao="Preferência pessoal para exibição do saldo ao final de cada dia, nas telas que oferecem esse resumo.">
+        <Opcao titulo="Saldo diário" descricao="Mostra, ao lado de cada dia da tela de Lançamentos, o saldo final daquele dia. Vale só para Lançamentos.">
           <Escolha nome="saldo" valor="Sim" selecionado={dados.saldo_diario} aoMudar={() => setDados(d => ({...d, saldo_diario:true}))} />
           <Escolha nome="saldo" valor="Não" selecionado={!dados.saldo_diario} aoMudar={() => setDados(d => ({...d, saldo_diario:false}))} />
         </Opcao>
-        <Opcao titulo="Dia em que o seu mês começa" descricao="O dia em que o seu salário cai (de 1 a 28). Se o mês começa no dia 20, o Limite diário seguro divide o Dinheiro Livre pelos dias até o dia 19. O padrão é 1, o mês-calendário. Vale só para você.">
+        <Opcao titulo="Dia em que o seu mês começa" descricao="O dia em que o seu salário cai (de 1 a 28). Se o mês começa no dia 20, o Limite diário seguro divide o Dinheiro Livre pelos dias até o dia 19. O padrão é 1, o mês-calendário. Por enquanto só muda o Limite diário seguro, no Início; Relatórios, Lançamentos e Calendário continuam no mês-calendário. Vale só para você.">
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700" htmlFor="dia-mes-financeiro">Dia
             <select id="dia-mes-financeiro" value={dados.month_start_day} onChange={(e) => setDados(d => ({...d, month_start_day: Number(e.target.value)}))}
               className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base font-normal">

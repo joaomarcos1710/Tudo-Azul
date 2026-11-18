@@ -49,6 +49,20 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+describe('Preferências diz onde cada opção vale', () => {
+  // pedido do dono (17/11/2026: "nada funciona"): cada opção só tem efeito numa tela, e o texto tem que dizer qual
+  it('cada opção nomeia a tela em que tem efeito, sem prometer "as telas" em geral', async () => {
+    montar()
+    await screen.findByRole('button', { name: 'Salvar alterações' })
+    const secao = (titulo: string) => screen.getByRole('heading', { name: titulo }).closest('section') as HTMLElement
+    expect(secao('Ordenação dos seus lançamentos').textContent).toContain('Vale só para Lançamentos.')
+    expect(secao('Período de navegação padrão').textContent).toContain('Vale só para Relatórios')
+    expect(secao('Saldo diário').textContent).toContain('Vale só para Lançamentos.')
+    expect(secao('Dia em que o seu mês começa').textContent).toContain('só muda o Limite diário seguro, no Início')
+    expect(screen.queryByText(/nas telas que oferecem/)).toBeNull()
+  })
+})
+
 describe('Preferências', () => {
   it('persiste as escolhas individuais do usuário', async () => {
     const u = userEvent.setup()
