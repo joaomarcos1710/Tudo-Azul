@@ -349,4 +349,5 @@ continuam abaixo como histórico.
 | 2026.434 | **Só diário.** A migration 143 (ação "Já foi cobrada" em assinatura de cartão agendada) foi aplicada no banco em 18/11/2026; o botão passa a funcionar. Nenhuma mudança no app. |
 | 2026.435 | **Só diário.** Limpeza da lista de pendências: 7 itens fechados com evidência, um resumo no topo e um índice das decisões que dependem de você. Nenhuma mudança no app. |
 | 2026.436 | **Repetir "a cada 30 dias".** No formulário de nova assinatura (e de lançamento fixo), "Repetir" ganha a opção **A cada 30 dias**, entre Quinzenal e Mensal. Serve para o que cobra de 30 em 30 dias (como o Meli+), que anda um dia a menos por mês e errava a regra "todo dia X". Nada muda para as assinaturas que já existem; para passar uma para 30 dias, encerre a antiga e crie uma nova. |
+| 2026.437 | **Só diário.** O dono usou o **Já foi cobrada…** no Meli+ no app real (18/11/2026) e funcionou. Nenhuma mudança no app. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
