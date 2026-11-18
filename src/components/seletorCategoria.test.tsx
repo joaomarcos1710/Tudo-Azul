@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import type { Categoria } from '../lib/categorias'
@@ -140,5 +140,135 @@ describe('SeletorCategoria (como no Organizze)', () => {
     render(<Host comCriar={false} />)
     await u.click(screen.getByLabelText('Categoria'))
     expect(screen.queryByRole('button', { name: 'Criar categoria' })).toBeNull()
+  })
+})
+
+describe('SeletorCategoria no computador: a lista abre embaixo do campo, sem pop-up (pedido do dono, 18/11/2026)', () => {
+  /** matchMedia só existe no navegador: aqui ele diz que a tela tem a largura do computador (lg). */
+  function telaDoComputador(ehComputador: boolean) {
+    window.matchMedia = ((q: string) => ({ matches: ehComputador && q === '(min-width: 1024px)', media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  }
+  beforeEach(() => telaDoComputador(true))
+  afterEach(() => { delete (window as { matchMedia?: unknown }).matchMedia })
+  const lista = () => screen.getByTestId('lista-categorias')
+
+  it('não abre pop-up: a lista aparece junto do campo, com a principal e as filhas embaixo, e tocar escolhe e fecha', async () => {
+    const u = userEvent.setup()
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(Array.from(lista().querySelectorAll('[data-categoria-id]')).map((b) => b.textContent)).toEqual(['Alimentação', 'Cafeteria', 'Padaria', 'Assinaturas e serviços', 'Netflix'])
+    await u.click(within(lista()).getByRole('button', { name: 'Padaria' }))
+    expect(screen.queryByTestId('lista-categorias')).toBeNull()
+    expect(screen.getByTestId('valor').textContent).toBe('pad')
+    expect(screen.getByLabelText('Categoria').textContent).toBe('Alimentação › Padaria')
+    // o foco volta para o campo, para seguir no formulário com o teclado
+    expect(document.activeElement).toBe(screen.getByLabelText('Categoria'))
+  })
+
+  it('ao abrir, o cursor já está na busca; a busca filtra a lista do mesmo jeito da folha', async () => {
+    const u = userEvent.setup()
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(document.activeElement).toBe(within(lista()).getByLabelText('Buscar uma categoria'))
+    await u.keyboard('netf')
+    expect(Array.from(lista().querySelectorAll('[data-categoria-id]')).map((b) => b.textContent)).toEqual(['Netflixem Assinaturas e serviços'])
+  })
+
+  it('Esc fecha só a lista e não chega ao formulário em volta; clicar fora e tocar no campo de novo também fecham', async () => {
+    const u = userEvent.setup()
+    const emVolta = vi.fn()
+    render(<div onKeyDown={emVolta}><Host /></div>)
+    await u.click(screen.getByLabelText('Categoria'))
+    await u.keyboard('{Escape}')
+    expect(screen.queryByTestId('lista-categorias')).toBeNull()
+    expect(emVolta).not.toHaveBeenCalled() // o formulário (que também fecha no Esc) não viu a tecla
+    expect(document.activeElement).toBe(screen.getByLabelText('Categoria'))
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(screen.getByTestId('lista-categorias')).toBeTruthy()
+    fireEvent.mouseDown(document.body)
+    expect(screen.queryByTestId('lista-categorias')).toBeNull()
+    await u.click(screen.getByLabelText('Categoria'))
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(screen.queryByTestId('lista-categorias')).toBeNull()
+  })
+
+  it('Criar categoria funciona dentro da lista: cria, entra e já fica escolhida', async () => {
+    mock.criarCategoriaRapida.mockResolvedValue(cat('nova', 'Sorveteria'))
+    const u = userEvent.setup()
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    await u.keyboard('Sorveteria')
+    await u.click(within(lista()).getByRole('button', { name: 'Criar categoria' }))
+    await u.click(within(lista()).getByRole('button', { name: 'Criar' }))
+    expect(mock.criarCategoriaRapida).toHaveBeenCalledWith('h1', 'Sorveteria', 'expense')
+    expect(screen.getByTestId('valor').textContent).toBe('nova')
+    expect(screen.queryByTestId('lista-categorias')).toBeNull()
+  })
+
+  it('a lista fica fixa na tela, com a altura limitada ao espaço: abre para baixo; sem espaço embaixo e com mais em cima, para cima', async () => {
+    const u = userEvent.setup()
+    window.innerHeight = 800
+    const caixa = (top: number, bottom: number) => vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ top, bottom, left: 40, right: 340, width: 300, height: bottom - top, x: 40, y: top, toJSON: () => ({}) })
+    const medir = caixa(100, 140)
+    const { unmount } = render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(lista().getAttribute('data-direcao')).toBe('baixo')
+    expect(lista().style.position).toBe('fixed') // fora do formulário que rola: não é cortada por ele
+    expect(lista().style.top).toBe('144px')
+    expect(lista().style.maxHeight).toBe('320px')
+    unmount()
+    medir.mockRestore()
+    caixa(700, 740) // sobram 52 px embaixo e 692 em cima
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(lista().getAttribute('data-direcao')).toBe('cima')
+    expect(lista().style.bottom).toBe('104px') // 800 − 700 + 4
+    expect(lista().style.maxHeight).toBe('320px')
+    vi.restoreAllMocks()
+  })
+
+  it('cabendo uns 290 px embaixo, abre para baixo (não cobre o formulário) e a lista rola dentro dessa altura', async () => {
+    const u = userEvent.setup()
+    window.innerHeight = 720
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ top: 390, bottom: 430, left: 0, right: 300, width: 300, height: 40, x: 0, y: 390, toJSON: () => ({}) })
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(lista().getAttribute('data-direcao')).toBe('baixo')
+    expect(lista().style.maxHeight).toBe('282px') // 720 − 430 − 8
+    vi.restoreAllMocks()
+  })
+
+  it('pouco espaço nos dois lados: a lista usa o que tem (nunca passa da borda da tela)', async () => {
+    const u = userEvent.setup()
+    window.innerHeight = 400
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ top: 150, bottom: 190, left: 0, right: 300, width: 300, height: 40, x: 0, y: 150, toJSON: () => ({}) })
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(lista().getAttribute('data-direcao')).toBe('baixo') // 202 px embaixo, 142 em cima
+    expect(lista().style.maxHeight).toBe('202px')
+    vi.restoreAllMocks()
+  })
+
+  it('rolar o formulário ou mudar a janela fecha a lista (ela é fixa na tela); rolar dentro dela não', async () => {
+    const u = userEvent.setup()
+    render(<div data-testid="formulario"><Host /></div>)
+    await u.click(screen.getByLabelText('Categoria'))
+    fireEvent.scroll(lista())
+    expect(screen.getByTestId('lista-categorias')).toBeTruthy()
+    fireEvent.scroll(screen.getByTestId('formulario'))
+    expect(screen.queryByTestId('lista-categorias')).toBeNull()
+    await u.click(screen.getByLabelText('Categoria'))
+    fireEvent(window, new Event('resize'))
+    expect(screen.queryByTestId('lista-categorias')).toBeNull()
+  })
+
+  it('no celular (tela estreita) continua a folha: o pop-up de antes', async () => {
+    telaDoComputador(false)
+    const u = userEvent.setup()
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(screen.getByRole('dialog', { name: 'Selecionar uma categoria' })).toBeTruthy()
+    expect(screen.queryByTestId('lista-categorias')).toBeNull()
   })
 })
