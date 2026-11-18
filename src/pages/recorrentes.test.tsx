@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { Cents } from '../lib/format'
 
 const mock = vi.hoisted(() => ({
@@ -1281,3 +1281,278 @@ describe('Recorrentes: "Já terminaram" só mostra o recente (nada é apagado)',
   })
 })
 
+
+describe('Recorrentes: busca por nome e filtro por valor e data (pedido do dono, 17/11/2026)', () => {
+  // hoje = 17/11/2026 (terça). Próximas pela regra: sem datas reais do banco (mock padrão), cada um cai no seu dia.
+  const reg = (id: string, descricao: string, valor: number, dia: number, extra: Record<string, unknown> = {}) =>
+    ({ ...luz, id, descricao, valor: c(valor), dia, inicio: '2026-01-01', ...extra })
+  const regras = [
+    reg('f1', 'Condomínio', 50000, 17), // hoje: entra nos dois chips
+    reg('f2', 'Padaria Pão', 5000, 20), // em 3 dias
+    reg('f3', 'Café Cápsulas', 12000, 24), // hoje + 7 (o último dia de "Próximos 7 dias")
+    reg('f4', 'Internet', 12000, 25), // neste mês, mas depois da semana
+    reg('f5', 'Academia', 9000, 5), // próxima: 05/12
+    reg('f6', 'Curso antigo', 7000, 5, { fim: '2026-11-30' }), // vigente, mas sem próxima data (a próxima passaria do fim)
+  ]
+  const TODOS = ['Condomínio', 'Padaria Pão', 'Café Cápsulas', 'Internet', 'Academia', 'Curso antigo']
+  /** Os nomes que estão na lista (o title do nome de cada linha). */
+  const nomes = () => screen.getAllByTestId('meta-recorrente').map((m) => m.closest('li')!.querySelector('.line-clamp-2')!.getAttribute('title')!).sort()
+  const esperados = (...n: string[]) => [...n].sort()
+  /** Mostra o endereço atual (?busca=…&valor=…&data=…&v=…) para conferir o que vai na URL. */
+  function Sonda() { const l = useLocation(); return <output data-testid="sonda">{l.search}</output> }
+  const abrir = (entrada = '/') => render(<MemoryRouter initialEntries={[entrada]}><Recorrentes /><Sonda /></MemoryRouter>)
+  const url = () => new URLSearchParams(screen.getByTestId('sonda').textContent ?? '')
+  const caixaBusca = () => screen.getByRole('searchbox', { name: 'Buscar recorrente' }) as HTMLInputElement
+  const caixaValor = () => screen.getByRole('textbox', { name: 'Valor a partir de (R$)' }) as HTMLInputElement
+  const chip = (nome: string) => screen.getByRole('button', { name: nome })
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-17T15:00:00Z'))
+    mock.listarRecorrencias.mockResolvedValue(regras)
+    mock.resumoPorNatureza.mockResolvedValue([{ natureza: 'none' as const, tipo: 'expense' as const, qtde: 6, porMes: c(99999) }])
+    mock.resumoVisaoGeral.mockResolvedValue([{ tipo: 'expense' as const, recorte: 'all' as const, qtde: 6, sugeridas: 0, porMes: c(88888), porAno: c(1066656) }])
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('sem filtro nada muda: todos na lista, totais do banco no grupo, sem frase de totais escondidos nem vazio', async () => {
+    abrir()
+    await screen.findByTitle('Condomínio')
+    expect(nomes()).toEqual(esperados(...TODOS))
+    expect(screen.getByTestId('total-grupo-none').textContent).toBe('R$ 999,99/mês')
+    expect(screen.queryByTestId('totais-escondidos')).toBeNull()
+    expect(screen.queryByText('Nenhum recorrente com esses filtros')).toBeNull()
+    expect(screen.queryByTestId('limpar-filtros')).toBeNull()
+    expect(chip('Próximos 7 dias').getAttribute('aria-pressed')).toBe('false')
+    expect(chip('Neste mês').getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('busca por nome: sem diferença de maiúscula nem de acento, vai para a URL, o × e o Esc limpam', async () => {
+    const u = userEvent.setup()
+    abrir()
+    await screen.findByTitle('Condomínio')
+    await u.type(caixaBusca(), 'CAFE')
+    expect(nomes()).toEqual(['Café Cápsulas'])
+    expect(url().get('busca')).toBe('CAFE')
+    await u.clear(caixaBusca())
+    await u.type(caixaBusca(), 'condominio')
+    expect(nomes()).toEqual(['Condomínio'])
+    // Esc limpa a caixa e a URL
+    await u.keyboard('{Escape}')
+    expect(caixaBusca().value).toBe('')
+    expect(nomes()).toEqual(esperados(...TODOS))
+    expect(url().has('busca')).toBe(false)
+    // o × também limpa
+    await u.type(caixaBusca(), 'pão')
+    expect(nomes()).toEqual(['Padaria Pão'])
+    await u.click(screen.getByRole('button', { name: 'Limpar o texto da busca' }))
+    expect(nomes()).toEqual(esperados(...TODOS))
+    // limite de 100 letras
+    expect(caixaBusca().maxLength).toBe(100)
+  })
+
+  it('valor a partir de: compara em centavos, o valor igual entra e o menor sai', async () => {
+    const u = userEvent.setup()
+    abrir()
+    await screen.findByTitle('Condomínio')
+    await u.type(caixaValor(), '120,00')
+    // 12000 centavos: os dois de R$ 120,00 entram (igual), o de R$ 90,00 e o de R$ 50,00 saem
+    expect(nomes()).toEqual(esperados('Condomínio', 'Café Cápsulas', 'Internet'))
+    expect(url().get('valor')).toBe('12000')
+    await u.clear(caixaValor())
+    await u.type(caixaValor(), '120,01')
+    expect(nomes()).toEqual(['Condomínio'])
+    expect(url().get('valor')).toBe('12001')
+    await u.clear(caixaValor())
+    expect(nomes()).toEqual(esperados(...TODOS))
+    expect(url().has('valor')).toBe(false)
+  })
+
+  it('valor inválido ou zero não filtra e não vira erro de tela; o aviso do campo só aparece ao sair dele', async () => {
+    const u = userEvent.setup()
+    abrir()
+    await screen.findByTitle('Condomínio')
+    await u.type(caixaValor(), '1,234')
+    expect(nomes()).toEqual(esperados(...TODOS))
+    expect(url().has('valor')).toBe(false)
+    expect(screen.queryByTestId('totais-escondidos')).toBeNull()
+    expect(screen.queryByText(/Valor inválido/)).toBeNull()
+    await u.tab()
+    expect(screen.getByText('Valor inválido. Exemplo: 50,00.')).toBeTruthy()
+    await u.clear(caixaValor())
+    await u.type(caixaValor(), '0')
+    expect(nomes()).toEqual(esperados(...TODOS))
+    expect(screen.queryByTestId('totais-escondidos')).toBeNull()
+  })
+
+  it('"Próximos 7 dias": de hoje até hoje + 7, inclusive; sem próxima data some; tocar de novo desliga', async () => {
+    const u = userEvent.setup()
+    abrir()
+    await screen.findByTitle('Condomínio')
+    await u.click(chip('Próximos 7 dias'))
+    expect(nomes()).toEqual(esperados('Condomínio', 'Padaria Pão', 'Café Cápsulas'))
+    expect(chip('Próximos 7 dias').getAttribute('aria-pressed')).toBe('true')
+    expect(url().get('data')).toBe('semana')
+    await u.click(chip('Próximos 7 dias'))
+    expect(nomes()).toEqual(esperados(...TODOS))
+    expect(url().has('data')).toBe(false)
+  })
+
+  it('"Neste mês": mesmo mês de hoje e data a partir de hoje; os dois chips se excluem', async () => {
+    const u = userEvent.setup()
+    abrir()
+    await screen.findByTitle('Condomínio')
+    await u.click(chip('Neste mês'))
+    expect(nomes()).toEqual(esperados('Condomínio', 'Padaria Pão', 'Café Cápsulas', 'Internet'))
+    expect(url().get('data')).toBe('mes')
+    await u.click(chip('Próximos 7 dias'))
+    expect(chip('Próximos 7 dias').getAttribute('aria-pressed')).toBe('true')
+    expect(chip('Neste mês').getAttribute('aria-pressed')).toBe('false')
+    expect(url().get('data')).toBe('semana')
+    expect(nomes()).toEqual(esperados('Condomínio', 'Padaria Pão', 'Café Cápsulas'))
+  })
+
+  it('"Neste mês" não mostra o que já passou: a próxima antes de hoje (conta com data real do banco) fica fora', async () => {
+    const u = userEvent.setup()
+    mock.proximasDatasDasContas.mockResolvedValue(new Map([['f2', '2026-11-10'], ['f4', '2026-11-30']]))
+    abrir()
+    await screen.findByTitle('Condomínio')
+    await vi.waitFor(() => expect(metas().some((m) => m.startsWith('próxima 10/11'))).toBe(true))
+    await u.click(chip('Neste mês'))
+    expect(screen.queryByTitle('Padaria Pão')).toBeNull()
+    expect(screen.getByTitle('Internet')).toBeTruthy()
+  })
+
+  it('os filtros se combinam (E) e valem também em Entradas', async () => {
+    const u = userEvent.setup()
+    abrir()
+    await screen.findByTitle('Condomínio')
+    await u.type(caixaValor(), '120')
+    await u.click(chip('Próximos 7 dias'))
+    expect(nomes()).toEqual(esperados('Condomínio', 'Café Cápsulas'))
+    await u.type(caixaBusca(), 'cáps')
+    expect(nomes()).toEqual(['Café Cápsulas'])
+    // Entradas: o mesmo filtro, sobre as receitas
+    cleanup()
+    mock.listarRecorrencias.mockResolvedValue([
+      ...regras,
+      reg('e1', 'Salário', 500000, 5, { tipo: 'income' as const, categoriaId: 'g2' }),
+      reg('e2', 'Aluguel recebido', 150000, 20, { tipo: 'income' as const, categoriaId: 'g2' }),
+    ])
+    abrir('/?v=entradas&busca=alug&valor=100000&data=mes')
+    await screen.findByTitle('Aluguel recebido')
+    expect(screen.queryByTitle('Salário')).toBeNull()
+    expect(url().get('v')).toBe('entradas')
+    expect(url().get('busca')).toBe('alug')
+  })
+
+  it('com filtro ligado o total do grupo some e a tela diz por quê; o topo (Sai ≈) não muda; sem filtro, tudo volta', async () => {
+    const u = userEvent.setup()
+    abrir()
+    await screen.findByTitle('Condomínio')
+    expect(screen.getByTestId('total-grupo-none')).toBeTruthy()
+    expect(screen.getByTestId('visao-saidas-mes').textContent).toBe('R$ 888,88')
+    await u.type(caixaBusca(), 'a')
+    expect(screen.queryByTestId('total-grupo-none')).toBeNull()
+    expect(screen.getByTestId('totais-escondidos').textContent).toBe('Totais escondidos enquanto há busca ou filtro.')
+    expect(screen.getByTestId('visao-saidas-mes').textContent).toBe('R$ 888,88')
+    // cada filtro sozinho também esconde
+    await u.click(screen.getByTestId('limpar-filtros'))
+    expect(screen.getByTestId('total-grupo-none').textContent).toBe('R$ 999,99/mês')
+    expect(screen.queryByTestId('totais-escondidos')).toBeNull()
+    await u.click(chip('Neste mês'))
+    expect(screen.queryByTestId('total-grupo-none')).toBeNull()
+    await u.click(chip('Neste mês'))
+    await u.type(caixaValor(), '1')
+    expect(screen.queryByTestId('total-grupo-none')).toBeNull()
+  })
+
+  it('o total das transferências também some com filtro (é do banco)', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([...regras, reg('t1', 'Reserva mensal', 20000, 18, { tipo: 'transfer' as const, destinoId: 'a2', categoriaId: null })])
+    mock.resumoRecorrencias.mockResolvedValue([
+      { nivel: 'medium', meio: 'account', alvoId: null, alvoNome: null, tipo: 'transfer', frequencia: null, qtde: 1, porOcorrencia: c(20000), porMes: c(20000) },
+    ])
+    abrir()
+    await screen.findByTitle('Condomínio')
+    expect(screen.getByTestId('total-transferencias').textContent).toBe('R$ 200,00/mês')
+    await u.type(caixaBusca(), 'reserva')
+    expect(nomes()).toEqual(['Reserva mensal'])
+    expect(screen.queryByTestId('total-transferencias')).toBeNull()
+  })
+
+  it('se os filtros escondem tudo: "Nenhum recorrente com esses filtros" e "Limpar filtros" devolve a lista e zera a URL', async () => {
+    const u = userEvent.setup()
+    abrir()
+    await screen.findByTitle('Condomínio')
+    await u.type(caixaBusca(), 'zzz')
+    await u.click(chip('Neste mês'))
+    expect(screen.getByText('Nenhum recorrente com esses filtros')).toBeTruthy()
+    expect(screen.getByText(/nome com "zzz", neste mês/)).toBeTruthy()
+    expect(screen.queryByTestId('ajuda-gerenciar')).toBeNull()
+    await u.click(screen.getByRole('button', { name: 'Limpar filtros' }))
+    expect(screen.queryByText('Nenhum recorrente com esses filtros')).toBeNull()
+    expect(nomes()).toEqual(esperados(...TODOS))
+    expect(caixaBusca().value).toBe('')
+    expect(caixaValor().value).toBe('')
+    expect(url().has('busca') || url().has('valor') || url().has('data')).toBe(false)
+  })
+
+  it('o que já terminou ("Já terminaram") também respeita busca e valor, e some com o chip de data (não tem próxima)', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([...regras, reg('x1', 'Seguro velho', 30000, 5, { fim: '2026-10-05' }), reg('x2', 'Rádio velho', 1000, 5, { fim: '2026-10-05' })])
+    abrir()
+    const bloco = await screen.findByRole('region', { name: /Já terminaram/ })
+    expect(within(bloco).getByTitle('Seguro velho')).toBeTruthy()
+    await u.type(caixaValor(), '100')
+    expect(within(screen.getByRole('region', { name: /Já terminaram/ })).queryByTitle('Rádio velho')).toBeNull()
+    expect(within(screen.getByRole('region', { name: /Já terminaram/ })).getByTitle('Seguro velho')).toBeTruthy()
+    await u.click(chip('Neste mês'))
+    expect(screen.queryByRole('region', { name: /Já terminaram/ })).toBeNull()
+  })
+
+  it('URL: ?busca, ?valor (centavos) e ?data entram nos campos e filtram; valor ou data inválidos na URL são ignorados', async () => {
+    abrir('/?busca=cafe&valor=12000&data=mes')
+    await screen.findByTitle('Café Cápsulas')
+    expect(nomes()).toEqual(['Café Cápsulas'])
+    expect(caixaBusca().value).toBe('cafe')
+    expect(caixaValor().value).toBe('120,00')
+    expect(chip('Neste mês').getAttribute('aria-pressed')).toBe('true')
+    cleanup()
+    for (const ruim of ['/?valor=abc&data=ontem', '/?valor=-5&data=', '/?valor=1,5', '/?valor=0', '/?valor=99999999999999999999']) {
+      abrir(ruim)
+      await screen.findByTitle('Condomínio')
+      expect(nomes()).toEqual(esperados(...TODOS))
+      expect(caixaValor().value).toBe('')
+      expect(screen.queryByTestId('totais-escondidos')).toBeNull()
+      expect(screen.queryByText('Nenhum recorrente com esses filtros')).toBeNull()
+      cleanup()
+    }
+  })
+
+  it('trocar Saídas/Entradas mantém busca, valor e data e preserva o ?v=', async () => {
+    const u = userEvent.setup()
+    mock.listarRecorrencias.mockResolvedValue([...regras, reg('e1', 'Salário Café', 500000, 20, { tipo: 'income' as const, categoriaId: 'g2' })])
+    abrir('/?busca=caf&data=mes')
+    await screen.findByTitle('Café Cápsulas')
+    await u.click(screen.getByRole('tab', { name: /^Entradas/ }))
+    expect(await screen.findByTitle('Salário Café')).toBeTruthy()
+    expect(url().get('v')).toBe('entradas')
+    expect(url().get('busca')).toBe('caf')
+    expect(url().get('data')).toBe('mes')
+    await u.click(screen.getByRole('tab', { name: /^Saídas/ }))
+    expect(url().has('v')).toBe(false)
+    expect(url().get('busca')).toBe('caf')
+    expect(nomes()).toEqual(['Café Cápsulas'])
+  })
+
+  it('o botão "Natureza", o "Gerenciar" e a legenda por natureza continuam nas linhas filtradas', async () => {
+    const u = userEvent.setup()
+    abrir()
+    await screen.findByTitle('Condomínio')
+    await u.type(caixaBusca(), 'padaria')
+    expect(screen.getAllByTestId('botao-natureza')).toHaveLength(1)
+    expect(screen.getByRole('link', { name: /Gerenciar Padaria Pão/ })).toBeTruthy()
+    expect(screen.getByTestId('natureza-none')).toBeTruthy()
+  })
+})
