@@ -607,12 +607,14 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 - **Fora da conta:** parcelas, proventos previstos de investimento e o que varia fora de um recorrente. A tela diz isso.
 - **Teste:** `132_recurrence_net` (11 asserções; 6 falham sem a migration). Entrou em `00_audit`.
 
-## Sobra deste mês depois das parcelas (migration 141, PR #427, **ainda não aplicada**)
+## Sobra deste mês depois das parcelas (migration 141, PR #427)
+- **Aplicada em 18/11/2026** pelo workflow (simulação 44209274462, as duas pendentes; aplicação 44213380923; conferida no catálogo: as duas na lista, `SECURITY INVOKER`, `anon` sem execução).
 - **Arquivo:** `20261117110000_recurrence_net_after_installments.sql`. `public.recurrence_net_after_installments(p_household, p_as_of default null)`: uma linha (nenhuma sem recorrente vigente em reais, como `recurrence_net`) com `net_monthly` (a sobra dos recorrentes, migration 140), `installments_month` (as parcelas que **vencem no mês** de `p_as_of`, pagas e não pagas, só em reais, de `installment_month_summary`: compras parceladas no cartão e carnês em conta; a mesma base do card "Parcelas e carnês"), `net_after` (a diferença; negativa quando passa) e `ref_month`. `SECURITY INVOKER`, só leitura, `anon` sem EXECUTE.
 - **Fora da conta:** empréstimos e financiamentos (parcelas de contrato de dívida; o consignado já sai do salário líquido). A tela diz isso.
 - **Teste:** `133_recurrence_net_after_installments` (14 asserções, data de corte explícita; falha sem a migration). Entrou em `00_audit`.
 
-## Parcelamento quitado volta a contar no mês (migration 142, PR #427, **ainda não aplicada**)
+## Parcelamento quitado volta a contar no mês (migration 142, PR #427)
+- **Aplicada em 18/11/2026** pelo workflow (simulação 44209274462, as duas pendentes; aplicação 44213380923; conferida no catálogo: as duas na lista, `SECURITY INVOKER`, `anon` sem execução).
 - **Arquivo:** `20261117120000_installment_month_summary_paid.sql`. Recria `public.installment_month_summary` (mesma assinatura e colunas; a 121 não é editada). **Achado do `revisor-dinheiro` na #427:** o resumo descartava o parcelamento inteiro quando todas as parcelas estavam pagas, inclusive a que vence no mês. Resultado: ao pagar a ÚLTIMA parcela de uma compra parcelada ou carnê, o valor dela sumia do "parcelas do mês" (no card "Parcelas e carnês" e na sobra depois das parcelas) e, se era o único, a linha da moeda deixava de existir.
 - **O que muda:** `month_total`, `paid_total`, `pending_total` e `month_count` vêm de todos os parcelamentos de 2 ou mais parcelas, pagos ou não; `active_count` e `examples` continuam só dos ativos (com parcela por pagar); uma moeda que só tem parcelamento quitado no mês ganha a linha (`active_count` 0). Parcelamento quitado em mês anterior continua fora.
 - **Não muda:** `active_installment_plans` e `installment_plan_schedule` (a aba Parcelas continua listando só os ativos); permissões e `SECURITY INVOKER`.
