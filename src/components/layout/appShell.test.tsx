@@ -4,8 +4,9 @@ import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './AppShell'
-import { gruposNavegacao, itemAtivo, itensFixosNoCelular, itensNavegacao } from './navegacao'
+import { gruposMenuPerfil, gruposNavegacao, itemAtivo, itensBarraLateral, itensFixosNoCelular, itensNavegacao } from './navegacao'
 import { definirValoresOcultos } from '../../lib/privacidade'
+import { definirBarraRecolhida } from '../../lib/barraLateral'
 
 vi.mock('../../lib/supabase', () => ({ supabase: null, supabaseConfigurado: true }))
 
@@ -29,32 +30,48 @@ describe('menu em grupos', () => {
     }
   })
 
-  it('a sidebar desktop agrupa por categoria todas as telas de uso frequente (inclui Recorrentes, Contas, Categorias, Dívidas, Reservas e Bens)', () => {
+  it('a sidebar desktop é enxuta (pedido do dono, 17/11/2026): só as 9 telas do dia a dia, numa lista só, sem títulos de grupo', () => {
     montar()
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
-    const grupos = within(lateral).getAllByRole('group').map((g) => ({
-      titulo: g.getAttribute('aria-labelledby') ? document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent : null,
-      links: within(g).getAllByRole('link').map((a) => a.textContent),
-    }))
-    expect(grupos).toEqual([
-      { titulo: 'Visão geral', links: ['Início', 'Análises', 'Relatórios'] },
-      { titulo: 'Movimentações', links: ['Lançamentos', 'Calendário', 'Recorrentes', 'Cartões', 'Contas'] },
-      { titulo: 'Planejamento', links: ['Orçamentos', 'Compromissos', 'Reservas', 'Categorias'] },
-      { titulo: 'Patrimônio', links: ['Dívidas e empréstimos', 'Investimentos', 'Bens e patrimônio'] },
-    ])
-    // nenhuma tela some: as 14 de antes e Compromissos (a projeção e as parcelas, que saíram de Recorrentes)
-    expect(within(lateral).getAllByRole('link')).toHaveLength(15)
-    // o que é raro continua só no menu do perfil
-    expect(within(lateral).queryByRole('link', { name: 'Família' })).toBeNull()
-    expect(within(lateral).queryByRole('link', { name: 'Exportar dados' })).toBeNull()
+    expect(within(lateral).queryAllByRole('group')).toHaveLength(0)
+    expect(within(lateral).getAllByRole('link').map((a) => a.textContent)).toEqual(
+      ['Início', 'Lançamentos', 'Calendário', 'Cartões', 'Contas', 'Recorrentes', 'Orçamentos', 'Investimentos', 'Análises'])
+    expect(itensBarraLateral).toHaveLength(9)
+    // o que saiu da barra e o que é raro ficam no menu do nome
+    for (const nome of ['Relatórios', 'Compromissos', 'Reservas', 'Categorias', 'Dívidas e empréstimos', 'Bens e patrimônio', 'Família', 'Exportar dados']) {
+      expect(within(lateral).queryByRole('link', { name: nome }), nome).toBeNull()
+    }
+    expect(within(lateral).queryByTestId('tela-atual-fora-da-barra')).toBeNull()
   })
 
-  it('perfil abre popover só com o que é raro (família, exportar, preferências), logout e versão', async () => {
+  it('nenhuma tela some: a barra e o menu do nome juntos têm todas as do menu do celular', () => {
+    const naBarra = itensBarraLateral.map((i) => i.caminho)
+    const noMenu = gruposMenuPerfil.flatMap((g) => g.itens.map((i) => i.caminho))
+    expect(new Set([...naBarra, ...noMenu]).size).toBe(naBarra.length + noMenu.length) // nenhuma repetida
+    expect([...naBarra, ...noMenu].sort()).toEqual(itensNavegacao.map((i) => i.caminho).sort())
+  })
+
+  it('estando numa tela que só está no menu do nome, ela aparece marcada no fim da barra (para não perder o rumo)', () => {
+    montar('/relatorios')
+    const lateral = screen.getByRole('navigation', { name: 'Principal' })
+    const atual = within(lateral).getByTestId('tela-atual-fora-da-barra')
+    expect(within(atual).getByRole('link', { name: 'Relatórios' }).getAttribute('aria-current')).toBe('page')
+    expect(within(lateral).getAllByRole('link')).toHaveLength(10) // as 9 e a tela atual
+    expect(within(lateral).getByRole('link', { name: 'Início' }).getAttribute('aria-current')).toBeNull()
+  })
+
+  it('o menu do nome (⋮) guarda "Mais telas" e "Conta", com Sair, autoria e versão; rola se a janela for baixa', async () => {
     const u = userEvent.setup()
     montar()
     await u.click(screen.getByRole('button', { name: 'Perfil de Minha conta' }))
-    const menu = screen.getByRole('menu', { name: 'Configurações da conta' })
-    expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Família', 'Exportar dados', 'Preferências', '↪Sair'])
+    const menu = screen.getByRole('menu', { name: 'Mais telas e configurações da conta' })
+    expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual([
+      'Relatórios', 'Compromissos', 'Reservas', 'Categorias', 'Dívidas e empréstimos', 'Bens e patrimônio',
+      'Família', 'Exportar dados', 'Preferências', '↪Sair'])
+    expect(within(menu).getByRole('region', { name: 'Mais telas' })).toBeTruthy()
+    expect(within(menu).getByRole('region', { name: 'Conta' })).toBeTruthy()
+    expect(menu.className).toContain('overflow-y-auto') // janela baixa: o menu rola em vez de sair da tela
+    expect(menu.className).toContain('max-h-[calc(100vh-6.5rem)]')
     expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toBeTruthy()
     expect(within(menu).getByText(/Versão/)).toBeTruthy()
     // ideia 03: autoria logo abaixo de Sair, dentro do menu
@@ -66,6 +83,103 @@ describe('menu em grupos', () => {
     const versao = within(menu).getByText(/Versão/)
     expect(sair.compareDocumentPosition(autoria) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(autoria.compareDocumentPosition(versao) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('escolher uma "Mais telas" no menu do nome leva à tela e fecha o menu', async () => {
+    const u = userEvent.setup()
+    montar()
+    await u.click(screen.getByRole('button', { name: 'Perfil de Minha conta' }))
+    await u.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Compromissos' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.getByTestId('tela-atual-fora-da-barra').textContent).toBe('Compromissos')
+  })
+
+  describe('recolher e expandir a barra lateral (pedido do dono, 17/11/2026)', () => {
+    const lateral = () => document.getElementById('navegacao-lateral') as HTMLElement
+    beforeEach(() => { definirBarraRecolhida(false); window.localStorage.clear() })
+    afterEach(() => { definirBarraRecolhida(false); window.localStorage.clear() })
+
+    it('começa expandida, com o botão "Recolher menu lateral"; recolher deixa só os ícones, e expandir volta', async () => {
+      const u = userEvent.setup()
+      montar()
+      const botao = screen.getByRole('button', { name: 'Recolher menu lateral' })
+      expect(botao.getAttribute('aria-expanded')).toBe('true')
+      expect(botao.getAttribute('aria-controls')).toBe('navegacao-lateral')
+      expect(lateral().getAttribute('data-recolhida')).toBe('nao')
+      expect(lateral().className).toContain('w-64')
+      expect(within(lateral()).getByText('tudo azul')).toBeTruthy()
+      await u.click(botao)
+      const aberta = screen.getByRole('button', { name: 'Expandir menu lateral' })
+      expect(aberta.getAttribute('aria-expanded')).toBe('false')
+      expect(lateral().getAttribute('data-recolhida')).toBe('sim')
+      expect(lateral().className).toContain('w-[4.5rem]')
+      expect(lateral().className).not.toContain('w-64')
+      expect(within(lateral()).queryByText('tudo azul')).toBeNull() // só o símbolo
+      await u.click(aberta)
+      expect(lateral().getAttribute('data-recolhida')).toBe('nao')
+      expect(within(lateral()).getByText('tudo azul')).toBeTruthy()
+    })
+
+    it('recolhida, cada tela continua com nome para o leitor de tela e para o mouse (title), sem texto visível', async () => {
+      const u = userEvent.setup()
+      montar()
+      await u.click(screen.getByRole('button', { name: 'Recolher menu lateral' }))
+      const nav = screen.getByRole('navigation', { name: 'Principal' })
+      const links = within(nav).getAllByRole('link')
+      expect(links.map((a) => a.textContent)).toEqual(
+        ['Início', 'Lançamentos', 'Calendário', 'Cartões', 'Contas', 'Recorrentes', 'Orçamentos', 'Investimentos', 'Análises']) // o texto está, escondido
+      for (const a of links) {
+        expect(a.querySelector('.sr-only'), a.getAttribute('href') ?? '').not.toBeNull()
+        expect(a.getAttribute('title')).toBe(a.textContent)
+      }
+      expect(within(nav).getByRole('link', { name: 'Lançamentos' })).toBeTruthy()
+    })
+
+    it('a escolha fica guardada neste aparelho e vale na próxima visita', async () => {
+      const u = userEvent.setup()
+      const { unmount } = montar()
+      await u.click(screen.getByRole('button', { name: 'Recolher menu lateral' }))
+      expect(window.localStorage.getItem('tudo-azul:barra-lateral-recolhida')).toBe('1')
+      unmount()
+      montar()
+      expect(lateral().getAttribute('data-recolhida')).toBe('sim')
+      await u.click(screen.getByRole('button', { name: 'Expandir menu lateral' }))
+      expect(window.localStorage.getItem('tudo-azul:barra-lateral-recolhida')).toBe('0')
+    })
+
+    it('recolhida, o menu do nome (⋮) abre ao lado, fixo, com as mesmas telas e Sair; o avatar tem o nome no title', async () => {
+      const u = userEvent.setup()
+      montar()
+      await u.click(screen.getByRole('button', { name: 'Recolher menu lateral' }))
+      const perfil = screen.getByRole('button', { name: 'Perfil de Minha conta' })
+      expect(perfil.getAttribute('title')).toBe('Minha conta')
+      expect(within(perfil).queryByText('Conta familiar')).toBeNull()
+      await u.click(perfil)
+      const menu = screen.getByRole('menu', { name: 'Mais telas e configurações da conta' })
+      expect(menu.className).toContain('fixed') // não é cortado pela rolagem da barra estreita
+      expect(menu.className).toContain('left-[5rem]')
+      expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toContain('Relatórios')
+      expect(within(menu).getByRole('menuitem', { name: 'Sair' })).toBeTruthy()
+    })
+
+    it('a tela atual de fora da barra continua marcada, só com o ícone, quando recolhida', async () => {
+      const u = userEvent.setup()
+      montar('/relatorios')
+      await u.click(screen.getByRole('button', { name: 'Recolher menu lateral' }))
+      const atual = screen.getByTestId('tela-atual-fora-da-barra')
+      const link = within(atual).getByRole('link', { name: 'Relatórios' })
+      expect(link.getAttribute('aria-current')).toBe('page')
+      expect(link.getAttribute('title')).toBe('Relatórios')
+    })
+
+    it('sem armazenamento (navegador bloqueado) o botão ainda funciona, só nesta visita', async () => {
+      const u = userEvent.setup()
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('bloqueado') })
+      montar()
+      await u.click(screen.getByRole('button', { name: 'Recolher menu lateral' }))
+      expect(lateral().getAttribute('data-recolhida')).toBe('sim')
+      setItem.mockRestore()
+    })
   })
 
   it('celular: 4 atalhos fixos + "Mais"; o resto só aparece dentro do Mais', async () => {
@@ -118,7 +232,9 @@ describe('menu em grupos', () => {
     const lateral = screen.getByRole('navigation', { name: 'Principal' })
     for (const l of within(lateral).getAllByRole('link')) expect(l.className).toContain('min-h-11')
     const perfil = screen.getByRole('button', { name: 'Perfil de Minha conta' })
-    expect(perfil.parentElement?.className).toContain('mt-auto')
+    // o rodapé da barra (botão de recolher e perfil) fica colado embaixo
+    expect(screen.getByTestId('rodape-da-barra').className).toContain('mt-auto')
+    expect(screen.getByTestId('rodape-da-barra').contains(perfil)).toBe(true)
     expect(perfil.getAttribute('aria-haspopup')).toBe('menu')
     expect(screen.queryByRole('button', { name: 'Sair' })).toBeNull()
   })

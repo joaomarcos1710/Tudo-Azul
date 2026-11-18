@@ -4,12 +4,25 @@ import { definirValoresOcultos, useValoresOcultos } from '../../lib/privacidade'
 import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
 import { IconeMais, IconeOlho, IconeOlhoFechado } from './icons'
-import { gruposMenuPerfil, gruposNavegacao, gruposSidebar, itemAtivo, itensFixosNoCelular, itensNavegacao } from './navegacao'
+import { gruposMenuPerfil, gruposNavegacao, itemAtivo, itensBarraLateral, itensFixosNoCelular, itensMaisTelas, itensNavegacao } from './navegacao'
 import { Marca } from './Marca'
 import { Versao } from './Versao'
+import { definirBarraRecolhida, useBarraRecolhida } from '../../lib/barraLateral'
+import { Simbolo } from './Marca'
 import { Autoria } from './Autoria'
 
 const base = 'flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors'
+/** Barra recolhida: só o ícone, centralizado (o nome vai no title e no leitor de tela). */
+const baseRecolhida = 'flex min-h-11 items-center justify-center rounded-lg px-0 py-2.5 text-sm font-medium transition-colors'
+
+/** Seta do botão de recolher e expandir a barra lateral (para a esquerda recolhe; para a direita expande). */
+function SetaLateral({ paraDireita = false }: { paraDireita?: boolean }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d={paraDireita ? 'M9 5l7 7-7 7' : 'M15 5l-7 7 7 7'} />
+    </svg>
+  )
+}
 
 /** Encerra a sessão; a rota protegida leva para /entrar quando a sessão some. */
 function sair() {
@@ -104,7 +117,7 @@ function MenuMais({ aoFechar }: { aoFechar: () => void }) {
 }
 
 /** Perfil autenticado e menu de configurações da navegação desktop. */
-function PerfilSidebar({ pathname }: { pathname: string }) {
+function PerfilSidebar({ pathname, recolhida }: { pathname: string; recolhida: boolean }) {
   const { sessao } = useAuth()
   const [aberto, setAberto] = useState(false)
   const area = useRef<HTMLDivElement>(null)
@@ -138,10 +151,13 @@ function PerfilSidebar({ pathname }: { pathname: string }) {
   useEffect(() => { setAberto(false) }, [pathname])
 
   return (
-    <div ref={area} className="relative mt-auto pt-4">
+    <div ref={area} className="relative pt-2">
       {aberto && (
-        <div role="menu" aria-label="Configurações da conta"
-          className="absolute bottom-[calc(100%+0.5rem)] left-0 right-0 z-50 overflow-hidden rounded-xl border border-white/10 bg-[#102b4b] p-2 shadow-2xl shadow-black/40">
+        <div role="menu" aria-label="Mais telas e configurações da conta"
+          className={`${recolhida
+            // recolhida, a barra é estreita demais: o menu abre ao lado (fixo, para não ser cortado pela rolagem da barra)
+            ? 'fixed bottom-4 left-[5rem] w-64 max-h-[calc(100vh-2rem)]'
+            : 'absolute bottom-[calc(100%+0.5rem)] left-0 right-0 max-h-[calc(100vh-6.5rem)]'} z-50 overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-[#102b4b] p-2 shadow-2xl shadow-black/40`}>
           {gruposMenuPerfil.map((grupo) => (
             <section key={grupo.titulo} aria-label={grupo.titulo} className="py-1">
               <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-200/60">{grupo.titulo}</p>
@@ -166,16 +182,20 @@ function PerfilSidebar({ pathname }: { pathname: string }) {
         </div>
       )}
       <button ref={botao} type="button" aria-haspopup="menu" aria-expanded={aberto}
-        aria-label={`Perfil de ${nome}`} onClick={() => setAberto((v) => !v)}
-        className="flex min-h-[60px] w-full items-center gap-3 rounded-xl border border-transparent px-2.5 py-2 text-left transition-colors hover:border-white/10 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300">
+        aria-label={`Perfil de ${nome}`} title={recolhida ? nome : undefined} onClick={() => setAberto((v) => !v)}
+        className={`flex min-h-[60px] w-full items-center rounded-xl border border-transparent py-2 text-left ${recolhida ? 'justify-center px-0' : 'gap-3 px-2.5'} transition-colors hover:border-white/10 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300`}>
         {avatar
           ? <img src={avatar} alt="" referrerPolicy="no-referrer" className="h-10 w-10 shrink-0 rounded-full bg-white/10 object-cover" />
           : <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-azul text-sm font-semibold text-white">{iniciais}</span>}
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-white">{nome}</span>
-          <span className="block truncate text-xs text-blue-200/70">{plano}</span>
-        </span>
-        <span aria-hidden="true" className="text-xl leading-none text-blue-100/80">⋮</span>
+        {!recolhida && (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-white">{nome}</span>
+              <span className="block truncate text-xs text-blue-200/70">{plano}</span>
+            </span>
+            <span aria-hidden="true" className="text-xl leading-none text-blue-100/80">⋮</span>
+          </>
+        )}
       </button>
     </div>
   )
@@ -185,6 +205,7 @@ export function AppShell() {
   const { pathname } = useLocation()
   const modoFatura = /^\/cartoes\/[^/]+\/fatura\//.test(pathname)
   const [menuColapsado, setMenuColapsado] = useState(false)
+  const recolhida = useBarraRecolhida()
   const [maisAberto, setMaisAberto] = useState(false)
   const botaoMais = useRef<HTMLButtonElement>(null)
   const fecharMais = useCallback(() => {
@@ -196,33 +217,56 @@ export function AppShell() {
   useEffect(() => { if (!modoFatura) setMenuColapsado(false) }, [modoFatura])
 
   const ativo = itemAtivo(pathname)
+  const telaDeFora = ativo && itensMaisTelas.some((i) => i.caminho === ativo.caminho) ? ativo : undefined
   const maisAtivo = maisAberto || (ativo !== undefined && !ativo.fixoNoCelular)
 
   return (
     <div className="min-h-screen md:flex">
-      <aside id="navegacao-lateral" className={`hidden w-64 shrink-0 flex-col bg-marinho p-4 text-white transition-all duration-300 md:sticky md:top-0 md:h-screen md:overflow-y-auto ${menuColapsado ? "md:hidden" : "md:flex"}`}>
-        <div className="mb-5 flex items-center justify-between py-2 pl-3">
-          <Marca claro />
-          <BotaoOcultarValores claro />
-        </div>
-        <nav aria-label="Principal" className="flex flex-col gap-4">
-          {gruposSidebar.map((grupo, i) => (
-            <div key={grupo.titulo} role="group" aria-labelledby={`nav-grupo-${i}`}>
-              <p id={`nav-grupo-${i}`} className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-blue-200">{grupo.titulo}</p>
-              <ul className="flex flex-col gap-1">
-                {grupo.itens.map(({ caminho, rotulo, Icone }) => (
-                  <li key={caminho}>
-                    <NavLink to={caminho} end={caminho === '/'}
-                      className={({ isActive }) => `${base} ${isActive ? 'bg-azul text-white shadow-sm' : 'text-blue-100 hover:bg-white/10'}`}>
-                      <Icone />{rotulo}
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+      <aside id="navegacao-lateral" data-recolhida={recolhida ? 'sim' : 'nao'}
+        className={`hidden shrink-0 flex-col bg-marinho text-white transition-all duration-300 md:sticky md:top-0 md:h-screen md:overflow-y-auto ${recolhida ? 'w-[4.5rem] p-3' : 'w-64 p-4'} ${menuColapsado ? "md:hidden" : "md:flex"}`}>
+        {recolhida ? (
+          <div className="mb-5 flex flex-col items-center gap-1 py-2">
+            <Simbolo tamanho={32} contorno />
+            <BotaoOcultarValores claro />
+          </div>
+        ) : (
+          <div className="mb-5 flex items-center justify-between py-2 pl-3">
+            <Marca claro />
+            <BotaoOcultarValores claro />
+          </div>
+        )}
+        <nav aria-label="Principal">
+          <ul className="flex flex-col gap-1">
+            {itensBarraLateral.map(({ caminho, rotulo, Icone }) => (
+              <li key={caminho}>
+                <NavLink to={caminho} end={caminho === '/'} title={recolhida ? rotulo : undefined}
+                  className={({ isActive }) => `${recolhida ? baseRecolhida : base} ${isActive ? 'bg-azul text-white shadow-sm' : 'text-blue-100 hover:bg-white/10'}`}>
+                  <Icone />{recolhida ? <span className="sr-only">{rotulo}</span> : rotulo}
+                </NavLink>
+              </li>
+            ))}
+            {/* a tela atual é uma das "Mais telas": aparece aqui, marcada, para a pessoa saber onde está */}
+            {telaDeFora && (
+              <li className="mt-1 border-t border-white/10 pt-2" data-testid="tela-atual-fora-da-barra">
+                <NavLink to={telaDeFora.caminho} title={recolhida ? telaDeFora.rotulo : undefined} aria-current="page"
+                  className={`${recolhida ? baseRecolhida : base} bg-azul text-white shadow-sm`}>
+                  <telaDeFora.Icone />{recolhida ? <span className="sr-only">{telaDeFora.rotulo}</span> : telaDeFora.rotulo}
+                </NavLink>
+              </li>
+            )}
+          </ul>
         </nav>
-        <PerfilSidebar pathname={pathname} />
+        <div className="mt-auto pt-4" data-testid="rodape-da-barra">
+          {/* recolher e expandir (pedido do dono, 17/11/2026): recolhida, ficam só os ícones e a tela ganha espaço */}
+          <button type="button" aria-controls="navegacao-lateral" aria-expanded={!recolhida}
+            aria-label={recolhida ? 'Expandir menu lateral' : 'Recolher menu lateral'} title={recolhida ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+            onClick={() => definirBarraRecolhida(!recolhida)}
+            className={`flex min-h-11 w-full items-center rounded-lg text-sm font-medium text-blue-200 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-300 ${recolhida ? 'justify-center px-0' : 'gap-3 px-3'}`}>
+            <SetaLateral paraDireita={recolhida} />
+            {!recolhida && 'Recolher menu'}
+          </button>
+          <PerfilSidebar pathname={pathname} recolhida={recolhida} />
+        </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -240,7 +284,7 @@ export function AppShell() {
             </button>
           </div>
         )}
-        <main className={`mx-auto w-full flex-1 p-4 transition-[max-width,padding] duration-300 ${modoFatura ? "max-w-none pb-4" : "max-w-7xl pb-28"} md:p-8 md:pb-8`}>
+        <main className={`mx-auto w-full flex-1 p-4 transition-[max-width,padding] duration-300 ${modoFatura ? "max-w-none pb-4" : recolhida ? "max-w-none pb-28" : "max-w-7xl pb-28"} md:p-8 md:pb-8`}>
           <Suspense fallback={<p role="status" className="text-sm text-slate-500">Carregando…</p>}><Outlet /></Suspense>
         </main>
       </div>
