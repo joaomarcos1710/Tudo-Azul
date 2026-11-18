@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diaDaSemana, proximasOcorrencias, rotuloFrequencia } from './recorrencias'
+import { diaDaSemana, frequencias, proximasOcorrencias, rotuloFrequencia } from './recorrencias'
 import type { Recorrencia } from './recorrencias'
 
 type Regra = Pick<Recorrencia, 'unidade' | 'cada' | 'dia' | 'inicio' | 'fim'>
@@ -50,6 +50,16 @@ describe('rotuloFrequencia', () => {
     expect(rotuloFrequencia({ unidade: 'week', cada: 1, dia: null, inicio: '2027-01-02' })).toBe('Todo sábado')
     expect(rotuloFrequencia({ unidade: 'week', cada: 2, dia: null, inicio: '2027-01-01' })).toBe('Quinzenal · sexta')
     expect(rotuloFrequencia({ unidade: 'week', cada: 3, dia: null, inicio: '2027-01-05' })).toBe('A cada 3 semanas · terça')
+  })
+  it('a cada 30 dias (Meli+): descreve em dias e entra nas opções da tela, entre a quinzenal e a mensal', () => {
+    expect(rotuloFrequencia({ unidade: 'day', cada: 30, dia: null, inicio: '2026-12-17' })).toBe('A cada 30 dias')
+    const chaves = frequencias.map((f) => f.chave)
+    expect(chaves.slice(chaves.indexOf('quinzenal'), chaves.indexOf('mensal') + 1)).toEqual(['quinzenal', 'a-cada-30-dias', 'mensal'])
+    expect(frequencias.find((f) => f.chave === 'a-cada-30-dias')).toMatchObject({ rotulo: 'A cada 30 dias', unidade: 'day', cada: 30 })
+  })
+  it('a cada 30 dias gera as datas de 30 em 30, sem escorregar para o mesmo dia do mês', () => {
+    const r30 = { ...semana('2026-12-17'), unidade: 'day' as const, cada: 30 }
+    expect(proximasOcorrencias(r30, '2026-12-17', 4)).toEqual(['2026-12-17', '2027-01-16', '2027-02-15', '2027-03-17'])
   })
   it('dia da semana sem fuso (data é só data)', () => {
     expect(diaDaSemana('2026-10-28')).toBe('quarta')

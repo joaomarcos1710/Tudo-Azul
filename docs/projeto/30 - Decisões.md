@@ -1013,3 +1013,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** a ação **Já foi cobrada…** transforma uma cobrança agendada em compra na data real (hoje ou antes).
 - **Por quê:** caso do dono: o Meli+ estava agendado para 24/11 e o cartão cobrou em 17/11. A regra de que a cobrança AGENDADA só tem data futura está certa (o que já aconteceu é compra), mas não existia o caminho "já cobrou"; o app só recusava a data de hoje. A assinatura cobra a cada ~30 dias, não no mesmo dia do mês, então a data cadastrada (24) estava errada desde o início.
 - **Fica de fora:** acertar o dia das próximas cobranças continua sendo Editar › Esta e as próximas; o botão converte só a cobrança escolhida.
+
+## 18/11/2026 — Assinatura que cobra a cada 30 dias: nova opção de frequência, sem migration (#436)
+- **O quê:** a opção **A cada 30 dias** em "Repetir" (frequência em dias, `day` / 30).
+- **Por quê:** o Meli+ cobra de 30 em 30 dias (um dia a menos por mês); a regra mensal por dia do mês (24, 17…) errava de novo em ~2 meses e o dono precisava reajustar o dia. O banco já aceitava recorrência em dias (migration 048); só faltava a tela.
+- **Fica de fora:** trocar a frequência de uma assinatura existente (a frequência, o dia e o início não mudam depois de criados; é encerrar e criar outra, regra da migration 016). A opção livre "a cada N dias" também não entrou: só 30, que é o caso real.
