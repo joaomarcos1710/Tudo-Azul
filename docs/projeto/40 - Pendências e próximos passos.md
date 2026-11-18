@@ -911,6 +911,8 @@ Trazida pelo dono. Só o primeiro achado foi conferido no código pelo assistent
 
 ## 17/11/2026 — Recorrentes (#414)
 - [x] Visual e "Gerenciar ›" com a dica de onde editar ou encerrar (só tela).
+- [x] **Buscar e filtrar Recorrentes (#429, 18/11/2026):** nome, valor a partir de e data (próximos 7 dias, neste mês). Os totais por grupo somem enquanto há filtro. **Não feito:** filtro por intervalo de valor (só "a partir de"); filtro por data livre.
+- [ ] **atalho (#429):** o "valor a partir de" compara centavos da moeda de cada conta, sem converter; só o recorrente em outra moeda foge do "em reais". Melhorar quando houver recorrente em moeda estrangeira de verdade.
 - [ ] **Etapa 2, se o dono ainda tropeçar:** botão Encerrar direto em Recorrentes (cartão: "esta e as próximas"; conta: "parar de repetir"), reaproveitando as funções que já existem. Antes, conferir o caso da assinatura **anual sem cobrança gerada** (os caminhos de hoje partem de uma cobrança ou lançamento existente; talvez precise de função no banco) e o que "Excluir assinatura" faz com o histórico.
 - [ ] Opcional: faixa "Próximos 30 dias" no topo de Recorrentes.
 

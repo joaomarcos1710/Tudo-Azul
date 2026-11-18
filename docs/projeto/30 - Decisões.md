@@ -997,3 +997,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 ## 17/11/2026 — Corrigir saldo de empréstimo pelo extrato: só o saldo, não é gasto
 - **O quê:** em Dívidas, "Corrigir saldo pelo extrato" grava a diferença entre o saldo do app e o do banco como ajuste (migration 132). Não entra como despesa nem receita e não mexe em conta.
 - **Por quê:** o app não calcula juros diários, então os dois saldos se afastam. Contar os juros como gasto no consignado seria contar duas vezes, porque eles já saem do salário líquido.
+
+## 18/11/2026 — Recorrentes: filtros só escondem linhas, totais somem enquanto filtra (#429)
+- **O quê:** busca por nome, "valor a partir de" e dois chips de data em Recorrentes. Combinam (E), vão na URL e só escondem linhas.
+- **Por quê:** o dono pediu para achar um recorrente por nome, valor e data. Os totais por grupo vêm do banco (a tela não soma dinheiro): como o banco não conhece o recorte, o total do grupo some enquanto há filtro, e a tela diz isso. Mostrar o total do banco ao lado de uma lista filtrada daria um número que não fecha com o que se vê.
+- **Atalho:** o valor filtrado é o de cada vez, em centavos da moeda da conta, sem converter (um recorrente em outra moeda compara em centavos dela).

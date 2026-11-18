@@ -2,6 +2,8 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
+import { Button } from '../components/ui/Button'
+import { Field } from '../components/ui/Field'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { useFamilia } from '../lib/FamiliaContext'
@@ -14,7 +16,7 @@ import type { Categoria } from '../lib/categorias'
 import { hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { formatBRL, formatDate, formatMoeda } from '../lib/format'
+import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL } from '../lib/format'
 import { somarDias } from '../lib/periodoRelatorio'
 import type { Cents } from '../lib/format'
 import {
@@ -53,6 +55,19 @@ type Aba = 'todos' | 'conta' | 'cartao'
 const abas: [Aba, string][] = [['todos', 'Todos'], ['conta', 'Conta'], ['cartao', 'Cartão']]
 /** Filtro por natureza (3ª PR de Recorrentes): 'todas' não filtra; 'none' = sem natureza. Transferência não tem natureza: sai quando há filtro. */
 type FiltroNatureza = 'todas' | ChaveNatureza
+
+/** Os dois chips de data (pedido do dono, 17/11/2026): filtram pela PRÓXIMA data de cada linha. Vai na URL (?data=semana|mes). */
+type FiltroData = 'semana' | 'mes'
+const CHIPS_DATA: [FiltroData, string][] = [['semana', 'Próximos 7 dias'], ['mes', 'Neste mês']]
+const LIMITE_BUSCA = 100
+/** Sem maiúscula nem acento, para a busca por nome ("cafe" acha "Café"). */
+const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+/** ?valor= na URL: só dígitos, em centavos; qualquer outra coisa (ou zero) é ignorada, nunca vira erro. */
+function centavosDaUrl(texto: string | null): Cents | null {
+  if (!texto || !/^\d{1,14}$/.test(texto)) return null
+  const n = Number(texto)
+  return n > 0 ? (n as Cents) : null
+}
 
 /**
  * Selo da frequência, no singular, só quando NÃO é mensal (o mensal é o normal da tela e não leva selo).
@@ -138,9 +153,34 @@ export default function Recorrentes() {
   const [params, setParams] = useSearchParams()
   const lado: Lado = params.get('v') === 'entradas' ? 'entradas' : 'saidas'
   function mudarLado(novo: Lado) {
-    setParams(novo === 'saidas' ? {} : { v: 'entradas' }, { replace: true })
+    // zera só o que já zerava (natureza e aba Conta/Cartão); busca, valor e data são do usuário e ficam entre Saídas e Entradas
+    setParams((p) => { const n = new URLSearchParams(p); if (novo === 'saidas') n.delete('v'); else n.set('v', 'entradas'); return n }, { replace: true })
     setNatureza('todas')
     setAba('todos')
+  }
+  // filtros da lista (pedido do dono, 17/11/2026): só escondem linhas, nenhum dinheiro é somado. Os textos moram aqui (a digitação é na hora)
+  // e vão para a URL; o chip de data vive só na URL (?data=semana|mes, valor desconhecido é ignorado)
+  const [textoBusca, setTextoBusca] = useState((params.get('busca') ?? '').slice(0, LIMITE_BUSCA))
+  const [textoValor, setTextoValor] = useState(() => { const c = centavosDaUrl(params.get('valor')); return c === null ? '' : formatBRLCampo(c) })
+  const [valorTocado, setValorTocado] = useState(false)
+  const filtroData: FiltroData | null = params.get('data') === 'semana' || params.get('data') === 'mes' ? (params.get('data') as FiltroData) : null
+  function gravarFiltro(chave: 'busca' | 'valor' | 'data', valor: string | null) {
+    setParams((p) => { const n = new URLSearchParams(p); if (valor) n.set(chave, valor); else n.delete(chave); return n }, { replace: true })
+  }
+  function mudarBusca(texto: string) {
+    setTextoBusca(texto)
+    gravarFiltro('busca', texto.trim() || null)
+  }
+  function mudarValor(texto: string) {
+    setTextoValor(texto)
+    const c = parseBRL(texto)
+    gravarFiltro('valor', c !== null && c > 0 ? String(c) : null)
+  }
+  function limparFiltros() {
+    setTextoBusca('')
+    setTextoValor('')
+    setValorTocado(false)
+    setParams((p) => { const n = new URLSearchParams(p); n.delete('busca'); n.delete('valor'); n.delete('data'); return n }, { replace: true })
   }
   // corrigir a natureza (a única edição que esta página aceita: só classifica)
   const [corrigindo, setCorrigindo] = useState<Recorrencia | null>(null)
@@ -217,7 +257,20 @@ export default function Recorrentes() {
   const filtrando = natureza !== 'todas'
   // cada visão só vê o que é dela: saídas = cartão, despesa e transferência (à parte); entradas = receita
   const doLado = (r: Recorrencia) => (lado === 'saidas') === (r.tipo !== 'income')
-  const terminadas = terminadasTodas.filter(doLado)
+  // busca, valor e data (E entre eles): só escondem linhas. Valor: o de cada vez (r.valor), em centavos inteiros, "a partir de" inclui o igual.
+  // Data: pela próxima data da linha, em texto ISO (AAAA-MM-DD compara como texto); sem próxima data (ex.: já terminou) some com o chip ligado.
+  // atalho: o valor é comparado como está na conta (centavos da moeda dela), sem converter; só o recorrente em outra moeda foge do "em reais", quando revisar.
+  const termoBusca = semAcento(textoBusca.trim())
+  const valorMinimo = parseBRL(textoValor)
+  const comFiltro = termoBusca !== '' || (valorMinimo !== null && valorMinimo > 0) || filtroData !== null
+  const passaFiltros = (r: Recorrencia, prox: string | null) => {
+    if (termoBusca && !semAcento(r.descricao).includes(termoBusca)) return false
+    if (valorMinimo !== null && valorMinimo > 0 && r.valor < valorMinimo) return false
+    if (filtroData === 'semana') return prox !== null && prox >= hoje && prox <= somarDias(hoje, 7)
+    if (filtroData === 'mes') return prox !== null && prox >= hoje && prox.slice(0, 7) === hoje.slice(0, 7)
+    return true
+  }
+  const terminadas = terminadasTodas.filter(doLado).filter((r) => passaFiltros(r, null))
   // "Já terminaram" só mostra o que acabou nos últimos 90 dias; o mais antigo fica atrás de um botão (Recorrentes é só de consulta, sem Excluir)
   const limiteRecentes = somarDias(hoje, -DIAS_TERMINADAS_RECENTES)
   const terminadasRecentes = terminadas.filter((r) => (r.fim ?? '') >= limiteRecentes)
@@ -241,13 +294,16 @@ export default function Recorrentes() {
     .map((n) => ({
       n,
       itens: vigentes.filter((r) => doLado(r) && r.tipo !== 'transfer' && naturezaDe(r) === n && daAba(r))
-        .map((r) => ({ r, prox: proxima(r) })).sort(maiorPrimeiro),
+        .map((r) => ({ r, prox: proxima(r) })).filter(({ r, prox }) => passaFiltros(r, prox)).sort(maiorPrimeiro),
     }))
     .filter((g) => g.itens.length > 0)
   const transferencias = lado === 'saidas' && !filtrando
-    ? vigentes.filter((r) => r.tipo === 'transfer' && daAba(r)).map((r) => ({ r, prox: proxima(r) })).sort(maiorPrimeiro)
+    ? vigentes.filter((r) => r.tipo === 'transfer' && daAba(r)).map((r) => ({ r, prox: proxima(r) })).filter(({ r, prox }) => passaFiltros(r, prox)).sort(maiorPrimeiro)
     : []
   const temItensNaLista = grupos.length > 0 || transferencias.length > 0
+  const mostraTerminadas = terminadas.length > 0 && aba === 'todos' && !filtrando
+  // os filtros escondem tudo: a tela diz isso e oferece limpar (em vez de um vazio sem explicação)
+  const filtrosEscondemTudo = comFiltro && ativas.length > 0 && !temItensNaLista && !mostraTerminadas
 
   const linha = (meio: LinhaResumoRecorrencia['meio'], tipo: LinhaResumoRecorrencia['tipo']) =>
     resumo.find((l) => l.nivel === 'medium' && l.meio === meio && l.tipo === tipo)
@@ -344,10 +400,10 @@ export default function Recorrentes() {
 
   /**
    * Um card por natureza (mesma ordem e nomes da legenda), com o total por mês do banco à direita, sem contador.
-   * O total do banco junta conta e cartão: com a aba Conta ou Cartão ele não vale para o recorte e não aparece (a tela não soma).
+   * O total do banco junta conta e cartão: com a aba Conta ou Cartão, ou com busca, valor ou data, ele não vale para o recorte e não aparece (a tela não soma).
    */
   function cartaoDoGrupo(g: (typeof grupos)[number]) {
-    const total = aba === 'todos' ? totalNatureza(g.n) : null
+    const total = aba === 'todos' && !comFiltro ? totalNatureza(g.n) : null
     return (
       <Card key={g.n} semPadding>
         <section aria-labelledby={`grupo-${g.n}`} data-testid={`grupo-${g.n}`}>
@@ -370,7 +426,7 @@ export default function Recorrentes() {
 
   function cartaoTransferencias() {
     // total do banco (nível medium da conta, só reais); com a aba Cartão não há transferência nenhuma
-    const total = aba === 'todos' || aba === 'conta' ? linha('account', 'transfer') : undefined
+    const total = (aba === 'todos' || aba === 'conta') && !comFiltro ? linha('account', 'transfer') : undefined
     return (
       <Card key="transferencias" semPadding>
         <section aria-labelledby="grupo-transferencias" data-testid="grupo-transferencias">
@@ -504,6 +560,51 @@ export default function Recorrentes() {
               ))}
             </div>
           )}
+          {ativas.length > 0 && (
+            <div role="search" aria-label="Filtrar recorrentes" className="mb-3 space-y-2" data-testid="filtros-recorrentes">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_13rem]">
+                {/* busca (pedido do dono, 17/11/2026): na descrição, sem maiúscula nem acento; só esconde linhas */}
+                <div className="flex flex-col gap-1">
+                  <label htmlFor="busca-recorrentes" className="text-sm font-medium">Buscar recorrente</label>
+                  <div className="relative">
+                    <input id="busca-recorrentes" type="search" value={textoBusca} maxLength={LIMITE_BUSCA} autoComplete="off" enterKeyHint="search"
+                      onChange={(e) => mudarBusca(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Escape' && textoBusca) { e.preventDefault(); mudarBusca('') } }}
+                      placeholder="Nome do recorrente"
+                      className="block min-h-11 w-full rounded-lg border border-slate-500 bg-white py-2 pl-3 pr-11 text-base placeholder:text-slate-400 focus:border-azul focus:outline-none focus:ring-1 focus:ring-azul [&::-webkit-search-cancel-button]:hidden" />
+                    {textoBusca && (
+                      <button type="button" onClick={() => mudarBusca('')} aria-label="Limpar o texto da busca"
+                        className="absolute right-0 top-0 inline-flex h-11 w-11 items-center justify-center rounded-lg text-xl text-slate-500 hover:bg-slate-100">
+                        <span aria-hidden="true">×</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {/* valor mínimo: o de cada vez, igual ao da linha (não convertido para o mês) */}
+                <Field rotulo="Valor a partir de (R$)" inputMode="decimal" autoComplete="off" placeholder="0,00" value={textoValor}
+                  onChange={(e) => mudarValor(e.target.value)} onBlur={() => setValorTocado(true)}
+                  erro={valorTocado && textoValor.trim() !== '' && (parseBRL(textoValor) ?? -1) < 0 ? 'Valor inválido. Exemplo: 50,00.' : undefined} />
+              </div>
+              {/* data: pela próxima data de cada linha; os dois chips se excluem (tocar de novo desliga) */}
+              <div role="group" aria-label="Próxima data" className="flex flex-wrap items-center gap-2">
+                {CHIPS_DATA.map(([chave, rotulo]) => (
+                  <button key={chave} type="button" aria-pressed={filtroData === chave} onClick={() => gravarFiltro('data', filtroData === chave ? null : chave)}
+                    className={`min-h-11 rounded-full px-4 text-sm font-semibold transition-colors ${filtroData === chave
+                      ? 'bg-azul text-white' : 'border border-slate-200 bg-white text-marinho hover:bg-azul-claro'}`}>
+                    {rotulo}
+                  </button>
+                ))}
+                {comFiltro && !filtrosEscondemTudo && (
+                  <button type="button" onClick={limparFiltros} data-testid="limpar-filtros"
+                    className="inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-semibold text-azul hover:bg-azul-claro">
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+              {/* os totais por grupo e a barra vêm do banco e não acompanham busca, valor ou data: somem do grupo, e a tela diz por quê */}
+              {comFiltro && <p className="text-xs text-slate-600" data-testid="totais-escondidos">Totais escondidos enquanto há busca ou filtro.</p>}
+            </div>
+          )}
           {temItensNaLista && (
             <p className="mb-3 text-xs text-slate-500" data-testid="ajuda-gerenciar">
               Para mudar o valor ou o dia, ou encerrar, toque em <strong className="font-semibold text-azul">Gerenciar</strong>: no cartão
@@ -513,19 +614,29 @@ export default function Recorrentes() {
             </p>
           )}
           <div className="space-y-4">
-            {!temItensNaLista && ativas.length > 0 && !(lado === 'entradas' && proventos.length > 0) && (
+            {filtrosEscondemTudo && (
+              <EmptyState titulo="Nenhum recorrente com esses filtros"
+                descricao={`Nada combina com: ${[
+                  termoBusca && `nome com "${textoBusca.trim()}"`,
+                  valorMinimo !== null && valorMinimo > 0 && `valor a partir de ${formatBRL(valorMinimo)}`,
+                  filtroData && CHIPS_DATA.find(([c]) => c === filtroData)?.[1].toLowerCase(),
+                ].filter(Boolean).join(', ')}.`}
+                acao={<Button variante="secundario" onClick={limparFiltros}>Limpar filtros</Button>} />
+            )}
+            {!comFiltro && !temItensNaLista && ativas.length > 0 && !(lado === 'entradas' && proventos.length > 0) && (
               <Card><p className="text-sm text-slate-600">Nenhum recorrente {lado === 'entradas' ? 'de entrada' : aba === 'cartao' ? 'no cartão' : 'em conta'}.</p></Card>
             )}
             {/* no computador os cards ficam lado a lado (a lista de uma coluna só deixava metade da tela em branco);
                 os proventos previstos são uma ENTRADA prevista: ficam junto dos grupos de Entradas */}
-            {(grupos.length > 0 || (lado === 'entradas' && proventos.length > 0 && !filtrando)) && (
+            {(grupos.length > 0 || (lado === 'entradas' && proventos.length > 0 && !filtrando && !comFiltro)) && (
               <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2" data-testid="grade-grupos">
                 {grupos.map((g) => cartaoDoGrupo(g))}
-                {lado === 'entradas' && proventos.length > 0 && !filtrando && cartaoProventos()}
+                {/* os proventos previstos não são recorrentes cadastrados: com busca, valor ou data ligados, ficam de fora */}
+                {lado === 'entradas' && proventos.length > 0 && !filtrando && !comFiltro && cartaoProventos()}
               </div>
             )}
             {transferencias.length > 0 && cartaoTransferencias()}
-            {terminadas.length > 0 && aba === 'todos' && !filtrando && (
+            {mostraTerminadas && (
               <Card semPadding>
                 <section aria-labelledby="grupo-terminados">
                   <div className="px-4 py-3 sm:px-5">
