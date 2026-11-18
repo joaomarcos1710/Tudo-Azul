@@ -1002,3 +1002,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **O quê:** busca por nome, "valor a partir de" e dois chips de data em Recorrentes. Combinam (E), vão na URL e só escondem linhas.
 - **Por quê:** o dono pediu para achar um recorrente por nome, valor e data. Os totais por grupo vêm do banco (a tela não soma dinheiro): como o banco não conhece o recorte, o total do grupo some enquanto há filtro, e a tela diz isso. Mostrar o total do banco ao lado de uma lista filtrada daria um número que não fecha com o que se vê.
 - **Atalho:** o valor filtrado é o de cada vez, em centavos da moeda da conta, sem converter (um recorrente em outra moeda compara em centavos dela).
+
+## 18/11/2026 — Categoria: lista embaixo do campo no computador, folha no celular (#432)
+- **O quê:** no computador (a partir de 1024 px) o seletor de categoria abre uma lista embaixo do campo, em vez da folha por cima do formulário. No celular e no iPad em retrato a folha continua. Vale para os três formulários que usam o seletor (cartão, lançamento, recorrente).
+- **Por quê:** o dono achou ruim o pop-up por cima do formulário do cartão ("não seria melhor usar igual o Mobills?"). Das três opções (só o cartão, todos, só computador) ele escolheu a 3. A folha do #276 (decisão de 10/11, "como no Organizze") fica no celular, onde a lista embaixo apertaria.
+- **Como:** a lista é `position: fixed` com a posição do campo na tela, porque o formulário em volta rola e cortaria uma lista presa dentro dele (visto na bancada: a lista subia e a busca ficava escondida atrás do cabeçalho). Abre para baixo se couber pelo menos 220 px; senão, sobe se houver mais espaço em cima; a altura é limitada ao espaço (mínimo 120 px).
+- **Custo:** rolar o formulário ou mudar o tamanho da janela com a lista aberta fecha a lista (ela não acompanha o campo).

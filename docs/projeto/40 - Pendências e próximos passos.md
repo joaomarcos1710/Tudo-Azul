@@ -555,6 +555,8 @@ Lixeira completa · aviso de nova versão do PWA · atualizar ao voltar ao app �
 ## Seletor de categoria em folha (10/11/2026)
 - [x] #276: busca, lista ou grade, subcategorias embaixo e "Criar categoria" nos formulários de lançamento, cartão e recorrente.
 - [ ] Conferir no celular (você): a folha, a grade de 4 colunas e o "Criar categoria".
+- [x] **Lista embaixo do campo no computador (#432, 18/11/2026):** a folha só no celular. Conferido na bancada (campo no alto e embaixo, 1280 px; celular 390 px). **Não visto no app real nem no iPad.**
+- [ ] **atalho (#432):** com a lista aberta, rolar o formulário a fecha (ela é fixa na tela e não acompanha o campo); melhorar se o dono estranhar. A lista fica a partir de 1024 px, e o iPad em paisagem pode cair de um lado ou do outro.
 - [ ] "Criar categoria" cria só principal; criar subcategoria dali ficou de fora. Orçamentos segue com o seletor nativo.
 - [ ] Lembrar a escolha lista/grade entre aberturas (hoje volta para a lista).
 ## Regra 50-30-20 fora do app (10/11/2026)
