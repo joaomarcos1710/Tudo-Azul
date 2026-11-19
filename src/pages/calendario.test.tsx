@@ -431,11 +431,11 @@ describe('Calendário financeiro: valores no dia, filtros, resumo do dia e Hoje'
     expect(within(dia5).getByText('−187,40')).toBeTruthy()
     expect(within(dia5).queryByText('+8.000,00')).toBeNull()
     expect(mock.totaisDoDia).toHaveBeenCalledWith('h1', '2026-10-01', '2026-10-31')
-    // valores só onde a célula comporta (celular deitado e computador ≥ 1280 px); no celular em pé e no iPad (menu lateral
-    // aperta a grade) ficam os tracinhos de entrada e saída
+    // valores só onde a célula comporta (celular deitado e telas ≥ 1024 px, o iPad deitado inclusive); no celular em pé e no
+    // iPad em pé (menu lateral aperta a grade) ficam os tracinhos de entrada e saída
     const classes = valores.closest('[data-valores-do-dia]')!.className.split(' ')
-    expect(classes).toEqual(expect.arrayContaining(['hidden', 'sm:flex', 'md:hidden', 'xl:flex']))
-    expect(dia5.querySelector('.bg-lucro-marca')!.className.split(' ')).toEqual(expect.arrayContaining(['sm:hidden', 'md:block', 'xl:hidden']))
+    expect(classes).toEqual(expect.arrayContaining(['hidden', 'sm:flex', 'md:hidden', 'lg:flex']))
+    expect(dia5.querySelector('.bg-lucro-marca')!.className.split(' ')).toEqual(expect.arrayContaining(['sm:hidden', 'md:block', 'lg:hidden']))
   })
 
   it('dia só com outra moeda: sem valor em reais na grade, os tracinhos continuam também no computador', async () => {

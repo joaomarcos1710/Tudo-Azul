@@ -50,10 +50,11 @@ const FILTROS: { id: Filtro; rotulo: string }[] = [
   { id: 'todos', rotulo: 'Todos' }, { id: 'entradas', rotulo: 'Entradas' }, { id: 'saidas', rotulo: 'Saídas' },
   { id: 'faturas', rotulo: 'Faturas e Parcelas' },
 ]
-// Onde a célula comporta o valor (≥ 68 px por dia): celular deitado (640–767 px, sem o menu lateral) e computador a partir de
-// 1280 px. Entre 768 e 1279 px o menu lateral de 256 px aperta a grade (célula de ~44 px no iPad em pé) e o valor saía cortado
-// ("+14.…"): ali ficam os tracinhos. Conferido em prévia com o menu aberto em 390, 768, 820, 1280 e 1440 px (16/11/2026).
-const TRACO_COM_VALOR = 'sm:hidden md:block xl:hidden'
+// Onde a célula comporta o valor (≥ 68 px por dia): celular deitado (640–767 px, sem o menu lateral) e, com o menu lateral de
+// 256 px, a partir de 1024 px (iPad deitado e computador: célula de ~100 px). Só entre 768 e 1023 px (iPad em pé) a grade
+// aperta (célula de ~44 px) e o valor saía cortado ("+14.…"): ali ficam os tracinhos. Era 1280 px; o iPad deitado (1180 px)
+// tem espaço e mostrava só tracinhos (dono, 19/11/2026).
+const TRACO_COM_VALOR = 'sm:hidden md:block lg:hidden'
 const passaNoFiltro = (x: ItemDoDia, f: Filtro) =>
   f === 'todos' || (f === 'entradas' && x.sentido === 'entrada') || (f === 'saidas' && x.sentido === 'saida') || (f === 'faturas' && x.faturaOuParcela)
 
@@ -313,12 +314,12 @@ export default function Calendario() {
                     }`}>
                     <span className={`text-xs tabular-nums sm:text-sm ${ehHoje ? 'font-bold text-azul' : 'text-slate-700'}`}>{n}</span>
                     {temValor && (
-                      <span className="mt-auto hidden w-full flex-col items-end gap-0.5 sm:flex md:hidden xl:flex" aria-hidden="true" data-valores-do-dia>
+                      <span className="mt-auto hidden w-full flex-col items-end gap-0.5 sm:flex md:hidden lg:flex" aria-hidden="true" data-valores-do-dia>
                         {entra !== 0 && <span className="max-w-full truncate rounded bg-lucro-fundo px-1 text-[10px] font-semibold tabular-nums text-lucro">+{formatBRLCampo(entra)}</span>}
                         {sai !== 0 && <span className="max-w-full truncate rounded bg-prejuizo-fundo px-1 text-[10px] font-semibold tabular-nums text-prejuizo">−{formatBRLCampo(sai)}</span>}
                       </span>
                     )}
-                    <span className={`flex w-full flex-col gap-0.5 ${temValor ? 'mt-auto sm:mt-0.5 md:mt-auto xl:mt-0.5' : 'mt-auto'}`} aria-hidden="true">
+                    <span className={`flex w-full flex-col gap-0.5 ${temValor ? 'mt-auto sm:mt-0.5 md:mt-auto lg:mt-0.5' : 'mt-auto'}`} aria-hidden="true">
                       {entrada && <span className={`h-1 rounded-full bg-lucro-marca ${temValor ? TRACO_COM_VALOR : ''}`} />}
                       {saida && <span className={`h-1 rounded-full bg-prejuizo-marca ${temValor ? TRACO_COM_VALOR : ''}`} />}
                       {planejados > 0 && <span className="h-1 rounded-full bg-agendado-marca" />}
