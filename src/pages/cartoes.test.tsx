@@ -30,6 +30,8 @@ const mock = vi.hoisted(() => ({
   sincronizarAgendados: vi.fn(),
   converterAgendados: vi.fn(),
   excluirRecorrencia: vi.fn(),
+  lerPessoaDaRecorrencia: vi.fn(),
+  definirPessoaRecorrencia: vi.fn(),
   editarAgendada: vi.fn(),
   cancelarAgendada: vi.fn(),
   aPartirDaqui: vi.fn(),
@@ -66,7 +68,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   visaoDosCartoes: mock.visaoDosCartoes, trocarPessoaDaCompra: mock.trocarPessoaDaCompra, corrigirDataDaCompra: mock.corrigirDataDaCompra,
 }))
 vi.mock('../lib/pessoasFamilia', async (o) => ({ ...(await o<typeof import('../lib/pessoasFamilia')>()), listarPessoasFamilia: mock.listarPessoasFamilia }))
-vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0), excluirRecorrencia: mock.excluirRecorrencia }))
+vi.mock('../lib/recorrencias', () => ({ gerarOcorrencias: () => Promise.resolve(0), excluirRecorrencia: mock.excluirRecorrencia, lerPessoaDaRecorrencia: mock.lerPessoaDaRecorrencia, definirPessoaRecorrencia: mock.definirPessoaRecorrencia }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 
@@ -161,6 +163,8 @@ beforeEach(() => {
     { id: 'pe2', userId: null, familiaId: 'h1', nome: 'Beto', fotoUrl: null, nascimento: null, vinculo: 'Familiar', ativo: true, criadaEm: '', atualizadaEm: '' },
   ])
   mock.trocarPessoaDaCompra.mockResolvedValue(1)
+  mock.lerPessoaDaRecorrencia.mockResolvedValue({ personId: 'pe1', isSharedExpense: false })
+  mock.definirPessoaRecorrencia.mockResolvedValue(undefined)
   mock.corrigirDataDaCompra.mockResolvedValue(3)
   mock.listarOcorrenciasPrevistas.mockResolvedValue([])
   mock.listarFaturasAgendadas.mockResolvedValue([])
@@ -368,6 +372,77 @@ describe('Cartões', () => {
       expect(within(form).getByLabelText('Data da cobrança')).toBeTruthy()
       await u.click(within(card).getByRole('button', { name: 'Cancelar' }))
       expect(screen.queryByRole('dialog', { name: 'Editar a assinatura Academia' })).toBeNull()
+    })
+
+    it('Editar: o campo "Despesa de quem?" já vem com a pessoa da assinatura e avisa que vale para ela toda', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      const campo = await within(form).findByLabelText('Despesa de quem?')
+      expect(mock.lerPessoaDaRecorrencia).toHaveBeenCalledWith('r1')
+      await vi.waitFor(() => expect((campo as HTMLSelectElement).value).toBe('pe1'))
+      expect(within(form).getByTestId('aviso-pessoa-assinatura').textContent).toContain('assinatura inteira, daqui em diante')
+    })
+
+    it('Editar: trocar SÓ a pessoa grava a pessoa na assinatura e não recria nem edita a cobrança', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      const campo = await within(form).findByLabelText('Despesa de quem?')
+      await vi.waitFor(() => expect((campo as HTMLSelectElement).value).toBe('pe1'))
+      await u.selectOptions(campo, 'pe2')
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      await vi.waitFor(() => expect(mock.definirPessoaRecorrencia).toHaveBeenCalledWith('r1', 'pe2', false))
+      expect(mock.aPartirDaqui).not.toHaveBeenCalled()
+      expect(mock.editarAgendada).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(screen.queryByRole('form', { name: 'Editar Academia' })).toBeNull())
+    })
+
+    it('Editar: pessoa "Toda a família" e valor novo juntos: a pessoa é gravada ANTES de dividir a assinatura', async () => {
+      const ordem: string[] = []
+      mock.definirPessoaRecorrencia.mockImplementation(async () => { ordem.push('pessoa') })
+      mock.aPartirDaqui.mockImplementation(async () => { ordem.push('divide'); return 0 })
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      const campo = await within(form).findByLabelText('Despesa de quem?')
+      await vi.waitFor(() => expect((campo as HTMLSelectElement).value).toBe('pe1'))
+      await u.selectOptions(campo, 'shared')
+      const valor = within(form).getByLabelText('Valor (R$)')
+      await u.clear(valor)
+      await u.type(valor, '95,50')
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      await vi.waitFor(() => expect(mock.aPartirDaqui).toHaveBeenCalledTimes(1))
+      expect(mock.definirPessoaRecorrencia).toHaveBeenCalledWith('r1', null, true)
+      expect(ordem).toEqual(['pessoa', 'divide'])
+    })
+
+    it('Editar sem mexer na pessoa: nada de gravar pessoa (só a cobrança muda, como antes)', async () => {
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      const campo = await within(form).findByLabelText('Despesa de quem?')
+      await vi.waitFor(() => expect((campo as HTMLSelectElement).value).toBe('pe1'))
+      await u.click(within(form).getByRole('radio', { name: 'Só esta cobrança' }))
+      const valor = within(form).getByLabelText('Valor (R$)')
+      await u.clear(valor)
+      await u.type(valor, '95,50')
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      await vi.waitFor(() => expect(mock.editarAgendada).toHaveBeenCalledTimes(1))
+      expect(mock.definirPessoaRecorrencia).not.toHaveBeenCalled()
+    })
+
+    it('Editar: se a pessoa da assinatura não puder ser lida, o campo não aparece e a edição segue normal', async () => {
+      mock.lerPessoaDaRecorrencia.mockRejectedValue(new Error('falhou'))
+      const u = userEvent.setup()
+      await abrir(u, 'Editar…')
+      const form = await screen.findByRole('form', { name: 'Editar Academia' })
+      await vi.waitFor(() => expect(mock.lerPessoaDaRecorrencia).toHaveBeenCalled())
+      expect(within(form).queryByLabelText('Despesa de quem?')).toBeNull()
+      fireEvent.change(within(form).getByLabelText('Data da cobrança'), { target: { value: '2099-04-20' } })
+      await u.click(within(form).getByRole('button', { name: 'Salvar' }))
+      await vi.waitFor(() => expect(mock.aPartirDaqui).toHaveBeenCalledTimes(1))
+      expect(mock.definirPessoaRecorrencia).not.toHaveBeenCalled()
     })
 
     it('Editar: acertar só o dia (data nova) com o padrão "esta e as próximas" divide a assinatura na data nova', async () => {
