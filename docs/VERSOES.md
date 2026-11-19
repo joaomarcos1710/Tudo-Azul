@@ -356,4 +356,5 @@ continuam abaixo como histórico.
 | 2026.441 | **Só diário.** O arquivo de ideias ganhou a situação de cada ideia (feita, parcial, falta, não verificada, fora de escopo), conferida no código em 19/11/2026. Nenhuma mudança no app. |
 | 2026.442 | **Preferências no iPhone.** A tela de Preferências agora aparece no menu **Mais** do celular, em "Conta" (antes só existia no computador e no iPad). |
 | 2026.443 | **Calendário com valores no iPad deitado.** O valor de entrada e saída dentro de cada dia aparece a partir de 1024 px (antes 1280 px). iPad em pé e iPhone em pé continuam com os tracinhos. |
+| 2026.444 | **Categoria abre no iPad.** Em Novo lançamento (receita e despesa) o toque em Categoria voltou a abrir a lista no iPad: a lista embaixo do campo agora é só para computador com mouse; o iPad usa a folha, como o iPhone. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
