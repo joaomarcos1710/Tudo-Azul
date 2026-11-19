@@ -144,13 +144,34 @@ describe('SeletorCategoria (como no Organizze)', () => {
 })
 
 describe('SeletorCategoria no computador: a lista abre embaixo do campo, sem pop-up (pedido do dono, 18/11/2026)', () => {
-  /** matchMedia só existe no navegador: aqui ele diz que a tela tem a largura do computador (lg). */
-  function telaDoComputador(ehComputador: boolean) {
-    window.matchMedia = ((q: string) => ({ matches: ehComputador && q === '(min-width: 1024px)', media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })) as unknown as typeof window.matchMedia
+  /**
+   * matchMedia só existe no navegador: aqui ele diz como é a tela. `larga` = 1024 px ou mais; `mouse` = hover e ponteiro fino
+   * (computador); o iPad deitado é larga SEM mouse. Cada pedaço da consulta é conferido, como o navegador faz.
+   */
+  function tela({ larga, mouse }: { larga: boolean; mouse: boolean }) {
+    window.matchMedia = ((q: string) => {
+      const partes = q.split(' and ')
+      const vale = (p: string) => (p === '(min-width: 1024px)' ? larga : p === '(hover: hover)' || p === '(pointer: fine)' ? mouse : false)
+      return { matches: partes.every(vale), media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() }
+    }) as unknown as typeof window.matchMedia
   }
+  function telaDoComputador(ehComputador: boolean) { tela({ larga: ehComputador, mouse: ehComputador }) }
   beforeEach(() => telaDoComputador(true))
   afterEach(() => { delete (window as { matchMedia?: unknown }).matchMedia })
   const lista = () => screen.getByTestId('lista-categorias')
+
+  it('iPad deitado (largura de computador, sem mouse): continua a folha, que não fecha sozinha com o foco e o teclado do iOS', async () => {
+    tela({ larga: true, mouse: false })
+    const u = userEvent.setup()
+    render(<Host />)
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(screen.queryByTestId('lista-categorias')).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Selecionar uma categoria' })).toBeTruthy()
+    // rolar ou redimensionar (o que o iOS faz ao focar) não fecha a folha
+    window.dispatchEvent(new Event('resize'))
+    document.dispatchEvent(new Event('scroll'))
+    expect(screen.getByRole('dialog', { name: 'Selecionar uma categoria' })).toBeTruthy()
+  })
 
   it('não abre pop-up: a lista aparece junto do campo, com a principal e as filhas embaixo, e tocar escolhe e fecha', async () => {
     const u = userEvent.setup()

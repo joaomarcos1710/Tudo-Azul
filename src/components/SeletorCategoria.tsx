@@ -12,12 +12,15 @@ import { IconeCategoria, visualDaCategoria } from '../lib/visualCategoria'
  * uma folha com busca, lista ou grade, a principal com as subcategorias embaixo e "Criar categoria". Substitui o
  * seletor nativo nos formulários de lançamento, compra no cartão e recorrente.
  *
- * No computador (largura de lg, 1024 px) a lista abre embaixo do próprio campo, sem pop-up por cima do formulário (pedido do dono,
- * 18/11/2026: "abre um pop-up, não seria melhor usar igual o Mobills?"); no celular e no iPad em retrato continua a folha.
+ * No computador (largura de lg, 1024 px, com mouse) a lista abre embaixo do próprio campo, sem pop-up por cima do formulário (pedido do dono,
+ * 18/11/2026: "abre um pop-up, não seria melhor usar igual o Mobills?"); no celular e no iPad (toque, em pé ou deitado) continua a folha.
  *
  * `opcoes` é a lista já filtrada por quem usa (tipo, ativas): a mesma que o seletor nativo recebia.
  */
-const CONSULTA_COMPUTADOR = '(min-width: 1024px)'
+// Só mouse e largura de computador: o iPad (toque), mesmo deitado e com 1180 px, usa a folha. Na lista fixa embaixo do campo o toque no
+// campo não abria nada no iPad (dono, 19/11/2026, vídeo): o foco na busca faz o iOS rolar a tela ou mudar o tamanho, e a lista fecha sozinha
+// nesses dois eventos. A folha não depende disso e é a que já funciona no iPhone.
+const CONSULTA_COMPUTADOR = '(min-width: 1024px) and (hover: hover) and (pointer: fine)'
 /** Sem matchMedia (testes em jsdom, navegador muito antigo) vale o celular: a folha, que sempre existiu. */
 function useEhComputador(): boolean {
   return useSyncExternalStore(
