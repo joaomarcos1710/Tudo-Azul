@@ -44,8 +44,8 @@ language sql stable security invoker set search_path = '' as $$
          b.amount_limit - coalesce(s.spent, 0),
          round(100 * coalesce(s.spent, 0) / b.amount_limit, 1)
     from public.budgets b
-    join public.categories c on c.household_id = b.household_id and c.id = b.category_id
     cross join lateral private.budget_cycle(b.month, p_dia) cy
+    join public.categories c on c.household_id = b.household_id and c.id = b.category_id
     left join lateral (
       select sum(x.amt) as spent
         from (
@@ -75,6 +75,8 @@ language sql stable security invoker set search_path = '' as $$
    where b.household_id = p_household
      and b.month = date_trunc('month', p_month::timestamp)::date
      and (select private.is_member(p_household))
+     -- dia inválido é erro mesmo sem orçamento no mês: condição que não depende da linha, avaliada uma vez antes de varrer budgets
+     and (select cv.first_day from private.budget_cycle(p_month, p_dia) cv) is not null
    order by c.name
 $$;
 

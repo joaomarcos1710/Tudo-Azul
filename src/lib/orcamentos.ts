@@ -55,7 +55,8 @@ export async function lerDiaInicioDoMes(userId: string): Promise<number> {
 export async function listarOrcamentos(familiaId: string, mes: string, hoje: string, dia?: number): Promise<OrcamentoMes[]> {
   const db = cliente()
   const primeiro = `${mes}-01`
-  const comDia = dia === undefined ? {} : { p_dia: dia }
+  // dia 1 (ou sem dia) não manda p_dia: a tela continua funcionando contra o banco que ainda não tem a migration 144
+  const comDia = dia !== undefined && dia > 1 ? { p_dia: dia } : {}
   const [proj, usoJunto] = await Promise.all([
     db.rpc('budget_projection', { p_household: familiaId, p_month: primeiro, p_today: hoje, ...comDia }),
     db.rpc('budget_usage', { p_household: familiaId, p_month: primeiro, ...comDia }),

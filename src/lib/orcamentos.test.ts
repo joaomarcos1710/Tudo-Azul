@@ -44,10 +44,16 @@ describe('listarOrcamentos', () => {
     expect(fake.e.chamadas[0]).toMatchObject({ op: 'rpc:budget_projection', payload: { p_household: 'h1', p_month: '2026-10-01', p_today: '2026-10-10' } })
   })
 
-  it('sem o dia o banco recebe só mês e hoje (o Início segue no mês de calendário); com o dia, o p_dia vai nas duas funções', async () => {
+  it('dia 1 ou sem dia: o banco recebe só mês e hoje (funciona mesmo antes da migration 144); com dia maior que 1, o p_dia vai nas duas funções', async () => {
     fake.e.rpc.budget_projection = { data: [linhaProj], error: null }
     fake.e.rpc.budget_usage = { data: [], error: null }
     await listarOrcamentos('h1', '2026-10', '2026-10-10')
+    expect(fake.e.chamadas.map((c) => c.payload)).toEqual([
+      { p_household: 'h1', p_month: '2026-10-01', p_today: '2026-10-10' },
+      { p_household: 'h1', p_month: '2026-10-01' },
+    ])
+    fake.e.chamadas = []
+    await listarOrcamentos('h1', '2026-10', '2026-10-10', 1)
     expect(fake.e.chamadas.map((c) => c.payload)).toEqual([
       { p_household: 'h1', p_month: '2026-10-01', p_today: '2026-10-10' },
       { p_household: 'h1', p_month: '2026-10-01' },

@@ -51,6 +51,8 @@ select public.set_card_cycle(pg_temp.fx('card'), 10, 20);
 select public.card_purchase(pg_temp.fx('card'), '2026-03-05', 60.00, 1, pg_temp.fx('mercado'), 'Cartão antes');
 select public.card_purchase(pg_temp.fx('card'), '2026-03-25', 90.00, 1, pg_temp.fx('mercado'), 'Cartão no ciclo');
 select public.card_bill_due('2026-04-15');
+-- compra de 05/04 (45,00): fecha em 10/04 (dentro do ciclo) e AINDA não foi cobrada: entra em planned_card
+select public.card_purchase(pg_temp.fx('card'), '2026-04-05', 45.00, 1, pg_temp.fx('mercado'), 'Cartão a fechar');
 
 -- Família B (isolamento)
 select pg_temp.login('00000000-0000-0000-0000-000000137a02');
@@ -73,15 +75,18 @@ select is((select remaining || '|' || percent from public.budget_usage(pg_temp.f
   '810.00|19.0', 'C5 restante e percentual saem do gasto do ciclo');
 
 -- Projeção do ciclo, "hoje" = 05/04: 17 dias decorridos de 31; ritmo = só o pago sem cartão em 20/03..05/04 (70) / 17 × 14
-select is((select spent::numeric(14,2) || '|' || planned::numeric(14,2) || '|' || pace_extra::numeric(14,2) || '|' || projected::numeric(14,2)
-                  || '|' || remaining::numeric(14,2)
+select is((select spent::numeric(14,2) || '|' || planned::numeric(14,2) || '|' || planned_card::numeric(14,2) || '|' || pace_extra::numeric(14,2)
+                  || '|' || projected::numeric(14,2) || '|' || remaining::numeric(14,2)
              from public.budget_projection(pg_temp.fx('h'), '2026-03-01', '2026-04-05', 20) where category_id = pg_temp.fx('mercado')),
-  '190.00|200.00|57.65|447.65|552.35',
-  'C6 dia 20: gasto 190, planejado 200 (só o de 10/04), ritmo 57,65, projetado 447,65');
+  '190.00|245.00|45.00|57.65|492.65|507.35',
+  'C6 dia 20: gasto 190, planejado 245 (200 de 10/04 + cartão a fechar 45), ritmo 57,65, projetado 492,65');
 -- Sem o dia, a projeção continua a de calendário (hoje 05/04 já passou de março: 31 de 31 dias, sem ritmo, planejado de março)
 select is((select spent::numeric(14,2) || '|' || planned::numeric(14,2) || '|' || pace_extra::numeric(14,2)
              from public.budget_projection(pg_temp.fx('h'), '2026-03-01', '2026-04-05') where category_id = pg_temp.fx('mercado')),
   '180.00|11.00|0.00', 'C7 sem o dia: março de calendário (gasto 180, planejado 11, sem ritmo)');
+-- Depois do fim do ciclo (hoje = 30/04): todos os dias decorridos, nenhum a projetar
+select is((select pace_extra from public.budget_projection(pg_temp.fx('h'), '2026-03-01', '2026-04-30', 20) where category_id = pg_temp.fx('mercado')),
+  0.00::numeric, 'C8b depois do fim do ciclo: sem ritmo');
 -- Primeiro dia do ciclo: nada decorrido além de 1 dia
 select is((select pace_extra from public.budget_projection(pg_temp.fx('h'), '2026-03-01', '2026-03-22', 20) where category_id = pg_temp.fx('mercado')),
   0.00::numeric, 'C8 menos de 7 dias no ciclo: sem ritmo');
@@ -90,6 +95,13 @@ select is((select pace_extra from public.budget_projection(pg_temp.fx('h'), '202
 select is(pg_temp.sqlstate_of(format('select * from public.budget_usage(%L, %L, 0)', pg_temp.fx('h'), '2026-03-01')), '22023', 'C9 dia 0 é recusado');
 select is(pg_temp.sqlstate_of(format('select * from public.budget_usage(%L, %L, 29)', pg_temp.fx('h'), '2026-03-01')), '22023', 'C10 dia 29 é recusado');
 select is(pg_temp.sqlstate_of(format('select * from public.budget_projection(%L, %L, %L, null)', pg_temp.fx('h'), '2026-03-01', '2026-04-05')), '22023', 'C11 dia nulo é recusado');
+-- mês SEM orçamento também recusa o dia inválido (a validação não depende de haver linha em budgets)
+select is(pg_temp.sqlstate_of(format('select * from public.budget_usage(%L, %L, 29)', pg_temp.fx('h'), '2027-08-01')), '22023', 'C10b dia 29 recusado mesmo sem orçamento no mês');
+select is(pg_temp.sqlstate_of(format('select * from public.budget_usage(%L, %L, 0)', pg_temp.fx('h'), '2027-08-01')), '22023', 'C10c dia 0 recusado mesmo sem orçamento no mês');
+-- o auxiliar direto: fevereiro com dia 28, virada de ano e uma data no meio do mês
+select is((select first_day || ' a ' || last_day from private.budget_cycle('2026-02-01', 28)), '2026-02-28 a 2026-03-27', 'C10d fevereiro, dia 28');
+select is((select first_day || ' a ' || last_day from private.budget_cycle('2026-12-17', 20)), '2026-12-20 a 2027-01-19', 'C10e dezembro, dia 20, vira o ano (data no meio do mês)');
+select is((select first_day || ' a ' || last_day from private.budget_cycle('2028-02-10')), '2028-02-01 a 2028-02-29', 'C10f dia 1 em fevereiro bissexto');
 select lives_ok(format('select * from public.budget_usage(%L, %L, 28)', pg_temp.fx('h'), '2026-03-01'), 'C12 dia 28 vale');
 
 -- Isolamento e permissões
