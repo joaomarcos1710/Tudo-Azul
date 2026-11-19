@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { excluirRecorrencia } from '../lib/recorrencias'
+import { definirPessoaRecorrencia, excluirRecorrencia, lerPessoaDaRecorrencia } from '../lib/recorrencias'
 import type { FormEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { BandeiraCartao, IconeEmissor } from '../components/ui/IconeConta'
@@ -1643,7 +1643,7 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
               ? <PainelCobrada ocorrencia={painelPrevista.ocorrencia} hoje={hoje}
                   aoFechar={() => setPainelPrevista(null)}
                   aoConcluir={async () => { setPainelPrevista(null); await carregar() }} />
-              : <PainelAgendada tipo={painelPrevista.tipo} ocorrencia={painelPrevista.ocorrencia} categorias={categorias} hoje={hoje}
+              : <PainelAgendada tipo={painelPrevista.tipo} ocorrencia={painelPrevista.ocorrencia} categorias={categorias} pessoas={pessoas} hoje={hoje}
                   aoFechar={() => setPainelPrevista(null)}
                   aoConcluir={async () => { setPainelPrevista(null); await carregar() }} />)}
           </section>
@@ -2313,8 +2313,8 @@ function PainelCobrada({ ocorrencia: o, hoje, aoFechar, aoConcluir }: {
  * "esta e as próximas". "Esta e as próximas" mudando divide a regra: a antiga termina na véspera e uma nova começa na data
  * nova. O que já virou compra não passa por aqui. Validações finais no banco (card_scheduled_*).
  */
-function PainelAgendada({ tipo, ocorrencia: o, categorias, hoje, aoFechar, aoConcluir }: {
-  tipo: 'editar' | 'cancelar'; ocorrencia: OcorrenciaPrevista; categorias: Categoria[]; hoje: string
+function PainelAgendada({ tipo, ocorrencia: o, categorias, pessoas, hoje, aoFechar, aoConcluir }: {
+  tipo: 'editar' | 'cancelar'; ocorrencia: OcorrenciaPrevista; categorias: Categoria[]; pessoas: PessoaFamilia[]; hoje: string
   aoFechar: () => void; aoConcluir: () => Promise<void>
 }) {
   // editar uma assinatura: o caso comum é acertar o dia de TODAS as próximas (pedido do dono, 13/11/2026); cancelar começa só nesta, que é a opção segura
@@ -2323,6 +2323,17 @@ function PainelAgendada({ tipo, ocorrencia: o, categorias, hoje, aoFechar, aoCon
   const [valorTexto, setValorTexto] = useState(formatBRLCampo(o.valor).replace(/\u00a0/g, ''))
   const [data, setData] = useState(o.data)
   const [categoriaId, setCategoriaId] = useState(o.categoriaId)
+  // "De quem é a despesa" mora na assinatura (recorrência), não na cobrança prevista: vale para ela toda daqui em diante. null até ler;
+  // se a leitura falhar o campo não aparece e o resto da edição segue como sempre
+  type Pessoa = { personId: string | null; isSharedExpense: boolean }
+  const [pessoa, setPessoa] = useState<Pessoa | null>(null)
+  const [pessoaInicial, setPessoaInicial] = useState<Pessoa | null>(null)
+  useEffect(() => {
+    if (tipo !== 'editar') return
+    let vivo = true
+    lerPessoaDaRecorrencia(o.recorrenciaId).then((p) => { if (vivo) { setPessoa(p); setPessoaInicial(p) } }).catch(() => {})
+    return () => { vivo = false }
+  }, [tipo, o.recorrenciaId])
   const [tentou, setTentou] = useState(false)
   const { erro, enviando, enviar } = useEnvio(aoConcluir)
   const valor = parseBRL(valorTexto)
@@ -2342,7 +2353,16 @@ function PainelAgendada({ tipo, ocorrencia: o, categorias, hoje, aoFechar, aoCon
     setTentou(true)
     if (valor === null || valor <= 0 || !descricao.trim() || !data || data <= hoje || !categoriaId) return
     const dados = { data, valor, descricao, categoriaId }
-    void enviar(async () => { if (escopo === 'esta') await editarAgendada(itemId, dados); else await aPartirDaqui(itemId, 'update', dados) })
+    const mudouPessoa = pessoa !== null && pessoaInicial !== null
+      && (pessoa.personId !== pessoaInicial.personId || pessoa.isSharedExpense !== pessoaInicial.isSharedExpense)
+    const mudouDados = descricao.trim() !== o.descricao || valor !== o.valor || data !== o.data || categoriaId !== o.categoriaId
+    void enviar(async () => {
+      // a pessoa primeiro: "esta e as próximas" recria a regra copiando a pessoa da regra antiga, que já tem de estar com a nova
+      if (mudouPessoa && pessoa) await definirPessoaRecorrencia(o.recorrenciaId, pessoa.personId, pessoa.isSharedExpense)
+      // só a pessoa mudou: nada de recriar a assinatura nem mexer na cobrança
+      if (!mudouDados && mudouPessoa) return
+      if (escopo === 'esta') await editarAgendada(itemId, dados); else await aPartirDaqui(itemId, 'update', dados)
+    })
   }
 
   return (
@@ -2369,6 +2389,15 @@ function PainelAgendada({ tipo, ocorrencia: o, categorias, hoje, aoFechar, aoCon
           <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={despesas} categorias={categorias} tipo="expense" />
           <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
           <Field rotulo="Data da cobrança" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={erroData} />
+          {pessoa && (
+            <div className="md:col-span-2">
+              <PessoaSelectField id={`pessoa-agendada-${o.recorrenciaId}`} pessoas={pessoas} personId={pessoa.personId} isSharedExpense={pessoa.isSharedExpense}
+                onChange={setPessoa} />
+              <p className="mt-1 text-xs text-slate-600" data-testid="aviso-pessoa-assinatura">
+                A pessoa vale para a assinatura inteira, daqui em diante: as cobranças previstas e as parcelas ainda não cobradas. O que já foi cobrado fica como está.
+              </p>
+            </div>
+          )}
         </>
       )}
       <p className="text-sm text-slate-600 md:col-span-2">

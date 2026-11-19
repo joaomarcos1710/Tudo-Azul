@@ -358,4 +358,5 @@ continuam abaixo como histórico.
 | 2026.443 | **Calendário com valores no iPad deitado.** O valor de entrada e saída dentro de cada dia aparece a partir de 1024 px (antes 1280 px). iPad em pé e iPhone em pé continuam com os tracinhos. |
 | 2026.444 | **Categoria abre no iPad.** Em Novo lançamento (receita e despesa) o toque em Categoria voltou a abrir a lista no iPad: a lista embaixo do campo agora é só para computador com mouse; o iPad usa a folha, como o iPhone. |
 | 2026.445 | **Orçamento pelo ciclo do salário.** Quem escolheu em Preferências o dia em que o mês começa (ex.: 20) vê o Orçamento de 20 a 19 do mês seguinte, com o período escrito embaixo do mês. Sem o dia escolhido, nada muda. Início, Lançamentos, Relatórios e Calendário continuam no mês de calendário. |
+| 2026.446 | **"Despesa de quem?" nas assinaturas do cartão.** Em Cartões, no Editar de uma assinatura prevista, dá para trocar de quem é a despesa. Vale para a assinatura toda daqui em diante; o que já foi cobrado fica como está. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

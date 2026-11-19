@@ -267,6 +267,13 @@ export async function editarRecorrencia(id: string, d: { descricao: string; valo
   if (error) throw error
 }
 
+/** De quem é a despesa da regra hoje (recurrences.person_id / is_shared_expense). Não classificada = personId nulo e isSharedExpense falso. */
+export async function lerPessoaDaRecorrencia(id: string): Promise<{ personId: string | null; isSharedExpense: boolean }> {
+  const { data, error } = await cliente().from('recurrences').select('person_id, is_shared_expense').eq('id', id).maybeSingle()
+  if (error) throw error
+  return { personId: (data?.person_id as string | null | undefined) ?? null, isSharedExpense: (data?.is_shared_expense as boolean | null | undefined) ?? false }
+}
+
 export async function definirPessoaRecorrencia(id: string, personId: string | null, isSharedExpense: boolean): Promise<void> {
   const { error } = await cliente().rpc('recurrence_set_person', {
     p_id: id, p_person_id: personId, p_is_shared_expense: isSharedExpense,
