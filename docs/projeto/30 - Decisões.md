@@ -1036,7 +1036,7 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **"Vice-versa":** não se aplica. Investimentos já cria só o ativo; a conta de investimento deixa de ser criada. **Reservas** são metas (valor alvo, aportes), não um tipo de conta: não é criada junto da Poupança, para não reservar de novo o dinheiro que já está numa conta.
 - **Custo:** o ativo e o aporte são duas chamadas, não uma (não existe função única). Se a segunda falhar, o ativo fica criado sem valor e a tela avisa para lançar o aporte em Investimentos. Data futura e valor negativo são recusados antes. Contas antigas desses tipos seguem como estão (use "Mover para a carteira").
 
-## 19/11/2026 — Orçamento pelo ciclo do dia em que o mês começa (dono, #444)
+## 19/11/2026 — Orçamento pelo ciclo do dia em que o mês começa (dono, #445)
 - **Pedido:** "o orçamento poderia ser também até a data escolhida", com o ciclo do salário (20 a 19). O dono escolheu essa leitura entre quatro (limite com data final e "gasto até uma data" ficaram de fora).
 - **Regra:** o ciclo vai do dia D de um mês ao dia D−1 do seguinte, com D = "Dia em que o seu mês começa" das Preferências; a chave do orçamento é o mês em que o ciclo começa (20/11 a 19/12 = Novembro). Dia 1 = mês de calendário.
 - **Escopo (limite aceito):** só o Orçamento. O Início (barra de orçamentos e Dinheiro Livre), Lançamentos, Relatórios e Calendário seguem no mês de calendário, então o Orçamento não bate com os totais dessas telas para quem usa o dia 20. Ir por etapas custa essa diferença; fazer tudo de uma vez é outro plano, com revisão de dinheiro por tela.
