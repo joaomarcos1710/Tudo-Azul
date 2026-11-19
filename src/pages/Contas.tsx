@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Aviso } from '../components/ui/Aviso'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -25,6 +26,16 @@ import { corDoValor } from '../lib/cores'
 import { converterParaReais, textoCotacao } from '../lib/cambio'
 import type { EmReais } from '../lib/cambio'
 import { codigoDoErro, registrarFalhaConsulta } from '../lib/consultaOpcional'
+import { criarAtivoInvestimento, registrarOperacaoPorValor } from '../lib/investimentos'
+import type { ClasseAtivo } from '../lib/investimentos'
+
+/**
+ * Tipos que, na criação, não viram conta: viram o ATIVO em Investimentos (pedido do dono, 19/11/2026: "se eu escolher uma opção de
+ * investimento, ele atualiza lá nos Investimentos"). Decisão de 10/11/2026: conta é só a corrente; o que rende é investimento, e a
+ * mesma aplicação como conta e como ativo contaria duas vezes no Patrimônio. Corretora (saldo a aplicar) e Poupança / reserva seguem
+ * como conta. Só em reais: conta em dólar ou euro continua conta (decisão da Nomad, de 10/11).
+ */
+const CLASSE_DO_TIPO_DE_CONTA: Partial<Record<TipoConta, ClasseAtivo>> = { fixed_income: 'fixed_income', variable_income: 'equity', crypto: 'crypto' }
 
 /** Saldo na moeda da conta (BRL continua com formatBRL). */
 function textoSaldo(c: Conta): string {
@@ -535,6 +546,9 @@ function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoC
   // a moeda só se escolhe na criação; na edição fica travada (o banco também recusa trocar com movimento)
   const [moeda, setMoeda] = useState(conta?.moeda ?? 'BRL')
   const simbolo = simboloMoeda(moeda)
+  const navegar = useNavigate()
+  // criação em reais de renda fixa, renda variável ou cripto: cria o ativo em Investimentos, não uma conta
+  const criaAtivo = !conta && moeda === 'BRL' && CLASSE_DO_TIPO_DE_CONTA[tipo] !== undefined
   const [tentou, setTentou] = useState(false)
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -569,16 +583,35 @@ function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoC
 
   const saldoInicial = parseBRL(saldoTexto)
   const erroNome = tentou && !nome.trim() ? 'Informe o nome da conta.' : undefined
-  const erroSaldo = tentou && saldoInicial === null ? 'Valor inválido. Exemplo: 1.250,50 ou -300,00.' : undefined
-  const erroData = tentou && !abertura ? 'Informe a data.' : undefined
+  const erroSaldo = tentou && saldoInicial === null ? 'Valor inválido. Exemplo: 1.250,50 ou -300,00.'
+    : tentou && criaAtivo && saldoInicial !== null && saldoInicial < 0 ? 'Um investimento não tem valor negativo. Exemplo: 1.250,50.' : undefined
+  const erroData = tentou && !abertura ? 'Informe a data.'
+    : tentou && criaAtivo && abertura > hojeSP() ? 'A data não pode ser futura: é o valor que você já tem aplicado.' : undefined
 
   async function salvar(e: FormEvent) {
     e.preventDefault()
     setTentou(true)
     if (!nome.trim() || saldoInicial === null || !abertura) return
+    // antes de criar qualquer coisa: o aporte recusaria a data futura e deixaria o ativo criado sem valor
+    if (criaAtivo && (saldoInicial < 0 || abertura > hojeSP())) return
     setErro('')
     setEnviando(true)
     try {
+      if (criaAtivo) {
+        // o ativo nasce em Investimentos; o valor que você já tem aplicado entra como aporte pelo valor, sem conta (a conta de onde veio
+        // o dinheiro não existe no app). Se criar falhar, o erro fica no formulário; depois de criado, o resto vira aviso (reenviar duplicaria).
+        const ativoId = await criarAtivoInvestimento({ familiaId, nome, ticker: '', classe: CLASSE_DO_TIPO_DE_CONTA[tipo] as ClasseAtivo, moeda: 'BRL' })
+        if (saldoInicial > 0) {
+          try {
+            await registrarOperacaoPorValor({ ativoId, data: abertura, tipo: 'buy', valor: saldoInicial, observacao: 'Saldo inicial' })
+          } catch (err) {
+            await aoSalvar(`O ativo "${nome.trim()}" foi criado em Investimentos, mas o valor inicial não entrou: ${mensagemErroBanco(err)} Lance o aporte pelo valor lá, em Investimentos.`)
+            return
+          }
+        }
+        navegar('/investimentos')
+        return
+      }
       // só envia o banco quando há o que gravar ou limpar (conta sem banco e sem escolha não toca na coluna)
       const dados = { nome, tipo, saldoInicial, abertura, ...((!tipoSemBanco(tipo) && banco) || conta?.banco ? { banco: tipoSemBanco(tipo) || !banco ? null : banco } : {}),
         ...(conta || moeda === 'BRL' ? {} : { moeda }) }
@@ -622,10 +655,13 @@ function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoC
           </select>
           <p id="tipo-conta-ajuda" className="text-xs text-slate-600">
             {ehTipoConta(tipo) ? ajudaTipoConta[tipo] : 'Tipo antigo: escolha onde o dinheiro está.'}
+            {criaAtivo && <> <strong>Isto cria o investimento em Investimentos</strong>, não uma conta: o valor aparece lá e entra no patrimônio uma vez só.</>}
           </p>
         </div>
-        <Selecao rotulo="Banco" valor={tipoSemBanco(tipo) ? '' : banco} aoMudar={setBanco} desabilitado={tipoSemBanco(tipo)}
-          todos={tipoSemBanco(tipo) ? 'Dinheiro não tem banco' : 'Automático (pelo nome da conta)'} opcoes={BANCOS_POR_NOME.map((b) => [b.chave, b.nome])} />
+        {!criaAtivo && (
+          <Selecao rotulo="Banco" valor={tipoSemBanco(tipo) ? '' : banco} aoMudar={setBanco} desabilitado={tipoSemBanco(tipo)}
+            todos={tipoSemBanco(tipo) ? 'Dinheiro não tem banco' : 'Automático (pelo nome da conta)'} opcoes={BANCOS_POR_NOME.map((b) => [b.chave, b.nome])} />
+        )}
         <div className="flex flex-col gap-1">
           <label htmlFor="moeda-conta" className="text-sm font-medium">Moeda</label>
           <select
@@ -646,9 +682,9 @@ function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoC
                 : 'O saldo fica separado, na moeda da conta, fora do total em reais. Aceita receita, despesa e transferência com outra conta da mesma moeda; cartão, dívida e provento seguem só em reais.'}
           </p>
         </div>
-        <Field rotulo={`Saldo inicial (${simbolo})`} inputMode="decimal" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
-        <Field rotulo="Data do saldo inicial" type="date" value={abertura} onChange={(e) => setAbertura(e.target.value)} erro={erroData} />
-        {etiquetas.disponivel && (
+        <Field rotulo={criaAtivo ? `Quanto você já tem aplicado (${simbolo})` : `Saldo inicial (${simbolo})`} inputMode="decimal" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
+        <Field rotulo={criaAtivo ? 'Data deste valor' : 'Data do saldo inicial'} type="date" value={abertura} onChange={(e) => setAbertura(e.target.value)} erro={erroData} />
+        {etiquetas.disponivel && !criaAtivo && (
           <fieldset className="flex flex-col gap-2 md:col-span-2" aria-describedby="etiquetas-conta-ajuda">
             <legend className="text-sm font-medium">Etiquetas (opcional)</legend>
             <p id="etiquetas-conta-ajuda" className="text-xs text-slate-600">
@@ -678,11 +714,18 @@ function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoC
             </div>
           </fieldset>
         )}
-        <p className="text-sm text-slate-600 md:col-span-2">
-          O saldo inicial é o valor <strong>no início do dia</strong> escolhido. Lançamentos a partir dessa data mudam o saldo; lançamentos anteriores entram nos relatórios, mas não no saldo.
-        </p>
+        {criaAtivo ? (
+          <p className="text-sm text-slate-600 md:col-span-2">
+            O valor entra em <strong>Investimentos</strong> como o que você já tem aplicado, na data escolhida. Depois, use <strong>Aporte</strong>, <strong>Resgate</strong> e <strong>Atualizar valor</strong> por lá.
+            Etiquetas e banco ficam só para contas; a instituição você põe no ativo.
+          </p>
+        ) : (
+          <p className="text-sm text-slate-600 md:col-span-2">
+            O saldo inicial é o valor <strong>no início do dia</strong> escolhido. Lançamentos a partir dessa data mudam o saldo; lançamentos anteriores entram nos relatórios, mas não no saldo.
+          </p>
+        )}
         <div className="flex gap-2 md:col-span-2">
-          <Button type="submit" carregando={enviando}>{conta ? 'Salvar' : 'Cadastrar conta'}</Button>
+          <Button type="submit" carregando={enviando}>{conta ? 'Salvar' : criaAtivo ? 'Cadastrar investimento' : 'Cadastrar conta'}</Button>
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>

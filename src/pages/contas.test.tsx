@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { Cents } from '../lib/format'
 import { definirValoresOcultos } from '../lib/privacidade'
 
@@ -13,6 +13,8 @@ const mock = vi.hoisted(() => ({
   definirAtiva: vi.fn(),
   excluirConta: vi.fn(),
   moverContaParaCarteira: vi.fn(),
+  criarAtivoInvestimento: vi.fn(),
+  registrarOperacaoPorValor: vi.fn(),
   converterParaReais: vi.fn(),
 }))
 vi.mock('../lib/cambio', async (original) => ({
@@ -22,6 +24,8 @@ vi.mock('../lib/cambio', async (original) => ({
 vi.mock('../lib/investimentos', async (original) => ({
   ...(await original<typeof import('../lib/investimentos')>()),
   moverContaParaCarteira: mock.moverContaParaCarteira,
+  criarAtivoInvestimento: mock.criarAtivoInvestimento,
+  registrarOperacaoPorValor: mock.registrarOperacaoPorValor,
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
@@ -53,6 +57,8 @@ beforeEach(() => {
   mock.editarConta.mockResolvedValue(undefined)
   mock.definirAtiva.mockResolvedValue(undefined)
   mock.excluirConta.mockResolvedValue(undefined)
+  mock.criarAtivoInvestimento.mockResolvedValue('ativo-novo')
+  mock.registrarOperacaoPorValor.mockResolvedValue(undefined)
 })
 afterEach(() => {
   cleanup()
@@ -547,5 +553,165 @@ describe('Contas em outras moedas (multimoeda F1, migration 055)', () => {
     expect(await screen.findByText('Saldo total hoje')).toBeTruthy()
     expect(screen.queryByRole('group', { name: 'Em outras moedas' })).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Contas em outras moedas' })).toBeNull()
+  })
+})
+
+describe('Nova conta de investimento cria o ativo em Investimentos (pedido do dono, 19/11/2026)', () => {
+  /** Contas e, ao lado, uma página de Investimentos de mentira: prova para onde o app leva depois de criar. */
+  function montar() {
+    return render(
+      <MemoryRouter initialEntries={['/contas']}>
+        <Routes>
+          <Route path="/contas" element={<Contas />} />
+          <Route path="/investimentos" element={<p>Tela de Investimentos</p>} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+  async function abrirForm(u: ReturnType<typeof userEvent.setup>, nome: string, tipo: string) {
+    await u.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
+    await u.type(screen.getByLabelText('Nome'), nome)
+    await u.selectOptions(screen.getByLabelText('Tipo'), tipo)
+  }
+
+  it('Renda fixa em reais: cria o ativo (classe Renda fixa), lança o saldo como aporte pelo valor, sem conta, e leva para Investimentos', async () => {
+    montar()
+    const u = userEvent.setup()
+    await abrirForm(u, 'Tesouro Selic', 'fixed_income')
+    const saldo = screen.getByLabelText('Quanto você já tem aplicado (R$)')
+    await u.clear(saldo)
+    await u.type(saldo, '1.500,00')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar investimento' }))
+    expect(await screen.findByText('Tela de Investimentos')).toBeTruthy()
+    expect(mock.criarConta).not.toHaveBeenCalled() // não é conta: o mesmo dinheiro não conta duas vezes no patrimônio
+    expect(mock.criarAtivoInvestimento).toHaveBeenCalledWith({ familiaId: 'h1', nome: 'Tesouro Selic', ticker: '', classe: 'fixed_income', moeda: 'BRL' })
+    expect(mock.registrarOperacaoPorValor).toHaveBeenCalledWith({ ativoId: 'ativo-novo', data: hojeSP(), tipo: 'buy', valor: 150000, observacao: 'Saldo inicial' })
+    expect(mock.registrarOperacaoPorValor.mock.calls[0][0]).not.toHaveProperty('contaId') // sem conta: o dinheiro não veio de uma conta do app
+  })
+
+  it('Renda variável vira Ações e Cripto vira Criptoativos', async () => {
+    montar()
+    const u = userEvent.setup()
+    await abrirForm(u, 'Carteira de ações', 'variable_income')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar investimento' }))
+    await screen.findByText('Tela de Investimentos')
+    expect(mock.criarAtivoInvestimento.mock.calls[0][0]).toMatchObject({ nome: 'Carteira de ações', classe: 'equity' })
+    cleanup()
+    vi.clearAllMocks()
+    mock.criarAtivoInvestimento.mockResolvedValue('ativo-novo')
+    mock.registrarOperacaoPorValor.mockResolvedValue(undefined)
+    mock.listarContas.mockResolvedValue({ contas: [], total: c(0) })
+    montar()
+    await abrirForm(userEvent.setup(), 'Bitcoin', 'crypto')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Cadastrar investimento' }))
+    await screen.findByText('Tela de Investimentos')
+    expect(mock.criarAtivoInvestimento.mock.calls[0][0]).toMatchObject({ nome: 'Bitcoin', classe: 'crypto' })
+  })
+
+  it('o formulário avisa o que vai acontecer e esconde banco e etiquetas (que são de conta)', async () => {
+    montar()
+    const u = userEvent.setup()
+    await abrirForm(u, 'CDB', 'fixed_income')
+    expect(screen.getByText(/Isto cria o investimento em Investimentos/)).toBeTruthy()
+    expect(screen.queryByLabelText('Banco')).toBeNull()
+    expect(screen.getByLabelText('Data deste valor')).toBeTruthy()
+    // voltando para um tipo de conta, o formulário é o de sempre
+    await u.selectOptions(screen.getByLabelText('Tipo'), 'savings')
+    expect(screen.queryByText(/Isto cria o investimento em Investimentos/)).toBeNull()
+    expect(screen.getByLabelText('Banco')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Cadastrar conta' })).toBeTruthy()
+  })
+
+  it('valor zero cria o ativo vazio (sem aporte); valor negativo é recusado e nada é criado', async () => {
+    montar()
+    const u = userEvent.setup()
+    await abrirForm(u, 'LCI', 'fixed_income')
+    const saldo = screen.getByLabelText('Quanto você já tem aplicado (R$)')
+    await u.clear(saldo)
+    await u.type(saldo, '-10,00')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar investimento' }))
+    expect(await screen.findByText(/Um investimento não tem valor negativo/)).toBeTruthy()
+    expect(mock.criarAtivoInvestimento).not.toHaveBeenCalled()
+    await u.clear(saldo)
+    await u.type(saldo, '0,00')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar investimento' }))
+    await screen.findByText('Tela de Investimentos')
+    expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(1)
+    expect(mock.registrarOperacaoPorValor).not.toHaveBeenCalled()
+  })
+
+  it('data futura é recusada antes de criar o ativo (não deixa um ativo sem valor para trás)', async () => {
+    montar()
+    const u = userEvent.setup()
+    await abrirForm(u, 'Tesouro Prefixado', 'fixed_income')
+    const data = screen.getByLabelText('Data deste valor') as HTMLInputElement
+    fireEvent.change(data, { target: { value: '2099-01-01' } })
+    await u.click(screen.getByRole('button', { name: 'Cadastrar investimento' }))
+    expect(await screen.findByText(/A data não pode ser futura/)).toBeTruthy()
+    expect(mock.criarAtivoInvestimento).not.toHaveBeenCalled()
+  })
+
+  it('Poupança / reserva, Corretora e Conta corrente continuam sendo conta', async () => {
+    for (const tipo of ['savings', 'brokerage', 'checking']) {
+      montar()
+      const u = userEvent.setup()
+      await abrirForm(u, `Conta ${tipo}`, tipo)
+      await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
+      await vi.waitFor(() => expect(mock.criarConta).toHaveBeenCalledWith('h1', expect.objectContaining({ nome: `Conta ${tipo}`, tipo })))
+      expect(mock.criarAtivoInvestimento).not.toHaveBeenCalled()
+      cleanup()
+      vi.clearAllMocks()
+      mock.listarContas.mockResolvedValue({ contas: [], total: c(0) })
+      mock.criarConta.mockResolvedValue(undefined)
+    }
+  })
+
+  it('renda fixa em dólar continua sendo conta (as contas Nomad ficam como estão)', async () => {
+    montar()
+    const u = userEvent.setup()
+    await abrirForm(u, 'Nomad USD', 'fixed_income')
+    await u.selectOptions(screen.getByLabelText('Moeda'), 'USD')
+    expect(screen.queryByText(/Isto cria o investimento em Investimentos/)).toBeNull()
+    await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
+    await vi.waitFor(() => expect(mock.criarConta).toHaveBeenCalled())
+    expect(mock.criarConta.mock.calls[0][1]).toMatchObject({ tipo: 'fixed_income', moeda: 'USD' })
+    expect(mock.criarAtivoInvestimento).not.toHaveBeenCalled()
+  })
+
+  it('o ativo foi criado e o valor inicial falhou: avisa, não cria de novo e não leva embora sem dizer', async () => {
+    mock.registrarOperacaoPorValor.mockRejectedValue({ code: '22023', message: 'data inválida' })
+    montar()
+    const u = userEvent.setup()
+    await abrirForm(u, 'Tesouro IPCA', 'fixed_income')
+    const saldo = screen.getByLabelText('Quanto você já tem aplicado (R$)')
+    await u.clear(saldo)
+    await u.type(saldo, '800,00')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar investimento' }))
+    expect((await screen.findByRole('alert')).textContent).toContain('foi criado em Investimentos, mas o valor inicial não entrou')
+    expect(screen.queryByText('Tela de Investimentos')).toBeNull()
+    expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(1)
+  })
+
+  it('criar o ativo falhou: o erro fica no formulário aberto e nada mais é chamado', async () => {
+    mock.criarAtivoInvestimento.mockRejectedValue({ code: '23505', message: 'duplicate key value violates unique constraint' })
+    montar()
+    const u = userEvent.setup()
+    await abrirForm(u, 'Tesouro Selic', 'fixed_income')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar investimento' }))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(mock.registrarOperacaoPorValor).not.toHaveBeenCalled()
+    expect(mock.criarConta).not.toHaveBeenCalled()
+  })
+
+  it('editar uma conta antiga de renda fixa segue sendo edição de conta (a mudança vale só para criar)', async () => {
+    mock.listarContas.mockResolvedValue({ contas: [{ ...corrente, id: 'v1', nome: 'CDB antigo', tipo: 'fixed_income' as const }], total: c(0) })
+    montar()
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Editar' }))
+    expect(screen.queryByText(/Isto cria o investimento em Investimentos/)).toBeNull()
+    await u.click(screen.getByRole('button', { name: 'Salvar' }))
+    await vi.waitFor(() => expect(mock.editarConta).toHaveBeenCalled())
+    expect(mock.criarAtivoInvestimento).not.toHaveBeenCalled()
   })
 })
