@@ -3,6 +3,36 @@ tags: [tudo-azul, ideias]
 ---
 # Ideias e comparações
 
+## Situação das ideias (conferida em 19/11/2026)
+Conferido **por busca no código e nas migrations**, sem abrir o app: uma ideia marcada como "falta" pode existir com outro nome, e uma "feita" pode estar incompleta. As tabelas abaixo guardam o texto original (de 26/10 a 05/11) e **não foram reescritas**; a situação de cada ideia está aqui. Os números são os das tabelas.
+
+**Feito (com a evidência):**
+- **Livro de contas:** 1 valor do dia no Calendário (migrations `calendar_day_totals`); 2 grade de categorias com ícone (#276; e a lista embaixo do campo no computador, #432); 3 lançar em sequência ("Registrar e lançar outro", #76); 6 relatório do ano (período "Este ano" em Relatórios).
+- **Minhas Economias:** 1 lembrar a última conta usada (`ultimaEscolha`); 4 "de quem foi a despesa" (pessoas da família, #309); 5 botão "+" flutuante; 6 formulário de lançamento enxuto; 7 aviso de "registrado"; 9 etiquetas (só nas contas, #189); 11 atalho do iPhone, nível 0 (`/lancamentos?novo=cartao`); 15 tela de Parcelas (hoje Compromissos › Parcelas, #425); 17 Meus Bens; 19 excluir minha conta (função `delete-account`); 24 disponível separado de reserva (Dinheiro Livre e Reservas).
+- **financial-planner:** 4 metas de poupança com valor e data (Reservas).
+- **Planos 27 e 28** (investimentos vinculados a conta; recorrência no cartão): implementados nas PRs de 10 a 16/11/2026.
+
+**Parcial:** 4 do Livro de contas, **dia em que o mês começa** (só muda o Limite diário seguro; a etapa 2, com Relatórios, Lançamentos e Dinheiro Livre, pede decisão); 16 **central de avisos** (os avisos existem espalhados no Início e na faixa de pendências, sem uma central única).
+
+**Falta (não existe no app):**
+1. **Termos de Uso e Política de Privacidade**, com aceite (Minhas Economias 3). Precisa de texto revisado por quem entende de LGPD; é o que bloqueia abrir para outras famílias.
+2. **Tela Segurança:** trocar a senha **dentro do app** (18; hoje só a recuperação por e-mail) e **segundo fator** (13, TOTP). Ordem sugerida: trocar senha, segundo fator.
+3. **Tema escuro** (5 do Livro de contas).
+4. **Ajuda / FAQ dentro do app** (14).
+5. **Importar extrato com prévia** (nova, duplicada, inválida) e **desfazer a importação inteira** (financial-planner 1). A importação do Organizze foi pontual.
+6. **Regras de categorização** (12; financial-planner 2), ou ao menos sugerir a categoria pela descrição.
+7. **Detectar assinaturas e recorrências no histórico** (21; financial-planner 3).
+8. **Aviso de lacuna:** "conta sem lançamento desde dd/mm" (financial-planner 6).
+9. **Rateio do mês entre pessoas** (quanto cada um devia pagar × quanto pagou), a ideia central do `financeiro-familia`. A despesa já pode ser marcada como compartilhada, mas o cálculo do rateio não existe.
+10. **Atalho do iPhone, nível 1:** pré-preencher valor, descrição e cartão pela URL (hoje a URL só abre o formulário).
+11. **Tipo de conta "Carteira digital"** (25). Só se o dono sentir falta; pede migration.
+
+**Não verificado:** 8 rosca de composição do patrimônio por instituição; 10 personalizar a página inicial (o texto "Personalizar painel" só aparece em testes, parece ter saído com o Início enxuto, #265); 20 a 23 recorrência (prévia como cartão, "N transações identificadas", formulário em lista, texto da tela vazia).
+
+**Fora de escopo (decidido):** Open Finance, anúncios, bloqueio por senha no app, "Meu Aprendizado", crescimento e lista de compras compartilhada. **Planos pagos:** o que acontece ao reduzir o plano com mais gente que o limite continua em aberto.
+
+**Prioridade sugerida (de quem conferiu, a decidir com o dono):** (1) Termos e Privacidade, por ser a única com risco legal; (2) trocar a senha no app e o segundo fator, porque o app guarda dados financeiros; (3) regras de categorização, onde mais se economiza tempo de lançamento. As demais, quando o dono sentir falta.
+
 ## Organizze e Mobills (páginas públicas, 26/10)
 Só estrutura de funções; sem copiar marca, texto, tela ou código.
 
