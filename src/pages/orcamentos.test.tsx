@@ -9,14 +9,16 @@ const mock = vi.hoisted(() => ({
   definirOrcamento: vi.fn(),
   removerOrcamento: vi.fn(),
   copiarDoMesAnterior: vi.fn(),
+  lerDiaInicioDoMes: vi.fn(),
   listarCategorias: vi.fn(),
 }))
+vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1' } }, carregando: false }) }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
 vi.mock('../lib/orcamentos', () => ({
   listarOrcamentos: mock.listarOrcamentos, definirOrcamento: mock.definirOrcamento,
-  removerOrcamento: mock.removerOrcamento, copiarDoMesAnterior: mock.copiarDoMesAnterior,
+  removerOrcamento: mock.removerOrcamento, copiarDoMesAnterior: mock.copiarDoMesAnterior, lerDiaInicioDoMes: mock.lerDiaInicioDoMes,
 }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
 // data e mês fixos: o teste não depende do dia em que roda
@@ -37,6 +39,7 @@ const orc = (extra: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   hojeFixo.v = '2026-10-10'
   mock.listarOrcamentos.mockResolvedValue([orc()])
+  mock.lerDiaInicioDoMes.mockResolvedValue(1)
   mock.listarCategorias.mockResolvedValue([
     cat('mercado', 'Mercado'), cat('lazer', 'Lazer'), cat('feira', 'Feira', { paiId: 'mercado' }), cat('antiga', 'Antiga', { ativa: false }),
     cat('semcat', 'Sem categoria', { sistema: true }), cat('salario', 'Salário', { tipo: 'income' }),
@@ -72,7 +75,8 @@ describe('Orçamentos', () => {
     expect(screen.getByText(/No ritmo atual vai passar do limite em R\$ 130,00/)).toBeTruthy()
     expect(screen.getByText(/projeção R\$ 1.130,00/)).toBeTruthy()
     expect(screen.getByText(/Gasto R\$ 300,00 \+ previsto R\$ 200,00 \+ ritmo do mês R\$ 630,00/)).toBeTruthy()
-    expect(mock.listarOrcamentos).toHaveBeenCalledWith('h1', '2026-10', '2026-10-10')
+    expect(mock.listarOrcamentos).toHaveBeenCalledWith('h1', '2026-10', '2026-10-10', 1)
+    expect(screen.queryByTestId('ciclo-do-orcamento')).toBeNull()
   })
 
   it('cartão lançado em fatura a fechar: trecho tracejado depois do gasto, legenda com o valor do banco e o percentual só do pago', async () => {
@@ -121,7 +125,7 @@ describe('Orçamentos', () => {
     expect(container.querySelector('[data-faixa]')?.getAttribute('data-faixa')).toBe('estourou')
     mock.listarOrcamentos.mockResolvedValue([orc({ gasto: c(100000), restante: c(0), previsto: null, ritmo: null, projetado: null, sobra: null })])
     await u.click(screen.getByRole('button', { name: 'Mês anterior' }))
-    await vi.waitFor(() => expect(mock.listarOrcamentos).toHaveBeenLastCalledWith('h1', '2026-09', '2026-10-10'))
+    await vi.waitFor(() => expect(mock.listarOrcamentos).toHaveBeenLastCalledWith('h1', '2026-09', '2026-10-10', 1))
     expect(await screen.findByText('Chegou ao limite.')).toBeTruthy()
     expect(screen.queryByText(/sobram/)).toBeNull()
   })
@@ -143,7 +147,7 @@ describe('Orçamentos', () => {
     await screen.findByText('Mercado')
     await u.click(screen.getByRole('button', { name: 'Mês anterior' }))
     expect(await screen.findByText(/Ainda dentro do limite: sobram R\$ 100,00/)).toBeTruthy()
-    expect(mock.listarOrcamentos).toHaveBeenLastCalledWith('h1', '2026-09', '2026-10-10')
+    expect(mock.listarOrcamentos).toHaveBeenLastCalledWith('h1', '2026-09', '2026-10-10', 1)
   })
 
   it('mês futuro com previsto acima do limite: avisa em vez de dizer que sobra', async () => {
@@ -177,6 +181,62 @@ describe('Orçamentos', () => {
     hojeFixo.v = '2026-10-03'
     render(<Orcamentos />)
     expect(await screen.findByText(/Nos primeiros 7 dias do mês a projeção não inclui o ritmo/)).toBeTruthy()
+  })
+
+  describe('ciclo do dia em que o mês começa (migration 144)', () => {
+    it('dia 20 em 19/11: ainda vale o ciclo de outubro (20/10 a 19/11) e o banco recebe o dia', async () => {
+      mock.lerDiaInicioDoMes.mockResolvedValue(20)
+      hojeFixo.v = '2026-11-19'
+      render(<Orcamentos />)
+      expect(await screen.findByText('Mercado')).toBeTruthy()
+      expect(screen.getByText('Outubro de 2026')).toBeTruthy()
+      expect(screen.getByTestId('ciclo-do-orcamento').textContent).toBe('20/10 a 19/11')
+      expect(mock.listarOrcamentos).toHaveBeenCalledWith('h1', '2026-10', '2026-11-19', 20)
+      // nunca pediu o mês de calendário enquanto lia o dia
+      expect(mock.listarOrcamentos.mock.calls.every((c) => c[3] === 20)).toBe(true)
+    })
+
+    it('dia 20 em 20/11: o ciclo de novembro começou (20/11 a 19/12)', async () => {
+      mock.lerDiaInicioDoMes.mockResolvedValue(20)
+      hojeFixo.v = '2026-11-20'
+      render(<Orcamentos />)
+      expect(await screen.findByText('Mercado')).toBeTruthy()
+      expect(screen.getByTestId('ciclo-do-orcamento').textContent).toBe('20/11 a 19/12')
+      expect(mock.listarOrcamentos).toHaveBeenCalledWith('h1', '2026-11', '2026-11-20', 20)
+    })
+
+    it('‹ › andam de ciclo em ciclo e o rótulo acompanha', async () => {
+      mock.lerDiaInicioDoMes.mockResolvedValue(20)
+      hojeFixo.v = '2026-11-19'
+      render(<Orcamentos />)
+      await screen.findByText('Mercado')
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Próximo mês' }))
+      expect(await screen.findByText('Novembro de 2026')).toBeTruthy()
+      expect(screen.getByTestId('ciclo-do-orcamento').textContent).toBe('20/11 a 19/12')
+      expect(mock.listarOrcamentos).toHaveBeenLastCalledWith('h1', '2026-11', '2026-11-19', 20)
+    })
+
+    it('o aviso dos primeiros 7 dias conta do começo do ciclo, não do dia 1 do mês', async () => {
+      mock.lerDiaInicioDoMes.mockResolvedValue(20)
+      hojeFixo.v = '2026-11-24' // 5º dia do ciclo de novembro (no calendário já é o dia 24)
+      render(<Orcamentos />)
+      expect(await screen.findByText(/Nos primeiros 7 dias do ciclo a projeção não inclui o ritmo/)).toBeTruthy()
+      cleanup()
+      hojeFixo.v = '2026-11-27' // 8º dia do ciclo
+      render(<Orcamentos />)
+      await screen.findByText('Mercado')
+      expect(screen.queryByText(/Nos primeiros 7 dias/)).toBeNull()
+    })
+
+    it('não consegue ler o dia: avisa e mostra o mês de calendário em vez de ficar vazio', async () => {
+      mock.lerDiaInicioDoMes.mockRejectedValue(new Error('falhou'))
+      hojeFixo.v = '2026-11-19'
+      render(<Orcamentos />)
+      expect(await screen.findByText('Mercado')).toBeTruthy()
+      expect(screen.getByText(/Não foi possível ler o dia em que o seu mês começa/)).toBeTruthy()
+      expect(mock.listarOrcamentos).toHaveBeenCalledWith('h1', '2026-11', '2026-11-19', 1)
+      expect(screen.queryByTestId('ciclo-do-orcamento')).toBeNull()
+    })
   })
 
   it('sem orçamento: convida a definir ou copiar do mês anterior', async () => {
