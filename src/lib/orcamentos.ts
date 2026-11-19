@@ -39,13 +39,27 @@ function funcaoInexistente(err: { code?: string; message?: string }): boolean {
   return err.code === 'PGRST202' || err.code === '42883' || /does not exist|could not find the function/i.test(err.message ?? '')
 }
 
-/** Orçamentos do mês com a projeção. Se a projeção ainda não existir no banco (migration 013), lê só o gasto. */
-export async function listarOrcamentos(familiaId: string, mes: string, hoje: string): Promise<OrcamentoMes[]> {
+/** Dia em que o mês da pessoa começa (Preferências, 1 a 28). 1 quando nunca escolheu; erro de leitura sobe para quem chama. */
+export async function lerDiaInicioDoMes(userId: string): Promise<number> {
+  const { data, error } = await cliente().from('user_preferences').select('month_start_day').eq('user_id', userId).maybeSingle()
+  if (error) throw error
+  const dia = Number(data?.month_start_day ?? 1)
+  return Number.isInteger(dia) && dia >= 1 && dia <= 28 ? dia : 1
+}
+
+/**
+ * Orçamentos do ciclo com a projeção. `mes` é a chave do ciclo (o mês em que ele começa) e `dia` o dia em que o mês começa
+ * (migration 144); sem `dia` é o mês de calendário, como o Início. Se a projeção ainda não existir no banco (migration 013),
+ * lê só o gasto.
+ */
+export async function listarOrcamentos(familiaId: string, mes: string, hoje: string, dia?: number): Promise<OrcamentoMes[]> {
   const db = cliente()
   const primeiro = `${mes}-01`
+  // dia 1 (ou sem dia) não manda p_dia: a tela continua funcionando contra o banco que ainda não tem a migration 144
+  const comDia = dia !== undefined && dia > 1 ? { p_dia: dia } : {}
   const [proj, usoJunto] = await Promise.all([
-    db.rpc('budget_projection', { p_household: familiaId, p_month: primeiro, p_today: hoje }),
-    db.rpc('budget_usage', { p_household: familiaId, p_month: primeiro }),
+    db.rpc('budget_projection', { p_household: familiaId, p_month: primeiro, p_today: hoje, ...comDia }),
+    db.rpc('budget_usage', { p_household: familiaId, p_month: primeiro, ...comDia }),
   ])
   if (!proj.error) {
     if (usoJunto.error) throw usoJunto.error

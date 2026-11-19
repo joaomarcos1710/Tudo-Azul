@@ -12,6 +12,7 @@ const fake = vi.hoisted(() => {
     e.chamadas.push(ch)
     const b: Record<string, unknown> = {}
     b.select = () => b
+    b.maybeSingle = () => b
     b.update = (p: unknown) => { ch.op = 'update'; ch.payload = p; return b }
     b.insert = (p: unknown) => { ch.op = 'insert'; ch.payload = p; return b }
     b.delete = () => { ch.op = 'delete'; return b }
@@ -23,7 +24,7 @@ const fake = vi.hoisted(() => {
 })
 vi.mock('./supabase', () => ({ supabase: fake.supabase }))
 
-import { copiarDoMesAnterior, definirOrcamento, listarOrcamentos, removerOrcamento } from './orcamentos'
+import { copiarDoMesAnterior, definirOrcamento, lerDiaInicioDoMes, listarOrcamentos, removerOrcamento } from './orcamentos'
 
 beforeEach(() => {
   fake.e.chamadas = []
@@ -41,6 +42,28 @@ describe('listarOrcamentos', () => {
     const r = await listarOrcamentos('h1', '2026-10', '2026-10-10')
     expect(r).toEqual([{ categoriaId: 'c1', nome: 'Mercado', limite: 100000, gasto: 30000, previsto: 20000, cartaoLancado: null, ritmo: 63000, projetado: 113000, sobra: -13000, restante: 70000 }])
     expect(fake.e.chamadas[0]).toMatchObject({ op: 'rpc:budget_projection', payload: { p_household: 'h1', p_month: '2026-10-01', p_today: '2026-10-10' } })
+  })
+
+  it('dia 1 ou sem dia: o banco recebe só mês e hoje (funciona mesmo antes da migration 144); com dia maior que 1, o p_dia vai nas duas funções', async () => {
+    fake.e.rpc.budget_projection = { data: [linhaProj], error: null }
+    fake.e.rpc.budget_usage = { data: [], error: null }
+    await listarOrcamentos('h1', '2026-10', '2026-10-10')
+    expect(fake.e.chamadas.map((c) => c.payload)).toEqual([
+      { p_household: 'h1', p_month: '2026-10-01', p_today: '2026-10-10' },
+      { p_household: 'h1', p_month: '2026-10-01' },
+    ])
+    fake.e.chamadas = []
+    await listarOrcamentos('h1', '2026-10', '2026-10-10', 1)
+    expect(fake.e.chamadas.map((c) => c.payload)).toEqual([
+      { p_household: 'h1', p_month: '2026-10-01', p_today: '2026-10-10' },
+      { p_household: 'h1', p_month: '2026-10-01' },
+    ])
+    fake.e.chamadas = []
+    await listarOrcamentos('h1', '2026-10', '2026-11-19', 20)
+    expect(fake.e.chamadas.map((c) => c.payload)).toEqual([
+      { p_household: 'h1', p_month: '2026-10-01', p_today: '2026-11-19', p_dia: 20 },
+      { p_household: 'h1', p_month: '2026-10-01', p_dia: 20 },
+    ])
   })
 
   it('com a migration 101, lê o cartão lançado e a pagar à parte (planned_card), em centavos', async () => {
@@ -120,5 +143,21 @@ describe('copiarDoMesAnterior', () => {
     fake.e.tabelas['budgets:select:2026-09-01'] = { data: [], error: null }
     expect(await copiarDoMesAnterior('h1', '2026-10', '2026-09')).toBe(0)
     expect(fake.e.chamadas.some((c) => c.op === 'insert')).toBe(false)
+  })
+})
+
+describe('lerDiaInicioDoMes', () => {
+  it('lê o dia da própria pessoa; sem preferência salva (ou valor fora de 1 a 28) é 1', async () => {
+    fake.e.tabelas['user_preferences:select'] = { data: { month_start_day: 20 }, error: null }
+    expect(await lerDiaInicioDoMes('u1')).toBe(20)
+    expect(fake.e.chamadas[0]).toMatchObject({ tabela: 'user_preferences', filtros: { user_id: 'u1' } })
+    fake.e.tabelas['user_preferences:select'] = { data: null, error: null }
+    expect(await lerDiaInicioDoMes('u1')).toBe(1)
+    fake.e.tabelas['user_preferences:select'] = { data: { month_start_day: 40 }, error: null }
+    expect(await lerDiaInicioDoMes('u1')).toBe(1)
+  })
+  it('erro de leitura sobe: a tela decide o que mostrar', async () => {
+    fake.e.tabelas['user_preferences:select'] = { data: null, error: { message: 'x' } }
+    await expect(lerDiaInicioDoMes('u1')).rejects.toBeTruthy()
   })
 })

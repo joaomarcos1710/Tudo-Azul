@@ -155,15 +155,15 @@ select pg_temp.login('00000000-0000-0000-0000-0000000095a1');
 -- 0. Forma: a coluna nova é a última, a função continua SECURITY INVOKER e só authenticated executa
 -- ---------------------------------------------------------------------------
 reset role;
-select is((select proargnames[array_upper(proargnames, 1)] from pg_proc where oid = 'public.budget_projection(uuid,date,date)'::regprocedure),
+select is((select proargnames[array_upper(proargnames, 1)] from pg_proc where oid = 'public.budget_projection(uuid,date,date,int)'::regprocedure),
           'planned_card', 'F1 planned_card é a última coluna do retorno');
-select is((select array_to_string(proargnames[4:11], ',') from pg_proc where oid = 'public.budget_projection(uuid,date,date)'::regprocedure),
+select is((select array_to_string(proargnames[5:12], ',') from pg_proc where oid = 'public.budget_projection(uuid,date,date,int)'::regprocedure),
           'category_id,category_name,amount_limit,spent,planned,pace_extra,projected,remaining',
           'F2 as colunas antigas continuam na mesma ordem');
-select is((select prosecdef from pg_proc where oid = 'public.budget_projection(uuid,date,date)'::regprocedure), false,
+select is((select prosecdef from pg_proc where oid = 'public.budget_projection(uuid,date,date,int)'::regprocedure), false,
           'F3 continua SECURITY INVOKER');
-select ok(has_function_privilege('authenticated', 'public.budget_projection(uuid,date,date)', 'execute')
-          and not has_function_privilege('anon', 'public.budget_projection(uuid,date,date)', 'execute'),
+select ok(has_function_privilege('authenticated', 'public.budget_projection(uuid,date,date,int)', 'execute')
+          and not has_function_privilege('anon', 'public.budget_projection(uuid,date,date,int)', 'execute'),
           'F4 authenticated executa; anon não');
 select pg_temp.login('00000000-0000-0000-0000-0000000095a1');
 
@@ -261,7 +261,7 @@ select is(pg_temp.sqlstate_of(format($$insert into public.debt_installments (hou
                                      pg_temp.fx('h'), pg_temp.fx('card'), pg_temp.fx('compras'))),
           '42501', 'C30 o cliente não grava parcela direto na tabela (só pelas funções do cartão)');
 reset role;
-select ok(not has_function_privilege('anon', 'public.budget_projection(uuid,date,date)', 'execute'), 'C31 anon continua sem executar');
+select ok(not has_function_privilege('anon', 'public.budget_projection(uuid,date,date,int)', 'execute'), 'C31 anon continua sem executar');
 
 select * from finish();
 rollback;

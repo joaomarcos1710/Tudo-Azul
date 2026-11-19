@@ -6,7 +6,9 @@ import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Field } from '../components/ui/Field'
 import { Selecao } from '../components/ui/Selecao'
+import { useAuth } from '../lib/auth'
 import { useFamilia } from '../lib/FamiliaContext'
+import { chaveDoCicloDe, diaDoCiclo, rotuloDoCiclo } from '../lib/cicloOrcamento'
 import { agrupar, listarCategorias } from '../lib/categorias'
 import type { Categoria } from '../lib/categorias'
 import { hojeSP } from '../lib/contas'
@@ -14,17 +16,28 @@ import { mensagemErroBanco } from '../lib/erros'
 import { currentMonth, formatBRL, formatBRLCampo, formatMonth, parseBRL, primeiraMaiuscula } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { somarMeses } from '../lib/lancamentos'
-import { copiarDoMesAnterior, definirOrcamento, listarOrcamentos, removerOrcamento } from '../lib/orcamentos'
+import { copiarDoMesAnterior, definirOrcamento, lerDiaInicioDoMes, listarOrcamentos, removerOrcamento } from '../lib/orcamentos'
 import type { OrcamentoMes } from '../lib/orcamentos'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { BARRA_ORCAMENTO, faixaOrcamento } from '../lib/cores'
 import { IconeCategoria, visualDaCategoria } from '../lib/visualCategoria'
 
-/** Orçamento mensal por categoria principal, com a projeção até o fim do mês (calculada no banco). */
+/**
+ * Orçamento por categoria principal, com a projeção até o fim do ciclo (calculada no banco). O ciclo é o mês de calendário ou,
+ * para quem escolheu em Preferências o dia em que o mês começa (ex.: 20), de 20 a 19 do mês seguinte; a chave é o mês em que
+ * o ciclo começa.
+ */
 export default function Orcamentos() {
   const { familia } = useFamilia()
+  const { sessao } = useAuth()
   const familiaId = familia?.id
-  const [mes, setMes] = useState(() => currentMonth())
+  const userId = sessao?.user.id
+  const [mes, setMesBruto] = useState(() => currentMonth())
+  // null até ler o dia em que o mês começa: sem ele a tela não pede nada (evita mostrar o mês de calendário por um instante)
+  const [dia, setDia] = useState<number | null>(null)
+  const [avisoDia, setAvisoDia] = useState('')
+  const navegou = useRef(false)
+  const setMes = (m: string) => { navegou.current = true; setMesBruto(m) }
   const [itens, setItens] = useState<OrcamentoMes[] | null>(null)
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
@@ -32,15 +45,26 @@ export default function Orcamentos() {
   const [adicionando, setAdicionando] = useState(false)
   const [editando, setEditando] = useState<string | null>(null)
   const hoje = hojeSP()
-  const mesAtual = hoje.slice(0, 7)
   // só a resposta do último pedido vale: trocar de mês rápido não pode deixar a lista de um mês sob o título de outro
   const pedido = useRef(0)
 
+  useEffect(() => {
+    let ativo = true
+    if (!userId) { setDia(1); return }
+    lerDiaInicioDoMes(userId).then(
+      (d) => { if (!ativo) return; setDia(d); if (!navegou.current) setMesBruto(chaveDoCicloDe(hoje, d)) },
+      () => { if (!ativo) return; setDia(1); setAvisoDia('Não foi possível ler o dia em que o seu mês começa; mostrando o mês de calendário.') },
+    )
+    return () => { ativo = false }
+    // hoje muda só à meia-noite; reler o dia a cada virada de data não vale o custo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
+
   const carregar = useCallback(async () => {
-    if (!familiaId) return
+    if (!familiaId || dia === null) return
     const meu = ++pedido.current
     try {
-      const [o, c] = await Promise.all([listarOrcamentos(familiaId, mes, hoje), listarCategorias(familiaId)])
+      const [o, c] = await Promise.all([listarOrcamentos(familiaId, mes, hoje, dia), listarCategorias(familiaId)])
       if (meu !== pedido.current) return
       setItens(o)
       setCategorias(c)
@@ -48,7 +72,7 @@ export default function Orcamentos() {
     } catch (err) {
       if (meu === pedido.current) setErro(mensagemErroBanco(err))
     }
-  }, [familiaId, mes, hoje])
+  }, [familiaId, mes, hoje, dia])
 
   useEffect(() => { setItens(null); setAviso(''); setAdicionando(false); setEditando(null); void carregar() }, [carregar])
 
@@ -82,24 +106,30 @@ export default function Orcamentos() {
   const comOrcamento = new Set((itens ?? []).map((o) => o.categoriaId))
   // orçamento só em categoria principal de despesa (regra do banco); "Sem categoria" fica de fora
   const disponiveis = agrupar(categorias, 'expense').filter((g) => !g.sistema && g.ativa && !comOrcamento.has(g.id))
-  const emAndamento = mes === mesAtual
-  const diasDecorridos = Number(hoje.slice(8, 10))
+  const diaDoMes = dia ?? 1
+  const porCiclo = diaDoMes > 1
+  const emAndamento = mes === chaveDoCicloDe(hoje, diaDoMes)
+  const diasDecorridos = diaDoCiclo(hoje, mes, diaDoMes)
 
   return (
     <>
-      <CabecalhoPagina titulo="Orçamentos" descricao="Quanto a família quer gastar por categoria no mês, o que já foi e para onde está indo."
+      <CabecalhoPagina titulo="Orçamentos" descricao={porCiclo ? 'Quanto a família quer gastar por categoria no ciclo, o que já foi e para onde está indo.' : 'Quanto a família quer gastar por categoria no mês, o que já foi e para onde está indo.'}
         acoes={!adicionando && itens !== null && disponiveis.length > 0 && <Button onClick={() => setAdicionando(true)}>Novo orçamento</Button>} />
 
       <div className="mb-4 flex items-center gap-2">
         <Button variante="secundario" className="min-w-11" aria-label="Mês anterior" onClick={() => setMes(somarMeses(mes, -1))}>‹</Button>
-        <span className="min-w-44 text-center font-semibold">{primeiraMaiuscula(formatMonth(mes))}</span>
+        <span className="min-w-44 text-center font-semibold">
+          {primeiraMaiuscula(formatMonth(mes))}
+          {porCiclo && <span className="block text-xs font-normal text-slate-600" data-testid="ciclo-do-orcamento">{rotuloDoCiclo(mes, diaDoMes)}</span>}
+        </span>
         <Button variante="secundario" className="min-w-11" aria-label="Próximo mês" onClick={() => setMes(somarMeses(mes, 1))}>›</Button>
       </div>
 
+      {avisoDia && <div className="mb-4"><Aviso tipo="info">{avisoDia}</Aviso></div>}
       {erro && <div className="mb-4"><Aviso tipo="erro">{erro}</Aviso></div>}
       {aviso && !erro && <div className="mb-4"><Aviso tipo="sucesso">{aviso}</Aviso></div>}
       {emAndamento && diasDecorridos < 7 && itens !== null && itens.length > 0 && (
-        <div className="mb-4"><Aviso tipo="info">Nos primeiros 7 dias do mês a projeção não inclui o ritmo de gasto (só o que já foi gasto e o que já está previsto). O ritmo entra a partir do 7º dia.</Aviso></div>
+        <div className="mb-4"><Aviso tipo="info">Nos primeiros 7 dias {porCiclo ? 'do ciclo' : 'do mês'} a projeção não inclui o ritmo de gasto (só o que já foi gasto e o que já está previsto). O ritmo entra a partir do 7º dia.</Aviso></div>
       )}
 
       {adicionando && (
