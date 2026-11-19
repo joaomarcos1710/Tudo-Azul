@@ -196,6 +196,7 @@ describe('menu em grupos', () => {
     expect(within(folha).getAllByRole('link')).toHaveLength(total)
     expect(within(folha).getByRole('link', { name: 'Recorrentes' })).toBeTruthy()
     expect(within(folha).getByRole('link', { name: 'Categorias' })).toBeTruthy()
+    expect(within(folha).getByRole('link', { name: 'Preferências' })).toBeTruthy()
   })
 
   it('toda tela tem uma frase curta dizendo para que serve', () => {

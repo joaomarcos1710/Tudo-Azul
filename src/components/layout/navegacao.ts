@@ -69,12 +69,13 @@ export const gruposNavegacao: GrupoNavegacao[] = [
     itens: [
       { caminho: '/familia', rotulo: 'Família', curto: 'Família', Icone: IconeFamilia, descricao: 'Quem participa, convites e versão do app.' },
       { caminho: '/exportar', rotulo: 'Exportar dados', curto: 'Exportar', Icone: IconeExportar, descricao: 'Lançamentos em planilha e cópia completa dos dados.' },
+      // no celular só o menu "Mais" lista as telas de conta: se ficar fora de gruposNavegacao, a tela some no iPhone
+      { caminho: '/preferencias', rotulo: 'Preferências', curto: 'Preferências', Icone: IconePreferencias, descricao: 'Personalize a navegação e as opções da sua conta.' },
     ],
   },
 ]
 
-const itemPreferencias: ItemNavegacao = { caminho: '/preferencias', rotulo: 'Preferências', curto: 'Preferências', Icone: IconePreferencias, descricao: 'Personalize a navegação e as opções da sua conta.' }
-export const itensNavegacao: ItemNavegacao[] = [...gruposNavegacao.flatMap((g) => g.itens), itemPreferencias]
+export const itensNavegacao: ItemNavegacao[] = gruposNavegacao.flatMap((g) => g.itens)
 export const itensFixosNoCelular: ItemNavegacao[] = itensNavegacao.filter((i) => i.fixoNoCelular)
 
 /**
