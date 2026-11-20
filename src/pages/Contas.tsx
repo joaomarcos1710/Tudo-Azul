@@ -581,7 +581,8 @@ function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoC
     }
   }
 
-  const saldoInicial = parseBRL(saldoTexto)
+  // campo vazio = zero: a máscara esvazia o campo quando só há zeros, e o saldo inicial nasce "0,00"
+  const saldoInicial = parseBRL(saldoTexto.trim() === '' ? '0' : saldoTexto)
   const erroNome = tentou && !nome.trim() ? 'Informe o nome da conta.' : undefined
   const erroSaldo = tentou && saldoInicial === null ? 'Valor inválido. Exemplo: 1.250,50 ou -300,00.'
     : tentou && criaAtivo && saldoInicial !== null && saldoInicial < 0 ? 'Um investimento não tem valor negativo. Exemplo: 1.250,50.' : undefined
@@ -682,7 +683,7 @@ function FormConta({ conta, familiaId, etiquetas, aoCriarEtiqueta, aoSalvar, aoC
                 : 'O saldo fica separado, na moeda da conta, fora do total em reais. Aceita receita, despesa e transferência com outra conta da mesma moeda; cartão, dívida e provento seguem só em reais.'}
           </p>
         </div>
-        <Field rotulo={criaAtivo ? `Quanto você já tem aplicado (${simbolo})` : `Saldo inicial (${simbolo})`} inputMode="decimal" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
+        <Field rotulo={criaAtivo ? `Quanto você já tem aplicado (${simbolo})` : `Saldo inicial (${simbolo})`} valorEmReais value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
         <Field rotulo={criaAtivo ? 'Data deste valor' : 'Data do saldo inicial'} type="date" value={abertura} onChange={(e) => setAbertura(e.target.value)} erro={erroData} />
         {etiquetas.disponivel && !criaAtivo && (
           <fieldset className="flex flex-col gap-2 md:col-span-2" aria-describedby="etiquetas-conta-ajuda">

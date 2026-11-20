@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   asCents, centsFromDb, centsToDecimal, currentMonth, formatBRL, formatBRLSinal, formatDate, formatMonth, rotuloDoDia,
-  MAX_CENTS, primeiraMaiuscula, parseBRL, simboloMoeda, type Cents,
-} from './format'
+  MAX_CENTS, primeiraMaiuscula, parseBRL, simboloMoeda, type Cents, mascararValor } from './format'
 
 const c = (n: number) => n as Cents
 
@@ -176,5 +175,48 @@ describe('formatBRLSinal (tabelas de relatório)', () => {
     expect(formatBRLSinal(c(-20000))).toBe('−R$ 200,00')
     expect(formatBRLSinal(c(123456))).toBe('R$ 1.234,56')
     expect(formatBRLSinal(c(0))).toBe('R$ 0,00')
+  })
+})
+
+describe('mascararValor (centavos entram da direita)', () => {
+  it('os dígitos preenchem os centavos primeiro', () => {
+    expect(mascararValor('1')).toBe('0,01')
+    expect(mascararValor('12')).toBe('0,12')
+    expect(mascararValor('125')).toBe('1,25')
+    expect(mascararValor('1250')).toBe('12,50')
+    expect(mascararValor('125000')).toBe('1.250,00')
+    expect(mascararValor('123456789')).toBe('1.234.567,89')
+  })
+  it('digitar um dígito de cada vez dá o mesmo resultado (o que o campo faz a cada toque)', () => {
+    let texto = ''
+    for (const d of '1250') texto = mascararValor(texto + d)
+    expect(texto).toBe('12,50')
+    // "1,25" + "0" → 12,50; e apagar o último dígito volta: "12,50" sem o 0 = "12,5" → 1,25
+    expect(mascararValor('12,5')).toBe('1,25')
+  })
+  it('vírgula e ponto digitados são ignorados (só os dígitos contam) e texto vira vazio', () => {
+    expect(mascararValor('1.250,50')).toBe('1.250,50')
+    expect(mascararValor('12,50')).toBe('12,50')
+    expect(mascararValor('abc')).toBe('')
+    expect(mascararValor('')).toBe('')
+  })
+  it('só zeros limpa o campo (apagar até o fim esvazia); zeros à esquerda somem', () => {
+    expect(mascararValor('0')).toBe('')
+    expect(mascararValor('0,00')).toBe('')
+    expect(mascararValor('0,05')).toBe('0,05')
+    expect(mascararValor('005')).toBe('0,05')
+  })
+  it('o "-" do começo é mantido; no meio do texto não conta', () => {
+    expect(mascararValor('-5')).toBe('-0,05')
+    expect(mascararValor('-1250')).toBe('-12,50')
+    expect(mascararValor('12-5')).toBe('1,25')
+    expect(mascararValor('-')).toBe('-') // o sinal sozinho fica: o valor vem depois
+    expect(mascararValor('-0')).toBe('-')
+  })
+  it('limite do banco: 12 dígitos antes da vírgula; o que passar é cortado e o resultado volta pelo parseBRL sem perda', () => {
+    expect(mascararValor('99999999999999')).toBe('999.999.999.999,99')
+    expect(mascararValor('999999999999999999')).toBe('999.999.999.999,99')
+    expect(parseBRL(mascararValor('99999999999999'))).toBe(99999999999999)
+    for (const t of ['1', '125', '1250', '125000', '123456789']) expect(parseBRL(mascararValor(t))).toBe(Number(t))
   })
 })

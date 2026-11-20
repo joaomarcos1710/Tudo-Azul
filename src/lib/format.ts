@@ -61,6 +61,22 @@ export function formatBRLCampo(cents: Cents): string {
 }
 
 /**
+ * Máscara de campo de dinheiro com os centavos entrando da direita (como no app do banco; dono, 20/11/2026: "no iPad não entra
+ * vírgula nem ponto"): só os dígitos contam, e eles preenchem os centavos primeiro. "1" → "0,01", "125" → "1,25", "1250" → "12,50",
+ * "125000" → "1.250,00". Um "-" no começo é mantido (campos que aceitam valor negativo). Sem dígito, ou só zeros, o campo
+ * fica vazio (apagar até o fim limpa o campo). Até 12 dígitos antes da vírgula, o limite do banco; o resultado volta pelo
+ * `parseBRL` sem perda. Só formata o que se digita: quem soma, converte e grava continua sendo o código de sempre.
+ */
+export function mascararValor(texto: string): string {
+  const negativo = texto.trim().startsWith('-')
+  const digitos = texto.replace(/\D/g, '').replace(/^0+/, '').slice(0, 14)
+  if (digitos === '') return negativo ? '-' : '' // o "-" sozinho fica, para poder digitar o valor depois dele
+  const inteiro = digitos.length > 2 ? digitos.slice(0, -2) : '0'
+  const centavos = digitos.padStart(2, '0').slice(-2)
+  return `${negativo ? '-' : ''}${inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${centavos}`
+}
+
+/**
  * Converte texto digitado em centavos, de forma ESTRITA: formato inválido ou fora do limite
  * do banco retorna null, nunca um valor adivinhado. Aceita (com "R$" e sinal "-" opcionais):
  *   "1.250,50"  milhar com ponto + vírgula decimal (1 ou 2 casas)

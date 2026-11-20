@@ -29,7 +29,7 @@ import { OperacaoRapida } from '../components/investimentos/FormOperacao'
 import { aceitaLancamento, hojeSP, listarContas, listarSaldosDiarios, mesmaMoeda } from '../lib/contas'
 import type { Conta, ContaInterna, SaldoDiario } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
-import { formatBRL, formatBRLCampo, formatDate, formatMoeda, parseBRL, rotuloDoDia, simboloMoeda } from '../lib/format'
+import { formatBRL, formatBRLCampo, formatDate, formatMoeda, mascararValor, parseBRL, rotuloDoDia, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import {
   buscarNoPeriodo, TETO_LINHAS_LISTA, criarLancamento, criarParcelado, editarEsteEProximos, editarLancamento, faixaDePendencias, listarComprasDaFatura, listarComprasDasFaturas, listarCreditosDasFaturas, listarCreditosDeCartaoNoPeriodo, listarFaturasNoPeriodo, listarLancamentosNoPeriodo,
@@ -1005,7 +1005,7 @@ function PainelPagar({ lancamento: l, nomeConta, moeda, aoConfirmar, aoCancelar 
       <form onSubmit={confirmar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo={entrada ? 'Data do recebimento' : 'Data do pagamento'} type="date" value={data} onChange={(e) => setData(e.target.value)} erro={erroData} />
-        <Field rotulo={`Valor (${simboloMoeda(moeda)})`} inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+        <Field rotulo={`Valor (${simboloMoeda(moeda)})`} valorEmReais value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando}>Confirmar pagamento</Button>
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
@@ -1340,7 +1340,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
           <div className={`mt-2 flex items-baseline gap-1 ${corValor}`}>
             <span aria-hidden="true" className="text-xl font-semibold">{sinal}{simboloMoeda(moeda)}</span>
             <label htmlFor="lanc-valor" className="sr-only">Valor ({simboloMoeda(moeda)})</label>
-            <input id="lanc-valor" inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)}
+            <input id="lanc-valor" inputMode="numeric" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(mascararValor(e.target.value))}
               aria-invalid={tentou && !!erros.valor}
               className="min-h-14 w-full min-w-0 rounded-md bg-transparent px-1 text-4xl font-bold tabular-nums tracking-tight placeholder:text-current placeholder:opacity-40 focus:outline focus:outline-2 focus:outline-azul" />
           </div>

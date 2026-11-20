@@ -332,7 +332,7 @@ function FormOrcamento({ titulo, categorias, inicial, aoSalvar, aoCancelar }: {
             {tentou && !categoriaId && <p role="alert" className="mt-1 text-sm text-negativo">Escolha a categoria.</p>}
           </div>
         )}
-        <Field rotulo="Limite do mês (R$)" inputMode="decimal" placeholder="Ex.: 1.500,00" value={texto}
+        <Field rotulo="Limite do mês (R$)" valorEmReais placeholder="Ex.: 1.500,00" value={texto}
           onChange={(e) => setTexto(e.target.value)} erro={erroLimite} />
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando}>Salvar</Button>

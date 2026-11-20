@@ -1797,7 +1797,7 @@ function FormCartao({ contas, aoSalvar, aoCancelar }: PropsBase & { contas: Cont
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Nome" maxLength={60} placeholder="Ex.: Nubank João" value={nome} onChange={(e) => setNome(e.target.value)}
           erro={tentou && !nome.trim() ? 'Informe o nome do cartão.' : undefined} />
-        <Field rotulo="Faturas fechadas e não pagas hoje (R$)" inputMode="decimal" value={saldoTexto}
+        <Field rotulo="Faturas fechadas e não pagas hoje (R$)" valorEmReais value={saldoTexto}
           onChange={(e) => setSaldoTexto(e.target.value)} erro={erroSaldo} />
         <SelecoesIdentidade emissor={emissor} bandeira={bandeira} aoMudarEmissor={setEmissor} aoMudarBandeira={setBandeira} />
         <Selecao rotulo="Dia do fechamento" valor={fechamento} aoMudar={setFechamento} opcoes={dias} todos="Escolha…" />
@@ -1953,7 +1953,7 @@ function FormLimite({ cartao, aoSalvar, aoCancelar }: PropsBase & { cartao: Cart
       <h2 className="mb-4 text-lg font-semibold">Limite · {cartao.nome}</h2>
       <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
-        <Field rotulo="Limite do cartão (R$)" inputMode="decimal" placeholder="Ex.: 5.800,00" value={texto}
+        <Field rotulo="Limite do cartão (R$)" valorEmReais placeholder="Ex.: 5.800,00" value={texto}
           onChange={(e) => setTexto(e.target.value)} erro={tentou && invalido ? 'Valor inválido. Exemplo: 5.800,00' : undefined} />
         <p className="text-sm text-slate-600 md:col-span-2">
           Use o limite total que o banco informa. O app mostra quanto sobra descontando faturas a pagar e parcelas futuras.
@@ -2028,7 +2028,7 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar, aoCategoriaCriad
         tipo="expense" aoCriada={aoCategoriaCriada} />
       {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria.</p>}
       <PessoaSelectField id="pessoa-nova-compra" pessoas={pessoas} personId={pessoa.personId} isSharedExpense={pessoa.isSharedExpense} onChange={setPessoa} />
-      <Field rotulo={andamento ? 'Valor de cada parcela (R$)' : 'Valor total (R$)'} inputMode="decimal" value={valorTexto}
+      <Field rotulo={andamento ? 'Valor de cada parcela (R$)' : 'Valor total (R$)'} valorEmReais value={valorTexto}
         onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
       <Field rotulo={andamento ? 'Parcelas que ainda faltam (incluindo a da fatura aberta)' : 'Parcelas'} type="number" min={1} max={72}
         inputMode="numeric" value={parcelasTexto} onChange={(e) => setParcelasTexto(e.target.value)} erro={erroParcelas} />
@@ -2097,7 +2097,7 @@ function FormCredito({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & {
         onChange={(e) => setDescricao(e.target.value)} erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
       <SeletorCategoria rotulo="Categoria de receita" valor={categoriaId} aoMudar={setCategoriaId} opcoes={receitas} categorias={categorias} tipo="income" />
       {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria de receita.</p>}
-      <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+      <Field rotulo="Valor (R$)" valorEmReais value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
       <Field rotulo="Data do crédito" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou && !data ? 'Informe a data.' : undefined} />
       <Selecao rotulo="Fatura" valor={escolhida} aoMudar={setFechamento} todos="A aberta na data do crédito (automática)"
         opcoes={posteriores.map((f) => [f.fechamento, `${primeiraMaiuscula(formatMonth(f.mes))} (fecha ${formatDate(f.fechamento)})`])} />
@@ -2179,7 +2179,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
       <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Selecao rotulo="Pagar com a conta" valor={contaId} aoMudar={setContaId} opcoes={ativas.map((c) => [c.id, c.nome])} todos="Escolha…" />
-        <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => { editouValor.current = true; setValorTexto(e.target.value) }} erro={erroValor} />
+        <Field rotulo="Valor (R$)" valorEmReais value={valorTexto} onChange={(e) => { editouValor.current = true; setValorTexto(e.target.value) }} erro={erroValor} />
         <Field rotulo="Data do pagamento" type="date" value={data} max={hojeSP()} onChange={(e) => setData(e.target.value)} />
         <p className="text-sm text-slate-600 md:col-span-2">
           {cartao.divida > 0 && fatura ? <>Quita a fatura de <strong>{formatMonth(fatura.mes)}</strong>. </> : null}
@@ -2283,7 +2283,7 @@ function PainelEditar({ item, aoFechar, aoConcluir }: { item: ItemFatura; aoFech
         Corrigir o valor desta parcela: <strong>{item.descricao}{item.deParcelas > 1 && ` ${item.parcela}/${item.deParcelas}`}</strong>.
         As outras parcelas não mudam. Em fatura já paga, reabra a fatura antes.
       </p>
-      <Field rotulo="Valor da parcela (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+      <Field rotulo="Valor da parcela (R$)" valorEmReais value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
       <Botoes rotulo="Salvar valor" enviando={enviando} aoCancelar={aoFechar} />
     </form>
   )
@@ -2409,7 +2409,7 @@ function PainelAgendada({ tipo, ocorrencia: o, categorias, pessoas, hoje, aoFech
           <Field rotulo="Descrição" maxLength={80} value={descricao} onChange={(e) => setDescricao(e.target.value)}
             erro={tentou && !descricao.trim() ? 'Informe a descrição.' : undefined} />
           <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={despesas} categorias={categorias} tipo="expense" />
-          <Field rotulo="Valor (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+          <Field rotulo="Valor (R$)" valorEmReais value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
           <Field rotulo="Data da cobrança" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={erroData} />
           {pessoa && (
             <div className="md:col-span-2">
@@ -2561,7 +2561,7 @@ function PainelEstornar({ item, faturaId, aoFechar, aoConcluir }: {
         Estorno de <strong>{item.descricao}{item.deParcelas > 1 && ` ${item.parcela}/${item.deParcelas}`}</strong> (parcela de{' '}
         <span className="tabular-nums">{formatBRL(item.valor)}</span>). Abate a despesa da compra; não é receita. Pode ser parcial.
       </p>
-      <Field rotulo="Valor do estorno (R$)" inputMode="decimal" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+      <Field rotulo="Valor do estorno (R$)" valorEmReais value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
       <Field rotulo="Data do estorno" type="date" value={data} onChange={(e) => setData(e.target.value)} erro={tentou && !data ? 'Informe a data.' : undefined} />
       <Botoes rotulo="Estornar" enviando={enviando} aoCancelar={aoFechar} />
     </form>
