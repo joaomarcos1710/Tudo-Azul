@@ -361,4 +361,5 @@ continuam abaixo como histórico.
 | 2026.446 | **"Despesa de quem?" nas assinaturas do cartão.** Em Cartões, no Editar de uma assinatura prevista, dá para trocar de quem é a despesa. Vale para a assinatura toda daqui em diante; o que já foi cobrado fica como está. |
 | 2026.447 | **Novo ativo com valor de hoje.** Ao cadastrar um ativo sem ticker (FGTS, previdência, CDB, reserva), dá para informar quanto você tem hoje; ele já entra na carteira com esse valor. Sem informar, continua sem posição, como antes. |
 | 2026.448 | **Quem gastou à vista no cartão.** Ao lançar uma compra no cartão (em Cartões ou em Lançamentos) o campo "Despesa de quem?" aparece direto, com Toda a família, você e as pessoas da família. Antes estava escondido em "Opções avançadas" (Lançamentos) ou não existia (Cartões › Nova compra). |
+| 2026.449 | **Botão flutuante na fatura do cartão.** O "+ Lançamento" da fatura virou um botão redondo fixo no canto da tela: dá para rolar o extrato e lançar sem voltar ao topo. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

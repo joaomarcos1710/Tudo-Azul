@@ -2891,11 +2891,17 @@ describe('"+ Lançamento" com a folha por cima da tela (pedido do dono, 12/11/20
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('na fatura: "+ Lançamento" no cabeçalho com despesa e receita, folha por cima, Esc fecha e o foco volta ao botão', async () => {
+  it('na fatura: o "+" é um botão FLUTUANTE fixo na tela (não fica no cabeçalho), com despesa e receita, folha por cima, Esc fecha e o foco volta ao botão', async () => {
     const u = userEvent.setup()
     abrirPagina(true)
     const gatilho = await botaoNovo()
-    expect(within(document.querySelector('header')!).getByRole('button', { name: 'Novo lançamento' })).toBe(gatilho)
+    // fixo no canto enquanto o extrato rola: fora do cabeçalho, dentro do contêiner `fixed`, redondo e só com o "+"
+    expect(within(document.querySelector('header')!).queryByRole('button', { name: 'Novo lançamento' })).toBeNull()
+    const flutuante = screen.getByTestId('novo-lancamento-flutuante')
+    expect(flutuante.className).toContain('fixed')
+    expect(within(flutuante).getByRole('button', { name: 'Novo lançamento' })).toBe(gatilho)
+    expect(gatilho.className).toContain('rounded-full')
+    expect(gatilho.textContent).toBe('+')
     expect(screen.queryByRole('button', { name: 'Nova despesa' })).toBeNull() // os dois botões soltos saíram
     expect(screen.queryByRole('button', { name: 'Nova receita' })).toBeNull()
     await novoLancamento(u, 'Nova despesa')
@@ -2919,6 +2925,7 @@ describe('"+ Lançamento" com a folha por cima da tela (pedido do dono, 12/11/20
     montar('/cartoes/k1/fatura/2026-10')
     expect(await screen.findByTestId('fatura-travada')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Novo lançamento' })).toBeNull()
+    expect(screen.queryByTestId('novo-lancamento-flutuante')).toBeNull() // paga e travada: nem o botão flutuante
     await u.keyboard('d')
     expect(screen.queryByRole('dialog')).toBeNull()
     // a fatura seguinte, aberta, tem o botão (e a tecla vale)
