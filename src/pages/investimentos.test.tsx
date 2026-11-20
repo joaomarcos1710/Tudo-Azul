@@ -281,6 +281,64 @@ describe('Investimentos × macroclasse e subclasse', () => {
     expect(mock.definirSubclasseAtivo).toHaveBeenCalledWith('novo-id', 'CDB')
   })
 
+  describe('valor inicial no Novo ativo (FGTS que "não aparecia")', () => {
+    async function abrirFgts(u: ReturnType<typeof userEvent.setup>) {
+      await u.click(await screen.findByRole('button', { name: 'Novo ativo' }))
+      await u.type(screen.getByLabelText('Nome do ativo'), 'FGTS')
+      await u.selectOptions(screen.getByLabelText('Categoria'), 'personalizado')
+      await u.click(screen.getByRole('radio', { name: 'Restrito' }))
+    }
+
+    it('informar quanto tem hoje cria o ativo e já registra a posição pelo valor (o ativo passa a aparecer na carteira)', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await abrirFgts(u)
+      await u.type(screen.getByLabelText(/Quanto você tem hoje/), '12.500,00')
+      await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
+      await vi.waitFor(() => expect(mock.registrarOperacaoPorValor).toHaveBeenCalledTimes(1))
+      expect(mock.registrarOperacaoPorValor).toHaveBeenCalledWith(expect.objectContaining({ ativoId: 'novo-id', tipo: 'buy', valor: 1250000, observacao: 'Saldo inicial' }))
+      expect(mock.criarAtivoInvestimento.mock.calls[0][0]).not.toHaveProperty('valorInicial')
+    })
+
+    it('sem informar o valor, nada é registrado (o ativo fica sem posição, como sempre foi)', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await abrirFgts(u)
+      await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
+      await vi.waitFor(() => expect(mock.criarAtivoInvestimento).toHaveBeenCalledTimes(1))
+      expect(mock.registrarOperacaoPorValor).not.toHaveBeenCalled()
+    })
+
+    it('valor inválido ou zero: avisa e não cria nada', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await abrirFgts(u)
+      await u.type(screen.getByLabelText(/Quanto você tem hoje/), '0')
+      await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
+      expect(await screen.findByText('Valor inválido. Exemplo: 1.250,00')).toBeTruthy()
+      expect(mock.criarAtivoInvestimento).not.toHaveBeenCalled()
+    })
+
+    it('com ticker o campo não aparece (ação e FII entram por quantidade e preço)', async () => {
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await abrirFgts(u)
+      expect(screen.getByLabelText(/Quanto você tem hoje/)).toBeTruthy()
+      await u.type(screen.getByLabelText('Ticker ou código (opcional)'), 'PETR4')
+      expect(screen.queryByLabelText(/Quanto você tem hoje/)).toBeNull()
+    })
+
+    it('se registrar o valor falhar, o ativo continua criado e a tela avisa o que fazer', async () => {
+      mock.registrarOperacaoPorValor.mockRejectedValueOnce(new Error('falhou'))
+      const u = userEvent.setup()
+      render(<Investimentos />)
+      await abrirFgts(u)
+      await u.type(screen.getByLabelText(/Quanto você tem hoje/), '500,00')
+      await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
+      expect(await screen.findByText(/Ativo cadastrado, mas o valor inicial não foi registrado/)).toBeTruthy()
+    })
+  })
+
   describe('liquidez (opção C, 10/11/2026)', () => {
     it('cadastrar previdência como restrito: cria o ativo e depois marca a liquidez; líquido não faz a segunda chamada', async () => {
       const u = userEvent.setup()
