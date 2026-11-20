@@ -800,6 +800,28 @@ describe('Lançamentos', () => {
     expect(mock.criarLancamento).not.toHaveBeenCalled()
   })
 
+  it('lançamento no cartão: "Despesa de quem?" está à vista (sem abrir Opções avançadas) e a pessoa vai na compra', async () => {
+    pessoasMock.listarPessoasFamilia.mockImplementation(() => Promise.resolve([
+      { id: 'p-joao', nome: 'João', ativo: true, userId: 'u1' },
+      { id: 'p-mari', nome: 'Mariane', ativo: true, userId: null },
+    ]))
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await abrirNovo(u)
+    await u.click(screen.getByRole('radio', { name: 'Cartão de crédito' }))
+    const quem = await screen.findByLabelText('Despesa de quem?') as HTMLSelectElement
+    expect(quem.closest('details')).toBeNull() // não está dentro de nada recolhido
+    expect(quem.value).toBe('shared') // despesa nova nasce "Toda a família"
+    await waitFor(() => expect(within(quem).getByRole('option', { name: 'Mariane' })).toBeTruthy())
+    await u.selectOptions(quem, 'p-mari')
+    await u.type(screen.getByLabelText('Valor (R$)'), '80,00')
+    await u.type(screen.getByLabelText('Descrição'), 'Feira')
+    await u.selectOptions(screen.getByLabelText('Cartão'), 'k1')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
+    await u.click(screen.getByRole('button', { name: 'Registrar compra' }))
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', expect.objectContaining({ descricao: 'Feira', personId: 'p-mari', isSharedExpense: false }), expect.any(String))
+  })
+
   it('trocar entre Despesa e Cartão de crédito mantém a categoria escolhida (as duas usam categorias de despesa)', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
@@ -1759,7 +1781,6 @@ describe('lançamento parcelado fora do cartão', () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const painel = await preencher(u, '10,00')
-    await u.click(within(painel).getByText('Opções avançadas · Pessoa responsável'))
     const quem = await within(painel).findByLabelText('Despesa de quem?') as HTMLSelectElement
     expect(quem.value).toBe('shared')
     await u.click(within(painel).getByRole('button', { name: 'Lançar parcelas' }))
@@ -1774,7 +1795,6 @@ describe('lançamento parcelado fora do cartão', () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     const painel = await preencher(u, '10,00')
-    await u.click(within(painel).getByText('Opções avançadas · Pessoa responsável'))
     await u.selectOptions(await within(painel).findByLabelText('Despesa de quem?'), 'p-joao')
     await u.click(within(painel).getByRole('button', { name: 'Lançar parcelas' }))
     await waitFor(() => expect(mock.criarParcelado).toHaveBeenCalled())
@@ -1891,7 +1911,6 @@ describe('trocar "quem da família gastou" num lançamento de conta já passado 
     const item = (await screen.findByText('Mercado antigo')).closest('li') as HTMLElement
     await u.click(within(item).getByRole('button', { name: 'Ações de Mercado antigo' }))
     await u.click(within(item).getByRole('menuitem', { name: 'Editar' }))
-    await u.click(screen.getByText('Opções avançadas · Pessoa responsável'))
     const select = await screen.findByLabelText('Despesa de quem?') as HTMLSelectElement
     expect(select.value).toBe('unassigned')
     await waitFor(() => expect(within(select).getByRole('option', { name: 'Ana' })).toBeTruthy())
