@@ -24,7 +24,7 @@ import { aceitaLancamento, hojeSP, listarContas } from '../lib/contas'
 import type { Conta } from '../lib/contas'
 import { currentMonth } from '../lib/format'
 import { limitesDoMes, somarMeses } from '../lib/lancamentos'
-import { formatBRL, formatDate, parseBRL, simboloMoeda } from '../lib/format'
+import { formatBRL, formatDate, mascararValor, parseBRL, simboloMoeda } from '../lib/format'
 import type { Cents } from '../lib/format'
 import { valoresOcultos } from '../lib/privacidade'
 import { mensagemErroBanco } from '../lib/erros'
@@ -689,7 +689,7 @@ function FormProvento({ ativos, contas, ativoInicial, aoSalvar, aoCancelar }: {
           <div className="mt-2 flex items-baseline gap-1 text-lucro">
             <span aria-hidden="true" className="text-xl font-semibold">+R$</span>
             <label htmlFor={`${id}-valor`} className="sr-only">Valor líquido recebido (R$)</label>
-            <input id={`${id}-valor`} inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} className={`${GRANDE_FOLHA} text-lucro`} />
+            <input id={`${id}-valor`} inputMode="numeric" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(mascararValor(e.target.value))} className={`${GRANDE_FOLHA} text-lucro`} />
           </div>
           <p className="mt-1 text-sm text-slate-600">O valor <strong>líquido</strong>, o que caiu na conta (no JCP, já sem o imposto retido).</p>
         </div>
@@ -1037,7 +1037,7 @@ function FormAtivo({ instituicoes, bancoTemCotacao, aoSalvar, aoCancelar }: {
           </LinhaFolha>
           {!ticker.trim() && (
             <LinhaFolha id={`${id}-valor`} rotulo={`Quanto você tem hoje (${moedaAtivo}, opcional)`}>
-              <input id={`${id}-valor`} value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} inputMode="decimal" placeholder="Ex.: 12.500,00" className={CONTROLE_FOLHA} />
+              <input id={`${id}-valor`} value={valorTexto} onChange={(e) => setValorTexto(mascararValor(e.target.value))} inputMode="numeric" placeholder="Ex.: 12.500,00" className={CONTROLE_FOLHA} />
             </LinhaFolha>
           )}
           <LinhaFolha id={`${id}-sub`} rotulo="Subclasse (opcional)">

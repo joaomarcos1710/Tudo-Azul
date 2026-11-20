@@ -764,6 +764,20 @@ describe('Cartões', () => {
     expect(mock.registrarCompra).toHaveBeenCalledWith('k1', expect.objectContaining({ descricao: 'Fone', personId: 'pe2', isSharedExpense: false }), expect.any(String))
   })
 
+  it('compra nova: o valor entra pelos números, com os centavos da direita (9000 = R$ 90,00)', async () => {
+    const u = userEvent.setup()
+    montar()
+    await novoLancamento(u, 'Nova despesa')
+    await u.type(screen.getByLabelText('Descrição'), 'Fone')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
+    const valor = screen.getByLabelText('Valor total (R$)') as HTMLInputElement
+    expect(valor.getAttribute('inputmode')).toBe('numeric')
+    await u.type(valor, '9000')
+    expect(valor.value).toBe('90,00')
+    await u.click(screen.getByRole('button', { name: 'Lançar compra' }))
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', expect.objectContaining({ descricao: 'Fone', total: 9000 }), expect.any(String))
+  })
+
   it('compra em outra fatura: o seletor manda o deslocamento escolhido', async () => {
     const u = userEvent.setup()
     montar()
@@ -1557,7 +1571,7 @@ describe('Limite do cartão', () => {
     const u = userEvent.setup()
     montar()
     await escolherNoMenu(u, 'Definir limite')
-    await u.type(screen.getByLabelText('Limite do cartão (R$)'), '0')
+    await u.type(screen.getByLabelText('Limite do cartão (R$)'), '-5') // negativo não vale; "0" não entra no campo (fica vazio)
     await u.click(screen.getByRole('button', { name: 'Salvar' }))
     expect(await screen.findByText(/Valor inválido/)).toBeTruthy()
     expect(mock.definirLimite).not.toHaveBeenCalled()

@@ -309,11 +309,15 @@ describe('Investimentos × macroclasse e subclasse', () => {
       expect(mock.registrarOperacaoPorValor).not.toHaveBeenCalled()
     })
 
-    it('valor inválido ou zero: avisa e não cria nada', async () => {
+    it('valor negativo: avisa e não cria nada; zero ou letras não entram no campo (fica vazio, sem posição)', async () => {
       const u = userEvent.setup()
       render(<Investimentos />)
       await abrirFgts(u)
-      await u.type(screen.getByLabelText(/Quanto você tem hoje/), '0')
+      const campo = screen.getByLabelText(/Quanto você tem hoje/) as HTMLInputElement
+      await u.type(campo, '0abc')
+      expect(campo.value).toBe('')
+      await u.type(campo, '-5')
+      expect(campo.value).toBe('-0,05')
       await u.click(screen.getByRole('button', { name: 'Salvar ativo' }))
       expect(await screen.findByText('Valor inválido. Exemplo: 1.250,00')).toBeTruthy()
       expect(mock.criarAtivoInvestimento).not.toHaveBeenCalled()

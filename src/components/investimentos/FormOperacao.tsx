@@ -6,7 +6,7 @@ import { Button } from '../ui/Button'
 import { Folha } from '../ui/Folha'
 import { hojeSP } from '../../lib/contas'
 import type { Conta } from '../../lib/contas'
-import { parseBRL, simboloMoeda } from '../../lib/format'
+import { mascararValor, parseBRL, simboloMoeda } from '../../lib/format'
 import type { Cents } from '../../lib/format'
 import { mensagemErroBanco } from '../../lib/erros'
 import { listarAtivosInvestimento, registrarOperacaoInvestimento, registrarOperacaoPorValor, segueABolsa } from '../../lib/investimentos'
@@ -140,7 +140,7 @@ export function FormOperacao({ ativos, contas, tipoInicial = 'buy', ativoInicial
               <div className="mt-2 flex items-baseline gap-1 text-marinho">
                 <span aria-hidden="true" className="text-xl font-semibold">{simboloMoeda(codigo)}</span>
                 <label htmlFor={`${idForm}-valor`} className="sr-only">{rotuloValor} ({codigo})</label>
-                <input id={`${idForm}-valor`} inputMode="decimal" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} className={grande} />
+                <input id={`${idForm}-valor`} inputMode="numeric" placeholder="0,00" value={valorTexto} onChange={(e) => setValorTexto(mascararValor(e.target.value))} className={grande} />
               </div>
               <p className="mt-1 text-sm text-slate-600">
                 {primeiraPosicao ? 'Quanto você tem hoje neste investimento. Para atualizar depois, use "Atualizar valor" na linha do ativo, em Posições.'
@@ -180,7 +180,7 @@ export function FormOperacao({ ativos, contas, tipoInicial = 'buy', ativoInicial
           {modoAtual === 'unidades' && (
             <div className={linha}>
               <label htmlFor={`${idForm}-tarifas`} className="shrink-0 text-base text-marinho">Tarifas ({codigo})</label>
-              <input id={`${idForm}-tarifas`} inputMode="decimal" value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} className={controle} />
+              <input id={`${idForm}-tarifas`} inputMode="numeric" value={tarifaTexto} onChange={(e) => setTarifaTexto(mascararValor(e.target.value))} className={controle} />
             </div>
           )}
           <div className={linha}>

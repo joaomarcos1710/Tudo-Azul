@@ -585,7 +585,9 @@ describe('Lançamentos', () => {
     const u = userEvent.setup()
     await screen.findByText('Supermercado')
     await abrirNovo(u)
-    await u.type(screen.getByLabelText('Valor (R$)'), '1.2.3')
+    // letras não entram no campo de valor (só os números contam): o campo continua vazio e o valor é exigido
+    await u.type(screen.getByLabelText('Valor (R$)'), 'abc')
+    expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('')
     await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
     expect(screen.getByText(/Informe um valor maior que zero/)).toBeTruthy()
     expect(screen.getByText('Escolha a categoria.')).toBeTruthy()
@@ -598,12 +600,30 @@ describe('Lançamentos', () => {
     await screen.findByText('Supermercado')
     await abrirNovo(u)
     await u.click(screen.getByRole('radio', { name: 'Transferência' }))
-    await u.type(screen.getByLabelText('Valor (R$)'), '100')
+    await u.type(screen.getByLabelText('Valor (R$)'), '10000') // os centavos entram da direita: 10000 = R$ 100,00
+    expect((screen.getByLabelText('Valor (R$)') as HTMLInputElement).value).toBe('100,00')
     await u.selectOptions(screen.getByLabelText('Para a conta'), 'a2')
     await u.click(screen.getByRole('button', { name: 'Registrar transferência' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({
       tipo: 'transfer', contaId: 'a1', destinoId: 'a2', categoriaId: null, valor: 10000,
     }))
+  })
+
+  it('valor: só os números, os centavos entram da direita (sem vírgula nem ponto, como no teclado do iPad)', async () => {
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const u = userEvent.setup()
+    await screen.findByText('Supermercado')
+    await abrirNovo(u)
+    const valor = screen.getByLabelText('Valor (R$)') as HTMLInputElement
+    expect(valor.getAttribute('inputmode')).toBe('numeric')
+    await u.type(valor, '12345')
+    expect(valor.value).toBe('123,45')
+    await u.type(valor, '{Backspace}')
+    expect(valor.value).toBe('12,34')
+    await u.type(valor, '5')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'mer')
+    await u.click(screen.getByRole('button', { name: 'Registrar despesa' }))
+    expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({ tipo: 'expense', valor: 12345 }))
   })
 
   it('data futura vira planejado por padrão', async () => {
@@ -1866,7 +1886,7 @@ describe('multimoeda F2 (migration 056)', () => {
     expect((screen.getByLabelText('Para a conta') as HTMLSelectElement).value).toBe('')
     await u.selectOptions(screen.getByLabelText('Da conta'), 'a3')
     await u.selectOptions(screen.getByLabelText('Para a conta'), 'a4')
-    await u.type(screen.getByLabelText('Valor (US$)'), '50')
+    await u.type(screen.getByLabelText('Valor (US$)'), '5000')
     await u.click(screen.getByRole('button', { name: 'Registrar transferência' }))
     expect(mock.criarLancamento).toHaveBeenCalledWith('h1', expect.objectContaining({ tipo: 'transfer', contaId: 'a3', destinoId: 'a4', valor: 5000 }))
   })

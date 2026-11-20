@@ -159,6 +159,19 @@ describe('Contas', () => {
     expect(mock.listarContas).toHaveBeenCalledTimes(2)
   })
 
+  it('saldo inicial esvaziado (a máscara esvazia o campo quando só há zeros) vale zero', async () => {
+    render(<MemoryRouter><Contas /></MemoryRouter>)
+    const u = userEvent.setup()
+    await u.click(await screen.findByRole('button', { name: 'Cadastrar a primeira conta' }))
+    await u.type(screen.getByLabelText('Nome'), 'Nubank')
+    const saldo = screen.getByLabelText('Saldo inicial (R$)') as HTMLInputElement
+    await u.clear(saldo)
+    await u.type(saldo, '0')
+    expect(saldo.value).toBe('')
+    await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
+    expect(mock.criarConta).toHaveBeenCalledWith('h1', expect.objectContaining({ nome: 'Nubank', saldoInicial: 0 }))
+  })
+
   it('grava o banco escolhido (a conta pode ter qualquer nome)', async () => {
     render(<MemoryRouter><Contas /></MemoryRouter>)
     const u = userEvent.setup()
@@ -249,7 +262,7 @@ describe('Contas', () => {
     await u.type(screen.getByLabelText('Nome'), 'Nubank')
     const saldo = screen.getByLabelText('Saldo inicial (R$)')
     await u.clear(saldo)
-    await u.type(saldo, '1.2.3')
+    await u.type(saldo, '-') // só o sinal: sem número não é valor
     await u.click(screen.getByRole('button', { name: 'Cadastrar conta' }))
     expect(screen.getByText(/Valor inválido/)).toBeTruthy()
     expect(mock.criarConta).not.toHaveBeenCalled()

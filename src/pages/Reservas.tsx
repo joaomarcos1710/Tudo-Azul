@@ -6,7 +6,7 @@ import { Card, CardTitle } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { CabecalhoPagina } from '../components/ui/CabecalhoPagina'
 import { useFamilia } from '../lib/FamiliaContext'
-import { asCents, formatDate, formatMoeda, parseBRL } from '../lib/format'
+import { asCents, formatDate, formatMoeda, mascararValor, parseBRL } from '../lib/format'
 import { hojeSP } from '../lib/contas'
 import { mensagemErroBanco } from '../lib/erros'
 import { criarReserva, listarReservas, registrarAlocacaoReserva } from '../lib/reservas'
@@ -145,7 +145,7 @@ export default function Reservas() {
           </label>
           <label className={rotulo}>
             Meta (opcional)
-            <input className={campo} value={metaTexto} onChange={(e) => setMetaTexto(e.target.value)} inputMode="decimal" placeholder="0,00" />
+            <input className={campo} value={metaTexto} onChange={(e) => setMetaTexto(mascararValor(e.target.value))} inputMode="numeric" placeholder="0,00" />
           </label>
           <label className={rotulo}>
             Data da meta (opcional)
@@ -179,7 +179,7 @@ export default function Reservas() {
             </label>
             <label className={rotulo}>
               Valor {reservaSelecionada ? `(${reservaSelecionada.moeda})` : ''}
-              <input className={campo} value={valorTexto} onChange={(e) => { setValorTexto(e.target.value); setChaveIdempotencia(null) }} inputMode="decimal" placeholder="0,00" required />
+              <input className={campo} value={valorTexto} onChange={(e) => { setValorTexto(mascararValor(e.target.value)); setChaveIdempotencia(null) }} inputMode="numeric" placeholder="0,00" required />
             </label>
             <label className={rotulo}>
               Data

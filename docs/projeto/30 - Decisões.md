@@ -1042,3 +1042,10 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Escopo (limite aceito):** só o Orçamento. O Início (barra de orçamentos e Dinheiro Livre), Lançamentos, Relatórios e Calendário seguem no mês de calendário, então o Orçamento não bate com os totais dessas telas para quem usa o dia 20. Ir por etapas custa essa diferença; fazer tudo de uma vez é outro plano, com revisão de dinheiro por tela.
 - **Quem vê o quê:** vale o dia de quem está olhando (preferência pessoal), como já é no Limite diário seguro. Duas pessoas da mesma família com dias diferentes veem o mesmo limite com gastos de janelas diferentes.
 - **Virada:** em 19/11 o ciclo atual (20/10 a 19/11) acaba; em 20/11 abre o de novembro, com limites a copiar do mês anterior.
+
+## 20/11/2026 — Campo de valor com os centavos entrando da direita (dono, #450)
+- **Pedido:** "na hora que eu coloco o valor não entra vírgula, não entra ponto". O teclado numérico do iPad não tem vírgula nem ponto.
+- **Decidido:** nos campos de dinheiro só os dígitos contam e eles preenchem os centavos primeiro (`mascararValor`, em `lib/format.ts`; `Field valorEmReais` e os campos soltos). `1250` → 12,50. Só zeros ou texto sem número esvazia o campo; um `-` no começo é mantido (saldo negativo). O limite do banco (12 dígitos antes da vírgula) é respeitado e o resultado volta pelo `parseBRL` sem perda.
+- **Custo aceito:** quem digitava `1500` esperando R$ 1.500,00 agora obtém R$ 15,00 (o campo mostra o valor enquanto se digita). É o preço do modelo "centavos primeiro".
+- **Ficou de fora de propósito:** o filtro "Valor a partir de" de Recorrentes (é busca, não lançamento), quantidades, taxa de juros em % e preço por unidade em Investimentos (pode ter mais de 2 casas).
+- **Vazio = zero** onde o campo nasce "0,00": saldo inicial da conta e juros e tarifas da baixa de dívida.

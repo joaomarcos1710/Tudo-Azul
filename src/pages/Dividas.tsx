@@ -394,7 +394,7 @@ function FormNovaDivida({ aoSalvar, aoCancelar }: {
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Nome" placeholder="Ex.: Financiamento do imóvel" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={60} />
         <Selecao rotulo="Modalidade" valor={tipo} aoMudar={(v) => setTipo(v as TipoDivida)} opcoes={[['loan', 'Empréstimo'], ['financing', 'Financiamento']]} />
-        <Field rotulo="Saldo devedor atual (R$)" inputMode="decimal" placeholder="Ex.: 85.000,00" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} />
+        <Field rotulo="Saldo devedor atual (R$)" valorEmReais placeholder="Ex.: 85.000,00" value={saldoTexto} onChange={(e) => setSaldoTexto(e.target.value)} />
         <Field rotulo="Data de referência do saldo" type="date" value={data} onChange={(e) => setData(e.target.value)} />
         <p className="text-sm text-slate-600 md:col-span-2">Use o saldo devedor informado pelo banco na data escolhida. Não informe a soma das parcelas futuras.</p>
         <div className="flex gap-2 md:col-span-2">
@@ -467,7 +467,7 @@ function FormContrato({ divida, contas, aoSalvar, aoCancelar }: {
         <Field rotulo="Número do contrato (opcional)" value={numero} onChange={(e) => setNumero(e.target.value)} maxLength={80} />
         <Field rotulo="Prazo original (parcelas)" type="number" value={originais} onChange={(e) => setOriginais(e.target.value)} min={1} max={1200} />
         <Field rotulo="Parcelas restantes" type="number" value={restantes} onChange={(e) => setRestantes(e.target.value)} min={0} max={1200} />
-        <Field rotulo="Valor da prestação (R$)" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 1.250,00" />
+        <Field rotulo="Valor da prestação (R$)" valorEmReais value={valor} onChange={(e) => setValor(e.target.value)} placeholder="Ex.: 1.250,00" />
         <Field rotulo="Dia de vencimento" type="number" value={dia} onChange={(e) => {
           setDia(e.target.value)
           const n = Number(e.target.value)
@@ -520,7 +520,7 @@ function FormTermos({ divida, aoSalvar, aoCancelar }: {
       <form onSubmit={(e) => void enviar(e)} className="grid gap-3 md:grid-cols-2">
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Field rotulo="Taxa de juros mensal (%)" inputMode="decimal" placeholder="Ex.: 1,50" value={taxaTexto} onChange={(e) => setTaxaTexto(e.target.value)} />
-        <Field rotulo="Pagamento mínimo mensal (R$)" inputMode="decimal" value={minimoTexto} onChange={(e) => setMinimoTexto(e.target.value)} />
+        <Field rotulo="Pagamento mínimo mensal (R$)" valorEmReais value={minimoTexto} onChange={(e) => setMinimoTexto(e.target.value)} />
         <p className="text-sm text-slate-600 md:col-span-2">A taxa é armazenada em pontos-base. O pagamento mínimo considera o valor total da prestação, incluindo juros.</p>
         <div className="flex gap-2 md:col-span-2">
           <Button type="submit" carregando={enviando}>Salvar parâmetros</Button>
@@ -565,8 +565,9 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
   const total = parseBRL(totalTexto)
-  const juros = parseBRL(jurosTexto)
-  const tarifa = parseBRL(tarifaTexto)
+  // campo vazio = zero (a máscara esvazia o campo quando só há zeros; os dois nascem "0,00")
+  const juros = parseBRL(jurosTexto.trim() === '' ? '0' : jurosTexto)
+  const tarifa = parseBRL(tarifaTexto.trim() === '' ? '0' : tarifaTexto)
   const principal = total !== null && juros !== null && tarifa !== null ? asCents(total - juros - tarifa) : null
   const precisaCategoria = !consignado && ((juros ?? 0) > 0 || (tarifa ?? 0) > 0)
   // amortização extra paga fora das contas do app (ex.: FGTS): nenhuma conta muda, só o saldo da dívida (migration 102)
@@ -634,10 +635,10 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
           <Selecao rotulo="Conta de saída" valor={contaId} aoMudar={setContaId} todos="Selecione a conta"
             opcoes={[...contas.map((c): [string, string] => [c.id, c.nome]), ...(podeSemConta ? [[SEM_CONTA, 'Nenhuma (FGTS ou fora do app)'] as [string, string]] : [])]} />
         )}
-        <Field rotulo={consignado ? 'Valor da parcela descontada (R$)' : 'Valor total pago (R$)'} inputMode="decimal"
+        <Field rotulo={consignado ? 'Valor da parcela descontada (R$)' : 'Valor total pago (R$)'} valorEmReais
           placeholder="Ex.: 1.250,00" value={totalTexto} onChange={(e) => setTotalTexto(e.target.value)} />
-        <Field rotulo="Juros incluídos (R$)" inputMode="decimal" value={jurosTexto} onChange={(e) => setJurosTexto(e.target.value)} />
-        <Field rotulo="Tarifas incluídas (R$)" inputMode="decimal" value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} />
+        <Field rotulo="Juros incluídos (R$)" valorEmReais value={jurosTexto} onChange={(e) => setJurosTexto(e.target.value)} />
+        <Field rotulo="Tarifas incluídas (R$)" valorEmReais value={tarifaTexto} onChange={(e) => setTarifaTexto(e.target.value)} />
         {!consignado && (
           <>
             <Selecao rotulo="Categoria para juros/tarifas" valor={categoriaId} aoMudar={setCategoriaId} todos={precisaCategoria ? 'Selecione a categoria' : 'Não necessária'}
@@ -677,7 +678,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
                 value={prazoTexto} onChange={(e) => setPrazoTexto(e.target.value)} />
             )}
             {modo === 'installment' && (
-              <Field rotulo={`Parcela nova (R$, hoje ${(divida.valorParcela === null ? '—' : formatBRL(divida.valorParcela))})`} inputMode="decimal"
+              <Field rotulo={`Parcela nova (R$, hoje ${(divida.valorParcela === null ? '—' : formatBRL(divida.valorParcela))})`} valorEmReais
                 value={novaParcelaTexto} onChange={(e) => setNovaParcelaTexto(e.target.value)} />
             )}
             <p className="text-xs text-slate-600">Use o número do extrato ou da simulação do banco: o app não calcula. As parcelas futuras são refeitas com ele; as já pagas não mudam.</p>
@@ -851,7 +852,7 @@ function FormCorrigirSaldo({ divida, aoSalvar, aoCancelar }: {
           sozinhos; informe o saldo devedor que o banco mostra na data do extrato e o app grava só a diferença para essa data.
         </p>
         <Field rotulo="Data do extrato" type="date" value={data} max={hojeSP()} onChange={(e) => setData(e.target.value)} />
-        <Field rotulo="Saldo devedor no banco (R$)" inputMode="decimal" placeholder="Ex.: 136.540,78" value={saldoTexto}
+        <Field rotulo="Saldo devedor no banco (R$)" valorEmReais placeholder="Ex.: 136.540,78" value={saldoTexto}
           onChange={(e) => setSaldoTexto(e.target.value)} />
         <p className="text-xs text-slate-500 md:col-span-2">
           É só uma correção do saldo: não entra como despesa nem receita e não mexe em conta. Errou o valor? Corrija de novo na

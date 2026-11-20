@@ -362,4 +362,5 @@ continuam abaixo como histórico.
 | 2026.447 | **Novo ativo com valor de hoje.** Ao cadastrar um ativo sem ticker (FGTS, previdência, CDB, reserva), dá para informar quanto você tem hoje; ele já entra na carteira com esse valor. Sem informar, continua sem posição, como antes. |
 | 2026.448 | **Quem gastou à vista no cartão.** Ao lançar uma compra no cartão (em Cartões ou em Lançamentos) o campo "Despesa de quem?" aparece direto, com Toda a família, você e as pessoas da família. Antes estava escondido em "Opções avançadas" (Lançamentos) ou não existia (Cartões › Nova compra). |
 | 2026.449 | **Botão flutuante na fatura do cartão.** O "+ Lançamento" da fatura virou um botão redondo fixo no canto da tela: dá para rolar o extrato e lançar sem voltar ao topo. |
+| 2026.450 | **Valor com os centavos da direita.** Nos campos de dinheiro basta digitar os números (sem vírgula nem ponto): `1250` vira 12,50 e `125000` vira 1.250,00, como no app do banco. Atenção: `1500` agora é R$ 15,00. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
