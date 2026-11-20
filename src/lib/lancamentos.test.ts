@@ -47,6 +47,12 @@ describe('listarMovimentosDeDivida', () => {
     ])
   })
 
+  it('empréstimo e financiamento vêm marcados (a tela mostra "Empréstimo" e leva para Dívidas); cartão não', async () => {
+    fake.estado.eventos = [ev({ id: '1', kind: 'payment' }), ev({ id: '2', kind: 'payment', debt_id: 'd2' }), ev({ id: '3', kind: 'refund_cash' })]
+    const r = await listarMovimentosDeDivida('h1', '2026-10')
+    expect(r.map((m) => [m.id, m.emprestimo])).toEqual([['1', false], ['2', true], ['3', false]])
+  })
+
   it('Calendário (migration 130): pagamento é parcela; juros e tarifa só da mesma operação de um pagamento; amortização e juros sozinhos não', async () => {
     fake.estado.eventos = [
       ev({ id: '1', kind: 'payment', debt_id: 'd2', op_id: 'op1' }), ev({ id: '2', kind: 'interest', debt_id: 'd2', amount: '10.00', op_id: 'op1' }),

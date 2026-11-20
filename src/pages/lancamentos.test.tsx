@@ -776,6 +776,24 @@ describe('Lançamentos', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Conta de origem desativada.')
   })
 
+  it('pagamento de empréstimo no extrato: selo "Empréstimo" e o botão leva para Dívidas, não para Cartões (Funcef)', async () => {
+    mock.listarMovimentosDeDivida.mockResolvedValue([
+      { id: 'e1', data: `${hojeSP().slice(0, 8)}01`, contaId: 'a1', descricao: 'Pagamento de Empréstimo Funcef', valor: c(-222688), jaEmDespesas: true, emprestimo: true },
+      { id: 'e2', data: `${hojeSP().slice(0, 8)}01`, contaId: 'a1', descricao: 'Pagamento da fatura · Nubank', valor: c(-30000), jaEmDespesas: false, emprestimo: false },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const emp = (await screen.findByText('Pagamento de Empréstimo Funcef')).closest('li') as HTMLElement
+    expect(within(emp).getByText('Empréstimo · já em despesas')).toBeTruthy()
+    expect(within(emp).queryByText(/Cartão\/dívida/)).toBeNull()
+    const ir = within(emp).getByRole('link', { name: 'Ver em Dívidas' })
+    expect(ir.getAttribute('href')).toBe('/dividas')
+    expect(within(emp).queryByRole('link', { name: 'Ver em Cartões' })).toBeNull()
+    // a fatura de cartão continua levando para Cartões
+    const fat = screen.getByText('Pagamento da fatura · Nubank').closest('li') as HTMLElement
+    expect(within(fat).getByText('Cartão/dívida')).toBeTruthy()
+    expect(within(fat).getByRole('link', { name: 'Ver em Cartões' }).getAttribute('href')).toBe('/cartoes')
+  })
+
   it('mostra o pagamento da fatura no extrato, só leitura, sem entrar nos totais; e os filtros chegam ao lib', async () => {
     const u = userEvent.setup()
     mock.listarMovimentosDeDivida.mockResolvedValue([
