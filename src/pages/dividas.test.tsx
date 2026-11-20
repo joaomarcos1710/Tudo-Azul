@@ -19,11 +19,12 @@ const mock = vi.hoisted(() => ({
   historicoDividas: vi.fn(),
   listarMovimentosDaDivida: vi.fn(),
   anularCorrecaoDeSaldo: vi.fn(),
+  anularPagamentoDaDivida: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal, corrigirSaldoDivida: mock.corrigirSaldoDivida, listarMovimentosDaDivida: mock.listarMovimentosDaDivida, anularCorrecaoDeSaldo: mock.anularCorrecaoDeSaldo }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal, corrigirSaldoDivida: mock.corrigirSaldoDivida, listarMovimentosDaDivida: mock.listarMovimentosDaDivida, anularCorrecaoDeSaldo: mock.anularCorrecaoDeSaldo, anularPagamentoDaDivida: mock.anularPagamentoDaDivida }))
 vi.mock('../lib/painel', async (o) => ({ ...(await o<typeof import('../lib/painel')>()), historicoDividas: mock.historicoDividas }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
@@ -478,7 +479,7 @@ describe('Dívidas', () => {
     })
   })
 
-  describe('Histórico da dívida, com Anular só nas correções pelo extrato', () => {
+  describe('Histórico da dívida, com Anular nas correções pelo extrato e nos pagamentos de parcela', () => {
     const mov = (id: string, data: string, tipo: string, valor: number, extra: Record<string, unknown> = {}) =>
       ({ id, data, tipo, valor: c(valor), comConta: false, nota: null, anulado: false, ...extra })
 
@@ -504,6 +505,32 @@ describe('Dívidas', () => {
       expect(within(folha).getAllByRole('button', { name: /^Anular correção de/ })).toHaveLength(1)
       expect(within(linhas[0]).getByRole('button', { name: 'Anular correção de 17/11/2026' }).className).toContain('min-h-11')
       expect(mock.listarMovimentosDaDivida).toHaveBeenCalledWith('h1', 'd1')
+    })
+
+    it('pagamento de parcela também tem Anular (lançado errado): confirma, anula a baixa e avisa; amortização extra e juros não têm', async () => {
+      mock.listarMovimentosDaDivida.mockResolvedValue([
+        mov('p1', '2026-11-20', 'payment', 222688, { comConta: true }),
+        mov('j1', '2026-11-20', 'interest', 5000, { comConta: true }),
+        mov('x1', '2026-11-15', 'extra_principal', 100000, { comConta: true }),
+        mov('p0', '2026-10-20', 'payment', 222688, { comConta: true, anulado: true }),
+      ])
+      mock.anularPagamentoDaDivida.mockResolvedValue(undefined)
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await acao('Financiamento do imóvel', 'Histórico', u)
+      const folha = screen.getByRole('dialog', { name: /Histórico/ })
+      // só o pagamento não anulado tem o botão: juros, amortização extra e o pagamento já anulado, não
+      expect(await within(folha).findAllByRole('button', { name: /^Anular / })).toHaveLength(1)
+      await u.click(within(folha).getByRole('button', { name: 'Anular pagamento de 20/11/2026' }))
+      expect(within(folha).getByText(/o dinheiro volta para a conta, a parcela volta a ficar em aberto/)).toBeTruthy()
+      expect(mock.anularPagamentoDaDivida).not.toHaveBeenCalled() // ainda só confirmando
+      const chamadasAntes = mock.listarDividas.mock.calls.length
+      await u.click(within(folha).getByRole('button', { name: 'Anular pagamento' }))
+      expect(mock.anularPagamentoDaDivida).toHaveBeenCalledWith('p1')
+      expect(mock.anularCorrecaoDeSaldo).not.toHaveBeenCalled()
+      expect(await within(folha).findByText(/Pagamento anulado\. O dinheiro voltou para a conta/)).toBeTruthy()
+      expect(mock.listarMovimentosDaDivida).toHaveBeenCalledTimes(2)
+      await waitFor(() => expect(mock.listarDividas.mock.calls.length).toBeGreaterThan(chamadasAntes))
     })
 
     it('Anular pede confirmação, chama o banco, avisa e recarrega a lista e as dívidas', async () => {

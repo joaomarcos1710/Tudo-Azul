@@ -24,7 +24,7 @@ import type { HistoricoDividas } from '../lib/painel'
 import { mensagemErroBanco } from '../lib/erros'
 import {
   criarDivida, definirTermosDivida, definirContratoDivida, listarDividas, listarParcelasDivida,
-  anularCorrecaoDeSaldo, arquivarDivida, corrigirSaldoDivida, listarMovimentosDaDivida, definirCategoriaPrincipal, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
+  anularCorrecaoDeSaldo, anularPagamentoDaDivida, arquivarDivida, corrigirSaldoDivida, listarMovimentosDaDivida, definirCategoriaPrincipal, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
 } from '../lib/dividas'
 import type { DadosContratoDivida, Divida, MovimentoDaDivida, ParcelaDivida, TipoDivida } from '../lib/dividas'
 import { LIMITE_HISTORICO_DIVIDA } from '../lib/dividas'
@@ -695,7 +695,8 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
 
 /**
  * Histórico da dívida (pedido do dono, 17/11/2026): os movimentos, do mais recente ao mais antigo, com o efeito no saldo.
- * "Anular" só nas correções pelo extrato (migration 132): anular um pagamento mexe em conta e em despesa, e fica fora daqui.
+ * "Anular" nas correções pelo extrato (migration 132) e nos pagamentos de parcela (dono, 20/11/2026: lançou com a data errada e
+ * não tinha como desfazer). Amortização extra fica de fora: ela pode ter mudado o prazo ou a parcela do contrato, e anular não desfaz isso.
  * Valores de cada movimento como vêm do banco; nada é somado.
  */
 function FolhaHistorico({ familiaId, divida, aoFechar, aoMudar }: {
@@ -712,12 +713,14 @@ function FolhaHistorico({ familiaId, divida, aoFechar, aoMudar }: {
   }, [familiaId, divida.id])
   useEffect(() => { ler() }, [ler])
 
-  async function anular(id: string) {
+  async function anular(id: string, pagamento: boolean) {
     setAnulando(true); setErro('')
     try {
-      await anularCorrecaoDeSaldo(id)
+      if (pagamento) await anularPagamentoDaDivida(id); else await anularCorrecaoDeSaldo(id)
       setConfirmando(null)
-      setAviso('Correção anulada. O saldo voltou ao que era antes dela.')
+      setAviso(pagamento
+        ? 'Pagamento anulado. O dinheiro voltou para a conta e a parcela voltou a ficar em aberto; os juros e as tarifas da mesma baixa foram anulados junto. Agora dá para lançar de novo na data certa.'
+        : 'Correção anulada. O saldo voltou ao que era antes dela.')
       ler()
       await aoMudar()
     } catch (e) {
@@ -728,6 +731,8 @@ function FolhaHistorico({ familiaId, divida, aoFechar, aoMudar }: {
   }
 
   const ehCorrecao = (tipo: string) => tipo === 'adjust_up' || tipo === 'adjust_down'
+  // pagamento de parcela (por conta ou descontado em folha); a amortização extra não entra (ver o comentário do componente)
+  const ehPagamento = (tipo: string) => tipo === 'payment' || tipo === 'payroll_payment'
   return (
     <Folha titulo={`Histórico: ${divida.nome}`} aoFechar={aoFechar}>
       {erro && <div className="mb-3"><Aviso tipo="erro">{erro}</Aviso></div>}
@@ -758,16 +763,20 @@ function FolhaHistorico({ familiaId, divida, aoFechar, aoMudar }: {
                     <span className={`shrink-0 tabular-nums font-semibold ${efeito > 0 ? 'text-prejuizo' : efeito < 0 ? 'text-lucro' : 'text-slate-600'}`}>
                       {efeito > 0 ? '+' : efeito < 0 ? '−' : ''}{formatBRL(m.valor)}
                     </span>
-                    {ehCorrecao(m.tipo) && !m.anulado && confirmando !== m.id && (
+                    {(ehCorrecao(m.tipo) || ehPagamento(m.tipo)) && !m.anulado && confirmando !== m.id && (
                       <button type="button" onClick={() => { setAviso(''); setConfirmando(m.id) }}
-                        aria-label={`Anular correção de ${m.data.split('-').reverse().join('/')}`}
+                        aria-label={`Anular ${ehPagamento(m.tipo) ? 'pagamento' : 'correção'} de ${m.data.split('-').reverse().join('/')}`}
                         className="min-h-11 shrink-0 rounded-lg px-3 font-semibold text-prejuizo hover:bg-prejuizo-fundo">Anular</button>
                     )}
                   </div>
                   {confirmando === m.id && (
                     <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-fundo p-2" role="group" aria-label="Confirmar anulação">
-                      <p className="w-full text-xs text-slate-600">O saldo volta ao que era sem esta correção. Depois, dá para lançar pagamentos com data anterior a ela.</p>
-                      <Button variante="perigo" carregando={anulando} onClick={() => void anular(m.id)}>Anular correção</Button>
+                      <p className="w-full text-xs text-slate-600">
+                        {ehPagamento(m.tipo)
+                          ? 'O pagamento deixa de existir: o dinheiro volta para a conta, a parcela volta a ficar em aberto e os juros e as tarifas da mesma baixa são anulados junto. Use para um pagamento lançado errado; depois, lance de novo na data certa.'
+                          : 'O saldo volta ao que era sem esta correção. Depois, dá para lançar pagamentos com data anterior a ela.'}
+                      </p>
+                      <Button variante="perigo" carregando={anulando} onClick={() => void anular(m.id, ehPagamento(m.tipo))}>{ehPagamento(m.tipo) ? 'Anular pagamento' : 'Anular correção'}</Button>
                       <Button variante="secundario" onClick={() => setConfirmando(null)}>Cancelar</Button>
                     </div>
                   )}
