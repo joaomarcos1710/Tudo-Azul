@@ -365,4 +365,5 @@ continuam abaixo como histórico.
 | 2026.450 | **Valor com os centavos da direita.** Nos campos de dinheiro basta digitar os números (sem vírgula nem ponto): `1250` vira 12,50 e `125000` vira 1.250,00, como no app do banco. Atenção: `1500` agora é R$ 15,00. |
 | 2026.451 | **Só diário.** Limpeza das pendências da seção Investimentos: 54 itens conferidos, 3 anotados, nenhum fechado sem prova. |
 | 2026.452 | **Empréstimo no extrato.** O pagamento de um empréstimo ou financiamento em Lançamentos mostra "Empréstimo" e o botão "Dívidas" (antes aparecia como cartão, com o botão "Cartões"). |
+| 2026.453 | **Selo "Financiamento".** No extrato, o pagamento de um financiamento mostra "Financiamento" (antes dizia "Empréstimo"). |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

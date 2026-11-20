@@ -721,7 +721,7 @@ export default function Lancamentos() {
                     return (
                       <LinhaLista key={`divida-${m.id}`} icone={<IconeCategoria fixo={m.emprestimo ? 'divida' : 'cartao'} />} titulo={m.descricao}
                         categoria={<span>{nomeConta.get(m.contaId) ?? '?'}</span>}
-                        etiquetas={[<Etiqueta key="d" estilo="bg-slate-100 text-slate-600">{`${m.emprestimo ? 'Empréstimo' : 'Cartão/dívida'}${m.jaEmDespesas ? ' · já em despesas' : ''}`}</Etiqueta>]}
+                        etiquetas={[<Etiqueta key="d" estilo="bg-slate-100 text-slate-600">{`${m.financiamento ? 'Financiamento' : m.emprestimo ? 'Empréstimo' : 'Cartão/dívida'}${m.jaEmDespesas ? ' · já em despesas' : ''}`}</Etiqueta>]}
                         valor={`${m.valor < 0 ? '−' : '+'}${formatBRL(Math.abs(m.valor) as Cents)}`} corValor={m.valor < 0 ? 'text-prejuizo' : 'text-lucro'}
                         acoes={m.emprestimo
                           ? <Link to="/dividas" aria-label="Ver em Dívidas" title="Ver em Dívidas" className={linkCompacto}>Dívidas</Link>

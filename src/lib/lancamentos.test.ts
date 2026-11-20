@@ -13,7 +13,7 @@ const fake = vi.hoisted(() => {
     b.order = (c: string) => { reg.ordens.push(c); return b }
     b.range = (de: number, ate: number) => { reg.faixa = [de, ate]; return b }
     b.then = (ok: (r: { data: unknown; error: null }) => unknown) => {
-      if (tabela === 'debts') return Promise.resolve(ok({ data: [{ id: 'd1', name: 'Nubank', kind: 'card', principal_category_id: null }, { id: 'd2', name: 'Empréstimo', kind: 'loan', principal_category_id: 'cfin' }], error: null }))
+      if (tabela === 'debts') return Promise.resolve(ok({ data: [{ id: 'd1', name: 'Nubank', kind: 'card', principal_category_id: null }, { id: 'd2', name: 'Empréstimo', kind: 'loan', principal_category_id: 'cfin' }, { id: 'd3', name: 'Imóvel', kind: 'financing', principal_category_id: null }], error: null }))
       const todos = estado.eventos
       return Promise.resolve(ok({ data: reg.faixa ? todos.slice(reg.faixa[0], reg.faixa[1] + 1) : todos, error: null }))
     }
@@ -48,9 +48,10 @@ describe('listarMovimentosDeDivida', () => {
   })
 
   it('empréstimo e financiamento vêm marcados (a tela mostra "Empréstimo" e leva para Dívidas); cartão não', async () => {
-    fake.estado.eventos = [ev({ id: '1', kind: 'payment' }), ev({ id: '2', kind: 'payment', debt_id: 'd2' }), ev({ id: '3', kind: 'refund_cash' })]
+    fake.estado.eventos = [ev({ id: '1', kind: 'payment' }), ev({ id: '2', kind: 'payment', debt_id: 'd2' }), ev({ id: '3', kind: 'refund_cash' }), ev({ id: '4', kind: 'payment', debt_id: 'd3' })]
     const r = await listarMovimentosDeDivida('h1', '2026-10')
-    expect(r.map((m) => [m.id, m.emprestimo])).toEqual([['1', false], ['2', true], ['3', false]])
+    // [id, emprestimo (vai para Dívidas), financiamento (o selo diz "Financiamento")]
+    expect(r.map((m) => [m.id, m.emprestimo, m.financiamento])).toEqual([['1', false, false], ['2', true, false], ['3', false, false], ['4', true, true]])
   })
 
   it('Calendário (migration 130): pagamento é parcela; juros e tarifa só da mesma operação de um pagamento; amortização e juros sozinhos não', async () => {
