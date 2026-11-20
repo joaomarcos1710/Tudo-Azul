@@ -1579,7 +1579,7 @@ describe('Subcategoria na ordem e no nome', () => {
     const opcoes = within(await campoFiltro('Filtrar por categoria')).getAllByRole('option').map((o) => o.textContent)
     expect(opcoes).toEqual(['Todas as categorias', 'Outras receitas (receita)', 'Rendimentos (receita)', 'Royalty (receita)', '↳ Reembolso (receita)'])
   })
-  it('parcela planejada do contrato aparece no mês, marcada como planejada, com Baixar parcela, e fora dos totais', async () => {
+  it('parcela planejada do contrato aparece no mês, marcada como planejada, com Pagar parcela, e fora dos totais', async () => {
     mock.listarParcelasDivida.mockResolvedValue([
       { id: 's3', dividaId: 'd1', nomeDivida: 'Financiamento do imóvel', numero: 3, vencimento: '2099-10-20', valor: c(150000), formaPagamento: 'account_debit', contaPagamentoId: 'a1' },
     ])
@@ -1588,7 +1588,7 @@ describe('Subcategoria na ordem e no nome', () => {
     expect(within(linha).getByText('Planejado · contrato')).toBeTruthy()
     expect(within(linha).getByText(/Débito em Itaú/)).toBeTruthy()
     expect(within(linha).getByText('−R$ 1.500,00').className).toContain('text-prejuizo')
-    expect(within(linha).getByRole('link', { name: 'Baixar parcela 3 de Financiamento do imóvel' }).getAttribute('href')).toBe('/dividas?baixar=s3')
+    expect(within(linha).getByRole('link', { name: 'Pagar parcela 3 de Financiamento do imóvel' }).getAttribute('href')).toBe('/dividas?baixar=s3')
     expect(screen.getAllByText('−R$ 1.500,00')).toHaveLength(1) // só na linha: os totais continuam os do banco
     const [, de, ate] = mock.listarLancamentos.mock.calls[0]
     expect(mock.listarParcelasDivida).toHaveBeenCalledWith('h1', de, ate)

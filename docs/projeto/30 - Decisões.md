@@ -1049,3 +1049,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Custo aceito:** quem digitava `1500` esperando R$ 1.500,00 agora obtém R$ 15,00 (o campo mostra o valor enquanto se digita). É o preço do modelo "centavos primeiro".
 - **Ficou de fora de propósito:** o filtro "Valor a partir de" de Recorrentes (é busca, não lançamento), quantidades, taxa de juros em % e preço por unidade em Investimentos (pode ter mais de 2 casas).
 - **Vazio = zero** onde o campo nasce "0,00": saldo inicial da conta e juros e tarifas da baixa de dívida.
+
+## "Pagar parcela" em vez de "Baixar" (#455, 20/11/2026)
+- **Pedido:** "não tem um botão confirmar pagamento; como que esse dinheiro vai sair da conta?" (parcela do Funcef, débito em conta).
+- **Decidido:** não criar outro mecanismo. `debt_schedule_record_payment` já tira o dinheiro da conta, abate a dívida e marca a parcela na mesma operação; mudou só o texto. "Pagar" quando sai dinheiro de uma conta, "Baixar" no consignado (salário já entrou líquido).
+- **Ficou de fora de propósito:** confirmar sozinho no vencimento. O app não recebe o débito do banco, e descontar por conta própria faria o saldo divergir do extrato quando o débito atrasa ou não acontece.

@@ -288,8 +288,8 @@ export default function Dividas() {
                       {proxima && (
                         <div className="mt-3">
                           <Button variante="pilula" compacto onClick={() => setParcelaSelecionada(proxima)}
-                            aria-label={`Confirmar a parcela de ${proxima.vencimento.split('-').reverse().join('/')}, ${d.nome}`}>
-                            Confirmar parcela de {proxima.vencimento.split('-').reverse().slice(0, 2).join('/')}
+                            aria-label={`${verboDaParcela(proxima)} a parcela de ${proxima.vencimento.split('-').reverse().join('/')}, ${d.nome}`}>
+                            {verboDaParcela(proxima)} parcela de {proxima.vencimento.split('-').reverse().slice(0, 2).join('/')}
                           </Button>
                         </div>
                       )}
@@ -534,6 +534,14 @@ function FormTermos({ divida, aoSalvar, aoCancelar }: {
 /** Valor da opção "Nenhuma (FGTS ou fora do app)" na conta de saída da amortização extra. */
 const SEM_CONTA = '__sem_conta__'
 
+/**
+ * "Pagar" quando a confirmação tira dinheiro de uma conta; "Baixar" no consignado, em que o salário já entrou líquido e
+ * nenhuma conta muda (dono, 20/11/2026: procurava um "confirmar pagamento" e não achava que "baixar" debitava a conta).
+ */
+function verboDaParcela(p: Pick<ParcelaDivida, 'formaPagamento'>): 'Pagar' | 'Baixar' {
+  return p.formaPagamento === 'payroll' ? 'Baixar' : 'Pagar'
+}
+
 function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parcela, aoSalvarParcela, extraObrigatorio = false }: {
   divida: Divida
   contas: Conta[]
@@ -624,7 +632,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
   }
 
   return (
-    <Folha titulo={`${parcela ? 'Baixar parcela' : 'Registrar pagamento'}: ${divida.nome}`} aoFechar={aoCancelar}>
+    <Folha titulo={`${parcela ? `${verboDaParcela(parcela)} parcela` : 'Registrar pagamento'}: ${divida.nome}`} aoFechar={aoCancelar}>
       {consignado ? (
         <Aviso tipo="info">Consignado: informe quanto da parcela é juros e tarifa. Só o principal abate o saldo devedor. A baixa não cria saída na conta, pois o salário já está líquido.</Aviso>
       ) : contas.length === 0 && <Aviso tipo="erro">Cadastre ou reative uma conta antes de registrar o pagamento.</Aviso>}
@@ -644,6 +652,12 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
             <Selecao rotulo="Categoria para juros/tarifas" valor={categoriaId} aoMudar={setCategoriaId} todos={precisaCategoria ? 'Selecione a categoria' : 'Não necessária'}
               opcoes={categorias.map((c) => [c.id, normalizarCategoria(c.nome) === 'financiamyto' ? 'Financiamento' : c.nome])} desabilitado={!precisaCategoria} />
           </>
+        )}
+        {parcela && !consignado && (
+          <p className="text-sm text-slate-600 md:col-span-2" data-testid="efeito-do-pagamento">
+            Ao confirmar, <strong>{total === null ? '—' : formatBRL(total)}</strong> sai de <strong>{contas.find((c) => c.id === contaId)?.nome ?? 'uma conta a escolher'}</strong> na
+            data informada e a parcela fica paga. O app não recebe o débito do banco: confirme quando ele aparecer no extrato.
+          </p>
         )}
         {semConta && (
           <p className="text-sm text-slate-600 md:col-span-2">Nenhuma conta muda: só o saldo da dívida diminui. Use para amortização com FGTS ou outro dinheiro que não passa pelo app.</p>
@@ -685,7 +699,7 @@ function FormPagamento({ divida, contas, categorias, aoSalvar, aoCancelar, parce
           </fieldset>
         )}
         <div className="flex gap-2 md:col-span-2">
-          <Button type="submit" carregando={enviando} disabled={!consignado && contas.length === 0}>Confirmar baixa</Button>
+          <Button type="submit" carregando={enviando} disabled={!consignado && contas.length === 0}>{consignado ? 'Confirmar baixa' : 'Confirmar pagamento'}</Button>
           <Button variante="secundario" onClick={aoCancelar}>Cancelar</Button>
         </div>
       </form>
@@ -999,7 +1013,7 @@ function AgendaDaDivida({ nome, parcelas, aoBaixar }: { nome: string; parcelas: 
             <div className="flex items-center gap-3">
               <strong className="tabular-nums">{formatBRL(p.valor)}</strong>
               {i === 0
-                ? <Button compacto onClick={() => aoBaixar(p)}>Baixar parcela</Button>
+                ? <Button compacto onClick={() => aoBaixar(p)}>{verboDaParcela(p)} parcela</Button>
                 : <span className="text-xs text-slate-500">depois da anterior</span>}
             </div>
           </li>
