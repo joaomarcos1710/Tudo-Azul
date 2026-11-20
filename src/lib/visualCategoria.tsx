@@ -120,6 +120,8 @@ export function visualPorId(id: string | null | undefined, porId: Map<string, Ca
 const ICONES_FIXOS = {
   transferencia: <path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5" />,
   cartao: <><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 9.5h19M6 15h4" /></>,
+  // empréstimo e financiamento: prédio de banco (não o cartão)
+  divida: <path d="M3 10l9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18" />,
 }
 
 /** Círculo com o ícone. Decorativo: o nome da categoria (ou o tipo da linha) sempre vem ao lado em texto. */

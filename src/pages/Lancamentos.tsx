@@ -719,11 +719,13 @@ export default function Lancamentos() {
                   if (item.origem === 'divida') {
                     const m = item.m
                     return (
-                      <LinhaLista key={`divida-${m.id}`} icone={<IconeCategoria fixo="cartao" />} titulo={m.descricao}
+                      <LinhaLista key={`divida-${m.id}`} icone={<IconeCategoria fixo={m.emprestimo ? 'divida' : 'cartao'} />} titulo={m.descricao}
                         categoria={<span>{nomeConta.get(m.contaId) ?? '?'}</span>}
-                        etiquetas={[<Etiqueta key="d" estilo="bg-slate-100 text-slate-600">{m.jaEmDespesas ? 'Cartão/dívida · já em despesas' : 'Cartão/dívida'}</Etiqueta>]}
+                        etiquetas={[<Etiqueta key="d" estilo="bg-slate-100 text-slate-600">{`${m.emprestimo ? 'Empréstimo' : 'Cartão/dívida'}${m.jaEmDespesas ? ' · já em despesas' : ''}`}</Etiqueta>]}
                         valor={`${m.valor < 0 ? '−' : '+'}${formatBRL(Math.abs(m.valor) as Cents)}`} corValor={m.valor < 0 ? 'text-prejuizo' : 'text-lucro'}
-                        acoes={<Link to="/cartoes" aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
+                        acoes={m.emprestimo
+                          ? <Link to="/dividas" aria-label="Ver em Dívidas" title="Ver em Dívidas" className={linkCompacto}>Dívidas</Link>
+                          : <Link to="/cartoes" aria-label="Ver em Cartões" title="Ver em Cartões" className={linkCompacto}>Cartões</Link>} />
                     )
                   }
                   const l = item.l
