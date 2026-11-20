@@ -188,6 +188,8 @@ export interface MovimentoDivida {
    * Cartões (dono, 20/11/2026: o pagamento do empréstimo Funcef aparecia como "Cartão/dívida" com o botão "Cartões").
    */
   emprestimo: boolean
+  /** Dos dois, é financiamento (o selo diz "Financiamento" em vez de "Empréstimo"). */
+  financiamento: boolean
 }
 
 const eventosDeConta = ['payment', 'extra_principal', 'disbursement', 'refund_cash', 'interest', 'fee'] as const
@@ -254,6 +256,7 @@ export async function listarMovimentosDeDividaNoPeriodo(familiaId: string, de: s
       jaEmDespesas: e.kind === 'interest' || e.kind === 'fee' || (principal(e.kind) && ehEmprestimo(d?.kind)),
       parcela: e.kind === 'payment' || ((e.kind === 'interest' || e.kind === 'fee') && Boolean(e.op_id) && opsComPagamento.has(e.op_id as string)),
       emprestimo: ehEmprestimo(d?.kind),
+      financiamento: d?.kind === 'financing',
     }
   })
 }

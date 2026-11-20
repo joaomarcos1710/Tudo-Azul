@@ -790,8 +790,23 @@ describe('Lançamentos', () => {
     expect(within(emp).queryByRole('link', { name: 'Ver em Cartões' })).toBeNull()
     // a fatura de cartão continua levando para Cartões
     const fat = screen.getByText('Pagamento da fatura · Nubank').closest('li') as HTMLElement
+    expect(within(emp).queryByText(/Financiamento/)).toBeNull() // empréstimo não vira "Financiamento"
     expect(within(fat).getByText('Cartão/dívida')).toBeTruthy()
     expect(within(fat).getByRole('link', { name: 'Ver em Cartões' }).getAttribute('href')).toBe('/cartoes')
+  })
+
+  it('pagamento de financiamento no extrato: o selo diz "Financiamento" (não "Empréstimo") e o botão leva para Dívidas', async () => {
+    mock.listarMovimentosDeDivida.mockResolvedValue([
+      { id: 'e1', data: `${hojeSP().slice(0, 8)}01`, contaId: 'a1', descricao: 'Pagamento de Financiamento do imóvel', valor: c(-119922), jaEmDespesas: true, emprestimo: true, financiamento: true },
+      { id: 'e2', data: `${hojeSP().slice(0, 8)}01`, contaId: 'a1', descricao: 'Crédito de Financiamento do imóvel', valor: c(5000000), jaEmDespesas: false, emprestimo: true, financiamento: true },
+    ])
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    const pag = (await screen.findByText('Pagamento de Financiamento do imóvel')).closest('li') as HTMLElement
+    expect(within(pag).getByText('Financiamento · já em despesas')).toBeTruthy()
+    expect(within(pag).queryByText(/Empréstimo ·|^Empréstimo$/)).toBeNull()
+    expect(within(pag).getByRole('link', { name: 'Ver em Dívidas' }).getAttribute('href')).toBe('/dividas')
+    const cred = screen.getByText('Crédito de Financiamento do imóvel').closest('li') as HTMLElement
+    expect(within(cred).getByText('Financiamento')).toBeTruthy()
   })
 
   it('mostra o pagamento da fatura no extrato, só leitura, sem entrar nos totais; e os filtros chegam ao lib', async () => {
