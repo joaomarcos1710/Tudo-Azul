@@ -1969,6 +1969,18 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar, aoCategoriaCriad
   const [tentou, setTentou] = useState(false)
   const [chave] = useState(novaChave)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
+  // "De quem foi a despesa" na própria compra (dono, 20/11/2026: lançando no cartão não aparecia quem gastou). Nasce "Toda a família",
+  // como a despesa nova em Lançamentos; sem a lista de pessoas o campo só oferece "não classificada" e "toda a família".
+  const { familia } = useFamilia()
+  const familiaId = familia?.id
+  const [pessoas, setPessoas] = useState<PessoaFamilia[]>([])
+  const [pessoa, setPessoa] = useState<{ personId: string | null; isSharedExpense: boolean }>({ personId: null, isSharedExpense: true })
+  useEffect(() => {
+    if (!familiaId) return
+    let vivo = true
+    listarPessoasFamilia(familiaId).then((l) => { if (vivo) setPessoas(l) }).catch(() => { if (vivo) setPessoas([]) })
+    return () => { vivo = false }
+  }, [familiaId])
 
   const valor = parseBRL(valorTexto)
   const parcelas = Number(parcelasTexto)
@@ -1986,7 +1998,8 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar, aoCategoriaCriad
     if (!descricao.trim() || total === null || total <= 0 || !parcelasOk || !categoriaId || (!andamento && !data)) return
     const desloc = andamento ? 0 : deslocamento
     void enviar(() => registrarCompra(cartao.id,
-      { descricao, data: andamento ? hoje : data, total, parcelas, categoriaId, ...(desloc !== 0 ? { deslocamento: desloc } : {}) }, chave))
+      { descricao, data: andamento ? hoje : data, total, parcelas, categoriaId, personId: pessoa.personId, isSharedExpense: pessoa.isSharedExpense,
+        ...(desloc !== 0 ? { deslocamento: desloc } : {}) }, chave))
   }
 
   return (
@@ -2006,6 +2019,7 @@ function FormCompra({ cartao, categorias, aoSalvar, aoCancelar, aoCategoriaCriad
       <SeletorCategoria rotulo="Categoria" valor={categoriaId} aoMudar={setCategoriaId} opcoes={despesas} categorias={categorias}
         tipo="expense" aoCriada={aoCategoriaCriada} />
       {tentou && !categoriaId && <p role="alert" className="text-sm text-negativo md:col-span-2">Escolha a categoria.</p>}
+      <PessoaSelectField id="pessoa-nova-compra" pessoas={pessoas} personId={pessoa.personId} isSharedExpense={pessoa.isSharedExpense} onChange={setPessoa} />
       <Field rotulo={andamento ? 'Valor de cada parcela (R$)' : 'Valor total (R$)'} inputMode="decimal" value={valorTexto}
         onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
       <Field rotulo={andamento ? 'Parcelas que ainda faltam (incluindo a da fatura aberta)' : 'Parcelas'} type="number" min={1} max={72}

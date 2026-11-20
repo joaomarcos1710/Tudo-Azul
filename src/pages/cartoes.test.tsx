@@ -746,7 +746,22 @@ describe('Cartões', () => {
     await u.clear(data)
     await u.type(data, '2026-10-15')
     await u.click(screen.getByRole('button', { name: 'Lançar compra' }))
-    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', { descricao: 'TV', data: '2026-10-15', total: 30000, parcelas: 3, categoriaId: 'g1' }, expect.any(String))
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', { descricao: 'TV', data: '2026-10-15', total: 30000, parcelas: 3, categoriaId: 'g1', personId: null, isSharedExpense: true }, expect.any(String))
+  })
+
+  it('compra nova: "Despesa de quem?" aparece na própria compra, nasce "Toda a família" e a pessoa escolhida vai junto', async () => {
+    const u = userEvent.setup()
+    montar()
+    await novoLancamento(u, 'Nova despesa')
+    const quem = await screen.findByLabelText('Despesa de quem?') as HTMLSelectElement
+    expect(quem.value).toBe('shared')
+    await vi.waitFor(() => expect(within(quem).getByRole('option', { name: 'Beto' })).toBeTruthy())
+    await u.selectOptions(quem, 'pe2')
+    await u.type(screen.getByLabelText('Descrição'), 'Fone')
+    await escolherCategoria(u, screen.getByLabelText('Categoria'), 'g1')
+    await u.type(screen.getByLabelText('Valor total (R$)'), '90,00')
+    await u.click(screen.getByRole('button', { name: 'Lançar compra' }))
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', expect.objectContaining({ descricao: 'Fone', personId: 'pe2', isSharedExpense: false }), expect.any(String))
   })
 
   it('compra em outra fatura: o seletor manda o deslocamento escolhido', async () => {
@@ -763,7 +778,7 @@ describe('Cartões', () => {
     expect(fatura.options).toHaveLength(7)
     await u.selectOptions(fatura, '-1')
     await u.click(screen.getByRole('button', { name: 'Lançar compra' }))
-    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', { descricao: 'TV', data: '2026-10-15', total: 30000, parcelas: 1, categoriaId: 'g1', deslocamento: -1 }, expect.any(String))
+    expect(mock.registrarCompra).toHaveBeenCalledWith('k1', { descricao: 'TV', data: '2026-10-15', total: 30000, parcelas: 1, categoriaId: 'g1', personId: null, isSharedExpense: true, deslocamento: -1 }, expect.any(String))
   })
 
   it('parcelamento em andamento: valor da parcela × parcelas restantes, a partir de hoje', async () => {

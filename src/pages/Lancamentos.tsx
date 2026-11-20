@@ -1396,14 +1396,13 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
                 classeBotao="flex min-h-11 min-w-0 max-w-full items-center justify-end gap-2 rounded-md px-1 text-right text-base text-slate-700 focus:outline focus:outline-2 focus:outline-azul" />{seta}
             </Linha>
           )}
+          {/* "De quem foi a despesa" sempre à vista (dono, 20/11/2026: lançando no cartão "não aparece quem gastou"): estava dentro de
+              "Opções avançadas", fechada, e ninguém achava. Vale para despesa, parcelada, assinatura e compra no cartão. */}
           {!transferencia && tipo === 'expense' && (
-            <details className="border-t border-slate-100 px-3 py-2">
-              <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-slate-600">Opções avançadas · Pessoa responsável</summary>
-              <div className="pb-2">
-                <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
-                  onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
-              </div>
-            </details>
+            <div className="border-t border-slate-100 px-3 py-3">
+              <PessoaSelectField pessoas={pessoas} personId={personId} isSharedExpense={isSharedExpense}
+                onChange={(value) => { setPersonId(value.personId); setIsSharedExpense(value.isSharedExpense) }} />
+            </div>
           )}
         </div>
         {tentou && (erros.data || erros.conta || erros.cartao || erros.parcelas || erros.destino || erros.categoria || erros.repetir) && (
