@@ -350,6 +350,15 @@ export async function listarMovimentosDaDivida(familiaId: string, dividaId: stri
   }))
 }
 
+/**
+ * Anula um pagamento de parcela lançado errado (debt_void): o banco anula a baixa inteira (o pagamento e os juros e tarifas
+ * da mesma operação), o dinheiro volta para a conta e a parcela do contrato volta a ficar em aberto (gatilho da migration 041).
+ */
+export async function anularPagamentoDaDivida(eventoId: string): Promise<void> {
+  const { error } = await cliente().rpc('debt_void', { p_event: eventoId, p_reason: 'pagamento anulado na tela de Dívidas' })
+  if (error) throw error
+}
+
 /** Anula uma correção de saldo pelo extrato (debt_void). As regras do banco valem (ex.: pagamento depois que ficaria negativo). */
 export async function anularCorrecaoDeSaldo(eventoId: string): Promise<void> {
   const { error } = await cliente().rpc('debt_void', { p_event: eventoId, p_reason: 'correção de saldo anulada na tela de Dívidas' })

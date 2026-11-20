@@ -366,4 +366,5 @@ continuam abaixo como histórico.
 | 2026.451 | **Só diário.** Limpeza das pendências da seção Investimentos: 54 itens conferidos, 3 anotados, nenhum fechado sem prova. |
 | 2026.452 | **Empréstimo no extrato.** O pagamento de um empréstimo ou financiamento em Lançamentos mostra "Empréstimo" e o botão "Dívidas" (antes aparecia como cartão, com o botão "Cartões"). |
 | 2026.453 | **Selo "Financiamento".** No extrato, o pagamento de um financiamento mostra "Financiamento" (antes dizia "Empréstimo"). |
+| 2026.454 | **Anular pagamento de empréstimo.** Em Dívidas › Histórico, um pagamento de parcela lançado errado pode ser anulado: o dinheiro volta para a conta e a parcela volta a ficar em aberto, para lançar de novo na data certa. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
