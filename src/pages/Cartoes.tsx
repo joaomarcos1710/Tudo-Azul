@@ -76,7 +76,7 @@ function NovoNoCartao({ cartao, painel, setPainel, forma, desabilitado = false, 
   cartao: Cartao
   painel: Painel | null
   setPainel: (p: Painel | null) => void
-  forma: 'primario' | 'secundario'
+  forma: 'primario' | 'secundario' | 'flutuante'
   desabilitado?: boolean
   atalhos?: boolean
 }) {
@@ -1424,6 +1424,13 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
   return (
     <>
       {caminho}
+      {/* "+" flutuante (dono, 20/11/2026: "no lugar do + Lançamento um botão flutuante, assim posso movimentar o extrato"): fica fixo no
+          canto da tela enquanto o extrato rola; o menu abre para cima e as teclas D e R seguem valendo. Fatura paga não recebe lançamento. */}
+      {!travada && (
+        <div className="fixed bottom-6 right-4 z-30 print:hidden md:right-8" data-testid="novo-lancamento-flutuante">
+          <NovoNoCartao cartao={cartao} painel={painel} setPainel={setPainel} forma="flutuante" atalhos={acao === null && painelPrevista === null && compraAberta === null} />
+        </div>
+      )}
       <CabecalhoPagina
         titulo={<span className="flex flex-wrap items-center gap-2">
           <span className="min-w-0 break-words">{cartao.nome} · {primeiraMaiuscula(formatMonth(f.mes))}</span>
@@ -1433,7 +1440,6 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
         acoes={
           <div className="flex flex-wrap items-center justify-end gap-2 print:hidden">
             {pagaAqui && <Button variante="pilula" compacto onClick={() => setPainel({ tipo: 'pagar', cartao })} disabled={painel !== null}>Pagar fatura</Button>}
-            {!travada && <NovoNoCartao cartao={cartao} painel={painel} setPainel={setPainel} forma="secundario" atalhos={acao === null && painelPrevista === null && compraAberta === null} />}
             <Button variante="fantasma" compacto aria-label="Imprimir fatura" title="Imprimir fatura" onClick={() => window.print()}>Imprimir</Button>
             <nav aria-label="Outras faturas" className="flex items-center gap-1">
               <button type="button" className={seta} disabled={!anterior} aria-label={anterior ? `Fatura anterior (${formatMonth(anterior.mes)})` : 'Fatura anterior (não há)'}
@@ -1660,6 +1666,8 @@ function PaginaFatura({ cartao, mes, categorias, contas, painel, setPainel, carr
           // sem a compra a fatura pode deixar de existir: volta para o cartão depois de excluir
           aoExcluir={async () => { setCompraAberta(null); await carregar(); navigate(rotaCartao(cartaoId)) }} />
       )}
+      {/* espaço no fim para o botão flutuante não cobrir a última linha do extrato */}
+      {!travada && <div className="h-20 print:hidden" aria-hidden="true" />}
     </>
   )
 }
