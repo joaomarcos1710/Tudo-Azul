@@ -711,9 +711,9 @@ export default function Lancamentos() {
                         etiquetas={[situacaoDoLancamento(false, p.vencimento, hoje) === 'vencido'
                           ? <Etiqueta key="p" estilo={SELO.vencido}>Vencido · contrato</Etiqueta>
                           : <Etiqueta key="p" estilo={SELO.planejado}>Planejado · contrato</Etiqueta>]}
-                        detalhe={`${p.formaPagamento === 'account_debit' ? `Débito em ${nomeConta.get(p.contaPagamentoId ?? '') ?? 'conta'}` : p.formaPagamento === 'payroll' ? 'Desconto em folha' : p.formaPagamento === 'boleto' ? 'Boleto' : 'Pagamento manual'} · só entra no saldo e nas despesas quando você der baixa`}
+                        detalhe={`${p.formaPagamento === 'account_debit' ? `Débito em ${nomeConta.get(p.contaPagamentoId ?? '') ?? 'conta'}` : p.formaPagamento === 'payroll' ? 'Desconto em folha' : p.formaPagamento === 'boleto' ? 'Boleto' : 'Pagamento manual'} · só entra no saldo e nas despesas quando você confirmar`}
                         valor={`−${formatBRL(p.valor)}`} corValor="text-prejuizo"
-                        acoes={<Link to={`/dividas?baixar=${p.id}`} aria-label={`Baixar parcela ${p.numero} de ${p.nomeDivida}`} className={linkCompacto}>Baixar</Link>} />
+                        acoes={<Link to={`/dividas?baixar=${p.id}`} aria-label={`${p.formaPagamento === 'payroll' ? 'Baixar' : 'Pagar'} parcela ${p.numero} de ${p.nomeDivida}`} className={linkCompacto}>{p.formaPagamento === 'payroll' ? 'Baixar' : 'Pagar'}</Link>} />
                     )
                   }
                   if (item.origem === 'divida') {

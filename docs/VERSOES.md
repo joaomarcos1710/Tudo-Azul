@@ -367,4 +367,5 @@ continuam abaixo como histórico.
 | 2026.452 | **Empréstimo no extrato.** O pagamento de um empréstimo ou financiamento em Lançamentos mostra "Empréstimo" e o botão "Dívidas" (antes aparecia como cartão, com o botão "Cartões"). |
 | 2026.453 | **Selo "Financiamento".** No extrato, o pagamento de um financiamento mostra "Financiamento" (antes dizia "Empréstimo"). |
 | 2026.454 | **Anular pagamento de empréstimo.** Em Dívidas › Histórico, um pagamento de parcela lançado errado pode ser anulado: o dinheiro volta para a conta e a parcela volta a ficar em aberto, para lançar de novo na data certa. |
+| 2026.455 | **"Pagar parcela" no lugar de "Baixar".** Em Dívidas e em Lançamentos, a parcela de empréstimo ou financiamento passa a ter o botão "Pagar parcela" e "Confirmar pagamento", e a tela diz de qual conta o dinheiro sai. No consignado continua "Baixar", porque nada sai da conta. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

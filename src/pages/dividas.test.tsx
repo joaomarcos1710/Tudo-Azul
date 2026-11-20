@@ -117,14 +117,14 @@ describe('Dívidas', () => {
     await u.type(screen.getByLabelText('Valor total pago (R$)'), '18.009,57')
     await u.clear(screen.getByLabelText('Juros incluídos (R$)'))
     await u.type(screen.getByLabelText('Juros incluídos (R$)'), '10,00')
-    await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+    await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
     expect(screen.getByText(/Sem conta \(ex\.: FGTS\), registre só a amortização/)).toBeTruthy()
     expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
     await u.clear(screen.getByLabelText('Juros incluídos (R$)'))
     await u.type(screen.getByLabelText('Juros incluídos (R$)'), '0,00')
     await u.click(screen.getByLabelText(/reduziu o prazo/))
     await u.type(screen.getByLabelText(/Parcelas restantes agora/), '300')
-    await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+    await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
     expect(mock.registrarPagamentoDivida).toHaveBeenCalledWith(expect.objectContaining({ dividaId: 'd1', contaId: null, principal: 1800957, juros: 0, tarifa: 0, extra: true,
       ajuste: { modo: 'term', parcelasRestantes: 300 } }))
   })
@@ -146,7 +146,7 @@ describe('Dívidas', () => {
 
     it('sem escolher prazo ou parcela, não grava', async () => {
       const u = await abrir()
-      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
       expect(screen.getByText('Informe se a amortização reduziu o prazo ou a parcela.')).toBeTruthy()
       expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
     })
@@ -155,12 +155,12 @@ describe('Dívidas', () => {
       const u = await abrir()
       await u.click(screen.getByLabelText(/reduziu o prazo/))
       await u.type(screen.getByLabelText(/Parcelas restantes agora/), '400')
-      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
       expect(screen.getByText(/de 0 a 353/)).toBeTruthy()
       expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
       await u.clear(screen.getByLabelText(/Parcelas restantes agora/))
       await u.type(screen.getByLabelText(/Parcelas restantes agora/), '310')
-      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
       expect(mock.registrarPagamentoDivida).toHaveBeenCalledWith(expect.objectContaining({ contaId: 'a1', principal: 1000000, extra: true,
         ajuste: { modo: 'term', parcelasRestantes: 310 } }))
     })
@@ -169,12 +169,12 @@ describe('Dívidas', () => {
       const u = await abrir()
       await u.click(screen.getByLabelText(/reduziu a parcela/))
       await u.type(screen.getByLabelText(/Parcela nova/), '1.500,00')
-      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
       expect(screen.getByText(/não maior que a atual/)).toBeTruthy()
       expect(mock.registrarPagamentoDivida).not.toHaveBeenCalled()
       await u.clear(screen.getByLabelText(/Parcela nova/))
       await u.type(screen.getByLabelText(/Parcela nova/), '1.050,10')
-      await u.click(screen.getByRole('button', { name: 'Confirmar baixa' }))
+      await u.click(screen.getByRole('button', { name: 'Confirmar pagamento' }))
       expect(mock.registrarPagamentoDivida).toHaveBeenCalledWith(expect.objectContaining({ extra: true,
         ajuste: { modo: 'installment', valorParcela: 105010 } }))
     })
@@ -201,7 +201,7 @@ describe('Dívidas', () => {
     expect(opcoes).not.toContain('Nenhuma (FGTS ou fora do app)')
   })
 
-  it('linha compacta: tipo, credor e forma; parcela, restam e próxima; "Confirmar parcela" abre a baixa da próxima', async () => {
+  it('linha compacta: tipo, credor e forma; parcela, restam e próxima; "Pagar parcela" abre o pagamento da próxima, dizendo de que conta o dinheiro sai', async () => {
     mock.listarDividas.mockImplementation(porSituacao([{ ...ativas()[0], credor: 'Caixa', formaPagamento: 'account_debit', contaPagamentoId: 'a1',
       valorParcela: c(119922), parcelasRestantes: 353, parcelasOriginais: 412 }]))
     mock.listarContas.mockResolvedValue({ contas: [
@@ -215,8 +215,11 @@ describe('Dívidas', () => {
     const linha = screen.getByRole('button', { name: 'Ações de Financiamento do imóvel' }).closest('li') as HTMLElement
     const pares = Array.from(linha.querySelectorAll('dl')[0].querySelectorAll('dt')).map((dt) => `${dt.textContent} ${dt.nextElementSibling?.textContent}`)
     expect(pares).toEqual(['Parcela R$ 1.199,22', 'Restam 353 de 412', 'Próxima 06/12/2026'])
-    await u.click(within(linha).getByRole('button', { name: 'Confirmar a parcela de 06/12/2026, Financiamento do imóvel' }))
-    expect(screen.getByRole('heading', { name: 'Baixar parcela: Financiamento do imóvel' })).toBeTruthy()
+    await u.click(within(linha).getByRole('button', { name: 'Pagar a parcela de 06/12/2026, Financiamento do imóvel' }))
+    expect(screen.getByRole('heading', { name: 'Pagar parcela: Financiamento do imóvel' })).toBeTruthy()
+    // o dono procurava um "confirmar pagamento" e não sabia que a baixa debitava a conta (20/11/2026)
+    expect(screen.getByTestId('efeito-do-pagamento').textContent).toContain('R$ 1.199,22 sai de CAIXA')
+    expect(screen.getByRole('button', { name: 'Confirmar pagamento' })).toBeTruthy()
   })
 
   it('empréstimo com parcelas na agenda: o menu NÃO oferece "Registrar pagamento" (só "Amortização extra"); a parcela é paga pela agenda', async () => {
@@ -379,7 +382,7 @@ describe('Dívidas', () => {
     ])
     window.history.pushState(null, '', '/dividas?baixar=p1')
     render(<Dividas />)
-    expect(await screen.findByRole('heading', { name: 'Baixar parcela: Empréstimo pessoal' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Pagar parcela: Empréstimo pessoal' })).toBeTruthy()
     expect(screen.getByText('Vencida ·')).toBeTruthy()
     expect(window.location.search).toBe('')
     expect(mock.listarParcelasDivida.mock.calls[0][1]).toBe('2000-01-01')
@@ -413,7 +416,7 @@ describe('Dívidas', () => {
     const u = userEvent.setup()
     render(<Dividas />)
     // a agenda completa fica recolhida; cada dívida mostra a próxima parcela no próprio card
-    expect(await screen.findByRole('button', { name: 'Confirmar a parcela de 05/01/2027, Financiamento do imóvel' })).toBeTruthy()
+    expect(await screen.findByRole('button', { name: 'Pagar a parcela de 05/01/2027, Financiamento do imóvel' })).toBeTruthy()
     const agenda = (await screen.findByText('Todas as próximas parcelas (17)')).closest('details') as HTMLDetailsElement
     agenda.open = true
     const imovel = within(agenda).getByRole('heading', { name: /Financiamento do imóvel/ }).closest('div[class*="rounded"]') as HTMLElement
@@ -424,8 +427,8 @@ describe('Dívidas', () => {
     expect(within(imovel).getAllByRole('listitem')).toHaveLength(15)
     expect(within(imovel).getByText('Parcela 15')).toBeTruthy()
     // só a primeira de cada dívida pode ser baixada
-    expect(within(imovel).getAllByRole('button', { name: 'Baixar parcela' })).toHaveLength(1)
-    expect(within(emprestimo).getAllByRole('button', { name: 'Baixar parcela' })).toHaveLength(1)
+    expect(within(imovel).getAllByRole('button', { name: 'Pagar parcela' })).toHaveLength(1)
+    expect(within(emprestimo).getAllByRole('button', { name: 'Pagar parcela' })).toHaveLength(1)
   })
 
   it('agenda que falha avisa, em vez de sumir (parecia que não havia nada a pagar)', async () => {
