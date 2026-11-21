@@ -377,4 +377,5 @@ continuam abaixo como histórico.
 | 2026.462 | **Cartão: devolução em dinheiro antes do fechamento.** Se você pagava uma fatura a mais e a operadora devolvia a diferença antes de a fatura fechar, o app tratava o valor devolvido como crédito e mostrava a fatura seguinte como paga. Agora a devolução é descontada certo. A dívida total sempre esteve correta. |
 | 2026.463 | Só registro: a correção da devolução em dinheiro no cartão passou a valer em produção em 21/11/2026. As faturas foram comparadas antes e depois e nenhum valor mudou. |
 | 2026.464 | **O seu mês em Lançamentos e Relatórios.** Com o dia 20 nas Preferências, "Este mês" passa a ser de 20 a 19 (como no Orçamento), e as setas andam de ciclo em ciclo. O Calendário e o Início continuam no mês de calendário por enquanto. |
+| 2026.465 | **Menu de período no iPhone.** Em Lançamentos, o menu que troca o período abria cortado no topo da tela e sem escurecer o fundo. Agora sobe de baixo, inteiro, como as outras folhas. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
