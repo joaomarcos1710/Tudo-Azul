@@ -372,4 +372,5 @@ continuam abaixo como histórico.
 | 2026.457 | Só registro: a correção "desta em diante" das parcelas do cartão passou a valer em produção em 21/11/2026. Nada muda na tela. |
 | 2026.458 | Só organização da lista de pendências: 16 itens antigos fechados (já entregues, obsoletos ou repetidos), os que dependem do dono marcados, e 5 riscos de dinheiro anotados para priorizar. Nada muda na tela. |
 | 2026.459 | Dois riscos levantados na revisão das pendências foram conferidos: mudar o início do cartão não altera fatura já paga (agora com teste), e a ferramenta que aplica mudanças no banco de produção passou a usar a mesma versão dos testes. Nada muda na tela. |
+| 2026.460 | Só registro: os dois últimos riscos da revisão das pendências foram conferidos e são menores do que pareciam (pagamentos antigos do cartão continuam acessíveis pela fatura; estorno repetido já é recusado quando é total). Nada muda na tela. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
