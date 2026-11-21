@@ -9,6 +9,14 @@ afterEach(cleanup)
 const fundoDe = () => screen.getByRole('dialog').parentElement as HTMLElement
 
 describe('Folha', () => {
+  it('abre no <body>, fora de quem a chamou: dentro de um pai com backdrop-blur (a barra fixa de Lançamentos) o fixed ficava preso ao pai e a folha abria cortada no iPhone', () => {
+    const { container } = render(<div className="sticky top-0 backdrop-blur" data-testid="barra"><Folha titulo="Período" aoFechar={() => {}}>conteúdo</Folha></div>)
+    const fundo = fundoDe()
+    expect(fundo.parentElement).toBe(document.body)
+    expect(container.querySelector('[role="dialog"]')).toBeNull()
+    expect(screen.getByTestId('barra').contains(fundo)).toBe(false)
+  })
+
   it('padrão: sobe de baixo no celular (bottom sheet) e fica no centro só no computador', () => {
     render(<Folha titulo="Filtros" aoFechar={() => {}}>conteúdo</Folha>)
     expect(fundoDe().className).toContain('items-end')

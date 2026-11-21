@@ -1,4 +1,5 @@
 import { useId, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import type { ReactNode } from 'react'
 import { useFocoPreso } from './useFocoPreso'
 
@@ -6,6 +7,10 @@ import { useFocoPreso } from './useFocoPreso'
  * Folha de opções por cima da tela: no celular e no iPad em retrato sobe de baixo (bottom sheet); no computador
  * (lg) fica no centro. Fecha no ×, no Esc e clicando fora; o Tab não sai dela; ao abrir, o foco vai para o primeiro
  * controle e, ao fechar, volta para quem a abriu. A página de trás não rola enquanto ela está aberta.
+ *
+ * Abre direto no <body> (portal): dentro de um pai com `backdrop-blur`, `transform` ou `filter` (a barra fixa de
+ * Lançamentos), o `fixed` passa a valer em relação a esse pai e a folha abria cortada no topo, sem escurecer o fundo
+ * (dono, 21/11/2026, no iPhone: "quando vou mudar o período fica difícil").
  */
 export function Folha({ titulo, aoFechar, rodape, larga = false, centro = false, children }: {
   titulo: string
@@ -24,7 +29,7 @@ export function Folha({ titulo, aoFechar, rodape, larga = false, centro = false,
   // o primeiro controle do conteúdo (não o ×): quem abriu os filtros quer mexer neles
   const prenderTab = useFocoPreso(painel, aoFechar, () => corpo.current)
 
-  return (
+  return createPortal(
     <div className={`fixed inset-0 z-50 flex justify-center bg-slate-900/50 ${centro ? 'items-center p-4' : 'items-end lg:items-center lg:p-4'}`}
       onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar() }}>
       <div ref={painel} role="dialog" aria-modal="true" aria-labelledby={idTitulo} onKeyDown={prenderTab}
@@ -40,6 +45,7 @@ export function Folha({ titulo, aoFechar, rodape, larga = false, centro = false,
         <div ref={corpo} className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {rodape && <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">{rodape}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
