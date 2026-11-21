@@ -3,6 +3,7 @@ import { Button } from './Button'
 import { Folha } from './Folha'
 import { ATALHOS, erroPeriodoLivre, moverPeriodo, rotuloPeriodo } from '../../lib/periodoRelatorio'
 import type { Periodo } from '../../lib/periodoRelatorio'
+import { useDiaDoMes } from '../../lib/useDiaDoMes'
 
 /**
  * Seletor de período do relatório (#179, como no Organizze): "‹ Novembro de 2026 ›" ou "‹ 2026 ›". As setas andam um
@@ -35,6 +36,8 @@ function MenuPeriodo({ periodo, hoje, aoEscolher, aoFechar }: {
   const [ate, setAte] = useState(periodo.ate)
   const [erro, setErro] = useState('')
   const id = useId()
+  // "Este mês" é o mês da pessoa: com o dia 20 nas Preferências, o ciclo de 20 a 19
+  const dia = useDiaDoMes() ?? 1
   const igual = (p: Periodo) => p.de === periodo.de && p.ate === periodo.ate && p.tipo === periodo.tipo
 
   function aplicarLivre() {
@@ -47,7 +50,7 @@ function MenuPeriodo({ periodo, hoje, aoEscolher, aoFechar }: {
     <Folha titulo="Período" aoFechar={aoFechar}>
       <ul className="flex flex-col gap-1">
         {ATALHOS.map((a) => {
-          const p = a.criar(hoje)
+          const p = a.criar(hoje, dia)
           return (
             <li key={a.chave}>
               <button type="button" onClick={() => aoEscolher(p)} aria-current={igual(p) ? 'true' : undefined}

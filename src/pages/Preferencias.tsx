@@ -8,6 +8,7 @@ import { Card } from '../components/ui/Card'
 import { useAuth } from '../lib/auth'
 import { useFamilia } from '../lib/FamiliaContext'
 import { supabase } from '../lib/supabase'
+import { esquecerDiaDoMes } from '../lib/useDiaDoMes'
 
 type PreferenciasDados = { ordem_lancamentos: 'asc' | 'desc'; periodo_padrao: 'daily' | 'weekly' | 'monthly'; saldo_diario: boolean; month_start_day: number }
 const padrao: PreferenciasDados = { ordem_lancamentos: 'desc', periodo_padrao: 'monthly', saldo_diario: true, month_start_day: 1 }
@@ -65,7 +66,7 @@ export default function Preferencias() {
         { onConflict: 'user_id' },
       )
       if (error) setErro('Não foi possível salvar. Tente novamente.')
-      else setSucesso('Preferências salvas.')
+      else { esquecerDiaDoMes(); setSucesso('Preferências salvas.') }
     } catch {
       setErro('Não foi possível salvar. Verifique sua conexão e tente novamente.')
     } finally {
@@ -132,7 +133,7 @@ export default function Preferencias() {
           <Escolha nome="saldo" valor="Sim" selecionado={dados.saldo_diario} aoMudar={() => setDados(d => ({...d, saldo_diario:true}))} />
           <Escolha nome="saldo" valor="Não" selecionado={!dados.saldo_diario} aoMudar={() => setDados(d => ({...d, saldo_diario:false}))} />
         </Opcao>
-        <Opcao titulo="Dia em que o seu mês começa" descricao="O dia em que o seu salário cai (de 1 a 28). Se o mês começa no dia 20, o Limite diário seguro divide o Dinheiro Livre pelos dias até o dia 19. O padrão é 1, o mês-calendário. Por enquanto só muda o Limite diário seguro, no Início, e o ciclo dos Orçamentos; Relatórios, Lançamentos e Calendário continuam no mês-calendário. Vale só para você.">
+        <Opcao titulo="Dia em que o seu mês começa" descricao="O dia em que o seu salário cai (de 1 a 28). Se o mês começa no dia 20, o Limite diário seguro divide o Dinheiro Livre pelos dias até o dia 19. O padrão é 1, o mês-calendário. Vale no Limite diário seguro (Início), nos Orçamentos e no “Este mês” de Lançamentos e Relatórios. O Calendário e os outros números do Início continuam no mês-calendário. Vale só para você.">
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700" htmlFor="dia-mes-financeiro">Dia
             <select id="dia-mes-financeiro" value={dados.month_start_day} onChange={(e) => setDados(d => ({...d, month_start_day: Number(e.target.value)}))}
               className="min-h-11 rounded-lg border border-slate-300 bg-white px-3 text-base font-normal">

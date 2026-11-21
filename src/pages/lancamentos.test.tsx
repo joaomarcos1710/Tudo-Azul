@@ -41,6 +41,9 @@ vi.mock('../lib/recorrencias', async (original) => ({
   criarRecorrencia: mock.criarRecorrencia,
 }))
 vi.mock('../lib/auth', () => ({ useAuth: () => ({ sessao: { user: { id: 'u1' } }, carregando: false }) }))
+// dia em que o mês da pessoa começa (Preferências): 1 = calendário; null = ainda lendo
+const diaDoMes = vi.hoisted(() => ({ valor: 1 as number | null }))
+vi.mock('../lib/useDiaDoMes', () => ({ useDiaDoMes: () => diaDoMes.valor, esquecerDiaDoMes: vi.fn() }))
 // aporte e resgate pelo "+" (pedido do dono, 10/11/2026) abrem a folha de Investimentos
 const inv = vi.hoisted(() => ({ listarAtivosInvestimento: vi.fn(), registrarOperacaoPorValor: vi.fn(), registrarOperacaoInvestimento: vi.fn() }))
 vi.mock('../lib/investimentos', async (original) => ({
@@ -115,6 +118,7 @@ vi.mock('../lib/categorias', async (original) => ({
 import Lancamentos from './Lancamentos'
 import { limitesDoMes, somarMeses, TETO_LINHAS_LISTA } from '../lib/lancamentos'
 import { hojeSP } from '../lib/contas'
+import { periodoDoMesDe, rotuloPeriodo } from '../lib/periodoRelatorio'
 
 /** Categoria agora é um seletor em folha (como no Organizze): abre pelo botão e toca na categoria. */
 async function escolherCategoria(u: ReturnType<typeof userEvent.setup>, campo: HTMLElement, id: string) {
@@ -211,6 +215,31 @@ async function abrirNovo(u: ReturnType<typeof userEvent.setup>) {
   await u.click(await screen.findByRole('button', { name: 'Novo lançamento' }))
   await u.click(screen.getByRole('menuitem', { name: /Nova despesa/ }))
 }
+
+describe('mês da pessoa em Lançamentos (dono, 21/11/2026: o dia 20 em todas as telas)', () => {
+  afterEach(() => { diaDoMes.valor = 1 })
+
+  it('com o dia 20, a tela abre no ciclo de hoje e pede ao banco o intervalo de 20 a 19', async () => {
+    diaDoMes.valor = 20
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    const ciclo = periodoDoMesDe(hojeSP(), 20)
+    expect(ciclo.de.slice(8, 10)).toBe('20')
+    expect(ciclo.ate.slice(8, 10)).toBe('19')
+    expect(mock.listarLancamentos.mock.calls[mock.listarLancamentos.mock.calls.length - 1]?.slice(0, 3)).toEqual(['h1', ciclo.de, ciclo.ate])
+    expect(mock.serieFluxo).toHaveBeenCalledWith('h1', ciclo.de, ciclo.ate, 'total', { contas: undefined, incluirNaoPagos: false })
+    expect(screen.getByRole('button', { name: `Período: ${rotuloPeriodo(ciclo)}. Trocar período` })).toBeTruthy()
+    // a faixa de pendências continua valendo: o ciclo de hoje é "o mês atual" da pessoa
+    expect(mock.faixaDePendencias).toHaveBeenCalledWith('h1', hojeSP(), ciclo.ate)
+  })
+
+  it('enquanto o dia ainda não chegou, a tela não busca nada (não mostra o mês de calendário para trocar em seguida)', async () => {
+    diaDoMes.valor = null
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await new Promise((r) => setTimeout(r, 30))
+    expect(mock.listarLancamentos).not.toHaveBeenCalled()
+  })
+})
 
 describe('datas do mês', () => {
   it('limites e navegação entre meses, inclusive virada de ano e fevereiro', () => {
