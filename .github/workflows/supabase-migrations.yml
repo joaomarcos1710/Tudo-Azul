@@ -65,10 +65,13 @@ jobs:
       # A CLI fica na linha 2.x (e não em "latest"): em 02/11/2026 a versão nova passou a tratar o banco LOCAL como padrão e
       # recusou `migration list --password` ("--password only applies to a linked project"), derrubando o workflow antes de
       # simular. O alvo também é dito explicitamente (--linked), para não depender do padrão de nenhuma versão.
+      # Versão FIXA, a mesma de db-tests.yml e supabase-local-validation.yml (#459, 21/11/2026): com "2.x" a produção podia
+      # rodar uma 2.x que os testes nunca rodaram. Em 21/11/2026 a "2.x" já resolvia para a 2.122.1, então nada muda hoje.
+      # Subir de versão = PR própria, nos três arquivos juntos.
       - name: Instalar Supabase CLI
         uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
         with:
-          version: 2.x
+          version: 2.122.1
 
       - name: Versão da CLI (para o registro)
         run: supabase --version

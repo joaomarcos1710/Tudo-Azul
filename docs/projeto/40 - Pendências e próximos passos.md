@@ -98,10 +98,11 @@ atualizado: 2026-11-18
 >
 > **Riscos de dinheiro achados no saneamento (priorizar):**
 > - [x] **Patrimônio pode contar em dobro:** desde a migration 099 (#280) o Patrimônio soma a carteira; uma conta e um ativo do mesmo dinheiro somariam duas vezes. **(Dono, 21/11/2026: "já está certo". Fechado pela palavra dele sobre os próprios dados; não foi conferido por teste nem por consulta. A regra continua valendo: quem cadastrar o mesmo dinheiro como conta E como ativo conta em dobro.)**
-> - [ ] **`card_set_start` e `set_card_cycle` fora da trava de fatura paga:** provar com teste se mudam ou não o pago de uma fatura antiga (item mais abaixo).
+> - [x] **`card_set_start` e `set_card_cycle` fora da trava de fatura paga:** **(#459: descartado como risco de dinheiro.** O teste `139_card_start_and_paid_invoice` prova que recuar o início com saldo inicial novo não muda cobrado, total nem pago da fatura travada, nem o saldo da conta, e a fatura continua travada; os valores entram só como "saldo anterior" e na dívida histórica, que é o propósito da função. `set_card_cycle` só vale a partir do mês seguinte ao da fatura aberta (lido no código, sem teste novo).**)**
+> - [ ] **[dono]** Recuar o início do cartão com fatura já paga muda a dívida histórica sem avisar na tela: recusar, avisar ou deixar como está?
 > - [ ] **Estorno no cartão sem chave de repetição:** dois toques podem estornar duas vezes (o teto do valor já é conferido).
 > - [ ] **Pagamentos do cartão cortados em 30 e sem filtro por fatura:** pagamento antigo não aparece nem para anular (eram três itens; é um problema só).
-> - [ ] **CLI do Supabase em produção flutua (`2.x`)** enquanto os testes usam versão fixa.
+> - [x] **CLI do Supabase em produção flutua (`2.x`)** enquanto os testes usam versão fixa. **(#459: fixada em 2.122.1, a mesma dos testes; subir para 3.x segue aberto mais abaixo.)**
 
 ### Categorias da fatura (#315, migration 112, 12/11/2026)
 - Aplicar a migration 112 em produção pelo workflow (simular, ler o log, aplicar), em ordem com 109 a 111; só com o "pode" do dono. **Feito em 12/11/2026 (execução 43200042951).**
