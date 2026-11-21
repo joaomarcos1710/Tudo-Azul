@@ -370,4 +370,5 @@ continuam abaixo como histórico.
 | 2026.455 | **"Pagar parcela" no lugar de "Baixar".** Em Dívidas e em Lançamentos, a parcela de empréstimo ou financiamento passa a ter o botão "Pagar parcela" e "Confirmar pagamento", e a tela diz de qual conta o dinheiro sai. No consignado continua "Baixar", porque nada sai da conta. |
 | 2026.456 | **Corrigir o valor da parcela "desta em diante".** Em Cartões, ao editar o valor de uma parcela, dá para marcar "Usar este valor também nas próximas parcelas": a correção vale para ela e para as seguintes da mesma compra, de uma vez. |
 | 2026.457 | Só registro: a correção "desta em diante" das parcelas do cartão passou a valer em produção em 21/11/2026. Nada muda na tela. |
+| 2026.458 | Só organização da lista de pendências: 16 itens antigos fechados (já entregues, obsoletos ou repetidos), os que dependem do dono marcados, e 5 riscos de dinheiro anotados para priorizar. Nada muda na tela. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
