@@ -25,7 +25,7 @@ import { FolhaPorDiaFatura } from '../components/FolhaPorDiaFatura'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 import {
-  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, marcarAgendadaCobrada, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
+  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, editarParcelaEProximas, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, marcarAgendadaCobrada, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, proximaFatura, reativarCartao, renomearCartao,
   fechamentoNoCiclo, inicioDaTroca, moverPagamentoDeFatura, moverParcelaDeFatura, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
@@ -2267,12 +2267,15 @@ function PainelEditar({ item, aoFechar, aoConcluir }: { item: ItemFatura; aoFech
   const { erro, enviando, enviar } = useEnvio(aoConcluir)
   const valor = parseBRL(valorTexto)
   const erroValor = tentou && (valor === null || valor <= 0) ? 'Valor inválido. Exemplo: 100,01' : undefined
+  // (migration 145, dono, 21/11/2026) corrigiu a parcela 2 de 10 e as outras 8 ficaram com o valor antigo
+  const restantes = item.deParcelas - item.parcela
+  const [proximas, setProximas] = useState(false)
 
   function salvar(e: FormEvent) {
     e.preventDefault()
     setTentou(true)
     if (valor === null || valor <= 0) return
-    void enviar(() => editarParcela(item.parcelaId, valor))
+    void enviar(async () => { if (proximas) await editarParcelaEProximas(item.parcelaId, valor); else await editarParcela(item.parcelaId, valor) })
   }
 
   return (
@@ -2281,9 +2284,15 @@ function PainelEditar({ item, aoFechar, aoConcluir }: { item: ItemFatura; aoFech
       {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
       <p className="text-sm md:col-span-2">
         Corrigir o valor desta parcela: <strong>{item.descricao}{item.deParcelas > 1 && ` ${item.parcela}/${item.deParcelas}`}</strong>.
-        As outras parcelas não mudam. Em fatura já paga, reabra a fatura antes.
+        {proximas ? 'As parcelas anteriores não mudam.' : 'As outras parcelas não mudam.'} Em fatura já paga, reabra a fatura antes.
       </p>
       <Field rotulo="Valor da parcela (R$)" valorEmReais value={valorTexto} onChange={(e) => setValorTexto(e.target.value)} erro={erroValor} />
+      {restantes > 0 && (
+        <label className="flex min-h-11 items-center gap-2 text-sm md:col-span-2">
+          <input type="checkbox" checked={proximas} onChange={(e) => setProximas(e.target.checked)} />
+          Usar este valor também nas próximas {restantes === 1 ? 'parcela (1)' : `parcelas (${restantes})`}
+        </label>
+      )}
       <Botoes rotulo="Salvar valor" enviando={enviando} aoCancelar={aoFechar} />
     </form>
   )

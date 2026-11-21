@@ -772,6 +772,16 @@ export async function editarParcela(parcelaId: string, valor: Cents, motivo?: st
 }
 
 /**
+ * Corrige o valor desta parcela E das seguintes da mesma compra, numa operação só (migration 145): se uma for recusada
+ * (fatura paga, estorno), nenhuma muda. Quem já está no valor novo é pulada. Devolve quantas mudaram.
+ */
+export async function editarParcelaEProximas(parcelaId: string, valor: Cents): Promise<number> {
+  const { data, error } = await cliente().rpc('card_installment_edit_following', { p_installment: parcelaId, p_face: centsToDecimal(valor) })
+  if (error) throw error
+  return Number(data ?? 0)
+}
+
+/**
  * Estorno (total ou parcial) de UMA parcela de compra (debt_refund, migration 002). Abate a despesa da compra (não é
  * receita: para crédito avulso, lancarCreditoNoCartao). O banco decide o efeito: a parte ainda não cobrada da parcela é
  * cancelada; a já cobrada vira crédito que abate a fatura. `faturaId` = a fatura da parcela (card_months), se existir.
