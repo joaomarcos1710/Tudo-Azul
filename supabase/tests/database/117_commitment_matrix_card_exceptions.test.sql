@@ -50,7 +50,11 @@ select cmp_ok((select count(*) from public.dashboard_commitment_matrix(pg_temp.f
 -- exceções feitas na fatura
 select public.card_scheduled_item_cancel(pg_temp.item('can', 2));
 select public.card_scheduled_item_update(pg_temp.item('edi', 2), (select charge_date from public.card_scheduled_items where id = pg_temp.item('edi', 2)), 99.00, 'Editada', pg_temp.fx('cat'));
-select public.card_scheduled_from_here(pg_temp.item('div', 2), 'update', (select charge_date + 2 from public.card_scheduled_items where id = pg_temp.item('div', 2)), 55.00, 'Dividida', pg_temp.fx('cat'));
+-- a data da cobrança NÃO muda (antes: charge_date + 2). O teste usa datas relativas a hoje e o cartão fecha dia 5: nos dias
+-- em que "hoje + 12" caía em 3 ou 4, os dois dias a mais atravessavam o fechamento, a cobrança ia (corretamente) para a
+-- fatura seguinte e a comparação mês a mês com a assinatura-controle falhava. Aconteceu em 21/11/2026 e travava o CI
+-- dois dias por mês. O que este teste confere é o valor e a não duplicação, não a mudança de fatura.
+select public.card_scheduled_from_here(pg_temp.item('div', 2), 'update', (select charge_date from public.card_scheduled_items where id = pg_temp.item('div', 2)), 55.00, 'Dividida', pg_temp.fx('cat'));
 
 -- cancelada: o 2º mês some e os outros ficam (a cobrança cancelada não entra na matriz nem no total)
 select is(pg_temp.meses('Cancelada'),

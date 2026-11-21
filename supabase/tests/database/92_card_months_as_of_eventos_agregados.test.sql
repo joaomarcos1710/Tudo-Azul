@@ -34,6 +34,7 @@ declare
   a_label text[] := '{}'; a_due date[] := '{}'; a_charged numeric[] := '{}'; a_pending numeric[] := '{}';
   a_total numeric[] := '{}'; a_paid numeric[] := '{}'; a_inv uuid[] := '{}';
   n integer := 0; k integer; v_take numeric; v_back numeric;
+  v_owe numeric := 0; v_paysur numeric; v_credsur numeric;  -- 146: devolução que fica devendo para a sobra das próximas
 begin
   if p_as_of is null then raise exception 'data de corte obrigatória' using errcode = '22023'; end if;
   select d.id, d.household_id, d.closing_day, d.due_day, greatest(0, d.reference_balance) as reference_balance into v_d from public.debts d
@@ -109,18 +110,28 @@ begin
 
     -- devoluções de antes do primeiro fechamento: saem do adiantamento sem fatura
     if v_first then
-      v_credit := greatest(0, v_credit - coalesce((
+      v_credit := v_credit - coalesce((
         select sum(e.amount) from public.debt_events e
          where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.voided_at is null
-           and e.kind = 'refund_cash' and e.date < r.closing_date and e.date <= p_as_of), 0));
+           and e.kind = 'refund_cash' and e.date < r.closing_date and e.date <= p_as_of), 0);
+      if v_credit < 0 then v_owe := v_owe - v_credit; end if;  -- 146
+      v_credit := greatest(0, v_credit);
       v_first := false;
     end if;
 
     v_total   := greatest(0, r.charged + r.pending);
     v_link    := r.pago_fatura;
+    -- 146: o pagamento desta fatura que já foi devolvido em dinheiro não paga a fatura. Tirar do pagamento ligado
+    -- reduz primeiro a sobra (a parte acima do total) e, se a devolução foi maior que a sobra, o próprio pago: a
+    -- operadora devolveu o pagamento antes de a fatura fechar e a fatura continua em aberto (revisor-dinheiro, #462)
+    v_take := least(v_owe, v_link); v_link := v_link - v_take; v_owe := v_owe - v_take;
     v_use     := least(v_credit, greatest(0, v_total - v_link));
     -- excedente: pagamento acima da fatura + crédito avulso acima da fatura (migration 052)
-    v_surplus := greatest(0, v_link - v_total) + greatest(0, -(r.charged + r.pending));
+    -- 146: a sobra já devolvida em dinheiro não é sobra
+    v_paysur  := greatest(0, v_link - v_total);
+    v_credsur := greatest(0, -(r.charged + r.pending));
+    v_take := least(v_owe, v_credsur); v_credsur := v_credsur - v_take; v_owe := v_owe - v_take;
+    v_surplus := v_paysur + v_credsur;
     v_paid    := least(v_total, v_link) + v_use;
 
     n := n + 1;
@@ -130,8 +141,8 @@ begin
     v_ref := v_ref - v_s0;
     v_surplus := v_surplus - v_s0;
     -- 136: só a sobra de pagamento, e a de crédito com a fatura já fechada na data de corte, volta para as anteriores
-    v_back := least(v_surplus, greatest(0, greatest(0, v_link - v_total)
-                    + case when r.closing_date <= p_as_of then greatest(0, -(r.charged + r.pending)) else 0 end - v_s0));
+    v_back := least(v_surplus, greatest(0, v_paysur
+                    + case when r.closing_date <= p_as_of then v_credsur else 0 end - v_s0));
     v_surplus := v_surplus - v_back;
     k := 1;
     while v_back > 0 and k < n loop
@@ -148,7 +159,7 @@ begin
        where e.household_id = v_d.household_id and e.debt_id = v_d.id and e.voided_at is null
          and e.kind = 'refund_cash' and e.date >= r.closing_date and e.date <= p_as_of
          and (r.next_closing is null or e.date < r.next_closing)), 0);
-    if v_credit < 0 then v_credit := 0; end if;
+    if v_credit < 0 then v_owe := v_owe - v_credit; v_credit := 0; end if;  -- 146
   end loop;
   for k in 1 .. n loop  -- 136
     label := a_label[k]; due_date := a_due[k]; invoice_id := a_inv[k];
