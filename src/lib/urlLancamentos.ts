@@ -35,7 +35,8 @@ const dataReal = (d: string | null): d is string =>
 /** Chaves que este módulo lê e escreve (as outras, como `novo`, ficam como estão). */
 export const CHAVES_URL_LANCAMENTOS = ['mes', 'periodo', 'de', 'ate', 'conta', 'categoria', 'cartao', 'tipo', 'situacao', 'fixos', 'parcelados', 'busca'] as const
 
-export function periodoDaUrl(p: URLSearchParams, mesAtual: string = currentMonth()): Periodo {
+/** `dia` = o dia em que o mês da pessoa começa (1 = calendário); `mesAtual` = a chave do mês ou ciclo de hoje. */
+export function periodoDaUrl(p: URLSearchParams, mesAtual: string = currentMonth(), dia = 1): Periodo {
   const de = p.get('de')
   const ate = p.get('ate')
   const tipo = p.get('periodo') as TipoPeriodo | null
@@ -43,7 +44,7 @@ export function periodoDaUrl(p: URLSearchParams, mesAtual: string = currentMonth
     return { tipo, de, ate }
   }
   const mes = p.get('mes')
-  return periodoDoMes(mes && MES.test(mes) ? mes : mesAtual)
+  return periodoDoMes(mes && MES.test(mes) ? mes : mesAtual, dia)
 }
 
 export function filtrosDaUrl(p: URLSearchParams): Filtros {

@@ -1,5 +1,6 @@
 import { formatDate, formatMonth, primeiraMaiuscula } from './format'
 import { limitesDoMes, somarMeses } from './lancamentos'
+import { chaveDoCicloDe, cicloDoOrcamento } from './cicloOrcamento'
 
 /**
  * Período do relatório Entradas x Saídas (#179, como no Organizze): o período é a escolha principal e a divisão só
@@ -40,7 +41,20 @@ export function segundaDaSemana(data: string): string {
   return somarDias(data, dow === 0 ? -6 : 1 - dow)
 }
 
-export const periodoDoMes = (mes: string): Periodo => { const [de, ate] = limitesDoMes(mes); return { tipo: 'mes', de, ate } }
+/**
+ * O "mês" da pessoa. Com `dia` = 1 é o mês de calendário. Com outro dia (Preferências, 1 a 28) é o ciclo que COMEÇA no mês
+ * dado: com dia 20, "2026-11" vai de 20/11 a 19/12 (mesma chave do Orçamento, #445). O tipo continua 'mes': as setas, o
+ * endereço (?mes=AAAA-MM) e a faixa de pendências tratam o ciclo como o mês da pessoa.
+ */
+export function periodoDoMes(mes: string, dia = 1): Periodo {
+  if (dia > 1) { const c = cicloDoOrcamento(mes, dia); return { tipo: 'mes', de: c.inicio, ate: c.fim } }
+  const [de, ate] = limitesDoMes(mes)
+  return { tipo: 'mes', de, ate }
+}
+/** O mês (ou ciclo) em que a data cai. */
+export const periodoDoMesDe = (hoje: string, dia = 1): Periodo => periodoDoMes(chaveDoCicloDe(hoje, dia), dia)
+/** true = o período é um ciclo (não começa no dia 1). */
+const ehCiclo = (p: Periodo) => p.tipo === 'mes' && p.de.slice(8, 10) !== '01'
 export const periodoDoAno = (ano: number): Periodo => ({ tipo: 'ano', de: `${ano}-01-01`, ate: `${ano}-12-31` })
 /** Os N meses cheios que terminam no mês da data (ex.: últimos 3 meses em 05/11 = 01/09 a 30/11). */
 export function ultimosMeses(hoje: string, n: number): Periodo {
@@ -49,10 +63,10 @@ export function ultimosMeses(hoje: string, n: number): Periodo {
 }
 
 /** Os atalhos do menu, na ordem do Organizze. "Escolher período" (datas livres) fica à parte. */
-export const ATALHOS: { chave: string; rotulo: string; criar: (hoje: string) => Periodo }[] = [
+export const ATALHOS: { chave: string; rotulo: string; criar: (hoje: string, dia?: number) => Periodo }[] = [
   { chave: 'hoje', rotulo: 'Hoje', criar: (h) => ({ tipo: 'dia', de: h, ate: h }) },
   { chave: 'semana', rotulo: 'Esta semana', criar: (h) => { const s = segundaDaSemana(h); return { tipo: 'semana', de: s, ate: somarDias(s, 6) } } },
-  { chave: 'mes', rotulo: 'Este mês', criar: (h) => periodoDoMes(h.slice(0, 7)) },
+  { chave: 'mes', rotulo: 'Este mês', criar: (h, dia = 1) => periodoDoMesDe(h, dia) },
   { chave: '3m', rotulo: 'Últimos 3 meses', criar: (h) => ultimosMeses(h, 3) },
   { chave: '6m', rotulo: 'Últimos 6 meses', criar: (h) => ultimosMeses(h, 6) },
   { chave: '12m', rotulo: 'Últimos 12 meses', criar: (h) => ultimosMeses(h, 12) },
@@ -64,10 +78,13 @@ const mesesEntre = (de: string, ate: string) => {
   return (a2 - a1) * 12 + (m2 - m1) + 1
 }
 
-/** As setas: o período do mesmo tamanho, antes (−1) ou depois (+1). Mês, meses e ano andam por meses cheios. */
+/**
+ * As setas: o período do mesmo tamanho, antes (−1) ou depois (+1). Mês, meses e ano andam por meses cheios; o mês da
+ * pessoa anda de ciclo em ciclo (o dia vem do próprio período, que começa nele).
+ */
 export function moverPeriodo(p: Periodo, sentido: 1 | -1): Periodo {
   if (p.tipo === 'ano') return periodoDoAno(Number(p.de.slice(0, 4)) + sentido)
-  if (p.tipo === 'mes') return periodoDoMes(somarMeses(p.de.slice(0, 7), sentido))
+  if (p.tipo === 'mes') return periodoDoMes(somarMeses(p.de.slice(0, 7), sentido), Number(p.de.slice(8, 10)))
   if (p.tipo === 'meses') {
     const n = mesesEntre(p.de, p.ate)
     return { tipo: 'meses', de: limitesDoMes(somarMeses(p.de.slice(0, 7), sentido * n))[0], ate: limitesDoMes(somarMeses(p.ate.slice(0, 7), sentido * n))[1] }
@@ -81,6 +98,8 @@ const mes3 = (data: string) => primeiraMaiuscula(formatMonth(data.slice(0, 7)).s
 /** O nome do período no seletor: "Novembro de 2026", "2026", "Set a Nov de 2026", "02/11 a 08/11/2026", "05/11/2026". */
 export function rotuloPeriodo(p: Periodo): string {
   if (p.tipo === 'ano') return p.de.slice(0, 4)
+  // o ciclo aparece pelas datas ("20/11 a 19/12/2026"): "Novembro" esconderia que ele vai até dezembro
+  if (ehCiclo(p)) return `${formatDate(p.de).slice(0, 5)} a ${formatDate(p.ate)}`
   if (p.tipo === 'mes') return primeiraMaiuscula(formatMonth(p.de.slice(0, 7)))
   if (p.tipo === 'meses') {
     return p.de.slice(0, 4) === p.ate.slice(0, 4)
@@ -104,7 +123,8 @@ export interface OpcaoDivisao {
 export function divisoes(p: Periodo): OpcaoDivisao[] {
   const dias = diasNoPeriodo(p)
   const umaSemana = segundaDaSemana(p.de) === segundaDaSemana(p.ate)
-  const umMes = p.de.slice(0, 7) === p.ate.slice(0, 7)
+  // o ciclo (20/11 a 19/12) é um mês só para a pessoa: "Mensal" o partiria em dois pedaços de calendário
+  const umMes = p.tipo === 'mes' || p.de.slice(0, 7) === p.ate.slice(0, 7)
   return [
     { chave: 'day', rotulo: 'Diário', ativa: dias <= LIMITE_DIARIO, motivo: dias <= LIMITE_DIARIO ? undefined : `Diário só em períodos de até ${LIMITE_DIARIO} dias.` },
     { chave: 'week', rotulo: 'Semanal', ativa: !umaSemana, motivo: umaSemana ? 'Semanal precisa de um período que passe de uma semana.' : undefined },
@@ -134,7 +154,7 @@ export function rotulosLinha(inicio: string, fim: string, divisao: Divisao, peri
   if (divisao === 'total') {
     const r = rotuloPeriodo(periodo)
     // mês: "Nov de 2026" no celular e no iPad (como no Organizze), por extenso no computador
-    const curto = periodo.tipo === 'mes' ? `${mes3(periodo.de)} de ${periodo.de.slice(0, 4)}` : r
+    const curto = periodo.tipo === 'mes' && !ehCiclo(periodo) ? `${mes3(periodo.de)} de ${periodo.de.slice(0, 4)}` : r
     return { curto, longo: r, eixo: curto }
   }
   if (divisao === 'month') {

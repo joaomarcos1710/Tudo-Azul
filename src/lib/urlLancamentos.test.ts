@@ -9,6 +9,16 @@ describe('período e filtros de Lançamentos no endereço (handoff, item g)', ()
     expect(filtrosDaUrl(u(''))).toEqual({})
   })
 
+  it('com o dia 20: ?mes=AAAA-MM é o ciclo que começa naquele mês, e o endereço continua só com o mês', () => {
+    expect(periodoDaUrl(u(''), '2026-11', 20)).toEqual({ tipo: 'mes', de: '2026-11-20', ate: '2026-12-19' })
+    expect(periodoDaUrl(u('mes=2026-12'), '2026-11', 20)).toEqual({ tipo: 'mes', de: '2026-12-20', ate: '2027-01-19' })
+    const url = urlComListagem(u(''), { tipo: 'mes', de: '2026-12-20', ate: '2027-01-19' }, {})
+    expect(url.toString()).toBe('mes=2026-12')
+    expect(periodoDaUrl(url, '2026-11', 20)).toEqual({ tipo: 'mes', de: '2026-12-20', ate: '2027-01-19' })
+    // período escolhido à mão não muda com o dia
+    expect(periodoDaUrl(u('periodo=livre&de=2026-10-05&ate=2026-11-20'), '2026-11', 20)).toEqual({ tipo: 'livre', de: '2026-10-05', ate: '2026-11-20' })
+  })
+
   it('?mes= abre o mês; mês inválido cai no atual', () => {
     expect(periodoDaUrl(u('mes=2026-02'), '2026-11')).toEqual({ tipo: 'mes', de: '2026-02-01', ate: '2026-02-28' })
     expect(periodoDaUrl(u('mes=2026-13'), '2026-11').de).toBe('2026-11-01')
