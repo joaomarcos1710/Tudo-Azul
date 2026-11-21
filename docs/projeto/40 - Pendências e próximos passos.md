@@ -97,7 +97,7 @@ atualizado: 2026-11-18
 > **Saneamento de 21/11/2026 (esta seção, 97 itens abertos cruzados com o código do `main`, só leitura).** Regra usada: só é FEITO com código **e** teste (ou registro de entrega); código sem teste é parcial. Resultado: 5 feitos e 9 obsoletos e 2 duplicados foram fechados (16); 11 parciais ganharam a nota do que falta; 31 estão marcados **[dono]** (decisão ou conferência no aparelho, não é código); 10 estão marcados **[limite conhecido]** (não são tarefas); sobram cerca de 30 de código. Nenhum teste foi rodado nem produção consultada nesta conferência. Não cobre as outras seções.
 >
 > **Riscos de dinheiro achados no saneamento (priorizar):**
-> - [ ] **Patrimônio pode contar em dobro:** desde a migration 099 (#280) o Patrimônio soma a carteira; uma conta e um ativo do mesmo dinheiro somam duas vezes. Conferir com os dados do dono e escrever o teste antes de mexer.
+> - [x] **Patrimônio pode contar em dobro:** desde a migration 099 (#280) o Patrimônio soma a carteira; uma conta e um ativo do mesmo dinheiro somariam duas vezes. **(Dono, 21/11/2026: "já está certo". Fechado pela palavra dele sobre os próprios dados; não foi conferido por teste nem por consulta. A regra continua valendo: quem cadastrar o mesmo dinheiro como conta E como ativo conta em dobro.)**
 > - [ ] **`card_set_start` e `set_card_cycle` fora da trava de fatura paga:** provar com teste se mudam ou não o pago de uma fatura antiga (item mais abaixo).
 > - [ ] **Estorno no cartão sem chave de repetição:** dois toques podem estornar duas vezes (o teto do valor já é conferido).
 > - [ ] **Pagamentos do cartão cortados em 30 e sem filtro por fatura:** pagamento antigo não aparece nem para anular (eram três itens; é um problema só).
