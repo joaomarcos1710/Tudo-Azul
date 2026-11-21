@@ -41,6 +41,7 @@ const mock = vi.hoisted(() => ({
   previaExclusao: vi.fn(),
   excluirCompra: vi.fn(),
   editarParcela: vi.fn(),
+  editarParcelaEProximas: vi.fn(),
   listarContas: vi.fn(),
   listarCategorias: vi.fn(),
   totalFaturasDoMes: vi.fn(),
@@ -62,7 +63,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
   listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, marcarAgendadaCobrada: mock.marcarAgendadaCobrada, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
-  previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela,
+  previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela, editarParcelaEProximas: mock.editarParcelaEProximas,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura, moverPagamentoDeFatura: mock.moverPagamentoDeFatura, moverParcelaDeFatura: mock.moverParcelaDeFatura,
   visaoDosCartoes: mock.visaoDosCartoes, trocarPessoaDaCompra: mock.trocarPessoaDaCompra, corrigirDataDaCompra: mock.corrigirDataDaCompra,
@@ -185,6 +186,7 @@ beforeEach(() => {
   // padrão: banco sem a migration 065 (a tela lê card_months por cartão); os testes da 065 definem o resumo
   mock.visaoDosCartoes.mockResolvedValue(null)
   for (const f of [mock.criarCartao, mock.definirCiclo, mock.definirLimite, mock.definirIdentidade, mock.arquivarCartao, mock.renomearCartao, mock.definirContaPagamento, mock.reativarCartao, mock.excluirCartao, mock.registrarCompra, mock.pagarFatura, mock.reabrirFatura, mock.excluirCompra, mock.editarParcela]) f.mockResolvedValue(undefined)
+  mock.editarParcelaEProximas.mockResolvedValue(1)
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -1018,6 +1020,32 @@ describe('Cartões', () => {
     await u.type(campo, '100,01')
     await u.click(screen.getByRole('button', { name: 'Salvar valor' }))
     expect(mock.editarParcela).toHaveBeenCalledWith('p1', 10001)
+    expect(mock.editarParcelaEProximas).not.toHaveBeenCalled()
+  })
+
+  it('"Usar este valor também nas próximas": manda esta e as seguintes numa operação só (dono: corrigiu a 2ª de 10 e as outras ficaram)', async () => {
+    const u = userEvent.setup()
+    await abrirFatura(u)
+    await acaoDaLinha(u, 'Ações de TV', 'Editar valor')
+    const campo = screen.getByLabelText('Valor da parcela (R$)')
+    await u.clear(campo)
+    await u.type(campo, '100,01')
+    await u.click(screen.getByRole('checkbox', { name: 'Usar este valor também nas próximas parcela (1)' }))
+    await u.click(screen.getByRole('button', { name: 'Salvar valor' }))
+    expect(mock.editarParcelaEProximas).toHaveBeenCalledWith('p1', 10001)
+    expect(mock.editarParcela).not.toHaveBeenCalled()
+  })
+
+  it('na última parcela (ou compra à vista) não há próximas: a opção não aparece', async () => {
+    const u = userEvent.setup()
+    mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(10000), total: c(10000), itens: 1 })])
+    mock.listarItens.mockResolvedValue([{ ...item, parcela: 3 }])
+    montar()
+    await u.click(await botaoVerFatura())
+    await screen.findByText('3/3')
+    await acaoDaLinha(u, 'Ações de TV', 'Editar valor')
+    expect(screen.getByLabelText('Valor da parcela (R$)')).toBeTruthy()
+    expect(screen.queryByRole('checkbox', { name: /próximas/ })).toBeNull()
   })
 
   // "Enviar para a fatura anterior / próxima" (migration 111): uma parcela por vez, só a ainda não cobrada, de fatura que não fechou
