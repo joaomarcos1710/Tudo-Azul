@@ -226,7 +226,7 @@ describe('mês da pessoa em Lançamentos (dono, 21/11/2026: o dia 20 em todas as
     const ciclo = periodoDoMesDe(hojeSP(), 20)
     expect(ciclo.de.slice(8, 10)).toBe('20')
     expect(ciclo.ate.slice(8, 10)).toBe('19')
-    expect(mock.listarLancamentos.mock.calls.at(-1)?.slice(0, 3)).toEqual(['h1', ciclo.de, ciclo.ate])
+    expect(mock.listarLancamentos.mock.calls[mock.listarLancamentos.mock.calls.length - 1]?.slice(0, 3)).toEqual(['h1', ciclo.de, ciclo.ate])
     expect(mock.serieFluxo).toHaveBeenCalledWith('h1', ciclo.de, ciclo.ate, 'total', { contas: undefined, incluirNaoPagos: false })
     expect(screen.getByRole('button', { name: `Período: ${rotuloPeriodo(ciclo)}. Trocar período` })).toBeTruthy()
     // a faixa de pendências continua valendo: o ciclo de hoje é "o mês atual" da pessoa
