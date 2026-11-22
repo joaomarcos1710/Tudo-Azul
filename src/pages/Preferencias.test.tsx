@@ -58,7 +58,7 @@ describe('Preferências diz onde cada opção vale', () => {
     expect(secao('Ordenação dos seus lançamentos').textContent).toContain('Vale só para Lançamentos.')
     expect(secao('Período de navegação padrão').textContent).toContain('Vale só para Relatórios')
     expect(secao('Saldo diário').textContent).toContain('Vale só para Lançamentos.')
-    expect(secao('Dia em que o seu mês começa').textContent).toContain('Vale no Limite diário seguro (Início), nos Orçamentos e no “Este mês” de Lançamentos e Relatórios')
+    expect(secao('Dia em que o seu mês começa').textContent).toContain('na opção “Meu ciclo” do período em Lançamentos e Relatórios (“Este mês” continua de 1 a 30/31)')
     expect(screen.queryByText(/nas telas que oferecem/)).toBeNull()
   })
 })

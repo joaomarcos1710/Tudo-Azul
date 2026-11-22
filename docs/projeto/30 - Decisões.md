@@ -1054,3 +1054,8 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Pedido:** "não tem um botão confirmar pagamento; como que esse dinheiro vai sair da conta?" (parcela do Funcef, débito em conta).
 - **Decidido:** não criar outro mecanismo. `debt_schedule_record_payment` já tira o dinheiro da conta, abate a dívida e marca a parcela na mesma operação; mudou só o texto. "Pagar" quando sai dinheiro de uma conta, "Baixar" no consignado (salário já entrou líquido).
 - **Ficou de fora de propósito:** confirmar sozinho no vencimento. O app não recebe o débito do banco, e descontar por conta própria faria o saldo divergir do extrato quando o débito atrasa ou não acontece.
+
+## Mês é mês; o ciclo é um período à escolha (#467, 22/11/2026)
+- **Pedido do dono:** "mês é mês, 01 a 30/31; período é o que escolhemos". A #464 tinha feito o "Este mês" virar o ciclo 20 a 19.
+- **Decidido:** "Este mês" (e o padrão ao abrir) é sempre o mês de calendário. O ciclo da pessoa é uma opção a mais no menu de período ("Meu ciclo"), só quando o dia nas Preferências é maior que 1. O Orçamento segue no ciclo (pedido da #445).
+- **Consequência para as próximas etapas:** Calendário e Início não precisam virar ciclo; se for o caso, ganham a mesma opção "Meu ciclo".

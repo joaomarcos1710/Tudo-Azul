@@ -23,7 +23,7 @@ const TIPOS: Record<string, TipoLancamento> = { receita: 'income', despesa: 'exp
 const TIPOS_URL: Record<TipoLancamento, string> = { income: 'receita', expense: 'despesa', transfer: 'transferencia' }
 const SITUACOES: Record<string, StatusLancamento> = { pago: 'paid', pendente: 'planned' }
 const SITUACOES_URL: Record<StatusLancamento, string> = { paid: 'pago', planned: 'pendente' }
-const TIPOS_PERIODO: TipoPeriodo[] = ['dia', 'semana', 'mes', 'meses', 'ano', 'livre']
+const TIPOS_PERIODO: TipoPeriodo[] = ['dia', 'semana', 'mes', 'ciclo', 'meses', 'ano', 'livre']
 const MES = /^20\d\d-(0[1-9]|1[0-2])$/
 /** Id de conta, categoria ou cartão: só o formato (o banco e a RLS decidem o resto). */
 const ID = /^[0-9a-zA-Z-]{1,64}$/
@@ -35,8 +35,7 @@ const dataReal = (d: string | null): d is string =>
 /** Chaves que este módulo lê e escreve (as outras, como `novo`, ficam como estão). */
 export const CHAVES_URL_LANCAMENTOS = ['mes', 'periodo', 'de', 'ate', 'conta', 'categoria', 'cartao', 'tipo', 'situacao', 'fixos', 'parcelados', 'busca'] as const
 
-/** `dia` = o dia em que o mês da pessoa começa (1 = calendário); `mesAtual` = a chave do mês ou ciclo de hoje. */
-export function periodoDaUrl(p: URLSearchParams, mesAtual: string = currentMonth(), dia = 1): Periodo {
+export function periodoDaUrl(p: URLSearchParams, mesAtual: string = currentMonth()): Periodo {
   const de = p.get('de')
   const ate = p.get('ate')
   const tipo = p.get('periodo') as TipoPeriodo | null
@@ -44,7 +43,7 @@ export function periodoDaUrl(p: URLSearchParams, mesAtual: string = currentMonth
     return { tipo, de, ate }
   }
   const mes = p.get('mes')
-  return periodoDoMes(mes && MES.test(mes) ? mes : mesAtual, dia)
+  return periodoDoMes(mes && MES.test(mes) ? mes : mesAtual)
 }
 
 export function filtrosDaUrl(p: URLSearchParams): Filtros {

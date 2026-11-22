@@ -379,4 +379,5 @@ continuam abaixo como histórico.
 | 2026.464 | **O seu mês em Lançamentos e Relatórios.** Com o dia 20 nas Preferências, "Este mês" passa a ser de 20 a 19 (como no Orçamento), e as setas andam de ciclo em ciclo. O Calendário e o Início continuam no mês de calendário por enquanto. |
 | 2026.465 | **Menu de período no iPhone.** Em Lançamentos, o menu que troca o período abria cortado no topo da tela e sem escurecer o fundo. Agora sobe de baixo, inteiro, como as outras folhas. |
 | 2026.466 | **Saldo diário mais rápido.** O saldo de cada dia em Lançamentos passou de uns 3,6 s para 0,3 s e deixa de aparecer como "Não foi possível carregar". Os valores são os mesmos. |
+| 2026.467 | **"Este mês" volta a ser de 1 a 30/31.** O seu ciclo de 20 a 19 passa a ser uma opção à parte no menu de período de Lançamentos e Relatórios: "Meu ciclo". O Orçamento continua no ciclo. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
