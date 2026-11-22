@@ -20,11 +20,14 @@ const mock = vi.hoisted(() => ({
   listarMovimentosDaDivida: vi.fn(),
   anularCorrecaoDeSaldo: vi.fn(),
   anularPagamentoDaDivida: vi.fn(),
+  definirContratoDivida: vi.fn(),
+  listarCartoesParaVinculo: vi.fn(),
+  vincularCartaoDivida: vi.fn(),
 }))
 vi.mock('../lib/FamiliaContext', () => ({
   useFamilia: () => ({ familia: { id: 'h1', nome: 'Casa', papel: 'owner' }, carregando: false, erro: false, recarregar: vi.fn() }),
 }))
-vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal, corrigirSaldoDivida: mock.corrigirSaldoDivida, listarMovimentosDaDivida: mock.listarMovimentosDaDivida, anularCorrecaoDeSaldo: mock.anularCorrecaoDeSaldo, anularPagamentoDaDivida: mock.anularPagamentoDaDivida }))
+vi.mock('../lib/dividas', async (o) => ({ ...(await o<typeof import('../lib/dividas')>()), listarDividas: mock.listarDividas, renomearDivida: mock.renomearDivida, listarParcelasDivida: mock.listarParcelasDivida, registrarPagamentoDivida: mock.registrarPagamentoDivida, registrarPagamentoParcela: mock.registrarPagamentoParcela, arquivarDivida: mock.arquivarDivida, reativarDivida: mock.reativarDivida, excluirDivida: mock.excluirDivida, definirCategoriaPrincipal: mock.definirCategoriaPrincipal, corrigirSaldoDivida: mock.corrigirSaldoDivida, listarMovimentosDaDivida: mock.listarMovimentosDaDivida, anularCorrecaoDeSaldo: mock.anularCorrecaoDeSaldo, anularPagamentoDaDivida: mock.anularPagamentoDaDivida, definirContratoDivida: mock.definirContratoDivida, listarCartoesParaVinculo: mock.listarCartoesParaVinculo, vincularCartaoDivida: mock.vincularCartaoDivida }))
 vi.mock('../lib/painel', async (o) => ({ ...(await o<typeof import('../lib/painel')>()), historicoDividas: mock.historicoDividas }))
 vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/contas')>()), listarContas: mock.listarContas }))
 vi.mock('../lib/categorias', async (o) => ({ ...(await o<typeof import('../lib/categorias')>()), listarCategorias: mock.listarCategorias }))
@@ -61,6 +64,9 @@ beforeEach(() => {
   mock.listarParcelasDivida.mockResolvedValue([])
   mock.registrarPagamentoParcela.mockResolvedValue(undefined)
   mock.registrarPagamentoDivida.mockResolvedValue(undefined)
+  mock.definirContratoDivida.mockResolvedValue(undefined)
+  mock.listarCartoesParaVinculo.mockResolvedValue([])
+  mock.vincularCartaoDivida.mockResolvedValue(undefined)
 })
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
@@ -102,6 +108,64 @@ describe('Dívidas', () => {
       await u.click(within(painel).getByRole('button', { name: 'Fechar' }))
       expect(screen.queryByRole('dialog')).toBeNull()
     }
+  })
+
+  describe('cobrado no cartão (migration 148)', () => {
+    const contaBRL = { id: 'a1', nome: 'CAIXA', tipo: 'checking', saldoInicial: c(0), abertura: '2026-01-01', ativa: true, saldo: c(0), moeda: 'BRL' }
+    async function salvarContrato(u: ReturnType<typeof userEvent.setup>, cartao?: string) {
+      await acao('Empréstimo pessoal', 'Contrato e parcelas', u)
+      const painel = screen.getByRole('dialog')
+      const valor = within(painel).getByLabelText('Valor da prestação (R$)')
+      await u.clear(valor)
+      await u.type(valor, '2.402,27')
+      if (cartao !== undefined) await u.selectOptions(within(painel).getByLabelText('Cobrado no cartão (opcional)'), cartao)
+      await u.click(within(painel).getByRole('button', { name: 'Salvar contrato e gerar parcelas' }))
+    }
+
+    it('escolher o cartão grava o contrato e depois o vínculo', async () => {
+      mock.listarContas.mockResolvedValue({ contas: [contaBRL], total: c(0) })
+      mock.listarCartoesParaVinculo.mockResolvedValue([{ id: 'card1', nome: 'CAIXA INFINITE' }])
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await screen.findByText('Empréstimo pessoal')
+      await salvarContrato(u, 'card1')
+      await waitFor(() => expect(mock.vincularCartaoDivida).toHaveBeenCalledWith('d2', 'card1'))
+      expect(mock.definirContratoDivida).toHaveBeenCalledWith('d2', expect.objectContaining({ valorParcela: 240227 }))
+      expect(mock.definirContratoDivida.mock.invocationCallOrder[0]).toBeLessThan(mock.vincularCartaoDivida.mock.invocationCallOrder[0])
+    })
+
+    it('vínculo que não mudou não chama o banco; "Não é cobrado em cartão" desvincula', async () => {
+      mock.listarContas.mockResolvedValue({ contas: [contaBRL], total: c(0) })
+      mock.listarCartoesParaVinculo.mockResolvedValue([{ id: 'card1', nome: 'CAIXA INFINITE' }])
+      mock.listarDividas.mockImplementation(porSituacao([ativas()[0], { ...ativas()[1], cartaoVinculadoId: 'card1' }]))
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await screen.findByText('Empréstimo pessoal')
+      await salvarContrato(u)
+      await waitFor(() => expect(mock.definirContratoDivida).toHaveBeenCalledTimes(1))
+      expect(mock.vincularCartaoDivida).not.toHaveBeenCalled()
+      await salvarContrato(u, '')
+      await waitFor(() => expect(mock.vincularCartaoDivida).toHaveBeenCalledWith('d2', null))
+    })
+
+    it('cartão vinculado que foi arquivado continua na escolha (a tela não diz "não é cobrado" sem ser verdade)', async () => {
+      mock.listarDividas.mockImplementation(porSituacao([ativas()[0], { ...ativas()[1], cartaoVinculadoId: 'card-velho' }]))
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await screen.findByText('Empréstimo pessoal')
+      await acao('Empréstimo pessoal', 'Contrato e parcelas', u)
+      const escolha = within(screen.getByRole('dialog')).getByLabelText('Cobrado no cartão (opcional)') as HTMLSelectElement
+      expect(escolha.value).toBe('card-velho')
+      expect(within(escolha).getByRole('option', { name: 'Cartão arquivado' })).toBeTruthy()
+    })
+
+    it('sem cartão na família, o contrato não mostra a escolha', async () => {
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await screen.findByText('Empréstimo pessoal')
+      await acao('Empréstimo pessoal', 'Contrato e parcelas', u)
+      expect(within(screen.getByRole('dialog')).queryByLabelText('Cobrado no cartão (opcional)')).toBeNull()
+    })
   })
 
   it('amortização extra com FGTS: "Nenhuma (FGTS ou fora do app)" manda conta nula; juros ou tarifa sem conta são recusados na tela', async () => {

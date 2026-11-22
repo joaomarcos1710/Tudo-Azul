@@ -26,6 +26,8 @@ const mock = vi.hoisted(() => ({
   listarFaturas: vi.fn(),
   listarItens: vi.fn(),
   listarOcorrenciasPrevistas: vi.fn(),
+  listarCobrancasVinculadas: vi.fn(),
+  resumoVinculadoDosCartoes: vi.fn(),
   listarFaturasAgendadas: vi.fn(),
   sincronizarAgendados: vi.fn(),
   converterAgendados: vi.fn(),
@@ -62,7 +64,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
-  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, marcarAgendadaCobrada: mock.marcarAgendadaCobrada, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
+  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarCobrancasVinculadas: mock.listarCobrancasVinculadas, resumoVinculadoDosCartoes: mock.resumoVinculadoDosCartoes, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, marcarAgendadaCobrada: mock.marcarAgendadaCobrada, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela, editarParcelaEProximas: mock.editarParcelaEProximas,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura, moverPagamentoDeFatura: mock.moverPagamentoDeFatura, moverParcelaDeFatura: mock.moverParcelaDeFatura,
@@ -168,6 +170,8 @@ beforeEach(() => {
   mock.definirPessoaRecorrencia.mockResolvedValue(undefined)
   mock.corrigirDataDaCompra.mockResolvedValue(3)
   mock.listarOcorrenciasPrevistas.mockResolvedValue([])
+  mock.listarCobrancasVinculadas.mockResolvedValue([])
+  mock.resumoVinculadoDosCartoes.mockResolvedValue(new Map())
   mock.listarFaturasAgendadas.mockResolvedValue([])
   mock.sincronizarAgendados.mockResolvedValue(0)
   mock.converterAgendados.mockResolvedValue(0)
@@ -312,6 +316,43 @@ describe('Cartões', () => {
     expect(within(bloco).getByText('Agendado')).toBeTruthy()
     // não é compra: as previstas ficam fora do bloco de saídas
     expect(within(screen.getByTestId('bloco-saidas')).queryByText('Streaming')).toBeNull()
+  })
+
+  describe('empréstimo cobrado no cartão (migration 148)', () => {
+    const cobranca = (mes: string, numero: number) => ({ mes, vencimento: `${mes}-28`, dividaId: 'd1', nome: 'Parcelamento fatura', numero, deParcelas: 11,
+      valor: c(240227), paga: false, totalFatura: c(18000), totalVinculado: c(240227), totalComVinculado: c(258227) })
+
+    it('a fatura mostra a parcela vinculada do mês e o total do banco (vindo do banco, sem somar no navegador)', async () => {
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+      mock.listarCobrancasVinculadas.mockResolvedValue([cobranca('2099-04', 2), cobranca('2099-05', 3)])
+      montar('/cartoes/k1/fatura/2099-04')
+      const bloco = await screen.findByTestId('bloco-vinculadas')
+      expect(mock.listarCobrancasVinculadas).toHaveBeenCalledWith('k1')
+      // só a parcela desta fatura (a de maio fica na fatura de maio)
+      expect(within(bloco).getAllByTestId('cobranca-vinculada')).toHaveLength(1)
+      expect(within(bloco).getByText(/2\/11 · vence 28\/04\/2099 · a pagar/)).toBeTruthy()
+      expect(within(bloco).getByTestId('total-com-vinculadas').textContent).toBe('R$ 2.582,27')
+      // o banco debita um valor só; no app são dois pagamentos, cada um no seu lugar
+      expect(within(bloco).getByTestId('como-pagar-vinculadas').textContent).toMatch(/R\$ 180,00 em Pagar fatura e R\$ 2\.402,27 em Dívidas/)
+      // não é item da fatura do app: fica fora das saídas
+      expect(within(screen.getByTestId('bloco-saidas')).queryByText('Parcelamento fatura')).toBeNull()
+    })
+
+    it('sem vínculo (ou sem a função no banco) a fatura não mostra o bloco', async () => {
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2099-04', fechamento: '2099-04-17', aCobrar: c(18000), total: c(18000), itens: 1 })])
+      mock.listarCobrancasVinculadas.mockRejectedValue(new Error('function does not exist'))
+      montar('/cartoes/k1/fatura/2099-04')
+      await screen.findByTestId('bloco-saidas')
+      expect(screen.queryByTestId('bloco-vinculadas')).toBeNull()
+    })
+
+    it('a página do cartão mostra saldo, dívida e limite com o parcelamento (números do banco)', async () => {
+      mock.resumoVinculadoDosCartoes.mockResolvedValue(new Map([['k1', { dividaVinculada: c(1579733), dividaComVinculada: c(1579733), disponivelComVinculado: c(-79733) }]]))
+      montar('/cartoes/k1')
+      const bloco = await screen.findByTestId('parcelamento-no-cartao')
+      expect(within(bloco).getAllByText('R$ 15.797,33')).toHaveLength(2)
+      expect(within(bloco).getByText('-R$ 797,33').className).toMatch(/text-prejuizo/)
+    })
   })
 
   it('recorrência no cartão: assinatura cancelada pode ser excluída pela própria linha da fatura (pedido do dono)', async () => {

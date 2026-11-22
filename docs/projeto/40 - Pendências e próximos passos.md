@@ -97,6 +97,12 @@ atualizado: 2026-11-18
 - Conferir no app real: "Repetir" no cartão numa assinatura de valor baixo; com data passada, os meses desde então entram como compras no cartão (a tela avisa).
 ## Próximos PRs sugeridos
 
+- [ ] **[dono]** Aplicar a **migration 148** (empréstimo cobrado no cartão, #469) em produção pelo workflow; depois, no contrato do "Parcelamento fatura CAIXA nov/26", escolher **Cobrado no cartão: CAIXA INFINITE**.
+- [ ] **[limite conhecido]** Com o vínculo, a fatura do app fica menor que a do banco no valor da parcela (o bloco "Também cobrado nesta fatura" mostra o total do banco). Parcelamento nativo de fatura no cartão foi descartado em 22/11/2026 (#469, ver Decisões); reabrir só se o dono pedir.
+- [ ] Pagar a fatura e a parcela vinculada no mesmo formulário (hoje são dois: Pagar fatura no cartão e Pagar parcela em Dívidas; a fatura avisa os dois valores). Sugestão, não pedida.
+- [ ] **[dono]** Conferir no app do banco se o limite do cartão é tomado pelo **principal** do parcelamento (o que o app desconta, `debt_balances.debt`) ou pela soma das parcelas com juros.
+- [ ] **[limite conhecido]** No contrato da dívida, o contrato e o vínculo com o cartão são gravados em duas chamadas: se o vínculo falhar, o contrato já foi salvo e o erro aparece (nada se perde; salvar de novo regrava o contrato).
+
 > **Saneamento de 21/11/2026 (esta seção, 97 itens abertos cruzados com o código do `main`, só leitura).** Regra usada: só é FEITO com código **e** teste (ou registro de entrega); código sem teste é parcial. Resultado: 5 feitos e 9 obsoletos e 2 duplicados foram fechados (16); 11 parciais ganharam a nota do que falta; 31 estão marcados **[dono]** (decisão ou conferência no aparelho, não é código); 10 estão marcados **[limite conhecido]** (não são tarefas); sobram cerca de 30 de código. Nenhum teste foi rodado nem produção consultada nesta conferência. Não cobre as outras seções. **Balanço dos 5 riscos abaixo depois de reproduzir (#459, #460): nenhum se confirmou como perda de dinheiro; a leitura de código sozinha superestimou. Regra para as próximas rodadas: risco achado por leitura só vira prioridade depois de reproduzido.**
 >
 > **Riscos de dinheiro achados no saneamento (priorizar):**

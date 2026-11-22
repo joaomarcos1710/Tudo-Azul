@@ -381,4 +381,5 @@ continuam abaixo como histórico.
 | 2026.466 | **Saldo diário mais rápido.** O saldo de cada dia em Lançamentos passou de uns 3,6 s para 0,3 s e deixa de aparecer como "Não foi possível carregar". Os valores são os mesmos. |
 | 2026.467 | **"Este mês" volta a ser de 1 a 30/31.** O seu ciclo de 20 a 19 passa a ser uma opção à parte no menu de período de Lançamentos e Relatórios: "Meu ciclo". O Orçamento continua no ciclo. |
 | 2026.468 | Só registro: o saldo diário mais rápido passou a valer em produção em 22/11/2026. |
+| 2026.469 | **Parcelamento no cartão.** Um empréstimo pode ser marcado como "Cobrado no cartão" (ex.: parcelamento de fatura). A fatura passa a mostrar a parcela do mês e o total que o banco cobra, e o cartão mostra a dívida e o limite contando o parcelamento. A dívida total e os relatórios não mudam. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
