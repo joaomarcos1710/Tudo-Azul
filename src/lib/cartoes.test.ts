@@ -14,7 +14,7 @@ const fake = vi.hoisted(() => {
 vi.mock('./supabase', () => ({ supabase: { rpc: fake.rpc, from: fake.from } }))
 vi.mock('./contas', () => ({ COLUNA_INEXISTENTE: '42703', hojeSP: () => '2026-10-30' }))
 
-import { criarCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarItens, trocarPessoaDaCompra, visaoDosCartoes } from './cartoes'
+import { criarCartao, lancarCreditoNoCartao, listarCobrancasVinculadas, listarCreditosDaFatura, listarItens, resumoVinculadoDosCartoes, trocarPessoaDaCompra, visaoDosCartoes } from './cartoes'
 
 beforeEach(() => {
   fake.rpc.mockReset()
@@ -206,5 +206,41 @@ describe('classificação por pessoa nas compras da fatura', () => {
   it('trocarPessoaDaCompra repassa o erro do banco', async () => {
     fake.rpc.mockResolvedValue({ data: null, error: { code: '23514', message: 'pessoa inativa' } })
     await expect(trocarPessoaDaCompra('card-1', 'plano-1', { personId: 'x', isSharedExpense: false })).rejects.toMatchObject({ code: '23514' })
+  })
+})
+
+describe('empréstimo cobrado no cartão (migration 148)', () => {
+  it('listarCobrancasVinculadas: lê card_linked_invoices e usa os totais do banco (a tela não soma)', async () => {
+    fake.rpc.mockResolvedValue({
+      data: [{ label: '2026-12', due_date: '2026-12-28', invoice_total: '5698.90', linked_debt_id: 'd1', linked_name: 'Parcelamento',
+        installment_number: 2, installment_count: 11, amount: '2402.27', status: 'planned', linked_total: '2402.27', total_with_linked: '8101.17' }],
+      error: null,
+    })
+    const l = await listarCobrancasVinculadas('card-1')
+    expect(fake.rpc).toHaveBeenCalledWith('card_linked_invoices', { p_debt: 'card-1' })
+    expect(l).toEqual([{ mes: '2026-12', vencimento: '2026-12-28', dividaId: 'd1', nome: 'Parcelamento', numero: 2, deParcelas: 11,
+      valor: 240227, paga: false, totalFatura: 569890, totalVinculado: 240227, totalComVinculado: 810117 }])
+  })
+
+  it('banco ainda sem a migration 148: lista vazia e mapa vazio; outro erro é lançado', async () => {
+    fake.rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'função não existe' } })
+    expect(await listarCobrancasVinculadas('card-1')).toEqual([])
+    expect((await resumoVinculadoDosCartoes('h1', '2026-11-22')).size).toBe(0)
+    fake.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'sem permissão' } })
+    await expect(listarCobrancasVinculadas('card-1')).rejects.toMatchObject({ code: '42501' })
+  })
+
+  it('resumoVinculadoDosCartoes: por cartão, com limite nulo quando o cartão não tem limite', async () => {
+    fake.rpc.mockResolvedValue({
+      data: [
+        { debt_id: 'c1', linked_debt: '15797.33', debt_with_linked: '15797.33', available_with_linked: '-797.33' },
+        { debt_id: 'c2', linked_debt: '100.00', debt_with_linked: '300.00', available_with_linked: null },
+      ],
+      error: null,
+    })
+    const m = await resumoVinculadoDosCartoes('h1', '2026-11-22')
+    expect(fake.rpc).toHaveBeenCalledWith('card_linked_summary', { p_household: 'h1', p_as_of: '2026-11-22' })
+    expect(m.get('c1')).toEqual({ dividaVinculada: 1579733, dividaComVinculada: 1579733, disponivelComVinculado: -79733 })
+    expect(m.get('c2')?.disponivelComVinculado).toBeNull()
   })
 })

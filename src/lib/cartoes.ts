@@ -420,6 +420,68 @@ export async function listarFaturas(cartaoId: string): Promise<Fatura[]> {
   }))
 }
 
+/** Parcela de empréstimo/financiamento cobrada no cartão (vínculo da migration 148), na fatura que vence no mesmo mês. */
+export interface CobrancaVinculada {
+  /** Mês da fatura (label de card_months). */
+  mes: string
+  vencimento: string
+  dividaId: string
+  nome: string
+  numero: number
+  /** Prazo original do contrato (n de N); null se o contrato não tem prazo. */
+  deParcelas: number | null
+  valor: Cents
+  paga: boolean
+  /** Total da fatura do app (sem as parcelas vinculadas), o das parcelas vinculadas e a soma (o que o banco cobra). */
+  totalFatura: Cents
+  totalVinculado: Cents
+  totalComVinculado: Cents
+}
+
+/** Função nova ainda não aplicada no banco (deploy do front antes da migration): a tela segue sem o bloco. */
+function semFuncaoNoBanco(error: { code?: string } | null): boolean {
+  return !!error && ['PGRST202', '42883'].includes(error.code ?? '')
+}
+
+/** Parcelas de empréstimos vinculados ao cartão, de todas as faturas (card_linked_invoices). Totais vêm do banco. */
+export async function listarCobrancasVinculadas(cartaoId: string): Promise<CobrancaVinculada[]> {
+  const { data, error } = await cliente().rpc('card_linked_invoices', { p_debt: cartaoId })
+  if (semFuncaoNoBanco(error)) return []
+  if (error) throw error
+  return ((data ?? []) as Record<string, string | number | null>[]).map((r) => ({
+    mes: r.label as string,
+    vencimento: r.due_date as string,
+    dividaId: r.linked_debt_id as string,
+    nome: r.linked_name as string,
+    numero: Number(r.installment_number),
+    deParcelas: r.installment_count === null ? null : Number(r.installment_count),
+    valor: centsFromDb(r.amount ?? 0),
+    paga: r.status === 'paid',
+    totalFatura: centsFromDb(r.invoice_total ?? 0),
+    totalVinculado: centsFromDb(r.linked_total ?? 0),
+    totalComVinculado: centsFromDb(r.total_with_linked ?? 0),
+  }))
+}
+
+/** Por cartão com empréstimo vinculado: o saldo dele, a dívida do cartão somada e o limite descontando (card_linked_summary). */
+export interface ResumoVinculado {
+  dividaVinculada: Cents
+  dividaComVinculada: Cents
+  /** null quando o cartão não tem limite informado. */
+  disponivelComVinculado: Cents | null
+}
+
+export async function resumoVinculadoDosCartoes(familiaId: string, dataRef: string = hojeSP()): Promise<Map<string, ResumoVinculado>> {
+  const { data, error } = await cliente().rpc('card_linked_summary', { p_household: familiaId, p_as_of: dataRef })
+  if (semFuncaoNoBanco(error)) return new Map()
+  if (error) throw error
+  return new Map(((data ?? []) as Record<string, string | number | null>[]).map((r) => [r.debt_id as string, {
+    dividaVinculada: centsFromDb(r.linked_debt ?? 0),
+    dividaComVinculada: centsFromDb(r.debt_with_linked ?? 0),
+    disponivelComVinculado: r.available_with_linked === null ? null : centsFromDb(r.available_with_linked),
+  }]))
+}
+
 /**
  * Itens (parcelas) da fatura. `comPessoa` junta a classificação "de quem foi a despesa" (uma leitura a mais, só para a
  * tela da fatura que oferece a troca); sem ela, personId/isSharedExpense ficam ausentes.

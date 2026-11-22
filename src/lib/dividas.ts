@@ -50,6 +50,8 @@ export interface Divida {
   primeiraDataVencimento: string | null
   /** Categoria de despesa do principal pago (migration 046); nula = "Sem categoria". */
   categoriaPrincipalId?: string | null
+  /** Cartão em que a parcela é cobrada (migration 148); null = não é cobrada em cartão. Só exibição na tela do cartão. */
+  cartaoVinculadoId?: string | null
 }
 
 export interface DadosDivida {
@@ -71,14 +73,22 @@ function cliente() {
 export async function listarDividas(familiaId: string, dataRef: string, situacao: 'ativas' | 'arquivadas' = 'ativas'): Promise<Divida[]> {
   const db = cliente()
   const colunasContrato = 'id, name, kind, active, monthly_rate_bps, minimum_payment, creditor, contract_number, original_installments, remaining_installments, installment_amount, payment_day, payment_method, payment_account_id, first_due_date'
-  // Compatibilidade entre o deploy do front e a aplicação das migrations: tenta com a categoria do principal (046),
-  // depois só com o contrato (038), depois o mínimo.
+  // Compatibilidade entre o deploy do front e a aplicação das migrations: tenta com o cartão vinculado (148) e a categoria do
+  // principal (046), depois só com a categoria, depois só com o contrato (038), depois o mínimo.
   let cadastros = await db.from('debts')
-    .select(`${colunasContrato}, principal_category_id`)
+    .select(`${colunasContrato}, principal_category_id, linked_card_id`)
     .eq('household_id', familiaId)
     .eq('active', situacao === 'ativas')
     .in('kind', ['loan', 'financing'])
     .order('name')
+  if (cadastros.error && ['42703', 'PGRST204'].includes(cadastros.error.code)) {
+    cadastros = await db.from('debts')
+      .select(`${colunasContrato}, principal_category_id`)
+      .eq('household_id', familiaId)
+      .eq('active', situacao === 'ativas')
+      .in('kind', ['loan', 'financing'])
+      .order('name') as typeof cadastros
+  }
   if (cadastros.error && ['42703', 'PGRST204'].includes(cadastros.error.code)) {
     cadastros = await db.from('debts')
       .select(colunasContrato)
@@ -122,6 +132,7 @@ export async function listarDividas(familiaId: string, dataRef: string, situacao
         contaPagamentoId: (d.payment_account_id as string | null) ?? null,
         primeiraDataVencimento: (d.first_due_date as string | null) ?? null,
         categoriaPrincipalId: (d.principal_category_id as string | null | undefined) ?? null,
+        cartaoVinculadoId: (d.linked_card_id as string | null | undefined) ?? null,
       }]
     })
 }
@@ -156,6 +167,20 @@ export async function definirTermosDivida(id: string, taxaMensalBps: number, pag
   if (error) throw error
 }
 
+
+/** Cartões ativos da família (para "Cobrado no cartão" no contrato). */
+export async function listarCartoesParaVinculo(familiaId: string): Promise<{ id: string; nome: string }[]> {
+  const { data, error } = await cliente().from('debts').select('id, name')
+    .eq('household_id', familiaId).eq('kind', 'card').eq('active', true).order('name')
+  if (error) throw error
+  return ((data ?? []) as { id: string; name: string }[]).map((c) => ({ id: c.id, nome: c.name }))
+}
+
+/** Vincula o empréstimo ao cartão em que a parcela é cobrada; null desvincula (debt_link_card, migration 148). */
+export async function vincularCartaoDivida(id: string, cartaoId: string | null): Promise<void> {
+  const { error } = await cliente().rpc('debt_link_card', { p_debt: id, p_card: cartaoId })
+  if (error) throw error
+}
 
 export async function definirContratoDivida(id: string, d: DadosContratoDivida): Promise<void> {
   const { error } = await cliente().rpc('debt_contract_set', {

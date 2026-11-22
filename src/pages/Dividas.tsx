@@ -24,7 +24,7 @@ import type { HistoricoDividas } from '../lib/painel'
 import { mensagemErroBanco } from '../lib/erros'
 import {
   criarDivida, definirTermosDivida, definirContratoDivida, listarDividas, listarParcelasDivida,
-  anularCorrecaoDeSaldo, anularPagamentoDaDivida, arquivarDivida, corrigirSaldoDivida, listarMovimentosDaDivida, definirCategoriaPrincipal, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
+  anularCorrecaoDeSaldo, anularPagamentoDaDivida, arquivarDivida, listarCartoesParaVinculo, vincularCartaoDivida, corrigirSaldoDivida, listarMovimentosDaDivida, definirCategoriaPrincipal, excluirDivida, reativarDivida, registrarPagamentoDivida, registrarPagamentoParcela, renomearDivida,
 } from '../lib/dividas'
 import type { DadosContratoDivida, Divida, MovimentoDaDivida, ParcelaDivida, TipoDivida } from '../lib/dividas'
 import { LIMITE_HISTORICO_DIVIDA } from '../lib/dividas'
@@ -41,6 +41,8 @@ export default function Dividas() {
   const { familia } = useFamilia()
   const [dividas, setDividas] = useState<Divida[] | null>(null)
   const [contas, setContas] = useState<Conta[]>([])
+  // cartões ativos para "Cobrado no cartão" no contrato (migration 148); falha aqui só esconde a escolha
+  const [cartoes, setCartoes] = useState<{ id: string; nome: string }[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [erro, setErro] = useState('')
   const [nova, setNova] = useState(false)
@@ -78,6 +80,7 @@ export default function Dividas() {
       setDividas(lista)
       setArquivadas(listaArquivadas)
       historicoDividas(familia.id, hoje).then(setEvolucao).catch(() => setEvolucao('erro'))
+      listarCartoesParaVinculo(familia.id).then(setCartoes).catch(() => setCartoes([]))
       // todas as parcelas, até a última: a tela agrupa por dívida (antes, as 12 primeiras de todas juntas escondiam dívidas)
       setParcelas(agenda)
       // vindo de Lançamentos ("Baixar parcela"): abre a baixa daquela parcela e limpa o endereço
@@ -150,9 +153,12 @@ export default function Dividas() {
     } catch (e) { setErro(mensagemErroBanco(e)) }
   }
 
-  async function salvarContrato(id: string, dados: DadosContratoDivida) {
+  async function salvarContrato(id: string, dados: DadosContratoDivida, cartaoId: string | null) {
     try {
       await definirContratoDivida(id, dados)
+      // o vínculo com o cartão só é gravado quando muda (não chama a função nova à toa, nem antes da migration 148 existir)
+      const atual = dividas?.find((d) => d.id === id)?.cartaoVinculadoId ?? null
+      if (cartaoId !== atual) await vincularCartaoDivida(id, cartaoId)
       setContrato(null)
       await carregar()
     } catch (e) { setErro(mensagemErroBanco(e)) }
@@ -198,7 +204,7 @@ export default function Dividas() {
       )}
 
       {contrato && (
-        <FormContrato divida={contrato} contas={contas} aoSalvar={salvarContrato} aoCancelar={() => setContrato(null)} />
+        <FormContrato divida={contrato} contas={contas} cartoes={cartoes} aoSalvar={salvarContrato} aoCancelar={() => setContrato(null)} />
       )}
 
       {parcelaSelecionada && dividas && (() => {
@@ -415,10 +421,11 @@ function primeiroVencimento(dia: number): string {
   return `${y}-${String(m).padStart(2, '0')}-${String(Math.min(dia, ultimo)).padStart(2, '0')}`
 }
 
-function FormContrato({ divida, contas, aoSalvar, aoCancelar }: {
+function FormContrato({ divida, contas, cartoes, aoSalvar, aoCancelar }: {
   divida: Divida
   contas: Conta[]
-  aoSalvar: (id: string, dados: DadosContratoDivida) => Promise<void>
+  cartoes: { id: string; nome: string }[]
+  aoSalvar: (id: string, dados: DadosContratoDivida, cartaoId: string | null) => Promise<void>
   aoCancelar: () => void
 }) {
   const diaInicial = divida.diaPagamento ?? 10
@@ -431,6 +438,7 @@ function FormContrato({ divida, contas, aoSalvar, aoCancelar }: {
   const [forma, setForma] = useState<NonNullable<Divida['formaPagamento']>>(divida.formaPagamento ?? 'account_debit')
   const [conta, setConta] = useState(divida.contaPagamentoId ?? contas[0]?.id ?? '')
   const [primeiro, setPrimeiro] = useState(divida.primeiraDataVencimento ?? primeiroVencimento(diaInicial))
+  const [cartao, setCartao] = useState(divida.cartaoVinculadoId ?? '')
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
 
@@ -455,7 +463,7 @@ function FormContrato({ divida, contas, aoSalvar, aoCancelar }: {
         valorParcela: valorCents, diaPagamento: nDia, formaPagamento: forma,
         contaPagamentoId: forma === 'account_debit' ? conta : null,
         primeiraDataVencimento: primeiro,
-      })
+      }, cartao || null)
     } finally { setEnviando(false) }
   }
 
@@ -480,6 +488,13 @@ function FormContrato({ divida, contas, aoSalvar, aoCancelar }: {
         {forma === 'account_debit' && (
           <Selecao rotulo="Conta do débito automático" valor={conta} aoMudar={setConta} todos="Selecione a conta"
             opcoes={contas.map((c) => [c.id, c.nome])} />
+        )}
+        {cartoes.length > 0 && (
+          <div className="md:col-span-2">
+            <Selecao rotulo="Cobrado no cartão (opcional)" valor={cartao} aoMudar={setCartao} todos="Não é cobrado em cartão"
+              opcoes={cartoes.map((c) => [c.id, c.nome])} />
+            <p className="mt-1 text-xs text-slate-500">Ex.: parcelamento de fatura. A parcela aparece na fatura do cartão e o saldo e o limite do cartão passam a contar com ela. Continue pagando a parcela aqui, em Dívidas.</p>
+          </div>
         )}
         {forma === 'payroll' && (
           <p className="text-sm text-slate-600 md:col-span-2">O consignado será exibido como compromisso. Ao confirmar a parcela, o saldo da dívida será atualizado sem criar uma segunda saída bancária.</p>
