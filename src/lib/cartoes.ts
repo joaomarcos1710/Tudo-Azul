@@ -482,6 +482,57 @@ export async function resumoVinculadoDosCartoes(familiaId: string, dataRef: stri
   }]))
 }
 
+/** Parcela de empréstimo cobrado no cartão, ainda não paga, que cai numa fatura (card_linked_due). Juros e principal vêm do banco. */
+export interface ParcelaVinculadaAPagar {
+  parcelaId: string
+  nome: string
+  numero: number
+  deParcelas: number | null
+  valor: Cents
+  juros: Cents
+  principal: Cents
+  /** Conta do débito automático do contrato (o banco exige que o pagamento saia dela); null se o contrato não fixa conta. */
+  contaPagamentoId: string | null
+  /** Fatura do app + parcelas vinculadas: o que o banco cobra. */
+  totalComVinculado: Cents
+}
+
+/** As parcelas vinculadas que o "Pagar fatura" de `mes` baixa junto, com a divisão juros/principal na data do pagamento. */
+export async function listarParcelasVinculadasAPagar(cartaoId: string, mes: string, data: string): Promise<ParcelaVinculadaAPagar[]> {
+  const { data: linhas, error } = await cliente().rpc('card_linked_due', { p_debt: cartaoId, p_label: mes, p_date: data })
+  if (semFuncaoNoBanco(error)) return []
+  if (error) throw error
+  return ((linhas ?? []) as Record<string, string | number | null>[]).map((r) => ({
+    parcelaId: r.schedule_id as string,
+    nome: r.linked_name as string,
+    numero: Number(r.installment_number),
+    deParcelas: r.installment_count === null ? null : Number(r.installment_count),
+    valor: centsFromDb(r.amount ?? 0),
+    juros: centsFromDb(r.interest ?? 0),
+    principal: centsFromDb(r.principal ?? 0),
+    contaPagamentoId: (r.payment_account_id as string | null) ?? null,
+    totalComVinculado: centsFromDb(r.total_with_linked ?? 0),
+  }))
+}
+
+/**
+ * Paga a fatura e baixa, na mesma transação, as parcelas de empréstimo cobradas nela (card_pay_with_linked, migration 149).
+ * `valor` é só a parte da fatura; cada parcela sai pelo valor do contrato, da mesma conta. `categoriaJurosId` é a despesa
+ * dos juros das parcelas. Devolve quantas parcelas foram baixadas.
+ */
+export async function pagarFaturaComVinculadas(
+  cartaoId: string,
+  d: { contaId: string; data: string; valor: Cents; faturaId: string | null; mes: string; categoriaJurosId: string | null },
+  chave?: string,
+): Promise<number> {
+  const { data, error } = await cliente().rpc('card_pay_with_linked', {
+    p_card: cartaoId, p_date: d.data, p_account: d.contaId, p_amount: centsToDecimal(d.valor), p_invoice: d.faturaId,
+    p_label: d.mes, p_category: d.categoriaJurosId, ...(chave ? { p_idem: chave } : {}),
+  })
+  if (error) throw error
+  return Number(data ?? 0)
+}
+
 /**
  * Itens (parcelas) da fatura. `comPessoa` junta a classificação "de quem foi a despesa" (uma leitura a mais, só para a
  * tela da fatura que oferece a troca); sem ela, personId/isSharedExpense ficam ausentes.

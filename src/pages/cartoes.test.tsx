@@ -27,6 +27,8 @@ const mock = vi.hoisted(() => ({
   listarItens: vi.fn(),
   listarOcorrenciasPrevistas: vi.fn(),
   listarCobrancasVinculadas: vi.fn(),
+  listarParcelasVinculadasAPagar: vi.fn(),
+  pagarFaturaComVinculadas: vi.fn(),
   resumoVinculadoDosCartoes: vi.fn(),
   listarFaturasAgendadas: vi.fn(),
   sincronizarAgendados: vi.fn(),
@@ -64,7 +66,7 @@ vi.mock('../lib/cartoes', async (o) => ({
   cobrarFaturasFechadas: mock.cobrarFaturasFechadas, listarCartoes: mock.listarCartoes, criarCartao: mock.criarCartao,
   listarMovimentosDoCartao: mock.listarMovimentosDoCartao, anularMovimentoCartao: mock.anularMovimentoCartao,
   definirCiclo: mock.definirCiclo, definirLimite: mock.definirLimite, definirIdentidade: mock.definirIdentidade, arquivarCartao: mock.arquivarCartao, renomearCartao: mock.renomearCartao, definirContaPagamento: mock.definirContaPagamento, reativarCartao: mock.reativarCartao, excluirCartao: mock.excluirCartao, registrarCompra: mock.registrarCompra, listarFaturas: mock.listarFaturas,
-  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarCobrancasVinculadas: mock.listarCobrancasVinculadas, resumoVinculadoDosCartoes: mock.resumoVinculadoDosCartoes, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, marcarAgendadaCobrada: mock.marcarAgendadaCobrada, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
+  listarItens: mock.listarItens, listarOcorrenciasPrevistas: mock.listarOcorrenciasPrevistas, listarCobrancasVinculadas: mock.listarCobrancasVinculadas, listarParcelasVinculadasAPagar: mock.listarParcelasVinculadasAPagar, pagarFaturaComVinculadas: mock.pagarFaturaComVinculadas, resumoVinculadoDosCartoes: mock.resumoVinculadoDosCartoes, listarFaturasAgendadas: mock.listarFaturasAgendadas, editarAgendada: mock.editarAgendada, cancelarAgendada: mock.cancelarAgendada, aPartirDaqui: mock.aPartirDaqui, marcarAgendadaCobrada: mock.marcarAgendadaCobrada, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados, pagarFatura: mock.pagarFatura, reabrirFatura: mock.reabrirFatura,
   previaExclusao: mock.previaExclusao, excluirCompra: mock.excluirCompra, editarParcela: mock.editarParcela, editarParcelaEProximas: mock.editarParcelaEProximas,
   lancarCreditoNoCartao: mock.lancarCreditoNoCartao, listarCreditosDaFatura: mock.listarCreditosDaFatura,
   trocarCategoriaDoCredito: mock.trocarCategoriaDoCredito, totalFaturasDoMes: mock.totalFaturasDoMes, estornarParcela: mock.estornarParcela, listarPagamentosDaFatura: mock.listarPagamentosDaFatura, moverPagamentoDeFatura: mock.moverPagamentoDeFatura, moverParcelaDeFatura: mock.moverParcelaDeFatura,
@@ -171,6 +173,8 @@ beforeEach(() => {
   mock.corrigirDataDaCompra.mockResolvedValue(3)
   mock.listarOcorrenciasPrevistas.mockResolvedValue([])
   mock.listarCobrancasVinculadas.mockResolvedValue([])
+  mock.listarParcelasVinculadasAPagar.mockResolvedValue([])
+  mock.pagarFaturaComVinculadas.mockResolvedValue(1)
   mock.resumoVinculadoDosCartoes.mockResolvedValue(new Map())
   mock.listarFaturasAgendadas.mockResolvedValue([])
   mock.sincronizarAgendados.mockResolvedValue(0)
@@ -332,8 +336,9 @@ describe('Cartões', () => {
       expect(within(bloco).getAllByTestId('cobranca-vinculada')).toHaveLength(1)
       expect(within(bloco).getByText(/2\/11 · vence 28\/04\/2099 · a pagar/)).toBeTruthy()
       expect(within(bloco).getByTestId('total-com-vinculadas').textContent).toBe('R$ 2.582,27')
-      // o banco debita um valor só; no app são dois pagamentos, cada um no seu lugar
-      expect(within(bloco).getByTestId('como-pagar-vinculadas').textContent).toMatch(/R\$ 180,00 em Pagar fatura e R\$ 2\.402,27 em Dívidas/)
+      // o banco debita um valor só, e o Pagar fatura registra a fatura e a parcela de uma vez (migration 149)
+      expect(within(bloco).getByTestId('como-pagar-vinculadas').textContent).toMatch(/Pagar fatura registra as duas coisas de uma vez/)
+      expect(within(bloco).queryByText(/em Dívidas/)).toBeNull()
       // não é item da fatura do app: fica fora das saídas
       expect(within(screen.getByTestId('bloco-saidas')).queryByText('Parcelamento fatura')).toBeNull()
     })
@@ -346,12 +351,53 @@ describe('Cartões', () => {
       expect(screen.queryByTestId('bloco-vinculadas')).toBeNull()
     })
 
-    it('a página do cartão mostra saldo, dívida e limite com o parcelamento (números do banco)', async () => {
+    it('a página do cartão mostra saldo e dívida com o parcelamento, e o limite já descontando ele (números do banco)', async () => {
+      mock.listarCartoes.mockResolvedValue([{ ...nubank, limite: c(1500000), limiteComprometido: c(0), limiteDisponivel: c(1500000) }])
       mock.resumoVinculadoDosCartoes.mockResolvedValue(new Map([['k1', { dividaVinculada: c(1579733), dividaComVinculada: c(1579733), disponivelComVinculado: c(-79733) }]]))
       montar('/cartoes/k1')
       const bloco = await screen.findByTestId('parcelamento-no-cartao')
       expect(within(bloco).getAllByText('R$ 15.797,33')).toHaveLength(2)
-      expect(within(bloco).getByText('-R$ 797,33').className).toMatch(/text-prejuizo/)
+      // a barra do limite é a do banco: o disponível desconta o parcelamento (sem ele seriam R$ 15.000,00 livres)
+      expect(screen.getByText('Passou do limite em R$ 797,33')).toBeTruthy()
+      expect(screen.queryByText('Disponível R$ 15.000,00')).toBeNull()
+    })
+
+    it('Pagar fatura com parcela vinculada: mostra a parcela e paga as duas coisas numa operação só', async () => {
+      const u = userEvent.setup()
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(13334), total: c(13334), faturaId: 'f3' })])
+      mock.listarParcelasVinculadasAPagar.mockResolvedValue([{ parcelaId: 's2', nome: 'Parcelamento fatura', numero: 2, deParcelas: 11,
+        valor: c(240227), juros: c(133487), principal: c(106740), contaPagamentoId: null, totalComVinculado: c(253561) }])
+      montar()
+      await abrirPagar(u)
+      const bloco = await screen.findByTestId('pagar-com-vinculadas')
+      expect(mock.listarParcelasVinculadasAPagar).toHaveBeenCalledWith('k1', '2026-03', expect.any(String))
+      expect(within(bloco).getByText('R$ 2.402,27')).toBeTruthy()
+      expect(within(bloco).getByText(/2\/11 · juros R\$ 1\.334,87 · abate R\$ 1\.067,40 do saldo/)).toBeTruthy()
+      expect(within(bloco).getByText('R$ 2.535,61')).toBeTruthy() // o total do banco vem do banco
+      // sem categoria para os juros, não envia
+      await u.selectOptions(within(bloco).getByLabelText('Categoria dos juros do parcelamento'), '')
+      await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+      expect(await within(bloco).findByText('Escolha a categoria dos juros.')).toBeTruthy()
+      expect(mock.pagarFaturaComVinculadas).not.toHaveBeenCalled()
+      await u.selectOptions(within(bloco).getByLabelText('Categoria dos juros do parcelamento'), 'g1')
+      await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+      await waitFor(() => expect(mock.pagarFaturaComVinculadas).toHaveBeenCalledTimes(1))
+      expect(mock.pagarFaturaComVinculadas.mock.calls[0].slice(0, 2)).toEqual(['k1',
+        { contaId: expect.any(String), data: expect.any(String), valor: c(13334), faturaId: 'f3', mes: '2026-03', categoriaJurosId: 'g1' }])
+      // um pagamento só: o caminho antigo (só a fatura) não roda junto
+      expect(mock.pagarFatura).not.toHaveBeenCalled()
+    })
+
+    it('Pagar fatura: se não der para saber se há parcela vinculada, não registra (pagaria só metade do que o banco cobra)', async () => {
+      const u = userEvent.setup()
+      mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(13334), total: c(13334), faturaId: 'f3' })])
+      mock.listarParcelasVinculadasAPagar.mockRejectedValue(new Error('rede'))
+      montar()
+      await abrirPagar(u)
+      expect(await screen.findByText(/Não foi possível ver se há parcela de parcelamento/)).toBeTruthy()
+      await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))
+      expect(mock.pagarFatura).not.toHaveBeenCalled()
+      expect(mock.pagarFaturaComVinculadas).not.toHaveBeenCalled()
     })
   })
 

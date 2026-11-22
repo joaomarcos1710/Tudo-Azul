@@ -1064,3 +1064,14 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 - **Pedido do dono:** "mês é mês, 01 a 30/31; período é o que escolhemos". A #464 tinha feito o "Este mês" virar o ciclo 20 a 19.
 - **Decidido:** "Este mês" (e o padrão ao abrir) é sempre o mês de calendário. O ciclo da pessoa é uma opção a mais no menu de período ("Meu ciclo"), só quando o dia nas Preferências é maior que 1. O Orçamento segue no ciclo (pedido da #445).
 - **Consequência para as próximas etapas:** Calendário e Início não precisam virar ciclo; se for o caso, ganham a mesma opção "Meu ciclo".
+
+## Parcelamento de fatura: visto e pago pelo cartão, empréstimo por baixo (#470, 22/11/2026)
+
+**Pedido do dono**, logo depois de vincular (#469): "prefiro que coloquem parcelas [no cartão] do que em dívidas", porque o parcelamento está no saldo do cartão e ele precisa saber o limite.
+
+**Decidido:** na tela é tudo cartão (parcela na fatura, um pagamento só, limite descontando o parcelamento, contrato recolhido em Dívidas); por baixo continua sendo empréstimo.
+
+**Por que não lançar as parcelas como compra parcelada comum:** os 15.797,33 são compras que já entraram como despesa quando foram feitas; como compra nova de 10x 2.402,27, os relatórios mostrariam 24.022,70 de gasto novo, quando o gasto novo são só os juros (8.225,37). E a dívida total cairia, porque o app só conta como dívida do cartão a fatura fechada. O dono foi avisado e concordou com este formato.
+
+**Limite conhecido:** o desconto no limite usa o saldo devedor (sem juros futuros). Se o banco travar o total das parcelas, o limite real é menor; ver Pendências.
+

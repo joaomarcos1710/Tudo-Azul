@@ -134,6 +134,20 @@ describe('Dívidas', () => {
       expect(mock.definirContratoDivida.mock.invocationCallOrder[0]).toBeLessThan(mock.vincularCartaoDivida.mock.invocationCallOrder[0])
     })
 
+    it('dívida cobrada no cartão sai da lista principal e fica recolhida em "Cobradas no cartão" (migration 149)', async () => {
+      mock.listarContas.mockResolvedValue({ contas: [contaBRL], total: c(0) })
+      mock.listarDividas.mockImplementation(porSituacao([ativas()[0], { ...ativas()[1], cartaoVinculadoId: 'card1' }]))
+      render(<Dividas />)
+      const noCartao = await screen.findByTestId('dividas-no-cartao')
+      expect(within(noCartao).getByText('Cobradas no cartão (1)')).toBeTruthy()
+      expect(within(noCartao).getByText(ativas()[1].nome)).toBeTruthy()
+      expect(within(noCartao).queryByText(ativas()[0].nome)).toBeNull()
+      // a lista principal fica só com a que não é cobrada em cartão
+      const lista = screen.getByRole('heading', { name: 'Empréstimos e financiamentos' }).closest('section')!
+      expect(within(lista).getByText(ativas()[0].nome)).toBeTruthy()
+      expect(within(lista).queryByText(ativas()[1].nome)).toBeNull()
+    })
+
     it('vínculo que não mudou não chama o banco; "Não é cobrado em cartão" desvincula', async () => {
       mock.listarContas.mockResolvedValue({ contas: [contaBRL], total: c(0) })
       mock.listarCartoesParaVinculo.mockResolvedValue([{ id: 'card1', nome: 'CAIXA INFINITE' }])

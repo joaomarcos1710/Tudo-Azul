@@ -97,8 +97,12 @@ atualizado: 2026-11-18
 - Conferir no app real: "Repetir" no cartão numa assinatura de valor baixo; com data passada, os meses desde então entram como compras no cartão (a tela avisa).
 ## Próximos PRs sugeridos
 
-- [ ] **[dono]** Aplicar a **migration 148** (empréstimo cobrado no cartão, #469) em produção pelo workflow; depois, no contrato do "Parcelamento fatura CAIXA nov/26", escolher **Cobrado no cartão: CAIXA INFINITE**.
+- [x] Migration 148 aplicada em 22/11/2026 (execução 45052431117) e "Parcelamento fatura CAIXA nov/26" vinculado ao CAIXA INFINITE (com o "pode" do dono).
 - [ ] **[limite conhecido]** Com o vínculo, a fatura do app fica menor que a do banco no valor da parcela (o bloco "Também cobrado nesta fatura" mostra o total do banco). Parcelamento nativo de fatura no cartão foi descartado em 22/11/2026 (#469, ver Decisões); reabrir só se o dono pedir.
+- [ ] **[dono]** Aplicar a **migration 149** (pagar fatura e parcela juntas, #470) em produção pelo workflow. Até lá, o Pagar fatura segue como antes e a parcela se baixa em Dívidas → Cobradas no cartão.
+- [ ] **[dono]** Conferir no app da CAIXA se o limite bloqueado pelo parcelamento é o saldo (15.797,33) ou o total das parcelas (24.022,70). O app desconta o saldo; se for o total, o limite real é uns R$ 8.225 menor e o cálculo precisa de ajuste (mudança nova, com teste).
+- [ ] **[atalho]** Parcela vinculada só entra no Pagar fatura quando há fatura fechada em aberto naquele mês. Mês sem compra no cartão (sem fatura no app): a parcela é baixada em Dívidas → Cobradas no cartão. Melhorar se acontecer na prática.
+- [ ] **[limite conhecido]** Juros da parcela vinculada = saldo × taxa mensal do contrato (mês cheio). O banco pode ratear por dias; a diferença se acerta na última parcela, que fecha o saldo em zero. O total de juros do contrato bate; a divisão mês a mês pode diferir de centavos a poucos reais do extrato.
 - [ ] Pagar a fatura e a parcela vinculada no mesmo formulário (hoje são dois: Pagar fatura no cartão e Pagar parcela em Dívidas; a fatura avisa os dois valores). Sugestão, não pedida.
 - [ ] **[dono]** Conferir no app do banco se o limite do cartão é tomado pelo **principal** do parcelamento (o que o app desconta, `debt_balances.debt`) ou pela soma das parcelas com juros.
 - [ ] **[limite conhecido]** No contrato da dívida, o contrato e o vínculo com o cartão são gravados em duas chamadas: se o vínculo falhar, o contrato já foi salvo e o erro aparece (nada se perde; salvar de novo regrava o contrato).

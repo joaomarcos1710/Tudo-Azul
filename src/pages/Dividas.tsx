@@ -246,10 +246,12 @@ export default function Dividas() {
 
       {dividas && dividas.length > 0 && (
         <>
-          <section className="mb-8" aria-labelledby="titulo-dividas-ativas">
-            <h2 id="titulo-dividas-ativas" className="mb-3 text-lg font-semibold">Empréstimos e financiamentos</h2>
-            <ul className="flex flex-col gap-3">
-              {dividas.map((d) => {
+          {/* cobradas no cartão (migrations 148/149) saem da lista principal: são vistas e pagas pelo cartão; ficam aqui,
+              recolhidas, para contrato, histórico e para baixar uma parcela que tenha ficado para trás */}
+          {[false, true].map((noCartao) => {
+            const lista = dividas.filter((d) => (d.cartaoVinculadoId != null) === noCartao)
+            if (lista.length === 0) return null
+            const itens = lista.map((d) => {
                 // a parcela em aberto mais próxima desta dívida (a agenda já vem do banco em ordem de vencimento)
                 const proxima = parcelas.find((p) => p.dividaId === d.id)
                 const forma = d.formaPagamento === 'payroll' ? 'desconto em folha'
@@ -317,9 +319,20 @@ export default function Dividas() {
                     </Card>
                   </li>
                 )
-              })}
-            </ul>
-          </section>
+              })
+            return noCartao ? (
+              <details key="no-cartao" className="mb-8" data-testid="dividas-no-cartao">
+                <summary className="inline-flex min-h-11 cursor-pointer items-center text-lg font-semibold">Cobradas no cartão ({lista.length})</summary>
+                <p className="mb-3 text-sm text-slate-600">Vistas e pagas em Cartões: a parcela entra junto no "Pagar fatura". Continuam contando na dívida total.</p>
+                <ul className="flex flex-col gap-3">{itens}</ul>
+              </details>
+            ) : (
+              <section key="lista" className="mb-8" aria-labelledby="titulo-dividas-ativas">
+                <h2 id="titulo-dividas-ativas" className="mb-3 text-lg font-semibold">Empréstimos e financiamentos</h2>
+                <ul className="flex flex-col gap-3">{itens}</ul>
+              </section>
+            )
+          })}
           {evolucao && evolucao !== 'erro' && <EvolucaoDasDividas historico={evolucao} />}
           {evolucao === 'erro' && <p className="mb-8 text-xs text-slate-600">A evolução das dívidas não carregou agora.</p>}
           {agendaFalhou && (

@@ -14,7 +14,7 @@ const fake = vi.hoisted(() => {
 vi.mock('./supabase', () => ({ supabase: { rpc: fake.rpc, from: fake.from } }))
 vi.mock('./contas', () => ({ COLUNA_INEXISTENTE: '42703', hojeSP: () => '2026-10-30' }))
 
-import { criarCartao, lancarCreditoNoCartao, listarCobrancasVinculadas, listarCreditosDaFatura, listarItens, resumoVinculadoDosCartoes, trocarPessoaDaCompra, visaoDosCartoes } from './cartoes'
+import { criarCartao, lancarCreditoNoCartao, listarCobrancasVinculadas, listarCreditosDaFatura, listarItens, listarParcelasVinculadasAPagar, pagarFaturaComVinculadas, resumoVinculadoDosCartoes, trocarPessoaDaCompra, visaoDosCartoes } from './cartoes'
 
 beforeEach(() => {
   fake.rpc.mockReset()
@@ -242,5 +242,37 @@ describe('empréstimo cobrado no cartão (migration 148)', () => {
     expect(fake.rpc).toHaveBeenCalledWith('card_linked_summary', { p_household: 'h1', p_as_of: '2026-11-22' })
     expect(m.get('c1')).toEqual({ dividaVinculada: 1579733, dividaComVinculada: 1579733, disponivelComVinculado: -79733 })
     expect(m.get('c2')?.disponivelComVinculado).toBeNull()
+  })
+})
+
+describe('pagar fatura com a parcela do empréstimo cobrado no cartão (migration 149)', () => {
+  it('listarParcelasVinculadasAPagar: lê card_linked_due com juros e principal do banco', async () => {
+    fake.rpc.mockResolvedValue({
+      data: [{ schedule_id: 's2', linked_debt_id: 'd1', linked_name: 'Parcelamento', installment_number: 2, installment_count: 11,
+        due_date: '2026-12-28', amount: '2402.27', interest: '1334.87', principal: '1067.40', payment_account_id: 'a1', total_with_linked: '8101.17' }],
+      error: null,
+    })
+    const l = await listarParcelasVinculadasAPagar('card-1', '2026-12', '2026-12-28')
+    expect(fake.rpc).toHaveBeenCalledWith('card_linked_due', { p_debt: 'card-1', p_label: '2026-12', p_date: '2026-12-28' })
+    expect(l).toEqual([{ parcelaId: 's2', nome: 'Parcelamento', numero: 2, deParcelas: 11, valor: 240227, juros: 133487, principal: 106740,
+      contaPagamentoId: 'a1', totalComVinculado: 810117 }])
+  })
+
+  it('banco ainda sem a migration 149: nenhuma parcela (o pagamento segue pelo caminho antigo); outro erro é lançado', async () => {
+    fake.rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'função não existe' } })
+    expect(await listarParcelasVinculadasAPagar('card-1', '2026-12', '2026-12-28')).toEqual([])
+    fake.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'sem permissão' } })
+    await expect(listarParcelasVinculadasAPagar('card-1', '2026-12', '2026-12-28')).rejects.toMatchObject({ code: '42501' })
+  })
+
+  it('pagarFaturaComVinculadas: uma RPC só, com a parte da fatura em reais, a fatura, a categoria dos juros e a chave', async () => {
+    fake.rpc.mockResolvedValue({ data: 1, error: null })
+    const n = await pagarFaturaComVinculadas('card-1',
+      { contaId: 'a1', data: '2026-12-28', valor: 569890 as Cents, faturaId: 'f1', mes: '2026-12', categoriaJurosId: 'g9' }, 'chave-1')
+    expect(n).toBe(1)
+    expect(fake.rpc).toHaveBeenCalledTimes(1)
+    expect(fake.rpc).toHaveBeenCalledWith('card_pay_with_linked', {
+      p_card: 'card-1', p_date: '2026-12-28', p_account: 'a1', p_amount: '5698.90', p_invoice: 'f1', p_label: '2026-12', p_category: 'g9', p_idem: 'chave-1',
+    })
   })
 })

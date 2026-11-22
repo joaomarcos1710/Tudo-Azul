@@ -25,13 +25,13 @@ import { FolhaPorDiaFatura } from '../components/FolhaPorDiaFatura'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
 import type { PessoaFamilia } from '../lib/pessoasFamilia'
 import {
-  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, editarParcelaEProximas, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, marcarAgendadaCobrada, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, listarCobrancasVinculadas, resumoVinculadoDosCartoes, proximaFatura, reativarCartao, renomearCartao,
+  arquivarCartao, criarCartao, definirCiclo, definirContaPagamento, definirIdentidade, definirLimite, editarParcela, editarParcelaEProximas, excluirCartao, excluirCompra, listarCartoes, aPartirDaqui, marcarAgendadaCobrada, cancelarAgendada, editarAgendada, listarFaturas, listarFaturasAgendadas, listarItens, listarOcorrenciasPrevistas, listarCobrancasVinculadas, listarParcelasVinculadasAPagar, pagarFaturaComVinculadas, resumoVinculadoDosCartoes, proximaFatura, reativarCartao, renomearCartao,
   fechamentoNoCiclo, inicioDaTroca, moverPagamentoDeFatura, moverParcelaDeFatura, novaChave, opcoesDeFatura, pagarFatura, textoDiaFechamento, previaExclusao, reabrirFatura, registrarCompra, situacaoFatura,
   anularMovimentoCartao, lancarCreditoNoCartao, listarCreditosDaFatura, listarMovimentosDoCartao, trocarCategoriaDoCredito,
   estornarParcela, faturaTravada, faturaVencida, listarPagamentosDaFatura, melhorDiaDeCompra, podeAnularPagamentoTravado, totalFaturasDoMes,
   visaoDosCartoes, LIMITE_MOVIMENTOS, rotaCartao, rotaFatura, trocarPessoaDaCompra, corrigirDataDaCompra,
 } from '../lib/cartoes'
-import type { Cartao, CobrancaVinculada, CreditoFatura, DirecaoDaParcela, Fatura, FaturaAgendada, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
+import type { Cartao, CobrancaVinculada, ParcelaVinculadaAPagar, CreditoFatura, DirecaoDaParcela, Fatura, FaturaAgendada, ItemFatura, ItemPrevia, OcorrenciaPrevista, MovimentoCartao, PagamentoFatura, ProximaFatura, TotalFaturasMes, VisaoCartoes } from '../lib/cartoes'
 import { IconeCadeadoAberto, IconeCadeadoFechado, IconeCadeadoPago, IconeCadeadoVencido } from '../components/layout/icons'
 import { somarMeses } from '../lib/lancamentos'
 import { listarCategorias, nomesCompletos } from '../lib/categorias'
@@ -443,7 +443,7 @@ export default function Cartoes() {
           <FormCredito cartao={p.cartao} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar} />
         </Folha>
       )
-      case 'pagar': return <FormPagar cartao={p.cartao} contas={contas} aoSalvar={aoSalvar} aoCancelar={fechar} />
+      case 'pagar': return <FormPagar cartao={p.cartao} contas={contas} categorias={categorias} aoSalvar={aoSalvar} aoCancelar={fechar} />
       case 'arquivar':
       case 'excluir': return <PainelRemoverCartao tipo={p.tipo} cartao={p.cartao} aoConcluir={aoSalvar} aoFechar={fechar} />
     }
@@ -695,10 +695,7 @@ function PaginaCartao({ cartao: c, faturasDe, painel, setPainel, carregar, erro,
         </dl>
         {/* fora do <dl>: texto solto dentro de <dl> não é termo nem definição (axe) */}
         <p className="mt-1 text-xs text-slate-500">Inclui as compras da fatura atual, que ainda não fechou, e as parcelas dos próximos meses.</p>
-        {c.limite !== null && c.limiteComprometido !== null && c.limiteDisponivel !== null && (
-          <Limite limite={c.limite} comprometido={c.limiteComprometido} disponivel={c.limiteDisponivel} />
-        )}
-        <ParcelamentoNoCartao cartaoId={c.id} versao={versao} hoje={hoje} />
+        <LimiteEParcelamento cartao={c} versao={versao} hoje={hoje} />
 
         <FileiraFaturas cartao={c} versao={versao} foco={foco}
           pagar={{
@@ -890,11 +887,11 @@ function PainelRemoverCartao({ tipo, cartao, aoConcluir, aoFechar }: {
 
 /** Barra do limite: a proporção é só apresentação; os três valores vêm calculados do banco (card_limits). */
 /**
- * Empréstimo cobrado neste cartão (migration 148, ex.: parcelamento de fatura): saldo dele, dívida do cartão somada e limite
- * descontando. Só exibição: o empréstimo continua em Dívidas (pago lá) e fora do total da fatura do app. Números do banco
- * (card_linked_summary); sem vínculo, ou sem a função no banco, não mostra nada.
+ * Limite do cartão e, se houver, o empréstimo cobrado nele (migrations 148/149, ex.: parcelamento de fatura). Com vínculo, o
+ * limite disponível é o que desconta o saldo do parcelamento (como o banco mostra) e aparecem o saldo dele e a dívida do
+ * cartão somada. Números do banco (card_limits, card_linked_summary); sem vínculo, ou sem a função no banco, só o limite.
  */
-function ParcelamentoNoCartao({ cartaoId, versao, hoje }: { cartaoId: string; versao: number; hoje: string }) {
+function LimiteEParcelamento({ cartao, versao, hoje }: { cartao: Cartao; versao: number; hoje: string }) {
   const { familia } = useFamilia()
   const familiaId = familia?.id
   const [resumo, setResumo] = useState<{ dividaVinculada: Cents; dividaComVinculada: Cents; disponivelComVinculado: Cents | null } | null>(null)
@@ -902,30 +899,36 @@ function ParcelamentoNoCartao({ cartaoId, versao, hoje }: { cartaoId: string; ve
     if (!familiaId) return
     let vivo = true
     resumoVinculadoDosCartoes(familiaId, hoje)
-      .then((m) => { if (vivo) setResumo(m.get(cartaoId) ?? null) })
+      .then((m) => { if (vivo) setResumo(m.get(cartao.id) ?? null) })
       .catch(() => { if (vivo) setResumo(null) })
     return () => { vivo = false }
-  }, [familiaId, cartaoId, versao, hoje])
-  if (!resumo) return null
+  }, [familiaId, cartao.id, versao, hoje])
+  const comLimite = cartao.limite !== null && cartao.limiteComprometido !== null && cartao.limiteDisponivel !== null
+  const disponivelCom = resumo?.disponivelComVinculado ?? null
   return (
-    <div className="mt-3 rounded-lg border border-slate-200 p-3 text-sm" data-testid="parcelamento-no-cartao">
-      <p className="font-semibold">Parcelamento cobrado neste cartão</p>
-      <dl className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
-        <div className="flex gap-2"><dt className="text-slate-500">Saldo do parcelamento</dt><dd className="tabular-nums font-semibold">{formatBRL(resumo.dividaVinculada)}</dd></div>
-        <div className="flex gap-2"><dt className="text-slate-500">Dívida no cartão com ele</dt><dd className="tabular-nums font-semibold">{formatBRL(resumo.dividaComVinculada)}</dd></div>
-        {resumo.disponivelComVinculado !== null && (
-          <div className="flex gap-2"><dt className="text-slate-500">Limite disponível com ele</dt>
-            <dd className={`tabular-nums font-semibold ${resumo.disponivelComVinculado < 0 ? 'text-prejuizo' : ''}`}>{formatBRL(resumo.disponivelComVinculado)}</dd></div>
-        )}
-      </dl>
-      <p className="mt-1 text-xs text-slate-500">Como o banco mostra. O parcelamento está em <Link to="/dividas" className="font-semibold text-azul underline">Dívidas</Link>, onde se paga a parcela; ele não entra duas vezes na dívida total.</p>
-    </div>
+    <>
+      {comLimite && (resumo && disponivelCom !== null
+        // o comprometido é o limite menos o disponível do banco: diferença de dois valores do mesmo cartão, não soma de relatório
+        ? <Limite limite={cartao.limite!} comprometido={(cartao.limite! - disponivelCom) as Cents} disponivel={disponivelCom}
+            nota={<>Comprometido: faturas a pagar + a cobrar (atual + futuras) + saldo do parcelamento ({formatBRL(resumo.dividaVinculada)}) − crédito no cartão. É só acompanhamento: o app não bloqueia compras.</>} />
+        : <Limite limite={cartao.limite!} comprometido={cartao.limiteComprometido!} disponivel={cartao.limiteDisponivel!} />)}
+      {resumo && (
+        <div className="mt-3 rounded-lg border border-slate-200 p-3 text-sm" data-testid="parcelamento-no-cartao">
+          <p className="font-semibold">Parcelamento cobrado neste cartão</p>
+          <dl className="mt-1 flex flex-wrap gap-x-6 gap-y-1">
+            <div className="flex gap-2"><dt className="text-slate-500">Saldo do parcelamento</dt><dd className="tabular-nums font-semibold">{formatBRL(resumo.dividaVinculada)}</dd></div>
+            <div className="flex gap-2"><dt className="text-slate-500">Dívida no cartão com ele</dt><dd className="tabular-nums font-semibold">{formatBRL(resumo.dividaComVinculada)}</dd></div>
+          </dl>
+          <p className="mt-1 text-xs text-slate-500">Como o banco mostra. A parcela é paga junto com a fatura, em Pagar fatura. O contrato fica em <Link to="/dividas" className="font-semibold text-azul underline">Dívidas</Link> (Cobradas no cartão) e não entra duas vezes na dívida total.</p>
+        </div>
+      )}
+    </>
   )
 }
 
 /**
  * Parcelas de empréstimo vinculado que vencem com esta fatura (migration 148) e o total igual ao do banco. Os totais vêm do
- * banco (card_linked_invoices); a fatura do app (itens, total, pagar) não muda: a parcela é paga em Dívidas.
+ * banco (card_linked_invoices); os itens e o total da fatura do app não mudam. A parcela é paga junto, no Pagar fatura (149).
  */
 function CobrancasVinculadasDaFatura({ cartaoId, mes, versao }: { cartaoId: string; mes: string; versao: number }) {
   const [linhas, setLinhas] = useState<CobrancaVinculada[]>([])
@@ -942,7 +945,7 @@ function CobrancasVinculadasDaFatura({ cartaoId, mes, versao }: { cartaoId: stri
   return (
     <section className="mt-4 border-t border-slate-100 pt-4" aria-label="Também cobrado nesta fatura" data-testid="bloco-vinculadas">
       <h2 className="mb-1 text-sm font-semibold text-slate-600">Também cobrado nesta fatura</h2>
-      <p className="mb-1 text-xs text-slate-500">Parcela de empréstimo cobrada no cartão (ex.: parcelamento de fatura). Pague em <Link to="/dividas" className="font-semibold text-azul underline">Dívidas</Link>; não lance esta linha na fatura.</p>
+      <p className="mb-1 text-xs text-slate-500">Parcela de empréstimo cobrada no cartão (ex.: parcelamento de fatura). É paga junto com a fatura, em Pagar fatura; não lance esta linha como compra.</p>
       <ul className="divide-y divide-slate-100">
         {linhas.map((l) => (
           <li key={`${l.dividaId}-${l.numero}`} className="flex items-baseline justify-between gap-3 py-2 text-sm" data-testid="cobranca-vinculada">
@@ -959,9 +962,11 @@ function CobrancasVinculadasDaFatura({ cartaoId, mes, versao }: { cartaoId: stri
         <div className="flex justify-between gap-3"><dt className="text-slate-500">+ parcelas vinculadas</dt><dd className="tabular-nums">{formatBRL(totais.totalVinculado)}</dd></div>
         <div className="flex justify-between gap-3 font-semibold"><dt>Total cobrado pelo banco</dt><dd className="tabular-nums" data-testid="total-com-vinculadas">{formatBRL(totais.totalComVinculado)}</dd></div>
       </dl>
-      {/* o banco debita um valor só; no app são dois pagamentos (registrar o total aqui deixaria a parcela paga duas vezes) */}
+      {/* o banco debita um valor só; o Pagar fatura registra a fatura e baixa a parcela na mesma operação (migration 149) */}
       <p className="mt-2 text-xs text-slate-600" data-testid="como-pagar-vinculadas">
-        Ao registrar no app: <strong>{formatBRL(totais.totalFatura)}</strong> em Pagar fatura e <strong>{formatBRL(totais.totalVinculado)}</strong> em Dívidas. Não registre o total do banco na fatura.
+        {linhas.some((l) => !l.paga)
+          ? <>O <strong>Pagar fatura</strong> registra as duas coisas de uma vez: a fatura e a parcela, como o banco debita.</>
+          : <>A parcela desta fatura já está paga.</>}
       </p>
     </section>
   )
@@ -2194,7 +2199,7 @@ function FormCredito({ cartao, categorias, aoSalvar, aoCancelar }: PropsBase & {
 /** O que falta pagar de uma fatura: diferença de dois valores da mesma linha de card_months (permitido; não é soma de relatório). */
 const abertoDa = (f: Fatura): number => Math.max(0, f.total - f.pago)
 
-function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; contas: Conta[] }) {
+function FormPagar({ cartao, contas, categorias, aoSalvar, aoCancelar }: PropsBase & { cartao: Cartao; contas: Conta[]; categorias: Categoria[] }) {
   const ativas = contas.filter((c) => c.ativa && aceitaLancamento(c, 'cartao_divida_provento'))
   // a conta de pagamento do cartão, se existir e ainda estiver ativa; senão a primeira ativa
   const [contaId, setContaId] = useState(ativas.find((c) => c.id === cartao.contaPagamentoId)?.id ?? ativas[0]?.id ?? '')
@@ -2209,6 +2214,33 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
   const [tentou, setTentou] = useState(false)
   const [chave] = useState(novaChave)
   const { erro, enviando, enviar } = useEnvio(aoSalvar)
+  // parcelas de empréstimo cobradas nesta fatura (migration 149): o pagamento baixa junto, como o banco debita
+  const [vinculadas, setVinculadas] = useState<ParcelaVinculadaAPagar[]>([])
+  const [vinculadasEstado, setVinculadasEstado] = useState<'carregando' | 'ok' | 'falhou'>('ok')
+  const despesas = categorias.filter((g) => g.tipo === 'expense' && g.ativa)
+  const [categoriaJurosId, setCategoriaJurosId] = useState(() => {
+    const nome = (g: Categoria) => g.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
+    return (despesas.find((g) => nome(g).startsWith('juros')) ?? despesas.find((g) => nome(g).includes('financiamento')))?.id ?? ''
+  })
+  const mesFatura = fatura?.mes ?? null
+  useEffect(() => {
+    if (!mesFatura || !data) { setVinculadas([]); setVinculadasEstado('ok'); return }
+    let vivo = true
+    setVinculadasEstado('carregando')
+    listarParcelasVinculadasAPagar(cartao.id, mesFatura, data)
+      .then((l) => {
+        if (!vivo) return
+        setVinculadas(l)
+        setVinculadasEstado('ok')
+        // o contrato com débito automático só aceita a conta dele: já deixa escolhida
+        const conta = l[0]?.contaPagamentoId
+        if (conta && contas.some((c) => c.id === conta && c.ativa)) setContaId(conta)
+      })
+      .catch(() => { if (vivo) { setVinculadas([]); setVinculadasEstado('falhou') } })
+    return () => { vivo = false }
+    // contas: só para escolher a conta do contrato na chegada; não recarrega por ela
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartao.id, mesFatura, data])
 
   useEffect(() => {
     const hoje = hojeSP()
@@ -2237,14 +2269,24 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
   const fechadaSemDivida = cartao.divida <= 0 && fatura !== null && aberto > 0
   const valor = parseBRL(valorTexto)
   const erroValor = tentou && (valor === null || valor <= 0) ? 'Valor inválido.' : undefined
+  const temJuros = vinculadas.some((p) => p.juros > 0)
+  const faltaCategoriaJuros = temJuros && !categoriaJurosId
 
   function salvar(e: FormEvent) {
     e.preventDefault()
     setTentou(true)
     if (!contaId || valor === null || valor <= 0 || !data) return
     if (cartao.divida > 0 && faturaEstado !== 'ok') return
+    if (vinculadasEstado !== 'ok') return
     // só liga a uma fatura quando há dívida fechada; sem ela, é adiantamento (vira crédito no cartão)
-    void enviar(() => pagarFatura(cartao.id, { contaId, data, valor, faturaId: cartao.divida > 0 ? fatura?.faturaId ?? null : null }, chave))
+    const faturaId = cartao.divida > 0 ? fatura?.faturaId ?? null : null
+    if (vinculadas.length > 0 && fatura) {
+      if (faltaCategoriaJuros) return
+      const mes = fatura.mes
+      void enviar(async () => { await pagarFaturaComVinculadas(cartao.id, { contaId, data, valor, faturaId, mes, categoriaJurosId: temJuros ? categoriaJurosId : null }, chave) })
+      return
+    }
+    void enviar(() => pagarFatura(cartao.id, { contaId, data, valor, faturaId }, chave))
   }
 
   // comparações entre valores exatos em centavos; o banco é quem decide e recalcula o crédito
@@ -2259,7 +2301,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
       <form onSubmit={salvar} className="grid gap-4 md:grid-cols-2" noValidate>
         {erro && <div className="md:col-span-2"><Aviso tipo="erro">{erro}</Aviso></div>}
         <Selecao rotulo="Pagar com a conta" valor={contaId} aoMudar={setContaId} opcoes={ativas.map((c) => [c.id, c.nome])} todos="Escolha…" />
-        <Field rotulo="Valor (R$)" valorEmReais value={valorTexto} onChange={(e) => { editouValor.current = true; setValorTexto(e.target.value) }} erro={erroValor} />
+        <Field rotulo={vinculadas.length > 0 ? 'Valor da fatura, sem a parcela (R$)' : 'Valor (R$)'} valorEmReais value={valorTexto} onChange={(e) => { editouValor.current = true; setValorTexto(e.target.value) }} erro={erroValor} />
         <Field rotulo="Data do pagamento" type="date" value={data} max={hojeSP()} onChange={(e) => setData(e.target.value)} />
         <p className="text-sm text-slate-600 md:col-span-2">
           {cartao.divida > 0 && fatura ? <>Quita a fatura de <strong>{formatMonth(fatura.mes)}</strong>. </> : null}
@@ -2273,6 +2315,32 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
           {cartao.divida <= 0 && !fechadaSemDivida && <>Não há fatura fechada: pagar antes do fechamento <strong>vira crédito no cartão</strong> e abate as próximas faturas. </>}
           O pagamento sai da conta na data escolhida e reduz a dívida do cartão. Não é despesa: as compras contam no mês de cada fatura.
         </p>
+        {vinculadas.length > 0 && (
+          <div className="rounded-lg border border-slate-200 p-3 text-sm md:col-span-2" data-testid="pagar-com-vinculadas">
+            <p className="font-semibold">Também sai da conta, junto com a fatura</p>
+            <ul className="mt-1 space-y-1">
+              {vinculadas.map((p) => (
+                <li key={p.parcelaId} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <span>{p.nome} <span className="text-xs text-slate-500">{p.deParcelas ? `${p.numero}/${p.deParcelas}` : `parcela ${p.numero}`} · juros {formatBRL(p.juros)} · abate {formatBRL(p.principal)} do saldo</span></span>
+                  <span className="tabular-nums font-semibold">{formatBRL(p.valor)}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-slate-600">O banco cobra nesta fatura <strong>{formatBRL(vinculadas[0].totalComVinculado)}</strong> (fatura + parcela). A parcela sai pelo valor do contrato; os juros entram como despesa e o resto abate o parcelamento.</p>
+            {temJuros && (
+              <div className="mt-2 max-w-sm">
+                <Selecao rotulo="Categoria dos juros do parcelamento" valor={categoriaJurosId} aoMudar={setCategoriaJurosId} todos="Escolha…"
+                  opcoes={despesas.map((g) => [g.id, g.nome])} />
+                {tentou && faltaCategoriaJuros && <p className="mt-1 text-xs text-prejuizo" role="alert">Escolha a categoria dos juros.</p>}
+              </div>
+            )}
+          </div>
+        )}
+        {vinculadasEstado === 'falhou' && (
+          <div className="md:col-span-2">
+            <Aviso tipo="erro">Não foi possível ver se há parcela de parcelamento nesta fatura. Feche e abra de novo antes de registrar.</Aviso>
+          </div>
+        )}
         {maisQueTudo && (
           <div className="md:col-span-2">
             <Aviso tipo="info">É mais do que tudo o que este cartão tem a pagar hoje (fatura fechada e parcelas futuras). Confira o valor antes de registrar.</Aviso>
@@ -2283,7 +2351,7 @@ function FormPagar({ cartao, contas, aoSalvar, aoCancelar }: PropsBase & { carta
             <Aviso tipo="erro">Não foi possível ver qual fatura este pagamento quita. Feche e abra de novo; registrar agora o deixaria como adiantamento.</Aviso>
           </div>
         )}
-        <Botoes rotulo="Registrar pagamento" enviando={enviando || (cartao.divida > 0 && faturaEstado !== 'ok')} aoCancelar={aoCancelar} />
+        <Botoes rotulo="Registrar pagamento" enviando={enviando || (cartao.divida > 0 && faturaEstado !== 'ok') || vinculadasEstado === 'carregando'} aoCancelar={aoCancelar} />
       </form>
     </Card>
   )
