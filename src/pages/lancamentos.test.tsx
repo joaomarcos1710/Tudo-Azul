@@ -118,7 +118,7 @@ vi.mock('../lib/categorias', async (original) => ({
 import Lancamentos from './Lancamentos'
 import { limitesDoMes, somarMeses, TETO_LINHAS_LISTA } from '../lib/lancamentos'
 import { hojeSP } from '../lib/contas'
-import { periodoDoMesDe, rotuloPeriodo } from '../lib/periodoRelatorio'
+import { periodoDoCicloDe, rotuloPeriodo } from '../lib/periodoRelatorio'
 
 /** Categoria agora é um seletor em folha (como no Organizze): abre pelo botão e toca na categoria. */
 async function escolherCategoria(u: ReturnType<typeof userEvent.setup>, campo: HTMLElement, id: string) {
@@ -216,28 +216,37 @@ async function abrirNovo(u: ReturnType<typeof userEvent.setup>) {
   await u.click(screen.getByRole('menuitem', { name: /Nova despesa/ }))
 }
 
-describe('mês da pessoa em Lançamentos (dono, 21/11/2026: o dia 20 em todas as telas)', () => {
+describe('mês e ciclo em Lançamentos (dono, 22/11/2026: "mês é mês, 01 a 30/31; período é o que escolhemos")', () => {
   afterEach(() => { diaDoMes.valor = 1 })
 
-  it('com o dia 20, a tela abre no ciclo de hoje e pede ao banco o intervalo de 20 a 19', async () => {
+  it('com o dia 20 nas Preferências, a tela continua abrindo no mês de calendário', async () => {
     diaDoMes.valor = 20
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
     await screen.findByText('Supermercado')
-    const ciclo = periodoDoMesDe(hojeSP(), 20)
-    expect(ciclo.de.slice(8, 10)).toBe('20')
-    expect(ciclo.ate.slice(8, 10)).toBe('19')
-    expect(mock.listarLancamentos.mock.calls[mock.listarLancamentos.mock.calls.length - 1]?.slice(0, 3)).toEqual(['h1', ciclo.de, ciclo.ate])
-    expect(mock.serieFluxo).toHaveBeenCalledWith('h1', ciclo.de, ciclo.ate, 'total', { contas: undefined, incluirNaoPagos: false })
+    const [de, ate] = limitesDoMes(hojeSP().slice(0, 7))
+    expect(mock.listarLancamentos.mock.calls[mock.listarLancamentos.mock.calls.length - 1]?.slice(0, 3)).toEqual(['h1', de, ate])
+  })
+
+  it('"Meu ciclo" aparece no menu de período com o dia 20 e, escolhido, pede ao banco o intervalo de 20 a 19', async () => {
+    diaDoMes.valor = 20
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await u.click(screen.getByRole('button', { name: /^Período: .*Trocar período$/ }))
+    const ciclo = periodoDoCicloDe(hojeSP(), 20)
+    await u.click(screen.getByRole('button', { name: new RegExp(`^Meu ciclo`) }))
+    await waitFor(() => expect(mock.listarLancamentos.mock.calls[mock.listarLancamentos.mock.calls.length - 1]?.slice(0, 3)).toEqual(['h1', ciclo.de, ciclo.ate]))
     expect(screen.getByRole('button', { name: `Período: ${rotuloPeriodo(ciclo)}. Trocar período` })).toBeTruthy()
-    // a faixa de pendências continua valendo: o ciclo de hoje é "o mês atual" da pessoa
+    // a faixa de pendências continua valendo no ciclo de hoje
     expect(mock.faixaDePendencias).toHaveBeenCalledWith('h1', hojeSP(), ciclo.ate)
   })
 
-  it('enquanto o dia ainda não chegou, a tela não busca nada (não mostra o mês de calendário para trocar em seguida)', async () => {
-    diaDoMes.valor = null
+  it('com o dia 1 (padrão) o menu não mostra "Meu ciclo"', async () => {
+    const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    await new Promise((r) => setTimeout(r, 30))
-    expect(mock.listarLancamentos).not.toHaveBeenCalled()
+    await screen.findByText('Supermercado')
+    await u.click(screen.getByRole('button', { name: /^Período: .*Trocar período$/ }))
+    expect(screen.queryByRole('button', { name: /^Meu ciclo/ })).toBeNull()
   })
 })
 

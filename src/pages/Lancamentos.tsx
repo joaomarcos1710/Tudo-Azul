@@ -57,8 +57,6 @@ import { SeletorPeriodo } from '../components/ui/SeletorPeriodo'
 import { FiltrosLancamentos } from './FiltrosLancamentos'
 import { SeletorCategoria } from '../components/SeletorCategoria'
 import { assinaturaDaListagem, filtrosDaUrl, periodoDaUrl, urlComListagem } from '../lib/urlLancamentos'
-import { useDiaDoMes } from '../lib/useDiaDoMes'
-import { chaveDoCicloDe } from '../lib/cicloOrcamento'
 import type { Periodo as PeriodoLista } from '../lib/periodoRelatorio'
 import type { SerieFluxo } from '../lib/fluxoCaixa'
 import { listarPessoasFamilia } from '../lib/pessoasFamilia'
@@ -100,12 +98,7 @@ export default function Lancamentos() {
   // mesma lista. ?novo=despesa|receita|transferencia|cartao continua abrindo o formulário já preenchido com o tipo.
   // A assinatura só muda com período ou filtro: o objeto fica o mesmo entre renders e não refaz as consultas à toa.
   const assinatura = assinaturaDaListagem(params)
-  // o "mês" é o da pessoa (Preferências › dia em que o mês começa): com dia 20, 20/11 a 19/12, como no Orçamento
-  const dia = useDiaDoMes()
-  const diaDoMes = dia ?? 1
-  // sem endereço: o mês de hoje; com outro dia, o ciclo em que hoje cai (antes do dia 20 ainda vale o que começou no mês anterior)
-  const mesDeHoje = useCallback(() => (diaDoMes > 1 ? chaveDoCicloDe(hojeSP(), diaDoMes) : undefined), [diaDoMes])
-  const periodo = useMemo(() => periodoDaUrl(params, mesDeHoje(), diaDoMes), [assinatura, diaDoMes])
+  const periodo = useMemo(() => periodoDaUrl(params), [assinatura])
   const filtros = useMemo(() => filtrosDaUrl(params), [assinatura])
   // trocar período ou filtro troca o endereço sem criar uma entrada nova no histórico a cada toque
   const setPeriodo = useCallback((p: PeriodoLista) => {
@@ -114,12 +107,12 @@ export default function Lancamentos() {
   const setFiltros = useCallback((f: Filtros | ((atual: Filtros) => Filtros)) => {
     setParams((atual) => {
       const antes = filtrosDaUrl(atual)
-      return urlComListagem(atual, periodoDaUrl(atual, mesDeHoje(), diaDoMes), typeof f === 'function' ? f(antes) : f)
+      return urlComListagem(atual, periodoDaUrl(atual), typeof f === 'function' ? f(antes) : f)
     }, { replace: true })
-  }, [setParams, diaDoMes, mesDeHoje])
+  }, [setParams])
   useEffect(() => {
     let ativo = true
-    if (!familiaId || !mostrarSaldoDiario || dia === null) {
+    if (!familiaId || !mostrarSaldoDiario) {
       setSaldosDiarios([])
       setSaldosFalharam(false)
       return
@@ -128,7 +121,7 @@ export default function Lancamentos() {
       .then((valores) => { if (ativo) { setSaldosDiarios(valores); setSaldosFalharam(false) } })
       .catch(() => { if (ativo) { setSaldosDiarios([]); setSaldosFalharam(true) } })
     return () => { ativo = false }
-  }, [familiaId, periodo, mostrarSaldoDiario, dia])
+  }, [familiaId, periodo, mostrarSaldoDiario])
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
   const [lancamentos, setLancamentos] = useState<Lancamento[] | null>(null)
   const [movimentosDivida, setMovimentosDivida] = useState<MovimentoDivida[]>([])
@@ -244,8 +237,7 @@ export default function Lancamentos() {
   // período e filtro da lista que está na tela: diferente do endereço = a lista nova ainda está vindo (handoff, item d)
   const [assinaturaExibida, setAssinaturaExibida] = useState<string | null>(null)
   const carregar = useCallback(async () => {
-    // espera o dia do mês da pessoa: sem ele a tela buscaria o mês de calendário e trocaria de período em seguida
-    if (!familiaId || dia === null) return
+    if (!familiaId) return
     const meu = ++pedido.current
     const desta = assinatura
     try {
@@ -341,7 +333,7 @@ export default function Lancamentos() {
     } catch (err) {
       if (meu === pedido.current) setErro(mensagemErroBanco(err))
     }
-  }, [familiaId, periodo, filtros, recarga, assinatura, dia])
+  }, [familiaId, periodo, filtros, recarga, assinatura])
 
   useEffect(() => { void carregar() }, [carregar])
 
@@ -820,9 +812,9 @@ function temFiltroDeTotal(f: Filtros): boolean {
   return Boolean(f.tipo || f.categoriaId || f.situacao || f.cartaoId || f.soFixos || f.soParcelados)
 }
 
-/** O período na tela é o mês (ou ciclo) de hoje (a faixa de pendências só aparece nele). */
+/** O período na tela é o mês (ou o ciclo) de hoje: a faixa de pendências só aparece nele. */
 function ehMesAtual(p: PeriodoLista, hoje: string): boolean {
-  return p.tipo === 'mes' && p.de <= hoje && hoje <= p.ate
+  return (p.tipo === 'mes' || p.tipo === 'ciclo') && p.de <= hoje && hoje <= p.ate
 }
 
 /** Lupa da caixa de busca, no traço dos ícones do menu. */

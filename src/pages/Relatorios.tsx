@@ -28,17 +28,13 @@ export default function Relatorios() {
   useEffect(() => {
     let ativo = true
     if (!supabase || !sessao?.user.id) return
-    void supabase.from('user_preferences').select('periodo_padrao,month_start_day').eq('user_id', sessao.user.id).maybeSingle()
+    void supabase.from('user_preferences').select('periodo_padrao').eq('user_id', sessao.user.id).maybeSingle()
       .then(({ data }) => {
-        if (!ativo || !data) return
-        // "Este mês" é o mês da pessoa: com o dia 20, o ciclo de 20 a 19 (como Lançamentos e o Orçamento)
-        const d = Number(data.month_start_day ?? 1)
-        const dia = Number.isInteger(d) && d >= 1 && d <= 28 ? d : 1
-        if (!data.periodo_padrao && dia === 1) return
+        if (!ativo || !data?.periodo_padrao) return
         const hoje = hojeSP()
         const atalho = data.periodo_padrao === 'daily' ? ATALHOS[0]
           : data.periodo_padrao === 'weekly' ? ATALHOS[1] : ATALHOS[2]
-        setPeriodo(atalho.criar(hoje, dia))
+        setPeriodo(atalho.criar(hoje))
       })
     return () => { ativo = false }
   }, [sessao?.user.id])
