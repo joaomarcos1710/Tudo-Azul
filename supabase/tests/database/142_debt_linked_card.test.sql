@@ -150,6 +150,60 @@ select is((select total from public.card_months(pg_temp.fx('card')) where label 
   'card_months (total da fatura do app) não inclui a parcela vinculada');
 
 -- ---------------------------------------------------------------------------
+-- 4b. Troca de dias do cartão (migration 061): cada parcela numa fatura só (revisão da #469)
+-- A troca é montada com datas fixas (gravando os dias antigos direto, como superusuário): set_card_cycle depende de hoje.
+-- ---------------------------------------------------------------------------
+-- Cenário A: fechava 25/vencia 5; de dezembro em diante fecha 5/vence 15. Novembro (fecha 25/11) vence 05/12 e dezembro
+-- (fecha 05/12) vence 15/12: duas faturas vencendo em dezembro. Parcelas de 50,00 em 15/12 e 15/01.
+insert into fixture select 'cta', public.create_debt('Cartão Troca A', 'card', '2026-01-01', 0);
+select public.set_card_cycle(pg_temp.fx('cta'), 25, 5);
+select public.card_purchase(pg_temp.fx('cta'), '2026-11-10', 200.00, 1, pg_temp.fx('cat'), 'Nov A');
+reset role;
+update public.debts set closing_day = 5, due_day = 15, cycle_from = '2026-12-01', prev_closing_day = 25, prev_due_day = 5
+ where id = pg_temp.fx('cta');
+select pg_temp.login('00000000-0000-0000-0000-0000000142a1');
+select public.card_purchase(pg_temp.fx('cta'), '2026-12-01', 300.00, 1, pg_temp.fx('cat'), 'Dez A');
+insert into fixture select 'lta', public.create_debt('Empréstimo troca A', 'loan', '2026-10-01', 100);
+select public.debt_contract_set(pg_temp.fx('lta'), 'Banco', null, 2, 2, 50, 15, 'account_debit', pg_temp.fx('brl'), '2026-12-15');
+select is(pg_temp.vincular(pg_temp.fx('lta'), pg_temp.fx('cta')), 'ok', 'vincula ao cartão com troca de dias');
+select is(pg_temp.faturas(pg_temp.fx('cta')), array[
+  '2026-12|2026-12-15|300.00|1/2|50.00|planned|50.00|350.00',
+  '2027-01|2027-01-15|0.00|2/2|50.00|planned|50.00|50.00'],
+  'troca de dias A: a parcela de 15/12 vai só para a fatura que vence 15/12 (a de 05/12 não a recebe); janeiro pelos dias novos');
+
+-- Cenário B: fechava 5/vencia 15; de janeiro em diante fecha 25/vence 5. Dezembro vence 15/12; janeiro fecha 25/01 e vence
+-- 05/02 (nenhuma fatura vence em janeiro). Parcelas de 100,00 em 15/12, 15/01 e 15/02.
+insert into fixture select 'ctb', public.create_debt('Cartão Troca B', 'card', '2026-01-01', 0);
+select public.set_card_cycle(pg_temp.fx('ctb'), 5, 15);
+select public.card_purchase(pg_temp.fx('ctb'), '2026-11-28', 400.00, 1, pg_temp.fx('cat'), 'Dez B');
+reset role;
+update public.debts set closing_day = 25, due_day = 5, cycle_from = '2027-01-01', prev_closing_day = 5, prev_due_day = 15
+ where id = pg_temp.fx('ctb');
+select pg_temp.login('00000000-0000-0000-0000-0000000142a1');
+select public.card_purchase(pg_temp.fx('ctb'), '2027-01-10', 700.00, 1, pg_temp.fx('cat'), 'Jan B');
+insert into fixture select 'ltb', public.create_debt('Empréstimo troca B', 'loan', '2026-10-01', 300);
+select public.debt_contract_set(pg_temp.fx('ltb'), 'Banco', null, 3, 3, 100, 15, 'account_debit', pg_temp.fx('brl'), '2026-12-15');
+select is(pg_temp.vincular(pg_temp.fx('ltb'), pg_temp.fx('ctb')), 'ok', 'vincula ao cartão B com troca de dias');
+select is(pg_temp.faturas(pg_temp.fx('ctb')), array[
+  '2026-12|2026-12-15|400.00|1/3|100.00|planned|100.00|500.00',
+  '2027-01|2027-01-15|700.00|2/3|100.00|planned|100.00|800.00',
+  '2027-02|2027-02-15|0.00|3/3|100.00|planned|100.00|100.00'],
+  'troca de dias B: a parcela de 15/01 vai para a fatura que vence 05/02 (não soma de novo na de dezembro)');
+
+-- ---------------------------------------------------------------------------
+-- 4c. Empréstimo arquivado sai do cartão; excluir o cartão desfaz o vínculo
+-- ---------------------------------------------------------------------------
+reset role;
+update public.debts set active = false where id = pg_temp.fx('lta');
+select pg_temp.login('00000000-0000-0000-0000-0000000142a1');
+select is(pg_temp.faturas(pg_temp.fx('cta')), '{}'::text[], 'empréstimo arquivado não aparece na fatura');
+select is(pg_temp.resumo(pg_temp.fx('h'), pg_temp.fx('cta'), '2026-11-20'), null, 'empréstimo arquivado não aparece no resumo');
+insert into fixture select 'cdel', public.create_debt('Cartão a excluir', 'card', '2026-01-01', 0);
+select is(pg_temp.vincular(pg_temp.fx('outro'), pg_temp.fx('cdel')), 'ok', 'vincula ao cartão sem histórico');
+select lives_ok($$ select public.debt_delete(pg_temp.fx('cdel')) $$, 'excluir o cartão com empréstimo vinculado não dá erro técnico');
+select is((select linked_card_id from public.debts where id = pg_temp.fx('outro')), null::uuid, 'o vínculo é desfeito ao excluir o cartão');
+
+-- ---------------------------------------------------------------------------
 -- 5. Outra família não vê; desvincular limpa
 -- ---------------------------------------------------------------------------
 select pg_temp.login('00000000-0000-0000-0000-0000000142a2');

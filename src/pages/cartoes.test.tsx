@@ -332,6 +332,8 @@ describe('Cartões', () => {
       expect(within(bloco).getAllByTestId('cobranca-vinculada')).toHaveLength(1)
       expect(within(bloco).getByText(/2\/11 · vence 28\/04\/2099 · a pagar/)).toBeTruthy()
       expect(within(bloco).getByTestId('total-com-vinculadas').textContent).toBe('R$ 2.582,27')
+      // o banco debita um valor só; no app são dois pagamentos, cada um no seu lugar
+      expect(within(bloco).getByTestId('como-pagar-vinculadas').textContent).toMatch(/R\$ 180,00 em Pagar fatura e R\$ 2\.402,27 em Dívidas/)
       // não é item da fatura do app: fica fora das saídas
       expect(within(screen.getByTestId('bloco-saidas')).queryByText('Parcelamento fatura')).toBeNull()
     })

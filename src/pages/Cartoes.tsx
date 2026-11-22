@@ -959,6 +959,10 @@ function CobrancasVinculadasDaFatura({ cartaoId, mes, versao }: { cartaoId: stri
         <div className="flex justify-between gap-3"><dt className="text-slate-500">+ parcelas vinculadas</dt><dd className="tabular-nums">{formatBRL(totais.totalVinculado)}</dd></div>
         <div className="flex justify-between gap-3 font-semibold"><dt>Total cobrado pelo banco</dt><dd className="tabular-nums" data-testid="total-com-vinculadas">{formatBRL(totais.totalComVinculado)}</dd></div>
       </dl>
+      {/* o banco debita um valor só; no app são dois pagamentos (registrar o total aqui deixaria a parcela paga duas vezes) */}
+      <p className="mt-2 text-xs text-slate-600" data-testid="como-pagar-vinculadas">
+        Ao registrar no app: <strong>{formatBRL(totais.totalFatura)}</strong> em Pagar fatura e <strong>{formatBRL(totais.totalVinculado)}</strong> em Dívidas. Não registre o total do banco na fatura.
+      </p>
     </section>
   )
 }

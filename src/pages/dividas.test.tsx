@@ -148,6 +148,17 @@ describe('Dívidas', () => {
       await waitFor(() => expect(mock.vincularCartaoDivida).toHaveBeenCalledWith('d2', null))
     })
 
+    it('cartão vinculado que foi arquivado continua na escolha (a tela não diz "não é cobrado" sem ser verdade)', async () => {
+      mock.listarDividas.mockImplementation(porSituacao([ativas()[0], { ...ativas()[1], cartaoVinculadoId: 'card-velho' }]))
+      render(<Dividas />)
+      const u = userEvent.setup()
+      await screen.findByText('Empréstimo pessoal')
+      await acao('Empréstimo pessoal', 'Contrato e parcelas', u)
+      const escolha = within(screen.getByRole('dialog')).getByLabelText('Cobrado no cartão (opcional)') as HTMLSelectElement
+      expect(escolha.value).toBe('card-velho')
+      expect(within(escolha).getByRole('option', { name: 'Cartão arquivado' })).toBeTruthy()
+    })
+
     it('sem cartão na família, o contrato não mostra a escolha', async () => {
       render(<Dividas />)
       const u = userEvent.setup()

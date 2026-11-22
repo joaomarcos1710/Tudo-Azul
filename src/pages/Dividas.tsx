@@ -439,6 +439,9 @@ function FormContrato({ divida, contas, cartoes, aoSalvar, aoCancelar }: {
   const [conta, setConta] = useState(divida.contaPagamentoId ?? contas[0]?.id ?? '')
   const [primeiro, setPrimeiro] = useState(divida.primeiraDataVencimento ?? primeiroVencimento(diaInicial))
   const [cartao, setCartao] = useState(divida.cartaoVinculadoId ?? '')
+  // o cartão já vinculado que depois foi arquivado continua como opção (senão a tela diria "não é cobrado" sem ser verdade)
+  const opcoesCartao: [string, string][] = cartoes.map((c) => [c.id, c.nome])
+  if (divida.cartaoVinculadoId && !cartoes.some((c) => c.id === divida.cartaoVinculadoId)) opcoesCartao.push([divida.cartaoVinculadoId, 'Cartão arquivado'])
   const [erro, setErro] = useState('')
   const [enviando, setEnviando] = useState(false)
 
@@ -489,10 +492,10 @@ function FormContrato({ divida, contas, cartoes, aoSalvar, aoCancelar }: {
           <Selecao rotulo="Conta do débito automático" valor={conta} aoMudar={setConta} todos="Selecione a conta"
             opcoes={contas.map((c) => [c.id, c.nome])} />
         )}
-        {cartoes.length > 0 && (
+        {opcoesCartao.length > 0 && (
           <div className="md:col-span-2">
             <Selecao rotulo="Cobrado no cartão (opcional)" valor={cartao} aoMudar={setCartao} todos="Não é cobrado em cartão"
-              opcoes={cartoes.map((c) => [c.id, c.nome])} />
+              opcoes={opcoesCartao} />
             <p className="mt-1 text-xs text-slate-500">Ex.: parcelamento de fatura. A parcela aparece na fatura do cartão e o saldo e o limite do cartão passam a contar com ela. Continue pagando a parcela aqui, em Dívidas.</p>
           </div>
         )}
