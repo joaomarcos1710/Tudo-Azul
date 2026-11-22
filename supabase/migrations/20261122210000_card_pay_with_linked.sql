@@ -11,8 +11,8 @@
 -- O que muda:
 --   * private.debt_installment_interest: quanto de uma parcela é juro (saldo × taxa do contrato), sem deixar o principal
 --     passar do saldo; na última parcela do contrato o principal é o saldo que sobrou (a dívida fecha em zero).
---   * card_linked_due(cartão, fatura, data): as parcelas ainda não pagas dos empréstimos vinculados que caem nessa fatura,
---     com a divisão juros/principal na data. Só leitura (a tela mostra antes de pagar).
+--   * card_linked_due(cartão, fatura, data): as parcelas ainda não pagas dos empréstimos vinculados que caem nessa fatura
+--     (ou ficaram para trás de faturas anteriores), com a divisão juros/principal na data. Só leitura.
 --   * card_pay_with_linked(...): paga a fatura (debt_pay, mesma idempotência) e baixa essas parcelas
 --     (debt_schedule_record_payment). Devolve quantas parcelas baixou.
 -- Nada do que existia muda: debt_pay, debt_schedule_record_payment, card_months, debt_balances.
@@ -30,37 +30,39 @@ revoke execute on function private.debt_installment_interest(numeric, integer, n
 grant execute on function private.debt_installment_interest(numeric, integer, numeric, boolean) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- card_linked_due: uma linha por parcela 'planned' de empréstimo vinculado que card_linked_invoices põe na fatura p_label.
--- interest/principal usam o saldo devedor do empréstimo em p_date; com duas parcelas do MESMO empréstimo na mesma fatura
--- (raro), a prévia da segunda usa o mesmo saldo (o pagamento recalcula a cada parcela).
+-- card_linked_due: uma linha por parcela 'planned' de empréstimo vinculado que card_linked_invoices põe na fatura p_label
+-- OU numa fatura anterior (parcela que ficou para trás: o contrato exige baixar na ordem, então ela vai junto).
+-- Ficam de fora, e seguem sendo baixadas em Dívidas: consignado (não sai de conta) e empréstimo sem saldo devedor (a
+-- parcela inteira viraria juro em silêncio).
+-- interest/principal usam o saldo devedor do empréstimo em p_date; com duas parcelas do MESMO empréstimo (atrasada + a do
+-- mês), a prévia da segunda usa o mesmo saldo (o pagamento recalcula a cada parcela).
 -- ---------------------------------------------------------------------------
 create function public.card_linked_due(p_debt uuid, p_label text, p_date date)
 returns table (schedule_id uuid, linked_debt_id uuid, linked_name text, installment_number integer, installment_count integer,
-               due_date date, amount numeric, interest numeric, principal numeric, payment_account_id uuid,
-               total_with_linked numeric)
+               due_date date, amount numeric, interest numeric, principal numeric, payment_account_id uuid)
 language sql stable security invoker set search_path = '' as $$
   select s.id, l.id, l.name, s.installment_number, f.installment_count, s.due_date, s.amount, j.interest,
-         s.amount - j.interest, l.payment_account_id, f.total_with_linked
+         s.amount - j.interest, l.payment_account_id
     from public.card_linked_invoices(p_debt) f
     join public.debts l on l.id = f.linked_debt_id
     join public.debt_payment_schedule s
       on s.household_id = l.household_id and s.debt_id = l.id and s.installment_number = f.installment_number
-    left join public.debt_balances(l.household_id, p_date) b on b.debt_id = l.id
+    join public.debt_balances(l.household_id, p_date) b on b.debt_id = l.id and b.debt > 0
     cross join lateral (
-      select private.debt_installment_interest(coalesce(b.debt, 0), l.monthly_rate_bps, s.amount,
+      select private.debt_installment_interest(b.debt, l.monthly_rate_bps, s.amount,
                not exists (select 1 from public.debt_payment_schedule x
                            where x.household_id = l.household_id and x.debt_id = l.id and x.status = 'planned'
                              and x.installment_number > s.installment_number)) as interest
     ) j
-   where f.label = p_label and s.status = 'planned'
+   where f.label <= p_label and s.status = 'planned' and l.payment_method is distinct from 'payroll'
    order by l.name, s.installment_number
 $$;
 revoke execute on function public.card_linked_due(uuid, text, date) from public, anon;
 grant execute on function public.card_linked_due(uuid, text, date) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- card_pay_with_linked: p_amount é a parte da FATURA (0 = só as parcelas); as parcelas vinculadas da fatura p_label saem da
--- mesma conta, na mesma data, cada uma pelo valor do contrato. p_category é a categoria de despesa dos juros (exigida por
+-- card_pay_with_linked: p_amount é a parte da FATURA (0 = só as parcelas); as mesmas parcelas de card_linked_due (as da
+-- fatura p_label e as atrasadas, na ordem do contrato) saem da mesma conta, na mesma data, cada uma pelo valor do contrato. p_category é a categoria de despesa dos juros (exigida por
 -- debt_schedule_record_payment quando há juros). Repetir com a mesma p_idem não paga duas vezes: debt_pay devolve o
 -- pagamento já feito e as parcelas já baixadas não estão mais 'planned'.
 -- ---------------------------------------------------------------------------
@@ -93,11 +95,13 @@ begin
       join public.debts l on l.household_id = v.household_id and l.id = f.linked_debt_id
       join public.debt_payment_schedule s
         on s.household_id = l.household_id and s.debt_id = l.id and s.installment_number = f.installment_number
-     where f.label = p_label and s.status = 'planned'
+     where f.label <= p_label and s.status = 'planned' and l.payment_method is distinct from 'payroll'
      order by l.name, s.installment_number
   loop
     select b.debt into v_saldo from public.debt_balances(v.household_id, p_date) b where b.debt_id = r.debt_id;
-    v_juros := private.debt_installment_interest(coalesce(v_saldo, 0), r.monthly_rate_bps, r.amount, r.ultima);
+    -- sem saldo devedor (corrigido para zero ou quitado por fora): não baixa aqui; a parcela inteira viraria despesa de juros
+    continue when coalesce(v_saldo, 0) <= 0;
+    v_juros := private.debt_installment_interest(v_saldo, r.monthly_rate_bps, r.amount, r.ultima);
     perform public.debt_schedule_record_payment(r.id, p_date, p_account, r.amount - v_juros, v_juros, 0,
                                                 case when v_juros > 0 then p_category end, false);
     v_n := v_n + 1;

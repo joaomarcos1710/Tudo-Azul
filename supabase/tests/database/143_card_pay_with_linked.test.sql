@@ -25,13 +25,13 @@ begin
   return n::text;
 exception when others then return 'ERRO ' || sqlstate;
 end $f$;
--- "n/N|parcela|juros|principal|total com parcelas" de cada parcela a pagar da fatura
+-- "n/N|parcela|juros|principal" de cada parcela a pagar da fatura
 create function pg_temp.devidas(p_card uuid, p_label text, p_date date) returns text[] language plpgsql as $f$
 declare r text[];
 begin
   execute 'select coalesce(array_agg(installment_number || ''/'' || installment_count || ''|'' || amount::numeric(14,2)
-                 || ''|'' || interest::numeric(14,2) || ''|'' || principal::numeric(14,2) || ''|''
-                 || total_with_linked::numeric(14,2)), ''{}'') from public.card_linked_due($1, $2, $3)'
+                 || ''|'' || interest::numeric(14,2) || ''|'' || principal::numeric(14,2)
+                 order by linked_name, installment_number), ''{}'') from public.card_linked_due($1, $2, $3)'
     into r using p_card, p_label, p_date;
   return r;
 exception when others then return array['ERRO ' || sqlstate];
@@ -70,15 +70,15 @@ select public.debt_contract_set(pg_temp.fx('parc'), 'Banco', null, 3, 3, 402.11,
 select public.debt_link_card(pg_temp.fx('parc'), pg_temp.fx('card'));
 insert into fixture select 'fat', invoice_id from public.card_months(pg_temp.fx('card')) where label = '2026-05';
 
--- 1. prévia: juros = 1.000,00 × 10% = 100,00; principal 302,11; banco cobra 500 + 402,11
-select is(pg_temp.devidas(pg_temp.fx('card'), '2026-05', '2026-05-28'), array['1/3|402.11|100.00|302.11|902.11'],
+-- 1. prévia: juros = 1.000,00 × 10% = 100,00; principal 302,11
+select is(pg_temp.devidas(pg_temp.fx('card'), '2026-05', '2026-05-28'), array['1/3|402.11|100.00|302.11'],
   'parcela a pagar da fatura, com juros pela taxa do contrato');
 
 -- 2. validações (nada entra)
 select is(pg_temp.pagar(pg_temp.fx('parc'), '2026-05-28', pg_temp.fx('brl'), 500, null, '2026-05', pg_temp.fx('cat'), null),
   'ERRO 22023', 'só cartão');
-select is(pg_temp.pagar(pg_temp.fx('card'), '2026-05-28', pg_temp.fx('brl'), 0, null, '2031-01', pg_temp.fx('cat'), null),
-  'ERRO 22023', 'fatura sem parcela e valor zero: nada a pagar');
+select is(pg_temp.pagar(pg_temp.fx('card'), '2026-05-28', pg_temp.fx('brl'), 0, null, '2026-04', pg_temp.fx('cat'), null),
+  'ERRO 22023', 'fatura anterior a qualquer parcela e valor zero: nada a pagar');
 select is(pg_temp.pagar(pg_temp.fx('card'), '2026-05-28', pg_temp.fx('brl'), -1, null, '2026-05', pg_temp.fx('cat'), null),
   'ERRO 22023', 'valor negativo recusado');
 -- sem categoria para os juros: a parcela falha e o pagamento da fatura NÃO pode ficar pela metade
@@ -103,21 +103,50 @@ select is(pg_temp.pagar(pg_temp.fx('card'), '2026-05-28', pg_temp.fx('brl'), 500
 select is(pg_temp.saldo_conta(), 4097.89, 'e não sai dinheiro de novo');
 
 -- 5. só a parcela (valor zero): junho. Juros = 697,89 × 10% = 69,79
-select is(pg_temp.devidas(pg_temp.fx('card'), '2026-06', '2026-06-28'), array['2/3|402.11|69.79|332.32|602.11'],
+select is(pg_temp.devidas(pg_temp.fx('card'), '2026-06', '2026-06-28'), array['2/3|402.11|69.79|332.32'],
   'segunda parcela: juros sobre o saldo que sobrou');
 select is(pg_temp.pagar(pg_temp.fx('card'), '2026-06-28', pg_temp.fx('brl'), 0, null, '2026-06', pg_temp.fx('cat'), null),
   '1', 'valor zero paga só a parcela');
 select is(pg_temp.divida(pg_temp.fx('parc')), 365.57, 'saldo depois da segunda parcela');
 
 -- 6. última parcela: o principal é o saldo que sobrou (365,57) e o resto é juro (36,54), não saldo × taxa (36,56)
-select is(pg_temp.devidas(pg_temp.fx('card'), '2026-07', '2026-07-28'), array['3/3|402.11|36.54|365.57|402.11'],
+select is(pg_temp.devidas(pg_temp.fx('card'), '2026-07', '2026-07-28'), array['3/3|402.11|36.54|365.57'],
   'última parcela fecha o saldo');
 select is(pg_temp.pagar(pg_temp.fx('card'), '2026-07-28', pg_temp.fx('brl'), 0, null, '2026-07', pg_temp.fx('cat'), null),
   '1', 'última parcela paga');
 select is(pg_temp.divida(pg_temp.fx('parc')), 0.00, 'parcelamento quitado sem centavo sobrando');
 select is(pg_temp.devidas(pg_temp.fx('card'), '2026-07', '2026-07-28'), '{}'::text[], 'nada mais a pagar');
 
--- 7. outra família não paga cartão alheio
+-- 7. parcela que ficou para trás, consignado e empréstimo sem saldo
+-- "Atrasado": 300,00 sem juros, 2 × 150,00 (28/08 e 28/09). Agosto não tem fatura no app: a parcela 1 fica para trás e
+-- tem de sair junto com a de setembro, na ordem (sem isso o banco recusaria a 2ª: "baixe as parcelas na ordem").
+select public.card_purchase(pg_temp.fx('card'), '2026-09-05', 100.00, 1, pg_temp.fx('cat'), 'Setembro');
+insert into fixture select 'atras', public.create_debt('Atrasado', 'loan', '2026-08-01', 300);
+select public.debt_contract_set(pg_temp.fx('atras'), 'Banco', null, 2, 2, 150, 28, 'account_debit', pg_temp.fx('brl'), '2026-08-28');
+select public.debt_link_card(pg_temp.fx('atras'), pg_temp.fx('card'));
+-- "Consignado": desconto em folha não sai de conta; não entra no Pagar fatura
+insert into fixture select 'cons', public.create_debt('Consignado', 'loan', '2026-08-01', 200);
+select public.debt_contract_set(pg_temp.fx('cons'), 'Banco', null, 1, 1, 210, 28, 'payroll', null, '2026-09-28');
+select public.debt_link_card(pg_temp.fx('cons'), pg_temp.fx('card'));
+-- "Zerado": saldo corrigido para zero com parcela ainda prevista; a parcela inteira viraria juro
+insert into fixture select 'zero', public.create_debt('Zerado', 'loan', '2026-08-01', 100);
+select public.debt_contract_set(pg_temp.fx('zero'), 'Banco', null, 1, 1, 60, 28, 'account_debit', pg_temp.fx('brl'), '2026-09-28');
+select public.debt_set_balance(pg_temp.fx('zero'), '2026-09-01', 0);
+select public.debt_link_card(pg_temp.fx('zero'), pg_temp.fx('card'));
+
+select is(pg_temp.devidas(pg_temp.fx('card'), '2026-09', '2026-09-28'), array['1/2|150.00|0.00|150.00', '2/2|150.00|0.00|150.00'],
+  'setembro: a parcela atrasada de agosto vem junto; consignado e empréstimo sem saldo ficam de fora');
+create temp table antes_set as select pg_temp.saldo_conta() as conta;
+grant select on antes_set to public;
+select is(pg_temp.pagar(pg_temp.fx('card'), '2026-09-28', pg_temp.fx('brl'), 100, null, '2026-09', null, null),
+  '2', 'paga a fatura e baixa as duas parcelas, na ordem do contrato');
+select is((select conta from antes_set) - pg_temp.saldo_conta(), 400.00, 'saíram 100,00 da fatura + 2 × 150,00');
+select is(pg_temp.divida(pg_temp.fx('atras')), 0.00, 'empréstimo atrasado quitado');
+select is((select count(*)::int from public.debt_payment_schedule
+            where debt_id in (pg_temp.fx('cons'), pg_temp.fx('zero')) and status = 'planned'), 2,
+  'parcelas do consignado e do empréstimo sem saldo continuam previstas (baixa em Dívidas)');
+
+-- 8. outra família não paga cartão alheio
 select pg_temp.login('00000000-0000-0000-0000-0000000143a2');
 select is(pg_temp.pagar(pg_temp.fx('card'), '2026-06-28', null, 200, null, '2026-06', null, null), 'ERRO 42501',
   'outra família é recusada');

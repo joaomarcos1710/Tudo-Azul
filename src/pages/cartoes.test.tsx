@@ -337,8 +337,7 @@ describe('Cartões', () => {
       expect(within(bloco).getByText(/2\/11 · vence 28\/04\/2099 · a pagar/)).toBeTruthy()
       expect(within(bloco).getByTestId('total-com-vinculadas').textContent).toBe('R$ 2.582,27')
       // o banco debita um valor só, e o Pagar fatura registra a fatura e a parcela de uma vez (migration 149)
-      expect(within(bloco).getByTestId('como-pagar-vinculadas').textContent).toMatch(/Pagar fatura registra as duas coisas de uma vez/)
-      expect(within(bloco).queryByText(/em Dívidas/)).toBeNull()
+      expect(within(bloco).getByTestId('como-pagar-vinculadas').textContent).toMatch(/Pagar fatura registra as duas coisas de uma vez.*Se ele não mostrar a parcela, baixe-a em Dívidas/)
       // não é item da fatura do app: fica fora das saídas
       expect(within(screen.getByTestId('bloco-saidas')).queryByText('Parcelamento fatura')).toBeNull()
     })
@@ -366,14 +365,16 @@ describe('Cartões', () => {
       const u = userEvent.setup()
       mock.listarFaturas.mockResolvedValue([fatura({ mes: '2026-03', fechamento: '2026-03-17', cobrado: c(13334), total: c(13334), faturaId: 'f3' })])
       mock.listarParcelasVinculadasAPagar.mockResolvedValue([{ parcelaId: 's2', nome: 'Parcelamento fatura', numero: 2, deParcelas: 11,
-        valor: c(240227), juros: c(133487), principal: c(106740), contaPagamentoId: null, totalComVinculado: c(253561) }])
+        valor: c(240227), juros: c(133487), principal: c(106740), contaPagamentoId: null }])
       montar()
       await abrirPagar(u)
       const bloco = await screen.findByTestId('pagar-com-vinculadas')
       expect(mock.listarParcelasVinculadasAPagar).toHaveBeenCalledWith('k1', '2026-03', expect.any(String))
       expect(within(bloco).getByText('R$ 2.402,27')).toBeTruthy()
       expect(within(bloco).getByText(/2\/11 · juros R\$ 1\.334,87 · abate R\$ 1\.067,40 do saldo/)).toBeTruthy()
-      expect(within(bloco).getByText('R$ 2.535,61')).toBeTruthy() // o total do banco vem do banco
+      // o campo de valor é só a fatura; a tela não soma a parcela nem convida a digitar o total do banco
+      expect((screen.getByLabelText('Valor da fatura, sem a parcela (R$)') as HTMLInputElement).value).toBe('133,34')
+      expect(within(bloco).getByText(/Não some a parcela no valor acima/)).toBeTruthy()
       // sem categoria para os juros, não envia
       await u.selectOptions(within(bloco).getByLabelText('Categoria dos juros do parcelamento'), '')
       await u.click(screen.getByRole('button', { name: 'Registrar pagamento' }))

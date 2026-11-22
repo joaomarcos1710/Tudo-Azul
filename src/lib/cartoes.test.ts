@@ -249,13 +249,13 @@ describe('pagar fatura com a parcela do empréstimo cobrado no cartão (migratio
   it('listarParcelasVinculadasAPagar: lê card_linked_due com juros e principal do banco', async () => {
     fake.rpc.mockResolvedValue({
       data: [{ schedule_id: 's2', linked_debt_id: 'd1', linked_name: 'Parcelamento', installment_number: 2, installment_count: 11,
-        due_date: '2026-12-28', amount: '2402.27', interest: '1334.87', principal: '1067.40', payment_account_id: 'a1', total_with_linked: '8101.17' }],
+        due_date: '2026-12-28', amount: '2402.27', interest: '1334.87', principal: '1067.40', payment_account_id: 'a1' }],
       error: null,
     })
     const l = await listarParcelasVinculadasAPagar('card-1', '2026-12', '2026-12-28')
     expect(fake.rpc).toHaveBeenCalledWith('card_linked_due', { p_debt: 'card-1', p_label: '2026-12', p_date: '2026-12-28' })
     expect(l).toEqual([{ parcelaId: 's2', nome: 'Parcelamento', numero: 2, deParcelas: 11, valor: 240227, juros: 133487, principal: 106740,
-      contaPagamentoId: 'a1', totalComVinculado: 810117 }])
+      contaPagamentoId: 'a1' }])
   })
 
   it('banco ainda sem a migration 149: nenhuma parcela (o pagamento segue pelo caminho antigo); outro erro é lançado', async () => {

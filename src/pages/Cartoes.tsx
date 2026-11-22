@@ -965,7 +965,7 @@ function CobrancasVinculadasDaFatura({ cartaoId, mes, versao }: { cartaoId: stri
       {/* o banco debita um valor só; o Pagar fatura registra a fatura e baixa a parcela na mesma operação (migration 149) */}
       <p className="mt-2 text-xs text-slate-600" data-testid="como-pagar-vinculadas">
         {linhas.some((l) => !l.paga)
-          ? <>O <strong>Pagar fatura</strong> registra as duas coisas de uma vez: a fatura e a parcela, como o banco debita.</>
+          ? <>O <strong>Pagar fatura</strong> registra as duas coisas de uma vez, como o banco debita. Se ele não mostrar a parcela, baixe-a em Dívidas → Cobradas no cartão.</>
           : <>A parcela desta fatura já está paga.</>}
       </p>
     </section>
@@ -2217,6 +2217,8 @@ function FormPagar({ cartao, contas, categorias, aoSalvar, aoCancelar }: PropsBa
   // parcelas de empréstimo cobradas nesta fatura (migration 149): o pagamento baixa junto, como o banco debita
   const [vinculadas, setVinculadas] = useState<ParcelaVinculadaAPagar[]>([])
   const [vinculadasEstado, setVinculadasEstado] = useState<'carregando' | 'ok' | 'falhou'>('ok')
+  // a conta do débito automático do contrato é sugerida uma vez só; depois vale a escolha da pessoa
+  const sugeriuConta = useRef(false)
   const despesas = categorias.filter((g) => g.tipo === 'expense' && g.ativa)
   const [categoriaJurosId, setCategoriaJurosId] = useState(() => {
     const nome = (g: Categoria) => g.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR')
@@ -2234,11 +2236,11 @@ function FormPagar({ cartao, contas, categorias, aoSalvar, aoCancelar }: PropsBa
         setVinculadasEstado('ok')
         // o contrato com débito automático só aceita a conta dele: já deixa escolhida
         const conta = l[0]?.contaPagamentoId
-        if (conta && contas.some((c) => c.id === conta && c.ativa)) setContaId(conta)
+        if (conta && !sugeriuConta.current && ativas.some((c) => c.id === conta)) { sugeriuConta.current = true; setContaId(conta) }
       })
       .catch(() => { if (vivo) { setVinculadas([]); setVinculadasEstado('falhou') } })
     return () => { vivo = false }
-    // contas: só para escolher a conta do contrato na chegada; não recarrega por ela
+    // ativas: só para escolher a conta do contrato na chegada; não recarrega por ela
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartao.id, mesFatura, data])
 
@@ -2277,7 +2279,8 @@ function FormPagar({ cartao, contas, categorias, aoSalvar, aoCancelar }: PropsBa
     setTentou(true)
     if (!contaId || valor === null || valor <= 0 || !data) return
     if (cartao.divida > 0 && faturaEstado !== 'ok') return
-    if (vinculadasEstado !== 'ok') return
+    // sem saber a fatura nem as parcelas dela, o envio iria pelo caminho sem a parcela
+    if (faturaEstado === 'carregando' || vinculadasEstado !== 'ok') return
     // só liga a uma fatura quando há dívida fechada; sem ela, é adiantamento (vira crédito no cartão)
     const faturaId = cartao.divida > 0 ? fatura?.faturaId ?? null : null
     if (vinculadas.length > 0 && fatura) {
@@ -2326,7 +2329,7 @@ function FormPagar({ cartao, contas, categorias, aoSalvar, aoCancelar }: PropsBa
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-xs text-slate-600">O banco cobra nesta fatura <strong>{formatBRL(vinculadas[0].totalComVinculado)}</strong> (fatura + parcela). A parcela sai pelo valor do contrato; os juros entram como despesa e o resto abate o parcelamento.</p>
+            <p className="mt-2 text-xs text-slate-600">Não some a parcela no valor acima: ela sai sozinha, pelo valor do contrato. Os juros entram como despesa e o resto abate o parcelamento.</p>
             {temJuros && (
               <div className="mt-2 max-w-sm">
                 <Selecao rotulo="Categoria dos juros do parcelamento" valor={categoriaJurosId} aoMudar={setCategoriaJurosId} todos="Escolha…"
@@ -2351,7 +2354,7 @@ function FormPagar({ cartao, contas, categorias, aoSalvar, aoCancelar }: PropsBa
             <Aviso tipo="erro">Não foi possível ver qual fatura este pagamento quita. Feche e abra de novo; registrar agora o deixaria como adiantamento.</Aviso>
           </div>
         )}
-        <Botoes rotulo="Registrar pagamento" enviando={enviando || (cartao.divida > 0 && faturaEstado !== 'ok') || vinculadasEstado === 'carregando'} aoCancelar={aoCancelar} />
+        <Botoes rotulo="Registrar pagamento" enviando={enviando || faturaEstado === 'carregando' || (cartao.divida > 0 && faturaEstado !== 'ok') || vinculadasEstado === 'carregando'} aoCancelar={aoCancelar} />
       </form>
     </Card>
   )

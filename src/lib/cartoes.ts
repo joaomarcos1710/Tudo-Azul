@@ -493,11 +493,12 @@ export interface ParcelaVinculadaAPagar {
   principal: Cents
   /** Conta do débito automático do contrato (o banco exige que o pagamento saia dela); null se o contrato não fixa conta. */
   contaPagamentoId: string | null
-  /** Fatura do app + parcelas vinculadas: o que o banco cobra. */
-  totalComVinculado: Cents
 }
 
-/** As parcelas vinculadas que o "Pagar fatura" de `mes` baixa junto, com a divisão juros/principal na data do pagamento. */
+/**
+ * As parcelas vinculadas que o "Pagar fatura" de `mes` baixa junto (as da fatura e as que ficaram para trás), com a divisão
+ * juros/principal na data do pagamento. Consignado e empréstimo sem saldo não vêm: seguem em Dívidas.
+ */
 export async function listarParcelasVinculadasAPagar(cartaoId: string, mes: string, data: string): Promise<ParcelaVinculadaAPagar[]> {
   const { data: linhas, error } = await cliente().rpc('card_linked_due', { p_debt: cartaoId, p_label: mes, p_date: data })
   if (semFuncaoNoBanco(error)) return []
@@ -511,7 +512,6 @@ export async function listarParcelasVinculadasAPagar(cartaoId: string, mes: stri
     juros: centsFromDb(r.interest ?? 0),
     principal: centsFromDb(r.principal ?? 0),
     contaPagamentoId: (r.payment_account_id as string | null) ?? null,
-    totalComVinculado: centsFromDb(r.total_with_linked ?? 0),
   }))
 }
 
