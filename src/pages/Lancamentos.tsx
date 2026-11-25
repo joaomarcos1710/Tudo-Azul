@@ -121,7 +121,8 @@ export default function Lancamentos() {
       .then((valores) => { if (ativo) { setSaldosDiarios(valores); setSaldosFalharam(false) } })
       .catch(() => { if (ativo) { setSaldosDiarios([]); setSaldosFalharam(true) } })
     return () => { ativo = false }
-  }, [familiaId, periodo, mostrarSaldoDiario])
+    // pelas datas, não pelo objeto: o objeto do período é refeito a cada troca de filtro e refazia esta consulta à toa
+  }, [familiaId, periodo.de, periodo.ate, mostrarSaldoDiario])
   const [inicial, setInicial] = useState<InicialForm | undefined>(undefined)
   const [lancamentos, setLancamentos] = useState<Lancamento[] | null>(null)
   const [movimentosDivida, setMovimentosDivida] = useState<MovimentoDivida[]>([])
@@ -210,7 +211,7 @@ export default function Lancamentos() {
   useEffect(() => {
     if (!familiaId) return
     let ativo = true
-    void atualizarAutomaticos().then((r) => {
+    void atualizarAutomaticos({ chave: familiaId }).then((r) => {
       if (!ativo) return
       // sem este aviso, planejados e parcelas de cartão poderiam faltar na lista sem ninguém perceber
       setAvisoAutomaticos(
@@ -241,10 +242,29 @@ export default function Lancamentos() {
   // Enquanto não são os do período/filtro da tela, o rodapé mostra "carregando" em vez do número do filtro anterior.
   const [assinaturaTotais, setAssinaturaTotais] = useState<string | null>(null)
   const [periodoDosBlocos, setPeriodoDosBlocos] = useState<string | null>(null)
+  // Blocos que não dependem do filtro (totais do mês, outras moedas, pendências): enquanto só o filtro muda, a consulta já
+  // feita é reaproveitada em vez de ir ao banco de novo (25/11/2026: cada troca de filtro refazia ~6 consultas pesadas).
+  // Qualquer recarga pedida pela tela (depois de gravar, editar, excluir) ou pelas tarefas automáticas esvazia a memória.
+  const blocos = useRef(new Map<string, Promise<unknown>>())
+  const pedidoPeloFiltro = useRef(false)
+  const recargaVista = useRef(recarga)
   const carregar = useCallback(async () => {
     if (!familiaId) return
     const meu = ++pedido.current
     const desta = assinatura
+    const reaproveitar = pedidoPeloFiltro.current && recargaVista.current === recarga
+    pedidoPeloFiltro.current = false
+    recargaVista.current = recarga
+    if (!reaproveitar) blocos.current.clear()
+    // a consulta que falhou não fica lembrada: a próxima tentativa vai ao banco de novo
+    const lembrado = <T,>(chave: string, buscar: () => Promise<T>): Promise<T> => {
+      const tem = blocos.current.get(chave) as Promise<T> | undefined
+      if (tem) return tem
+      const nova = buscar()
+      blocos.current.set(chave, nova)
+      nova.catch(() => { if (blocos.current.get(chave) === nova) blocos.current.delete(chave) })
+      return nova
+    }
     try {
       // faturas do cartão carregam à parte: se falharem, a lista de conta continua e só este bloco avisa.
       // Com filtro de categoria, as compras e os créditos daquela categoria saem um a um (o total da fatura mistura categorias).
@@ -279,18 +299,18 @@ export default function Lancamentos() {
         ? listarCreditosDeCartaoNoPeriodo(familiaId, periodo.de, periodo.ate, filtros, hoje).catch(falhou('créditos do cartão', [] as CreditoDeCartao[]))
         : Promise.resolve([] as CreditoDeCartao[])
       // o bloco em outras moedas é à parte: se falhar, a lista e os totais em reais continuam
-      const porMoedaDoMes = resumoPorMoeda(familiaId, deMes, ateMes).catch(falhou('totais em outras moedas', [] as ResumoPorMoeda[]))
+      const porMoedaDoMes = lembrado(`moedas|${familiaId}|${deMes}|${ateMes}`, () => resumoPorMoeda(familiaId, deMes, ateMes)).catch(falhou('totais em outras moedas', [] as ResumoPorMoeda[]))
       // faixa de pendências: só no mês atual (decisão do dono, 17/11/2026), de hoje até o fim do mês; falha não derruba a lista
       const pendenciasDoMes = ehMesAtual(periodo, hoje)
-        ? faixaDePendencias(familiaId, hoje, periodo.ate).catch(falhou('pendências do mês', [] as Pendencia[]))
+        ? lembrado(`pendencias|${familiaId}|${hoje}|${periodo.ate}`, () => faixaDePendencias(familiaId, hoje, periodo.ate)).catch(falhou('pendências do mês', [] as Pendencia[]))
         : Promise.resolve([] as Pendencia[])
       // rodapé: o mesmo número do Relatório Entradas x Saídas (pagos / pagos e não pagos), seguindo só o filtro de conta;
       // se falhar, a lista continua e só o rodapé avisa
       const doFluxo = { contas: filtros.contaId ? [filtros.contaId] : undefined }
-      const totaisDoMes = Promise.all([
+      const totaisDoMes = lembrado(`fluxo|${familiaId}|${deMes}|${ateMes}|${filtros.contaId ?? ''}`, () => Promise.all([
         serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: false }),
         serieFluxo(familiaId, deMes, ateMes, 'total', { ...doFluxo, incluirNaoPagos: true }),
-      ]).then(([pago, comPlanejado]) => ({ realizado: totaisDe(pago), previsto: totaisDe(comPlanejado) })).catch(() => null)
+      ])).then(([pago, comPlanejado]) => ({ realizado: totaisDe(pago), previsto: totaisDe(comPlanejado) })).catch(() => null)
       const movimentos = busca ? Promise.resolve([] as MovimentoDivida[]) : listarMovimentosDeDividaNoPeriodo(familiaId, periodo.de, periodo.ate, filtros)
       // o que a busca achou (ids) e o total (somado no banco); falha no total não derruba a lista, só o rodapé avisa
       const achados = busca ? buscarNoPeriodo(familiaId, periodo.de, periodo.ate, busca, filtros) : Promise.resolve(null)
@@ -347,7 +367,7 @@ export default function Lancamentos() {
     }
   }, [familiaId, periodo, filtros, recarga, assinatura])
 
-  useEffect(() => { void carregar() }, [carregar])
+  useEffect(() => { pedidoPeloFiltro.current = true; void carregar() }, [carregar])
 
   const nomeConta = useMemo(() => new Map([...contas, ...internas].map((c) => [c.id, c.nome])), [contas, internas])
   const idsInternas = useMemo(() => new Set(internas.map((c) => c.id)), [internas])

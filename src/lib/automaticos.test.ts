@@ -4,9 +4,10 @@ const mock = vi.hoisted(() => ({ gerarOcorrencias: vi.fn(), cobrarFaturasFechada
 vi.mock('./recorrencias', () => ({ gerarOcorrencias: mock.gerarOcorrencias }))
 vi.mock('./cartoes', () => ({ cobrarFaturasFechadas: mock.cobrarFaturasFechadas, sincronizarAgendados: mock.sincronizarAgendados, converterAgendados: mock.converterAgendados }))
 
-import { atualizarAutomaticos } from './automaticos'
+import { atualizarAutomaticos, esquecerAutomaticos } from './automaticos'
 
 beforeEach(() => {
+  esquecerAutomaticos()
   mock.gerarOcorrencias.mockReset().mockResolvedValue(0)
   mock.cobrarFaturasFechadas.mockReset().mockResolvedValue(0)
   mock.sincronizarAgendados.mockReset().mockResolvedValue(0)
@@ -52,5 +53,43 @@ describe('atualizarAutomaticos', () => {
     mock.cobrarFaturasFechadas.mockResolvedValue(0)
     mock.converterAgendados.mockResolvedValue(3)
     expect((await atualizarAutomaticos()).mudou).toBe(true)
+  })
+})
+
+describe('atualizarAutomaticos com chave (não repetir a cada tela, 25/11/2026)', () => {
+  it('duas telas abrindo juntas dividem a mesma rodada', async () => {
+    const [a, b] = await Promise.all([atualizarAutomaticos({ chave: 'h1' }), atualizarAutomaticos({ chave: 'h1' })])
+    expect(a).toEqual(b)
+    expect(mock.gerarOcorrencias).toHaveBeenCalledTimes(1)
+    expect(mock.cobrarFaturasFechadas).toHaveBeenCalledTimes(1)
+  })
+
+  it('a tela seguinte reaproveita a rodada boa: nada é gravado de novo e nada "mudou"', async () => {
+    mock.gerarOcorrencias.mockResolvedValue(3)
+    expect((await atualizarAutomaticos({ chave: 'h1' })).mudou).toBe(true)
+    expect(await atualizarAutomaticos({ chave: 'h1' })).toEqual({ recorrentesOk: true, faturasOk: true, mudou: false })
+    expect(mock.gerarOcorrencias).toHaveBeenCalledTimes(1)
+    expect(mock.converterAgendados).toHaveBeenCalledTimes(1)
+  })
+
+  it('rodada com falha não é lembrada: a próxima tela tenta de novo', async () => {
+    mock.cobrarFaturasFechadas.mockRejectedValueOnce(new Error('y'))
+    expect((await atualizarAutomaticos({ chave: 'h1' })).faturasOk).toBe(false)
+    expect((await atualizarAutomaticos({ chave: 'h1' })).faturasOk).toBe(true)
+    expect(mock.cobrarFaturasFechadas).toHaveBeenCalledTimes(2)
+  })
+
+  it('forcar roda de novo; outra família não reaproveita; passado o prazo, roda de novo', async () => {
+    await atualizarAutomaticos({ chave: 'h1' })
+    await atualizarAutomaticos({ chave: 'h1', forcar: true })
+    expect(mock.gerarOcorrencias).toHaveBeenCalledTimes(2)
+    await atualizarAutomaticos({ chave: 'h2' })
+    expect(mock.gerarOcorrencias).toHaveBeenCalledTimes(3)
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(Date.now() + 11 * 60 * 1000)
+      await atualizarAutomaticos({ chave: 'h1' })
+      expect(mock.gerarOcorrencias).toHaveBeenCalledTimes(4)
+    } finally { vi.useRealTimers() }
   })
 })

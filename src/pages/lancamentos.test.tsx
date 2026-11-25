@@ -474,6 +474,26 @@ describe('Lançamentos', () => {
     expect(within(rodape).getByRole('button', { name: 'Novo lançamento' })).toBeTruthy() // o + continua
   })
 
+  it('trocar de filtro não refaz as consultas que não dependem dele; gravar algo refaz (25/11/2026)', async () => {
+    const u = userEvent.setup()
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    await screen.findByText('Supermercado')
+    await waitFor(() => expect(mock.serieFluxo).toHaveBeenCalledTimes(2)) // pagos e pagos + não pagos
+    const antes = { fluxo: 2, moedas: mock.resumoPorMoeda.mock.calls.length, pendencias: mock.faixaDePendencias.mock.calls.length, lista: mock.listarLancamentos.mock.calls.length }
+    await escolherTipo(u, 'expense')
+    await waitFor(() => expect(mock.listarLancamentos.mock.calls.length).toBeGreaterThan(antes.lista)) // a lista foi ao banco
+    await vi.waitFor(() => expect(screen.queryByTestId('lista-atualizando')).toBeNull())
+    // totais do mês, outras moedas e pendências são os mesmos com qualquer filtro de tipo: nada de consulta nova
+    expect(mock.serieFluxo).toHaveBeenCalledTimes(antes.fluxo)
+    expect(mock.resumoPorMoeda).toHaveBeenCalledTimes(antes.moedas)
+    expect(mock.faixaDePendencias).toHaveBeenCalledTimes(antes.pendencias)
+    // excluir um lançamento muda os totais: aí as consultas são refeitas
+    const item = (await screen.findByText('Supermercado')).closest('li')!
+    await u.click(within(item).getByRole('button', { name: 'Ações de Supermercado' }))
+    await u.click(within(item).getByRole('menuitem', { name: 'Excluir' }))
+    await waitFor(() => expect(mock.serieFluxo).toHaveBeenCalledTimes(antes.fluxo + 2))
+  })
+
   it('trocar de filtro esmaece a lista antiga e diz "Atualizando a lista…" até a nova chegar (handoff, item d)', async () => {
     const u = userEvent.setup()
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)

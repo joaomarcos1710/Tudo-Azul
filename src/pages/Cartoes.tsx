@@ -348,7 +348,7 @@ export default function Cartoes() {
     try {
       // gera as assinaturas de hoje e cobra o que já fechou antes de mostrar: os valores ficam em dia.
       // Se falhar, mostra o que há com um aviso (não esconde os cartões nem engole o erro).
-      const r = await atualizarAutomaticos()
+      const r = await atualizarAutomaticos({ chave: familiaId, forcar: true })
       setAviso(
         !r.faturasOk ? 'Não foi possível fechar as faturas agora; os valores podem estar defasados. Tente de novo em instantes.'
         : !r.recorrentesOk ? 'Não foi possível lançar as assinaturas de hoje agora; tente de novo em instantes.'
