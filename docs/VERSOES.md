@@ -384,4 +384,5 @@ continuam abaixo como histórico.
 | 2026.469 | **Parcelamento no cartão.** Um empréstimo pode ser marcado como "Cobrado no cartão" (ex.: parcelamento de fatura). A fatura passa a mostrar a parcela do mês e o total que o banco cobra, e o cartão mostra a dívida e o limite contando o parcelamento. A dívida total e os relatórios não mudam. |
 | 2026.471 | **Filtrar lançamentos sem travar.** A lista aparece assim que chega, sem esperar os totais do rodapé, que são mais lentos; o rodapé mostra "carregando" enquanto calcula. |
 | 2026.472 | **App mais leve, etapa 1.** As tarefas automáticas deixam de rodar a cada troca de tela, e trocar filtro em Lançamentos não refaz os totais que não mudam. Menos consultas ao banco por tela. |
+| 2026.473 | **App mais leve, etapa 2.** A conferência de acesso do banco deixou de rodar a cada linha lida e passou a rodar uma vez por consulta. As contas de saldo, fatura e fluxo ficam de 5 a 20 vezes mais rápidas, com o mesmo controle de acesso. Migration 149. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |

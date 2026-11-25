@@ -1074,3 +1074,9 @@ Pedido do dono, com prints do "Fluxo de caixa" do Organizze: página limpa com o
 
 **Regra para a etapa 1:** só se reaproveita consulta cujo resultado não depende do que mudou na tela, e qualquer gravação feita na tela esvazia a memória. Tarefa automática que falhou não fica lembrada.
 
+## Policy de RLS por família: lista de famílias, não função por linha (#473, 25/11/2026)
+
+**Decidido:** as policies conferem `household_id = any ((select private.my_households())::uuid[])`. A forma antiga, `(select private.is_member(household_id))`, parecia otimizada por causa do `select`, mas o argumento vem da linha e a função rodava para cada linha (medido em produção: 100 vezes mais lenta numa tabela de 5 mil linhas).
+
+**Por quê agora:** era a maior parte do tempo de todas as funções de saldo. Trocar as policies acelera tudo de uma vez, sem reescrever função de dinheiro nenhuma.
+
