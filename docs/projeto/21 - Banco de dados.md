@@ -649,3 +649,14 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 
 ## Saldo diário numa passada só (migration 147, PR #466, **aplicada em 22/11/2026**)
 `20261122100000_account_balances_daily_one_pass.sql`. Recria `public.account_balances_daily` sem chamar `account_balances` por dia: lê lançamentos pagos e eventos de dívida com conta uma vez até `p_to`, soma o que veio antes de `p_from` e acumula dentro do período. Mesmas regras de `account_balances` (Carteira interna fora, abertura da conta, lixeira, planejados e eventos anulados fora). Mesma assinatura, SECURITY INVOKER e grants; `00_audit` não muda. Produção (consulta equivalente, 22/11/2026): 3,6 s → 0,29 s, resultado igual. Teste: `141_account_balances_daily_one_pass.test.sql`. **Aplicada em produção em 22/11/2026** (simulação 44967277896; aplicação com o "pode" do dono). Conferida no catálogo: função nova (não chama `account_balances`), SECURITY INVOKER, `anon` sem execução; 0,47 s para 20/11–19/12 em produção.
+
+## RLS: a família conferida uma vez por consulta (migration 149, PR #473, **aguardando aplicação**)
+
+Arquivo `20261125120000_rls_member_once.sql`.
+
+- **Problema medido:** policy `using ((select private.is_member(household_id)))`. O argumento é a coluna da linha, então o PostgreSQL chama a função (uma consulta em `household_members`) para cada linha lida. Toda função de saldo lê as mesmas tabelas várias vezes; com dezenas de consultas por tela, o banco saturava.
+- `private.my_households()` (SECURITY DEFINER, `stable`, devolve `uuid[]`): as famílias de quem pergunta; vazio para quem não é de nenhuma. Na leitura de serviço da 098 (`service_role` com `app.service_read = 'on'`) devolve todas, igual a `is_member`.
+- Toda policy do schema `public` cujo `using` ou `with check` era exatamente `is_member(household_id)` passa a ser `household_id = any ((select private.my_households())::uuid[])`. O subselect não depende da linha: roda uma vez por consulta. `households_select` (coluna `id`) muda igual. A troca é por laço em `pg_policies`, com conferência de que nenhuma ficou para trás.
+- **Não muda:** quem enxerga o quê. Policies de inserção que também conferem `created_by`/`user_id` ficam no formato antigo (uma linha por vez). `private.is_member` continua existindo e sendo usado dentro das funções, onde o argumento é fixo.
+- **Regra daqui em diante:** policy nova por família usa `my_households()`; o teste 143 falha se aparecer policy no formato por linha.
+- Testes: `143_rls_member_once.test.sql` (23 asserções: a função para membro, outra família, sem família e leitura de serviço; isolamento de leitura e escrita; nenhuma policy no formato lento) e as listas de `00_audit.test.sql`.
