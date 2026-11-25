@@ -236,6 +236,11 @@ export default function Lancamentos() {
   const pedido = useRef(0)
   // período e filtro da lista que está na tela: diferente do endereço = a lista nova ainda está vindo (handoff, item d)
   const [assinaturaExibida, setAssinaturaExibida] = useState<string | null>(null)
+  // O rodapé e os blocos de apoio (totais, outras moedas, pendências) chegam DEPOIS da lista: são consultas pesadas e, se a
+  // lista esperasse por elas, cada troca de filtro ficava presa em "Atualizando a lista…" por vários segundos (25/11/2026).
+  // Enquanto não são os do período/filtro da tela, o rodapé mostra "carregando" em vez do número do filtro anterior.
+  const [assinaturaTotais, setAssinaturaTotais] = useState<string | null>(null)
+  const [periodoDosBlocos, setPeriodoDosBlocos] = useState<string | null>(null)
   const carregar = useCallback(async () => {
     if (!familiaId) return
     const meu = ++pedido.current
@@ -293,9 +298,10 @@ export default function Lancamentos() {
       // banco da busca, sem texto. Conta sozinha não conta: o rodapé normal já segue a conta.
       const comFiltro = !busca && temFiltroDeTotal(filtros)
       const totalBusca = busca || comFiltro ? totaisDaBusca(familiaId, periodo.de, periodo.ate, busca ?? null, filtros).catch(() => null) : Promise.resolve(null)
-      const [l, r, md, cc, pc, cr, pm, pd, ach, tb] = await Promise.all([
-        listarLancamentosNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), totaisDoMes, movimentos, cartao, parcelas,
-        creditos, porMoedaDoMes, pendenciasDoMes, achados, totalBusca,
+      // 1ª etapa: só o que forma a lista. totaisDoMes, porMoedaDoMes, pendenciasDoMes e totalBusca já estão rodando em
+      // paralelo (nunca rejeitam: cada um tem o seu catch) e são lidos na 2ª etapa, sem segurar a lista.
+      const [l, md, cc, pc, cr, ach] = await Promise.all([
+        listarLancamentosNoPeriodo(familiaId, periodo.de, periodo.ate, filtros), movimentos, cartao, parcelas, creditos, achados,
       ])
       if (meu !== pedido.current) return
       // banco sem a migration 138: nada é mostrado como "encontrado" e a tela avisa
@@ -306,17 +312,11 @@ export default function Lancamentos() {
       // O total vem do banco (todos os achados do período); a lista vem de consultas que o servidor corta em 1000 linhas.
       // Se o número de itens da lista não é o do total, o total soma o que a lista não mostra: os valores somem e a tela
       // avisa (achado do revisor-dinheiro na #418). Sem as faturas (falharam), o total também não vale.
-      const contados = tb ? tb.reduce((n, t) => n + t.quantidade, 0) : null
       // A lista é lida por páginas até o teto de 50 mil linhas. Sem busca, só o teto a deixa incompleta (com ou sem filtro: o
       // aviso é da lista, e o total do filtro some junto); com busca, o número de itens da lista tem de ser o do total (se a
       // busca passou do teto, o resto fica de fora).
-      const cortada = busca
-        ? !indisponivel && cc !== null && contados !== null && contados !== achadosNaLista.length + comprasAchadas.length
-        : l.length >= TETO_LINHAS_LISTA
-      setBuscaCortada(cortada)
-      // sem as faturas, o total só some quando o filtro usa o cartão (situação, fixos e parcelados são só de lançamento)
-      const usaCartao = !(filtros.situacao || filtros.soFixos || filtros.soParcelados) && filtros.tipo !== 'income' && filtros.tipo !== 'transfer'
-      setTotaisBusca(cc === null && usaCartao ? null : tb)
+      // com busca, o corte depende do total do banco, que chega na 2ª etapa (até lá o rodapé está em "carregando")
+      setBuscaCortada(busca ? false : l.length >= TETO_LINHAS_LISTA)
       setLancamentos(achadosNaLista)
       setMovimentosDivida(md)
       setParcelasContrato(pc)
@@ -324,12 +324,24 @@ export default function Lancamentos() {
       setFaturas(cc?.faturas ?? [])
       setComprasCategoria(comprasAchadas)
       setComprasFalharam(cc === null)
+      setBlocosFalharam([...falhas])
+      setAssinaturaExibida(desta)
+      setErro('')
+
+      // 2ª etapa: rodapé e blocos de apoio
+      const [r, pm, pd, tb] = await Promise.all([totaisDoMes, porMoedaDoMes, pendenciasDoMes, totalBusca])
+      if (meu !== pedido.current) return
+      const contados = tb ? tb.reduce((n, t) => n + t.quantidade, 0) : null
+      if (busca) setBuscaCortada(!indisponivel && cc !== null && contados !== null && contados !== achadosNaLista.length + comprasAchadas.length)
+      // sem as faturas, o total só some quando o filtro usa o cartão (situação, fixos e parcelados são só de lançamento)
+      const usaCartao = !(filtros.situacao || filtros.soFixos || filtros.soParcelados) && filtros.tipo !== 'income' && filtros.tipo !== 'transfer'
+      setTotaisBusca(cc === null && usaCartao ? null : tb)
       setTotais(r)
       setPorMoeda(pm)
       setPendencias(pd)
       setBlocosFalharam([...falhas])
-      setAssinaturaExibida(desta)
-      setErro('')
+      setAssinaturaTotais(desta)
+      setPeriodoDosBlocos(`${periodo.de}|${periodo.ate}`)
     } catch (err) {
       if (meu === pedido.current) setErro(mensagemErroBanco(err))
     }
@@ -432,6 +444,10 @@ export default function Lancamentos() {
     )
   }
   const atualizando = lancamentos !== null && assinaturaExibida !== assinatura && !erro
+  // rodapé ainda do período/filtro anterior: mostra "carregando", nunca o número antigo
+  const totaisAtrasados = assinaturaTotais !== assinatura && !erro
+  // outras moedas e pendências só dependem do período: os de outro mês não aparecem sob o mês da tela
+  const blocosDoPeriodo = periodoDosBlocos === `${periodo.de}|${periodo.ate}`
   const porDia: [string, Item[]][] = []
   for (const it of itensVisiveis) {
     const ultimo = porDia[porDia.length - 1]
@@ -517,7 +533,7 @@ export default function Lancamentos() {
         )}
       </div>
 
-      <ResultadoEmOutrasMoedas porMoeda={porMoeda} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
+      <ResultadoEmOutrasMoedas porMoeda={blocosDoPeriodo ? porMoeda : []} className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3" />
 
       {movimentosDivida.length > 0 && (
         <Explicacao resumo="Cartão/dívida: está aqui para o extrato bater com o banco.">
@@ -592,7 +608,7 @@ export default function Lancamentos() {
       {lancamentos === null && !erro && <p className="text-sm text-slate-600" role="status">Carregando…</p>}
       {/* trocou mês ou filtro: a lista antiga fica esmaecida até a nova chegar (antes parecia já ser a do filtro novo).
           Recarregar depois de pagar ou excluir não mostra isto: período e filtro são os mesmos. */}
-      {ehMesAtual(periodo, hoje) && <FaixaPendencias pendencias={pendencias} ate={periodo.ate} />}
+      {ehMesAtual(periodo, hoje) && <FaixaPendencias pendencias={blocosDoPeriodo ? pendencias : []} ate={periodo.ate} />}
       {atualizando && <p className="mb-2 text-sm text-slate-600" role="status" data-testid="lista-atualizando">Atualizando a lista…</p>}
 
       {(blocosFalharam.length > 0 || cartoesFalharam || saldosFalharam) && (
@@ -797,10 +813,10 @@ export default function Lancamentos() {
         </div>
       )}
 
-      <RodapeLancamentos realizado={totais === undefined ? undefined : totais?.realizado ?? null}
-        previsto={totais === undefined ? undefined : totais?.previsto ?? null}
+      <RodapeLancamentos realizado={totais === undefined || totaisAtrasados ? undefined : totais?.realizado ?? null}
+        previsto={totais === undefined || totaisAtrasados ? undefined : totais?.previsto ?? null}
         busca={filtros.busca || temFiltroDeTotal(filtros)
-          ? { texto: filtros.busca ?? null, totais: buscaIndisponivel ? null : atualizando ? undefined : totaisBusca, cortada: buscaCortada } : undefined}
+          ? { texto: filtros.busca ?? null, totais: buscaIndisponivel ? null : atualizando || totaisAtrasados ? undefined : totaisBusca, cortada: buscaCortada } : undefined}
         // sempre montado: com o painel aberto ele fica atrás do fundo escuro e recebe o foco de volta quando o painel fecha
         acao={<MenuNovo itens={ITENS_NOVO} desabilitado={contas.length === 0} aoEscolher={abrirNovo} />} />
     </>

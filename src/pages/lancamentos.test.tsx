@@ -310,10 +310,26 @@ describe('Lançamentos', () => {
     expect(screen.getByRole('heading', { level: 2, name: new RegExp(`^Ontem · ${semana}, ${dd(ontem)}`) })).toBeTruthy()
   })
 
+  it('a lista aparece sem esperar o rodapé: totais lentos não seguram a troca de filtro (25/11/2026)', async () => {
+    mock.listarLancamentos.mockResolvedValue(lancsComPlanejadoFuturo())
+    // os totais do rodapé (consulta pesada no banco) ainda não voltaram
+    let soltar: () => void = () => {}
+    const pendente = new Promise<void>((r) => { soltar = r })
+    const original = mock.serieFluxo.getMockImplementation()!
+    mock.serieFluxo.mockImplementation(async (...args: Parameters<typeof original>) => { await pendente; return original(...args) })
+    render(<MemoryRouter><Lancamentos /></MemoryRouter>)
+    // a lista já está na tela, sem o aviso de atualização, e o rodapé ainda não mostra número (nem o de um filtro anterior)
+    expect((await screen.findAllByText('−R$ 250,50')).length).toBe(1)
+    expect(screen.queryByTestId('lista-atualizando')).toBeNull()
+    soltar()
+    await waitFor(() => expect(screen.getAllByText('−R$ 250,50').length).toBe(2))
+  })
+
   it('lista por dia com sinais do design system e totais vindos do banco', async () => {
     mock.listarLancamentos.mockResolvedValue(lancsComPlanejadoFuturo())
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    expect((await screen.findAllByText('−R$ 250,50')).length).toBe(2) // item da lista e as saídas pagas do rodapé
+    // item da lista e as saídas pagas do rodapé (o rodapé chega logo depois da lista)
+    await waitFor(() => expect(screen.getAllByText('−R$ 250,50').length).toBe(2))
     expect(screen.getAllByText('+R$ 8.000,00').length).toBe(1) // só o item planejado da lista
     expect(screen.getByText('⇄ R$ 100,00')).toBeTruthy()
     expect(screen.getByText('Itaú → Nubank')).toBeTruthy()
@@ -1635,7 +1651,7 @@ describe('Subcategoria na ordem e no nome', () => {
   it('se a agenda de parcelas falhar, o resto do extrato aparece normalmente', async () => {
     mock.listarParcelasDivida.mockRejectedValue(new Error('sem a tabela'))
     render(<MemoryRouter><Lancamentos /></MemoryRouter>)
-    expect((await screen.findAllByText('−R$ 250,50')).length).toBe(2)
+    await waitFor(() => expect(screen.getAllByText('−R$ 250,50').length).toBe(2))
   })
 
 describe('painel de lançamento (como no Organizze)', () => {
