@@ -18,6 +18,12 @@
 -- inserção que também conferem created_by/user_id ficam como estão (uma linha por vez: não pesam). private.is_member
 -- continua existindo e sendo usado dentro das funções (lá o argumento é fixo e já roda uma vez só).
 
+-- alter policy pede trava exclusiva em cada tabela. Com o banco em uso, esperar sem limite enfileiraria as consultas das
+-- telas atrás da migration: se não conseguir a trava em 3 s, falha limpa (nada é alterado) e basta aplicar de novo.
+set lock_timeout = '3s';
+
+-- O ramo da leitura de serviço só espelha private.is_member: as policies são "to authenticated" e service_role não passa
+-- por RLS, então na prática só o ramo do usuário é usado por elas.
 create function private.my_households() returns uuid[]
 language sql stable security definer set search_path = '' as $$
   select case
@@ -55,11 +61,30 @@ begin
     execute v_sql;
   end loop;
 
-  if exists (select 1 from pg_catalog.pg_policies p
-              where p.schemaname = 'public' and (p.qual ~ v_padrao or p.with_check ~ v_padrao)) then
-    raise exception 'sobrou policy conferindo a família linha por linha';
-  end if;
 end $$;
 
 alter policy households_select on public.households
   using (id = any ((select private.my_households())::uuid[]));
+
+-- Conferência independente do padrão do laço (se o texto das policies do banco fosse diferente do esperado, o laço não
+-- trocaria nada e a migration passaria em silêncio): nenhuma condição de LEITURA pode chamar is_member, e as de gravação
+-- que ainda chamam são só as seis compostas, que conferem também created_by/user_id e gravam uma linha por vez.
+do $$
+declare v_sobra text;
+begin
+  select string_agg(p.tablename || '.' || p.policyname, ', ' order by p.tablename, p.policyname) into v_sobra
+    from pg_catalog.pg_policies p
+   where p.schemaname = 'public'
+     and (p.qual ~ 'is_member\('
+       or (p.with_check ~ 'is_member\(' and p.policyname not in (
+            'transactions_insert', 'reserves_insert', 'reserves_update', 'reserve_allocations_insert',
+            'daily_digest_settings_insert', 'daily_digest_settings_update')));
+  if v_sobra is not null then
+    raise exception 'policy ainda conferindo a família linha por linha: %', v_sobra;
+  end if;
+  if (select count(*) from pg_catalog.pg_policies p where p.schemaname = 'public' and p.qual ~ 'my_households') < 30 then
+    raise exception 'menos policies trocadas do que o esperado: o padrão não bateu com o banco';
+  end if;
+end $$;
+
+reset lock_timeout;

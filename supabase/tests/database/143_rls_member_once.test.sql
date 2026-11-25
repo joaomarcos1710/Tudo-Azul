@@ -32,7 +32,14 @@ begin
   return n::text;
 exception when others then return 'ERRO ' || sqlstate;
 end $f$;
-grant execute on function pg_temp.fx(text), pg_temp.login(uuid), pg_temp.minhas(), pg_temp.renomear(uuid) to public;
+-- o plano da consulta, numa linha só
+create function pg_temp.plano(p_sql text) returns text language plpgsql as $f$
+declare r record; t text := '';
+begin
+  for r in execute 'explain (costs off) ' || p_sql loop t := t || r."QUERY PLAN" || ' / '; end loop;
+  return t;
+end $f$;
+grant execute on function pg_temp.fx(text), pg_temp.login(uuid), pg_temp.minhas(), pg_temp.renomear(uuid), pg_temp.plano(text) to public;
 
 insert into auth.users (id, email, email_confirmed_at) values
   ('00000000-0000-0000-0000-0000000143b1', 'r1@teste.com', now()),
@@ -78,6 +85,10 @@ select is((select count(*)::int from public.household_members where household_id
 select throws_ok($$ insert into public.categories (household_id, name, type) values (pg_temp.fx('h1'), 'Intrusa', 'expense') $$,
   '42501', null, 'família 2 não cria categoria na família 1');
 select ok(pg_temp.renomear(pg_temp.fx('conta1')) in ('0', 'ERRO 42501'), 'família 2 não altera a conta da família 1');
+-- with check do UPDATE: não dá para empurrar uma linha própria para a família alheia
+select throws_ok($$ update public.categories set household_id = pg_temp.fx('h1') where household_id = pg_temp.fx('h2') $$,
+  '42501', null, 'família 2 não move categoria dela para a família 1');
+select ok((select count(*) from public.categories where household_id = pg_temp.fx('h2')) > 0, 'e as categorias dela continuam com ela');
 
 select pg_temp.login('00000000-0000-0000-0000-0000000143b1');
 select is((select array_agg(name order by name) from public.accounts), array['Banco Um'], 'família 1 vê só a conta dela');
@@ -91,17 +102,27 @@ select is((select count(*)::int from public.account_balances(pg_temp.fx('h2'), '
 
 -- 3. nenhuma policy conferindo a família linha por linha (o formato lento), e as tabelas grandes no formato novo
 reset role;
-select is((select count(*)::int from pg_policies
+-- regra para policy nova também: condição de leitura não chama is_member (nem composta); de gravação, só as seis conhecidas
+select is((select string_agg(tablename || '.' || policyname, ', ' order by tablename, policyname) from pg_policies
             where schemaname = 'public'
-              and (qual ~ '^\( SELECT private\.is_member\([a-z_]+\.household_id\) AS is_member\)$'
-                or with_check ~ '^\( SELECT private\.is_member\([a-z_]+\.household_id\) AS is_member\)$'
-                or qual ~ 'is_member\(households\.id\)')), 0,
-  'nenhuma policy no formato que roda uma consulta por linha');
+              and (qual ~ 'is_member\('
+                or (with_check ~ 'is_member\(' and policyname not in (
+                     'transactions_insert', 'reserves_insert', 'reserves_update', 'reserve_allocations_insert',
+                     'daily_digest_settings_insert', 'daily_digest_settings_update')))), null,
+  'nenhuma policy rodando a consulta de família por linha');
 select is((select array_agg(tablename::text order by tablename) from pg_policies
             where schemaname = 'public' and cmd = 'SELECT' and qual ~ 'my_households'
               and tablename in ('accounts','categories','debt_events','debt_installments','debts','households','transactions')),
   array['accounts','categories','debt_events','debt_installments','debts','households','transactions'],
   'as tabelas mais lidas conferem a família uma vez por consulta');
+
+-- o plano confirma: a família é resolvida uma vez (InitPlan), não por linha (SubPlan)
+select pg_temp.login('00000000-0000-0000-0000-0000000143b1');
+select ok(pg_temp.plano('select 1 from public.debt_events') ~ 'InitPlan', 'debt_events: a família é resolvida uma vez por consulta');
+select ok(pg_temp.plano('select 1 from public.debt_events') !~ 'SubPlan', 'debt_events: nada por linha');
+select ok(pg_temp.plano('select 1 from public.transactions') ~ 'InitPlan' and pg_temp.plano('select 1 from public.transactions') !~ 'SubPlan',
+  'transactions: idem');
+reset role;
 
 -- 4. leitura de serviço (098): service_role com app.service_read ligado enxerga todas as famílias; desligado, nenhuma
 select set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
