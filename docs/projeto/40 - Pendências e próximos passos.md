@@ -97,7 +97,9 @@ atualizado: 2026-11-18
 - Conferir no app real: "Repetir" no cartão numa assinatura de valor baixo; com data passada, os meses desde então entram como compras no cartão (a tela avisa).
 ## Próximos PRs sugeridos
 
-- [ ] **[dono]** Aplicar a **migration 148** (empréstimo cobrado no cartão, #469) em produção pelo workflow; depois, no contrato do "Parcelamento fatura CAIXA nov/26", escolher **Cobrado no cartão: CAIXA INFINITE**.
+- [x] Migration 148 aplicada em 22/11/2026 (execução 45052431117). O vínculo ficou **sem uso**: no mesmo dia o dono passou o parcelamento para compra parcelada no cartão e o empréstimo foi arquivado (#470 fechada sem merge).
+- [ ] **[desempenho, prioridade]** Banco saturado (25/11/2026): com a tela aberta, consultas simples levaram de 4 a 15 s e várias funções estouraram o limite de 8 s (`get_home_decision_month`, `balance_totals_projected`, `cash_flow_series`, `pending_strip`). Médias no banco: `get_home_decision_month` 6,7 s, `cash_flow_series` 3,5 s, `balance_totals_projected` 3,4 s, `home_indicators` 3,4 s; `recurrence_materialize` roda a cada tela (1,3 s). A #471 só tirou a lista de Lançamentos da fila. Falta: medir e enxugar essas funções, parar de repetir a mesma consulta na mesma tela, e avaliar com o dono um plano maior do banco.
+- [ ] **[dono]** A opção "Cobrado no cartão" (migration 148) continua no contrato de empréstimos, sem uso. Decidir se sai da tela.
 - [ ] **[limite conhecido]** Com o vínculo, a fatura do app fica menor que a do banco no valor da parcela (o bloco "Também cobrado nesta fatura" mostra o total do banco). Parcelamento nativo de fatura no cartão foi descartado em 22/11/2026 (#469, ver Decisões); reabrir só se o dono pedir.
 - [ ] Pagar a fatura e a parcela vinculada no mesmo formulário (hoje são dois: Pagar fatura no cartão e Pagar parcela em Dívidas; a fatura avisa os dois valores). Sugestão, não pedida.
 - [ ] **[dono]** Conferir no app do banco se o limite do cartão é tomado pelo **principal** do parcelamento (o que o app desconta, `debt_balances.debt`) ou pela soma das parcelas com juros.
