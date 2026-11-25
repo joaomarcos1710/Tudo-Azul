@@ -71,6 +71,7 @@ vi.mock('../lib/contas', async (o) => ({ ...(await o<typeof import('../lib/conta
 
 import { hojeSP } from '../lib/contas'
 import VisaoGeral from './VisaoGeral'
+import { esquecerAutomaticos } from '../lib/automaticos'
 
 const c = (n: number) => n as Cents
 // o que home_indicators devolveria (inventado; os números como o banco calcularia)
@@ -93,6 +94,7 @@ const montar = (secao: 'inicio' | 'analises' = 'inicio') => render(comCache(<Vis
 const recarregarPagina = () => { cleanup(); cliente = criarClienteConsultas() }
 
 beforeEach(() => {
+  esquecerAutomaticos() // a rodada lembrada de um teste não pode valer para o seguinte
   window.localStorage.clear()
   mock.carregarIndicadores.mockResolvedValue(IND)
   mock.carregarHomeDecisao.mockResolvedValue({

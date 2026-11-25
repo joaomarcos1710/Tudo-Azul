@@ -189,7 +189,7 @@ export default function Calendario() {
   useEffect(() => {
     if (!familiaId) return
     let ativo = true
-    atualizarAutomaticos().then((r) => {
+    atualizarAutomaticos({ chave: familiaId }).then((r) => {
       if (!ativo) return
       setAutomaticosFalharam(!r.faturasOk || !r.recorrentesOk)
       if (r.mudou) setRecarga((n) => n + 1)

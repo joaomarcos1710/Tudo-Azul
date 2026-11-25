@@ -352,7 +352,7 @@ export default function VisaoGeral({ secao = 'inicio' }: { secao?: SecaoResumo }
   useEffect(() => {
     if (!familiaId) return
     let ativo = true
-    atualizarAutomaticos().then((r) => {
+    atualizarAutomaticos({ chave: familiaId }).then((r) => {
       if (!ativo) return
       setCobrancaFalhou(!r.faturasOk)
       setRecorrentesFalhou(!r.recorrentesOk)
