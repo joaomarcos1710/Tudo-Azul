@@ -650,7 +650,7 @@ Arquivo `20261114200000_installment_month_summary_one_pass.sql`. Pedido do dono 
 ## Saldo diário numa passada só (migration 147, PR #466, **aplicada em 22/11/2026**)
 `20261122100000_account_balances_daily_one_pass.sql`. Recria `public.account_balances_daily` sem chamar `account_balances` por dia: lê lançamentos pagos e eventos de dívida com conta uma vez até `p_to`, soma o que veio antes de `p_from` e acumula dentro do período. Mesmas regras de `account_balances` (Carteira interna fora, abertura da conta, lixeira, planejados e eventos anulados fora). Mesma assinatura, SECURITY INVOKER e grants; `00_audit` não muda. Produção (consulta equivalente, 22/11/2026): 3,6 s → 0,29 s, resultado igual. Teste: `141_account_balances_daily_one_pass.test.sql`. **Aplicada em produção em 22/11/2026** (simulação 44967277896; aplicação com o "pode" do dono). Conferida no catálogo: função nova (não chama `account_balances`), SECURITY INVOKER, `anon` sem execução; 0,47 s para 20/11–19/12 em produção.
 
-## RLS: a família conferida uma vez por consulta (migration 149, PR #473, **aguardando aplicação**)
+## RLS: a família conferida uma vez por consulta (migration 149, PR #473, **aplicada em 25/11/2026**, execução 45669848129)
 
 Arquivo `20261125120000_rls_member_once.sql`.
 
@@ -660,3 +660,13 @@ Arquivo `20261125120000_rls_member_once.sql`.
 - **Não muda:** quem enxerga o quê. Policies de inserção que também conferem `created_by`/`user_id` ficam no formato antigo (uma linha por vez). `private.is_member` continua existindo e sendo usado dentro das funções, onde o argumento é fixo.
 - **Regra daqui em diante:** policy nova por família usa `my_households()`; o teste 143 falha se aparecer policy no formato por linha.
 - Testes: `143_rls_member_once.test.sql` (28 asserções: a função para membro, outra família, sem família e leitura de serviço; isolamento de leitura e escrita, inclusive mover linha para outra família; nenhuma condição de leitura chamando `is_member`; o plano com `InitPlan`). A migration usa `lock_timeout` de 3 s: se o banco estiver ocupado, falha sem alterar nada e basta aplicar de novo e as listas de `00_audit.test.sql`.
+
+## Funções de ciclo do cartão numa expressão só (migration 150, PR #474, **aguardando aplicação**)
+
+Arquivo `20261126100000_card_cycle_flat.sql`. `create or replace` de `private.card_cycle_closing`, `private.card_cycle_first` e `private.card_cycle_due`, com a mesma assinatura.
+
+- **Problema medido:** as três chamavam outras funções SQL (`card_cycle_closing`, `card_cycle_closing_day`, `card_cycle_due_day`), e toda função do projeto tem `set search_path = ''`. Entrar numa função com `set` troca o `search_path` e invalida o plano guardado das funções de dentro: cada chamada replanejava três ou quatro consultas. `card_cycle_due` custava 1.335 µs por chamada (a `_day`, que não chama ninguém, custa 9 µs).
+- **O que muda:** a mesma conta numa expressão só, sem chamar outra função. A regra da 061 (dias antigos antes de `cycle_from`, dia limitado ao fim do mês, vencimento no mês do fechamento ou no seguinte) é a mesma.
+- **Quem ganha:** tudo o que percorre assinaturas e faturas futuras: `dashboard_commitment_matrix`, `get_home_decision_month`, `card_pending_by_due`, `card_overview`, `card_linked_invoices`, `recurrence_materialize`.
+- **Regra daqui em diante:** função SQL chamada por linha não chama outra função SQL com `set search_path`; a conta vai inteira na própria função.
+- Testes: `144_card_cycle_flat.test.sql` (12 asserções): as três funções contra a fórmula antiga numa grade de 75 cartões (com e sem troca de dias) por dois anos de datas, valores conhecidos, e nenhuma delas chamando outra função de ciclo.
