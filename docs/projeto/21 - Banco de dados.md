@@ -661,7 +661,7 @@ Arquivo `20261125120000_rls_member_once.sql`.
 - **Regra daqui em diante:** policy nova por família usa `my_households()`; o teste 143 falha se aparecer policy no formato por linha.
 - Testes: `143_rls_member_once.test.sql` (28 asserções: a função para membro, outra família, sem família e leitura de serviço; isolamento de leitura e escrita, inclusive mover linha para outra família; nenhuma condição de leitura chamando `is_member`; o plano com `InitPlan`). A migration usa `lock_timeout` de 3 s: se o banco estiver ocupado, falha sem alterar nada e basta aplicar de novo e as listas de `00_audit.test.sql`.
 
-## Funções de ciclo do cartão numa expressão só (migration 150, PR #474, **aguardando aplicação**)
+## Funções de ciclo do cartão numa expressão só (migration 150, PR #474, **aplicada em 26/11/2026**, execução 45742958890)
 
 Arquivo `20261126100000_card_cycle_flat.sql`. `create or replace` de `private.card_cycle_closing`, `private.card_cycle_first` e `private.card_cycle_due`, com a mesma assinatura.
 
