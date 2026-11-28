@@ -20,13 +20,13 @@ const cat = (id: string, nome: string, paiId: string | null = null): Categoria =
   ({ id, nome, tipo: 'expense', paiId, sistema: false, ativa: true, eventual: false })
 const categorias = [cat('ali', 'Alimentação'), cat('caf', 'Cafeteria', 'ali'), cat('pad', 'Padaria', 'ali'), cat('ass', 'Assinaturas e serviços'), cat('net', 'Netflix', 'ass')]
 
-function Host({ comCriar = true }: { comCriar?: boolean }) {
+function Host({ comCriar = true, alinharDireita = false }: { comCriar?: boolean; alinharDireita?: boolean }) {
   const [valor, setValor] = useState('')
   const [lista, setLista] = useState(categorias)
   return (
     <>
       <SeletorCategoria rotulo="Categoria" valor={valor} aoMudar={setValor} opcoes={lista} categorias={lista} tipo="expense"
-        aoCriada={comCriar ? (c) => setLista((l) => [...l, c]) : undefined} />
+        aoCriada={comCriar ? (c) => setLista((l) => [...l, c]) : undefined} listaAlinhadaADireita={alinharDireita} />
       <output data-testid="valor">{valor}</output>
     </>
   )
@@ -246,6 +246,42 @@ describe('SeletorCategoria no computador: a lista abre embaixo do campo, sem pop
     expect(lista().getAttribute('data-direcao')).toBe('cima')
     expect(lista().style.bottom).toBe('104px') // 800 − 700 + 4
     expect(lista().style.maxHeight).toBe('320px')
+    vi.restoreAllMocks()
+  })
+
+  it('campo estreito (só o botão "Escolher ›" da linha do lançamento): a lista tem largura mínima, não nasce com ~70 px (27/11/2026)', async () => {
+    const u = userEvent.setup()
+    window.innerWidth = 1661
+    window.innerHeight = 900
+    const campo = (left: number, width: number) => vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ top: 400, bottom: 440, left, right: left + width, width, height: 40, x: left, y: 400, toJSON: () => ({}) })
+    // botão de 72 px encostado à direita do modal: com a opção, a lista termina na borda direita do campo
+    let medir = campo(873, 72)
+    let { unmount } = render(<Host alinharDireita />)
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(lista().style.width).toBe('320px')
+    expect(lista().style.left).toBe('625px') // 873 + 72 − 320
+    unmount(); medir.mockRestore()
+    // sem a opção (campo à esquerda do formulário): começa na borda esquerda do campo, também com a largura mínima
+    medir = campo(873, 72)
+    ;({ unmount } = render(<Host />))
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(lista().style.width).toBe('320px')
+    expect(lista().style.left).toBe('873px')
+    unmount(); medir.mockRestore()
+    // campo largo (formulários do cartão): a largura dele vale, como sempre
+    medir = campo(100, 450)
+    ;({ unmount } = render(<Host />))
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(lista().style.width).toBe('450px')
+    expect(lista().style.left).toBe('100px')
+    unmount(); medir.mockRestore()
+    // perto da borda da tela: nunca passa dela
+    medir = campo(1560, 72)
+    ;({ unmount } = render(<Host />))
+    await u.click(screen.getByLabelText('Categoria'))
+    expect(lista().style.left).toBe('1333px') // 1661 − 8 − 320
+    unmount(); medir.mockRestore()
     vi.restoreAllMocks()
   })
 

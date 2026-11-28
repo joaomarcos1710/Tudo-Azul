@@ -1431,6 +1431,7 @@ function FormLancamento({ lancamento: l, inicial, contas, categorias, cartoes, f
               {/* folha com busca, lista ou grade e "Criar categoria" (pedido do dono, 10/11/2026, como no Organizze) */}
               <SeletorCategoria id="lanc-categoria" rotulo="Categoria" rotuloVisivel={false} valor={categoriaId} aoMudar={setCategoriaId}
                 opcoes={categoriasDoTipo} categorias={categorias} tipo={tipo === 'income' ? 'income' : 'expense'} aoCriada={aoCategoriaCriada}
+                listaAlinhadaADireita
                 classeBotao="flex min-h-11 min-w-0 max-w-full items-center justify-end gap-2 rounded-md px-1 text-right text-base text-slate-700 focus:outline focus:outline-2 focus:outline-azul" />{seta}
             </Linha>
           )}

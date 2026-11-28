@@ -387,4 +387,5 @@ continuam abaixo como histórico.
 | 2026.473 | **App mais leve, etapa 2.** A conferência de acesso do banco deixou de rodar a cada linha lida e passou a rodar uma vez por consulta. As contas de saldo, fatura e fluxo ficam de 5 a 20 vezes mais rápidas, com o mesmo controle de acesso. Migration 149. |
 | 2026.474 | **Início mais rápido.** A conta do vencimento das faturas, usada centenas de vezes pela tela Início, pelo orçamento e pelo fluxo, ficou cerca de 40 vezes mais rápida, com o mesmo resultado. Migration 150. |
 | 2026.475 | **Só o diário do projeto**: registro da migration 150 aplicada e dos tempos medidos. Nenhuma mudança no app. |
+| 2026.476 | **Categoria no computador sem faixa cortada.** Ao escolher a categoria no "Novo lançamento" pelo computador, a lista abre larga e legível, com os nomes, em vez de uma faixa estreita presa na lateral. |
 | — (#199) | **Dependência do CI:** `actions/setup-node` da 4 para a 7 (só os workflows; mergeado em 10/11/2026 sem versão própria). |
