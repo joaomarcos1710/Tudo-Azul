@@ -39,20 +39,29 @@ const ALTURA_LISTA_PX = 320
 const FOLGA_PX = 8
 /** Abre para baixo (o natural, como no Mobills) sempre que couber pelo menos isto; só abaixo disso, e com mais espaço em cima, sobe. */
 const ESPACO_PARA_BAIXO_PX = 220
+/**
+ * Largura mínima da lista. O campo pode ser só o botão "Escolher ›" encostado à direita da linha (formulário de lançamento): sem
+ * mínimo a lista nascia com a largura dele, uns 70 px, só com ícones e o nome cortado (dono, 27/11/2026, print no computador).
+ */
+const LARGURA_MIN_PX = 320
 /** Onde a lista fica, em coordenadas da TELA (position: fixed): o formulário em volta rola e cortaria uma lista presa dentro dele. */
 type PosicaoLista = { esquerda: number; largura: number; paraCima: boolean; topo: number; baixo: number; alturaMax: number }
-function posicaoDaLista(campo: DOMRect): PosicaoLista {
+function posicaoDaLista(campo: DOMRect, alinharDireita: boolean): PosicaoLista {
   const abaixo = window.innerHeight - campo.bottom - FOLGA_PX
   const acima = campo.top - FOLGA_PX
   const paraCima = abaixo < ESPACO_PARA_BAIXO_PX && acima > abaixo
+  // nunca mais larga que a tela; começa na borda esquerda do campo (ou termina na direita, se o campo está encostado à direita)
+  // e nunca sai da tela
+  const largura = Math.min(Math.max(campo.width, LARGURA_MIN_PX), window.innerWidth - 2 * FOLGA_PX)
+  const preferida = alinharDireita ? campo.right - largura : campo.left
   return {
-    esquerda: campo.left, largura: campo.width, paraCima,
+    esquerda: Math.max(FOLGA_PX, Math.min(preferida, window.innerWidth - FOLGA_PX - largura)), largura, paraCima,
     topo: campo.bottom + 4, baixo: window.innerHeight - campo.top + 4,
     alturaMax: Math.max(120, Math.min(ALTURA_LISTA_PX, paraCima ? acima : abaixo)),
   }
 }
 
-export function SeletorCategoria({ id, rotulo, rotuloVisivel = true, valor, aoMudar, opcoes, categorias, tipo, aoCriada, classeBotao }: {
+export function SeletorCategoria({ id, rotulo, rotuloVisivel = true, valor, aoMudar, opcoes, categorias, tipo, aoCriada, classeBotao, listaAlinhadaADireita = false }: {
   id?: string
   rotulo: string
   /** false quando quem usa já tem um <label htmlFor={id}> (a linha do formulário de lançamento). */
@@ -65,6 +74,8 @@ export function SeletorCategoria({ id, rotulo, rotuloVisivel = true, valor, aoMu
   /** Com ela, aparece "Criar categoria"; quem usa acrescenta a nova à sua lista. */
   aoCriada?: (c: Categoria) => void
   classeBotao?: string
+  /** Campo encostado à direita da linha (só o botão, sem caixa): a lista termina na borda direita dele em vez de começar na esquerda. */
+  listaAlinhadaADireita?: boolean
 }) {
   const idProprio = useId()
   const idBotao = id ?? idProprio
@@ -78,7 +89,7 @@ export function SeletorCategoria({ id, rotulo, rotuloVisivel = true, valor, aoMu
   const escolhida = valor ? porId.get(valor) : undefined
 
   function abrir() {
-    if (computador && botao.current) setPosicao(posicaoDaLista(botao.current.getBoundingClientRect()))
+    if (computador && botao.current) setPosicao(posicaoDaLista(botao.current.getBoundingClientRect(), listaAlinhadaADireita))
     setAberta(true)
   }
   function fechar(devolverFoco: boolean) {
